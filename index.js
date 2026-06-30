@@ -126,7 +126,7 @@ app.post('/api/register-iiko', async (req, res) => {
 const API_TOKEN = process.env.API_TOKEN || 'secret-token';
 const webhookMiddleware = (req, res, next) => {
   const token = req.headers['authorization'];
-  if (token && token !== \`Bearer \${API_TOKEN}\`) {
+  if (token && token !== `Bearer ${API_TOKEN}`) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   next();
@@ -174,4 +174,4 @@ app.post('/api/loyalty/apply', webhookMiddleware, async (req, res) => {
 app.get('/health', (req, res) => res.send('iiko Bonus API is running'));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(\`Server is running on port \${PORT}\`));
+app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
