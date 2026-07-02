@@ -1,0 +1,41 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v10.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v10.0": {
+      "Reflect/1.0.0": {
+        "dependencies": {
+          "Resto.Front.Api.V9": "9.5.6059"
+        },
+        "runtime": {
+          "Reflect.dll": {}
+        }
+      },
+      "Resto.Front.Api.V9/9.5.6059": {
+        "runtime": {
+          "lib/netstandard2.0/Resto.Front.Api.V9.dll": {
+            "assemblyVersion": "9.5.6059.0",
+            "fileVersion": "9.5.6059.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "Reflect/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Resto.Front.Api.V9/9.5.6059": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-DC8brkHdGsP369GNhFRe+S4lu1LeXBmRtGI5aietwco6OKjf7K2Xm5u+YaNVaZD9emjJ6tEdz7vUeFSrTAzcCg==",
+      "path": "resto.front.api.v9/9.5.6059",
+      "hashPath": "resto.front.api.v9.9.5.6059.nupkg.sha512"
+    }
+  }
+}

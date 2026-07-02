@@ -1,0 +1,23 @@
+{
+  "version": 2,
+  "dgSpecHash": "kMR2NXG0rP4=",
+  "success": true,
+  "projectFilePath": "C:\\Users\\Asus Rog\\Desktop\\bulkaiiko-бонус система\\scratch\\Reflect\\Reflect.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\Asus Rog\\.nuget\\packages\\resto.front.api.v9\\9.5.6059\\resto.front.api.v9.9.5.6059.nupkg.sha512"
+  ],
+  "logs": [
+    {
+      "code": "NU1603",
+      "level": "Warning",
+      "message": "Reflect зависит от Resto.Front.Api.V9 (>= 9.4.6015), но версия Resto.Front.Api.V9 9.4.6015 не найдена. Использовалась версия Resto.Front.Api.V9 9.5.6059.",
+      "projectPath": "C:\\Users\\Asus Rog\\Desktop\\bulkaiiko-бонус система\\scratch\\Reflect\\Reflect.csproj",
+      "warningLevel": 1,
+      "filePath": "C:\\Users\\Asus Rog\\Desktop\\bulkaiiko-бонус система\\scratch\\Reflect\\Reflect.csproj",
+      "libraryId": "Resto.Front.Api.V9",
+      "targetGraphs": [
+        "net10.0"
+      ]
+    }
+  ]
+}

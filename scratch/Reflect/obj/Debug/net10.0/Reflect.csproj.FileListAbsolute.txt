@@ -1,0 +1,16 @@
+C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\scratch\Reflect\obj\Debug\net10.0\Reflect.csproj.AssemblyReference.cache
+C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\scratch\Reflect\obj\Debug\net10.0\Reflect.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\scratch\Reflect\obj\Debug\net10.0\Reflect.AssemblyInfoInputs.cache
+C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\scratch\Reflect\obj\Debug\net10.0\Reflect.AssemblyInfo.cs
+C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\scratch\Reflect\obj\Debug\net10.0\Reflect.csproj.CoreCompileInputs.cache
+C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\scratch\Reflect\obj\Debug\net10.0\Reflect.sourcelink.json
+C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\scratch\Reflect\bin\Debug\net10.0\Reflect.exe
+C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\scratch\Reflect\bin\Debug\net10.0\Reflect.deps.json
+C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\scratch\Reflect\bin\Debug\net10.0\Reflect.runtimeconfig.json
+C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\scratch\Reflect\bin\Debug\net10.0\Reflect.dll
+C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\scratch\Reflect\bin\Debug\net10.0\Reflect.pdb
+C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\scratch\Reflect\obj\Debug\net10.0\Reflect.dll
+C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\scratch\Reflect\obj\Debug\net10.0\refint\Reflect.dll
+C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\scratch\Reflect\obj\Debug\net10.0\Reflect.pdb
+C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\scratch\Reflect\obj\Debug\net10.0\Reflect.genruntimeconfig.cache
+C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\scratch\Reflect\obj\Debug\net10.0\ref\Reflect.dll

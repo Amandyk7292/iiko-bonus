@@ -109,8 +109,75 @@ async function logTransaction(transactionData) {
   }
 }
 
+// ==========================================
+// ФУНКЦИИ ДЛЯ CRM И АДМИН-ПАНЕЛИ
+// ==========================================
+
+async function getAllCustomers() {
+  const { data, error } = await supabase
+    .from('customers')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+async function getTransactions() {
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('*, customers(phone, name)')
+    .order('timestamp', { ascending: false })
+    .limit(100);
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+async function getStats() {
+  const { data: customers } = await supabase.from('customers').select('balance, total_spent');
+  let totalIssued = 0;
+  let totalSpent = 0;
+  if (customers) {
+    customers.forEach(c => {
+      totalSpent += Number(c.total_spent || 0);
+      totalIssued += Number(c.balance || 0); // это текущий баланс, а не всего выдано. Упрощенная статистика.
+    });
+  }
+
+  const { data: txs } = await supabase.from('transactions').select('type, amount');
+  let totalBurned = 0;
+  let totalEarned = 0;
+  if (txs) {
+    txs.forEach(t => {
+      if (t.type === 'withdrawal') totalBurned += Number(t.amount);
+      if (t.type === 'deposit' || t.type === 'manual') totalEarned += Number(t.amount);
+    });
+  }
+
+  return {
+    totalCustomers: customers ? customers.length : 0,
+    totalSales: totalSpent,
+    totalEarned,
+    totalBurned,
+    currentLiabilities: totalIssued
+  };
+}
+
+async function addManualBonus(customerId, amount, reason) {
+  await updateCustomerBalance(customerId, amount);
+  await logTransaction({ 
+    customerId, 
+    orderId: 'MANUAL', 
+    type: amount >= 0 ? 'manual_deposit' : 'manual_withdrawal', 
+    amount: Math.abs(amount) 
+  });
+}
+
 module.exports = {
   getOrCreateCustomerByPhone,
   updateCustomerBalance,
-  logTransaction
+  logTransaction,
+  getAllCustomers,
+  getTransactions,
+  getStats,
+  addManualBonus
 };

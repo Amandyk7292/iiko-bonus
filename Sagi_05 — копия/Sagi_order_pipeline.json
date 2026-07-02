@@ -1,0 +1,207 @@
+{
+  "version": 1,
+  "pending": [],
+  "completed": [
+    {
+      "id": "0f8f6eef-279c-4ef9-ac2c-8fe56c3899fe",
+      "iikoOrderId": "3ed6c588-869b-438f-ac59-c25af1105575",
+      "orderNumber": 77,
+      "sagiOrderId": 2072579881291485184,
+      "step": "completed",
+      "createdAtUtc": "2026-07-02T07:15:25.598726Z",
+      "updatedAtUtc": "2026-07-02T07:15:25.8450571Z",
+      "attempts": 0,
+      "nextAttemptAtUtc": "2026-07-02T07:15:25.598726Z",
+      "completePayload": {
+        "Result": {
+          "city_id": 1508396777856831488,
+          "comment": "Списание бонусов SAGI, заказ #77, сотрудник iiko: Сұлтамұрат Р. (f2a5b791-07c5-4a42-b867-ec63207188d4)",
+          "created_at": 1782976525029,
+          "delay_config": {
+            "activated_at": 1783062925029,
+            "status": "PENDING"
+          },
+          "epay_id": 1782976525029,
+          "id": 2072579881291485184,
+          "initial_order_total_amount": 0.0,
+          "order_cashback_amount": 397.2,
+          "order_commission_amount": 0.0,
+          "order_number": 74133,
+          "order_receiver_amount": 4878.8,
+          "order_total_amount": 5276.0,
+          "paid_at": 0,
+          "paid_from_balance": 0.0,
+          "paid_from_card": 0.0,
+          "paid_from_cash": 0.0,
+          "paid_from_certificate": 0.0,
+          "paid_from_private_balance": 0.0,
+          "private_order": false,
+          "recipient": {
+            "branch_address": "Актау, БЦ Nomad, 16 мкр- 6 здание",
+            "branch_category": 1508396922182832128,
+            "branch_id": 1674339326105751552,
+            "branch_name": "Merhaba",
+            "group_id": 1674339326105751552,
+            "icon": "https://zumdex.ams3.cdn.digitaloceanspaces.com/public/images/branches/74/ab/2e/25/43/3a/11/ee/9e/d5/2e/a1/e4/fe/66/9e/original",
+            "organization_id": 5363212,
+            "type": "BRANCH"
+          },
+          "rule": {
+            "cashback_percentage": 10.0,
+            "commission_percentage": 0.0,
+            "id": 1674339389267775488
+          },
+          "sender": {
+            "current_private_balance": 2609,
+            "first_name": "",
+            "ID": 1945434484895649792,
+            "last_name": "",
+            "phone": "+77025271379",
+            "phone_mask": "+7702•••••79"
+          },
+          "status": "PENDING",
+          "type": "CASH",
+          "updated_at": 0
+        },
+        "PaymentTypes": "mixed",
+        "Sum": 1304.0,
+        "TransactionId": "00000000-0000-0000-0000-000000000000",
+        "UseBalance": true
+      }
+    },
+    {
+      "id": "4fbec3cc-f049-49fa-bfec-378b9e6c7db3",
+      "iikoOrderId": "4e8f7c83-9ae7-46ef-87e7-018f01943413",
+      "orderNumber": 11,
+      "sagiOrderId": 2072553550650544128,
+      "step": "completed",
+      "createdAtUtc": "2026-07-02T05:30:47.8902684Z",
+      "updatedAtUtc": "2026-07-02T05:31:36.5734509Z",
+      "attempts": 0,
+      "nextAttemptAtUtc": "2026-07-02T05:30:47.8902684Z",
+      "completePayload": {
+        "Result": {
+          "city_id": 1508396777856831488,
+          "comment": "Начисление кэшбэка SAGI, заказ #11, сотрудник iiko: Сұлтамұрат Р. (f2a5b791-07c5-4a42-b867-ec63207188d4)",
+          "created_at": 1782970247315,
+          "delay_config": {
+            "activated_at": 1783056647315,
+            "status": "PENDING"
+          },
+          "epay_id": 1782970247315,
+          "id": 2072553550650544128,
+          "initial_order_total_amount": 0.0,
+          "order_cashback_amount": 823.69,
+          "order_commission_amount": 0.0,
+          "order_number": 74132,
+          "order_receiver_amount": 10943.31,
+          "order_total_amount": 11767.0,
+          "paid_at": 0,
+          "paid_from_balance": 0.0,
+          "paid_from_card": 0.0,
+          "paid_from_cash": 0.0,
+          "paid_from_certificate": 0.0,
+          "paid_from_private_balance": 0.0,
+          "private_order": false,
+          "recipient": {
+            "branch_address": "Актау, БЦ Nomad, 16 мкр- 6 здание",
+            "branch_category": 1508396922182832128,
+            "branch_id": 1674339326105751552,
+            "branch_name": "Merhaba",
+            "group_id": 1674339326105751552,
+            "icon": "https://zumdex.ams3.cdn.digitaloceanspaces.com/public/images/branches/74/ab/2e/25/43/3a/11/ee/9e/d5/2e/a1/e4/fe/66/9e/original",
+            "organization_id": 5363212,
+            "type": "BRANCH"
+          },
+          "rule": {
+            "cashback_percentage": 7.0,
+            "commission_percentage": 0.0,
+            "id": 1674339389267775488
+          },
+          "sender": {
+            "current_private_balance": 6264,
+            "first_name": "",
+            "ID": 1824540862672015360,
+            "last_name": "",
+            "phone": "+77786175771",
+            "phone_mask": "+7778•••••71"
+          },
+          "status": "PENDING",
+          "type": "CASH",
+          "updated_at": 0
+        },
+        "PaymentTypes": "cash",
+        "Sum": 0.0,
+        "TransactionId": "00000000-0000-0000-0000-000000000000",
+        "UseBalance": false
+      }
+    },
+    {
+      "id": "84f696b3-fa4d-4f3f-bd27-959b597bcbad",
+      "iikoOrderId": "c6b7ec1e-6330-47d8-9065-ae8ac3c7bc73",
+      "orderNumber": 6,
+      "sagiOrderId": 2072537926822006784,
+      "step": "completed",
+      "createdAtUtc": "2026-07-02T04:28:42.8928205Z",
+      "updatedAtUtc": "2026-07-02T04:29:35.8881255Z",
+      "attempts": 0,
+      "nextAttemptAtUtc": "2026-07-02T04:28:42.894844Z",
+      "completePayload": {
+        "Result": {
+          "city_id": 1508396777856831488,
+          "comment": "Начисление кэшбэка SAGI, заказ #6, сотрудник iiko: Сұлтамұрат Р. (f2a5b791-07c5-4a42-b867-ec63207188d4)",
+          "created_at": 1782966522304,
+          "delay_config": {
+            "activated_at": 1783052922304,
+            "status": "PENDING"
+          },
+          "epay_id": 1782966522304,
+          "id": 2072537926822006784,
+          "initial_order_total_amount": 0.0,
+          "order_cashback_amount": 428.75,
+          "order_commission_amount": 0.0,
+          "order_number": 74131,
+          "order_receiver_amount": 8146.25,
+          "order_total_amount": 8575.0,
+          "paid_at": 0,
+          "paid_from_balance": 0.0,
+          "paid_from_card": 0.0,
+          "paid_from_cash": 0.0,
+          "paid_from_certificate": 0.0,
+          "paid_from_private_balance": 0.0,
+          "private_order": false,
+          "recipient": {
+            "branch_address": "Актау, БЦ Nomad, 16 мкр- 6 здание",
+            "branch_category": 1508396922182832128,
+            "branch_id": 1674339326105751552,
+            "branch_name": "Merhaba",
+            "group_id": 1674339326105751552,
+            "icon": "https://zumdex.ams3.cdn.digitaloceanspaces.com/public/images/branches/74/ab/2e/25/43/3a/11/ee/9e/d5/2e/a1/e4/fe/66/9e/original",
+            "organization_id": 5363212,
+            "type": "BRANCH"
+          },
+          "rule": {
+            "cashback_percentage": 5.0,
+            "commission_percentage": 0.0,
+            "id": 1674339389267775488
+          },
+          "sender": {
+            "current_private_balance": 0,
+            "first_name": "",
+            "ID": 1697703471832109056,
+            "last_name": "",
+            "phone": "+77750861777",
+            "phone_mask": "+7775•••••77"
+          },
+          "status": "PENDING",
+          "type": "CASH",
+          "updated_at": 0
+        },
+        "PaymentTypes": "card",
+        "Sum": 0.0,
+        "TransactionId": "00000000-0000-0000-0000-000000000000",
+        "UseBalance": false
+      }
+    }
+  ]
+}

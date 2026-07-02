@@ -117,7 +117,7 @@ namespace IikoBonusPlugin.UI
         {
             if (string.IsNullOrEmpty(_currentCustomerId)) return;
 
-            if (!decimal.TryParse(AmountTextBox.Text, out decimal discountAmount) || discountAmount <= 0)
+            if (!decimal.TryParse(AmountTextBox.Text, out decimal discountAmount) || discountAmount < 0)
             {
                 StatusTextBlock.Text = "Введите корректную сумму";
                 return;
@@ -132,6 +132,13 @@ namespace IikoBonusPlugin.UI
                 return;
             }
 
+            // Сохраняем привязку заказа для начисления бонусов при его закрытии
+            PluginEntry.ActiveOrders[_order.Id] = new PluginEntry.OrderLoyaltyData
+            {
+                CustomerId = _currentCustomerId,
+                DiscountAmount = discountAmount
+            };
+
             try
             {
                 // TODO: В iiko V9 способ применения скидки отличается.
@@ -139,7 +146,7 @@ namespace IikoBonusPlugin.UI
                 // Например:
                 // _os.AddDiscountItem(discountAmount, discountType, ...);
 
-                MessageBox.Show($"Симуляция: Успешно списано {discountAmount} бонусов", "Успех", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show($"Симуляция: Успешно списано {discountAmount} бонусов. Ожидаем закрытия заказа для финального расчета.", "Успех", MessageBoxButton.OK, MessageBoxImage.Information);
                 this.Close();
             }
             catch (Exception ex)

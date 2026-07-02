@@ -4,9 +4,9 @@ require('dotenv').config();
 const path = require('path');
 const iikoApi = require('./iiko-api');
 
-// Если нужен кастомный бэкенд на Firebase, оставляем, но сейчас упор на iiko API
-const { getOrCreateCustomerByPhone, updateCustomerBalance, logTransaction } = require('./customers');
+const { getOrCreateCustomerByPhone, updateCustomerBalance, logTransaction, getAllCustomers, getTransactions, getStats, addManualBonus } = require('./customers');
 const { getSettings, updateSettings } = require('./settings');
+const { sendWhatsAppMessage } = require('./whatsapp');
 
 const app = express();
 app.use(cors());
@@ -111,6 +111,9 @@ app.post('/api/register-iiko', async (req, res) => {
     // Сохраняем в нашу собственную базу Supabase
     const customer = await getOrCreateCustomerByPhone(phone, name);
     
+    // Отправляем WhatsApp уведомление
+    sendWhatsAppMessage(phone, `🎉 Добро пожаловать, ${name}!\nВы успешно зарегистрированы в нашей бонусной системе. Ваш баланс: 0 бонусов.\n\nНазывайте этот номер телефона на кассе, чтобы копить кэшбэк!`);
+
     res.json({ success: true, customerId: customer.id });
   } catch (err) {
     console.error('Registration error:', err.message);
@@ -186,7 +189,7 @@ app.post('/api/loyalty/apply', webhookMiddleware, async (req, res) => {
 
     // Получаем текущие траты клиента для определения процента
     const { supabase } = require('./supabase');
-    const { data: customer } = await supabase.from('customers').select('total_spent').eq('id', customerId).single();
+    const { data: customer } = await supabase.from('customers').select('total_spent, phone').eq('id', customerId).single();
     const isVip = (customer?.total_spent || 0) >= settings.vip_threshold;
     const cashbackPercent = isVip ? settings.vip_cashback_percent : settings.base_cashback_percent;
 
@@ -196,6 +199,16 @@ app.post('/api/loyalty/apply', webhookMiddleware, async (req, res) => {
       await updateCustomerBalance(customerId, earnedBonus);
       await logTransaction({ customerId, orderId, type: 'deposit', amount: earnedBonus, orderTotal: realMoneyPaid });
     }
+
+    // Отправка WhatsApp уведомления
+    if (customer) {
+      let msg = `Чек на сумму ${orderTotal} тнг.\n`;
+      if (discountAmount > 0) msg += `➖ Списано: ${discountAmount} бонусов\n`;
+      if (earnedBonus > 0) msg += `➕ Начислено: ${earnedBonus} бонусов\n`;
+      msg += `\nСпасибо, что выбираете нас!`;
+      sendWhatsAppMessage(customer.phone, msg);
+    }
+
     res.json({ success: true, earnedBonus, cashbackPercent });
   } catch (error) { console.error(error); res.status(500).json({ error: 'Internal server error' }); }
 });
@@ -231,151 +244,37 @@ app.post('/admin/api/settings', adminAuthMiddleware, async (req, res) => {
   }
 });
 
+app.get('/admin/api/customers', adminAuthMiddleware, async (req, res) => {
+  try {
+    const data = await getAllCustomers();
+    res.json(data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/admin/api/transactions', adminAuthMiddleware, async (req, res) => {
+  try {
+    const data = await getTransactions();
+    res.json(data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/admin/api/stats', adminAuthMiddleware, async (req, res) => {
+  try {
+    const data = await getStats();
+    res.json(data);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/admin/api/customers/bonus', adminAuthMiddleware, async (req, res) => {
+  try {
+    const { customerId, amount, reason } = req.body;
+    await addManualBonus(customerId, amount, reason);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/admin', (req, res) => {
-  res.send(`
-    <!DOCTYPE html>
-    <html lang="ru">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Управление Бонусной Системой</title>
-      <script src="https://cdn.tailwindcss.com"></script>
-      <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
-      <style>
-        body { font-family: 'Outfit', sans-serif; background: #0f172a; color: #f8fafc; }
-        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
-        .gradient-text { background: linear-gradient(to right, #38bdf8, #818cf8); -webkit-background-clip: text; color: transparent; }
-        input { background: #0f172a; border: 1px solid #334155; color: white; transition: all 0.3s; }
-        input:focus { outline: none; border-color: #38bdf8; box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2); }
-        .btn-glow { background: linear-gradient(to right, #38bdf8, #818cf8); transition: all 0.3s; }
-        .btn-glow:hover { box-shadow: 0 0 15px rgba(56, 189, 248, 0.5); transform: translateY(-1px); }
-      </style>
-    </head>
-    <body class="min-h-screen flex items-center justify-center p-4">
-      
-      <!-- Modal Auth -->
-      <div id="authModal" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 transition-opacity duration-300">
-        <div class="glass p-8 rounded-2xl w-full max-w-sm text-center transform transition-transform scale-100">
-          <h2 class="text-2xl font-bold mb-6 gradient-text">Авторизация</h2>
-          <input type="password" id="adminPwd" placeholder="Пароль администратора" class="w-full px-4 py-3 rounded-xl mb-4 text-center text-lg tracking-widest">
-          <button onclick="login()" class="btn-glow w-full py-3 rounded-xl font-bold text-white shadow-lg">Войти</button>
-          <p id="authError" class="text-red-400 mt-4 hidden text-sm">Неверный пароль</p>
-        </div>
-      </div>
-
-      <!-- Dashboard -->
-      <div id="dashboard" class="w-full max-w-2xl glass p-8 rounded-3xl hidden">
-        <div class="flex justify-between items-center mb-8">
-          <h1 class="text-3xl font-extrabold gradient-text">Настройки лояльности</h1>
-          <button onclick="logout()" class="text-slate-400 hover:text-white transition">Выйти</button>
-        </div>
-
-        <div class="space-y-6">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="glass p-5 rounded-2xl">
-              <label class="block text-sm text-slate-300 mb-2 font-semibold">Базовый кэшбэк (%)</label>
-              <input type="number" id="base_cashback_percent" class="w-full px-4 py-2 rounded-lg text-xl font-bold">
-            </div>
-            
-            <div class="glass p-5 rounded-2xl relative overflow-hidden">
-              <div class="absolute top-0 right-0 w-16 h-16 bg-yellow-500 rounded-full filter blur-2xl opacity-20"></div>
-              <label class="block text-sm text-yellow-300 mb-2 font-semibold flex items-center">
-                VIP кэшбэк (%) <span class="ml-2 text-xs bg-yellow-500/20 px-2 py-0.5 rounded-full">PRO</span>
-              </label>
-              <input type="number" id="vip_cashback_percent" class="w-full px-4 py-2 rounded-lg text-xl font-bold">
-            </div>
-          </div>
-
-          <div class="glass p-5 rounded-2xl">
-            <label class="block text-sm text-slate-300 mb-2 font-semibold">Сумма трат для статуса VIP (тнг)</label>
-            <input type="number" id="vip_threshold" class="w-full px-4 py-2 rounded-lg text-xl font-bold text-green-400">
-            <p class="text-xs text-slate-500 mt-2">После достижения этой суммы покупок клиент автоматически начнет получать VIP процент.</p>
-          </div>
-
-          <div class="glass p-5 rounded-2xl">
-            <label class="block text-sm text-slate-300 mb-2 font-semibold">Лимит оплаты бонусами (%)</label>
-            <input type="number" id="max_discount_percent" class="w-full px-4 py-2 rounded-lg text-xl font-bold text-red-400">
-            <p class="text-xs text-slate-500 mt-2">Какую максимальную часть стоимости чека можно оплатить бонусами.</p>
-          </div>
-        </div>
-
-        <button onclick="saveSettings()" id="saveBtn" class="mt-8 btn-glow w-full py-4 rounded-2xl font-bold text-white text-lg shadow-[0_0_20px_rgba(56,189,248,0.3)]">
-          Сохранить изменения
-        </button>
-        <p id="saveMsg" class="text-center mt-4 text-emerald-400 font-semibold hidden opacity-0 transition-opacity">Настройки успешно сохранены!</p>
-      </div>
-
-      <script>
-        let token = localStorage.getItem('adminToken') || '';
-
-        if(token) fetchSettings();
-
-        async function login() {
-          const pwd = document.getElementById('adminPwd').value;
-          token = pwd;
-          const success = await fetchSettings();
-          if(success) {
-            localStorage.setItem('adminToken', token);
-            document.getElementById('authModal').classList.add('opacity-0', 'pointer-events-none');
-            setTimeout(() => {
-              document.getElementById('authModal').classList.add('hidden');
-              document.getElementById('dashboard').classList.remove('hidden');
-            }, 300);
-          } else {
-            document.getElementById('authError').classList.remove('hidden');
-          }
-        }
-
-        function logout() {
-          localStorage.removeItem('adminToken');
-          location.reload();
-        }
-
-        async function fetchSettings() {
-          const res = await fetch('/admin/api/settings', { headers: { 'Authorization': 'Bearer ' + token } });
-          if(res.ok) {
-            const data = await res.json();
-            document.getElementById('base_cashback_percent').value = data.base_cashback_percent;
-            document.getElementById('vip_cashback_percent').value = data.vip_cashback_percent;
-            document.getElementById('vip_threshold').value = data.vip_threshold;
-            document.getElementById('max_discount_percent').value = data.max_discount_percent;
-            
-            document.getElementById('authModal').classList.add('hidden');
-            document.getElementById('dashboard').classList.remove('hidden');
-            return true;
-          }
-          return false;
-        }
-
-        async function saveSettings() {
-          const btn = document.getElementById('saveBtn');
-          btn.innerText = 'Сохранение...';
-          const payload = {
-            base_cashback_percent: document.getElementById('base_cashback_percent').value,
-            vip_cashback_percent: document.getElementById('vip_cashback_percent').value,
-            vip_threshold: document.getElementById('vip_threshold').value,
-            max_discount_percent: document.getElementById('max_discount_percent').value
-          };
-
-          await fetch('/admin/api/settings', {
-            method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-          });
-          
-          btn.innerText = 'Сохранить изменения';
-          const msg = document.getElementById('saveMsg');
-          msg.classList.remove('hidden');
-          setTimeout(() => msg.classList.remove('opacity-0'), 10);
-          setTimeout(() => {
-            msg.classList.add('opacity-0');
-            setTimeout(() => msg.classList.add('hidden'), 300);
-          }, 3000);
-        }
-      </script>
-    </body>
-    </html>
-  `);
+  res.sendFile(path.join(__dirname, 'admin.html'));
 });
 
 app.get('/health', (req, res) => res.send('iiko Bonus API is running'));
