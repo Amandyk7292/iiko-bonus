@@ -4,7 +4,7 @@ require('dotenv').config();
 const path = require('path');
 const iikoApi = require('./iiko-api');
 
-const { getCustomerByPhone, getOrCreateCustomerByPhone, searchCustomers, updateCustomerBalance, updateCustomerInfo, logTransaction, getAllCustomers, getTransactions, getStats, addManualBonus } = require('./customers');
+const { getCustomerByPhone, getOrCreateCustomerByPhone, searchCustomers, updateCustomerBalance, updateCustomerInfo, logTransaction, getAllCustomers, getTransactions, getStats, addManualBonus, checkAndExpireInactiveBonuses } = require('./customers');
 const { getSettings, updateSettings } = require('./settings');
 const { sendWhatsAppMessage } = require('./whatsapp');
 
@@ -425,11 +425,28 @@ app.post('/admin/api/customers/update', adminAuthMiddleware, async (req, res) =>
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.post('/admin/api/customers/expire-inactive', adminAuthMiddleware, async (req, res) => {
+  try {
+    const days = req.body.days || 90;
+    const result = await checkAndExpireInactiveBonuses(days);
+    res.json({ success: true, ...result });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'admin.html'));
 });
 
 app.get('/health', (req, res) => res.send('iiko Bonus API is running'));
 
+// Автоматическая проверка сгорания бонусов при запуске (через 15 секунд) и затем раз в сутки
+setTimeout(() => {
+  checkAndExpireInactiveBonuses(90).catch(err => console.error('Error auto-expiring bonuses:', err));
+}, 15000);
+setInterval(() => {
+  checkAndExpireInactiveBonuses(90).catch(err => console.error('Error auto-expiring bonuses:', err));
+}, 24 * 60 * 60 * 1000);
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
+

@@ -187,8 +187,11 @@
 
       <!-- TAB: Customers -->
       <div id="content-customers" class="hidden space-y-6">
-        <div class="flex justify-between items-center">
+        <div class="flex justify-between items-center gap-4 flex-wrap">
           <input type="text" id="searchCustomer" onkeyup="renderCustomers()" placeholder="Поиск по телефону или имени..." class="input-classic w-full max-w-md">
+          <button onclick="triggerExpireBonuses()" class="bg-orange-600 hover:bg-orange-700 text-white font-medium py-2 px-4 rounded-lg shadow-sm transition flex items-center gap-2 text-sm">
+            <span>⏳</span> Списать неактивные (90 дней)
+          </button>
         </div>
         <div class="card overflow-x-auto">
           <table class="w-full text-left border-collapse">
@@ -445,6 +448,24 @@
       }
     }
 
+    async function triggerExpireBonuses() {
+      if (!confirm('Запустить проверку неактивных клиентов?\nУ всех гостей, которые не совершали покупки более 90 дней, баллы будут автоматически списаны.')) return;
+      const res = await fetch('/admin/api/customers/expire-inactive', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ days: 90 })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        alert(`Проверка завершена!\nСгорели неактивные бонусы у клиентов: ${data.expiredCount}\nОбщая сумма списанных бонусов: ${data.totalExpiredAmount} бон.`);
+        fetchCustomers();
+        fetchStats();
+        fetchTransactions();
+      } else {
+        alert('Ошибка при выполнении проверки!');
+      }
+    }
+
     function renderCustomers() {
       const q = document.getElementById('searchCustomer').value.toLowerCase();
       const filtered = currentData.customers.filter(c => c.name?.toLowerCase().includes(q) || c.phone?.includes(q));
@@ -485,10 +506,14 @@
         if(t.type === 'withdrawal') typeStr = 'Оплата бонусами';
         if(t.type === 'manual_deposit') typeStr = 'Ручное начисление';
         if(t.type === 'manual_withdrawal') typeStr = 'Ручное списание';
+        if(t.type === 'expiration') typeStr = 'Сгорание (90 дней бездействия)';
 
         let orderBadge = `<span class="bg-beige-100 text-beige-800 font-mono px-2.5 py-1 rounded text-xs border border-beige-200 font-semibold">Чек №${t.order_id || '—'}</span>`;
         if (t.order_id === 'MANUAL' || t.type.includes('manual')) {
           orderBadge = `<span class="bg-purple-100 text-purple-700 font-sans px-2.5 py-1 rounded text-xs border border-purple-200 font-medium">Ручная операция</span>`;
+        }
+        if (t.type === 'expiration' || t.order_id === 'EXPIRED_90_DAYS') {
+          orderBadge = `<span class="bg-orange-100 text-orange-700 font-sans px-2.5 py-1 rounded text-xs border border-orange-200 font-medium">Автосгорание</span>`;
         }
 
         return `

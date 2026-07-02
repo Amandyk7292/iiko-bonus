@@ -166,7 +166,7 @@ async function getStats() {
     txs.forEach(t => {
       const amt = Number(t.amount || 0);
       const isRecent = t.timestamp && new Date(t.timestamp) >= thirtyDaysAgo;
-      if (t.type === 'withdrawal' || t.type === 'manual_withdrawal') {
+      if (t.type === 'withdrawal' || t.type === 'manual_withdrawal' || t.type === 'expiration') {
         totalBurned += amt;
         if (isRecent) burnedLast30Days += amt;
       }
@@ -236,6 +236,72 @@ async function updateCustomerInfo(customerId, { name, phone, balance, total_spen
   if (error) throw new Error(error.message);
 }
 
+/**
+ * Автоматическое сгорание баллов у неактивных клиентов (> inactivityDays дней, например 90)
+ */
+async function checkAndExpireInactiveBonuses(inactivityDays = 90) {
+  // 1. Получаем всех клиентов с положительным балансом
+  const { data: customers, error } = await supabase
+    .from('customers')
+    .select('*')
+    .gt('balance', 0);
+
+  if (error || !customers) {
+    console.error('Error fetching customers for bonus expiration:', error?.message);
+    return { expiredCount: 0, totalExpiredAmount: 0 };
+  }
+
+  // 2. Получаем последние транзакции для каждого из этих клиентов
+  const { data: txs } = await supabase
+    .from('transactions')
+    .select('customer_id, timestamp')
+    .order('timestamp', { ascending: false });
+
+  const latestTxMap = {};
+  if (txs) {
+    txs.forEach(t => {
+      if (!latestTxMap[t.customer_id]) {
+        latestTxMap[t.customer_id] = new Date(t.timestamp);
+      }
+    });
+  }
+
+  const now = new Date();
+  const cutoffTime = now.getTime() - (inactivityDays * 24 * 60 * 60 * 1000);
+  let expiredCount = 0;
+  let totalExpiredAmount = 0;
+
+  for (const c of customers) {
+    const lastActivityDate = latestTxMap[c.id] || (c.created_at ? new Date(c.created_at) : new Date(0));
+    
+    if (lastActivityDate.getTime() < cutoffTime) {
+      const expiredAmt = Number(c.balance);
+      if (expiredAmt > 0) {
+        // Списываем баланс до нуля
+        const { error: updateErr } = await supabase
+          .from('customers')
+          .update({ balance: 0 })
+          .eq('id', c.id);
+
+        if (!updateErr) {
+          // Записываем транзакцию в историю
+          await logTransaction({
+            customerId: c.id,
+            orderId: 'EXPIRED_90_DAYS',
+            type: 'expiration',
+            amount: expiredAmt
+          });
+          expiredCount++;
+          totalExpiredAmount += expiredAmt;
+          console.log(`Expired ${expiredAmt} bonuses for inactive customer ${c.name || c.phone} (inactive since ${lastActivityDate.toISOString()})`);
+        }
+      }
+    }
+  }
+
+  return { expiredCount, totalExpiredAmount };
+}
+
 module.exports = {
   getCustomerByPhone,
   getOrCreateCustomerByPhone,
@@ -246,5 +312,7 @@ module.exports = {
   getAllCustomers,
   getTransactions,
   getStats,
-  addManualBonus
+  addManualBonus,
+  checkAndExpireInactiveBonuses
 };
+

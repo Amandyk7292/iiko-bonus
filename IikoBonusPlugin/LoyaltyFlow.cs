@@ -65,6 +65,66 @@ namespace Resto.Front.Api.IikoBonusPlugin
         {
             try
             {
+                if (PluginEntry.ActiveOrders.TryGetValue(order.Id, out var existingData))
+                {
+                    string title = "Управление лояльностью чека";
+                    string menuInfo = "Привязан: " + (string.IsNullOrWhiteSpace(existingData.CustomerName) ? "Гость" : existingData.CustomerName) + " [" + existingData.CustomerPhone + "]\nСписано бонусов: " + existingData.DiscountAmount;
+                    
+                    var options = new List<string>
+                    {
+                        "Изменить сумму списания",
+                        "Выбрать другого клиента",
+                        "Открепить клиента от чека",
+                        "Назад"
+                    };
+
+                    int action = vm.ShowChooserPopup(title + "\n\n" + menuInfo, options, 0, Resto.Front.Api.UI.ButtonWidth.Wider, "Назад");
+                    
+                    if (action == 0) // Изменить сумму списания
+                    {
+                        string editPrompt = (string.IsNullOrWhiteSpace(existingData.CustomerName) ? "Гость" : existingData.CustomerName) + " [" + existingData.CustomerPhone + "]\n\nСколько бонусов списать?\n(0 = без списания, только начисление кэшбэка)";
+                        var editAmountRes = vm.ShowInputDialog(editPrompt, Resto.Front.Api.Data.View.InputDialogTypes.Number, (int)existingData.DiscountAmount, "Применить", "Отмена");
+                        if (editAmountRes == null) return;
+
+                        decimal newDiscount = 0;
+                        if (editAmountRes is Resto.Front.Api.Data.View.NumberInputDialogResult numRes) newDiscount = numRes.Number;
+                        else if (editAmountRes is Resto.Front.Api.Data.View.DecimalInputDialogResult decRes) newDiscount = decRes.Decimal;
+                        else if (editAmountRes is Resto.Front.Api.Data.View.StringInputDialogResult strRes) decimal.TryParse(strRes.Result.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out newDiscount);
+
+                        decimal editMaxAllowed = order.FullSum * (existingData.MaxDiscountPercent / 100m);
+                        if (newDiscount > editMaxAllowed)
+                        {
+                            vm.ShowErrorPopup("Максимум можно списать " + editMaxAllowed.ToString("0.00") + " (лимит " + existingData.MaxDiscountPercent + "%)", "ОК");
+                            return;
+                        }
+
+                        RemoveLoyaltyDiscountFromOrder(order, os);
+                        existingData.DiscountAmount = newDiscount;
+                        existingData.OrderFullSum = order.FullSum;
+                        PluginEntry.ActiveOrders[order.Id] = existingData;
+
+                        ApplyLoyaltyDiscountToOrder(order, os, vm, newDiscount);
+                        return;
+                    }
+                    else if (action == 1) // Выбрать другого клиента
+                    {
+                        RemoveLoyaltyDiscountFromOrder(order, os);
+                        PluginEntry.ActiveOrders.TryRemove(order.Id, out _);
+                        // Continuing below to search for a new customer
+                    }
+                    else if (action == 2) // Открепить клиента от чека
+                    {
+                        RemoveLoyaltyDiscountFromOrder(order, os);
+                        PluginEntry.ActiveOrders.TryRemove(order.Id, out _);
+                        vm.ShowOkPopup("Успех", "Клиент успешно откреплён от заказа.", "ОК");
+                        return;
+                    }
+                    else
+                    {
+                        return; // Назад / Отмена
+                    }
+                }
+
                 // Шаг 1: Спрашиваем телефон (открываем цифровую/телефонную клавиатуру по умолчанию)
                 var searchSettings = new Resto.Front.Api.UI.ExtendedInputDialogSettings
                 {
@@ -236,43 +296,82 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 PluginEntry.ActiveOrders[order.Id] = new PluginEntry.OrderLoyaltyData
                 {
                     CustomerId = selectedCustomer.id,
-                    DiscountAmount = discountAmount
+                    CustomerName = selectedCustomer.name,
+                    CustomerPhone = selectedCustomer.phone,
+                    CurrentBalance = balance,
+                    CashbackPercent = selectedCustomer.cashbackPercent,
+                    MaxDiscountPercent = selectedCustomer.maxDiscountPercent,
+                    DiscountAmount = discountAmount,
+                    OrderFullSum = order.FullSum
                 };
 
-                var discountType = os.GetDiscountTypes().FirstOrDefault(d =>
-                    d.Name.ToLower().Contains("бонус") ||
-                    d.Name.ToLower().Contains("списание") ||
-                    d.Name.ToLower().Contains("лояльност"));
-
-                if (discountType == null)
-                {
-                    if (discountAmount == 0)
-                    {
-                        vm.ShowOkPopup("Успех", "Клиент привязан к заказу.", "ОК");
-                    }
-                    else
-                    {
-                        vm.ShowErrorPopup("В iikoOffice не найдена скидка со словом 'Бонус', 'Списание' или 'Лояльность'.", "ОК");
-                    }
-                    return;
-                }
-
-                if (discountAmount > 0)
-                {
-                    var editSession = os.CreateEditSession();
-                    editSession.AddFlexibleSumDiscount(discountAmount, discountType, order);
-                    os.SubmitChanges(editSession, os.GetDefaultCredentials());
-                    vm.ShowOkPopup("Успех", "Успешно списано " + discountAmount + " бонусов.", "ОК");
-                }
-                else
-                {
-                    vm.ShowOkPopup("Успех", "Клиент привязан к заказу.", "ОК");
-                }
+                ApplyLoyaltyDiscountToOrder(order, os, vm, discountAmount);
             }
             catch (Exception ex)
             {
                 vm.ShowErrorPopup("Ошибка: " + ex.Message, "ОК");
                 PluginContext.Log.Error("IikoBonusPlugin Error in LoyaltyFlow: " + ex);
+            }
+        }
+
+        private static void ApplyLoyaltyDiscountToOrder(IOrder order, IOperationService os, IViewManager vm, decimal discountAmount)
+        {
+            var discountType = os.GetDiscountTypes().FirstOrDefault(d =>
+                d.Name.ToLower().Contains("бонус") ||
+                d.Name.ToLower().Contains("списание") ||
+                d.Name.ToLower().Contains("лояльност"));
+
+            if (discountType == null)
+            {
+                if (discountAmount == 0)
+                {
+                    vm.ShowOkPopup("Успех", "Клиент привязан к заказу.", "ОК");
+                }
+                else
+                {
+                    vm.ShowErrorPopup("В iikoOffice не найдена скидка со словом 'Бонус', 'Списание' или 'Лояльность'.", "ОК");
+                }
+                return;
+            }
+
+            if (discountAmount > 0)
+            {
+                var editSession = os.CreateEditSession();
+                editSession.AddFlexibleSumDiscount(discountAmount, discountType, order);
+                os.SubmitChanges(editSession, os.GetDefaultCredentials());
+                vm.ShowOkPopup("Успех", "Успешно списано " + discountAmount + " бонусов.", "ОК");
+            }
+            else
+            {
+                vm.ShowOkPopup("Успех", "Клиент привязан к заказу.", "ОК");
+            }
+        }
+
+        private static void RemoveLoyaltyDiscountFromOrder(IOrder order, IOperationService os)
+        {
+            try
+            {
+                if (order.Discounts != null && order.Discounts.Count > 0)
+                {
+                    var editSession = os.CreateEditSession();
+                    bool removed = false;
+                    foreach (var d in order.Discounts)
+                    {
+                        if (d.DiscountType == null || d.DiscountType.Name.ToLower().Contains("бонус") || d.DiscountType.Name.ToLower().Contains("списание") || d.DiscountType.Name.ToLower().Contains("лояльност"))
+                        {
+                            editSession.DeleteDiscount(d, order);
+                            removed = true;
+                        }
+                    }
+                    if (removed)
+                    {
+                        os.SubmitChanges(editSession, os.GetDefaultCredentials());
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                PluginContext.Log.Error("IikoBonusPlugin Error removing loyalty discount: " + ex);
             }
         }
 
@@ -317,6 +416,14 @@ namespace Resto.Front.Api.IikoBonusPlugin
                         PluginContext.Log.Info("IikoBonusPlugin: Order " + order.Number + " closed. Applying loyalty for customer " + loyaltyData.CustomerId + ", discount " + loyaltyData.DiscountAmount + ", fullSum " + order.FullSum + "...");
                         
                         Task.Run(() => SendApplyRequest(loyaltyData.CustomerId, order.Number.ToString(), loyaltyData.DiscountAmount, order.FullSum));
+                    }
+                }
+                else
+                {
+                    if (PluginEntry.ActiveOrders.TryGetValue(order.Id, out var activeData))
+                    {
+                        activeData.OrderFullSum = order.FullSum;
+                        PluginEntry.ActiveOrders[order.Id] = activeData;
                     }
                 }
             }
