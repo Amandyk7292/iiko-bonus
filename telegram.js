@@ -64,9 +64,8 @@ async function handleUpdate(update) {
   };
 
   if (text.startsWith('/start') || text.startsWith('/help')) {
-    const welcome = `👋 <b>Добро пожаловать в клуб привилегий iiko Bonus!</b>\n\nЗдесь вы можете контролировать свой баланс баллов, следить за начислением кэшбэка и предъявлять электронный QR-код официанту или кассиру при оплате счета.\n\n👇 Нажмите кнопку <b>«📱 Отправить мой номер телефона»</b> внизу экрана, чтобы авторизоваться в системе.`;
+    const welcome = `👋 <b>Добро пожаловать в клуб привилегий iiko Bonus!</b>\n\nЗдесь вы можете контролировать свой баланс баллов, следить за начислением кэшбэка и предъявлять электронный QR-код официанту или кассиру при оплате счета.\n\n🔒 <b>Защита аккаунта:</b> Ввод чужих номеров запрещен. Доступ к виртуальной карте привязывается строго к вашему Telegram-аккаунту.\n\n👇 Нажмите кнопку <b>«📱 Отправить мой номер телефона»</b> внизу экрана, чтобы авторизоваться в системе.`;
     await sendMessage(chatId, welcome, keyboard);
-    await sendMessage(chatId, '💡 А если хотите сразу открыть карту гостя с QR-кодом, нажмите кнопку ниже:', inlineCardButton);
     return;
   }
 
@@ -82,9 +81,20 @@ async function handleUpdate(update) {
       const isVip = (Number(customer.total_spent) || 0) >= vipThreshold;
       const statusStr = isVip ? '👑 <b>VIP Статус (Повышенный кэшбэк)</b>' : '🌿 <b>Базовый уровень</b>';
 
-      const replyText = `✅ <b>Вы успешно авторизованы!</b>\n\n👤 <b>Гость:</b> ${customer.name || name}\n📞 <b>Телефон:</b> ${customer.phone}\n💰 <b>Баланс:</b> <code>${customer.balance || 0}</code> бонусов\n🏆 <b>Уровень:</b> ${statusStr}\n💵 <b>Всего покупок:</b> ${(customer.total_spent || 0).toLocaleString()} тнг\n\n📲 Чтобы показать QR-код на кассе для начисления или списания, откройте виртуальную карту ниже:`;
+      const replyText = `✅ <b>Вы успешно авторизованы!</b>\n\n👤 <b>Гость:</b> ${customer.name || name}\n📞 <b>Телефон:</b> ${customer.phone}\n💰 <b>Баланс:</b> <code>${customer.balance || 0}</code> бонусов\n🏆 <b>Уровень:</b> ${statusStr}\n💵 <b>Всего покупок:</b> ${(customer.total_spent || 0).toLocaleString()} тнг\n\n📲 Чтобы показать ваш статический QR-код на кассе, откройте виртуальную карту ниже:`;
       
-      await sendMessage(chatId, replyText, inlineCardButton);
+      const userCardButton = {
+        inline_keyboard: [
+          [
+            {
+              text: '💳 Открыть мою виртуальную карту (QR)',
+              web_app: { url: `${WEBAPP_URL}?phone=${encodeURIComponent(customer.phone)}` }
+            }
+          ]
+        ]
+      };
+
+      await sendMessage(chatId, replyText, userCardButton);
     } catch (err) {
       await sendMessage(chatId, `❌ Ошибка при поиске клиента: ${err.message}`);
     }
@@ -104,17 +114,7 @@ async function handleUpdate(update) {
 
   // Если пользователь ввел номер телефона вручную текстом
   if (/^[+0-9]{10,15}$/.test(text.replace(/[^0-9+]/g, ''))) {
-    const cleanPhone = text.replace(/[^0-9+]/g, '');
-    try {
-      const customer = await getCustomerByPhone(cleanPhone);
-      if (customer) {
-        await sendMessage(chatId, `🎉 <b>Найден профиль в системе!</b>\n\n👤 <b>Имя:</b> ${customer.name || 'Гость'}\n💰 <b>Баланс:</b> <code>${customer.balance || 0}</code> бонусов\n💵 <b>Сумма покупок:</b> ${(customer.total_spent || 0).toLocaleString()} тнг`, inlineCardButton);
-      } else {
-        await sendMessage(chatId, `📭 Клиент с номером <code>${cleanPhone}</code> не найден в базе. Нажмите кнопку <b>«📱 Отправить мой номер телефона»</b>, чтобы создать профиль!`);
-      }
-    } catch (err) {
-      await sendMessage(chatId, `❌ Ошибка запроса: ${err.message}`);
-    }
+    await sendMessage(chatId, `🔒 <b>Ручной ввод чужих номеров запрещен</b>\n\nДля защиты баланса баллов от несанкционированного доступа, определение аккаунта происходит строго через подтверждение контакта в Telegram.\n\n👇 Пожалуйста, нажмите кнопку <b>«📱 Отправить мой номер телефона»</b> внизу экрана.`);
     return;
   }
 
