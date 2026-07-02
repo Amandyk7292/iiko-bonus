@@ -1,54 +1,93 @@
-const { db } = require('./firebase');
+const { supabase } = require('./supabase');
 
 /**
  * Получение клиента по номеру телефона
  * Если клиента нет, он создается с балансом 0
  */
-async function getOrCreateCustomerByPhone(phone) {
-  // Убираем лишние символы из телефона (например, оставляем только цифры)
+async function getOrCreateCustomerByPhone(phone, name = 'Новый Гость') {
   const cleanPhone = phone.replace(/[^0-9+]/g, '');
   
-  const customersRef = db.collection('customers');
-  const snapshot = await customersRef.where('phone', '==', cleanPhone).get();
-  
-  if (snapshot.empty) {
+  // Ищем клиента в таблице customers
+  const { data: existingCustomer, error: fetchError } = await supabase
+    .from('customers')
+    .select('*')
+    .eq('phone', cleanPhone)
+    .maybeSingle();
+
+  if (fetchError) {
+    throw new Error('Error fetching customer: ' + fetchError.message);
+  }
+
+  if (!existingCustomer) {
     // Создаем нового клиента
     const newCustomer = {
       phone: cleanPhone,
       balance: 0,
-      createdAt: new Date().toISOString(),
-      name: 'Новый Гость'
+      name: name
     };
-    const docRef = await customersRef.add(newCustomer);
-    return { id: docRef.id, ...newCustomer };
+    
+    const { data: createdCustomer, error: insertError } = await supabase
+      .from('customers')
+      .insert([newCustomer])
+      .select()
+      .single();
+
+    if (insertError) {
+      throw new Error('Error creating customer: ' + insertError.message);
+    }
+    
+    return createdCustomer;
   }
   
-  const doc = snapshot.docs[0];
-  return { id: doc.id, ...doc.data() };
+  return existingCustomer;
 }
 
 /**
  * Обновление баланса клиента
  */
 async function updateCustomerBalance(customerId, amountChange) {
-  const customerRef = db.collection('customers').doc(customerId);
+  // Получаем текущий баланс
+  const { data: doc, error: fetchError } = await supabase
+    .from('customers')
+    .select('balance')
+    .eq('id', customerId)
+    .single();
+    
+  if (fetchError || !doc) {
+    throw new Error('Customer not found');
+  }
   
-  await db.runTransaction(async (t) => {
-    const doc = await t.get(customerRef);
-    if (!doc.exists) {
-      throw new Error('Customer not found');
-    }
-    const newBalance = (doc.data().balance || 0) + amountChange;
-    t.update(customerRef, { balance: newBalance });
-  });
+  const newBalance = Number(doc.balance) + Number(amountChange);
+  
+  // Обновляем баланс
+  const { error: updateError } = await supabase
+    .from('customers')
+    .update({ balance: newBalance })
+    .eq('id', customerId);
+    
+  if (updateError) {
+    throw new Error('Error updating balance: ' + updateError.message);
+  }
 }
 
 /**
  * Запись транзакции
  */
 async function logTransaction(transactionData) {
-  transactionData.timestamp = new Date().toISOString();
-  await db.collection('transactions').add(transactionData);
+  const { error } = await supabase
+    .from('transactions')
+    .insert([
+      {
+        customer_id: transactionData.customerId,
+        order_id: transactionData.orderId,
+        type: transactionData.type,
+        amount: transactionData.amount
+      }
+    ]);
+    
+  if (error) {
+    console.error('Error logging transaction:', error.message);
+  }
 }
 
 module.exports = {

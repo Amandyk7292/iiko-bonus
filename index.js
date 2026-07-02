@@ -99,17 +99,18 @@ app.get('/', (req, res) => {
 });
 
 // ==========================================
-// 2. API РЕГИСТРАЦИИ (В iikoCard)
+// 2. API РЕГИСТРАЦИИ (ТЕПЕРЬ В SUPABASE, БЕЗ IIKOCARD)
 // ==========================================
 app.post('/api/register-iiko', async (req, res) => {
   try {
     const { phone, name } = req.body;
     if (!phone) return res.status(400).json({ error: 'Номер телефона обязателен' });
 
-    console.log(`Регистрация гостя: ${name}, ${phone}`);
-    const result = await iikoApi.registerCustomer(phone, name);
+    console.log(`Регистрация гостя в Supabase: ${name}, ${phone}`);
+    // Сохраняем в нашу собственную базу Supabase
+    const customer = await getOrCreateCustomerByPhone(phone, name);
     
-    res.json({ success: true, customerId: result });
+    res.json({ success: true, customerId: customer.id });
   } catch (err) {
     console.error('Registration error:', err.message);
     res.status(500).json({ error: err.message });
