@@ -3,149 +3,185 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>iiko Bonus CRM & Analytics</title>
+  <title>iiko Bonus CRM</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            beige: {
+              50: '#fdfbf7',
+              100: '#f7f4ea',
+              200: '#efe6d5',
+              300: '#e3d2b7',
+              400: '#d3ba93',
+              500: '#c5a374',
+              600: '#b88c5a',
+              700: '#9a714a',
+              800: '#7e5d40',
+              900: '#664d36',
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            serif: ['Playfair Display', 'serif'],
+          }
+        }
+      }
+    }
+  </script>
   <style>
-    body { font-family: 'Outfit', sans-serif; background: #0f172a; color: #f8fafc; }
-    .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
-    .gradient-text { background: linear-gradient(to right, #38bdf8, #818cf8); -webkit-background-clip: text; color: transparent; }
-    input, select { background: #0f172a; border: 1px solid #334155; color: white; transition: all 0.3s; }
-    input:focus, select:focus { outline: none; border-color: #38bdf8; box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2); }
-    .btn-glow { background: linear-gradient(to right, #38bdf8, #818cf8); transition: all 0.3s; }
-    .btn-glow:hover { box-shadow: 0 0 15px rgba(56, 189, 248, 0.5); transform: translateY(-1px); }
-    .tab-active { border-bottom: 2px solid #38bdf8; color: #38bdf8; }
-    .tab-inactive { color: #94a3b8; }
-    .tab-inactive:hover { color: #e2e8f0; }
+    body { background-color: #fcfbf9; color: #333333; }
+    .card { background-color: #ffffff; border: 1px solid #efe6d5; box-shadow: 0 4px 20px rgba(184, 140, 90, 0.08); border-radius: 8px; }
+    .input-classic { border: 1px solid #e3d2b7; background: #fdfbf7; padding: 0.75rem 1rem; border-radius: 6px; color: #4a4a4a; transition: all 0.2s; }
+    .input-classic:focus { outline: none; border-color: #b88c5a; box-shadow: 0 0 0 3px rgba(184, 140, 90, 0.1); }
+    .btn-classic { background-color: #b88c5a; color: white; transition: all 0.2s; border-radius: 6px; border: 1px solid #9a714a; }
+    .btn-classic:hover { background-color: #9a714a; transform: translateY(-1px); }
+    .btn-outline { border: 1px solid #d3ba93; color: #7e5d40; background: transparent; transition: all 0.2s; border-radius: 6px; }
+    .btn-outline:hover { background: #f7f4ea; }
+    .tab-active { border-bottom: 2px solid #b88c5a; color: #7e5d40; font-weight: 600; }
+    .tab-inactive { color: #9ca3af; font-weight: 500; }
+    .tab-inactive:hover { color: #7e5d40; }
+    table th { color: #7e5d40; font-weight: 600; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.05em; border-bottom: 2px solid #efe6d5; }
+    table td { border-bottom: 1px solid #f7f4ea; }
+    table tr:hover td { background-color: #fdfbf7; }
   </style>
 </head>
-<body class="min-h-screen p-4 md:p-8">
+<body class="min-h-screen p-4 md:p-8 font-sans">
   
   <!-- Modal Auth -->
-  <div id="authModal" class="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 transition-opacity duration-300">
-    <div class="glass p-8 rounded-2xl w-full max-w-sm text-center transform transition-transform scale-100">
-      <h2 class="text-2xl font-bold mb-6 gradient-text">Авторизация</h2>
-      <input type="password" id="adminPwd" placeholder="Пароль администратора" class="w-full px-4 py-3 rounded-xl mb-4 text-center text-lg tracking-widest">
-      <button onclick="login()" class="btn-glow w-full py-3 rounded-xl font-bold text-white shadow-lg">Войти</button>
-      <p id="authError" class="text-red-400 mt-4 hidden text-sm">Неверный пароль</p>
+  <div id="authModal" class="fixed inset-0 bg-[#333333] bg-opacity-40 flex items-center justify-center z-50 backdrop-blur-sm transition-opacity duration-300">
+    <div class="card p-10 w-full max-w-sm text-center">
+      <h2 class="text-3xl font-serif text-beige-800 mb-2">Управление</h2>
+      <p class="text-gray-500 text-sm mb-8">Введите пароль для доступа к системе</p>
+      <input type="password" id="adminPwd" placeholder="Пароль" class="input-classic w-full mb-6 text-center text-lg tracking-widest">
+      <button onclick="login()" class="btn-classic w-full py-3 font-medium shadow-sm">Войти в систему</button>
+      <p id="authError" class="text-red-500 mt-4 hidden text-sm">Неверный пароль</p>
     </div>
   </div>
 
   <!-- Dashboard -->
-  <div id="dashboard" class="w-full max-w-6xl mx-auto glass rounded-3xl hidden overflow-hidden flex flex-col min-h-[80vh]">
+  <div id="dashboard" class="w-full max-w-6xl mx-auto card hidden overflow-hidden flex flex-col min-h-[80vh]">
     <!-- Header -->
-    <div class="p-6 border-b border-slate-700 flex justify-between items-center">
-      <h1 class="text-2xl md:text-3xl font-extrabold gradient-text">Bonus System CRM</h1>
-      <button onclick="logout()" class="text-slate-400 hover:text-white transition">Выйти</button>
+    <div class="p-8 border-b border-beige-200 flex justify-between items-center bg-white">
+      <div>
+        <h1 class="text-3xl font-serif text-beige-800">Bonus CRM</h1>
+        <p class="text-sm text-gray-500 mt-1">Панель управления лояльностью</p>
+      </div>
+      <button onclick="logout()" class="btn-outline px-4 py-2 text-sm">Выйти</button>
     </div>
 
     <!-- Navigation Tabs -->
-    <div class="flex border-b border-slate-700 px-6">
-      <button onclick="switchTab('analytics')" id="tab-analytics" class="px-4 py-3 font-semibold tab-active">Аналитика</button>
-      <button onclick="switchTab('customers')" id="tab-customers" class="px-4 py-3 font-semibold tab-inactive">Клиенты</button>
-      <button onclick="switchTab('transactions')" id="tab-transactions" class="px-4 py-3 font-semibold tab-inactive">Транзакции</button>
-      <button onclick="switchTab('settings')" id="tab-settings" class="px-4 py-3 font-semibold tab-inactive">Настройки</button>
+    <div class="flex border-b border-beige-200 px-8 bg-beige-50">
+      <button onclick="switchTab('analytics')" id="tab-analytics" class="px-6 py-4 tab-active">Аналитика</button>
+      <button onclick="switchTab('customers')" id="tab-customers" class="px-6 py-4 tab-inactive">Клиенты</button>
+      <button onclick="switchTab('transactions')" id="tab-transactions" class="px-6 py-4 tab-inactive">Транзакции</button>
+      <button onclick="switchTab('settings')" id="tab-settings" class="px-6 py-4 tab-inactive">Настройки</button>
     </div>
 
     <!-- Content Area -->
-    <div class="p-6 flex-1 overflow-auto">
+    <div class="p-8 flex-1 overflow-auto bg-white">
       
       <!-- TAB: Analytics -->
-      <div id="content-analytics" class="space-y-6">
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div class="glass p-4 rounded-xl">
-            <p class="text-slate-400 text-sm">Всего клиентов</p>
-            <p class="text-3xl font-bold text-white" id="stat-customers">-</p>
+      <div id="content-analytics" class="space-y-8">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div class="card p-6 border-l-4 border-l-beige-500">
+            <p class="text-gray-500 text-sm font-medium mb-1">Всего клиентов</p>
+            <p class="text-3xl font-serif text-beige-900" id="stat-customers">-</p>
           </div>
-          <div class="glass p-4 rounded-xl">
-            <p class="text-slate-400 text-sm">Оборот (тнг)</p>
-            <p class="text-3xl font-bold text-emerald-400" id="stat-sales">-</p>
+          <div class="card p-6 border-l-4 border-l-green-500">
+            <p class="text-gray-500 text-sm font-medium mb-1">Общий оборот (тнг)</p>
+            <p class="text-3xl font-serif text-gray-800" id="stat-sales">-</p>
           </div>
-          <div class="glass p-4 rounded-xl">
-            <p class="text-slate-400 text-sm">Выдано бонусов</p>
-            <p class="text-3xl font-bold text-sky-400" id="stat-earned">-</p>
+          <div class="card p-6 border-l-4 border-l-blue-400">
+            <p class="text-gray-500 text-sm font-medium mb-1">Выдано бонусов</p>
+            <p class="text-3xl font-serif text-gray-800" id="stat-earned">-</p>
           </div>
-          <div class="glass p-4 rounded-xl">
-            <p class="text-slate-400 text-sm">Потрачено бонусов</p>
-            <p class="text-3xl font-bold text-red-400" id="stat-burned">-</p>
+          <div class="card p-6 border-l-4 border-l-red-400">
+            <p class="text-gray-500 text-sm font-medium mb-1">Потрачено бонусов</p>
+            <p class="text-3xl font-serif text-gray-800" id="stat-burned">-</p>
           </div>
         </div>
-        <div class="glass p-4 rounded-xl w-full h-80 flex items-center justify-center text-slate-500">
-           <!-- Placeholder for Chart.js -->
+        <div class="card p-6 w-full h-96 flex items-center justify-center">
            <canvas id="myChart"></canvas>
         </div>
       </div>
 
       <!-- TAB: Customers -->
-      <div id="content-customers" class="hidden space-y-4">
+      <div id="content-customers" class="hidden space-y-6">
         <div class="flex justify-between items-center">
-          <input type="text" id="searchCustomer" onkeyup="renderCustomers()" placeholder="Поиск по телефону или имени..." class="px-4 py-2 rounded-lg w-full max-w-sm">
+          <input type="text" id="searchCustomer" onkeyup="renderCustomers()" placeholder="Поиск по телефону или имени..." class="input-classic w-full max-w-md">
         </div>
-        <div class="overflow-x-auto">
+        <div class="card overflow-x-auto">
           <table class="w-full text-left border-collapse">
-            <thead>
-              <tr class="border-b border-slate-700 text-slate-400">
-                <th class="py-3 px-4">Имя</th>
-                <th class="py-3 px-4">Телефон</th>
-                <th class="py-3 px-4 text-right">Баланс</th>
-                <th class="py-3 px-4 text-right">Покупки</th>
-                <th class="py-3 px-4 text-center">Действия</th>
+            <thead class="bg-beige-50">
+              <tr>
+                <th class="py-4 px-6">Имя</th>
+                <th class="py-4 px-6">Телефон</th>
+                <th class="py-4 px-6 text-right">Баланс</th>
+                <th class="py-4 px-6 text-right">Общие покупки (тнг)</th>
+                <th class="py-4 px-6 text-center">Управление</th>
               </tr>
             </thead>
-            <tbody id="customersTable" class="text-sm"></tbody>
+            <tbody id="customersTable" class="text-sm text-gray-700"></tbody>
           </table>
         </div>
       </div>
 
       <!-- TAB: Transactions -->
-      <div id="content-transactions" class="hidden space-y-4">
-        <div class="overflow-x-auto">
+      <div id="content-transactions" class="hidden space-y-6">
+        <div class="card overflow-x-auto">
           <table class="w-full text-left border-collapse">
-            <thead>
-              <tr class="border-b border-slate-700 text-slate-400">
-                <th class="py-3 px-4">Дата</th>
-                <th class="py-3 px-4">Клиент</th>
-                <th class="py-3 px-4">Тип</th>
-                <th class="py-3 px-4 text-right">Сумма бонусов</th>
+            <thead class="bg-beige-50">
+              <tr>
+                <th class="py-4 px-6">Дата и время</th>
+                <th class="py-4 px-6">Клиент</th>
+                <th class="py-4 px-6">Тип операции</th>
+                <th class="py-4 px-6 text-right">Сумма бонусов</th>
               </tr>
             </thead>
-            <tbody id="transactionsTable" class="text-sm"></tbody>
+            <tbody id="transactionsTable" class="text-sm text-gray-700"></tbody>
           </table>
         </div>
       </div>
 
       <!-- TAB: Settings -->
-      <div id="content-settings" class="hidden space-y-6 max-w-2xl">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div class="glass p-5 rounded-2xl">
-            <label class="block text-sm text-slate-300 mb-2 font-semibold">Базовый кэшбэк (%)</label>
-            <input type="number" id="base_cashback_percent" class="w-full px-4 py-2 rounded-lg text-xl font-bold">
+      <div id="content-settings" class="hidden space-y-8 max-w-2xl">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div>
+            <label class="block text-sm text-beige-800 mb-2 font-semibold">Базовый кэшбэк (%)</label>
+            <input type="number" id="base_cashback_percent" class="input-classic w-full text-xl">
           </div>
           
-          <div class="glass p-5 rounded-2xl relative overflow-hidden">
-            <div class="absolute top-0 right-0 w-16 h-16 bg-yellow-500 rounded-full filter blur-2xl opacity-20"></div>
-            <label class="block text-sm text-yellow-300 mb-2 font-semibold flex items-center">
-              VIP кэшбэк (%) <span class="ml-2 text-xs bg-yellow-500/20 px-2 py-0.5 rounded-full">PRO</span>
+          <div>
+            <label class="block text-sm text-beige-800 mb-2 font-semibold flex items-center">
+              VIP кэшбэк (%) <span class="ml-2 text-[10px] bg-beige-200 text-beige-800 px-2 py-1 rounded">VIP</span>
             </label>
-            <input type="number" id="vip_cashback_percent" class="w-full px-4 py-2 rounded-lg text-xl font-bold">
+            <input type="number" id="vip_cashback_percent" class="input-classic w-full text-xl">
           </div>
         </div>
 
-        <div class="glass p-5 rounded-2xl">
-          <label class="block text-sm text-slate-300 mb-2 font-semibold">Сумма трат для статуса VIP (тнг)</label>
-          <input type="number" id="vip_threshold" class="w-full px-4 py-2 rounded-lg text-xl font-bold text-green-400">
+        <div class="pt-4 border-t border-beige-200">
+          <label class="block text-sm text-beige-800 mb-2 font-semibold">Сумма покупок для VIP статуса (тнг)</label>
+          <input type="number" id="vip_threshold" class="input-classic w-full text-xl text-green-700">
+          <p class="text-xs text-gray-500 mt-2">После достижения этой суммы покупок клиент автоматически получает VIP кэшбэк.</p>
         </div>
 
-        <div class="glass p-5 rounded-2xl">
-          <label class="block text-sm text-slate-300 mb-2 font-semibold">Лимит оплаты бонусами (%)</label>
-          <input type="number" id="max_discount_percent" class="w-full px-4 py-2 rounded-lg text-xl font-bold text-red-400">
+        <div class="pt-4 border-t border-beige-200">
+          <label class="block text-sm text-beige-800 mb-2 font-semibold">Лимит оплаты бонусами (%)</label>
+          <input type="number" id="max_discount_percent" class="input-classic w-full text-xl text-red-700">
+          <p class="text-xs text-gray-500 mt-2">Какую максимальную часть чека можно оплатить бонусами.</p>
         </div>
 
-        <button onclick="saveSettings()" id="saveBtn" class="mt-4 btn-glow w-full py-4 rounded-2xl font-bold text-white text-lg shadow-[0_0_20px_rgba(56,189,248,0.3)]">
-          Сохранить настройки
-        </button>
-        <p id="saveMsg" class="text-center mt-2 text-emerald-400 font-semibold hidden">Настройки успешно сохранены!</p>
+        <div class="pt-6">
+          <button onclick="saveSettings()" id="saveBtn" class="btn-classic w-full py-4 font-semibold text-lg">
+            Сохранить настройки
+          </button>
+          <p id="saveMsg" class="text-center mt-3 text-green-600 font-medium hidden">Настройки успешно сохранены!</p>
+        </div>
       </div>
 
     </div>
@@ -186,13 +222,12 @@
     function switchTab(tabId) {
       ['analytics', 'customers', 'transactions', 'settings'].forEach(id => {
         document.getElementById('content-' + id).classList.add('hidden');
-        document.getElementById('tab-' + id).className = 'px-4 py-3 font-semibold tab-inactive';
+        document.getElementById('tab-' + id).className = 'px-6 py-4 tab-inactive';
       });
       document.getElementById('content-' + tabId).classList.remove('hidden');
-      document.getElementById('tab-' + tabId).className = 'px-4 py-3 font-semibold tab-active';
+      document.getElementById('tab-' + tabId).className = 'px-6 py-4 tab-active';
     }
 
-    // --- API Calls ---
     async function apiGet(endpoint) {
       const res = await fetch('/admin/api/' + endpoint, { headers: { 'Authorization': 'Bearer ' + token } });
       if(!res.ok) throw new Error('Auth failed');
@@ -278,19 +313,18 @@
       }
     }
 
-    // --- Renderers ---
     function renderCustomers() {
       const q = document.getElementById('searchCustomer').value.toLowerCase();
       const filtered = currentData.customers.filter(c => c.name?.toLowerCase().includes(q) || c.phone?.includes(q));
       
       const html = filtered.map(c => `
-        <tr class="border-b border-slate-700 hover:bg-slate-800 transition">
-          <td class="py-3 px-4">${c.name || 'Без имени'}</td>
-          <td class="py-3 px-4">${c.phone}</td>
-          <td class="py-3 px-4 text-right font-bold text-sky-400">${c.balance}</td>
-          <td class="py-3 px-4 text-right text-emerald-400">${(c.total_spent || 0).toLocaleString()}</td>
-          <td class="py-3 px-4 text-center">
-            <button onclick="manualBonus('${c.id}')" class="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded text-white transition">+/- Бонусы</button>
+        <tr>
+          <td class="py-4 px-6 font-medium">${c.name || 'Без имени'}</td>
+          <td class="py-4 px-6 text-gray-500">${c.phone}</td>
+          <td class="py-4 px-6 text-right font-bold text-blue-600">${c.balance}</td>
+          <td class="py-4 px-6 text-right text-gray-600">${(c.total_spent || 0).toLocaleString()}</td>
+          <td class="py-4 px-6 text-center">
+            <button onclick="manualBonus('${c.id}')" class="btn-outline px-3 py-1 text-xs">+/- Бонусы</button>
           </td>
         </tr>
       `).join('');
@@ -300,16 +334,23 @@
     function renderTransactions() {
       const html = currentData.transactions.map(t => {
         const d = new Date(t.timestamp).toLocaleString();
-        const color = t.type.includes('deposit') ? 'text-emerald-400' : 'text-red-400';
+        const color = t.type.includes('deposit') ? 'text-green-600' : 'text-red-500';
         const sign = t.type.includes('deposit') ? '+' : '-';
         const name = t.customers ? t.customers.name : 'Unknown';
         const phone = t.customers ? t.customers.phone : '';
+        
+        let typeStr = t.type;
+        if(t.type === 'deposit') typeStr = 'Начисление';
+        if(t.type === 'withdrawal') typeStr = 'Списание';
+        if(t.type === 'manual_deposit') typeStr = 'Ручное начисление';
+        if(t.type === 'manual_withdrawal') typeStr = 'Ручное списание';
+
         return `
-          <tr class="border-b border-slate-700 hover:bg-slate-800 transition">
-            <td class="py-3 px-4 text-slate-400">${d}</td>
-            <td class="py-3 px-4">${name} <span class="text-xs text-slate-500">${phone}</span></td>
-            <td class="py-3 px-4 text-xs uppercase">${t.type}</td>
-            <td class="py-3 px-4 text-right font-bold ${color}">${sign}${t.amount}</td>
+          <tr>
+            <td class="py-4 px-6 text-gray-500">${d}</td>
+            <td class="py-4 px-6 font-medium">${name} <span class="block text-xs text-gray-400 font-normal">${phone}</span></td>
+            <td class="py-4 px-6"><span class="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs">${typeStr}</span></td>
+            <td class="py-4 px-6 text-right font-bold ${color}">${sign}${t.amount}</td>
           </tr>
         `;
       }).join('');
@@ -325,15 +366,25 @@
           labels: ['Выдано бонусов', 'Потрачено бонусов'],
           datasets: [{
             data: [currentData.stats.totalEarned, currentData.stats.totalBurned],
-            backgroundColor: ['#38bdf8', '#ef4444'],
-            borderWidth: 0,
-            hoverOffset: 10
+            backgroundColor: ['#b88c5a', '#7e5d40'],
+            borderWidth: 2,
+            borderColor: '#ffffff',
+            hoverOffset: 4
           }]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          plugins: { legend: { position: 'right', labels: { color: '#f8fafc' } } }
+          plugins: { 
+            legend: { 
+              position: 'bottom', 
+              labels: { 
+                padding: 20,
+                font: { family: 'Inter' }
+              } 
+            } 
+          },
+          cutout: '70%'
         }
       });
     }

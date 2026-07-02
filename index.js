@@ -25,40 +25,158 @@ app.get('/', (req, res) => {
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>Регистрация в Бонусной Системе</title>
+      <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
       <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f3f4f6; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); max-width: 400px; width: 100%; }
-        h1 { margin-top: 0; font-size: 1.5rem; color: #111827; }
-        label { display: block; margin-bottom: 0.5rem; color: #374151; font-weight: 500; }
-        input { width: 100%; padding: 0.75rem; margin-bottom: 1.5rem; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box; }
-        button { width: 100%; padding: 0.75rem; background: #ef4444; color: white; border: none; border-radius: 6px; font-size: 1rem; font-weight: bold; cursor: pointer; }
-        button:hover { background: #dc2626; }
-        .success { color: #059669; background: #d1fae5; padding: 1rem; border-radius: 6px; display: none; margin-bottom: 1rem; }
-        .error { color: #dc2626; background: #fee2e2; padding: 1rem; border-radius: 6px; display: none; margin-bottom: 1rem; }
+        body { 
+          font-family: 'Inter', sans-serif; 
+          background-color: #fcfbf9; 
+          display: flex; 
+          justify-content: center; 
+          align-items: center; 
+          height: 100vh; 
+          margin: 0; 
+          color: #333333;
+        }
+        .card { 
+          background: #ffffff; 
+          padding: 3rem 2.5rem; 
+          border-radius: 12px; 
+          border: 1px solid #efe6d5;
+          box-shadow: 0 10px 30px rgba(184, 140, 90, 0.05); 
+          max-width: 400px; 
+          width: 100%; 
+          text-align: center;
+        }
+        h1 { 
+          font-family: 'Playfair Display', serif;
+          margin-top: 0; 
+          font-size: 2rem; 
+          color: #7e5d40; 
+          margin-bottom: 0.5rem;
+        }
+        p {
+          color: #666;
+          font-size: 0.9rem;
+          margin-bottom: 2rem;
+          line-height: 1.5;
+        }
+        label { 
+          display: block; 
+          text-align: left;
+          margin-bottom: 0.4rem; 
+          color: #9a714a; 
+          font-weight: 500; 
+          font-size: 0.85rem;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+        }
+        input { 
+          width: 100%; 
+          padding: 0.85rem 1rem; 
+          margin-bottom: 1.5rem; 
+          border: 1px solid #e3d2b7; 
+          background: #fdfbf7;
+          border-radius: 8px; 
+          box-sizing: border-box; 
+          font-size: 1rem;
+          color: #4a4a4a;
+          transition: all 0.2s;
+        }
+        input:focus {
+          outline: none;
+          border-color: #b88c5a;
+          box-shadow: 0 0 0 3px rgba(184, 140, 90, 0.1);
+        }
+        button { 
+          width: 100%; 
+          padding: 1rem; 
+          background-color: #b88c5a; 
+          color: white; 
+          border: none; 
+          border-radius: 8px; 
+          font-size: 1rem; 
+          font-weight: 500; 
+          cursor: pointer; 
+          transition: all 0.2s;
+        }
+        button:hover { 
+          background-color: #9a714a; 
+          transform: translateY(-1px);
+        }
+        .success { color: #2f855a; background: #f0fff4; padding: 1rem; border-radius: 8px; display: none; margin-bottom: 1.5rem; font-size: 0.9rem; border: 1px solid #c6f6d5; }
+        .error { color: #c53030; background: #fff5f5; padding: 1rem; border-radius: 8px; display: none; margin-bottom: 1.5rem; font-size: 0.9rem; border: 1px solid #fed7d7; }
       </style>
     </head>
     <body>
       <div class="card">
-        <h1>Регистрация карты</h1>
-        <p style="color: #6b7280; margin-bottom: 1.5rem; font-size: 0.875rem;">Зарегистрируйтесь, чтобы копить бонусы в нашей пекарне и оплачивать ими покупки на кассе!</p>
+        <h1>Карта Лояльности</h1>
+        <p>Зарегистрируйтесь, чтобы получать кэшбэк и оплачивать покупки баллами.</p>
         
-        <div id="successMessage" class="success">Вы успешно зарегистрированы! Теперь вы можете называть свой номер на кассе.</div>
+        <div id="successMessage" class="success">Вы успешно зарегистрированы! Называйте свой номер на кассе.</div>
         <div id="errorMessage" class="error">Произошла ошибка при регистрации.</div>
 
         <form id="regForm">
           <label>Ваше Имя</label>
-          <input type="text" id="name" placeholder="Например: Иван" required>
+          <input type="text" id="name" placeholder="Иван" required>
           
           <label>Номер телефона</label>
-          <input type="tel" id="phone" placeholder="+7 (700) 123-45-67" required>
+          <input type="tel" id="phone" placeholder="+7 (___) ___-__-__" required>
           
-          <button type="submit" id="submitBtn">Получить карту</button>
+          <button type="submit" id="submitBtn">Выпустить карту</button>
         </form>
       </div>
 
       <script>
+        const phoneInput = document.getElementById('phone');
+        
+        // Автоматическое форматирование номера +7
+        phoneInput.addEventListener('input', function(e) {
+          let input = e.target.value.replace(/\\D/g, ''); // удаляем всё кроме цифр
+          
+          if (input.length === 0) {
+            e.target.value = '';
+            return;
+          }
+          
+          // Если номер начинается не с 7 (например, ввели 8), заменяем на 7
+          if (input[0] !== '7') {
+            if (input[0] === '8' && input.length === 1) {
+              input = '7';
+            } else if (input[0] !== '7') {
+              input = '7' + input;
+            }
+          }
+
+          // Ограничиваем длину (11 цифр: 7 + 10 цифр номера)
+          input = input.substring(0, 11);
+
+          let formatted = '+7';
+          if (input.length > 1) {
+            formatted += ' (' + input.substring(1, 4);
+          }
+          if (input.length >= 5) {
+            formatted += ') ' + input.substring(4, 7);
+          }
+          if (input.length >= 8) {
+            formatted += '-' + input.substring(7, 9);
+          }
+          if (input.length >= 10) {
+            formatted += '-' + input.substring(9, 11);
+          }
+
+          e.target.value = formatted;
+        });
+
         document.getElementById('regForm').addEventListener('submit', async (e) => {
           e.preventDefault();
+          
+          // Проверяем, что номер введен полностью (должно быть 11 цифр)
+          const rawPhone = phoneInput.value.replace(/\\D/g, '');
+          if (rawPhone.length !== 11) {
+            alert('Пожалуйста, введите корректный номер телефона полностью.');
+            return;
+          }
+
           const btn = document.getElementById('submitBtn');
           const successDiv = document.getElementById('successMessage');
           const errorDiv = document.getElementById('errorMessage');
@@ -74,7 +192,7 @@ app.get('/', (req, res) => {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 name: document.getElementById('name').value,
-                phone: document.getElementById('phone').value
+                phone: rawPhone
               })
             });
             
@@ -90,7 +208,7 @@ app.get('/', (req, res) => {
             errorDiv.style.display = 'block';
           } finally {
             btn.disabled = false;
-            btn.innerText = 'Получить карту';
+            btn.innerText = 'Выпустить карту';
           }
         });
       </script>
