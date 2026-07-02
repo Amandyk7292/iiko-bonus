@@ -48,6 +48,13 @@ namespace Resto.Front.Api.IikoBonusPlugin
         public System.Collections.Generic.List<CustomerData> customers { get; set; }
     }
 
+    [System.Runtime.Serialization.DataContract]
+    public class CustomerResponse
+    {
+        [System.Runtime.Serialization.DataMember]
+        public CustomerData customer { get; set; }
+    }
+
     public static class LoyaltyFlow
     {
         private static readonly HttpClient _httpClient = new HttpClient();
@@ -123,8 +130,51 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 var customers = data?.customers;
                 if (customers == null || customers.Count == 0)
                 {
-                    vm.ShowOkPopup("Результат", "Клиенты не найдены.", "ОК");
-                    return;
+                    int choice = vm.ShowChooserPopup("Клиент не найден", new List<string> { "✅ Зарегистрировать «" + query + "»", "❌ Отмена" }, 0, Resto.Front.Api.UI.ButtonWidth.Wider, "Отмена");
+                    if (choice != 0) return;
+
+                    string defaultPhone = query.StartsWith("+") || query.Length >= 10 ? query : "+7";
+                    var phoneSettings = new Resto.Front.Api.UI.ExtendedInputDialogSettings
+                    {
+                        EnablePhone = true,
+                        NumericInputMode = Resto.Front.Api.UI.NumericInputMode.String,
+                        TabTitlePhone = "Новый телефон"
+                    };
+                    var newPhoneRes = vm.ShowExtendedInputDialog("Регистрация клиента", "Введите полный номер телефона", phoneSettings, "Далее", "Отмена");
+                    if (newPhoneRes == null) return;
+                    string newPhone = "";
+                    if (newPhoneRes is Resto.Front.Api.Data.View.PhoneInputDialogResult newPhRes) newPhone = newPhRes.PhoneNumber;
+                    else if (newPhoneRes is Resto.Front.Api.Data.View.StringInputDialogResult newStRes) newPhone = newStRes.Result;
+                    else newPhone = newPhoneRes.ToString();
+                    if (string.IsNullOrWhiteSpace(newPhone)) return;
+
+                    var nameSettings = new Resto.Front.Api.UI.ExtendedInputDialogSettings
+                    {
+                        NumericInputMode = Resto.Front.Api.UI.NumericInputMode.String,
+                        TabTitleNumericString = "Имя гостя"
+                    };
+                    var nameRes = vm.ShowExtendedInputDialog("Имя клиента", "Введите имя гостя (или нажмите Пропустить)", nameSettings, "Применить", "Пропустить");
+                    string newName = "Новый Гость";
+                    if (nameRes != null)
+                    {
+                        if (nameRes is Resto.Front.Api.Data.View.StringInputDialogResult strName && !string.IsNullOrWhiteSpace(strName.Result))
+                        {
+                            newName = strName.Result.Trim();
+                        }
+                        else if (!string.IsNullOrWhiteSpace(nameRes.ToString()))
+                        {
+                            newName = nameRes.ToString().Trim();
+                        }
+                    }
+
+                    vm.ChangeProgressBarMessage("Регистрация гостя...");
+                    var createdCustomer = SendCreateCustomerRequest(newPhone, newName);
+                    if (createdCustomer == null)
+                    {
+                        vm.ShowErrorPopup("Не удалось зарегистрировать клиента на сервере.", "ОК");
+                        return;
+                    }
+                    customers = new List<CustomerData> { createdCustomer };
                 }
 
                 // Шаг 3: Выбор клиента
@@ -273,6 +323,47 @@ namespace Resto.Front.Api.IikoBonusPlugin
             catch (Exception ex)
             {
                 PluginContext.Log.Error("IikoBonusPlugin: Error in OnOrderChanged: " + ex);
+            }
+        }
+
+        private static CustomerData SendCreateCustomerRequest(string phone, string name)
+        {
+            try
+            {
+                var payloadStr = "{\"phone\":\"" + phone.Replace("\"", "\\\"") + "\",\"name\":\"" + name.Replace("\"", "\\\"") + "\"}";
+                var content = new StringContent(payloadStr, Encoding.UTF8, "application/json");
+                
+                var request = new HttpRequestMessage(HttpMethod.Post, ApiBaseUrl + "/customer")
+                {
+                    Content = content
+                };
+                request.Headers.Add("Authorization", "Bearer " + ApiToken);
+
+                var responseTask = _httpClient.SendAsync(request);
+                responseTask.Wait();
+                var response = responseTask.Result;
+                
+                var responseStringTask = response.Content.ReadAsStringAsync();
+                responseStringTask.Wait();
+                var responseString = responseStringTask.Result;
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    PluginContext.Log.Error("IikoBonusPlugin: Create customer failed: " + response.StatusCode + " - " + responseString);
+                    return null;
+                }
+
+                var serializer = new DataContractJsonSerializer(typeof(CustomerResponse));
+                using (var ms = new MemoryStream(Encoding.UTF8.GetBytes(responseString)))
+                {
+                    var data = (CustomerResponse)serializer.ReadObject(ms);
+                    return data?.customer;
+                }
+            }
+            catch (Exception ex)
+            {
+                PluginContext.Log.Error("IikoBonusPlugin Error in SendCreateCustomerRequest: " + ex);
+                return null;
             }
         }
 

@@ -249,8 +249,8 @@ const webhookMiddleware = (req, res, next) => {
 
 app.post('/api/loyalty/customer', webhookMiddleware, async (req, res) => {
   try {
-    const { phone } = req.body;
-    const customer = await getOrCreateCustomerByPhone(phone);
+    const { phone, name } = req.body;
+    const customer = await getOrCreateCustomerByPhone(phone, name || 'Новый Гость');
     const settings = await getSettings();
     
     // Определяем текущий процент кэшбэка
