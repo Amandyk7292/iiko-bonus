@@ -4,21 +4,27 @@ const { supabase } = require('./supabase');
  * Получение клиента по номеру телефона
  * Если клиента нет, он создается с балансом 0
  */
-async function getOrCreateCustomerByPhone(phone, name = 'Новый Гость') {
+async function getCustomerByPhone(phone) {
   const cleanPhone = phone.replace(/[^0-9+]/g, '');
-  
-  // Ищем клиента в таблице customers
   const { data: existingCustomer, error: fetchError } = await supabase
     .from('customers')
     .select('*')
     .eq('phone', cleanPhone)
     .maybeSingle();
 
-  if (fetchError) {
-    throw new Error('Error fetching customer: ' + fetchError.message);
-  }
+  if (fetchError) throw new Error('Error fetching customer: ' + fetchError.message);
+  return existingCustomer;
+}
+
+/**
+ * Получение клиента по номеру телефона
+ * Если клиента нет, он создается с балансом 0
+ */
+async function getOrCreateCustomerByPhone(phone, name = 'Новый Гость') {
+  const existingCustomer = await getCustomerByPhone(phone);
 
   if (!existingCustomer) {
+    const cleanPhone = phone.replace(/[^0-9+]/g, '');
     // Создаем нового клиента
     const newCustomer = {
       phone: cleanPhone,
@@ -173,6 +179,7 @@ async function addManualBonus(customerId, amount, reason) {
 }
 
 module.exports = {
+  getCustomerByPhone,
   getOrCreateCustomerByPhone,
   updateCustomerBalance,
   logTransaction,

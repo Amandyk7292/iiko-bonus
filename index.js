@@ -4,7 +4,7 @@ require('dotenv').config();
 const path = require('path');
 const iikoApi = require('./iiko-api');
 
-const { getOrCreateCustomerByPhone, updateCustomerBalance, logTransaction, getAllCustomers, getTransactions, getStats, addManualBonus } = require('./customers');
+const { getCustomerByPhone, getOrCreateCustomerByPhone, updateCustomerBalance, logTransaction, getAllCustomers, getTransactions, getStats, addManualBonus } = require('./customers');
 const { getSettings, updateSettings } = require('./settings');
 const { sendWhatsAppMessage } = require('./whatsapp');
 
@@ -131,7 +131,7 @@ app.get('/', (req, res) => {
         
         // Автоматическое форматирование номера +7
         phoneInput.addEventListener('input', function(e) {
-          let input = e.target.value.replace(/\\D/g, ''); // удаляем всё кроме цифр
+          let input = e.target.value.replace(/\D/g, ''); // удаляем всё кроме цифр
           
           if (input.length === 0) {
             e.target.value = '';
@@ -171,7 +171,7 @@ app.get('/', (req, res) => {
           e.preventDefault();
           
           // Проверяем, что номер введен полностью (должно быть 11 цифр)
-          const rawPhone = phoneInput.value.replace(/\\D/g, '');
+          const rawPhone = phoneInput.value.replace(/\D/g, '');
           if (rawPhone.length !== 11) {
             alert('Пожалуйста, введите корректный номер телефона полностью.');
             return;
@@ -226,6 +226,13 @@ app.post('/api/register-iiko', async (req, res) => {
     if (!phone) return res.status(400).json({ error: 'Номер телефона обязателен' });
 
     console.log(`Регистрация гостя в Supabase: ${name}, ${phone}`);
+    
+    // Сначала проверяем, не существует ли уже такой клиент
+    const existingCustomer = await getCustomerByPhone(phone);
+    if (existingCustomer) {
+      return res.status(400).json({ error: 'Этот номер телефона уже зарегистрирован в бонусной системе.' });
+    }
+
     // Сохраняем в нашу собственную базу Supabase
     const customer = await getOrCreateCustomerByPhone(phone, name);
     
