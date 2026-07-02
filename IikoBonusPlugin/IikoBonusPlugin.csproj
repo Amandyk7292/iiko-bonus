@@ -1,21 +1,22 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net472</TargetFramework>
+    <TargetFramework>net462</TargetFramework>
     <UseWPF>true</UseWPF>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <AssemblyName>IikoBonusPlugin</AssemblyName>
-    <RootNamespace>IikoBonusPlugin</RootNamespace>
+    <AssemblyName>Resto.Front.Api.IikoBonusPlugin</AssemblyName>
+    <RootNamespace>Resto.Front.Api.IikoBonusPlugin</RootNamespace>
     <Platforms>AnyCPU</Platforms>
+    <Version>1.0.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-    <PackageReference Include="Resto.Front.Api.V9" Version="9.4.*" />
+    <PackageReference Include="Resto.Front.Api.V9" Version="9.5.6059" />
   </ItemGroup>
 
   <ItemGroup>
     <Reference Include="System.Net.Http" />
+    <Reference Include="System.Runtime.Serialization" />
   </ItemGroup>
 
 </Project>

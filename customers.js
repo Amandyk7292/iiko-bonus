@@ -139,31 +139,56 @@ async function getTransactions() {
 }
 
 async function getStats() {
-  const { data: customers } = await supabase.from('customers').select('balance, total_spent');
+  const { data: customers } = await supabase.from('customers').select('balance, total_spent, created_at');
   let totalIssued = 0;
   let totalSpent = 0;
+  let newCustomersLast30Days = 0;
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
+
   if (customers) {
     customers.forEach(c => {
       totalSpent += Number(c.total_spent || 0);
-      totalIssued += Number(c.balance || 0); // это текущий баланс, а не всего выдано. Упрощенная статистика.
+      totalIssued += Number(c.balance || 0);
+      if (c.created_at && new Date(c.created_at) >= thirtyDaysAgo) {
+        newCustomersLast30Days++;
+      }
     });
   }
 
-  const { data: txs } = await supabase.from('transactions').select('type, amount');
+  const { data: txs } = await supabase.from('transactions').select('type, amount, timestamp');
   let totalBurned = 0;
   let totalEarned = 0;
+  let earnedLast30Days = 0;
+  let burnedLast30Days = 0;
+
   if (txs) {
     txs.forEach(t => {
-      if (t.type === 'withdrawal') totalBurned += Number(t.amount);
-      if (t.type === 'deposit' || t.type === 'manual') totalEarned += Number(t.amount);
+      const amt = Number(t.amount || 0);
+      const isRecent = t.timestamp && new Date(t.timestamp) >= thirtyDaysAgo;
+      if (t.type === 'withdrawal' || t.type === 'manual_withdrawal') {
+        totalBurned += amt;
+        if (isRecent) burnedLast30Days += amt;
+      }
+      if (t.type === 'deposit' || t.type === 'manual_deposit' || t.type === 'manual') {
+        totalEarned += amt;
+        if (isRecent) earnedLast30Days += amt;
+      }
     });
   }
+
+  const totalGrossRevenue = totalSpent + totalBurned;
+  const bonusPaymentPercent = totalGrossRevenue > 0 ? ((totalBurned / totalGrossRevenue) * 100).toFixed(1) : "0.0";
 
   return {
     totalCustomers: customers ? customers.length : 0,
+    newCustomersLast30Days,
     totalSales: totalSpent,
     totalEarned,
     totalBurned,
+    earnedLast30Days,
+    burnedLast30Days,
+    bonusPaymentPercent,
     currentLiabilities: totalIssued
   };
 }
@@ -197,11 +222,26 @@ async function searchCustomers(query) {
   return data;
 }
 
+async function updateCustomerInfo(customerId, { name, phone, balance, total_spent }) {
+  const updates = {};
+  if (name !== undefined && name !== null) updates.name = name;
+  if (phone !== undefined && phone !== null) updates.phone = phone;
+  if (balance !== undefined && balance !== null) updates.balance = Number(balance);
+  if (total_spent !== undefined && total_spent !== null) updates.total_spent = Number(total_spent);
+
+  const { error } = await supabase
+    .from('customers')
+    .update(updates)
+    .eq('id', customerId);
+  if (error) throw new Error(error.message);
+}
+
 module.exports = {
   getCustomerByPhone,
   getOrCreateCustomerByPhone,
   searchCustomers,
   updateCustomerBalance,
+  updateCustomerInfo,
   logTransaction,
   getAllCustomers,
   getTransactions,

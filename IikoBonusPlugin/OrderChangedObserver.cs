@@ -2,7 +2,7 @@ using System;
 using Resto.Front.Api.Data.Common;
 using Resto.Front.Api.Data.Orders;
 
-namespace IikoBonusPlugin
+namespace Resto.Front.Api.IikoBonusPlugin
 {
     public class OrderChangedObserver : IObserver<EntityChangedEventArgs<IOrder>>
     {

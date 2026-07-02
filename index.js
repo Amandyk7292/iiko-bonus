@@ -4,7 +4,7 @@ require('dotenv').config();
 const path = require('path');
 const iikoApi = require('./iiko-api');
 
-const { getCustomerByPhone, getOrCreateCustomerByPhone, searchCustomers, updateCustomerBalance, logTransaction, getAllCustomers, getTransactions, getStats, addManualBonus } = require('./customers');
+const { getCustomerByPhone, getOrCreateCustomerByPhone, searchCustomers, updateCustomerBalance, updateCustomerInfo, logTransaction, getAllCustomers, getTransactions, getStats, addManualBonus } = require('./customers');
 const { getSettings, updateSettings } = require('./settings');
 const { sendWhatsAppMessage } = require('./whatsapp');
 
@@ -262,6 +262,7 @@ app.post('/api/loyalty/customer', webhookMiddleware, async (req, res) => {
         id: customer.id,
         name: customer.name,
         phone: customer.phone,
+        createdAt: customer.created_at || '',
         totalSpent: customer.total_spent || 0,
         cashbackPercent: currentCashbackPercent,
         maxDiscountPercent: settings.max_discount_percent,
@@ -287,6 +288,7 @@ app.post('/api/loyalty/search', webhookMiddleware, async (req, res) => {
         id: customer.id,
         name: customer.name,
         phone: customer.phone,
+        createdAt: customer.created_at || '',
         totalSpent: customer.total_spent || 0,
         cashbackPercent: currentCashbackPercent,
         maxDiscountPercent: settings.max_discount_percent,
@@ -411,6 +413,14 @@ app.post('/admin/api/customers/bonus', adminAuthMiddleware, async (req, res) => 
   try {
     const { customerId, amount, reason } = req.body;
     await addManualBonus(customerId, amount, reason);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/admin/api/customers/update', adminAuthMiddleware, async (req, res) => {
+  try {
+    const { customerId, name, phone, balance, total_spent } = req.body;
+    await updateCustomerInfo(customerId, { name, phone, balance, total_spent });
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
