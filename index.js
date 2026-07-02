@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 const path = require('path');
+const { supabase } = require('./supabase');
 const iikoApi = require('./iiko-api');
 
 const { getCustomerByPhone, getOrCreateCustomerByPhone, searchCustomers, updateCustomerBalance, updateCustomerInfo, logTransaction, getAllCustomers, getTransactions, getStats, addManualBonus, checkAndExpireInactiveBonuses } = require('./customers');
@@ -437,6 +438,60 @@ app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'admin.html'));
 });
 
+// ==========================================
+// 5. GUEST MINI APP API & UI
+// ==========================================
+app.post('/api/guest/profile', async (req, res) => {
+  try {
+    const { phone, name, register } = req.body;
+    if (!phone) return res.status(400).json({ error: 'Phone required' });
+
+    let customer = await getCustomerByPhone(phone);
+    if (!customer) {
+      if (register) {
+        customer = await getOrCreateCustomerByPhone(phone, name || 'Новый Гость');
+      } else {
+        return res.json({ exists: false });
+      }
+    }
+
+    const settings = await getSettings();
+    const vipThreshold = settings.vip_threshold || 300000;
+    const isVip = (Number(customer.total_spent) || 0) >= vipThreshold;
+    const cashbackPercent = isVip ? (settings.vip_cashback_percent || 5) : (settings.base_cashback_percent || 3);
+
+    // Получаем последние транзакции клиента
+    const { data: transactions } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('customer_id', customer.id)
+      .order('timestamp', { ascending: false })
+      .limit(20);
+
+    res.json({
+      exists: true,
+      customer: {
+        id: customer.id,
+        name: customer.name,
+        phone: customer.phone,
+        balance: customer.balance,
+        total_spent: customer.total_spent,
+        created_at: customer.created_at,
+        isVip,
+        cashbackPercent,
+        vipThreshold
+      },
+      transactions: transactions || []
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get(['/app', '/wallet', '/guest'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'app.html'));
+});
+
 app.get('/health', (req, res) => res.send('iiko Bonus API is running'));
 
 // Автоматическая проверка сгорания бонусов при запуске (через 15 секунд) и затем раз в сутки
@@ -448,5 +503,10 @@ setInterval(() => {
 }, 24 * 60 * 60 * 1000);
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server is running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+  // Запуск Telegram-бота
+  const telegramBot = require('./telegram');
+  telegramBot.startPolling();
+});
 
