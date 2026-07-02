@@ -5,15 +5,18 @@ const { supabase } = require('./supabase');
  * Если клиента нет, он создается с балансом 0
  */
 async function getCustomerByPhone(phone) {
-  const cleanPhone = phone.replace(/[^0-9+]/g, '');
-  const { data: existingCustomer, error: fetchError } = await supabase
+  const digitsOnly = phone.replace(/[^0-9]/g, '');
+  const searchPattern = digitsOnly.length >= 10 ? digitsOnly.slice(-10) : phone.replace(/[^0-9+]/g, '');
+
+  const { data: customers, error: fetchError } = await supabase
     .from('customers')
     .select('*')
-    .eq('phone', cleanPhone)
-    .maybeSingle();
+    .ilike('phone', `%${searchPattern}%`)
+    .order('balance', { ascending: false })
+    .limit(1);
 
   if (fetchError) throw new Error('Error fetching customer: ' + fetchError.message);
-  return existingCustomer;
+  return customers && customers.length > 0 ? customers[0] : null;
 }
 
 /**
@@ -204,18 +207,20 @@ async function addManualBonus(customerId, amount, reason) {
 }
 
 async function searchCustomers(query) {
-  const cleanPhoneQuery = query.replace(/[^0-9+]/g, '');
+  const digitsOnly = query.replace(/[^0-9]/g, '');
+  const searchPattern = digitsOnly.length >= 10 ? digitsOnly.slice(-10) : query.replace(/[^0-9+]/g, '');
   
   // Создаем строку для .or()
   let orQuery = `name.ilike.%${query}%`;
-  if (cleanPhoneQuery.length > 0) {
-    orQuery += `,phone.ilike.%${cleanPhoneQuery}%`;
+  if (searchPattern.length > 0) {
+    orQuery += `,phone.ilike.%${searchPattern}%`;
   }
 
   const { data, error } = await supabase
     .from('customers')
     .select('*')
     .or(orQuery)
+    .order('balance', { ascending: false })
     .limit(10);
 
   if (error) throw new Error(error.message);
