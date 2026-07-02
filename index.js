@@ -129,49 +129,34 @@ app.get('/', (req, res) => {
       <script>
         const phoneInput = document.getElementById('phone');
         
-        // Автоматическое форматирование номера +7
-        phoneInput.addEventListener('input', function(e) {
-          let input = e.target.value.replace(/\D/g, ''); // удаляем всё кроме цифр
-          
-          if (input.length === 0) {
-            e.target.value = '';
-            return;
-          }
-          
-          // Если номер начинается не с 7 (например, ввели 8), заменяем на 7
-          if (input[0] !== '7') {
-            if (input[0] === '8' && input.length === 1) {
-              input = '7';
-            } else if (input[0] !== '7') {
-              input = '7' + input;
+        phoneInput.addEventListener('input', function (e) {
+            // Внутри шаблонной строки (backticks) слеши теряются, поэтому используем [^0-9]
+            let val = e.target.value.replace(/[^0-9]/g, '');
+            
+            if (!val) {
+                e.target.value = '';
+                return;
             }
-          }
-
-          // Ограничиваем длину (11 цифр: 7 + 10 цифр номера)
-          input = input.substring(0, 11);
-
-          let formatted = '+7';
-          if (input.length > 1) {
-            formatted += ' (' + input.substring(1, 4);
-          }
-          if (input.length >= 5) {
-            formatted += ') ' + input.substring(4, 7);
-          }
-          if (input.length >= 8) {
-            formatted += '-' + input.substring(7, 9);
-          }
-          if (input.length >= 10) {
-            formatted += '-' + input.substring(9, 11);
-          }
-
-          e.target.value = formatted;
+            
+            if (val[0] === '8') val = '7' + val.substring(1);
+            if (val[0] !== '7') val = '7' + val;
+            
+            val = val.substring(0, 11);
+            
+            let formatted = '+7';
+            if (val.length > 1) formatted += ' (' + val.substring(1, 4);
+            if (val.length >= 5) formatted += ') ' + val.substring(4, 7);
+            if (val.length >= 8) formatted += '-' + val.substring(7, 9);
+            if (val.length >= 10) formatted += '-' + val.substring(9, 11);
+            
+            e.target.value = formatted;
         });
 
         document.getElementById('regForm').addEventListener('submit', async (e) => {
           e.preventDefault();
           
           // Проверяем, что номер введен полностью (должно быть 11 цифр)
-          const rawPhone = phoneInput.value.replace(/\D/g, '');
+          const rawPhone = phoneInput.value.replace(/[^0-9]/g, '');
           if (rawPhone.length !== 11) {
             alert('Пожалуйста, введите корректный номер телефона полностью.');
             return;
