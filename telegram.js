@@ -4,8 +4,8 @@ const { getSettings } = require('./settings');
 
 // Токен бота по умолчанию (от пользователя) или из переменных окружения
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8786019464:AAHjKVN6mHF5un4ZedUpaxbCg32Q5PC4wbw';
-// URL для WebApp (для локального теста или продакшена)
-const WEBAPP_URL = process.env.WEBAPP_URL || 'https://example.com/app'; 
+// URL для WebApp (Vercel продакшен или GitHub Pages по умолчанию)
+const WEBAPP_URL = process.env.WEBAPP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}/app` : 'https://amandyk7292.github.io/iiko-bonus/app.html'); 
 
 let offset = 0;
 let isRunning = false;
@@ -157,4 +157,8 @@ function stopPolling() {
   isRunning = false;
 }
 
-module.exports = { startPolling, stopPolling, sendMessage };
+async function setWebhook(url) {
+  return await callApi('setWebhook', { url: url });
+}
+
+module.exports = { startPolling, stopPolling, sendMessage, handleUpdate, setWebhook };

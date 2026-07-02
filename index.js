@@ -494,6 +494,28 @@ app.get(['/app', '/wallet', '/guest'], (req, res) => {
 
 app.get('/health', (req, res) => res.send('iiko Bonus API is running'));
 
+// ==========================================
+// 6. TELEGRAM WEBHOOK (Vercel Serverless)
+// ==========================================
+app.post('/api/telegram/webhook', async (req, res) => {
+  try {
+    const telegramBot = require('./telegram');
+    await telegramBot.handleUpdate(req.body);
+    res.status(200).send('OK');
+  } catch (err) {
+    console.error('Webhook error:', err);
+    res.status(500).send('Error');
+  }
+});
+
+app.get('/api/telegram/set-webhook', async (req, res) => {
+  const url = req.query.url; // например: https://your-project.vercel.app/api/telegram/webhook
+  if (!url) return res.status(400).send('Please provide ?url=https://your-domain.vercel.app/api/telegram/webhook');
+  const telegramBot = require('./telegram');
+  const result = await telegramBot.setWebhook(url);
+  res.json(result);
+});
+
 // Автоматическая проверка сгорания бонусов при запуске (через 15 секунд) и затем раз в сутки
 setTimeout(() => {
   checkAndExpireInactiveBonuses(90).catch(err => console.error('Error auto-expiring bonuses:', err));
@@ -503,10 +525,14 @@ setInterval(() => {
 }, 24 * 60 * 60 * 1000);
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-  // Запуск Telegram-бота
-  const telegramBot = require('./telegram');
-  telegramBot.startPolling();
-});
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+    // Запуск Telegram-бота (long-polling в режиме обычного сервера)
+    const telegramBot = require('./telegram');
+    telegramBot.startPolling();
+  });
+}
+
+module.exports = app;
 
