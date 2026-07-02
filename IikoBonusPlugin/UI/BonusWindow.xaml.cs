@@ -178,12 +178,43 @@ namespace IikoBonusPlugin.UI
 
             try
             {
-                // TODO: В iiko V9 способ применения скидки отличается.
-                // Вам нужно найти нужную скидку и применить её через IOperationService или EditSession.
-                // Например:
-                // _os.AddDiscountItem(discountAmount, discountType, ...);
+                // Ищем тип скидки в iiko (настроено в iikoOffice)
+                var discountType = _os.GetDiscountTypes().FirstOrDefault(d => 
+                    d.Name.ToLower().Contains("бонус") || 
+                    d.Name.ToLower().Contains("списание") || 
+                    d.Name.ToLower().Contains("лояльност"));
 
-                MessageBox.Show($"Симуляция: Успешно списано {discountAmount} бонусов. Ожидаем закрытия заказа для финального расчета.", "Успех", MessageBoxButton.OK, MessageBoxImage.Information);
+                if (discountType == null)
+                {
+                    MessageBox.Show("В iikoOffice не найдена скидка со словом 'Бонус', 'Списание' или 'Лояльность'. Пожалуйста, создайте гибкую скидку для программы лояльности.", "Настройка не завершена", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    
+                    // Если скидки нет, мы все равно имитируем для тестов, если сумма 0
+                    if (discountAmount == 0)
+                    {
+                        MessageBox.Show($"Клиент привязан к заказу. Ожидаем закрытия чека для начисления кэшбэка.", "Успех", MessageBoxButton.OK, MessageBoxImage.Information);
+                        this.Close();
+                    }
+                    return;
+                }
+
+                if (discountAmount > 0)
+                {
+                    // Открываем сессию редактирования заказа
+                    var editSession = _os.CreateEditSession();
+                    
+                    // Применяем гибкую скидку на нужную сумму
+                    editSession.AddFlexibleSumDiscount(discountAmount, discountType, _order);
+                    
+                    // Сохраняем изменения в заказе
+                    _os.SubmitChanges(editSession, _os.GetDefaultCredentials());
+
+                    MessageBox.Show($"Успешно списано {discountAmount} бонусов.", "Успех", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                else
+                {
+                    MessageBox.Show($"Клиент привязан к заказу. Начисление кэшбэка произойдет после оплаты чека.", "Успех", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+
                 this.Close();
             }
             catch (Exception ex)
