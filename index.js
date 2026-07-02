@@ -271,6 +271,36 @@ app.post('/api/loyalty/customer', webhookMiddleware, async (req, res) => {
   } catch (error) { res.status(500).json({ error: 'Internal server error' }); }
 });
 
+app.post('/api/loyalty/search', webhookMiddleware, async (req, res) => {
+  try {
+    const { query } = req.body;
+    if (!query) return res.status(400).json({ error: 'Query is required' });
+
+    const customers = await searchCustomers(query);
+    const settings = await getSettings();
+
+    const formattedCustomers = customers.map(customer => {
+      const isVip = (customer.total_spent || 0) >= settings.vip_threshold;
+      const currentCashbackPercent = isVip ? settings.vip_cashback_percent : settings.base_cashback_percent;
+
+      return {
+        id: customer.id,
+        name: customer.name,
+        phone: customer.phone,
+        totalSpent: customer.total_spent || 0,
+        cashbackPercent: currentCashbackPercent,
+        maxDiscountPercent: settings.max_discount_percent,
+        balances: [{ walletId: 'bonus-wallet', name: 'Бонусы', balance: customer.balance }]
+      };
+    });
+
+    res.json({ customers: formattedCustomers });
+  } catch (error) { 
+    console.error(error); 
+    res.status(500).json({ error: 'Internal server error' }); 
+  }
+});
+
 app.post('/api/loyalty/calculate', webhookMiddleware, async (req, res) => {
   try {
     const { customerId, orderTotal, requestedBonusAmount } = req.body;

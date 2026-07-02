@@ -1,7 +1,7 @@
 <Window x:Class="IikoBonusPlugin.UI.BonusWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Оплата бонусами" Height="350" Width="450"
+        Title="Оплата бонусами" Height="450" Width="450"
         WindowStartupLocation="CenterScreen"
         Topmost="True"
         Background="#F5F5F5">
@@ -17,10 +17,24 @@
         <TextBlock Grid.Row="0" Text="Поиск клиента" FontSize="18" FontWeight="Bold" Margin="0,0,0,15" />
         
         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,20">
-            <TextBlock Text="Телефон:" VerticalAlignment="Center" FontSize="16" Width="90" />
-            <TextBox x:Name="PhoneTextBox" Width="200" FontSize="16" Padding="5" />
+            <TextBlock Text="Поиск:" VerticalAlignment="Center" FontSize="16" Width="60" />
+            <TextBox x:Name="PhoneTextBox" Width="230" FontSize="16" Padding="5" />
             <Button x:Name="SearchButton" Content="Найти" Width="100" Margin="10,0,0,0" FontSize="14" Click="SearchButton_Click" Background="#2196F3" Foreground="White" />
         </StackPanel>
+
+        <!-- Список результатов поиска -->
+        <ListBox Grid.Row="2" x:Name="SearchResultsListBox" Visibility="Collapsed" Margin="0,0,0,20" Height="150" SelectionChanged="SearchResultsListBox_SelectionChanged">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Border BorderBrush="#E0E0E0" BorderThickness="0,0,0,1" Padding="10">
+                        <StackPanel>
+                            <TextBlock Text="{Binding name}" FontSize="16" FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding phone}" FontSize="14" Foreground="#666666" Margin="0,5,0,0" />
+                        </StackPanel>
+                    </Border>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
 
         <Border Grid.Row="2" Background="White" BorderBrush="#E0E0E0" BorderThickness="1" CornerRadius="5" Padding="15" Margin="0,0,0,20" x:Name="CustomerInfoBorder" Visibility="Collapsed">
             <StackPanel>

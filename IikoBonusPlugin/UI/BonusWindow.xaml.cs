@@ -31,6 +31,11 @@ namespace IikoBonusPlugin.UI
         public CustomerData customer { get; set; }
     }
 
+    public class SearchResponse
+    {
+        public System.Collections.Generic.List<CustomerData> customers { get; set; }
+    }
+
     public partial class BonusWindow : Window
     {
         private readonly IOrder _order;
@@ -53,10 +58,10 @@ namespace IikoBonusPlugin.UI
 
         private async void SearchButton_Click(object sender, RoutedEventArgs e)
         {
-            var phone = PhoneTextBox.Text.Trim();
-            if (string.IsNullOrEmpty(phone))
+            var query = PhoneTextBox.Text.Trim();
+            if (string.IsNullOrEmpty(query))
             {
-                StatusTextBlock.Text = "Введите номер телефона";
+                StatusTextBlock.Text = "Введите номер телефона или имя";
                 return;
             }
 
@@ -65,11 +70,14 @@ namespace IikoBonusPlugin.UI
                 StatusTextBlock.Text = "Поиск...";
                 StatusTextBlock.Foreground = System.Windows.Media.Brushes.Black;
                 SearchButton.IsEnabled = false;
+                SearchResultsListBox.Visibility = Visibility.Collapsed;
+                CustomerInfoBorder.Visibility = Visibility.Collapsed;
+                PaymentPanel.Visibility = Visibility.Collapsed;
 
-                var payload = new { phone = phone };
+                var payload = new { query = query };
                 var content = new StringContent(JsonConvert.SerializeObject(payload), Encoding.UTF8, "application/json");
                 
-                var request = new HttpRequestMessage(HttpMethod.Post, $"{ApiBaseUrl}/customer")
+                var request = new HttpRequestMessage(HttpMethod.Post, $"{ApiBaseUrl}/search")
                 {
                     Content = content
                 };
@@ -80,26 +88,31 @@ namespace IikoBonusPlugin.UI
 
                 if (response.IsSuccessStatusCode)
                 {
-                    var data = JsonConvert.DeserializeObject<LoyaltyResponse>(responseString);
-                    var customer = data.customer;
+                    var data = JsonConvert.DeserializeObject<SearchResponse>(responseString);
+                    var customers = data.customers;
 
-                    _currentCustomerId = customer.id;
-                    _maxDiscountPercent = customer.maxDiscountPercent;
-
-                    string vipStatus = customer.cashbackPercent > 3 ? " (VIP)" : "";
-                    CustomerNameTextBlock.Text = $"Клиент: {customer.name}{vipStatus}";
-                    CustomerBalanceTextBlock.Text = $"Баланс: {customer.balances[0].balance} бонусов (Кэшбек: {customer.cashbackPercent}%)";
-                    
-                    CustomerInfoBorder.Visibility = Visibility.Visible;
-                    PaymentPanel.Visibility = Visibility.Visible;
-                    StatusTextBlock.Text = $"Максимальная оплата бонусами: {customer.maxDiscountPercent}% от чека";
+                    if (customers == null || customers.Count == 0)
+                    {
+                        StatusTextBlock.Foreground = System.Windows.Media.Brushes.Red;
+                        StatusTextBlock.Text = "Клиенты не найдены.";
+                    }
+                    else if (customers.Count == 1)
+                    {
+                        // Если найден только 1, сразу показываем его
+                        SelectCustomer(customers[0]);
+                    }
+                    else
+                    {
+                        // Показываем список для выбора
+                        StatusTextBlock.Text = $"Найдено клиентов: {customers.Count}. Выберите нужного.";
+                        SearchResultsListBox.ItemsSource = customers;
+                        SearchResultsListBox.Visibility = Visibility.Visible;
+                    }
                 }
                 else
                 {
                     StatusTextBlock.Foreground = System.Windows.Media.Brushes.Red;
-                    StatusTextBlock.Text = "Клиент не найден или ошибка сервера.";
-                    CustomerInfoBorder.Visibility = Visibility.Collapsed;
-                    PaymentPanel.Visibility = Visibility.Collapsed;
+                    StatusTextBlock.Text = "Ошибка сервера: " + response.StatusCode;
                 }
             }
             catch (Exception ex)
@@ -111,6 +124,30 @@ namespace IikoBonusPlugin.UI
             {
                 SearchButton.IsEnabled = true;
             }
+        }
+
+        private void SearchResultsListBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+        {
+            if (SearchResultsListBox.SelectedItem is CustomerData selectedCustomer)
+            {
+                SelectCustomer(selectedCustomer);
+                SearchResultsListBox.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private void SelectCustomer(CustomerData customer)
+        {
+            _currentCustomerId = customer.id;
+            _maxDiscountPercent = customer.maxDiscountPercent;
+
+            string vipStatus = customer.cashbackPercent > 3 ? " (VIP)" : "";
+            CustomerNameTextBlock.Text = $"Клиент: {customer.name}{vipStatus}";
+            decimal balance = customer.balances != null && customer.balances.Length > 0 ? customer.balances[0].balance : 0;
+            CustomerBalanceTextBlock.Text = $"Баланс: {balance} бонусов (Кэшбек: {customer.cashbackPercent}%)";
+            
+            CustomerInfoBorder.Visibility = Visibility.Visible;
+            PaymentPanel.Visibility = Visibility.Visible;
+            StatusTextBlock.Text = $"Максимальная оплата бонусами: {customer.maxDiscountPercent}% от чека";
         }
 
         private void ApplyButton_Click(object sender, RoutedEventArgs e)

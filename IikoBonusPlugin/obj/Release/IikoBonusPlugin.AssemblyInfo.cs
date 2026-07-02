@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("IikoBonusPlugin")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+33c709bb3c6c98048f2fcee759f0829e66df5755")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4cbb98417f103e297af05c5f528bec473b18bd9c")]
 [assembly: System.Reflection.AssemblyProductAttribute("IikoBonusPlugin")]
 [assembly: System.Reflection.AssemblyTitleAttribute("IikoBonusPlugin")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

@@ -178,9 +178,29 @@ async function addManualBonus(customerId, amount, reason) {
   });
 }
 
+async function searchCustomers(query) {
+  const cleanPhoneQuery = query.replace(/[^0-9+]/g, '');
+  
+  // Создаем строку для .or()
+  let orQuery = `name.ilike.%${query}%`;
+  if (cleanPhoneQuery.length > 0) {
+    orQuery += `,phone.ilike.%${cleanPhoneQuery}%`;
+  }
+
+  const { data, error } = await supabase
+    .from('customers')
+    .select('*')
+    .or(orQuery)
+    .limit(10);
+
+  if (error) throw new Error(error.message);
+  return data;
+}
+
 module.exports = {
   getCustomerByPhone,
   getOrCreateCustomerByPhone,
+  searchCustomers,
   updateCustomerBalance,
   logTransaction,
   getAllCustomers,
