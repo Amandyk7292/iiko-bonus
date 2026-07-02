@@ -111,8 +111,8 @@ app.post('/api/register-iiko', async (req, res) => {
     // Сохраняем в нашу собственную базу Supabase
     const customer = await getOrCreateCustomerByPhone(phone, name);
     
-    // Отправляем WhatsApp уведомление
-    sendWhatsAppMessage(phone, `🎉 Добро пожаловать, ${name}!\nВы успешно зарегистрированы в нашей бонусной системе. Ваш баланс: 0 бонусов.\n\nНазывайте этот номер телефона на кассе, чтобы копить кэшбэк!`);
+    // Отправляем WhatsApp уведомление (отключено по просьбе пользователя)
+    // sendWhatsAppMessage(phone, `🎉 Добро пожаловать, ${name}!\nВы успешно зарегистрированы в нашей бонусной системе. Ваш баланс: 0 бонусов.\n\nНазывайте этот номер телефона на кассе, чтобы копить кэшбэк!`);
 
     res.json({ success: true, customerId: customer.id });
   } catch (err) {
@@ -200,7 +200,8 @@ app.post('/api/loyalty/apply', webhookMiddleware, async (req, res) => {
       await logTransaction({ customerId, orderId, type: 'deposit', amount: earnedBonus, orderTotal: realMoneyPaid });
     }
 
-    // Отправка WhatsApp уведомления
+    // Отправка WhatsApp уведомления (отключено по просьбе пользователя)
+    /*
     if (customer) {
       let msg = `Чек на сумму ${orderTotal} тнг.\n`;
       if (discountAmount > 0) msg += `➖ Списано: ${discountAmount} бонусов\n`;
@@ -208,6 +209,7 @@ app.post('/api/loyalty/apply', webhookMiddleware, async (req, res) => {
       msg += `\nСпасибо, что выбираете нас!`;
       sendWhatsAppMessage(customer.phone, msg);
     }
+    */
 
     res.json({ success: true, earnedBonus, cashbackPercent });
   } catch (error) { console.error(error); res.status(500).json({ error: 'Internal server error' }); }
