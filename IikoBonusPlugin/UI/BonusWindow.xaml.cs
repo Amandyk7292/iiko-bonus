@@ -20,6 +20,9 @@ namespace IikoBonusPlugin.UI
         public string id { get; set; }
         public string name { get; set; }
         public string phone { get; set; }
+        public decimal totalSpent { get; set; }
+        public decimal cashbackPercent { get; set; }
+        public decimal maxDiscountPercent { get; set; }
         public CustomerBalance[] balances { get; set; }
     }
 
@@ -39,6 +42,7 @@ namespace IikoBonusPlugin.UI
         private const string ApiToken = "secret-token"; // ваш API_TOKEN
 
         private string _currentCustomerId;
+        private decimal _maxDiscountPercent;
 
         public BonusWindow(IOrder order, IOperationService os)
         {
@@ -80,12 +84,15 @@ namespace IikoBonusPlugin.UI
                     var customer = data.customer;
 
                     _currentCustomerId = customer.id;
-                    CustomerNameTextBlock.Text = $"Клиент: {customer.name} ({customer.phone})";
-                    CustomerBalanceTextBlock.Text = $"Баланс: {customer.balances[0].balance} бонусов";
+                    _maxDiscountPercent = customer.maxDiscountPercent;
+
+                    string vipStatus = customer.cashbackPercent > 3 ? " (VIP)" : "";
+                    CustomerNameTextBlock.Text = $"Клиент: {customer.name}{vipStatus}";
+                    CustomerBalanceTextBlock.Text = $"Баланс: {customer.balances[0].balance} бонусов (Кэшбек: {customer.cashbackPercent}%)";
                     
                     CustomerInfoBorder.Visibility = Visibility.Visible;
                     PaymentPanel.Visibility = Visibility.Visible;
-                    StatusTextBlock.Text = "";
+                    StatusTextBlock.Text = $"Максимальная оплата бонусами: {customer.maxDiscountPercent}% от чека";
                 }
                 else
                 {
@@ -113,6 +120,15 @@ namespace IikoBonusPlugin.UI
             if (!decimal.TryParse(AmountTextBox.Text, out decimal discountAmount) || discountAmount <= 0)
             {
                 StatusTextBlock.Text = "Введите корректную сумму";
+                return;
+            }
+
+            // Проверяем лимит
+            decimal maxAllowed = _order.FullSum * (_maxDiscountPercent / 100);
+            if (discountAmount > maxAllowed)
+            {
+                StatusTextBlock.Foreground = System.Windows.Media.Brushes.Red;
+                StatusTextBlock.Text = $"Максимум можно списать {maxAllowed:0.00} (лимит {_maxDiscountPercent}%)";
                 return;
             }
 

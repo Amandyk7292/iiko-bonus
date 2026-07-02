@@ -23,6 +23,7 @@ async function getOrCreateCustomerByPhone(phone, name = 'Новый Гость')
     const newCustomer = {
       phone: cleanPhone,
       balance: 0,
+      total_spent: 0,
       name: name
     };
     
@@ -71,7 +72,7 @@ async function updateCustomerBalance(customerId, amountChange) {
 }
 
 /**
- * Запись транзакции
+ * Запись транзакции и обновление total_spent, если это покупка (deposit)
  */
 async function logTransaction(transactionData) {
   const { error } = await supabase
@@ -87,6 +88,24 @@ async function logTransaction(transactionData) {
     
   if (error) {
     console.error('Error logging transaction:', error.message);
+  }
+
+  // Обновляем total_spent при покупке (даже если клиент расплачивается бонусами, мы можем добавлять к total_spent только реально потраченные деньги)
+  if (transactionData.type === 'deposit' && transactionData.orderTotal) {
+    // В transactionData мы будем передавать orderTotal как "реально уплаченные деньги" (orderTotal - discountAmount)
+    const { data: doc } = await supabase
+      .from('customers')
+      .select('total_spent')
+      .eq('id', transactionData.customerId)
+      .single();
+
+    if (doc) {
+      const newTotalSpent = Number(doc.total_spent || 0) + Number(transactionData.orderTotal);
+      await supabase
+        .from('customers')
+        .update({ total_spent: newTotalSpent })
+        .eq('id', transactionData.customerId);
+    }
   }
 }
 
