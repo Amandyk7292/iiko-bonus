@@ -4,7 +4,7 @@ require('dotenv').config();
 const path = require('path');
 const iikoApi = require('./iiko-api');
 
-const { getCustomerByPhone, getOrCreateCustomerByPhone, updateCustomerBalance, logTransaction, getAllCustomers, getTransactions, getStats, addManualBonus } = require('./customers');
+const { getCustomerByPhone, getOrCreateCustomerByPhone, searchCustomers, updateCustomerBalance, logTransaction, getAllCustomers, getTransactions, getStats, addManualBonus } = require('./customers');
 const { getSettings, updateSettings } = require('./settings');
 const { sendWhatsAppMessage } = require('./whatsapp');
 
