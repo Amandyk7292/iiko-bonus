@@ -308,6 +308,19 @@ async function checkAndExpireInactiveBonuses(inactivityDays = 90) {
   return { expiredCount, totalExpiredAmount };
 }
 
+/**
+ * Удаление клиента и всех его транзакций
+ */
+async function deleteCustomer(customerId) {
+  // Сначала удаляем все транзакции клиента, чтобы не было ошибки внешнего ключа (foreign key constraint)
+  await supabase.from('transactions').delete().eq('customer_id', customerId);
+  
+  // Затем удаляем самого клиента
+  const { error } = await supabase.from('customers').delete().eq('id', customerId);
+  if (error) throw new Error(error.message);
+  return true;
+}
+
 module.exports = {
   getCustomerByPhone,
   getOrCreateCustomerByPhone,
@@ -319,6 +332,6 @@ module.exports = {
   getTransactions,
   getStats,
   addManualBonus,
-  checkAndExpireInactiveBonuses
+  checkAndExpireInactiveBonuses,
+  deleteCustomer
 };
-

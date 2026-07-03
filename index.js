@@ -437,6 +437,14 @@ app.post('/admin/api/customers/expire-inactive', adminAuthMiddleware, async (req
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.delete('/admin/api/customers/:id', adminAuthMiddleware, async (req, res) => {
+  try {
+    const { deleteCustomer } = require('./customers');
+    await deleteCustomer(req.params.id);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'admin.html'));
 });
