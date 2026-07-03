@@ -325,7 +325,7 @@ app.post('/api/loyalty/apply', webhookMiddleware, async (req, res) => {
 
     if (discountAmount > 0) {
       await updateCustomerBalance(customerId, -discountAmount);
-      await logTransaction({ customerId, orderId, type: 'withdrawal', amount: discountAmount });
+      await logTransaction({ customerId, orderId, type: 'withdrawal', amount: discountAmount, orderTotal: orderTotal });
     }
 
     const realMoneyPaid = orderTotal - (discountAmount || 0);
@@ -336,7 +336,7 @@ app.post('/api/loyalty/apply', webhookMiddleware, async (req, res) => {
     const isVip = (customer?.total_spent || 0) >= settings.vip_threshold;
     const cashbackPercent = isVip ? settings.vip_cashback_percent : settings.base_cashback_percent;
 
-    const earnedBonus = Math.floor(realMoneyPaid * (cashbackPercent / 100));
+    const earnedBonus = Number((realMoneyPaid * (cashbackPercent / 100)).toFixed(2));
     
     if (earnedBonus > 0) {
       await updateCustomerBalance(customerId, earnedBonus);

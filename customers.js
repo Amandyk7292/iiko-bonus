@@ -91,7 +91,8 @@ async function logTransaction(transactionData) {
         customer_id: transactionData.customerId,
         order_id: transactionData.orderId,
         type: transactionData.type,
-        amount: transactionData.amount
+        amount: transactionData.amount,
+        order_total: transactionData.orderTotal || null
       }
     ]);
     

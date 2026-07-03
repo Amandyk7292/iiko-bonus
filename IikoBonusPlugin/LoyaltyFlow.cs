@@ -154,6 +154,50 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 }
                 if (string.IsNullOrWhiteSpace(query)) return;
 
+                RunSearchAndApply(order, os, vm, query);
+            }
+            catch (Exception ex)
+            {
+                vm.ShowErrorPopup("Ошибка: " + ex.Message, "ОК");
+                PluginContext.Log.Error("IikoBonusPlugin Error in LoyaltyFlow: " + ex);
+            }
+        }
+
+        public static bool OnBarcodeScanned(ValueTuple<string, IOrder, IOperationService, IViewManager> args)
+        {
+            var barcode = args.Item1;
+            var order = args.Item2;
+            var os = args.Item3;
+            var vm = args.Item4;
+
+            if (string.IsNullOrWhiteSpace(barcode)) return false;
+
+            // Если штрихкод похож на номер телефона (10-15 цифр, возможно с плюсом)
+            string digitsOnly = new string(barcode.Where(char.IsDigit).ToArray());
+            if (digitsOnly.Length >= 10 && digitsOnly.Length <= 15)
+            {
+                // Запускаем поиск в фоне, чтобы не блокировать UI-поток сканера
+                Task.Run(() =>
+                {
+                    try
+                    {
+                        RunSearchAndApply(order, os, vm, barcode);
+                    }
+                    catch (Exception ex)
+                    {
+                        PluginContext.Log.Error("IikoBonusPlugin Error processing barcode: " + ex);
+                    }
+                });
+                return true;
+            }
+
+            return false;
+        }
+
+        private static void RunSearchAndApply(IOrder order, IOperationService os, IViewManager vm, string query)
+        {
+            try
+            {
                 vm.ChangeProgressBarMessage("Поиск клиента...");
 
                 // Шаг 2: Ищем клиента
@@ -310,7 +354,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             catch (Exception ex)
             {
                 vm.ShowErrorPopup("Ошибка: " + ex.Message, "ОК");
-                PluginContext.Log.Error("IikoBonusPlugin Error in LoyaltyFlow: " + ex);
+                PluginContext.Log.Error("IikoBonusPlugin Error in RunSearchAndApply: " + ex);
             }
         }
 

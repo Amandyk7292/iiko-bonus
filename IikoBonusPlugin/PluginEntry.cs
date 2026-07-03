@@ -21,6 +21,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private IDisposable _orderSubscription;
         private IDisposable _billPrintSubscription;
         private IDisposable _cashPrintSubscription;
+        private IDisposable _barcodeSubscription;
 
         public class OrderLoyaltyData
         {
@@ -69,6 +70,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 _billPrintSubscription = PluginContext.Notifications.BillChequePrinting.Subscribe(OnBillChequePrinting);
                 _cashPrintSubscription = PluginContext.Notifications.CashChequePrinting.Subscribe(OnCashChequePrinting);
 
+                _barcodeSubscription = PluginContext.Notifications.OrderEditBarcodeScanned.Subscribe(LoyaltyFlow.OnBarcodeScanned);
+
                 PluginContext.Log.Info("IikoBonusPlugin: Initialized successfully.");
             }
             catch (Exception ex)
@@ -85,7 +88,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 if (!ActiveOrders.TryGetValue(orderId, out var data)) return extensions;
 
                 decimal realMoneyPaid = Math.Max(0, data.OrderFullSum - data.DiscountAmount);
-                decimal earnedBonus = Math.Floor(realMoneyPaid * (data.CashbackPercent / 100m));
+                decimal earnedBonus = Math.Round(realMoneyPaid * (data.CashbackPercent / 100m), 2);
                 decimal displayBalance = Math.Max(0, data.CurrentBalance - data.DiscountAmount);
                 string nameStr = string.IsNullOrWhiteSpace(data.CustomerName) ? "Гость" : data.CustomerName;
 
@@ -96,11 +99,11 @@ namespace Resto.Front.Api.IikoBonusPlugin
 
                 if (data.DiscountAmount > 0)
                 {
-                    xml += "<pair left=\"Списано бонусов:\" right=\"-" + data.DiscountAmount.ToString("0") + " бон.\" />";
+                    xml += "<pair left=\"Списано бонусов:\" right=\"-" + data.DiscountAmount.ToString("0.##") + " бон.\" />";
                 }
 
-                xml += "<pair left=\"Текущий баланс:\" right=\"" + displayBalance.ToString("0") + " бон.\" />" +
-                       "<pair left=\"За этот заказ начислено:\" right=\"+" + earnedBonus.ToString("0") + " бон.\" />" +
+                xml += "<pair left=\"Текущий баланс:\" right=\"" + displayBalance.ToString("0.##") + " бон.\" />" +
+                       "<pair left=\"За этот заказ начислено:\" right=\"+" + earnedBonus.ToString("0.##") + " бон.\" />" +
                        "<line />" +
                        "</doc>";
 
@@ -122,7 +125,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 if (!ActiveOrders.TryGetValue(orderId, out var data)) return extensions;
 
                 decimal realMoneyPaid = Math.Max(0, data.OrderFullSum - data.DiscountAmount);
-                decimal earnedBonus = Math.Floor(realMoneyPaid * (data.CashbackPercent / 100m));
+                decimal earnedBonus = Math.Round(realMoneyPaid * (data.CashbackPercent / 100m), 2);
                 decimal displayBalance = Math.Max(0, data.CurrentBalance - data.DiscountAmount);
                 string nameStr = string.IsNullOrWhiteSpace(data.CustomerName) ? "Гость" : data.CustomerName;
 
@@ -133,11 +136,11 @@ namespace Resto.Front.Api.IikoBonusPlugin
 
                 if (data.DiscountAmount > 0)
                 {
-                    xml += "<pair left=\"Списано бонусов:\" right=\"-" + data.DiscountAmount.ToString("0") + " бон.\" />";
+                    xml += "<pair left=\"Списано бонусов:\" right=\"-" + data.DiscountAmount.ToString("0.##") + " бон.\" />";
                 }
 
-                xml += "<pair left=\"Текущий баланс:\" right=\"" + displayBalance.ToString("0") + " бон.\" />" +
-                       "<pair left=\"За этот заказ начислено:\" right=\"+" + earnedBonus.ToString("0") + " бон.\" />" +
+                xml += "<pair left=\"Текущий баланс:\" right=\"" + displayBalance.ToString("0.##") + " бон.\" />" +
+                       "<pair left=\"За этот заказ начислено:\" right=\"+" + earnedBonus.ToString("0.##") + " бон.\" />" +
                        "<line />" +
                        "</doc>";
 
@@ -159,6 +162,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 _orderSubscription?.Dispose();
                 _billPrintSubscription?.Dispose();
                 _cashPrintSubscription?.Dispose();
+                _barcodeSubscription?.Dispose();
             }
             catch { }
             PluginContext.Log.Info("IikoBonusPlugin: Disposed.");

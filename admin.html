@@ -221,6 +221,7 @@
                 <th class="py-4 px-6">Дата и время</th>
                 <th class="py-4 px-6">Клиент</th>
                 <th class="py-4 px-6">Чек / Основание</th>
+                <th class="py-4 px-6 text-right">Сумма чека (тнг)</th>
                 <th class="py-4 px-6">Тип операции</th>
                 <th class="py-4 px-6 text-right">Сумма бонусов</th>
               </tr>
@@ -521,6 +522,7 @@
             <td class="py-4 px-6 text-gray-500 text-xs">${d}</td>
             <td class="py-4 px-6 font-medium">${name} <span class="block text-xs text-gray-400 font-normal">${phone}</span></td>
             <td class="py-4 px-6">${orderBadge}</td>
+            <td class="py-4 px-6 text-right text-gray-700 font-medium">${t.order_total ? t.order_total.toLocaleString() : '—'}</td>
             <td class="py-4 px-6"><span class="bg-gray-100 text-gray-600 px-2.5 py-1 rounded text-xs font-medium">${typeStr}</span></td>
             <td class="py-4 px-6 text-right font-bold text-base ${color}">${sign}${t.amount}</td>
           </tr>

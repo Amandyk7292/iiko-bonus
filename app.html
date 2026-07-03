@@ -481,6 +481,7 @@
           if (isExp) title = 'Сгорание (неактивность)';
 
           let sub = t.order_id && t.order_id !== 'MANUAL' && t.order_id !== 'EXPIRED_90_DAYS' ? `Чек №${t.order_id}` : 'Система лояльности';
+          if (t.order_total) sub += ` (${t.order_total} тнг)`;
 
           return `
             <div class="flex items-center justify-between p-3.5 rounded-2xl bg-black/30 border border-white/5 hover:border-white/10 transition">
