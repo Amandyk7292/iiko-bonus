@@ -448,7 +448,7 @@ app.get('/api/wallet/apple/:phone', async (req, res) => {
     
     pass.serialNumber = customer.id.toString();
 
-    const buffer = pass.getAsBuffer();
+    const buffer = await pass.getAsBuffer();
     
     res.set({
       'Content-Type': 'application/vnd.apple.pkpass',
