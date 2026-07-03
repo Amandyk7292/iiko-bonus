@@ -471,8 +471,8 @@ app.get('/api/wallet/download/:phone', async (req, res) => {
       description: 'Карта лояльности пекарни Bulka',
       logoText: 'Bulka Bonus',
       foregroundColor: 'rgb(255, 255, 255)',
-      backgroundColor: 'rgb(139, 90, 43)',
-      labelColor: 'rgb(247, 244, 234)',
+      backgroundColor: 'rgb(30, 20, 12)',
+      labelColor: 'rgb(200, 180, 150)',
       barcode: {
         message: customer.phone,
         format: 'PKBarcodeFormatQR',
@@ -497,15 +497,15 @@ app.get('/api/wallet/download/:phone', async (req, res) => {
         secondaryFields: [{
           key: 'status',
           label: 'СТАТУС',
-          value: `${tier.name} (${tier.percent}%)`
-        }],
-        auxiliaryFields: [{
+          value: `${tier.name} ${tier.percent}%`
+        }, {
           key: 'phone',
           label: 'ТЕЛЕФОН',
           value: customer.phone
-        }, {
+        }],
+        auxiliaryFields: [{
           key: 'spent',
-          label: 'ВСЕГО ПОКУПОК',
+          label: 'ПОКУПКИ',
           value: `${(customer.total_spent || 0).toLocaleString()} ₸`
         }]
       }
