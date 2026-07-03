@@ -450,23 +450,70 @@ app.get('/api/wallet/download/:phone', async (req, res) => {
     const settings = await getSettings();
     const tier = getTierInfo(customer.total_spent, settings);
 
-    // Получение сертификатов из ENV или файлов (чтобы не хранить в Git)
+    // Получение сертификатов из ENV или файлов
     const signerCert = process.env.WALLET_CERT 
       ? Buffer.from(process.env.WALLET_CERT, 'base64') 
       : fs.readFileSync(path.join(__dirname, 'wallet_cert.pem'));
-      
     const signerKey = process.env.WALLET_KEY 
       ? Buffer.from(process.env.WALLET_KEY, 'base64') 
       : fs.readFileSync(path.join(__dirname, 'wallet_private_key.pem'));
-      
     const wwdr = process.env.WALLET_WWDR 
       ? Buffer.from(process.env.WALLET_WWDR, 'base64') 
       : fs.readFileSync(path.join(__dirname, 'wwdr.pem'));
 
-    // Подготовка Pass
+    // Динамически собираем pass.json с реальными данными клиента
+    const passJson = {
+      formatVersion: 1,
+      passTypeIdentifier: 'pass.com.bulka.bonus',
+      serialNumber: `bulka-${customer.id}`,
+      teamIdentifier: 'GKRRT4JU9G',
+      organizationName: 'Bulka Bakery',
+      description: 'Карта лояльности пекарни Bulka',
+      logoText: 'Bulka Bonus',
+      foregroundColor: 'rgb(255, 255, 255)',
+      backgroundColor: 'rgb(139, 90, 43)',
+      labelColor: 'rgb(247, 244, 234)',
+      barcode: {
+        message: customer.phone,
+        format: 'PKBarcodeFormatQR',
+        messageEncoding: 'iso-8859-1'
+      },
+      barcodes: [{
+        message: customer.phone,
+        format: 'PKBarcodeFormatQR',
+        messageEncoding: 'iso-8859-1'
+      }],
+      storeCard: {
+        headerFields: [{
+          key: 'balance',
+          label: 'БАЛАНС',
+          value: `${customer.balance || 0} ₸`
+        }],
+        primaryFields: [{
+          key: 'name',
+          label: 'ГОСТЬ',
+          value: customer.name || 'Гость'
+        }],
+        secondaryFields: [{
+          key: 'status',
+          label: 'СТАТУС',
+          value: `${tier.name} (${tier.percent}%)`
+        }],
+        auxiliaryFields: [{
+          key: 'phone',
+          label: 'ТЕЛЕФОН',
+          value: customer.phone
+        }, {
+          key: 'spent',
+          label: 'ВСЕГО ПОКУПОК',
+          value: `${(customer.total_spent || 0).toLocaleString()} ₸`
+        }]
+      }
+    };
+
     const pass = new PKPass(
       {
-        'pass.json': fs.readFileSync(path.join(__dirname, 'pass.model', 'pass.json')),
+        'pass.json': Buffer.from(JSON.stringify(passJson)),
         'logo.png': fs.readFileSync(path.join(__dirname, 'pass.model', 'logo.png')),
         'logo@2x.png': fs.readFileSync(path.join(__dirname, 'pass.model', 'logo@2x.png')),
         'icon.png': fs.readFileSync(path.join(__dirname, 'pass.model', 'icon.png')),
@@ -474,38 +521,8 @@ app.get('/api/wallet/download/:phone', async (req, res) => {
         'strip.png': fs.readFileSync(path.join(__dirname, 'pass.model', 'strip.png')),
         'strip@2x.png': fs.readFileSync(path.join(__dirname, 'pass.model', 'strip@2x.png'))
       },
-      {
-        signerCert,
-        signerKey,
-        wwdr
-      }
+      { signerCert, signerKey, wwdr }
     );
-
-    pass.primaryFields.push({
-      key: 'balance',
-      label: 'БАЛАНС (ТНГ)',
-      value: String(customer.balance || 0)
-    });
-
-    pass.secondaryFields.push({
-      key: 'name',
-      label: 'ИМЯ ГОСТЯ',
-      value: customer.name || 'Гость'
-    });
-
-    pass.auxiliaryFields.push({
-      key: 'status',
-      label: 'СТАТУС КЭШБЭКА',
-      value: `${tier.name} (${tier.percent}%)`
-    });
-
-    pass.barcode = {
-      message: customer.phone,
-      format: 'PKBarcodeFormatQR',
-      messageEncoding: 'iso-8859-1'
-    };
-    
-    pass.serialNumber = customer.id.toString();
 
     const buffer = await pass.getAsBuffer();
     
