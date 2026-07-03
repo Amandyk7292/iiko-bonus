@@ -525,12 +525,12 @@ app.get('/api/wallet/download/:token', async (req, res) => {
       labelColor: 'rgb(200, 180, 150)',
       barcode: {
         message: customer.phone,
-        format: 'PKBarcodeFormatQR',
+        format: 'PKBarcodeFormatCode128',
         messageEncoding: 'iso-8859-1'
       },
       barcodes: [{
         message: customer.phone,
-        format: 'PKBarcodeFormatQR',
+        format: 'PKBarcodeFormatCode128',
         messageEncoding: 'iso-8859-1'
       }],
       storeCard: {
