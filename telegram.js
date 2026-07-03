@@ -76,6 +76,9 @@ async function handleUpdate(update) {
     try {
       // Регистрируем или находим клиента (строго без подарка +300 бонусов!)
       const customer = await getOrCreateCustomerByPhone(phone, name);
+      const { supabase } = require('./supabase');
+      await supabase.from('customers').update({ telegram_id: chatId }).eq('id', customer.id);
+      
       const settings = await getSettings();
       const vipThreshold = settings.vip_threshold || 300000;
       const isVip = (Number(customer.total_spent) || 0) >= vipThreshold;

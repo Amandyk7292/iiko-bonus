@@ -332,7 +332,7 @@ app.post('/api/loyalty/apply', webhookMiddleware, async (req, res) => {
 
     // Получаем текущие траты клиента для определения процента
     const { supabase } = require('./supabase');
-    const { data: customer } = await supabase.from('customers').select('total_spent, phone').eq('id', customerId).single();
+    const { data: customer } = await supabase.from('customers').select('total_spent, phone, telegram_id, balance').eq('id', customerId).single();
     const isVip = (customer?.total_spent || 0) >= settings.vip_threshold;
     const cashbackPercent = isVip ? settings.vip_cashback_percent : settings.base_cashback_percent;
 
@@ -343,16 +343,19 @@ app.post('/api/loyalty/apply', webhookMiddleware, async (req, res) => {
       await logTransaction({ customerId, orderId, type: 'deposit', amount: earnedBonus, orderTotal: realMoneyPaid });
     }
 
-    // Отправка WhatsApp уведомления (отключено по просьбе пользователя)
-    /*
-    if (customer) {
-      let msg = `Чек на сумму ${orderTotal} тнг.\n`;
-      if (discountAmount > 0) msg += `➖ Списано: ${discountAmount} бонусов\n`;
-      if (earnedBonus > 0) msg += `➕ Начислено: ${earnedBonus} бонусов\n`;
-      msg += `\nСпасибо, что выбираете нас!`;
-      sendWhatsAppMessage(customer.phone, msg);
+    // Отправка Telegram уведомления
+    if (customer && customer.telegram_id && (discountAmount > 0 || earnedBonus > 0)) {
+      const { sendMessage } = require('./telegram');
+      let msg = `🧾 <b>Ваш заказ успешно оплачен!</b>\n\n`;
+      msg += `🛍 <b>Сумма чека:</b> ${orderTotal} тнг\n`;
+      if (discountAmount > 0) msg += `➖ <b>Списано:</b> ${discountAmount} бонусов\n`;
+      if (earnedBonus > 0) msg += `➕ <b>Начислено:</b> ${earnedBonus} бонусов\n`;
+      
+      const newBalance = Number(customer.balance || 0) - (discountAmount || 0) + (earnedBonus || 0);
+      msg += `\n💰 <b>Текущий баланс:</b> ${newBalance.toFixed(2)} бонусов\n\nСпасибо, что выбираете нас! 💚`;
+      
+      sendMessage(customer.telegram_id, msg).catch(err => console.error("Error sending TG msg:", err));
     }
-    */
 
     res.json({ success: true, earnedBonus, cashbackPercent });
   } catch (error) { console.error(error); res.status(500).json({ error: 'Internal server error' }); }
