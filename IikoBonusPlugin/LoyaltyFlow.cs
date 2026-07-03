@@ -304,36 +304,32 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     else regDateInfo = "\nДата рег.: " + selectedCustomer.createdAt;
                 }
 
+                decimal maxAllowed = order.FullSum * (selectedCustomer.maxDiscountPercent / 100m);
+                decimal autoDiscount = Math.Min(balance, maxAllowed);
+                autoDiscount = Math.Round(autoDiscount, 2);
+
                 string info = "Клиент: " + selectedCustomer.name + "\nНомер: " + selectedCustomer.phone + regDateInfo + "\nБаланс: " + balance + " бонусов\nКэшбек: " + selectedCustomer.cashbackPercent + "%";
                 
-                // Шаг 4: Спросить сколько списать (открываем цифровой NUMPAD, начальное значение 0)
-                string prompt = info + "\n\nСколько бонусов списать?\n(0 = без списания, только начисление кэшбэка)";
-                var amountRes = vm.ShowInputDialog(prompt, Resto.Front.Api.Data.View.InputDialogTypes.Number, 0, "Применить", "Отмена");
-                if (amountRes == null) return;
-
                 decimal discountAmount = 0;
-                if (amountRes is Resto.Front.Api.Data.View.NumberInputDialogResult amountNumRes)
+                
+                if (autoDiscount > 0)
                 {
-                    discountAmount = amountNumRes.Number;
-                }
-                else if (amountRes is Resto.Front.Api.Data.View.DecimalInputDialogResult amountDecRes)
-                {
-                    discountAmount = amountDecRes.Decimal;
-                }
-                else if (amountRes is Resto.Front.Api.Data.View.StringInputDialogResult amountStrRes)
-                {
-                    if (!decimal.TryParse(amountStrRes.Result.Replace(',', '.'), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out discountAmount) || discountAmount < 0)
+                    var options = new List<string>
                     {
-                        vm.ShowErrorPopup("Введите корректную сумму", "ОК");
-                        return;
-                    }
+                        $"💳 Списать ({autoDiscount.ToString("0.##")} бон.)",
+                        "🎁 Только накопить"
+                    };
+                    
+                    int choice = vm.ShowChooserPopup(info + "\n\nВыберите действие:", options, 0, Resto.Front.Api.UI.ButtonWidth.Wider, "Отмена");
+                    if (choice < 0) return; // Cancel
+                    
+                    if (choice == 0) discountAmount = autoDiscount;
+                    else discountAmount = 0;
                 }
-
-                decimal maxAllowed = order.FullSum * (selectedCustomer.maxDiscountPercent / 100m);
-                if (discountAmount > maxAllowed)
+                else
                 {
-                    vm.ShowErrorPopup("Максимум можно списать " + maxAllowed.ToString("0.00") + " (лимит " + selectedCustomer.maxDiscountPercent + "%)", "ОК");
-                    return;
+                    vm.ShowOkPopup("Система лояльности", info + "\n\nДоступно бонусов для списания: 0\nБудет начислен только кэшбэк.", "ОК");
+                    discountAmount = 0;
                 }
 
                 // Шаг 5: Применение скидки
