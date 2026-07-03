@@ -88,6 +88,20 @@ async function handleUpdate(update) {
 
       const replyText = `✅ <b>Вы успешно авторизованы!</b>\n\n👤 <b>Гость:</b> ${customer.name || name}\n📞 <b>Телефон:</b> ${customer.phone}\n💰 <b>Баланс:</b> <code>${customer.balance || 0}</code> бонусов\n🏆 <b>Уровень:</b> ${statusStr}\n💵 <b>Всего покупок:</b> ${(customer.total_spent || 0).toLocaleString()} тнг${nextStr}\n\n📲 Чтобы показать ваш статический QR-код на кассе, откройте виртуальную карту ниже:`;
       
+      // Генерируем одноразовый токен для Apple Wallet
+      let walletUrl = '';
+      try {
+        const tokenRes = await fetch(`${WEBAPP_URL.replace('/app', '')}/api/wallet/token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: customer.phone })
+        });
+        const tokenData = await tokenRes.json();
+        walletUrl = tokenData.url;
+      } catch (e) {
+        console.error('Wallet token error:', e.message);
+      }
+
       const userCardButton = {
         inline_keyboard: [
           [
@@ -96,12 +110,12 @@ async function handleUpdate(update) {
               web_app: { url: `${WEBAPP_URL}?phone=${encodeURIComponent(customer.phone)}` }
             }
           ],
-          [
+          ...(walletUrl ? [[
             {
               text: ' Добавить в Apple Wallet',
-              url: `https://iiko-bonus.onrender.com/wallet/${encodeURIComponent(customer.phone)}`
+              url: walletUrl
             }
-          ]
+          ]] : [])
         ]
       };
 

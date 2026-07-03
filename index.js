@@ -4,6 +4,7 @@ require('dotenv').config();
 const { PKPass } = require('passkit-generator');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { supabase } = require('./supabase');
 const iikoApi = require('./iiko-api');
 
@@ -379,13 +380,60 @@ app.post('/api/loyalty/apply', webhookMiddleware, async (req, res) => {
 });
 
 // ==========================================
-// 3.5 WALLET API (Apple Wallet)
+// 3.5 WALLET API (Apple Wallet) — одноразовые токены
 // ==========================================
 
-// Промежуточная страница — она открывается в Telegram, затем перенаправляет на скачивание .pkpass
-app.get('/wallet/:phone', async (req, res) => {
-  const phone = req.params.phone;
-  const downloadUrl = `https://${req.get('host')}/api/wallet/download/${phone}`;
+// Хранилище одноразовых токенов: token -> { phone, expiresAt }
+const walletTokens = new Map();
+
+// Очистка устаревших токенов каждые 5 минут
+setInterval(() => {
+  const now = Date.now();
+  for (const [token, data] of walletTokens) {
+    if (now > data.expiresAt) walletTokens.delete(token);
+  }
+}, 5 * 60 * 1000);
+
+// API для генерации одноразового токена (вызывается из telegram.js)
+app.post('/api/wallet/token', async (req, res) => {
+  try {
+    const { phone } = req.body;
+    if (!phone) return res.status(400).json({ error: 'Phone required' });
+    
+    const token = crypto.randomBytes(32).toString('hex');
+    walletTokens.set(token, {
+      phone,
+      expiresAt: Date.now() + 10 * 60 * 1000 // 10 минут
+    });
+    
+    const walletUrl = `https://${req.get('host')}/wallet/${token}`;
+    res.json({ url: walletUrl });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Промежуточная страница — открывается по одноразовому токену
+app.get('/wallet/:token', async (req, res) => {
+  const token = req.params.token;
+  const tokenData = walletTokens.get(token);
+  
+  if (!tokenData || Date.now() > tokenData.expiresAt) {
+    return res.status(410).send(`<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ссылка истекла</title>
+<style>
+  body { font-family: -apple-system, sans-serif; background: #1e140c; color: #fff;
+    min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .card { background: #2a1e14; border-radius: 20px; padding: 40px 30px; text-align: center; max-width: 360px; }
+  h1 { font-size: 22px; margin-bottom: 16px; } p { color: #aaa; font-size: 15px; line-height: 1.5; }
+</style></head><body><div class="card">
+  <h1>⏰ Ссылка истекла</h1>
+  <p>Эта ссылка уже была использована или её срок действия истёк. Пожалуйста, откройте Telegram-бота и нажмите кнопку «Отправить номер телефона» заново.</p>
+</div></body></html>`);
+  }
+  
+  const downloadUrl = `https://${req.get('host')}/api/wallet/download/${token}`;
   res.send(`<!DOCTYPE html>
 <html>
 <head>
@@ -396,25 +444,25 @@ app.get('/wallet/:phone', async (req, res) => {
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { 
       font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-      background: linear-gradient(135deg, #f5e6d3 0%, #d4a574 100%);
+      background: linear-gradient(135deg, #1e140c 0%, #3a2a1a 100%);
       min-height: 100vh; display: flex; align-items: center; justify-content: center;
       padding: 20px;
     }
     .card {
-      background: white; border-radius: 20px; padding: 40px 30px;
+      background: #2a1e14; border-radius: 20px; padding: 40px 30px;
       text-align: center; max-width: 360px; width: 100%;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.1);
     }
     .logo { font-size: 48px; margin-bottom: 16px; }
-    h1 { font-size: 22px; color: #333; margin-bottom: 8px; }
-    p { color: #666; font-size: 15px; margin-bottom: 24px; line-height: 1.5; }
+    h1 { font-size: 22px; color: #fff; margin-bottom: 8px; }
+    p { color: #baa68e; font-size: 15px; margin-bottom: 24px; line-height: 1.5; }
     .btn {
-      display: inline-block; background: #000; color: #fff;
+      display: inline-block; background: #c8a87a; color: #1e140c;
       padding: 14px 32px; border-radius: 12px; text-decoration: none;
-      font-size: 17px; font-weight: 600; transition: transform 0.2s;
+      font-size: 17px; font-weight: 700; transition: transform 0.2s;
     }
     .btn:active { transform: scale(0.96); }
-    .hint { margin-top: 20px; font-size: 12px; color: #999; }
+    .hint { margin-top: 20px; font-size: 12px; color: #665a4a; }
   </style>
 </head>
 <body>
@@ -423,26 +471,28 @@ app.get('/wallet/:phone', async (req, res) => {
     <h1>Bulka Bonus Card</h1>
     <p>Нажмите кнопку ниже, чтобы добавить вашу карту лояльности в Apple Wallet</p>
     <a href="${downloadUrl}" class="btn"> Добавить в Wallet</a>
-    <p class="hint">Если карта не открылась автоматически, откройте эту страницу в Safari</p>
+    <p class="hint">Ссылка действует 10 минут и является одноразовой</p>
   </div>
   <script>
-    // Автоматически начать скачивание
     setTimeout(function() { window.location.href = "${downloadUrl}"; }, 500);
   </script>
 </body>
 </html>`);
 });
 
-
-// Обратная совместимость — старые ссылки перенаправляем на промежуточную страницу
-app.get('/api/wallet/apple/:phone', (req, res) => {
-  res.redirect('/wallet/' + req.params.phone);
-});
-
-// Прямая ссылка на скачивание .pkpass файла
-app.get('/api/wallet/download/:phone', async (req, res) => {
+// Прямая ссылка на скачивание .pkpass файла (по токену)
+app.get('/api/wallet/download/:token', async (req, res) => {
+  const token = req.params.token;
+  const tokenData = walletTokens.get(token);
+  
+  if (!tokenData || Date.now() > tokenData.expiresAt) {
+    return res.status(410).send('Ссылка истекла. Запросите новую через Telegram-бота.');
+  }
+  
+  // Удаляем токен — одноразовое использование
+  walletTokens.delete(token);
   try {
-    const phone = req.params.phone;
+    const phone = tokenData.phone;
     const { supabase } = require('./supabase');
     const { data: customer } = await supabase.from('customers').select('*').eq('phone', phone).single();
     if (!customer) return res.status(404).send('Customer not found');
