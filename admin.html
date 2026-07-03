@@ -118,6 +118,7 @@
       <button onclick="switchTab('analytics')" id="tab-analytics" class="px-6 py-4 tab-active">Аналитика</button>
       <button onclick="switchTab('customers')" id="tab-customers" class="px-6 py-4 tab-inactive">Клиенты</button>
       <button onclick="switchTab('transactions')" id="tab-transactions" class="px-6 py-4 tab-inactive">Транзакции</button>
+      <button onclick="switchTab('broadcast')" id="tab-broadcast" class="px-6 py-4 tab-inactive text-purple-700">Рассылки</button>
       <button onclick="switchTab('settings')" id="tab-settings" class="px-6 py-4 tab-inactive">Настройки</button>
     </div>
 
@@ -231,31 +232,77 @@
         </div>
       </div>
 
+      <!-- TAB: Broadcast -->
+      <div id="content-broadcast" class="hidden space-y-6 max-w-2xl">
+        <div class="card p-8">
+          <h2 class="text-xl font-serif text-beige-800 mb-4">Массовая Telegram-рассылка</h2>
+          <p class="text-sm text-gray-500 mb-6">Сообщение будет отправлено всем клиентам в базе, у которых есть Telegram. Скорость отправки: 10 сообщений в секунду.</p>
+          
+          <label class="block text-sm text-beige-800 mb-2 font-semibold">Текст сообщения</label>
+          <textarea id="broadcastText" rows="6" placeholder="Внимание! Акция: 1+1 на все десерты!" class="input-classic w-full mb-4"></textarea>
+          
+          <button onclick="sendBroadcast()" id="btnBroadcast" class="bg-purple-600 hover:bg-purple-700 text-white font-medium py-3 px-6 rounded-lg shadow-sm transition w-full">Отправить всем</button>
+          <p id="broadcastMsg" class="text-center mt-4 text-sm font-medium hidden"></p>
+        </div>
+      </div>
+
       <!-- TAB: Settings -->
       <div id="content-settings" class="hidden space-y-8 max-w-2xl">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div>
-            <label class="block text-sm text-beige-800 mb-2 font-semibold">Базовый кэшбэк (%)</label>
-            <input type="number" id="base_cashback_percent" class="input-classic w-full text-xl">
+        <h2 class="text-xl font-serif text-beige-800 mb-2 border-b border-beige-200 pb-2">Многоуровневая система лояльности</h2>
+        
+        <div class="grid grid-cols-1 gap-6">
+          <div class="card p-4 border-l-4 border-l-gray-400">
+            <h3 class="font-bold text-gray-700 mb-2">Бронза (Базовый)</h3>
+            <label class="block text-sm text-gray-600 mb-1">Кэшбэк (%)</label>
+            <input type="number" id="base_cashback_percent" class="input-classic w-full max-w-xs">
           </div>
-          
-          <div>
-            <label class="block text-sm text-beige-800 mb-2 font-semibold flex items-center">
-              VIP кэшбэк (%) <span class="ml-2 text-[10px] bg-beige-200 text-beige-800 px-2 py-1 rounded">VIP</span>
-            </label>
-            <input type="number" id="vip_cashback_percent" class="input-classic w-full text-xl">
+
+          <div class="card p-4 border-l-4 border-l-gray-300">
+            <h3 class="font-bold text-gray-500 mb-2">Серебро</h3>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm text-gray-600 mb-1">Порог (тнг)</label>
+                <input type="number" id="tier_silver_th" class="input-classic w-full">
+              </div>
+              <div>
+                <label class="block text-sm text-gray-600 mb-1">Кэшбэк (%)</label>
+                <input type="number" id="tier_silver_cb" class="input-classic w-full">
+              </div>
+            </div>
+          </div>
+
+          <div class="card p-4 border-l-4 border-l-yellow-400">
+            <h3 class="font-bold text-yellow-600 mb-2">Золото</h3>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm text-gray-600 mb-1">Порог (тнг)</label>
+                <input type="number" id="tier_gold_th" class="input-classic w-full">
+              </div>
+              <div>
+                <label class="block text-sm text-gray-600 mb-1">Кэшбэк (%)</label>
+                <input type="number" id="tier_gold_cb" class="input-classic w-full">
+              </div>
+            </div>
+          </div>
+
+          <div class="card p-4 border-l-4 border-l-blue-200">
+            <h3 class="font-bold text-blue-800 mb-2">Платина (VIP)</h3>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm text-gray-600 mb-1">Порог (тнг)</label>
+                <input type="number" id="tier_platinum_th" class="input-classic w-full">
+              </div>
+              <div>
+                <label class="block text-sm text-gray-600 mb-1">Кэшбэк (%)</label>
+                <input type="number" id="tier_platinum_cb" class="input-classic w-full">
+              </div>
+            </div>
           </div>
         </div>
 
-        <div class="pt-4 border-t border-beige-200">
-          <label class="block text-sm text-beige-800 mb-2 font-semibold">Сумма покупок для VIP статуса (тнг)</label>
-          <input type="number" id="vip_threshold" class="input-classic w-full text-xl text-green-700">
-          <p class="text-xs text-gray-500 mt-2">После достижения этой суммы покупок клиент автоматически получает VIP кэшбэк.</p>
-        </div>
-
-        <div class="pt-4 border-t border-beige-200">
+        <div class="pt-4 border-t border-beige-200 mt-8">
           <label class="block text-sm text-beige-800 mb-2 font-semibold">Лимит оплаты бонусами (%)</label>
-          <input type="number" id="max_discount_percent" class="input-classic w-full text-xl text-red-700">
+          <input type="number" id="max_discount_percent" class="input-classic w-full text-xl text-red-700 max-w-xs">
           <p class="text-xs text-gray-500 mt-2">Какую максимальную часть чека можно оплатить бонусами.</p>
         </div>
 
@@ -303,12 +350,12 @@
     }
 
     function switchTab(tabId) {
-      ['analytics', 'customers', 'transactions', 'settings'].forEach(id => {
+      ['analytics', 'customers', 'transactions', 'settings', 'broadcast'].forEach(id => {
         document.getElementById('content-' + id).classList.add('hidden');
         document.getElementById('tab-' + id).className = 'px-6 py-4 tab-inactive';
       });
       document.getElementById('content-' + tabId).classList.remove('hidden');
-      document.getElementById('tab-' + tabId).className = 'px-6 py-4 tab-active';
+      document.getElementById('tab-' + tabId).className = tabId === 'broadcast' ? 'px-6 py-4 tab-active text-purple-700' : 'px-6 py-4 tab-active';
     }
 
     async function apiGet(endpoint) {
@@ -320,10 +367,14 @@
     async function fetchSettings() {
       try {
         const data = await apiGet('settings');
-        document.getElementById('base_cashback_percent').value = data.base_cashback_percent;
-        document.getElementById('vip_cashback_percent').value = data.vip_cashback_percent;
-        document.getElementById('vip_threshold').value = data.vip_threshold;
-        document.getElementById('max_discount_percent').value = data.max_discount_percent;
+        document.getElementById('base_cashback_percent').value = data.base_cashback_percent || 3;
+        document.getElementById('tier_silver_th').value = data.tier_silver_th || 50000;
+        document.getElementById('tier_silver_cb').value = data.tier_silver_cb || 5;
+        document.getElementById('tier_gold_th').value = data.tier_gold_th || 150000;
+        document.getElementById('tier_gold_cb').value = data.tier_gold_cb || 7;
+        document.getElementById('tier_platinum_th').value = data.tier_platinum_th || 300000;
+        document.getElementById('tier_platinum_cb').value = data.tier_platinum_cb || 10;
+        document.getElementById('max_discount_percent').value = data.max_discount_percent || 50;
         return true;
       } catch (e) { return false; }
     }
@@ -364,8 +415,12 @@
       btn.innerText = 'Сохранение...';
       const payload = {
         base_cashback_percent: document.getElementById('base_cashback_percent').value,
-        vip_cashback_percent: document.getElementById('vip_cashback_percent').value,
-        vip_threshold: document.getElementById('vip_threshold').value,
+        tier_silver_th: document.getElementById('tier_silver_th').value,
+        tier_silver_cb: document.getElementById('tier_silver_cb').value,
+        tier_gold_th: document.getElementById('tier_gold_th').value,
+        tier_gold_cb: document.getElementById('tier_gold_cb').value,
+        tier_platinum_th: document.getElementById('tier_platinum_th').value,
+        tier_platinum_cb: document.getElementById('tier_platinum_cb').value,
         max_discount_percent: document.getElementById('max_discount_percent').value
       };
 
@@ -379,6 +434,45 @@
       const msg = document.getElementById('saveMsg');
       msg.classList.remove('hidden');
       setTimeout(() => msg.classList.add('hidden'), 3000);
+    }
+
+    async function sendBroadcast() {
+      const text = document.getElementById('broadcastText').value.trim();
+      if (!text) {
+        alert('Введите текст сообщения');
+        return;
+      }
+      if (!confirm('Отправить это сообщение всем клиентам в базе? Отменить это действие будет невозможно.')) return;
+
+      const btn = document.getElementById('btnBroadcast');
+      const msgEl = document.getElementById('broadcastMsg');
+      btn.disabled = true;
+      btn.innerText = 'Отправка...';
+
+      try {
+        const res = await fetch('/admin/api/broadcast', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text })
+        });
+        const data = await res.json();
+        
+        if (res.ok) {
+          msgEl.innerText = `✅ Сообщение отправлено. Охват: ${data.count} клиентов.`;
+          msgEl.className = 'text-center mt-4 text-sm font-medium text-green-600';
+          document.getElementById('broadcastText').value = '';
+        } else {
+          msgEl.innerText = `❌ Ошибка: ${data.error}`;
+          msgEl.className = 'text-center mt-4 text-sm font-medium text-red-600';
+        }
+      } catch (err) {
+        msgEl.innerText = `❌ Ошибка связи с сервером`;
+        msgEl.className = 'text-center mt-4 text-sm font-medium text-red-600';
+      }
+      
+      msgEl.classList.remove('hidden');
+      btn.disabled = false;
+      btn.innerText = 'Отправить всем';
     }
 
     async function manualBonus(customerId) {

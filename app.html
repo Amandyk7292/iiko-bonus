@@ -417,31 +417,29 @@
       const cardEl = document.getElementById('cardElement');
       const badgeEl = document.getElementById('cardStatusBadge');
 
-      if (c.isVip) {
+      if (c.tier && c.tier.name === 'Платина') {
         cardEl.className = 'card-vip rounded-3xl p-6 sm:p-7 relative overflow-hidden transition-all duration-500 transform hover:scale-[1.01]';
-        badgeEl.innerText = `👑 VIP СТАТУС • ${c.cashbackPercent}% КЭШБЭК`;
+        badgeEl.innerText = `👑 ${c.tier.name.toUpperCase()} • ${c.cashbackPercent}% КЭШБЭК`;
         badgeEl.className = 'inline-block px-3 py-1 bg-black/20 backdrop-blur-md rounded-full text-[11px] font-extrabold tracking-wider uppercase border border-black/15 text-amber-950';
         
         document.getElementById('statusIcon').innerText = '👑';
-        document.getElementById('statusTitle').innerText = 'VIP Уровень достигнут!';
+        document.getElementById('statusTitle').innerText = 'Максимальный статус достигнут!';
         document.getElementById('progressBar').style.width = '100%';
         document.getElementById('progressText').innerText = '100%';
         document.getElementById('progressHint').innerText = `Вы получаете максимальный повышенный кэшбэк ${c.cashbackPercent}% со всех счетов!`;
-      } else {
+      } else if (c.tier) {
         cardEl.className = 'card-base rounded-3xl p-6 sm:p-7 relative overflow-hidden transition-all duration-500 transform hover:scale-[1.01]';
-        badgeEl.innerText = `🌿 Базовый • ${c.cashbackPercent}% кэшбэк`;
+        badgeEl.innerText = `🌿 ${c.tier.name} • ${c.cashbackPercent}% кэшбэк`;
         badgeEl.className = 'inline-block px-3 py-1 bg-black/25 backdrop-blur-md rounded-full text-[11px] font-extrabold tracking-wider uppercase border border-black/10 text-white';
         
-        const spent = Number(c.total_spent) || 0;
-        const thresh = Number(c.vipThreshold) || 300000;
-        const left = Math.max(0, thresh - spent);
-        const pct = Math.min(100, Math.floor((spent / thresh) * 100));
+        const pct = Math.min(100, Math.floor(c.tier.progress));
+        const left = c.tier.remaining;
 
         document.getElementById('statusIcon').innerText = '⚡';
-        document.getElementById('statusTitle').innerText = 'Прогресс до VIP статуса';
+        document.getElementById('statusTitle').innerText = `Прогресс до статуса "${c.tier.nextTier}"`;
         document.getElementById('progressBar').style.width = `${pct}%`;
         document.getElementById('progressText').innerText = `${pct}%`;
-        document.getElementById('progressHint').innerHTML = `До получения VIP-статуса осталось совершить покупки на <span class="text-white font-bold">${left.toLocaleString()} тнг</span>.`;
+        document.getElementById('progressHint').innerHTML = `До получения статуса "${c.tier.nextTier}" осталось совершить покупки на <span class="text-white font-bold">${left.toLocaleString()} тнг</span>.`;
       }
 
       // Генерируем QR-код

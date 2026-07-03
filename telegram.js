@@ -80,11 +80,13 @@ async function handleUpdate(update) {
       await supabase.from('customers').update({ telegram_id: chatId }).eq('id', customer.id);
       
       const settings = await getSettings();
-      const vipThreshold = settings.vip_threshold || 300000;
-      const isVip = (Number(customer.total_spent) || 0) >= vipThreshold;
-      const statusStr = isVip ? '👑 <b>VIP Статус (Повышенный кэшбэк)</b>' : '🌿 <b>Базовый уровень</b>';
+      const { getTierInfo } = require('./index');
+      const tier = getTierInfo(customer.total_spent, settings);
+      
+      let statusStr = `<b>${tier.name} (${tier.percent}%)</b>`;
+      let nextStr = tier.nextTier ? `\n📈 <b>До статуса "${tier.nextTier}":</b> осталось ${tier.remaining.toLocaleString()} тнг` : '';
 
-      const replyText = `✅ <b>Вы успешно авторизованы!</b>\n\n👤 <b>Гость:</b> ${customer.name || name}\n📞 <b>Телефон:</b> ${customer.phone}\n💰 <b>Баланс:</b> <code>${customer.balance || 0}</code> бонусов\n🏆 <b>Уровень:</b> ${statusStr}\n💵 <b>Всего покупок:</b> ${(customer.total_spent || 0).toLocaleString()} тнг\n\n📲 Чтобы показать ваш статический QR-код на кассе, откройте виртуальную карту ниже:`;
+      const replyText = `✅ <b>Вы успешно авторизованы!</b>\n\n👤 <b>Гость:</b> ${customer.name || name}\n📞 <b>Телефон:</b> ${customer.phone}\n💰 <b>Баланс:</b> <code>${customer.balance || 0}</code> бонусов\n🏆 <b>Уровень:</b> ${statusStr}\n💵 <b>Всего покупок:</b> ${(customer.total_spent || 0).toLocaleString()} тнг${nextStr}\n\n📲 Чтобы показать ваш статический QR-код на кассе, откройте виртуальную карту ниже:`;
       
       const userCardButton = {
         inline_keyboard: [

@@ -9,6 +9,19 @@ const { getCustomerByPhone, getOrCreateCustomerByPhone, searchCustomers, updateC
 const { getSettings, updateSettings } = require('./settings');
 const { sendWhatsAppMessage } = require('./whatsapp');
 
+function getTierInfo(totalSpent, settings) {
+  const spent = Number(totalSpent) || 0;
+  if (spent >= settings.tier_platinum_th) {
+    return { name: 'Платина', percent: settings.tier_platinum_cb, nextTier: null, nextTh: null, remaining: 0, progress: 100 };
+  } else if (spent >= settings.tier_gold_th) {
+    return { name: 'Золото', percent: settings.tier_gold_cb, nextTier: 'Платина', nextTh: settings.tier_platinum_th, remaining: settings.tier_platinum_th - spent, progress: (spent / settings.tier_platinum_th) * 100 };
+  } else if (spent >= settings.tier_silver_th) {
+    return { name: 'Серебро', percent: settings.tier_silver_cb, nextTier: 'Золото', nextTh: settings.tier_gold_th, remaining: settings.tier_gold_th - spent, progress: (spent / settings.tier_gold_th) * 100 };
+  } else {
+    return { name: 'Бронза', percent: settings.base_cashback_percent, nextTier: 'Серебро', nextTh: settings.tier_silver_th, remaining: settings.tier_silver_th - spent, progress: (spent / settings.tier_silver_th) * 100 };
+  }
+}
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -255,8 +268,8 @@ app.post('/api/loyalty/customer', webhookMiddleware, async (req, res) => {
     const settings = await getSettings();
     
     // Определяем текущий процент кэшбэка
-    const isVip = (customer.total_spent || 0) >= settings.vip_threshold;
-    const currentCashbackPercent = isVip ? settings.vip_cashback_percent : settings.base_cashback_percent;
+    const tier = getTierInfo(customer.total_spent, settings);
+    const currentCashbackPercent = tier.percent;
 
     res.json({
       customer: {
@@ -266,6 +279,7 @@ app.post('/api/loyalty/customer', webhookMiddleware, async (req, res) => {
         createdAt: customer.created_at || '',
         totalSpent: customer.total_spent || 0,
         cashbackPercent: currentCashbackPercent,
+        tier: tier,
         maxDiscountPercent: settings.max_discount_percent,
         balances: [{ walletId: 'bonus-wallet', name: 'Бонусы', balance: customer.balance }]
       }
@@ -282,8 +296,8 @@ app.post('/api/loyalty/search', webhookMiddleware, async (req, res) => {
     const settings = await getSettings();
 
     const formattedCustomers = customers.map(customer => {
-      const isVip = (customer.total_spent || 0) >= settings.vip_threshold;
-      const currentCashbackPercent = isVip ? settings.vip_cashback_percent : settings.base_cashback_percent;
+      const tier = getTierInfo(customer.total_spent, settings);
+      const currentCashbackPercent = tier.percent;
 
       return {
         id: customer.id,
@@ -292,6 +306,7 @@ app.post('/api/loyalty/search', webhookMiddleware, async (req, res) => {
         createdAt: customer.created_at || '',
         totalSpent: customer.total_spent || 0,
         cashbackPercent: currentCashbackPercent,
+        tier: tier,
         maxDiscountPercent: settings.max_discount_percent,
         balances: [{ walletId: 'bonus-wallet', name: 'Бонусы', balance: customer.balance }]
       };
@@ -333,8 +348,8 @@ app.post('/api/loyalty/apply', webhookMiddleware, async (req, res) => {
     // Получаем текущие траты клиента для определения процента
     const { supabase } = require('./supabase');
     const { data: customer } = await supabase.from('customers').select('total_spent, phone, telegram_id, balance').eq('id', customerId).single();
-    const isVip = (customer?.total_spent || 0) >= settings.vip_threshold;
-    const cashbackPercent = isVip ? settings.vip_cashback_percent : settings.base_cashback_percent;
+    const tier = getTierInfo(customer?.total_spent, settings);
+    const cashbackPercent = tier.percent;
 
     const earnedBonus = Number((realMoneyPaid * (cashbackPercent / 100)).toFixed(2));
     
@@ -445,6 +460,38 @@ app.delete('/admin/api/customers/:id', adminAuthMiddleware, async (req, res) => 
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.post('/admin/api/broadcast', adminAuthMiddleware, async (req, res) => {
+  try {
+    const { message } = req.body;
+    if (!message) return res.status(400).json({ error: 'Message is required' });
+
+    const { supabase } = require('./supabase');
+    const { data: customers } = await supabase.from('customers').select('telegram_id').not('telegram_id', 'is', null);
+    
+    if (!customers || customers.length === 0) {
+      return res.json({ success: true, count: 0 });
+    }
+
+    const { sendMessage } = require('./telegram');
+    let count = 0;
+    
+    // Отправляем асинхронно, чтобы не блокировать ответ
+    // Telegram limit is 30 msg/sec, so 1 msg per 50ms is safe. Let's use 100ms.
+    (async () => {
+      for (const c of customers) {
+        if (c.telegram_id) {
+          await sendMessage(c.telegram_id, message);
+          count++;
+          await new Promise(r => setTimeout(r, 100)); // 100ms delay to prevent rate limiting
+        }
+      }
+      console.log(`Broadcast finished. Sent ${count} messages.`);
+    })();
+
+    res.json({ success: true, count: customers.length });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'admin.html'));
 });
@@ -544,6 +591,4 @@ if (!process.env.VERCEL) {
     telegramBot.startPolling();
   });
 }
-
-module.exports = app;
-
+module.exports = { app, getTierInfo };

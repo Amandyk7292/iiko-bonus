@@ -2,8 +2,12 @@ const { supabase } = require('./supabase');
 
 const defaultSettings = {
   base_cashback_percent: 3,
-  vip_cashback_percent: 5,
-  vip_threshold: 300000,
+  tier_silver_th: 50000,
+  tier_silver_cb: 5,
+  tier_gold_th: 150000,
+  tier_gold_cb: 7,
+  tier_platinum_th: 300000,
+  tier_platinum_cb: 10,
   max_discount_percent: 50
 };
 
