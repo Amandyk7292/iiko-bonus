@@ -381,7 +381,60 @@ app.post('/api/loyalty/apply', webhookMiddleware, async (req, res) => {
 // ==========================================
 // 3.5 WALLET API (Apple Wallet)
 // ==========================================
-app.get('/api/wallet/apple/:phone', async (req, res) => {
+
+// Промежуточная страница — она открывается в Telegram, затем перенаправляет на скачивание .pkpass
+app.get('/wallet/:phone', async (req, res) => {
+  const phone = req.params.phone;
+  const downloadUrl = `https://${req.get('host')}/api/wallet/apple/download/${phone}`;
+  res.send(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bulka Bonus — Apple Wallet</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      background: linear-gradient(135deg, #f5e6d3 0%, #d4a574 100%);
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .card {
+      background: white; border-radius: 20px; padding: 40px 30px;
+      text-align: center; max-width: 360px; width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+    }
+    .logo { font-size: 48px; margin-bottom: 16px; }
+    h1 { font-size: 22px; color: #333; margin-bottom: 8px; }
+    p { color: #666; font-size: 15px; margin-bottom: 24px; line-height: 1.5; }
+    .btn {
+      display: inline-block; background: #000; color: #fff;
+      padding: 14px 32px; border-radius: 12px; text-decoration: none;
+      font-size: 17px; font-weight: 600; transition: transform 0.2s;
+    }
+    .btn:active { transform: scale(0.96); }
+    .hint { margin-top: 20px; font-size: 12px; color: #999; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">🍞</div>
+    <h1>Bulka Bonus Card</h1>
+    <p>Нажмите кнопку ниже, чтобы добавить вашу карту лояльности в Apple Wallet</p>
+    <a href="${downloadUrl}" class="btn"> Добавить в Wallet</a>
+    <p class="hint">Если карта не открылась автоматически, откройте эту страницу в Safari</p>
+  </div>
+  <script>
+    // Автоматически начать скачивание
+    setTimeout(function() { window.location.href = "${downloadUrl}"; }, 500);
+  </script>
+</body>
+</html>`);
+});
+
+// Прямая ссылка на скачивание .pkpass файла
+app.get('/api/wallet/apple/download/:phone', async (req, res) => {
   try {
     const phone = req.params.phone;
     const { supabase } = require('./supabase');

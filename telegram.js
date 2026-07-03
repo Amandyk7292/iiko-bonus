@@ -99,7 +99,7 @@ async function handleUpdate(update) {
           [
             {
               text: ' Добавить в Apple Wallet',
-              url: `https://iiko-bonus.onrender.com/api/wallet/apple/${encodeURIComponent(customer.phone)}`
+              url: `https://iiko-bonus.onrender.com/wallet/${encodeURIComponent(customer.phone)}`
             }
           ]
         ]
