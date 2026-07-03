@@ -385,7 +385,7 @@ app.post('/api/loyalty/apply', webhookMiddleware, async (req, res) => {
 // Промежуточная страница — она открывается в Telegram, затем перенаправляет на скачивание .pkpass
 app.get('/wallet/:phone', async (req, res) => {
   const phone = req.params.phone;
-  const downloadUrl = `https://${req.get('host')}/api/wallet/apple/download/${phone}`;
+  const downloadUrl = `https://${req.get('host')}/api/wallet/download/${phone}`;
   res.send(`<!DOCTYPE html>
 <html>
 <head>
@@ -433,8 +433,14 @@ app.get('/wallet/:phone', async (req, res) => {
 </html>`);
 });
 
+
+// Обратная совместимость — старые ссылки перенаправляем на промежуточную страницу
+app.get('/api/wallet/apple/:phone', (req, res) => {
+  res.redirect('/wallet/' + req.params.phone);
+});
+
 // Прямая ссылка на скачивание .pkpass файла
-app.get('/api/wallet/apple/download/:phone', async (req, res) => {
+app.get('/api/wallet/download/:phone', async (req, res) => {
   try {
     const phone = req.params.phone;
     const { supabase } = require('./supabase');
