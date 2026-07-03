@@ -95,6 +95,12 @@ async function handleUpdate(update) {
               text: '💳 Открыть мою виртуальную карту (QR)',
               web_app: { url: `${WEBAPP_URL}?phone=${encodeURIComponent(customer.phone)}` }
             }
+          ],
+          [
+            {
+              text: ' Добавить в Apple Wallet',
+              url: `https://iiko-bonus.onrender.com/api/wallet/apple/${encodeURIComponent(customer.phone)}`
+            }
           ]
         ]
       };

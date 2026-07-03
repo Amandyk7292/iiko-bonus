@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
+const { PKPass } = require('passkit-generator');
+const fs = require('fs');
 const path = require('path');
 const { supabase } = require('./supabase');
 const iikoApi = require('./iiko-api');
@@ -374,6 +376,89 @@ app.post('/api/loyalty/apply', webhookMiddleware, async (req, res) => {
 
     res.json({ success: true, earnedBonus, cashbackPercent });
   } catch (error) { console.error(error); res.status(500).json({ error: 'Internal server error' }); }
+});
+
+// ==========================================
+// 3.5 WALLET API (Apple Wallet)
+// ==========================================
+app.get('/api/wallet/apple/:phone', async (req, res) => {
+  try {
+    const phone = req.params.phone;
+    const { supabase } = require('./supabase');
+    const { data: customer } = await supabase.from('customers').select('*').eq('phone', phone).single();
+    if (!customer) return res.status(404).send('Customer not found');
+
+    const settings = await getSettings();
+    const tier = getTierInfo(customer.total_spent, settings);
+
+    // Получение сертификатов из ENV или файлов (чтобы не хранить в Git)
+    const signerCert = process.env.WALLET_CERT 
+      ? Buffer.from(process.env.WALLET_CERT, 'base64') 
+      : fs.readFileSync(path.join(__dirname, 'wallet_cert.pem'));
+      
+    const signerKey = process.env.WALLET_KEY 
+      ? Buffer.from(process.env.WALLET_KEY, 'base64') 
+      : fs.readFileSync(path.join(__dirname, 'wallet_private_key.pem'));
+      
+    const wwdr = process.env.WALLET_WWDR 
+      ? Buffer.from(process.env.WALLET_WWDR, 'base64') 
+      : fs.readFileSync(path.join(__dirname, 'wwdr.pem'));
+
+    // Подготовка Pass
+    const pass = new PKPass(
+      {
+        'pass.json': fs.readFileSync(path.join(__dirname, 'pass.model', 'pass.json')),
+        'logo.png': fs.readFileSync(path.join(__dirname, 'pass.model', 'logo.png')),
+        'logo@2x.png': fs.readFileSync(path.join(__dirname, 'pass.model', 'logo@2x.png')),
+        'icon.png': fs.readFileSync(path.join(__dirname, 'pass.model', 'icon.png')),
+        'icon@2x.png': fs.readFileSync(path.join(__dirname, 'pass.model', 'icon@2x.png')),
+        'strip.png': fs.readFileSync(path.join(__dirname, 'pass.model', 'strip.png')),
+        'strip@2x.png': fs.readFileSync(path.join(__dirname, 'pass.model', 'strip@2x.png'))
+      },
+      {
+        signerCert,
+        signerKey,
+        wwdr
+      }
+    );
+
+    pass.primaryFields.push({
+      key: 'balance',
+      label: 'БАЛАНС (ТНГ)',
+      value: String(customer.balance || 0)
+    });
+
+    pass.secondaryFields.push({
+      key: 'name',
+      label: 'ИМЯ ГОСТЯ',
+      value: customer.name || 'Гость'
+    });
+
+    pass.auxiliaryFields.push({
+      key: 'status',
+      label: 'СТАТУС КЭШБЭКА',
+      value: `${tier.name} (${tier.percent}%)`
+    });
+
+    pass.barcode = {
+      message: customer.phone,
+      format: 'PKBarcodeFormatQR',
+      messageEncoding: 'iso-8859-1'
+    };
+    
+    pass.serialNumber = customer.id.toString();
+
+    const buffer = pass.getAsBuffer();
+    
+    res.set({
+      'Content-Type': 'application/vnd.apple.pkpass',
+      'Content-Disposition': `attachment; filename=${customer.phone}.pkpass`
+    });
+    res.send(buffer);
+  } catch (err) {
+    console.error('Wallet generation error:', err);
+    res.status(500).send('Error generating pass');
+  }
 });
 
 // ==========================================
