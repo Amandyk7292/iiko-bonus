@@ -827,6 +827,54 @@ app.delete('/admin/api/stories/:id', adminAuthMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.post('/admin/api/upload', adminAuthMiddleware, async (req, res) => {
+  try {
+    const { imageBase64, filename } = req.body;
+    if (!imageBase64) return res.status(400).json({ error: 'No image provided' });
+
+    const { supabase } = require('./supabase');
+    
+    // Auto-create public bucket 'stories' if not exists
+    try {
+      const { data: buckets } = await supabase.storage.listBuckets();
+      if (buckets && !buckets.some(b => b.name === 'stories')) {
+        await supabase.storage.createBucket('stories', {
+          public: true,
+          fileSizeLimit: 10485760
+        });
+      }
+    } catch (e) {
+      console.error('Bucket check note:', e.message);
+    }
+
+    const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+    const buffer = Buffer.from(base64Data, 'base64');
+    const ext = filename ? filename.split('.').pop() : 'jpg';
+    const filePath = `photo_${Date.now()}_${Math.floor(Math.random() * 1000)}.${ext}`;
+
+    const { data, error } = await supabase.storage
+      .from('stories')
+      .upload(filePath, buffer, {
+        contentType: `image/${ext === 'jpg' ? 'jpeg' : ext}`,
+        upsert: true
+      });
+
+    if (error) {
+      console.error('Supabase storage upload error:', error);
+      return res.status(500).json({ error: error.message });
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('stories')
+      .getPublicUrl(filePath);
+
+    res.json({ success: true, url: publicUrl });
+  } catch (err) {
+    console.error('Upload handler exception:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'admin.html'));
 });

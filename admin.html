@@ -114,12 +114,26 @@
           <input type="text" id="story_title" placeholder="СЕЗОННЫЙ ФРАППЕ" class="input-classic w-full">
         </div>
         <div>
-          <label class="block text-xs font-semibold text-beige-800 uppercase mb-1">Ссылка на фото обложки (миниатюра)</label>
-          <input type="text" id="story_cover" placeholder="https://images.unsplash.com/..." class="input-classic w-full text-xs">
+          <div class="flex justify-between items-center mb-1">
+            <label class="block text-xs font-semibold text-beige-800 uppercase">Фото обложки (миниатюра)</label>
+            <label class="text-xs text-blue-600 hover:text-blue-800 cursor-pointer font-semibold flex items-center gap-1 bg-blue-50 px-2.5 py-1 rounded border border-blue-200 transition-all shadow-sm">
+              <span>📁 Загрузить файл</span>
+              <input type="file" accept="image/*" class="hidden" onchange="uploadStoryPhoto(this, 'story_cover')">
+            </label>
+          </div>
+          <input type="text" id="story_cover" placeholder="Ссылка или загрузите файл выше ->" class="input-classic w-full text-xs">
+          <p id="status_story_cover" class="text-[11px] text-green-600 mt-1 hidden font-medium">⏳ Загрузка в Supabase Storage...</p>
         </div>
         <div>
-          <label class="block text-xs font-semibold text-beige-800 uppercase mb-1">Ссылка на фото при открытии (на весь экран)</label>
-          <input type="text" id="story_content" placeholder="https://images.unsplash.com/..." class="input-classic w-full text-xs">
+          <div class="flex justify-between items-center mb-1">
+            <label class="block text-xs font-semibold text-beige-800 uppercase">Фото при открытии (на весь экран)</label>
+            <label class="text-xs text-blue-600 hover:text-blue-800 cursor-pointer font-semibold flex items-center gap-1 bg-blue-50 px-2.5 py-1 rounded border border-blue-200 transition-all shadow-sm">
+              <span>📁 Загрузить файл</span>
+              <input type="file" accept="image/*" class="hidden" onchange="uploadStoryPhoto(this, 'story_content')">
+            </label>
+          </div>
+          <input type="text" id="story_content" placeholder="Ссылка или загрузите файл выше ->" class="input-classic w-full text-xs">
+          <p id="status_story_content" class="text-[11px] text-green-600 mt-1 hidden font-medium">⏳ Загрузка в Supabase Storage...</p>
         </div>
         <div>
           <label class="block text-xs font-semibold text-beige-800 uppercase mb-1">Описание / Текст внутри</label>
@@ -535,6 +549,45 @@
 
     function closeStoryModal() {
       document.getElementById('storyModal').classList.add('hidden');
+    }
+
+    async function uploadStoryPhoto(fileInput, targetInputId) {
+      if (!fileInput.files || !fileInput.files[0]) return;
+      const file = fileInput.files[0];
+      const statusEl = document.getElementById('status_' + targetInputId);
+      statusEl.innerText = '⏳ Загрузка фото в Supabase Storage...';
+      statusEl.classList.remove('hidden', 'text-red-600');
+      statusEl.classList.add('text-green-600');
+
+      const reader = new FileReader();
+      reader.onload = async function(e) {
+        const base64 = e.target.result;
+        try {
+          const res = await fetch('/admin/api/upload', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + token
+            },
+            body: JSON.stringify({ imageBase64: base64, filename: file.name })
+          });
+          const data = await res.json();
+          if (res.ok && data.success) {
+            document.getElementById(targetInputId).value = data.url;
+            statusEl.innerText = '✅ Успешно загружено в Supabase Storage!';
+            setTimeout(() => statusEl.classList.add('hidden'), 4000);
+          } else {
+            statusEl.innerText = '❌ Ошибка: ' + (data.error || 'Не удалось загрузить');
+            statusEl.classList.remove('text-green-600');
+            statusEl.classList.add('text-red-600');
+          }
+        } catch (err) {
+          statusEl.innerText = '❌ Ошибка сети при загрузке';
+          statusEl.classList.remove('text-green-600');
+          statusEl.classList.add('text-red-600');
+        }
+      };
+      reader.readAsDataURL(file);
     }
 
     async function saveStoryAdmin() {
