@@ -63,8 +63,8 @@ async function buildApplePassBuffer(customer, host) {
       barcodes: [{ message: customer.phone, format: 'PKBarcodeFormatQR', messageEncoding: 'iso-8859-1' }],
       storeCard: {
         headerFields: [{ key: 'balance', label: 'БАЛАНС', value: `${customer.balance || 0} ₸` }],
-        primaryFields: [{ key: 'name', label: 'ГОСТЬ', value: customer.name || 'Гость' }],
-        secondaryFields: [{ key: 'status', label: 'СТАТУС', value: `${tier.name} ${tier.percent}%` }, { key: 'phone', label: 'ТЕЛЕФОН', value: customer.phone }]
+        primaryFields: [{ key: 'name', label: 'ГОСТЬ', value: (customer.name || 'Гость').toUpperCase() }],
+        secondaryFields: [{ key: 'status', label: 'СТАТУС', value: `${tier.name} ${tier.percent}%`.toUpperCase() }, { key: 'phone', label: 'ТЕЛЕФОН', value: customer.phone }]
       }
     };
 
