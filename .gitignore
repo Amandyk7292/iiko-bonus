@@ -24,3 +24,8 @@ generate-csr.js
 setup-pass.js
 convert-cer.js
 convert-wwdr.js
+build/
+.gradle/
+.idea/
+*.apk
+*.aab
