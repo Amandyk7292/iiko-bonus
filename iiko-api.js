@@ -155,6 +155,71 @@ class IikoAPI {
       }
     }
 
+    // Если по-прежнему пусто, проверяем внешние меню (External Menus v2 API)
+    if (!menuData.products || menuData.products.length === 0) {
+      console.log('Номенклатура v1 пуста. Проверяем External Menus (/api/2/menu)...');
+      try {
+        const extRes = await fetch(`${this.baseUrl}/api/2/menu`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({})
+        });
+        if (extRes.ok) {
+          const extData = await extRes.json();
+          if (extData.externalMenus && extData.externalMenus.length > 0) {
+            const extMenuId = extData.externalMenus[0].id;
+            console.log('Найдено Внешнее Меню:', extData.externalMenus[0].name, extMenuId);
+            const itemsRes = await fetch(`${this.baseUrl}/api/2/menu/by_id`, {
+              method: 'POST',
+              headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                externalMenuId: extMenuId,
+                organizationIds: [this.organizationId || orgId]
+              })
+            });
+            if (itemsRes.ok) {
+              const itemsData = await itemsRes.json();
+              // Преобразуем формат v2 в v1
+              const groups = (itemsData.itemCategories || []).map(c => ({
+                id: c.id,
+                name: c.name,
+                order: c.order || 0
+              }));
+              const products = (itemsData.items || []).map(i => {
+                let price = 0;
+                let imageUrl = i.buttonImageUrl;
+                if (i.itemSizes && i.itemSizes.length > 0) {
+                  if (i.itemSizes[0].prices && i.itemSizes[0].prices.length > 0) {
+                    price = i.itemSizes[0].prices[0].price;
+                  }
+                  if (!imageUrl) imageUrl = i.itemSizes[0].buttonImageUrl;
+                }
+                return {
+                  id: i.itemId || i.id,
+                  name: i.name,
+                  description: i.description,
+                  parentGroup: i.itemCategoryId,
+                  type: 'Dish',
+                  sizePrices: [{ price: { currentPrice: price } }],
+                  imageLinks: imageUrl ? [imageUrl] : []
+                };
+              });
+              console.log(`Загружено из Внешнего Меню v2: ${groups.length} категорий, ${products.length} товаров`);
+              menuData = { groups, products, orgName: extData.externalMenus[0].name + ' (External v2)' };
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Ошибка проверки внешнего меню v2:', err.message);
+      }
+    }
+
     return menuData;
   }
 }

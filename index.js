@@ -1013,6 +1013,35 @@ app.get('/api/guest/menu', async (req, res) => {
   }
 });
 
+app.get('/api/guest/test-menu', async (req, res) => {
+  try {
+    const token = await iikoApi.getToken();
+    const orgsRes = await fetch(`${iikoApi.baseUrl}/api/1/organizations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ returnAdditionalInfo: false, includeDisabled: false })
+    });
+    const orgsData = await orgsRes.json();
+    const orgs = orgsData.organizations || [];
+
+    const extRes = await fetch(`${iikoApi.baseUrl}/api/2/menu`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({})
+    });
+    const extData = extRes.ok ? await extRes.json() : { error: extRes.status };
+
+    res.json({
+      success: true,
+      totalStores: orgs.length,
+      stores: orgs.map(o => ({ id: o.id, name: o.name })),
+      externalMenusV2: extData
+    });
+  } catch (err) {
+    res.json({ success: false, error: err.message });
+  }
+});
+
 app.get(['/app', '/wallet', '/guest'], (req, res) => {
   res.sendFile(path.join(__dirname, 'app.html'));
 });
