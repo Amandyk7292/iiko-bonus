@@ -985,7 +985,7 @@ app.get('/api/guest/menu', async (req, res) => {
     res.json({ success: true, categories, products });
   } catch (error) {
     console.error('Ошибка получения меню:', error);
-    res.json({ success: false, error: 'Не удалось загрузить меню' });
+    res.json({ success: false, error: 'Не удалось загрузить меню: ' + (error.message || error) });
   }
 });
 

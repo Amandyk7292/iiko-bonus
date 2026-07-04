@@ -31,6 +31,7 @@ fun MenuScreen() {
     var products by remember { mutableStateOf<List<MenuItem>>(emptyList()) }
     var selectedCategoryId by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(true) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         try {
@@ -42,8 +43,11 @@ fun MenuScreen() {
                 if (categories.isNotEmpty()) {
                     selectedCategoryId = categories.first().id
                 }
+            } else {
+                errorMessage = response.error ?: "Меню пока пусто"
             }
         } catch (e: Exception) {
+            errorMessage = "Ошибка связи с сервером: ${e.localizedMessage}"
             e.printStackTrace()
         } finally {
             isLoading = false
@@ -67,8 +71,12 @@ fun MenuScreen() {
                 CircularProgressIndicator()
             }
         } else if (categories.isEmpty() || products.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Меню пока пусто", color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f))
+            Box(modifier = Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+                Text(
+                    text = errorMessage ?: "Меню пока пусто\n(Проверьте настройки iiko Cloud API)", 
+                    color = if (errorMessage != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
             }
         } else {
             // Horizontal categories

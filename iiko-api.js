@@ -33,15 +33,41 @@ class IikoAPI {
     return this.token;
   }
 
+  async getOrganizationId() {
+    if (this.organizationId && this.organizationId.includes('-') && this.organizationId.length > 20) {
+      return this.organizationId;
+    }
+    const token = await this.getToken();
+    const response = await fetch(`${this.baseUrl}/api/1/organizations`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ returnAdditionalInfo: false, includeDisabled: false })
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Ошибка получения организаций из iiko: ${errorText}`);
+    }
+    const data = await response.json();
+    if (data.organizations && data.organizations.length > 0) {
+      this.organizationId = data.organizations[0].id;
+      return this.organizationId;
+    }
+    throw new Error('Не найдено ни одной организации в iikoCloud для данного apiLogin');
+  }
+
   async registerCustomer(phone, name) {
     const token = await this.getToken();
+    const orgId = await this.getOrganizationId();
     
     // Очищаем телефон (оставляем только цифры, для iiko формат обычно без плюса или с плюсом в зависимости от настроек)
     // По стандарту лучше отправлять как есть, но без пробелов
     const cleanPhone = phone.replace(/[^0-9+]/g, '');
 
     const payload = {
-      organizationId: this.organizationId,
+      organizationId: orgId,
       customer: {
         phone: cleanPhone,
         name: name || 'Новый Гость'
@@ -67,9 +93,10 @@ class IikoAPI {
 
   async getMenu() {
     const token = await this.getToken();
+    const orgId = await this.getOrganizationId();
     
     const payload = {
-      organizationId: this.organizationId
+      organizationId: orgId
     };
 
     const response = await fetch(`${this.baseUrl}/api/1/nomenclature`, {
