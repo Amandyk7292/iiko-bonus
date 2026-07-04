@@ -176,18 +176,15 @@ namespace Resto.Front.Api.IikoBonusPlugin
             string digitsOnly = new string(barcode.Where(char.IsDigit).ToArray());
             if (digitsOnly.Length >= 10 && digitsOnly.Length <= 15)
             {
-                // Запускаем поиск в фоне, чтобы не блокировать UI-поток сканера
-                Task.Run(() =>
+                try
                 {
-                    try
-                    {
-                        RunSearchAndApply(order, os, vm, barcode);
-                    }
-                    catch (Exception ex)
-                    {
-                        PluginContext.Log.Error("IikoBonusPlugin Error processing barcode: " + ex);
-                    }
-                });
+                    RunSearchAndApply(order, os, vm, barcode);
+                }
+                catch (Exception ex)
+                {
+                    PluginContext.Log.Error("IikoBonusPlugin Error processing barcode: " + ex);
+                    try { vm.ShowErrorPopup("Ошибка сканирования: " + ex.Message, "ОК"); } catch { }
+                }
                 return true;
             }
 

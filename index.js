@@ -56,10 +56,9 @@ async function buildApplePassBuffer(customer, host) {
       authenticationToken: authToken,
       organizationName: 'Bulka Bakery',
       description: 'Карта лояльности пекарни Bulka',
-      logoText: '',
-      foregroundColor: '#6d3317',
-      backgroundColor: '#ffb300',
-      labelColor: '#6d3317',
+      foregroundColor: 'rgb(109, 51, 23)',
+      backgroundColor: 'rgb(255, 179, 0)',
+      labelColor: 'rgb(109, 51, 23)',
       barcode: { message: customer.phone, format: 'PKBarcodeFormatQR', messageEncoding: 'iso-8859-1' },
       barcodes: [{ message: customer.phone, format: 'PKBarcodeFormatQR', messageEncoding: 'iso-8859-1' }],
       storeCard: {
