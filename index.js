@@ -817,9 +817,10 @@ app.post('/api/guest/profile', async (req, res) => {
     }
 
     const settings = await getSettings();
+    const tier = getTierInfo(customer.total_spent, settings);
     const vipThreshold = settings.vip_threshold || 300000;
-    const isVip = (Number(customer.total_spent) || 0) >= vipThreshold;
-    const cashbackPercent = isVip ? (settings.vip_cashback_percent || 5) : (settings.base_cashback_percent || 3);
+    const isVip = tier.name === 'Платина';
+    const cashbackPercent = tier.percent;
 
     // Получаем последние транзакции клиента
     const { data: transactions } = await supabase
@@ -840,7 +841,8 @@ app.post('/api/guest/profile', async (req, res) => {
         created_at: customer.created_at,
         isVip,
         cashbackPercent,
-        vipThreshold
+        vipThreshold,
+        tier
       },
       transactions: transactions || []
     });
