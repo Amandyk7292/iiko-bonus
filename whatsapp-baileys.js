@@ -177,7 +177,8 @@ async function initWhatsApp(otpStore, getOrCreateCustomerByPhone) {
               const { data, error } = await supabase
                   .from('whatsapp_sessions')
                   .select('id, data')
-                  .like('id', `task_${remoteJid}_%`);
+                  .like('id', `task_${remoteJid}_%`)
+                  .order('id', { ascending: true });
               
               if (error) throw error;
               
@@ -198,6 +199,49 @@ async function initWhatsApp(otpStore, getOrCreateCustomerByPhone) {
           } catch (e) {
               console.error('[WHATSAPP] Ошибка получения задач:', e);
               await sock.sendMessage(remoteJid, { text: `❌ Ошибка при получении списка задач.` });
+          }
+          return;
+      }
+
+      if (textMessage.toLowerCase().startsWith('/готово ')) {
+          const taskNumStr = textMessage.substring(8).trim();
+          const taskNum = parseInt(taskNumStr, 10);
+          
+          if (!isNaN(taskNum) && taskNum > 0) {
+              try {
+                  // Fetch tasks in the exact same order as /задачи
+                  const { data, error } = await supabase
+                      .from('whatsapp_sessions')
+                      .select('id, data')
+                      .like('id', `task_${remoteJid}_%`)
+                      .order('id', { ascending: true });
+                  
+                  if (error) throw error;
+                  
+                  if (!data || data.length === 0 || taskNum > data.length) {
+                      await sock.sendMessage(remoteJid, { text: `⚠️ Задача под номером ${taskNum} не найдена.` });
+                      return;
+                  }
+                  
+                  // Get the specific task to delete
+                  const taskToDelete = data[taskNum - 1];
+                  let taskDesc = "Задача";
+                  try {
+                      const taskData = typeof taskToDelete.data === 'string' ? JSON.parse(taskToDelete.data) : taskToDelete.data;
+                      taskDesc = `"${taskData.text}"`;
+                  } catch(e) {}
+                  
+                  // Delete from database
+                  await supabase
+                      .from('whatsapp_sessions')
+                      .delete()
+                      .eq('id', taskToDelete.id);
+                      
+                  await sock.sendMessage(remoteJid, { text: `✅ ${taskDesc} выполнена и удалена из списка!` });
+              } catch (e) {
+                  console.error('[WHATSAPP] Ошибка при удалении задачи:', e);
+                  await sock.sendMessage(remoteJid, { text: `❌ Ошибка при удалении задачи.` });
+              }
           }
           return;
       }
