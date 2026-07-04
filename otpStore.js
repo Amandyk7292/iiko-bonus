@@ -25,14 +25,8 @@ const otpStore = {
     },
     
     async get(phone) {
-        // 1. Try memory first (fastest)
-        const memResult = memoryStore.get(phone);
-        if (memResult) {
-            console.log(`[OTP] FOUND code ${memResult.code} for phone ${phone} (from memory)`);
-            return memResult;
-        }
-        
-        // 2. Fall back to Supabase (for cross-restart persistence)
+        // ALWAYS read from Supabase to ensure cross-instance freshness
+        // This solves the stale cache bug when zero-downtime deploy runs 2 instances
         try {
             const { data, error } = await supabase
                 .from('whatsapp_sessions')
