@@ -46,9 +46,9 @@ async function handleUpdate(update) {
 
   const keyboard = {
     keyboard: [
-      [{ text: '📱 Отправить мой номер телефона', request_contact: true }],
-      [{ text: '💳 Моя карта (Mini App)', web_app: { url: WEBAPP_URL } }],
-      [{ text: '💰 Мой баланс и статус' }, { text: 'ℹ️ Правила программы' }]
+      [{ text: 'Отправить мой номер телефона', request_contact: true }],
+      [{ text: 'Моя карта (Mini App)', web_app: { url: WEBAPP_URL } }],
+      [{ text: 'Мой баланс и статус' }, { text: 'Правила программы' }]
     ],
     resize_keyboard: true
   };
@@ -57,7 +57,7 @@ async function handleUpdate(update) {
     inline_keyboard: [
       [
         {
-          text: '💳 Открыть виртуальную карту (QR)',
+          text: 'Открыть виртуальную карту (QR)',
           web_app: { url: WEBAPP_URL }
         }
       ]
@@ -65,7 +65,7 @@ async function handleUpdate(update) {
   };
 
   if (text.startsWith('/start') || text.startsWith('/help')) {
-    const welcome = `👋 <b>Добро пожаловать в клуб привилегий iiko Bonus!</b>\n\nЗдесь вы можете контролировать свой баланс баллов, следить за начислением кэшбэка и предъявлять электронный QR-код официанту или кассиру при оплате счета.\n\n🔒 <b>Защита аккаунта:</b> Ввод чужих номеров запрещен. Доступ к виртуальной карте привязывается строго к вашему Telegram-аккаунту.\n\n👇 Нажмите кнопку <b>«📱 Отправить мой номер телефона»</b> внизу экрана, чтобы авторизоваться в системе.`;
+    const welcome = `<b>Добро пожаловать в клуб привилегий iiko Bonus!</b>\n\nЗдесь вы можете контролировать свой баланс баллов, следить за начислением кэшбэка и предъявлять электронный QR-код официанту или кассиру при оплате счета.\n\n<b>Защита аккаунта:</b> Ввод чужих номеров запрещен. Доступ к виртуальной карте привязывается строго к вашему Telegram-аккаунту.\n\nНажмите кнопку <b>«Отправить мой номер телефона»</b> внизу экрана, чтобы авторизоваться в системе.`;
     await sendMessage(chatId, welcome, keyboard);
     return;
   }
@@ -85,9 +85,9 @@ async function handleUpdate(update) {
       const tier = getTierInfo(customer.total_spent, settings);
       
       let statusStr = `<b>${tier.name} (${tier.percent}%)</b>`;
-      let nextStr = tier.nextTier ? `\n📈 <b>До статуса "${tier.nextTier}":</b> осталось ${tier.remaining.toLocaleString()} тнг` : '';
+      let nextStr = tier.nextTier ? `\n<b>До статуса "${tier.nextTier}":</b> осталось ${tier.remaining.toLocaleString()} тнг` : '';
 
-      const replyText = `✅ <b>Вы успешно авторизованы!</b>\n\n👤 <b>Гость:</b> ${customer.name || name}\n📞 <b>Телефон:</b> ${customer.phone}\n💰 <b>Баланс:</b> <code>${customer.balance || 0}</code> бонусов\n🏆 <b>Уровень:</b> ${statusStr}\n💵 <b>Всего покупок:</b> ${(customer.total_spent || 0).toLocaleString()} тнг${nextStr}\n\n📲 Чтобы показать ваш статический QR-код на кассе, откройте виртуальную карту ниже:`;
+      const replyText = `<b>Вы успешно авторизованы!</b>\n\n<b>Гость:</b> ${customer.name || name}\n<b>Телефон:</b> ${customer.phone}\n<b>Баланс:</b> <code>${customer.balance || 0}</code> бонусов\n<b>Уровень:</b> ${statusStr}\n<b>Всего покупок:</b> ${(customer.total_spent || 0).toLocaleString()} тнг${nextStr}\n\nЧтобы показать ваш статический QR-код на кассе, откройте виртуальную карту ниже:`;
       
       // Генерируем одноразовый токен для Apple Wallet
       let walletUrl = '';
@@ -107,7 +107,7 @@ async function handleUpdate(update) {
         inline_keyboard: [
           [
             {
-              text: '💳 Открыть мою виртуальную карту (QR)',
+              text: 'Открыть мою виртуальную карту (QR)',
               web_app: { url: `${WEBAPP_URL}?phone=${encodeURIComponent(customer.phone)}` }
             }
           ],
@@ -122,35 +122,35 @@ async function handleUpdate(update) {
 
       await sendMessage(chatId, replyText, userCardButton);
     } catch (err) {
-      await sendMessage(chatId, `❌ Ошибка при поиске клиента: ${err.message}`);
+      await sendMessage(chatId, `Ошибка при поиске клиента: ${err.message}`);
     }
     return;
   }
 
   if (text.includes('Мой баланс') || text.includes('баланс')) {
-    await sendMessage(chatId, `ℹ️ Чтобы проверить баланс, пожалуйста, нажмите кнопку <b>«📱 Отправить мой номер телефона»</b> в меню внизу. Так система определит ваш профиль в базе ресторана.`);
+    await sendMessage(chatId, `Чтобы проверить баланс, пожалуйста, нажмите кнопку <b>«Отправить мой номер телефона»</b> в меню внизу. Так система определит ваш профиль в базе ресторана.`);
     return;
   }
 
   if (text.includes('Правила')) {
-    const rules = `🏆 <b>Правила нашей программы лояльности:</b>\n\n1️⃣ <b>Кэшбэк с заказов:</b> С каждого счета вам возвращается от 3% до 5% баллами. 1 бонус = 1 тенге.\n\n2️⃣ <b>VIP Уровень:</b> При достижении общей суммы покупок от 300 000 тнг ваш кэшбэк автоматически повышается до VIP уровня!\n\n3️⃣ <b>Оплата бонусами:</b> Вы можете оплатить накопленными баллами часть вашего счета на кассе.\n\n4️⃣ <b>Срок действия:</b> Бонусы не сгорают, если вы посещаете наш ресторан хотя бы раз в 90 дней!`;
+    const rules = `<b>Правила нашей программы лояльности:</b>\n\n<b>Кэшбэк с заказов:</b> С каждого счета вам возвращается от 3% до 5% баллами. 1 бонус = 1 тенге.\n\n<b>VIP Уровень:</b> При достижении общей суммы покупок от 300 000 тнг ваш кэшбэк автоматически повышается до VIP уровня!\n\n<b>Оплата бонусами:</b> Вы можете оплатить накопленными баллами часть вашего счета на кассе.\n\n<b>Срок действия:</b> Бонусы не сгорают, если вы посещаете наш ресторан хотя бы раз в 90 дней!`;
     await sendMessage(chatId, rules, inlineCardButton);
     return;
   }
 
   // Если пользователь ввел номер телефона вручную текстом
   if (/^[+0-9]{10,15}$/.test(text.replace(/[^0-9+]/g, ''))) {
-    await sendMessage(chatId, `🔒 <b>Ручной ввод чужих номеров запрещен</b>\n\nДля защиты баланса баллов от несанкционированного доступа, определение аккаунта происходит строго через подтверждение контакта в Telegram.\n\n👇 Пожалуйста, нажмите кнопку <b>«📱 Отправить мой номер телефона»</b> внизу экрана.`);
+    await sendMessage(chatId, `<b>Ручной ввод чужих номеров запрещен</b>\n\nДля защиты баланса баллов от несанкционированного доступа, определение аккаунта происходит строго через подтверждение контакта в Telegram.\n\nПожалуйста, нажмите кнопку <b>«Отправить мой номер телефона»</b> внизу экрана.`);
     return;
   }
 
-  await sendMessage(chatId, `Я вас не понял 🤔 Воспользуйтесь кнопками меню или отправьте команду /start`);
+  await sendMessage(chatId, `Я вас не понял Воспользуйтесь кнопками меню или отправьте команду /start`);
 }
 
 async function startPolling() {
   if (isRunning) return;
   isRunning = true;
-  console.log('🤖 Telegram Bot polling started successfully...');
+  console.log('Telegram Bot polling started successfully...');
 
   // Удаляем вебхуки на случай, если они были установлены ранее
   await callApi('deleteWebhook', { drop_pending_updates: true });

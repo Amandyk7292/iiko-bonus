@@ -315,7 +315,7 @@ app.post('/api/register-iiko', async (req, res) => {
     const customer = await getOrCreateCustomerByPhone(phone, name);
     
     // Отправляем WhatsApp уведомление (отключено по просьбе пользователя)
-    // sendWhatsAppMessage(phone, `🎉 Добро пожаловать, ${name}!\nВы успешно зарегистрированы в нашей бонусной системе. Ваш баланс: 0 бонусов.\n\nНазывайте этот номер телефона на кассе, чтобы копить кэшбэк!`);
+    // sendWhatsAppMessage(phone, `Добро пожаловать, ${name}!\nВы успешно зарегистрированы в нашей бонусной системе. Ваш баланс: 0 бонусов.\n\nНазывайте этот номер телефона на кассе, чтобы копить кэшбэк!`);
 
     res.json({ success: true, customerId: customer.id });
   } catch (err) {
@@ -440,13 +440,13 @@ app.post('/api/loyalty/apply', webhookMiddleware, async (req, res) => {
     // Отправка Telegram уведомления
     if (customer && customer.telegram_id && (discountAmount > 0 || earnedBonus > 0)) {
       const { sendMessage } = require('./telegram');
-      let msg = `🧾 <b>Ваш заказ успешно оплачен!</b>\n\n`;
-      msg += `🛍 <b>Сумма чека:</b> ${orderTotal} тнг\n`;
-      if (discountAmount > 0) msg += `➖ <b>Списано:</b> ${discountAmount} бонусов\n`;
-      if (earnedBonus > 0) msg += `➕ <b>Начислено:</b> ${earnedBonus} бонусов\n`;
+      let msg = `<b>Ваш заказ успешно оплачен!</b>\n\n`;
+      msg += `<b>Сумма чека:</b> ${orderTotal} тнг\n`;
+      if (discountAmount > 0) msg += `<b>Списано:</b> ${discountAmount} бонусов\n`;
+      if (earnedBonus > 0) msg += `<b>Начислено:</b> ${earnedBonus} бонусов\n`;
       
       const newBalance = Number(customer.balance || 0) - (discountAmount || 0) + (earnedBonus || 0);
-      msg += `\n💰 <b>Текущий баланс:</b> ${newBalance.toFixed(2)} бонусов\n\nСпасибо, что выбираете нас! 💚`;
+      msg += `\n<b>Текущий баланс:</b> ${newBalance.toFixed(2)} бонусов\n\nСпасибо, что выбираете нас! `;
       
       sendMessage(customer.telegram_id, msg).catch(err => console.error("Error sending TG msg:", err));
     }
@@ -505,7 +505,7 @@ app.get('/wallet/:token', async (req, res) => {
   .card { background: #2a1e14; border-radius: 20px; padding: 40px 30px; text-align: center; max-width: 360px; }
   h1 { font-size: 22px; margin-bottom: 16px; } p { color: #aaa; font-size: 15px; line-height: 1.5; }
 </style></head><body><div class="card">
-  <h1>⏰ Ссылка истекла</h1>
+  <h1>Ссылка истекла</h1>
   <p>Эта ссылка уже была использована или её срок действия истёк. Пожалуйста, откройте Telegram-бота и нажмите кнопку «Отправить номер телефона» заново.</p>
 </div></body></html>`);
   }
@@ -550,7 +550,7 @@ app.get('/wallet/:token', async (req, res) => {
 </head>
 <body>
   <div class="card">
-    <div class="logo">🍞</div>
+    <div class="logo" style="font-weight:900; font-size:28px; color:#ffb300;">BULKA</div>
     <h1>Bulka Bonus Card</h1>
     <p>Выберите, куда сохранить вашу карту лояльности</p>
     
@@ -902,7 +902,7 @@ app.post('/api/auth/request-otp', async (req, res) => {
     
     // Send via Telegram
     const telegramBot = require('./telegram');
-    await telegramBot.sendMessage(customer.telegram_id, `🔐 <b>Ваш код для входа в приложение:</b>\n\n<code>${code}</code>\n\nКод действителен 5 минут.`);
+    await telegramBot.sendMessage(customer.telegram_id, `<b>Ваш код для входа в приложение:</b>\n\n<code>${code}</code>\n\nКод действителен 5 минут.`);
     
     res.json({ success: true });
   } catch (err) {

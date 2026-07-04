@@ -51,16 +51,16 @@ Note: _This is purely the output of the chat conversation and does not contain a
 
 ### Planner Response
 
-✅ **Сборка успешна!**
+**Сборка успешна!**
 
 ## Что было не так
 
 Проблема была в [LoyaltyFlow.cs, метод OnBarcodeScanned](file:///c:/Users/Asus Rog/Desktop/bulkaiiko-бонус система/IikoBonusPlugin/LoyaltyFlow.cs#L166-L191):
 
 **`RunSearchAndApply` вызывался через `Task.Run()`** — то есть в **фоновом потоке**. Но внутри этого метода используются UI-диалоги iiko (`vm.ShowChooserPopup`, `vm.ShowOkPopup`, `vm.ShowErrorPopup`), которые **обязаны** работать в UI-потоке. Из-за этого:
-- Сканер пикал ✅ (barcode принимался)
-- Окно мерцало ⚡ (попытка показать диалог из фонового потока)
-- Бонус не списывался ❌ (диалог крашился, flow прерывался)
+- Сканер пикал (barcode принимался)
+- Окно мерцало (попытка показать диалог из фонового потока)
+- Бонус не списывался (диалог крашился, flow прерывался)
 
 **Исправление:** убрал `Task.Run()`, теперь `RunSearchAndApply` вызывается **синхронно** в UI-потоке, как и при нажатии кнопки «Бонусы».
 
@@ -86,7 +86,7 @@ IikoBonusPlugin\bin\Release\Resto.Front.Api.IikoBonusPlugin.dll
 
 ### Planner Response
 
-✅ **Готово!** Заменил barcode на QR-код в обоих местах:
+**Готово!** Заменил barcode на QR-код в обоих местах:
 
 1. **[app.html](file:///c:/Users/Asus Rog/Desktop/bulkaiiko-бонус система/app.html)** — вместо JsBarcode (CODE128) теперь QRCode.js генерирует QR-код 180×180 с номером телефона. Кнопка и заголовок модала обновлены: «Показать QR-код», «QR-код для кассира».
 

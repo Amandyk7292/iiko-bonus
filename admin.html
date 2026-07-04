@@ -90,7 +90,7 @@
         </div>
         <div class="pt-2">
           <button type="button" onclick="grantVipStatus()" class="w-full bg-beige-100 hover:bg-beige-200 text-beige-800 text-xs py-2.5 px-3 rounded font-semibold border border-beige-300 transition-all flex items-center justify-center gap-1 shadow-sm">
-            <span>🏆 Присвоить VIP статус (установить 100 000 тнг)</span>
+            <span>Присвоить VIP статус (установить 100 000 тнг)</span>
           </button>
         </div>
       </div>
@@ -117,23 +117,23 @@
           <div class="flex justify-between items-center mb-1">
             <label class="block text-xs font-semibold text-beige-800 uppercase">Фото обложки (миниатюра)</label>
             <label class="text-xs text-blue-600 hover:text-blue-800 cursor-pointer font-semibold flex items-center gap-1 bg-blue-50 px-2.5 py-1 rounded border border-blue-200 transition-all shadow-sm">
-              <span>📁 Загрузить файл</span>
+              <span>Загрузить файл</span>
               <input type="file" accept="image/*" class="hidden" onchange="uploadStoryPhoto(this, 'story_cover')">
             </label>
           </div>
           <input type="text" id="story_cover" placeholder="Ссылка или загрузите файл выше ->" class="input-classic w-full text-xs">
-          <p id="status_story_cover" class="text-[11px] text-green-600 mt-1 hidden font-medium">⏳ Загрузка в Supabase Storage...</p>
+          <p id="status_story_cover" class="text-[11px] text-green-600 mt-1 hidden font-medium">Загрузка в Supabase Storage...</p>
         </div>
         <div>
           <div class="flex justify-between items-center mb-1">
             <label class="block text-xs font-semibold text-beige-800 uppercase">Фото при открытии (на весь экран)</label>
             <label class="text-xs text-blue-600 hover:text-blue-800 cursor-pointer font-semibold flex items-center gap-1 bg-blue-50 px-2.5 py-1 rounded border border-blue-200 transition-all shadow-sm">
-              <span>📁 Загрузить файл</span>
+              <span>Загрузить файл</span>
               <input type="file" accept="image/*" class="hidden" onchange="uploadStoryPhoto(this, 'story_content')">
             </label>
           </div>
           <input type="text" id="story_content" placeholder="Ссылка или загрузите файл выше ->" class="input-classic w-full text-xs">
-          <p id="status_story_content" class="text-[11px] text-green-600 mt-1 hidden font-medium">⏳ Загрузка в Supabase Storage...</p>
+          <p id="status_story_content" class="text-[11px] text-green-600 mt-1 hidden font-medium">Загрузка в Supabase Storage...</p>
         </div>
         <div>
           <label class="block text-xs font-semibold text-beige-800 uppercase mb-1">Описание / Текст внутри</label>
@@ -242,7 +242,7 @@
         <div class="flex justify-between items-center gap-4 flex-wrap">
           <input type="text" id="searchCustomer" onkeyup="renderCustomers()" placeholder="Поиск по телефону или имени..." class="input-classic w-full max-w-md">
           <button onclick="triggerExpireBonuses()" class="bg-orange-600 hover:bg-orange-700 text-white font-medium py-2 px-4 rounded-lg shadow-sm transition flex items-center gap-2 text-sm">
-            <span>⏳</span> Списать неактивные (90 дней)
+            Списать неактивные (90 дней)
           </button>
         </div>
         <div class="card overflow-x-auto">
@@ -509,8 +509,8 @@
             <td class="py-3 px-4"><a href="${s.contentUrl}" target="_blank" class="text-blue-600 underline text-xs">Photo link</a></td>
             <td class="py-3 px-4 text-center">${s.duration} сек</td>
             <td class="py-3 px-4 text-right whitespace-nowrap">
-              <button onclick="editStoryAdmin(${s.id})" class="bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300 px-3 py-1.5 rounded text-xs font-medium transition-all shadow-sm mr-2" style="background: #ffb300; color: #3e2723; font-weight: bold;">✏️ Изменить</button>
-              <button onclick="deleteStoryAdmin(${s.id})" class="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3 py-1.5 rounded text-xs font-medium transition-all shadow-sm">🗑 Удалить</button>
+              <button onclick="editStoryAdmin(${s.id})" class="bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300 px-3 py-1.5 rounded text-xs font-medium transition-all shadow-sm mr-2" style="background: #ffb300; color: #3e2723; font-weight: bold;">Изменить</button>
+              <button onclick="deleteStoryAdmin(${s.id})" class="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3 py-1.5 rounded text-xs font-medium transition-all shadow-sm">Удалить</button>
             </td>
           </tr>
         `).join('');
@@ -555,7 +555,7 @@
       if (!fileInput.files || !fileInput.files[0]) return;
       const file = fileInput.files[0];
       const statusEl = document.getElementById('status_' + targetInputId);
-      statusEl.innerText = '⏳ Загрузка фото в Supabase Storage...';
+      statusEl.innerText = 'Загрузка фото в Supabase Storage...';
       statusEl.classList.remove('hidden', 'text-red-600');
       statusEl.classList.add('text-green-600');
 
@@ -574,15 +574,15 @@
           const data = await res.json();
           if (res.ok && data.success) {
             document.getElementById(targetInputId).value = data.url;
-            statusEl.innerText = '✅ Успешно загружено в Supabase Storage!';
+            statusEl.innerText = 'Успешно загружено в Supabase Storage!';
             setTimeout(() => statusEl.classList.add('hidden'), 4000);
           } else {
-            statusEl.innerText = '❌ Ошибка: ' + (data.error || 'Не удалось загрузить');
+            statusEl.innerText = 'Ошибка: ' + (data.error || 'Не удалось загрузить');
             statusEl.classList.remove('text-green-600');
             statusEl.classList.add('text-red-600');
           }
         } catch (err) {
-          statusEl.innerText = '❌ Ошибка сети при загрузке';
+          statusEl.innerText = 'Ошибка сети при загрузке';
           statusEl.classList.remove('text-green-600');
           statusEl.classList.add('text-red-600');
         }
@@ -668,15 +668,15 @@
         const data = await res.json();
         
         if (res.ok) {
-          msgEl.innerText = `✅ Сообщение отправлено. Охват: ${data.count} клиентов.`;
+          msgEl.innerText = `Сообщение отправлено. Охват: ${data.count} клиентов.`;
           msgEl.className = 'text-center mt-4 text-sm font-medium text-green-600';
           document.getElementById('broadcastText').value = '';
         } else {
-          msgEl.innerText = `❌ Ошибка: ${data.error}`;
+          msgEl.innerText = `Ошибка: ${data.error}`;
           msgEl.className = 'text-center mt-4 text-sm font-medium text-red-600';
         }
       } catch (err) {
-        msgEl.innerText = `❌ Ошибка связи с сервером`;
+        msgEl.innerText = `Ошибка связи с сервером`;
         msgEl.className = 'text-center mt-4 text-sm font-medium text-red-600';
       }
       
@@ -799,8 +799,8 @@
           <td class="py-4 px-6 text-right text-gray-600">${(c.total_spent || 0).toLocaleString()}</td>
           <td class="py-4 px-6 text-center space-x-2 whitespace-nowrap">
             <button onclick="manualBonus('${c.id}')" class="btn-outline px-3 py-1 text-xs">+/- Бонусы</button>
-            <button onclick="editCustomer('${c.id}')" class="bg-beige-100 hover:bg-beige-200 text-beige-800 border border-beige-300 px-3 py-1 rounded text-xs font-medium transition-all shadow-sm">✏️ Редактировать</button>
-            <button onclick="deleteCustomerAction('${c.id}')" class="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3 py-1 rounded text-xs font-medium transition-all shadow-sm">🗑 Удалить</button>
+            <button onclick="editCustomer('${c.id}')" class="bg-beige-100 hover:bg-beige-200 text-beige-800 border border-beige-300 px-3 py-1 rounded text-xs font-medium transition-all shadow-sm">Редактировать</button>
+            <button onclick="deleteCustomerAction('${c.id}')" class="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3 py-1 rounded text-xs font-medium transition-all shadow-sm">Удалить</button>
           </td>
         </tr>
       `).join('');

@@ -23,7 +23,7 @@ fun CartScreen() {
     ) {
         // Shopping bag icon placeholder (text for now)
         Text(
-            text = "🛒",
+            text = "",
             fontSize = 64.sp,
             modifier = Modifier.padding(bottom = 24.dp)
         )

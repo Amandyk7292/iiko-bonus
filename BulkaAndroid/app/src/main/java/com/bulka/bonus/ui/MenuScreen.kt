@@ -148,7 +148,7 @@ fun ProductItem(product: MenuItem) {
                         .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("☕", fontSize = 32.sp)
+                    Text("", fontSize = 32.sp)
                 }
             }
 

@@ -10,7 +10,7 @@ async function createOrUpdateGoogleWalletClass() {
   const classIdSuffix = process.env.GOOGLE_CLASS_ID || 'bulka_loyalty_1';
   
   if (!issuerId || !credentialsRaw) {
-    console.error("❌ ОШИБКА: Не заданы GOOGLE_ISSUER_ID или GOOGLE_CREDENTIALS_JSON в .env");
+    console.error("ОШИБКА: Не заданы GOOGLE_ISSUER_ID или GOOGLE_CREDENTIALS_JSON в .env");
     console.error("Сначала создайте сервисный аккаунт, получите Issuer ID и добавьте их в .env");
     process.exit(1);
   }
@@ -19,13 +19,13 @@ async function createOrUpdateGoogleWalletClass() {
   try {
     credentials = JSON.parse(credentialsRaw);
   } catch (e) {
-    console.error("❌ ОШИБКА: GOOGLE_CREDENTIALS_JSON содержит невалидный JSON.");
+    console.error("ОШИБКА: GOOGLE_CREDENTIALS_JSON содержит невалидный JSON.");
     process.exit(1);
   }
 
   const classId = `${issuerId}.${classIdSuffix}`;
   
-  console.log(`⏳ Авторизация в Google API...`);
+  console.log(`Авторизация в Google API...`);
   
   const client = auth.fromJSON(credentials);
   client.scopes = ['https://www.googleapis.com/auth/wallet_object.issuer'];
@@ -33,7 +33,7 @@ async function createOrUpdateGoogleWalletClass() {
   await client.authorize();
   const token = await client.getAccessToken();
 
-  console.log(`⏳ Создание/обновление класса лояльности: ${classId}...`);
+  console.log(`Создание/обновление класса лояльности: ${classId}...`);
 
   // Настройка внешнего вида карты (Класса)
   const loyaltyClass = {
@@ -75,7 +75,7 @@ async function createOrUpdateGoogleWalletClass() {
     });
 
     if (getRes.ok) {
-      console.log(`✅ Класс уже существует. Обновляем (PUT)...`);
+      console.log(`Класс уже существует. Обновляем (PUT)...`);
       const putRes = await fetch(`https://walletobjects.googleapis.com/walletobjects/v1/loyaltyClass/${classId}`, {
         method: 'PUT',
         headers: { 
@@ -86,9 +86,9 @@ async function createOrUpdateGoogleWalletClass() {
       });
       const putData = await putRes.json();
       if (!putRes.ok) throw new Error(JSON.stringify(putData));
-      console.log(`🎉 Класс успешно обновлен!`);
+      console.log(`Класс успешно обновлен!`);
     } else {
-      console.log(`⏳ Класс не найден. Создаем новый (POST)...`);
+      console.log(`Класс не найден. Создаем новый (POST)...`);
       const postRes = await fetch('https://walletobjects.googleapis.com/walletobjects/v1/loyaltyClass', {
         method: 'POST',
         headers: { 
@@ -99,17 +99,17 @@ async function createOrUpdateGoogleWalletClass() {
       });
       const postData = await postRes.json();
       if (!postRes.ok) throw new Error(JSON.stringify(postData));
-      console.log(`🎉 Класс успешно создан!`);
+      console.log(`Класс успешно создан!`);
     }
 
     console.log(`\n======================================================`);
-    console.log(`✅ ГОТОВО! ID вашего класса: ${classIdSuffix}`);
+    console.log(`ГОТОВО! ID вашего класса: ${classIdSuffix}`);
     console.log(`Пожалуйста, убедитесь, что в файле .env прописано:`);
     console.log(`GOOGLE_CLASS_ID="${classIdSuffix}"`);
     console.log(`======================================================\n`);
 
   } catch (error) {
-    console.error("❌ Ошибка при запросе к Google Wallet API:");
+    console.error("Ошибка при запросе к Google Wallet API:");
     console.error(error.message);
   }
 }
