@@ -51,9 +51,7 @@ fun MainScreen(
     val navController = rememberNavController()
     val items = listOf(
         BottomNavItem.Home,
-        BottomNavItem.Menu,
-        BottomNavItem.Orders,
-        BottomNavItem.Cart
+        BottomNavItem.Orders
     )
 
     Scaffold(
