@@ -102,6 +102,9 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true })); // Для form submit
 
+// Хранилище OTP кодов
+const otpStore = new Map();
+
 // ==========================================
 // 1. ВЕБ-ИНТЕРФЕЙС (РЕГИСТРАЦИЯ КЛИЕНТОВ)
 // ==========================================
@@ -802,6 +805,96 @@ app.get('/admin', (req, res) => {
 // ==========================================
 // 5. GUEST MINI APP API & UI
 // ==========================================
+app.post('/api/auth/request-otp', async (req, res) => {
+  try {
+    const { phone } = req.body;
+    if (!phone) return res.status(400).json({ error: 'Phone required' });
+    
+    let customer = await getCustomerByPhone(phone);
+    if (!customer) {
+        return res.json({ success: false, error: 'not_found', message: 'Номер не зарегистрирован' });
+    }
+    
+    if (!customer.telegram_id) {
+        return res.json({ success: false, error: 'no_telegram', message: 'Для входа необходимо сначала запустить нашего Telegram-бота' });
+    }
+    
+    // Generate 4-digit code
+    const code = Math.floor(1000 + Math.random() * 9000).toString();
+    otpStore.set(phone, { code, expires: Date.now() + 5 * 60 * 1000 }); // 5 min expiry
+    
+    // Send via Telegram
+    const telegramBot = require('./telegram');
+    await telegramBot.sendMessage(customer.telegram_id, `🔐 <b>Ваш код для входа в приложение:</b>\n\n<code>${code}</code>\n\nКод действителен 5 минут.`);
+    
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/auth/verify-otp', async (req, res) => {
+  try {
+    const { phone, code } = req.body;
+    if (!phone || !code) return res.status(400).json({ error: 'Phone and code required' });
+    
+    const stored = otpStore.get(phone);
+    if (!stored) {
+        return res.json({ success: false, error: 'expired', message: 'Код устарел или не был запрошен' });
+    }
+    
+    if (Date.now() > stored.expires) {
+        otpStore.delete(phone);
+        return res.json({ success: false, error: 'expired', message: 'Время действия кода истекло' });
+    }
+    
+    if (stored.code !== code) {
+        return res.json({ success: false, error: 'invalid', message: 'Неверный код' });
+    }
+    
+    // Success - clear OTP and return profile
+    otpStore.delete(phone);
+    
+    let customer = await getCustomerByPhone(phone);
+    if (!customer) return res.status(404).json({ error: 'Customer not found' });
+    
+    const settings = await getSettings();
+    const tier = getTierInfo(customer.total_spent, settings);
+    const vipThreshold = settings.vip_threshold || 300000;
+    const isVip = tier.name === 'Платина';
+    const cashbackPercent = tier.percent;
+
+    const { data: transactions } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('customer_id', customer.id)
+      .order('timestamp', { ascending: false })
+      .limit(20);
+
+    res.json({
+      success: true,
+      exists: true,
+      customer: {
+        id: customer.id,
+        name: customer.name,
+        phone: customer.phone,
+        balance: customer.balance,
+        total_spent: customer.total_spent,
+        created_at: customer.created_at,
+        isVip,
+        cashbackPercent,
+        vipThreshold,
+        tier
+      },
+      transactions: transactions || []
+    });
+    
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.post('/api/guest/profile', async (req, res) => {
   try {
     const { phone, name, register } = req.body;
