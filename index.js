@@ -609,7 +609,73 @@ app.get('/api/wallet/download/:token', async (req, res) => {
   }
 });
 
-// Ссылка на добавление в Google Wallet (генерация JWT)
+async function generateGoogleWalletUrl(customer, settings, tier) {
+  const issuerId = process.env.GOOGLE_ISSUER_ID || '3388000000022353346';
+  const classId = process.env.GOOGLE_CLASS_ID || 'bulka_bonus_card';
+  let credentialsRaw = process.env.GOOGLE_CREDENTIALS_JSON;
+  if (!credentialsRaw && process.env.FIREBASE_SERVICE_ACCOUNT) {
+    credentialsRaw = process.env.FIREBASE_SERVICE_ACCOUNT;
+  }
+  if (!credentialsRaw) {
+    const fs = require('fs');
+    const path = require('path');
+    const keyPath = path.join(__dirname, 'firebase-service-account.json');
+    if (fs.existsSync(keyPath)) credentialsRaw = fs.readFileSync(keyPath, 'utf8');
+  }
+  
+  if (!credentialsRaw) {
+     throw new Error('Google Wallet is not configured on the server (missing credentials).');
+  }
+  
+  let credentials;
+  try {
+    credentials = JSON.parse(credentialsRaw);
+  } catch (e) {
+    throw new Error('Invalid credentials format.');
+  }
+
+  const objectId = `${issuerId}.bulka-${customer.id}`;
+
+  const loyaltyObject = {
+    id: objectId,
+    classId: `${issuerId}.${classId}`,
+    state: 'ACTIVE',
+    accountId: customer.phone,
+    accountName: customer.name || 'Гость',
+    barcode: {
+      type: 'QR_CODE',
+      value: customer.phone,
+      alternateText: customer.phone
+    },
+    textModulesData: [
+      {
+        id: 'balance',
+        header: 'Баланс',
+        body: `${customer.balance || 0} ₸`
+      },
+      {
+        id: 'status',
+        header: 'Статус',
+        body: `${tier.name} ${tier.percent}%`
+      }
+    ]
+  };
+
+  const claims = {
+    iss: credentials.client_email,
+    aud: 'google',
+    origins: [],
+    typ: 'savetowallet',
+    payload: {
+      loyaltyObjects: [loyaltyObject]
+    }
+  };
+
+  const jwtToken = jwt.sign(claims, credentials.private_key, { algorithm: 'RS256' });
+  return `https://pay.google.com/gp/v/save/${jwtToken}`;
+}
+
+// Ссылка на добавление в Google Wallet (генерация JWT по токену)
 app.get('/api/wallet/google/download/:token', async (req, res) => {
   const token = req.params.token;
   const tokenData = walletTokens.get(token);
@@ -617,8 +683,6 @@ app.get('/api/wallet/google/download/:token', async (req, res) => {
   if (!tokenData || Date.now() > tokenData.expiresAt) {
     return res.status(410).send('Ссылка истекла. Запросите новую через Telegram-бота.');
   }
-  
-  // Мы НЕ удаляем токен, чтобы пользователь мог добавить карту и в Apple, и в Google Wallet, если захочет
   
   try {
     const phone = tokenData.phone;
@@ -628,66 +692,35 @@ app.get('/api/wallet/google/download/:token', async (req, res) => {
 
     const settings = await getSettings();
     const tier = getTierInfo(customer.total_spent, settings);
-
-    const issuerId = process.env.GOOGLE_ISSUER_ID;
-    const classId = process.env.GOOGLE_CLASS_ID;
-    const credentialsRaw = process.env.GOOGLE_CREDENTIALS_JSON;
-    
-    if (!issuerId || !classId || !credentialsRaw) {
-       return res.status(500).send('Google Wallet is not configured on the server. Please check environment variables.');
-    }
-    
-    let credentials;
-    try {
-      credentials = JSON.parse(credentialsRaw);
-    } catch (e) {
-      return res.status(500).send('Invalid GOOGLE_CREDENTIALS_JSON format.');
-    }
-
-    const objectId = `${issuerId}.bulka-${customer.id}`;
-
-    const loyaltyObject = {
-      id: objectId,
-      classId: `${issuerId}.${classId}`,
-      state: 'ACTIVE',
-      accountId: customer.phone,
-      accountName: customer.name || 'Гость',
-      barcode: {
-        type: 'QR_CODE',
-        value: customer.phone,
-        alternateText: customer.phone
-      },
-      textModulesData: [
-        {
-          id: 'balance',
-          header: 'Баланс',
-          body: `${customer.balance || 0} ₸`
-        },
-        {
-          id: 'status',
-          header: 'Статус',
-          body: `${tier.name} ${tier.percent}%`
-        }
-      ]
-    };
-
-    const claims = {
-      iss: credentials.client_email,
-      aud: 'google',
-      origins: [],
-      typ: 'savetowallet',
-      payload: {
-        loyaltyObjects: [loyaltyObject]
-      }
-    };
-
-    const jwtToken = jwt.sign(claims, credentials.private_key, { algorithm: 'RS256' });
-    const saveUrl = `https://pay.google.com/gp/v/save/${jwtToken}`;
+    const saveUrl = await generateGoogleWalletUrl(customer, settings, tier);
 
     res.redirect(saveUrl);
   } catch (err) {
     console.error('Google Wallet generation error:', err);
-    res.status(500).send('Error generating Google Wallet pass');
+    res.status(500).send('Error generating Google Wallet pass: ' + err.message);
+  }
+});
+
+// Прямая ссылка на добавление в Google Wallet (по номеру телефона)
+app.get('/api/wallet/google/direct', async (req, res) => {
+  const phone = req.query.phone;
+  if (!phone) return res.status(400).send('Phone required');
+  
+  try {
+    const { supabase } = require('./supabase');
+    const digitsOnly = phone.replace(/[^0-9]/g, '');
+    const searchPattern = digitsOnly.length >= 10 ? digitsOnly.slice(-10) : digitsOnly;
+    const { data: customer } = await supabase.from('customers').select('*').ilike('phone', `%${searchPattern}%`).single();
+    if (!customer) return res.status(404).send('Customer not found');
+
+    const settings = await getSettings();
+    const tier = getTierInfo(customer.total_spent, settings);
+    const saveUrl = await generateGoogleWalletUrl(customer, settings, tier);
+
+    res.redirect(saveUrl);
+  } catch (err) {
+    console.error('Google Wallet direct error:', err);
+    res.status(500).send('Error generating Google Wallet pass: ' + err.message);
   }
 });
 
