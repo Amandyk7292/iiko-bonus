@@ -114,25 +114,41 @@
           <input type="text" id="story_title" placeholder="СЕЗОННЫЙ ФРАППЕ" class="input-classic w-full">
         </div>
         <div>
-          <div class="flex justify-between items-center mb-1">
-            <label class="block text-xs font-semibold text-beige-800 uppercase">Фото обложки (миниатюра)</label>
-            <label class="text-xs text-blue-600 hover:text-blue-800 cursor-pointer font-semibold flex items-center gap-1 bg-blue-50 px-2.5 py-1 rounded border border-blue-200 transition-all shadow-sm">
-              <span>Загрузить файл</span>
+          <label class="block text-xs font-semibold text-beige-800 uppercase mb-2">Фото обложки (миниатюра)</label>
+          <input type="hidden" id="story_cover">
+          <div class="border-2 border-dashed border-beige-300 rounded-xl p-4 text-center bg-beige-50/50 hover:bg-beige-50 transition flex flex-col items-center justify-center min-h-[130px] relative overflow-hidden group">
+            <img id="preview_story_cover" src="" onerror="this.classList.add('hidden'); const p = document.getElementById('placeholder_story_cover'); if(p) p.classList.remove('hidden');" class="absolute inset-0 w-full h-full object-cover hidden rounded-xl">
+            <div id="placeholder_story_cover" class="flex flex-col items-center justify-center py-3 z-10 w-full">
+              <p class="text-xs text-gray-500 mb-2">Фото не выбрано</p>
+              <label class="btn-classic px-4 py-2 text-xs font-semibold cursor-pointer shadow-sm inline-block">
+                <span>Загрузить фото</span>
+                <input type="file" accept="image/*" class="hidden" onchange="uploadStoryPhoto(this, 'story_cover')">
+              </label>
+            </div>
+            <label id="change_btn_story_cover" class="absolute bottom-2 right-2 btn-classic px-3 py-1.5 text-xs font-semibold cursor-pointer shadow-md hidden z-10">
+              <span>Заменить фото</span>
               <input type="file" accept="image/*" class="hidden" onchange="uploadStoryPhoto(this, 'story_cover')">
             </label>
           </div>
-          <input type="text" id="story_cover" placeholder="Ссылка или загрузите файл выше ->" class="input-classic w-full text-xs">
           <p id="status_story_cover" class="text-[11px] text-green-600 mt-1 hidden font-medium">Загрузка в Supabase Storage...</p>
         </div>
         <div>
-          <div class="flex justify-between items-center mb-1">
-            <label class="block text-xs font-semibold text-beige-800 uppercase">Фото при открытии (на весь экран)</label>
-            <label class="text-xs text-blue-600 hover:text-blue-800 cursor-pointer font-semibold flex items-center gap-1 bg-blue-50 px-2.5 py-1 rounded border border-blue-200 transition-all shadow-sm">
-              <span>Загрузить файл</span>
+          <label class="block text-xs font-semibold text-beige-800 uppercase mb-2">Фото при открытии (на весь экран)</label>
+          <input type="hidden" id="story_content">
+          <div class="border-2 border-dashed border-beige-300 rounded-xl p-4 text-center bg-beige-50/50 hover:bg-beige-50 transition flex flex-col items-center justify-center min-h-[160px] relative overflow-hidden group">
+            <img id="preview_story_content" src="" onerror="this.classList.add('hidden'); const p = document.getElementById('placeholder_story_content'); if(p) p.classList.remove('hidden');" class="absolute inset-0 w-full h-full object-cover hidden rounded-xl">
+            <div id="placeholder_story_content" class="flex flex-col items-center justify-center py-3 z-10 w-full">
+              <p class="text-xs text-gray-500 mb-2">Фото не выбрано</p>
+              <label class="btn-classic px-4 py-2 text-xs font-semibold cursor-pointer shadow-sm inline-block">
+                <span>Загрузить фото</span>
+                <input type="file" accept="image/*" class="hidden" onchange="uploadStoryPhoto(this, 'story_content')">
+              </label>
+            </div>
+            <label id="change_btn_story_content" class="absolute bottom-2 right-2 btn-classic px-3 py-1.5 text-xs font-semibold cursor-pointer shadow-md hidden z-10">
+              <span>Заменить фото</span>
               <input type="file" accept="image/*" class="hidden" onchange="uploadStoryPhoto(this, 'story_content')">
             </label>
           </div>
-          <input type="text" id="story_content" placeholder="Ссылка или загрузите файл выше ->" class="input-classic w-full text-xs">
           <p id="status_story_content" class="text-[11px] text-green-600 mt-1 hidden font-medium">Загрузка в Supabase Storage...</p>
         </div>
         <div>
@@ -523,12 +539,37 @@
       fetchStories();
     }
 
+    function updateImagePreview(targetInputId, url) {
+      const inputEl = document.getElementById(targetInputId);
+      if (inputEl) inputEl.value = url || '';
+      
+      const previewEl = document.getElementById('preview_' + targetInputId);
+      const placeholderEl = document.getElementById('placeholder_' + targetInputId);
+      const changeBtnEl = document.getElementById('change_btn_' + targetInputId);
+      
+      if (url && url !== '' && url !== 'undefined') {
+        if (previewEl) {
+          previewEl.src = url;
+          previewEl.classList.remove('hidden');
+        }
+        if (placeholderEl) placeholderEl.classList.add('hidden');
+        if (changeBtnEl) changeBtnEl.classList.remove('hidden');
+      } else {
+        if (previewEl) {
+          previewEl.src = '';
+          previewEl.classList.add('hidden');
+        }
+        if (placeholderEl) placeholderEl.classList.remove('hidden');
+        if (changeBtnEl) changeBtnEl.classList.add('hidden');
+      }
+    }
+
     function openStoryModal() {
       document.getElementById('editing_story_id').value = '';
       document.getElementById('storyModalTitle').innerText = 'Создать Сториз (Инстаграм-формат)';
       document.getElementById('story_title').value = '';
-      document.getElementById('story_cover').value = '';
-      document.getElementById('story_content').value = '';
+      updateImagePreview('story_cover', '');
+      updateImagePreview('story_content', '');
       document.getElementById('story_desc').value = '';
       document.getElementById('story_duration').value = '15';
       document.getElementById('storyModal').classList.remove('hidden');
@@ -540,8 +581,8 @@
       document.getElementById('editing_story_id').value = s.id;
       document.getElementById('storyModalTitle').innerText = 'Редактировать Сториз';
       document.getElementById('story_title').value = s.title || '';
-      document.getElementById('story_cover').value = s.coverUrl || '';
-      document.getElementById('story_content').value = s.contentUrl || '';
+      updateImagePreview('story_cover', s.coverUrl || '');
+      updateImagePreview('story_content', s.contentUrl || '');
       document.getElementById('story_desc').value = s.description || '';
       document.getElementById('story_duration').value = s.duration || 15;
       document.getElementById('storyModal').classList.remove('hidden');
@@ -562,6 +603,7 @@
       const reader = new FileReader();
       reader.onload = async function(e) {
         const base64 = e.target.result;
+        updateImagePreview(targetInputId, base64);
         try {
           const res = await fetch('/admin/api/upload', {
             method: 'POST',
@@ -573,7 +615,7 @@
           });
           const data = await res.json();
           if (res.ok && data.success) {
-            document.getElementById(targetInputId).value = data.url;
+            updateImagePreview(targetInputId, data.url);
             statusEl.innerText = 'Успешно загружено в Supabase Storage!';
             setTimeout(() => statusEl.classList.add('hidden'), 4000);
           } else {
