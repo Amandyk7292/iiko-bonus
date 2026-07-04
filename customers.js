@@ -309,6 +309,93 @@ async function checkAndExpireInactiveBonuses(inactivityDays = 90) {
 }
 
 /**
+ * Автоматическое уведомление клиентов, которые не приходили более N дней (по умолчанию 30 дней)
+ */
+async function checkAndNotifyInactiveCustomers(inactivityDays = 30) {
+  // 1. Получаем клиентов с балансом > 0 и привязанным Telegram ID
+  const { data: customers, error } = await supabase
+    .from('customers')
+    .select('*')
+    .gt('balance', 0)
+    .not('telegram_id', 'is', null);
+
+  if (error || !customers) {
+    console.error('Error fetching customers for churn reminders:', error?.message);
+    return { notifiedCount: 0, totalNotifiedBalance: 0 };
+  }
+
+  // 2. Получаем все транзакции, чтобы определить последнюю активность и последние напоминания
+  const { data: txs } = await supabase
+    .from('transactions')
+    .select('customer_id, type, timestamp')
+    .order('timestamp', { ascending: false });
+
+  const latestActivityMap = {};
+  const latestReminderMap = {};
+
+  if (txs) {
+    txs.forEach(t => {
+      if (t.type === 'churn_reminder') {
+        if (!latestReminderMap[t.customer_id]) {
+          latestReminderMap[t.customer_id] = new Date(t.timestamp);
+        }
+      } else if (t.type !== 'expiration') {
+        if (!latestActivityMap[t.customer_id]) {
+          latestActivityMap[t.customer_id] = new Date(t.timestamp);
+        }
+      }
+    });
+  }
+
+  const now = new Date();
+  const cutoffTime = now.getTime() - (inactivityDays * 24 * 60 * 60 * 1000);
+  const expireCutoffTime = now.getTime() - (90 * 24 * 60 * 60 * 1000); // 90 дней, после которых баллы сгорают
+  const reminderCooldown = now.getTime() - (30 * 24 * 60 * 60 * 1000); // Не отправлять чаще 1 раза в 30 дней
+
+  let notifiedCount = 0;
+  let totalNotifiedBalance = 0;
+
+  const { sendMessage } = require('./telegram');
+
+  for (const c of customers) {
+    const lastActivityDate = latestActivityMap[c.id] || (c.created_at ? new Date(c.created_at) : new Date(0));
+    const lastReminderDate = latestReminderMap[c.id] ? new Date(latestReminderMap[c.id]) : null;
+    
+    // Если клиент был неактивен дольше 30 дней, но еще не дольше 90 дней (когда баллы уже сгорели)
+    if (lastActivityDate.getTime() < cutoffTime && lastActivityDate.getTime() >= expireCutoffTime) {
+      // Проверяем, что напоминание не отправлялось в последние 30 дней
+      if (!lastReminderDate || lastReminderDate.getTime() < reminderCooldown) {
+        const daysInactive = Math.floor((now.getTime() - lastActivityDate.getTime()) / (24 * 60 * 60 * 1000));
+        const daysLeft = Math.max(1, 90 - daysInactive);
+        
+        const message = `Вы давно не заглядывали к нам! На вашем счету <b>${c.balance} бонусов</b>, они сгорят через ${daysLeft} дней.\n\nЗагляните к нам за свежей выпечкой и ароматным кофе!`;
+        
+        try {
+          await sendMessage(c.telegram_id, message);
+          
+          await logTransaction({
+            customerId: c.id,
+            orderId: 'REMINDER_30_DAYS',
+            type: 'churn_reminder',
+            amount: 0,
+            description: `Отправлено напоминание о сгорании ${c.balance} бонусов`
+          });
+          
+          notifiedCount++;
+          totalNotifiedBalance += Number(c.balance);
+          console.log(`Sent churn reminder to ${c.name || c.phone} (inactive ${daysInactive} days, balance ${c.balance})`);
+          await new Promise(r => setTimeout(r, 100)); // Задержка для защиты от лимитов Telegram
+        } catch (err) {
+          console.error(`Failed to send churn reminder to ${c.phone}:`, err.message);
+        }
+      }
+    }
+  }
+
+  return { notifiedCount, totalNotifiedBalance };
+}
+
+/**
  * Удаление клиента и всех его транзакций
  */
 async function deleteCustomer(customerId) {
@@ -333,5 +420,6 @@ module.exports = {
   getStats,
   addManualBonus,
   checkAndExpireInactiveBonuses,
+  checkAndNotifyInactiveCustomers,
   deleteCustomer
 };

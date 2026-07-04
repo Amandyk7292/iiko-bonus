@@ -81,7 +81,7 @@ async function buildApplePassBuffer(customer, host) {
 }
 
 
-const { getCustomerByPhone, getOrCreateCustomerByPhone, searchCustomers, updateCustomerBalance, updateCustomerInfo, logTransaction, getAllCustomers, getTransactions, getStats, addManualBonus, checkAndExpireInactiveBonuses } = require('./customers');
+const { getCustomerByPhone, getOrCreateCustomerByPhone, searchCustomers, updateCustomerBalance, updateCustomerInfo, logTransaction, getAllCustomers, getTransactions, getStats, addManualBonus, checkAndExpireInactiveBonuses, checkAndNotifyInactiveCustomers } = require('./customers');
 const { getSettings, updateSettings } = require('./settings');
 const { sendWhatsAppMessage } = require('./whatsapp');
 
@@ -759,6 +759,14 @@ app.post('/admin/api/customers/expire-inactive', adminAuthMiddleware, async (req
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.post('/admin/api/customers/notify-inactive', adminAuthMiddleware, async (req, res) => {
+  try {
+    const days = req.body.days || 30;
+    const result = await checkAndNotifyInactiveCustomers(days);
+    res.json({ success: true, ...result });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.delete('/admin/api/customers/:id', adminAuthMiddleware, async (req, res) => {
   try {
     const { deleteCustomer } = require('./customers');
@@ -1219,12 +1227,14 @@ app.get('/api/telegram/set-webhook', async (req, res) => {
   res.json(result);
 });
 
-// Автоматическая проверка сгорания бонусов при запуске (через 15 секунд) и затем раз в сутки
+// Автоматическая проверка сгорания бонусов и напоминания об оттоке при запуске (через 15 секунд) и затем раз в сутки
 setTimeout(() => {
   checkAndExpireInactiveBonuses(90).catch(err => console.error('Error auto-expiring bonuses:', err));
+  checkAndNotifyInactiveCustomers(30).catch(err => console.error('Error auto-notifying inactive customers:', err));
 }, 15000);
 setInterval(() => {
   checkAndExpireInactiveBonuses(90).catch(err => console.error('Error auto-expiring bonuses:', err));
+  checkAndNotifyInactiveCustomers(30).catch(err => console.error('Error auto-notifying inactive customers:', err));
 }, 24 * 60 * 60 * 1000);
 
 const PORT = process.env.PORT || 3000;

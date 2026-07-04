@@ -257,9 +257,14 @@
       <div id="content-customers" class="hidden space-y-6">
         <div class="flex justify-between items-center gap-4 flex-wrap">
           <input type="text" id="searchCustomer" onkeyup="renderCustomers()" placeholder="Поиск по телефону или имени..." class="input-classic w-full max-w-md">
-          <button onclick="triggerExpireBonuses()" class="bg-orange-600 hover:bg-orange-700 text-white font-medium py-2 px-4 rounded-lg shadow-sm transition flex items-center gap-2 text-sm">
-            Списать неактивные (90 дней)
-          </button>
+          <div class="flex gap-2 flex-wrap">
+            <button onclick="triggerNotifyInactive()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg shadow-sm transition flex items-center gap-2 text-sm">
+              Напомнить гостям (30 дней)
+            </button>
+            <button onclick="triggerExpireBonuses()" class="bg-orange-600 hover:bg-orange-700 text-white font-medium py-2 px-4 rounded-lg shadow-sm transition flex items-center gap-2 text-sm">
+              Списать неактивные (90 дней)
+            </button>
+          </div>
         </div>
         <div class="card overflow-x-auto">
           <table class="w-full text-left border-collapse">
@@ -810,6 +815,22 @@
         fetchTransactions();
       } else {
         alert('Ошибка при выполнении проверки!');
+      }
+    }
+
+    async function triggerNotifyInactive() {
+      if (!confirm('Запустить проверку и отправку напоминаний?\nУведомления в Telegram будут отправлены всем гостям, которые не приходили более 30 дней и у которых есть положительный баланс бонусов.')) return;
+      const res = await fetch('/admin/api/customers/notify-inactive', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ days: 30 })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        alert(`Напоминания отправлены!\nГостей, получивших уведомление: ${data.notifiedCount}\nОбщая сумма их баллов под угрозой сгорания: ${data.totalNotifiedBalance} бон.`);
+        fetchTransactions();
+      } else {
+        alert('Ошибка при отправке напоминаний!');
       }
     }
 
