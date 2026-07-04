@@ -1,4 +1,5 @@
 const { supabase } = require('./supabase');
+const { sendPushNotification } = require('./push-notifications');
 
 /**
  * Получение клиента по номеру телефона
@@ -242,6 +243,18 @@ async function updateCustomerInfo(customerId, { name, phone, balance, total_spen
   if (error) throw new Error(error.message);
 }
 
+async function updateFcmToken(phone, fcmToken) {
+  if (!phone || !fcmToken) return false;
+  const digits = phone.replace(/[^0-9]/g, '');
+  const searchPattern = digits.length >= 10 ? digits.slice(-10) : digits;
+  const { error } = await supabase
+    .from('customers')
+    .update({ fcm_token: fcmToken })
+    .ilike('phone', `%${searchPattern}%`);
+  if (error) console.error("Error updating FCM token:", error.message);
+  return !error;
+}
+
 /**
  * Автоматическое сгорание баллов у неактивных клиентов (> inactivityDays дней, например 90)
  */
@@ -312,12 +325,11 @@ async function checkAndExpireInactiveBonuses(inactivityDays = 90) {
  * Автоматическое уведомление клиентов, которые не приходили более N дней (по умолчанию 30 дней)
  */
 async function checkAndNotifyInactiveCustomers(inactivityDays = 30) {
-  // 1. Получаем клиентов с балансом > 0 и привязанным Telegram ID
+  // 1. Получаем клиентов с балансом > 0
   const { data: customers, error } = await supabase
     .from('customers')
     .select('*')
-    .gt('balance', 0)
-    .not('telegram_id', 'is', null);
+    .gt('balance', 0);
 
   if (error || !customers) {
     console.error('Error fetching customers for churn reminders:', error?.message);
@@ -371,7 +383,9 @@ async function checkAndNotifyInactiveCustomers(inactivityDays = 30) {
         const message = `Вы давно не заглядывали к нам! На вашем счету <b>${c.balance} бонусов</b>, они сгорят через ${daysLeft} дней.\n\nЗагляните к нам за свежей выпечкой и ароматным кофе!`;
         
         try {
-          await sendMessage(c.telegram_id, message);
+          const { sendMessage } = require('./telegram');
+          if (c.telegram_id) await sendMessage(c.telegram_id, message).catch(() => {});
+          if (c.fcm_token) await sendPushNotification(c.fcm_token, "Мы скучаем! Ваши бонусы скоро сгорят", `На счету ${c.balance} бонусов, они сгорят через ${daysLeft} дней. Загляните к нам за кофе!`).catch(() => {});
           
           await logTransaction({
             customerId: c.id,
@@ -421,5 +435,6 @@ module.exports = {
   addManualBonus,
   checkAndExpireInactiveBonuses,
   checkAndNotifyInactiveCustomers,
-  deleteCustomer
+  deleteCustomer,
+  updateFcmToken
 };

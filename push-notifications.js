@@ -1,0 +1,89 @@
+const { initializeApp, cert } = require('firebase-admin/app');
+const { getMessaging } = require('firebase-admin/messaging');
+const fs = require('fs');
+const path = require('path');
+
+let initialized = false;
+let messagingInstance = null;
+
+function initFirebase() {
+    if (initialized) return;
+    try {
+        let serviceAccount = null;
+        if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+            try {
+                serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+            } catch (e) {
+                console.error('Error parsing FIREBASE_SERVICE_ACCOUNT env:', e.message);
+            }
+        }
+        if (!serviceAccount) {
+            const keyPath = path.join(__dirname, 'firebase-service-account.json');
+            if (fs.existsSync(keyPath)) {
+                serviceAccount = JSON.parse(fs.readFileSync(keyPath, 'utf8'));
+            } else {
+                const files = fs.readdirSync(__dirname);
+                const sdkFile = files.find(f => f.startsWith('bulka-bonus-firebase-adminsdk-') && f.endsWith('.json'));
+                if (sdkFile) {
+                    serviceAccount = JSON.parse(fs.readFileSync(path.join(__dirname, sdkFile), 'utf8'));
+                }
+            }
+        }
+
+        if (serviceAccount) {
+            const app = initializeApp({
+                credential: cert(serviceAccount)
+            });
+            messagingInstance = getMessaging(app);
+            initialized = true;
+            console.log('Firebase Admin SDK initialized successfully for Push Notifications!');
+        } else {
+            console.warn('No Firebase Service Account found. Push notifications will be logged to console.');
+        }
+    } catch (e) {
+        console.error('Failed to initialize Firebase Admin SDK:', e);
+    }
+}
+
+initFirebase();
+
+async function sendPushNotification(fcmToken, title, body, data = {}) {
+    if (!fcmToken) return false;
+    if (!initialized || !messagingInstance) {
+        console.log(`[PUSH PREVIEW] To token ${fcmToken}: ${title} - ${body}`);
+        return false;
+    }
+    try {
+        const message = {
+            token: fcmToken,
+            notification: {
+                title: String(title),
+                body: String(body)
+            },
+            data: {
+                ...data,
+                click_action: 'FLUTTER_NOTIFICATION_CLICK'
+            },
+            android: {
+                priority: 'high',
+                notification: {
+                    sound: 'default',
+                    channelId: 'bulka_bonus_notifications',
+                    priority: 'high',
+                    defaultSound: true
+                }
+            }
+        };
+        const response = await messagingInstance.send(message);
+        console.log('Successfully sent push notification to Android:', response);
+        return true;
+    } catch (error) {
+        console.error('Error sending push notification:', error.message);
+        return false;
+    }
+}
+
+module.exports = {
+    sendPushNotification,
+    initFirebase
+};

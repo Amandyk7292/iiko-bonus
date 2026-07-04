@@ -81,7 +81,8 @@ async function buildApplePassBuffer(customer, host) {
 }
 
 
-const { getCustomerByPhone, getOrCreateCustomerByPhone, searchCustomers, updateCustomerBalance, updateCustomerInfo, logTransaction, getAllCustomers, getTransactions, getStats, addManualBonus, checkAndExpireInactiveBonuses, checkAndNotifyInactiveCustomers } = require('./customers');
+const { getCustomerByPhone, getOrCreateCustomerByPhone, searchCustomers, updateCustomerBalance, updateCustomerInfo, logTransaction, getAllCustomers, getTransactions, getStats, addManualBonus, checkAndExpireInactiveBonuses, checkAndNotifyInactiveCustomers, updateFcmToken } = require('./customers');
+const { sendPushNotification } = require('./push-notifications');
 const { getSettings, updateSettings } = require('./settings');
 const { sendWhatsAppMessage } = require('./whatsapp');
 
@@ -437,8 +438,8 @@ app.post('/api/loyalty/apply', webhookMiddleware, async (req, res) => {
       await logTransaction({ customerId, orderId, type: 'deposit', amount: earnedBonus, orderTotal: realMoneyPaid });
     }
 
-    // Отправка Telegram уведомления
-    if (customer && customer.telegram_id && (discountAmount > 0 || earnedBonus > 0)) {
+    // Отправка Telegram и Push уведомлений
+    if (customer && (discountAmount > 0 || earnedBonus > 0)) {
       const { sendMessage } = require('./telegram');
       let msg = `<b>Ваш заказ успешно оплачен!</b>\n\n`;
       msg += `<b>Сумма чека:</b> ${orderTotal} тнг\n`;
@@ -448,7 +449,15 @@ app.post('/api/loyalty/apply', webhookMiddleware, async (req, res) => {
       const newBalance = Number(customer.balance || 0) - (discountAmount || 0) + (earnedBonus || 0);
       msg += `\n<b>Текущий баланс:</b> ${newBalance.toFixed(2)} бонусов\n\nСпасибо, что выбираете нас! `;
       
-      sendMessage(customer.telegram_id, msg).catch(err => console.error("Error sending TG msg:", err));
+      if (customer.telegram_id) sendMessage(customer.telegram_id, msg).catch(err => console.error("Error sending TG msg:", err));
+      if (customer.fcm_token) {
+        const pushTitle = "Bulka Bonus: Заказ оплачен";
+        let pushBody = `Чек: ${orderTotal} тнг. `;
+        if (discountAmount > 0) pushBody += `Списано: ${discountAmount} бон. `;
+        if (earnedBonus > 0) pushBody += `Начислено: ${earnedBonus} бон. `;
+        pushBody += `Баланс: ${newBalance.toFixed(0)} бон.`;
+        sendPushNotification(customer.fcm_token, pushTitle, pushBody).catch(err => console.error("Error sending Push msg:", err));
+      }
     }
 
     sendAppleWalletPush(customerId).catch(err => console.error('Push error:', err));
@@ -739,6 +748,19 @@ app.post('/admin/api/customers/bonus', adminAuthMiddleware, async (req, res) => 
     const { customerId, amount, reason } = req.body;
     await addManualBonus(customerId, amount, reason);
     sendAppleWalletPush(customerId).catch(err => console.error('Push error:', err));
+    
+    // Отправка уведомления гостю
+    try {
+      const { data: c } = await supabase.from('customers').select('*').eq('id', customerId).single();
+      if (c) {
+        const { sendMessage } = require('./telegram');
+        const actionTxt = amount >= 0 ? `Начислено: +${amount} бонусов` : `Списано: ${amount} бонусов`;
+        const msg = `<b>Изменение баланса баллов!</b>\n\n${actionTxt}\n<b>Причина:</b> ${reason || 'Корректировка администратором'}\n<b>Текущий баланс:</b> ${c.balance} бон.`;
+        if (c.telegram_id) sendMessage(c.telegram_id, msg).catch(() => {});
+        if (c.fcm_token) sendPushNotification(c.fcm_token, "Bulka Bonus: Баланс обновлен", `${actionTxt}. Баланс: ${c.balance} бон.`).catch(() => {});
+      }
+    } catch (e) { console.error("Notify bonus error:", e); }
+
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -794,13 +816,17 @@ app.post('/admin/api/broadcast', adminAuthMiddleware, async (req, res) => {
     // Telegram limit is 30 msg/sec, so 1 msg per 50ms is safe. Let's use 100ms.
     (async () => {
       for (const c of customers) {
-        if (c.telegram_id) {
-          await sendMessage(c.telegram_id, message);
+        if (c.telegram_id || c.fcm_token) {
+          if (c.telegram_id) await sendMessage(c.telegram_id, message).catch(() => {});
+          if (c.fcm_token) {
+            const cleanText = message.replace(/<[^>]*>/g, '');
+            await sendPushNotification(c.fcm_token, "Bulka Bonus: Новая акция!", cleanText).catch(() => {});
+          }
           count++;
           await new Promise(r => setTimeout(r, 100)); // 100ms delay to prevent rate limiting
         }
       }
-      console.log(`Broadcast finished. Sent ${count} messages.`);
+      console.log(`Broadcast finished. Sent to ${count} customers.`);
     })();
 
     res.json({ success: true, count: customers.length });
@@ -980,9 +1006,17 @@ app.post('/api/auth/verify-otp', async (req, res) => {
   }
 });
 
+app.post('/api/customer/fcm-token', async (req, res) => {
+  try {
+    const { phone, fcmToken } = req.body;
+    await updateFcmToken(phone, fcmToken);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.post('/api/guest/profile', async (req, res) => {
   try {
-    const { phone, name, register } = req.body;
+    const { phone, name, register, fcmToken } = req.body;
     if (!phone) return res.status(400).json({ error: 'Phone required' });
 
     let customer = await getCustomerByPhone(phone);
@@ -992,6 +1026,11 @@ app.post('/api/guest/profile', async (req, res) => {
       } else {
         return res.json({ exists: false });
       }
+    }
+
+    if (fcmToken && customer.fcm_token !== fcmToken) {
+      await updateFcmToken(phone, fcmToken);
+      customer.fcm_token = fcmToken;
     }
 
     const settings = await getSettings();

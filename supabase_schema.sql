@@ -11,8 +11,12 @@ CREATE TABLE IF NOT EXISTS customers (
   balance NUMERIC(10, 2) DEFAULT 0.00,
   total_spent NUMERIC(10, 2) DEFAULT 0.00,
   telegram_id VARCHAR(50) NULL,
+  fcm_token VARCHAR(255) NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Добавление колонки fcm_token для существующих баз данных
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS fcm_token VARCHAR(255) NULL;
 
 -- 2. Таблица истории транзакций (заказы, списания, начисления)
 CREATE TABLE IF NOT EXISTS transactions (

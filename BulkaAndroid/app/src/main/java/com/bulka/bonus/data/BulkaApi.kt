@@ -6,7 +6,7 @@ import retrofit2.http.Body
 import retrofit2.http.POST
 
 data class OtpRequest(val phone: String)
-data class OtpVerifyRequest(val phone: String, val code: String)
+data class OtpVerifyRequest(val phone: String, val code: String, val fcmToken: String? = null)
 data class OtpResponse(val success: Boolean, val error: String?, val message: String?)
 
 data class PromoStory(

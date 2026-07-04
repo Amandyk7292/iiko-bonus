@@ -5,7 +5,8 @@ import com.google.gson.annotations.SerializedName
 data class AuthRequest(
     val phone: String,
     val name: String,
-    val register: Boolean
+    val register: Boolean,
+    val fcmToken: String? = null
 )
 
 data class ProfileResponse(

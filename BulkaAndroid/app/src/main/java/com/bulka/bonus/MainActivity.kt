@@ -74,7 +74,8 @@ class MainActivity : ComponentActivity() {
                         savedPhone?.let { phone ->
                             while(true) {
                                 try {
-                                    val res = api.getProfile(AuthRequest(phone, "", false))
+                                    val fcmToken = prefs.getString("fcm_token", null)
+                                    val res = api.getProfile(AuthRequest(phone, "", false, fcmToken))
                                     if (res.exists && res.customer != null) {
                                         currentCustomer = res.customer
                                         currentTransactions = res.transactions ?: emptyList()
@@ -112,7 +113,8 @@ class MainActivity : ComponentActivity() {
                             },
                             onVerifyOtp = { phone, code ->
                                 try {
-                                    val res = api.verifyOtp(OtpVerifyRequest(phone, code))
+                                    val fcmToken = prefs.getString("fcm_token", null)
+                                    val res = api.verifyOtp(OtpVerifyRequest(phone, code, fcmToken))
                                     if (res.success && res.customer != null) {
                                         prefs.edit()
                                             .putString("phone", phone)
