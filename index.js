@@ -966,18 +966,7 @@ app.post('/api/auth/request-otp', async (req, res) => {
         otpStore.set(phone, { code, expires: Date.now() + 5 * 60 * 1000 });
     }
     
-    let sentViaTelegram = false;
-    if (customer.telegram_id) {
-        try {
-            const telegramBot = require('./telegram');
-            await telegramBot.sendMessage(customer.telegram_id, `<b>Ваш код для входа в приложение:</b>\n\n<code>${code}</code>\n\nКод действителен 5 минут.`);
-            sentViaTelegram = true;
-        } catch (e) {
-            console.error('Error sending telegram OTP:', e);
-        }
-    }
-    
-    res.json({ success: true, viaTelegram: sentViaTelegram });
+    res.json({ success: true, viaTelegram: false });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, error: err.message });
