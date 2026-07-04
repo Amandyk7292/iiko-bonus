@@ -389,6 +389,12 @@
           document.getElementById('authSection').classList.add('hidden');
           document.getElementById('walletSection').classList.remove('hidden');
           document.getElementById('logoutBtn').classList.remove('hidden');
+          
+          // Start background refresh every 5 seconds
+          if (window.refreshInterval) clearInterval(window.refreshInterval);
+          window.refreshInterval = setInterval(() => {
+            refreshWalletData(data.customer.phone);
+          }, 5000);
         } else if (!data.exists && !register) {
           // Предлагаем зарегистрироваться
           isRegistering = true;
@@ -405,6 +411,24 @@
         alert('Ошибка связи с сервером: ' + err.message);
         btn.innerHTML = oldText;
         btn.disabled = false;
+      }
+    }
+
+    async function refreshWalletData(phone) {
+      if (!phone) return;
+      try {
+        const res = await fetch('/api/guest/profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone, name: '', register: false })
+        });
+        const data = await res.json();
+        if (res.ok && data.exists) {
+          currentCustomer = data.customer;
+          renderWallet(data.customer, data.transactions);
+        }
+      } catch (err) {
+        console.error("Auto-refresh failed", err);
       }
     }
 
@@ -522,6 +546,7 @@
     function logoutGuest() {
       if (confirm('Выйти из личного кабинета?')) {
         localStorage.removeItem('guestPhone');
+        if (window.refreshInterval) clearInterval(window.refreshInterval);
         location.reload();
       }
     }
