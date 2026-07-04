@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -62,6 +63,7 @@ dependencies {
     // Coil for Image Loading
     implementation("io.coil-kt:coil-compose:2.5.0")
     
-    // Image Loading (Coil)
-    implementation("io.coil-kt:coil-compose:2.5.0")
+    // Firebase Cloud Messaging
+    implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
+    implementation("com.google.firebase:firebase-messaging-ktx")
 }
