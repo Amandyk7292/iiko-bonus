@@ -1027,7 +1027,7 @@ app.get('/api/guest/test-menu', async (req, res) => {
     const extRes = await fetch(`${iikoApi.baseUrl}/api/2/menu`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({})
+      body: JSON.stringify({ organizationIds: orgs.map(o => o.id) })
     });
     const extData = extRes.ok ? await extRes.json() : { error: extRes.status };
 

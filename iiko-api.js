@@ -165,13 +165,14 @@ class IikoAPI {
     if (!menuData.products || menuData.products.length === 0) {
       console.log('Номенклатура v1 пуста. Проверяем External Menus (/api/2/menu)...');
       try {
+        const allOrgIds = this.allOrganizations ? this.allOrganizations.map(o => o.id) : [this.organizationId || orgId];
         const extRes = await fetch(`${this.baseUrl}/api/2/menu`, {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify({})
+          body: JSON.stringify({ organizationIds: allOrgIds })
         });
         if (extRes.ok) {
           const extData = await extRes.json();
@@ -186,7 +187,7 @@ class IikoAPI {
               },
               body: JSON.stringify({
                 externalMenuId: extMenuId,
-                organizationIds: [this.organizationId || orgId]
+                organizationIds: allOrgIds
               })
             });
             if (itemsRes.ok) {
