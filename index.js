@@ -978,6 +978,7 @@ app.post('/api/auth/verify-otp', async (req, res) => {
     const { phone, code } = req.body;
     if (!phone || !code) return res.status(400).json({ error: 'Phone and code required' });
     
+    console.log(`[VERIFY-OTP] Attempting verify for phone="${phone}", code="${code}"`);
     const stored = await otpStore.get(phone);
     if (!stored) {
         return res.json({ success: false, error: 'expired', message: 'Код устарел или не был запрошен' });
