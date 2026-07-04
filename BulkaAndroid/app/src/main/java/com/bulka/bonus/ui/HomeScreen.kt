@@ -29,14 +29,32 @@ import android.graphics.Color as AndroidColor
 import coil.compose.AsyncImage
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.border
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.window.DialogProperties
+import com.bulka.bonus.data.BulkaApi
+import com.bulka.bonus.data.PromoStory
+import kotlinx.coroutines.launch
 
-data class Story(val id: Int, val title: String, val imageUrl: String)
+data class Story(
+    val id: Long,
+    val title: String,
+    val imageUrl: String,
+    val contentUrl: String = imageUrl,
+    val description: String? = null,
+    val duration: Int = 15
+)
 
 val mockStories = listOf(
-    Story(1, "СЕЗОННЫЙ ФРАППЕ", "https://images.unsplash.com/photo-1572490122747-3968b75bf699?w=500&q=80"),
-    Story(2, "НОВИНКА", "https://images.unsplash.com/photo-1497935586351-b67a49e012bf?w=500&q=80"),
-    Story(3, "ПЛЮШКИ ЗА ДРУГА", "https://images.unsplash.com/photo-1559525839-b184a4d698c7?w=500&q=80")
+    Story(1L, "СЕЗОННЫЙ ФРАППЕ", "https://images.unsplash.com/photo-1572490122747-3968b75bf699?w=500&q=80", "https://images.unsplash.com/photo-1572490122747-3968b75bf699?w=1000&q=80", "Попробуй наш новый летний кофейный напиток с карамелью и льдом! Освежает и заряжает бодростью на весь день.", 15),
+    Story(2L, "НОВИНКА", "https://images.unsplash.com/photo-1497935586351-b67a49e012bf?w=500&q=80", "https://images.unsplash.com/photo-1497935586351-b67a49e012bf?w=1000&q=80", "Свежая выпечка каждое утро в Bulka! Хрустящие круассаны и ароматный эспрессо уже ждут тебя.", 15),
+    Story(3L, "ПЛЮШКИ ЗА ДРУГА", "https://images.unsplash.com/photo-1559525839-b184a4d698c7?w=500&q=80", "https://images.unsplash.com/photo-1559525839-b184a4d698c7?w=1000&q=80", "Приглашай друзей в нашу бонусную программу! Получай 500 подарочных баллов за каждого нового друга.", 15)
 )
 
 @Composable
@@ -45,6 +63,28 @@ fun HomeScreen(
     onNavigateToProfile: () -> Unit
 ) {
     var showQrModal by remember { mutableStateOf(false) }
+    var stories by remember { mutableStateOf(mockStories) }
+    var selectedStoryIndex by remember { mutableStateOf<Int?>(null) }
+
+    LaunchedEffect(Unit) {
+        try {
+            val res = BulkaApi.create().getStories()
+            if (res.success && !res.stories.isNullOrEmpty()) {
+                stories = res.stories.map {
+                    Story(
+                        id = it.id,
+                        title = it.title,
+                        imageUrl = it.coverUrl,
+                        contentUrl = it.contentUrl,
+                        description = it.description,
+                        duration = it.duration
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -110,8 +150,8 @@ fun HomeScreen(
             contentPadding = PaddingValues(horizontal = 20.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            items(mockStories) { story ->
-                StoryItem(story)
+            itemsIndexed(stories) { index, story ->
+                StoryItem(story, onClick = { selectedStoryIndex = index })
             }
         }
 
@@ -342,6 +382,14 @@ fun HomeScreen(
             }
         }
     }
+
+    selectedStoryIndex?.let { index ->
+        StoryViewerModal(
+            stories = stories,
+            initialIndex = index,
+            onClose = { selectedStoryIndex = null }
+        )
+    }
 }
 
 fun generateQrBitmap(content: String, sizePx: Int): Bitmap? {
@@ -362,14 +410,14 @@ fun generateQrBitmap(content: String, sizePx: Int): Bitmap? {
 }
 
 @Composable
-fun StoryItem(story: Story) {
+fun StoryItem(story: Story, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .width(110.dp)
             .height(140.dp)
             .clip(RoundedCornerShape(16.dp))
             .border(2.dp, Color(0xFF2CA5E0), RoundedCornerShape(16.dp))
-            .clickable { /* open story */ }
+            .clickable { onClick() }
     ) {
         AsyncImage(
             model = story.imageUrl,
@@ -400,5 +448,189 @@ fun StoryItem(story: Story) {
                 .align(Alignment.TopStart)
                 .padding(8.dp)
         )
+    }
+}
+
+@Composable
+fun StoryViewerModal(
+    stories: List<Story>,
+    initialIndex: Int,
+    onClose: () -> Unit
+) {
+    var currentIndex by remember { mutableIntStateOf(initialIndex) }
+    val currentStory = stories.getOrNull(currentIndex) ?: return
+    val progress = remember { Animatable(0f) }
+
+    LaunchedEffect(currentIndex) {
+        progress.snapTo(0f)
+        val durationMs = (currentStory.duration * 1000).coerceAtLeast(3000)
+        progress.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = durationMs, easing = LinearEasing)
+        )
+        if (currentIndex < stories.size - 1) {
+            currentIndex++
+        } else {
+            onClose()
+        }
+    }
+
+    Dialog(
+        onDismissRequest = onClose,
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+                .pointerInput(Unit) {
+                    detectVerticalDragGestures { _, dragAmount ->
+                        if (dragAmount > 50) onClose()
+                    }
+                }
+        ) {
+            // Full screen story image
+            AsyncImage(
+                model = currentStory.contentUrl,
+                contentDescription = currentStory.title,
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+
+            // Dark gradient overlay top & bottom for readability
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Black.copy(alpha = 0.7f),
+                                Color.Transparent,
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.8f)
+                            )
+                        )
+                    )
+            )
+
+            // Touch navigation zones (Left 30% prev, Right 70% next)
+            Row(modifier = Modifier.fillMaxSize()) {
+                Box(
+                    modifier = Modifier
+                        .weight(0.3f)
+                        .fillMaxHeight()
+                        .clickable(
+                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            if (currentIndex > 0) {
+                                currentIndex--
+                            } else {
+                                onClose()
+                            }
+                        }
+                )
+                Box(
+                    modifier = Modifier
+                        .weight(0.7f)
+                        .fillMaxHeight()
+                        .clickable(
+                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            if (currentIndex < stories.size - 1) {
+                                currentIndex++
+                            } else {
+                                onClose()
+                            }
+                        }
+                )
+            }
+
+            // Top Progress Bars and Header
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 48.dp, start = 16.dp, end = 16.dp)
+            ) {
+                // Horizontal progress bars
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    stories.forEachIndexed { idx, _ ->
+                        val barProgress = when {
+                            idx < currentIndex -> 1f
+                            idx == currentIndex -> progress.value
+                            else -> 0f
+                        }
+                        LinearProgressIndicator(
+                            progress = barProgress,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(3.dp)
+                                .clip(RoundedCornerShape(1.5.dp)),
+                            color = Color.White,
+                            trackColor = Color.White.copy(alpha = 0.3f),
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Story Header (Avatar + Title + Close button)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF2CA5E0)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("B", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = currentStory.title,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
+                    }
+
+                    IconButton(onClick = onClose) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = Color.White,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+                }
+            }
+
+            // Bottom Description
+            if (!currentStory.description.isNullOrBlank()) {
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 40.dp)
+                ) {
+                    Text(
+                        text = currentStory.description,
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        lineHeight = 22.sp
+                    )
+                }
+            }
+        }
     }
 }

@@ -102,6 +102,41 @@
     </div>
   </div>
 
+  <!-- Modal Add Story -->
+  <div id="storyModal" class="fixed inset-0 bg-[#333333] bg-opacity-40 flex items-center justify-center z-50 backdrop-blur-sm hidden transition-opacity duration-300">
+    <div class="card p-8 w-full max-w-md text-left relative">
+      <h3 class="text-2xl font-serif text-beige-800 mb-6">Создать Сториз (Инстаграм-формат)</h3>
+      
+      <div class="space-y-4 mb-6">
+        <div>
+          <label class="block text-xs font-semibold text-beige-800 uppercase mb-1">Заголовок на обложке</label>
+          <input type="text" id="story_title" placeholder="СЕЗОННЫЙ ФРАППЕ" class="input-classic w-full">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-beige-800 uppercase mb-1">Ссылка на фото обложки (миниатюра)</label>
+          <input type="text" id="story_cover" placeholder="https://images.unsplash.com/..." class="input-classic w-full text-xs">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-beige-800 uppercase mb-1">Ссылка на фото при открытии (на весь экран)</label>
+          <input type="text" id="story_content" placeholder="https://images.unsplash.com/..." class="input-classic w-full text-xs">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-beige-800 uppercase mb-1">Описание / Текст внутри</label>
+          <textarea id="story_desc" rows="2" placeholder="Освежающий напиток со скидкой..." class="input-classic w-full"></textarea>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-beige-800 uppercase mb-1">Длительность показа (секунд)</label>
+          <input type="number" id="story_duration" value="15" class="input-classic w-full">
+        </div>
+      </div>
+
+      <div class="flex gap-3">
+        <button onclick="saveStoryAdmin()" class="btn-classic flex-1 py-3 font-medium shadow-sm">Сохранить</button>
+        <button onclick="closeStoryModal()" class="btn-outline px-6 py-3 font-medium">Отмена</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Dashboard -->
   <div id="dashboard" class="w-full max-w-6xl mx-auto card hidden overflow-hidden flex flex-col min-h-[80vh]">
     <!-- Header -->
@@ -118,6 +153,7 @@
       <button onclick="switchTab('analytics')" id="tab-analytics" class="px-6 py-4 tab-active">Аналитика</button>
       <button onclick="switchTab('customers')" id="tab-customers" class="px-6 py-4 tab-inactive">Клиенты</button>
       <button onclick="switchTab('transactions')" id="tab-transactions" class="px-6 py-4 tab-inactive">Транзакции</button>
+      <button onclick="switchTab('stories')" id="tab-stories" class="px-6 py-4 tab-inactive text-blue-600 font-semibold">Сториз (Акции)</button>
       <button onclick="switchTab('broadcast')" id="tab-broadcast" class="px-6 py-4 tab-inactive text-purple-700">Рассылки</button>
       <button onclick="switchTab('settings')" id="tab-settings" class="px-6 py-4 tab-inactive">Настройки</button>
     </div>
@@ -246,6 +282,34 @@
         </div>
       </div>
 
+      <!-- TAB: Stories -->
+      <div id="content-stories" class="hidden space-y-6">
+        <div class="flex justify-between items-center mb-4">
+          <div>
+            <h2 class="text-xl font-serif text-beige-800">Управление рекламными Сториз</h2>
+            <p class="text-sm text-gray-500">Отображаются в мобильном приложении над картой в стиле Instagram (по 15 секунд).</p>
+          </div>
+          <button onclick="openStoryModal()" class="btn-classic px-5 py-2.5 font-medium shadow-sm flex items-center gap-2">
+            <span>+ Создать Сториз</span>
+          </button>
+        </div>
+        <div class="card overflow-hidden">
+          <table class="w-full text-left border-collapse">
+            <thead class="bg-beige-50">
+              <tr>
+                <th class="py-4 px-6">Обложка</th>
+                <th class="py-4 px-6">Заголовок</th>
+                <th class="py-4 px-6">Описание</th>
+                <th class="py-4 px-6">Фото при открытии</th>
+                <th class="py-4 px-6 text-center">Время (сек)</th>
+                <th class="py-4 px-6 text-right">Действия</th>
+              </tr>
+            </thead>
+            <tbody id="storiesTable" class="text-sm text-gray-700"></tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- TAB: Settings -->
       <div id="content-settings" class="hidden space-y-8 max-w-2xl">
         <h2 class="text-xl font-serif text-beige-800 mb-2 border-b border-beige-200 pb-2">Многоуровневая система лояльности</h2>
@@ -345,17 +409,23 @@
     async function initApp() {
       document.getElementById('authModal').classList.add('hidden');
       document.getElementById('dashboard').classList.remove('hidden');
-      await Promise.all([fetchSettings(), fetchStats(), fetchCustomers(), fetchTransactions()]);
+      await Promise.all([fetchSettings(), fetchStats(), fetchCustomers(), fetchTransactions(), fetchStories()]);
       renderChart();
     }
 
     function switchTab(tabId) {
-      ['analytics', 'customers', 'transactions', 'settings', 'broadcast'].forEach(id => {
+      ['analytics', 'customers', 'transactions', 'settings', 'broadcast', 'stories'].forEach(id => {
         document.getElementById('content-' + id).classList.add('hidden');
         document.getElementById('tab-' + id).className = 'px-6 py-4 tab-inactive';
       });
       document.getElementById('content-' + tabId).classList.remove('hidden');
-      document.getElementById('tab-' + tabId).className = tabId === 'broadcast' ? 'px-6 py-4 tab-active text-purple-700' : 'px-6 py-4 tab-active';
+      if (tabId === 'broadcast') {
+        document.getElementById('tab-' + tabId).className = 'px-6 py-4 tab-active text-purple-700';
+      } else if (tabId === 'stories') {
+        document.getElementById('tab-' + tabId).className = 'px-6 py-4 tab-active text-blue-600 font-semibold';
+      } else {
+        document.getElementById('tab-' + tabId).className = 'px-6 py-4 tab-active';
+      }
     }
 
     async function apiGet(endpoint) {
@@ -408,6 +478,61 @@
         currentData.transactions = await apiGet('transactions');
         renderTransactions();
       } catch (e) { console.error(e); }
+    }
+
+    async function fetchStories() {
+      try {
+        const res = await apiGet('stories');
+        const list = res.stories || [];
+        const tbody = document.getElementById('storiesTable');
+        tbody.innerHTML = list.map(s => `
+          <tr class="border-b border-beige-100 hover:bg-beige-50">
+            <td class="py-3 px-4"><img src="${s.coverUrl}" class="w-12 h-16 object-cover rounded shadow"></td>
+            <td class="py-3 px-4 font-bold text-gray-800">${s.title}</td>
+            <td class="py-3 px-4 text-xs text-gray-500 max-w-xs truncate">${s.description || '-'}</td>
+            <td class="py-3 px-4"><a href="${s.contentUrl}" target="_blank" class="text-blue-600 underline text-xs">Photo link</a></td>
+            <td class="py-3 px-4 text-center">${s.duration} сек</td>
+            <td class="py-3 px-4 text-right">
+              <button onclick="deleteStoryAdmin(${s.id})" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded text-xs">Удалить</button>
+            </td>
+          </tr>
+        `).join('');
+      } catch (e) { console.error(e); }
+    }
+
+    async function deleteStoryAdmin(id) {
+      if (!confirm('Удалить эту историю?')) return;
+      await fetch('/admin/api/stories/' + id, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token } });
+      fetchStories();
+    }
+
+    function openStoryModal() {
+      document.getElementById('storyModal').classList.remove('hidden');
+    }
+
+    function closeStoryModal() {
+      document.getElementById('storyModal').classList.add('hidden');
+    }
+
+    async function saveStoryAdmin() {
+      const title = document.getElementById('story_title').value;
+      const coverUrl = document.getElementById('story_cover').value;
+      const contentUrl = document.getElementById('story_content').value;
+      const description = document.getElementById('story_desc').value;
+      const duration = document.getElementById('story_duration').value || 15;
+      if (!title || !coverUrl) { alert('Укажите заголовок и фото обложки!'); return; }
+
+      await fetch('/admin/api/stories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ title, coverUrl, contentUrl, description, duration })
+      });
+      closeStoryModal();
+      document.getElementById('story_title').value = '';
+      document.getElementById('story_cover').value = '';
+      document.getElementById('story_content').value = '';
+      document.getElementById('story_desc').value = '';
+      fetchStories();
     }
 
     async function saveSettings() {

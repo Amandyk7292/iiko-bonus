@@ -9,6 +9,16 @@ data class OtpRequest(val phone: String)
 data class OtpVerifyRequest(val phone: String, val code: String)
 data class OtpResponse(val success: Boolean, val error: String?, val message: String?)
 
+data class PromoStory(
+    val id: Long,
+    val title: String,
+    val coverUrl: String,
+    val contentUrl: String,
+    val description: String?,
+    val duration: Int = 15
+)
+data class StoriesResponse(val success: Boolean, val stories: List<PromoStory>?)
+
 interface BulkaApi {
     @POST("/api/guest/profile")
     suspend fun getProfile(@Body request: AuthRequest): ProfileResponse
@@ -21,6 +31,9 @@ interface BulkaApi {
 
     @retrofit2.http.GET("/api/guest/menu")
     suspend fun getMenu(): MenuResponse
+
+    @retrofit2.http.GET("/api/guest/stories")
+    suspend fun getStories(): StoriesResponse
 
     companion object {
         private const val BASE_URL = "https://iiko-bonus.onrender.com"

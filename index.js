@@ -9,6 +9,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { supabase } = require('./supabase');
 const iikoApi = require('./iiko-api');
+const { getStories, addStory, deleteStory } = require('./stories');
 
 // APNs Setup
 let apnProvider = null;
@@ -798,6 +799,27 @@ app.post('/admin/api/broadcast', adminAuthMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.get('/admin/api/stories', adminAuthMiddleware, async (req, res) => {
+  try {
+    const stories = await getStories();
+    res.json({ success: true, stories });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/admin/api/stories', adminAuthMiddleware, async (req, res) => {
+  try {
+    const story = await addStory(req.body);
+    res.json({ success: true, story });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/admin/api/stories/:id', adminAuthMiddleware, async (req, res) => {
+  try {
+    await deleteStory(req.params.id);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, 'admin.html'));
 });
@@ -1010,6 +1032,15 @@ app.get('/api/guest/menu', async (req, res) => {
   } catch (error) {
     console.error('Ошибка получения меню:', error);
     res.json({ success: false, error: 'Не удалось загрузить меню: ' + (error.message || error) });
+  }
+});
+
+app.get('/api/guest/stories', async (req, res) => {
+  try {
+    const stories = await getStories();
+    res.json({ success: true, stories });
+  } catch (err) {
+    res.json({ success: false, error: err.message });
   }
 });
 
