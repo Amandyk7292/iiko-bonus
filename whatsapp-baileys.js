@@ -116,8 +116,21 @@ async function initWhatsApp(otpStore, getCustomerByPhone) {
       if (!msg.message || msg.key.fromMe) return;
 
       const remoteJid = msg.key.remoteJid;
-      // Извлекаем текст
-      const textMessage = msg.message.conversation || msg.message.extendedTextMessage?.text;
+      
+      // Надежное извлечение текста (в т.ч. исчезающие сообщения)
+      let textMessage = '';
+      const messageContent = msg.message;
+      if (messageContent.conversation) {
+          textMessage = messageContent.conversation;
+      } else if (messageContent.extendedTextMessage?.text) {
+          textMessage = messageContent.extendedTextMessage.text;
+      } else if (messageContent.ephemeralMessage?.message) {
+          const em = messageContent.ephemeralMessage.message;
+          textMessage = em.conversation || em.extendedTextMessage?.text || '';
+      }
+      
+      console.log(`[WHATSAPP] Получено сообщение от ${remoteJid}: "${textMessage}"`);
+      
       if (!textMessage) return;
 
       // Если в сообщении есть слово "код" (регистронезависимо)
