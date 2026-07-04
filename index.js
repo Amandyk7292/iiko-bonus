@@ -959,19 +959,28 @@ app.post('/api/auth/request-otp', async (req, res) => {
         return res.json({ success: false, error: 'not_found', message: 'Номер не зарегистрирован' });
     }
     
-    if (!customer.telegram_id) {
-        return res.json({ success: false, error: 'no_telegram', message: 'Для входа необходимо сначала запустить нашего Telegram-бота' });
+    // Check if valid OTP already exists (e.g. from WhatsApp bot)
+    let code;
+    const existing = otpStore.get(phone);
+    if (existing && existing.expires > Date.now()) {
+        code = existing.code;
+    } else {
+        code = Math.floor(1000 + Math.random() * 9000).toString();
+        otpStore.set(phone, { code, expires: Date.now() + 5 * 60 * 1000 });
     }
     
-    // Generate 4-digit code
-    const code = Math.floor(1000 + Math.random() * 9000).toString();
-    otpStore.set(phone, { code, expires: Date.now() + 5 * 60 * 1000 }); // 5 min expiry
+    let sentViaTelegram = false;
+    if (customer.telegram_id) {
+        try {
+            const telegramBot = require('./telegram');
+            await telegramBot.sendMessage(customer.telegram_id, `<b>Ваш код для входа в приложение:</b>\n\n<code>${code}</code>\n\nКод действителен 5 минут.`);
+            sentViaTelegram = true;
+        } catch (e) {
+            console.error('Error sending telegram OTP:', e);
+        }
+    }
     
-    // Send via Telegram
-    const telegramBot = require('./telegram');
-    await telegramBot.sendMessage(customer.telegram_id, `<b>Ваш код для входа в приложение:</b>\n\n<code>${code}</code>\n\nКод действителен 5 минут.`);
-    
-    res.json({ success: true });
+    res.json({ success: true, viaTelegram: sentViaTelegram });
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, error: err.message });
