@@ -105,7 +105,7 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' })); // Для form submit
 
 // Хранилище OTP кодов
-const otpStore = new Map();
+const { otpStore } = require('./otpStore');
 
 // ==========================================
 // 1. ВЕБ-ИНТЕРФЕЙС (РЕГИСТРАЦИЯ КЛИЕНТОВ)
@@ -958,12 +958,12 @@ app.post('/api/auth/request-otp', async (req, res) => {
     
     // Check if valid OTP already exists (e.g. from WhatsApp bot)
     let code;
-    const existing = otpStore.get(phone);
+    const existing = await otpStore.get(phone);
     if (existing && existing.expires > Date.now()) {
         code = existing.code;
     } else {
         code = Math.floor(1000 + Math.random() * 9000).toString();
-        otpStore.set(phone, { code, expires: Date.now() + 5 * 60 * 1000 });
+        await otpStore.set(phone, { code, expires: Date.now() + 5 * 60 * 1000 });
     }
     
     res.json({ success: true, viaTelegram: false });
@@ -978,13 +978,13 @@ app.post('/api/auth/verify-otp', async (req, res) => {
     const { phone, code } = req.body;
     if (!phone || !code) return res.status(400).json({ error: 'Phone and code required' });
     
-    const stored = otpStore.get(phone);
+    const stored = await otpStore.get(phone);
     if (!stored) {
         return res.json({ success: false, error: 'expired', message: 'Код устарел или не был запрошен' });
     }
     
     if (Date.now() > stored.expires) {
-        otpStore.delete(phone);
+        await otpStore.delete(phone);
         return res.json({ success: false, error: 'expired', message: 'Время действия кода истекло' });
     }
     
@@ -993,7 +993,7 @@ app.post('/api/auth/verify-otp', async (req, res) => {
     }
     
     // Success - clear OTP and return profile
-    otpStore.delete(phone);
+    await otpStore.delete(phone);
     
     let customer = await getCustomerByPhone(phone);
     if (!customer) return res.status(404).json({ error: 'Customer not found' });

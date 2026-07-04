@@ -156,7 +156,7 @@ async function initWhatsApp(otpStore, getOrCreateCustomerByPhone) {
           
           // Генерируем OTP 4 цифры
           const code = Math.floor(1000 + Math.random() * 9000).toString();
-          otpStore.set(phone, { code, expires: Date.now() + 5 * 60 * 1000 }); // 5 min expiry
+          await otpStore.set(phone, { code, expires: Date.now() + 5 * 60 * 1000 }); // 5 min expiry
           
           const replyText = `*Ваш код для входа в приложение:*\n\n${code}\n\n_Код действителен 5 минут._`;
           await sock.sendMessage(remoteJid, { text: replyText });
