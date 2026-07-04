@@ -146,6 +146,62 @@ async function initWhatsApp(otpStore, getOrCreateCustomerByPhone) {
       
       if (!textMessage) return;
 
+      // Обработка команд для задач
+      if (textMessage.toLowerCase().startsWith('/задача ')) {
+          const taskText = textMessage.substring(8).trim();
+          if (taskText) {
+              const taskId = Date.now().toString();
+              const sessionId = `task_${remoteJid}_${taskId}`;
+              try {
+                  await supabase.from('whatsapp_sessions').upsert({
+                      id: sessionId,
+                      data: JSON.stringify({
+                          text: taskText,
+                          sender: msg.key.participant || remoteJid,
+                          createdAt: Date.now(),
+                          status: 'pending'
+                      })
+                  });
+                  await sock.sendMessage(remoteJid, { text: `✅ Задача сохранена!` });
+              } catch (e) {
+                  console.error('[WHATSAPP] Ошибка сохранения задачи:', e);
+                  await sock.sendMessage(remoteJid, { text: `❌ Ошибка при сохранении задачи.` });
+              }
+          }
+          return;
+      }
+      
+      if (textMessage.toLowerCase() === '/задачи' || textMessage.toLowerCase().startsWith('/задачи ')) {
+          try {
+              // Ищем все ключи, начинающиеся с task_chatId
+              const { data, error } = await supabase
+                  .from('whatsapp_sessions')
+                  .select('id, data')
+                  .like('id', `task_${remoteJid}_%`);
+              
+              if (error) throw error;
+              
+              if (!data || data.length === 0) {
+                  await sock.sendMessage(remoteJid, { text: `В этой группе нет активных задач.` });
+                  return;
+              }
+              
+              let reply = `📋 *Список задач:*\n\n`;
+              data.forEach((row, index) => {
+                  try {
+                      const task = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
+                      reply += `${index + 1}. ${task.text}\n`;
+                  } catch(e) {}
+              });
+              
+              await sock.sendMessage(remoteJid, { text: reply });
+          } catch (e) {
+              console.error('[WHATSAPP] Ошибка получения задач:', e);
+              await sock.sendMessage(remoteJid, { text: `❌ Ошибка при получении списка задач.` });
+          }
+          return;
+      }
+
       if (textMessage.toLowerCase().startsWith('код')) {
         if (remoteJid.endsWith('@lid')) {
             console.log(`[WHATSAPP] LID MESSAGE DUMP:`, JSON.stringify(msg, null, 2));
