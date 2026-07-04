@@ -47,6 +47,7 @@ async function handleUpdate(update) {
   const keyboard = {
     keyboard: [
       [{ text: '📱 Отправить мой номер телефона', request_contact: true }],
+      [{ text: '💳 Моя карта (Mini App)', web_app: { url: WEBAPP_URL } }],
       [{ text: '💰 Мой баланс и статус' }, { text: 'ℹ️ Правила программы' }]
     ],
     resize_keyboard: true
