@@ -949,19 +949,34 @@ app.get('/api/guest/menu', async (req, res) => {
     const rawMenu = await iikoApi.getMenu();
     
     // Categories
-    const categories = (rawMenu.groups || [])
+    let categories = (rawMenu.groups || [])
       .filter(g => g.isIncludedInMenu)
       .map(g => ({
         id: g.id,
         name: g.name,
-        order: g.order
+        order: g.order || 0
       }))
       .sort((a, b) => a.order - b.order);
 
+    // Fallback: если в iiko не проставлен флаг isIncludedInMenu, берём все группы
+    if (categories.length === 0 && rawMenu.groups) {
+      categories = rawMenu.groups.map(g => ({
+        id: g.id,
+        name: g.name,
+        order: g.order || 0
+      })).sort((a, b) => a.order - b.order);
+    }
+
     // Products
-    const products = (rawMenu.products || [])
-      .filter(p => p.type === 'Dish' || p.type === 'Good')
-      .map(p => {
+    let productsList = (rawMenu.products || [])
+      .filter(p => p.type === 'Dish' || p.type === 'Good');
+      
+    // Fallback: если тип блюда отличается, берем все товары
+    if (productsList.length === 0 && rawMenu.products) {
+      productsList = rawMenu.products;
+    }
+
+    const products = productsList.map(p => {
         let price = 0;
         if (p.sizePrices && p.sizePrices.length > 0) {
           price = p.sizePrices[0].price.currentPrice;
@@ -982,7 +997,16 @@ app.get('/api/guest/menu', async (req, res) => {
         };
       });
 
-    res.json({ success: true, categories, products });
+    res.json({ 
+      success: true, 
+      categories, 
+      products,
+      debug: {
+        totalGroupsRaw: rawMenu.groups?.length || 0,
+        totalProductsRaw: rawMenu.products?.length || 0,
+        selectedOrgName: rawMenu.orgName || iikoApi.organizationId
+      }
+    });
   } catch (error) {
     console.error('Ошибка получения меню:', error);
     res.json({ success: false, error: 'Не удалось загрузить меню: ' + (error.message || error) });

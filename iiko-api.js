@@ -67,7 +67,10 @@ class IikoAPI {
     }
     const data = await response.json();
     if (data.organizations && data.organizations.length > 0) {
-      this.organizationId = data.organizations[0].id;
+      this.allOrganizations = data.organizations;
+      if (!this.organizationId) {
+        this.organizationId = data.organizations[0].id;
+      }
       return this.organizationId;
     }
     throw new Error('Не найдено ни одной организации в iikoCloud для данного apiLogin');
@@ -108,19 +111,15 @@ class IikoAPI {
 
   async getMenu() {
     const token = await this.getToken();
-    const orgId = await this.getOrganizationId();
+    let orgId = await this.getOrganizationId();
     
-    const payload = {
-      organizationId: orgId
-    };
-
-    const response = await fetch(`${this.baseUrl}/api/1/nomenclature`, {
+    let response = await fetch(`${this.baseUrl}/api/1/nomenclature`, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ organizationId: orgId })
     });
 
     if (!response.ok) {
@@ -128,7 +127,35 @@ class IikoAPI {
       throw new Error(`Ошибка получения меню из iiko: ${errorText}`);
     }
 
-    return await response.json();
+    let menuData = await response.json();
+
+    // Если в первой точке пусто (нет товаров или категорий), ищем точку, где меню есть!
+    if ((!menuData.products || menuData.products.length === 0) && this.allOrganizations && this.allOrganizations.length > 1) {
+      console.log(`В точке ${orgId} нет товаров. Ищем по остальным ${this.allOrganizations.length} точкам...`);
+      for (const org of this.allOrganizations) {
+        if (org.id === orgId) continue;
+        const res = await fetch(`${this.baseUrl}/api/1/nomenclature`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ organizationId: org.id })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.products && data.products.length > 0) {
+            console.log(`Найдено меню с ${data.products.length} товарами в точке: ${org.name} (${org.id})`);
+            this.organizationId = org.id;
+            menuData = data;
+            menuData.orgName = org.name;
+            break;
+          }
+        }
+      }
+    }
+
+    return menuData;
   }
 }
 
