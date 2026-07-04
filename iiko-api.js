@@ -3,7 +3,9 @@ const fetch = require('node-fetch'); // Используем node-fetch для �
 class IikoAPI {
   constructor() {
     this.apiLogin = process.env.IIKO_API_LOGIN;
-    this.organizationId = process.env.IIKO_APP_ID;
+    this.appId = process.env.IIKO_APP_ID;
+    this.clientSecret = process.env.IIKO_CLIENT_SECRET;
+    this.organizationId = process.env.IIKO_ORGANIZATION_ID || null;
     this.baseUrl = 'https://api-ru.iiko.services';
     this.token = null;
     this.tokenExpiresAt = 0;
@@ -15,15 +17,28 @@ class IikoAPI {
       return this.token;
     }
 
-    const response = await fetch(`${this.baseUrl}/api/1/access_token`, {
+    let url = `${this.baseUrl}/api/1/access_token`;
+    let body = { apiLogin: this.apiLogin };
+
+    // Если указаны appId и clientSecret для v2 OAuth
+    if (this.appId && this.clientSecret) {
+      url = `${this.baseUrl}/api/v2/access_token`;
+      body = {
+        appId: this.appId,
+        clientSecret: this.clientSecret,
+        apiKey: this.apiLogin
+      };
+    }
+
+    const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ apiLogin: this.apiLogin })
+      body: JSON.stringify(body)
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Ошибка получения токена iiko: ${errorText}`);
+      throw new Error(`Ошибка получения токена iiko (${this.appId && this.clientSecret ? 'v2' : 'v1'}): ${errorText}`);
     }
 
     const data = await response.json();
