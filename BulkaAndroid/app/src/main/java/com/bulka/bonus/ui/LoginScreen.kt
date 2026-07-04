@@ -123,7 +123,7 @@ fun LoginScreen(
                                 otpInput = ""
                                 try {
                                     val intent = android.content.Intent(android.content.Intent.ACTION_VIEW)
-                                    intent.data = android.net.Uri.parse("https://wa.me/?text=Код")
+                                    intent.data = android.net.Uri.parse("https://wa.me/77008317499?text=Код")
                                     context.startActivity(intent)
                                 } catch (e: Exception) {
                                     // WhatsApp not installed
