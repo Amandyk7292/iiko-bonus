@@ -120,13 +120,26 @@ async function initWhatsApp(otpStore, getCustomerByPhone) {
       // Надежное извлечение текста (в т.ч. исчезающие сообщения)
       let textMessage = '';
       const messageContent = msg.message;
-      if (messageContent.conversation) {
-          textMessage = messageContent.conversation;
-      } else if (messageContent.extendedTextMessage?.text) {
-          textMessage = messageContent.extendedTextMessage.text;
-      } else if (messageContent.ephemeralMessage?.message) {
-          const em = messageContent.ephemeralMessage.message;
-          textMessage = em.conversation || em.extendedTextMessage?.text || '';
+      if (messageContent) {
+          textMessage = messageContent.conversation || 
+                        messageContent.extendedTextMessage?.text || 
+                        messageContent.imageMessage?.caption ||
+                        messageContent.videoMessage?.caption || '';
+          
+          if (!textMessage && messageContent.ephemeralMessage?.message) {
+              const em = messageContent.ephemeralMessage.message;
+              textMessage = em.conversation || em.extendedTextMessage?.text || em.imageMessage?.caption || '';
+          }
+          
+          if (!textMessage && messageContent.viewOnceMessage?.message) {
+              const vom = messageContent.viewOnceMessage.message;
+              textMessage = vom.conversation || vom.extendedTextMessage?.text || vom.imageMessage?.caption || '';
+          }
+          
+          if (!textMessage && messageContent.viewOnceMessageV2?.message) {
+              const vom2 = messageContent.viewOnceMessageV2.message;
+              textMessage = vom2.conversation || vom2.extendedTextMessage?.text || vom2.imageMessage?.caption || '';
+          }
       }
       
       console.log(`[WHATSAPP] Получено сообщение от ${remoteJid}: "${textMessage}"`);
