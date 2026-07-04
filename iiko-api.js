@@ -9,6 +9,8 @@ class IikoAPI {
     this.baseUrl = 'https://api-ru.iiko.services';
     this.token = null;
     this.tokenExpiresAt = 0;
+    this.cachedMenu = null;
+    this.cachedMenuExpiresAt = 0;
   }
 
   async getToken() {
@@ -110,6 +112,10 @@ class IikoAPI {
   }
 
   async getMenu() {
+    if (this.cachedMenu && Date.now() < this.cachedMenuExpiresAt) {
+      return this.cachedMenu;
+    }
+
     const token = await this.getToken();
     let orgId = await this.getOrganizationId();
     
@@ -218,6 +224,11 @@ class IikoAPI {
       } catch (err) {
         console.error('Ошибка проверки внешнего меню v2:', err.message);
       }
+    }
+
+    if (menuData && menuData.products && menuData.products.length > 0) {
+      this.cachedMenu = menuData;
+      this.cachedMenuExpiresAt = Date.now() + 30 * 60 * 1000; // Кешируем на 30 минут
     }
 
     return menuData;
