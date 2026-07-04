@@ -59,10 +59,18 @@ fun OrdersScreen(transactions: List<Transaction>) {
 
 @Composable
 fun TransactionItem(tx: Transaction) {
-    val isEarning = tx.type == "earning"
+    val isEarning = tx.type.contains("deposit", ignoreCase = true) || tx.type == "earning"
     val color = if (isEarning) Color(0xFF4CAF50) else Color(0xFFE53935)
     val prefix = if (isEarning) "+" else "-"
-    val label = if (isEarning) "Начисление бонусов" else "Списание бонусов"
+    val label = when {
+        tx.type == "deposit" -> "Начисление кэшбэка"
+        tx.type == "manual_deposit" -> "Подарок / Начисление"
+        tx.type == "withdrawal" -> "Оплата бонусами"
+        tx.type == "manual_withdrawal" -> "Ручное списание"
+        tx.type == "expiration" -> "Сгорание бонусов"
+        isEarning -> "Начисление бонусов"
+        else -> "Списание бонусов"
+    }
     
     // Format timestamp if it's not empty, otherwise just show raw
     val displayTime = try {
