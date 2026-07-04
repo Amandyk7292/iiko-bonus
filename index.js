@@ -60,8 +60,8 @@ async function buildApplePassBuffer(customer, host) {
       foregroundColor: 'rgb(109, 51, 23)',
       backgroundColor: 'rgb(255, 179, 0)',
       labelColor: 'rgb(109, 51, 23)',
-      barcode: { message: customer.phone, format: 'PKBarcodeFormatQR', messageEncoding: 'iso-8859-1' },
-      barcodes: [{ message: customer.phone, format: 'PKBarcodeFormatQR', messageEncoding: 'iso-8859-1' }],
+      barcode: { message: getSecretWalletCardNumber(customer), format: 'PKBarcodeFormatQR', messageEncoding: 'iso-8859-1' },
+      barcodes: [{ message: getSecretWalletCardNumber(customer), format: 'PKBarcodeFormatQR', messageEncoding: 'iso-8859-1' }],
       coupon: {
         headerFields: [{ key: 'balance', label: 'БАЛАНС', value: `${customer.balance || 0} ₸` }],
         primaryFields: [{ key: 'name', label: 'ГОСТЬ', value: (customer.name || 'Гость').toUpperCase() }],
@@ -81,7 +81,7 @@ async function buildApplePassBuffer(customer, host) {
 }
 
 
-const { getCustomerByPhone, getOrCreateCustomerByPhone, searchCustomers, updateCustomerBalance, updateCustomerInfo, logTransaction, getAllCustomers, getTransactions, getStats, addManualBonus, checkAndExpireInactiveBonuses, checkAndNotifyInactiveCustomers, updateFcmToken } = require('./customers');
+const { getCustomerByPhone, getOrCreateCustomerByPhone, searchCustomers, updateCustomerBalance, updateCustomerInfo, logTransaction, getAllCustomers, getTransactions, getStats, addManualBonus, checkAndExpireInactiveBonuses, checkAndNotifyInactiveCustomers, updateFcmToken, getSecretWalletCardNumber } = require('./customers');
 const { sendPushNotification } = require('./push-notifications');
 const { getSettings, updateSettings } = require('./settings');
 const { sendWhatsAppMessage } = require('./whatsapp');
@@ -644,8 +644,8 @@ async function generateGoogleWalletUrl(customer, settings, tier) {
     accountName: customer.name || 'Гость',
     barcode: {
       type: 'QR_CODE',
-      value: customer.phone,
-      alternateText: customer.phone
+      value: getSecretWalletCardNumber(customer),
+      alternateText: 'Сканируйте на кассе'
     },
     textModulesData: [
       {

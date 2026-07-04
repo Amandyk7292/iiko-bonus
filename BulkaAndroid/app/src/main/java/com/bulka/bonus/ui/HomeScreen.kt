@@ -332,9 +332,25 @@ fun HomeScreen(
                     
                     Spacer(modifier = Modifier.height(24.dp))
                     
-                    // Actual QR Code
-                    val qrBitmap = remember(customer.phone) {
-                        generateQrBitmap("7${customer.phone}", 512)
+                    var timeRemaining by remember { mutableStateOf(300 - ((System.currentTimeMillis() % 300000) / 1000).toInt()) }
+                    var otpString by remember { mutableStateOf("") }
+                    
+                    LaunchedEffect(Unit) {
+                        while(true) {
+                            val timeWindow = System.currentTimeMillis() / 300000
+                            timeRemaining = 300 - ((System.currentTimeMillis() % 300000) / 1000).toInt()
+                            val cleanPhone = customer.phone.replace(Regex("[^0-9]"), "")
+                            val input = "$cleanPhone:$timeWindow:BULKA_SUPER_SECRET_2026"
+                            val md = java.security.MessageDigest.getInstance("SHA-256")
+                            val hashBytes = md.digest(input.toByteArray())
+                            val hash = hashBytes.joinToString("") { "%02x".format(it) }.take(8)
+                            otpString = "BULKA-OTP-$cleanPhone-$timeWindow-$hash"
+                            kotlinx.coroutines.delay(1000)
+                        }
+                    }
+                    
+                    val qrBitmap = remember(otpString) {
+                        if (otpString.isNotEmpty()) generateQrBitmap(otpString, 512) else null
                     }
                     
                     if (qrBitmap != null) {
@@ -351,12 +367,21 @@ fun HomeScreen(
                         )
                     }
                     
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    val m = (timeRemaining / 60).toString().padStart(2, '0')
+                    val s = (timeRemaining % 60).toString().padStart(2, '0')
                     
                     Text(
-                        text = "Покажите QR кассиру для оплаты",
+                        text = "Динамический код (обновится через)",
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                        fontSize = 12.sp
+                    )
+                    Text(
+                        text = "$m:$s",
                         color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 16.sp
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold
                     )
                     
                     Spacer(modifier = Modifier.height(20.dp))

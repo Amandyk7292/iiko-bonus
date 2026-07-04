@@ -1,5 +1,16 @@
 const { supabase } = require('./supabase');
 const { sendPushNotification } = require('./push-notifications');
+const crypto = require('crypto');
+
+/**
+ * Генерирует секретный идентификатор карты для Google/Apple Wallet
+ */
+function getSecretWalletCardNumber(customer) {
+  if (!customer || !customer.id) return 'CARD-UNKNOWN';
+  const secretString = `${customer.id}:${customer.phone}:BULKA_WALLET_2026`;
+  const hash = crypto.createHash('md5').update(secretString).digest('hex').slice(0, 6).toUpperCase();
+  return `CARD-${customer.id}-${hash}`;
+}
 
 /**
  * Получение клиента по номеру телефона
@@ -209,6 +220,63 @@ async function addManualBonus(customerId, amount, reason) {
 }
 
 async function searchCustomers(query) {
+  if (!query) return [];
+  const trimQuery = query.trim();
+
+  // 1. Проверка динамического 5-минутного QR-кода приложения (TOTP)
+  if (trimQuery.startsWith('BULKA-OTP-')) {
+    const parts = trimQuery.split('-');
+    // BULKA, OTP, phone, timeWindow, hash
+    if (parts.length >= 5) {
+      const phone = parts[2];
+      const timeWindow = parseInt(parts[3], 10);
+      const hash = parts[4];
+      const currentWindow = Math.floor(Date.now() / 300000); // 300000 ms = 5 minutes
+      
+      if (isNaN(timeWindow) || Math.abs(currentWindow - timeWindow) > 1) {
+        throw new Error('Срок действия QR-кода истек. Попросите гостя обновить QR-код в приложении.');
+      }
+      
+      const secret = process.env.BULKA_SECRET || 'BULKA_SUPER_SECRET_2026';
+      const expectedHash = crypto.createHash('sha256').update(`${phone}:${timeWindow}:${secret}`).digest('hex').slice(0, 8);
+      if (hash !== expectedHash) {
+        throw new Error('Недействительный или поддельный QR-код.');
+      }
+      
+      const { data, error } = await supabase
+        .from('customers')
+        .select('*')
+        .ilike('phone', `%${phone.slice(-10)}%`)
+        .limit(1);
+      if (error || !data || data.length === 0) throw new Error('Клиент по динамическому коду не найден');
+      return data;
+    }
+  }
+
+  // 2. Проверка зашифрованной карты Wallet (CARD-UUID-HASH)
+  if (trimQuery.startsWith('CARD-')) {
+    const lastDash = trimQuery.lastIndexOf('-');
+    if (lastDash > 5) {
+      const customerId = trimQuery.slice(5, lastDash);
+      const hashSuffix = trimQuery.slice(lastDash + 1);
+      
+      const { data: customer, error } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('id', customerId)
+        .single();
+        
+      if (!error && customer) {
+        const expectedSuffix = crypto.createHash('md5').update(`${customer.id}:${customer.phone}:BULKA_WALLET_2026`).digest('hex').slice(0, 6).toUpperCase();
+        if (hashSuffix === expectedSuffix) {
+          return [customer];
+        }
+      }
+      throw new Error('Недействительная карта лояльности Wallet.');
+    }
+  }
+
+  // 3. Обычный поиск по имени или телефону
   const digitsOnly = query.replace(/[^0-9]/g, '');
   const searchPattern = digitsOnly.length >= 10 ? digitsOnly.slice(-10) : query.replace(/[^0-9+]/g, '');
   
@@ -436,5 +504,6 @@ module.exports = {
   checkAndExpireInactiveBonuses,
   checkAndNotifyInactiveCustomers,
   deleteCustomer,
-  updateFcmToken
+  updateFcmToken,
+  getSecretWalletCardNumber
 };

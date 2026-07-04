@@ -172,9 +172,9 @@ namespace Resto.Front.Api.IikoBonusPlugin
 
             if (string.IsNullOrWhiteSpace(barcode)) return false;
 
-            // Если штрихкод похож на номер телефона (10-15 цифр, возможно с плюсом)
+            // Если штрихкод похож на номер телефона (10-15 цифр, возможно с плюсом) или на защищенный токен лояльности
             string digitsOnly = new string(barcode.Where(char.IsDigit).ToArray());
-            if (digitsOnly.Length >= 10 && digitsOnly.Length <= 15)
+            if ((digitsOnly.Length >= 10 && digitsOnly.Length <= 15) || barcode.StartsWith("BULKA-OTP-") || barcode.StartsWith("CARD-"))
             {
                 try
                 {

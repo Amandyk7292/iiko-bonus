@@ -12,6 +12,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <!-- QRCode.js -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <!-- CryptoJS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
   <!-- Telegram WebApp SDK -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
@@ -256,9 +258,8 @@
         <div id="qrcode" class="flex justify-center"></div>
       </div>
 
-      <div class="bg-black/40 rounded-xl p-3 border border-white/10 text-xs text-gray-300 font-mono">
-        <div class="text-[10px] text-gray-500 uppercase">Телефон в системе</div>
-        <div id="qrPhoneText" class="font-bold text-sm text-green-400 mt-0.5">+7 000 000 0000</div>
+      <div class="bg-black/40 rounded-xl p-3 border border-white/10 text-xs text-gray-300 text-center font-mono">
+        <div id="qrPhoneText" class="font-bold text-sm text-green-400 mt-0.5"></div>
       </div>
 
       <button onclick="closeQrModal()" class="w-full bg-white/10 hover:bg-white/20 text-white font-semibold py-3 rounded-xl text-sm transition">
@@ -461,18 +462,38 @@
         document.getElementById('progressHint').innerHTML = `До получения статуса "${c.tier.nextTier}" осталось совершить покупки на <span class="text-white font-bold">${left.toLocaleString()} тнг</span>.`;
       }
 
-      // Генерируем QR-код
+      // Генерируем динамический QR-код (TOTP)
       const qrContainer = document.getElementById('qrcode');
-      qrContainer.innerHTML = '';
-      new QRCode(qrContainer, {
-        text: c.phone,
-        width: 180,
-        height: 180,
-        colorDark: "#000000",
-        colorLight: "#ffffff",
-        correctLevel: QRCode.CorrectLevel.M
-      });
-      document.getElementById('qrPhoneText').innerText = c.phone;
+      const qrPhoneText = document.getElementById('qrPhoneText');
+      if (window.qrInterval) clearInterval(window.qrInterval);
+      
+      function updateQr() {
+        const timeWindow = Math.floor(Date.now() / 300000);
+        const secondsLeft = 300 - Math.floor((Date.now() % 300000) / 1000);
+        
+        const cleanPhone = c.phone.replace(/[^0-9]/g, '');
+        const secret = 'BULKA_SUPER_SECRET_2026';
+        const hashInput = `${cleanPhone}:${timeWindow}:${secret}`;
+        const hash = CryptoJS.SHA256(hashInput).toString(CryptoJS.enc.Hex).slice(0, 8);
+        const otpString = `BULKA-OTP-${cleanPhone}-${timeWindow}-${hash}`;
+        
+        qrContainer.innerHTML = '';
+        new QRCode(qrContainer, {
+          text: otpString,
+          width: 180,
+          height: 180,
+          colorDark: "#000000",
+          colorLight: "#ffffff",
+          correctLevel: QRCode.CorrectLevel.M
+        });
+        
+        const m = Math.floor(secondsLeft / 60).toString().padStart(2, '0');
+        const s = (secondsLeft % 60).toString().padStart(2, '0');
+        qrPhoneText.innerHTML = `<span class="text-xs text-gray-400 font-normal block mb-1">Динамический код (обновится через)</span> <span class="text-xl font-bold text-white">${m}:${s}</span>`;
+      }
+      
+      updateQr();
+      window.qrInterval = setInterval(updateQr, 1000);
 
       // Рендерим транзакции
       const txList = document.getElementById('txList');
