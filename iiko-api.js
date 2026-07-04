@@ -64,6 +64,30 @@ class IikoAPI {
 
     return await response.json();
   }
+
+  async getMenu() {
+    const token = await this.getToken();
+    
+    const payload = {
+      organizationId: this.organizationId
+    };
+
+    const response = await fetch(`${this.baseUrl}/api/1/nomenclature`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Ошибка получения меню из iiko: ${errorText}`);
+    }
+
+    return await response.json();
+  }
 }
 
 module.exports = new IikoAPI();

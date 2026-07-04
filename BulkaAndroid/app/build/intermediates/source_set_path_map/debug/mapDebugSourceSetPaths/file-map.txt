@@ -1,0 +1,51 @@
+com.bulka.bonus.app-navigation-common-2.7.6-0 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\00ba617375a6286d1954c72dcd84464e\transformed\navigation-common-2.7.6\res
+com.bulka.bonus.app-savedstate-ktx-1.2.1-1 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\03086330c4f2f0ac406a835a848ea0aa\transformed\savedstate-ktx-1.2.1\res
+com.bulka.bonus.app-material3-1.1.2-2 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\1481fb0afbadc6e82023c83fd3c5039a\transformed\material3-1.1.2\res
+com.bulka.bonus.app-startup-runtime-1.1.1-3 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\148b417cdcdcda26f28be51e50315a83\transformed\startup-runtime-1.1.1\res
+com.bulka.bonus.app-savedstate-1.2.1-4 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\19aefbbe117d1f3b85dd8366651f3399\transformed\savedstate-1.2.1\res
+com.bulka.bonus.app-annotation-experimental-1.3.0-5 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\1da676d423d65301c2cfe35dbabacd59\transformed\annotation-experimental-1.3.0\res
+com.bulka.bonus.app-lifecycle-viewmodel-savedstate-2.7.0-6 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\2c0055c0a9997f659951780ff7e6350c\transformed\lifecycle-viewmodel-savedstate-2.7.0\res
+com.bulka.bonus.app-foundation-layout-release-7 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\300aa6bd4bfdbbf25704433824489fb5\transformed\foundation-layout-release\res
+com.bulka.bonus.app-ui-graphics-release-8 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\37d976c1dd184d19deffa208ff370dd2\transformed\ui-graphics-release\res
+com.bulka.bonus.app-runtime-release-9 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\3a07279f186439ddcd5c34d62a6bbcbb\transformed\runtime-release\res
+com.bulka.bonus.app-ui-unit-release-10 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\3b587ea97b6b29db2b3610a20c810a91\transformed\ui-unit-release\res
+com.bulka.bonus.app-activity-ktx-1.8.2-11 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\3d86d33267938d8fdd97a683f5077873\transformed\activity-ktx-1.8.2\res
+com.bulka.bonus.app-coil-base-2.5.0-12 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\3e6fa04ce0e78a6e7816345b5725bbcf\transformed\coil-base-2.5.0\res
+com.bulka.bonus.app-runtime-saveable-release-13 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\422fc395f5ef28a8729af23a85e45f60\transformed\runtime-saveable-release\res
+com.bulka.bonus.app-ui-text-release-14 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\4817aaa111dafb5c6d7a09a1cf67f362\transformed\ui-text-release\res
+com.bulka.bonus.app-emoji2-1.4.0-15 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\4967a846cf5a307556b6f47c06f70224\transformed\emoji2-1.4.0\res
+com.bulka.bonus.app-appcompat-resources-1.6.1-16 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\50c0ee875ab74d69048b2dcbd4dda4e3\transformed\appcompat-resources-1.6.1\res
+com.bulka.bonus.app-core-runtime-2.2.0-17 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\59227fd9695f98c656185ff3425ef5d7\transformed\core-runtime-2.2.0\res
+com.bulka.bonus.app-animation-release-18 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\656f055eae3d9c4e092147995de6c7c3\transformed\animation-release\res
+com.bulka.bonus.app-profileinstaller-1.3.1-19 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\87887b4fd3f3d1200e477195aaf7439b\transformed\profileinstaller-1.3.1\res
+com.bulka.bonus.app-lifecycle-viewmodel-ktx-2.7.0-20 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\8fbb0d7259341f8da29c0fe74c67bfc0\transformed\lifecycle-viewmodel-ktx-2.7.0\res
+com.bulka.bonus.app-animation-core-release-21 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\9423a79e7ddeefec8a74bc651ee37dff\transformed\animation-core-release\res
+com.bulka.bonus.app-activity-compose-1.8.2-22 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\9bcc9fbdda6fce255d8061dc9fc1afe7\transformed\activity-compose-1.8.2\res
+com.bulka.bonus.app-lifecycle-viewmodel-compose-2.7.0-23 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\9e6ed91f9885f1972f493fdcc352f8ff\transformed\lifecycle-viewmodel-compose-2.7.0\res
+com.bulka.bonus.app-core-ktx-1.12.0-24 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\9f9286de44667409a4a6e3cf30b3cb2e\transformed\core-ktx-1.12.0\res
+com.bulka.bonus.app-material-icons-core-release-25 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a05790d8bf5c455eaa52ad2dbcb8a159\transformed\material-icons-core-release\res
+com.bulka.bonus.app-core-1.12.0-26 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a7a4614089776f37ccfdedb659a5b37c\transformed\core-1.12.0\res
+com.bulka.bonus.app-lifecycle-runtime-2.7.0-27 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a8b1ebdc8f7bd36bc1ab17d95acff34f\transformed\lifecycle-runtime-2.7.0\res
+com.bulka.bonus.app-ui-geometry-release-28 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\b167621090c716563e1dd0fa02fe363c\transformed\ui-geometry-release\res
+com.bulka.bonus.app-customview-poolingcontainer-1.0.0-29 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\b484b5ffc8685269f47f77a1bc2b9712\transformed\customview-poolingcontainer-1.0.0\res
+com.bulka.bonus.app-navigation-runtime-2.7.6-30 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\c0f87a18995c9cb73ef5f46ef2392018\transformed\navigation-runtime-2.7.6\res
+com.bulka.bonus.app-navigation-runtime-ktx-2.7.6-31 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\c1b2e6371a8a266c4fe1a5c0c4557b0c\transformed\navigation-runtime-ktx-2.7.6\res
+com.bulka.bonus.app-activity-1.8.2-32 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\c51578dc19265fcfd6e52ceeb0efbdd0\transformed\activity-1.8.2\res
+com.bulka.bonus.app-lifecycle-runtime-ktx-2.7.0-33 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\c9e07d497834f76171ffa46d46b59116\transformed\lifecycle-runtime-ktx-2.7.0\res
+com.bulka.bonus.app-ui-tooling-preview-release-34 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\d4f260b4068592e28bafe28375971e18\transformed\ui-tooling-preview-release\res
+com.bulka.bonus.app-navigation-common-ktx-2.7.6-35 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\d674af13c5b033eafe4581a122d86c5f\transformed\navigation-common-ktx-2.7.6\res
+com.bulka.bonus.app-lifecycle-viewmodel-2.7.0-36 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\d807486ca1242fcbd5f72429915c4995\transformed\lifecycle-viewmodel-2.7.0\res
+com.bulka.bonus.app-ui-util-release-37 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\d97017635a9f165972e766f85efc08e3\transformed\ui-util-release\res
+com.bulka.bonus.app-navigation-compose-2.7.6-38 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\d9f983e7756bd8ec76a418602f5eb869\transformed\navigation-compose-2.7.6\res
+com.bulka.bonus.app-lifecycle-process-2.7.0-39 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\e0471527a056f734ca2a0f197013f94e\transformed\lifecycle-process-2.7.0\res
+com.bulka.bonus.app-foundation-release-40 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\f355d0b2fa738b5c51993dc2718f6ab8\transformed\foundation-release\res
+com.bulka.bonus.app-lifecycle-livedata-core-2.7.0-41 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\f8b82a02c40f43ce6e71cdd65aa1eb2c\transformed\lifecycle-livedata-core-2.7.0\res
+com.bulka.bonus.app-ui-release-42 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\f9585abba5338c55422689c17f519b80\transformed\ui-release\res
+com.bulka.bonus.app-material-ripple-release-43 C:\Users\Asus Rog\.gradle\caches\8.13\transforms\ff9686624e955b4c8c954f649662f050\transformed\material-ripple-release\res
+com.bulka.bonus.app-resValues-44 C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\build\generated\res\resValues\debug
+com.bulka.bonus.app-updated_navigation_xml-45 C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\build\generated\updated_navigation_xml\debug
+com.bulka.bonus.app-packageDebugResources-46 C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\build\intermediates\incremental\debug\packageDebugResources\merged.dir
+com.bulka.bonus.app-packageDebugResources-47 C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\build\intermediates\incremental\debug\packageDebugResources\stripped.dir
+com.bulka.bonus.app-debug-48 C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\build\intermediates\merged_res\debug\mergeDebugResources
+com.bulka.bonus.app-debug-49 C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\debug\res
+com.bulka.bonus.app-main-50 C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\res

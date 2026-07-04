@@ -944,6 +944,51 @@ app.post('/api/guest/profile', async (req, res) => {
   }
 });
 
+app.get('/api/guest/menu', async (req, res) => {
+  try {
+    const rawMenu = await iikoApi.getMenu();
+    
+    // Categories
+    const categories = (rawMenu.groups || [])
+      .filter(g => g.isIncludedInMenu)
+      .map(g => ({
+        id: g.id,
+        name: g.name,
+        order: g.order
+      }))
+      .sort((a, b) => a.order - b.order);
+
+    // Products
+    const products = (rawMenu.products || [])
+      .filter(p => p.type === 'Dish' || p.type === 'Good')
+      .map(p => {
+        let price = 0;
+        if (p.sizePrices && p.sizePrices.length > 0) {
+          price = p.sizePrices[0].price.currentPrice;
+        }
+
+        let imageUrl = null;
+        if (p.imageLinks && p.imageLinks.length > 0) {
+          imageUrl = p.imageLinks[0];
+        }
+
+        return {
+          id: p.id,
+          name: p.name,
+          description: p.description || '',
+          price: price,
+          categoryId: p.parentGroup,
+          imageUrl: imageUrl
+        };
+      });
+
+    res.json({ success: true, categories, products });
+  } catch (error) {
+    console.error('Ошибка получения меню:', error);
+    res.json({ success: false, error: 'Не удалось загрузить меню' });
+  }
+});
+
 app.get(['/app', '/wallet', '/guest'], (req, res) => {
   res.sendFile(path.join(__dirname, 'app.html'));
 });
