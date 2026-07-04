@@ -51,25 +51,19 @@ data class Story(
     val duration: Int = 15
 )
 
-val mockStories = listOf(
-    Story(1L, "СЕЗОННЫЙ ФРАППЕ", "https://images.unsplash.com/photo-1572490122747-3968b75bf699?w=500&q=80", "https://images.unsplash.com/photo-1572490122747-3968b75bf699?w=1000&q=80", "Попробуй наш новый летний кофейный напиток с карамелью и льдом! Освежает и заряжает бодростью на весь день.", 15),
-    Story(2L, "НОВИНКА", "https://images.unsplash.com/photo-1497935586351-b67a49e012bf?w=500&q=80", "https://images.unsplash.com/photo-1497935586351-b67a49e012bf?w=1000&q=80", "Свежая выпечка каждое утро в Bulka! Хрустящие круассаны и ароматный эспрессо уже ждут тебя.", 15),
-    Story(3L, "ПЛЮШКИ ЗА ДРУГА", "https://images.unsplash.com/photo-1559525839-b184a4d698c7?w=500&q=80", "https://images.unsplash.com/photo-1559525839-b184a4d698c7?w=1000&q=80", "Приглашай друзей в нашу бонусную программу! Получай 500 подарочных баллов за каждого нового друга.", 15)
-)
-
 @Composable
 fun HomeScreen(
     customer: Customer,
     onNavigateToProfile: () -> Unit
 ) {
     var showQrModal by remember { mutableStateOf(false) }
-    var stories by remember { mutableStateOf(mockStories) }
+    var stories by remember { mutableStateOf<List<Story>>(emptyList()) }
     var selectedStoryIndex by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(Unit) {
         try {
             val res = BulkaApi.create().getStories()
-            if (res.success && !res.stories.isNullOrEmpty()) {
+            if (res.success && res.stories != null) {
                 stories = res.stories.map {
                     Story(
                         id = it.id,
