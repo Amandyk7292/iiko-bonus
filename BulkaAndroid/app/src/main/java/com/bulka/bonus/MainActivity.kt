@@ -99,9 +99,9 @@ class MainActivity : ComponentActivity() {
 
                     if (savedPhone == null) {
                         LoginScreen(
-                            onRequestOtp = { phone ->
+                            onRequestOtp = { phone, token ->
                                 try {
-                                    val res = api.requestOtp(OtpRequest(phone))
+                                    val res = api.requestOtp(OtpRequest(phone, token))
                                     if (res.success) {
                                         Pair(true, null)
                                     } else {

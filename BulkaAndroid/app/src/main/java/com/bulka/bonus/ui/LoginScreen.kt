@@ -21,7 +21,7 @@ import androidx.compose.ui.graphics.Color
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(
-    onRequestOtp: suspend (String) -> Pair<Boolean, String?>,
+    onRequestOtp: suspend (String, String) -> Pair<Boolean, String?>,
     onVerifyOtp: suspend (String, String) -> Pair<Boolean, String?>
 ) {
     var phoneInput by remember { mutableStateOf("") }
@@ -33,6 +33,7 @@ fun LoginScreen(
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     
+    var generatedToken by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -115,15 +116,17 @@ fun LoginScreen(
                         scope.launch {
                             isLoading = true
                             errorMessage = null
-                            val fullPhone = "7\$phoneInput"
-                            val (success, error) = onRequestOtp(fullPhone)
+                            val fullPhone = "7$phoneInput"
+                            val token = (100000..999999).random().toString()
+                            generatedToken = token
+                            val (success, error) = onRequestOtp(fullPhone, token)
                             isLoading = false
                             if (success) {
                                 currentStep = 2
                                 otpInput = ""
                                 try {
                                     val intent = android.content.Intent(android.content.Intent.ACTION_VIEW)
-                                    intent.data = android.net.Uri.parse("https://wa.me/77008317499?text=Код")
+                                    intent.data = android.net.Uri.parse("https://wa.me/77008317499?text=Код%20$token")
                                     context.startActivity(intent)
                                 } catch (e: Exception) {
                                     // WhatsApp not installed

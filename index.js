@@ -951,10 +951,19 @@ app.get('/admin', (req, res) => {
 // ==========================================
 app.post('/api/auth/request-otp', async (req, res) => {
   try {
-    const { phone } = req.body;
+    const { phone, token } = req.body;
     if (!phone) return res.status(400).json({ error: 'Phone required' });
     
     let customer = await getOrCreateCustomerByPhone(phone, 'Гость (Android App)');
+    
+    // If a token was provided, save it so the WhatsApp bot can map it to this phone number
+    if (token) {
+        await supabase.from('whatsapp_sessions').upsert({ 
+            id: `token_${token}`, 
+            data: JSON.stringify({ phone, expires: Date.now() + 10 * 60 * 1000 }) 
+        });
+        console.log(`[AUTH] Saved token ${token} for phone ${phone}`);
+    }
     
     // Check if valid OTP already exists (e.g. from WhatsApp bot)
     let code;

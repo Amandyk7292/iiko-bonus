@@ -146,10 +146,30 @@ async function initWhatsApp(otpStore, getOrCreateCustomerByPhone) {
       
       if (!textMessage) return;
 
-      // Если в сообщении есть слово "код" (регистронезависимо)
-      if (textMessage.toLowerCase().includes('код')) {
-        // Извлекаем номер из remoteJid (например: 77771234567@s.whatsapp.net)
-        const phone = remoteJid.split('@')[0];
+      if (textMessage.toLowerCase().startsWith('код')) {
+        if (remoteJid.endsWith('@lid')) {
+            console.log(`[WHATSAPP] LID MESSAGE DUMP:`, JSON.stringify(msg, null, 2));
+        }
+        
+        let phone = remoteJid.split('@')[0];
+        
+        // Extract token if present (e.g., "Код 123456")
+        const parts = textMessage.trim().split(/\s+/);
+        if (parts.length > 1) {
+            const token = parts[1];
+            try {
+                const { data } = await supabase.from('whatsapp_sessions').select('data').eq('id', `token_${token}`).maybeSingle();
+                if (data && data.data) {
+                    const parsed = JSON.parse(data.data);
+                    if (parsed.phone && parsed.expires > Date.now()) {
+                        phone = parsed.phone;
+                        console.log(`[WHATSAPP] Resolved token ${token} to phone ${phone}`);
+                    }
+                }
+            } catch (e) {
+                console.error('[WHATSAPP] Error resolving token:', e.message);
+            }
+        }
         
         try {
           const customer = await getOrCreateCustomerByPhone(phone, 'Гость (WhatsApp)');
