@@ -105,7 +105,8 @@
   <!-- Modal Add Story -->
   <div id="storyModal" class="fixed inset-0 bg-[#333333] bg-opacity-40 flex items-center justify-center z-50 backdrop-blur-sm hidden transition-opacity duration-300">
     <div class="card p-8 w-full max-w-md text-left relative">
-      <h3 class="text-2xl font-serif text-beige-800 mb-6">Создать Сториз (Инстаграм-формат)</h3>
+      <input type="hidden" id="editing_story_id">
+      <h3 id="storyModalTitle" class="text-2xl font-serif text-beige-800 mb-6">Создать Сториз (Инстаграм-формат)</h3>
       
       <div class="space-y-4 mb-6">
         <div>
@@ -484,6 +485,7 @@
       try {
         const res = await apiGet('stories');
         const list = res.stories || [];
+        currentData.stories = list;
         const tbody = document.getElementById('storiesTable');
         tbody.innerHTML = list.map(s => `
           <tr class="border-b border-beige-100 hover:bg-beige-50">
@@ -492,8 +494,9 @@
             <td class="py-3 px-4 text-xs text-gray-500 max-w-xs truncate">${s.description || '-'}</td>
             <td class="py-3 px-4"><a href="${s.contentUrl}" target="_blank" class="text-blue-600 underline text-xs">Photo link</a></td>
             <td class="py-3 px-4 text-center">${s.duration} сек</td>
-            <td class="py-3 px-4 text-right">
-              <button onclick="deleteStoryAdmin(${s.id})" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded text-xs">Удалить</button>
+            <td class="py-3 px-4 text-right whitespace-nowrap">
+              <button onclick="editStoryAdmin(${s.id})" class="bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300 px-3 py-1.5 rounded text-xs font-medium transition-all shadow-sm mr-2" style="background: #ffb300; color: #3e2723; font-weight: bold;">✏️ Изменить</button>
+              <button onclick="deleteStoryAdmin(${s.id})" class="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3 py-1.5 rounded text-xs font-medium transition-all shadow-sm">🗑 Удалить</button>
             </td>
           </tr>
         `).join('');
@@ -507,6 +510,26 @@
     }
 
     function openStoryModal() {
+      document.getElementById('editing_story_id').value = '';
+      document.getElementById('storyModalTitle').innerText = 'Создать Сториз (Инстаграм-формат)';
+      document.getElementById('story_title').value = '';
+      document.getElementById('story_cover').value = '';
+      document.getElementById('story_content').value = '';
+      document.getElementById('story_desc').value = '';
+      document.getElementById('story_duration').value = '15';
+      document.getElementById('storyModal').classList.remove('hidden');
+    }
+
+    function editStoryAdmin(id) {
+      const s = (currentData.stories || []).find(item => String(item.id) === String(id));
+      if (!s) return;
+      document.getElementById('editing_story_id').value = s.id;
+      document.getElementById('storyModalTitle').innerText = 'Редактировать Сториз';
+      document.getElementById('story_title').value = s.title || '';
+      document.getElementById('story_cover').value = s.coverUrl || '';
+      document.getElementById('story_content').value = s.contentUrl || '';
+      document.getElementById('story_desc').value = s.description || '';
+      document.getElementById('story_duration').value = s.duration || 15;
       document.getElementById('storyModal').classList.remove('hidden');
     }
 
@@ -515,6 +538,7 @@
     }
 
     async function saveStoryAdmin() {
+      const editId = document.getElementById('editing_story_id').value;
       const title = document.getElementById('story_title').value;
       const coverUrl = document.getElementById('story_cover').value;
       const contentUrl = document.getElementById('story_content').value;
@@ -522,12 +546,20 @@
       const duration = document.getElementById('story_duration').value || 15;
       if (!title || !coverUrl) { alert('Укажите заголовок и фото обложки!'); return; }
 
-      await fetch('/admin/api/stories', {
-        method: 'POST',
+      const url = editId ? `/admin/api/stories/${editId}` : '/admin/api/stories';
+      const method = editId ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method: method,
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
         body: JSON.stringify({ title, coverUrl, contentUrl, description, duration })
       });
+      if (!res.ok) {
+        alert('Ошибка при сохранении Сториз!');
+        return;
+      }
       closeStoryModal();
+      document.getElementById('editing_story_id').value = '';
       document.getElementById('story_title').value = '';
       document.getElementById('story_cover').value = '';
       document.getElementById('story_content').value = '';

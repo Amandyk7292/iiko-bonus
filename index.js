@@ -9,7 +9,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { supabase } = require('./supabase');
 const iikoApi = require('./iiko-api');
-const { getStories, addStory, deleteStory } = require('./stories');
+const { getStories, addStory, updateStory, deleteStory } = require('./stories');
 
 // APNs Setup
 let apnProvider = null;
@@ -809,6 +809,13 @@ app.get('/admin/api/stories', adminAuthMiddleware, async (req, res) => {
 app.post('/admin/api/stories', adminAuthMiddleware, async (req, res) => {
   try {
     const story = await addStory(req.body);
+    res.json({ success: true, story });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/admin/api/stories/:id', adminAuthMiddleware, async (req, res) => {
+  try {
+    const story = await updateStory(req.params.id, req.body);
     res.json({ success: true, story });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

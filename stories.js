@@ -64,4 +64,33 @@ async function deleteStory(id) {
   }
 }
 
-module.exports = { getStories, addStory, deleteStory };
+async function updateStory(id, story) {
+  const updatedData = {
+    title: story.title || "Обновленная история",
+    coverUrl: story.coverUrl || "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=500&q=80",
+    contentUrl: story.contentUrl || story.coverUrl || "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=1000&q=80",
+    description: story.description || "",
+    duration: Number(story.duration) || 15
+  };
+
+  try {
+    const { data, error } = await supabase
+      .from('stories')
+      .update(updatedData)
+      .eq('id', id)
+      .select()
+      .single();
+      
+    if (error) {
+      console.error('Error updating story in Supabase DB:', error.message);
+      throw new Error(error.message);
+    }
+    return data || updatedData;
+  } catch (err) {
+    console.error('Error updating story in Supabase:', err.message);
+    throw err;
+  }
+}
+
+module.exports = { getStories, addStory, updateStory, deleteStory };
+
