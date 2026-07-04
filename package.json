@@ -10,6 +10,7 @@
   "dependencies": {
     "@parse/node-apn": "^8.1.0",
     "@supabase/supabase-js": "^2.110.0",
+    "@whiskeysockets/baileys": "^7.0.0-rc13",
     "adm-zip": "^0.5.18",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -20,6 +21,8 @@
     "jsonwebtoken": "^9.0.3",
     "node-fetch": "^2.7.0",
     "node-forge": "^1.4.0",
-    "passkit-generator": "^3.5.7"
+    "passkit-generator": "^3.5.7",
+    "pino": "^10.3.1",
+    "qrcode-terminal": "^0.12.0"
   }
 }

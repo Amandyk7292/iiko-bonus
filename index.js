@@ -84,7 +84,7 @@ async function buildApplePassBuffer(customer, host) {
 const { getCustomerByPhone, getOrCreateCustomerByPhone, searchCustomers, updateCustomerBalance, updateCustomerInfo, logTransaction, getAllCustomers, getTransactions, getStats, addManualBonus, checkAndExpireInactiveBonuses, checkAndNotifyInactiveCustomers, updateFcmToken, getSecretWalletCardNumber } = require('./customers');
 const { sendPushNotification } = require('./push-notifications');
 const { getSettings, updateSettings } = require('./settings');
-const { sendWhatsAppMessage } = require('./whatsapp');
+const { sendWhatsAppMessage, initWhatsApp } = require('./whatsapp-baileys');
 
 function getTierInfo(totalSpent, settings) {
   const spent = Number(totalSpent) || 0;
@@ -1316,6 +1316,8 @@ if (!process.env.VERCEL) {
     // Запуск Telegram-бота (long-polling в режиме обычного сервера)
     const telegramBot = require('./telegram');
     telegramBot.startPolling();
+    // Запуск WhatsApp-бота (Baileys)
+    initWhatsApp(otpStore, getCustomerByPhone);
   });
 }
 module.exports = { app, getTierInfo };

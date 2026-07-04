@@ -142,7 +142,7 @@ fun LoginScreen(
         } else {
             // Step 2: OTP Input
             Text(
-                text = "Код отправлен вам в Telegram",
+                text = "Код можно получить в WhatsApp или Telegram",
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f),
                 fontSize = 14.sp
             )
@@ -164,7 +164,7 @@ fun LoginScreen(
                         otpInput = filtered
                     }
                 },
-                label = { Text("Код из Telegram", color = if (errorMessage != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground.copy(alpha=0.7f)) },
+                label = { Text("Код подтверждения", color = if (errorMessage != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onBackground.copy(alpha=0.7f)) },
                 singleLine = true,
                 isError = errorMessage != null,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
