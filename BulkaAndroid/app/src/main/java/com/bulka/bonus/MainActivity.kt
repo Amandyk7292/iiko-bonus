@@ -5,15 +5,21 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.bulka.bonus.data.*
 import com.bulka.bonus.ui.BulkaBonusTheme
 import com.bulka.bonus.ui.LoginScreen
 import com.bulka.bonus.ui.MainScreen
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -31,9 +37,25 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val scope = rememberCoroutineScope()
+                    val gson = remember { Gson() }
                     var savedPhone by remember { mutableStateOf(prefs.getString("phone", null)) }
-                    var currentCustomer by remember { mutableStateOf<Customer?>(null) }
-                    var currentTransactions by remember { mutableStateOf<List<Transaction>>(emptyList()) }
+                    var currentCustomer by remember {
+                        mutableStateOf<Customer?>(
+                            prefs.getString("customer", null)?.let { json ->
+                                try { gson.fromJson(json, Customer::class.java) } catch (e: Exception) { null }
+                            }
+                        )
+                    }
+                    var currentTransactions by remember {
+                        mutableStateOf<List<Transaction>>(
+                            prefs.getString("transactions", null)?.let { json ->
+                                try {
+                                    val type = object : TypeToken<List<Transaction>>() {}.type
+                                    gson.fromJson(json, type) ?: emptyList()
+                                } catch (e: Exception) { emptyList() }
+                            } ?: emptyList()
+                        )
+                    }
                     var showNameField by remember { mutableStateOf(false) }
 
                     LaunchedEffect(savedPhone) {
@@ -44,9 +66,14 @@ class MainActivity : ComponentActivity() {
                                     if (res.exists && res.customer != null) {
                                         currentCustomer = res.customer
                                         currentTransactions = res.transactions ?: emptyList()
+                                        prefs.edit()
+                                            .putString("customer", gson.toJson(res.customer))
+                                            .putString("transactions", gson.toJson(res.transactions))
+                                            .apply()
                                     } else {
                                         savedPhone = null
-                                        prefs.edit().remove("phone").apply()
+                                        currentCustomer = null
+                                        prefs.edit().remove("phone").remove("customer").remove("transactions").apply()
                                         break
                                     }
                                 } catch (e: Exception) {
@@ -57,7 +84,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    if (savedPhone == null || currentCustomer == null) {
+                    if (savedPhone == null) {
                         LoginScreen(
                             onRequestOtp = { phone ->
                                 try {
@@ -75,7 +102,11 @@ class MainActivity : ComponentActivity() {
                                 try {
                                     val res = api.verifyOtp(OtpVerifyRequest(phone, code))
                                     if (res.success && res.customer != null) {
-                                        prefs.edit().putString("phone", phone).apply()
+                                        prefs.edit()
+                                            .putString("phone", phone)
+                                            .putString("customer", gson.toJson(res.customer))
+                                            .putString("transactions", gson.toJson(res.transactions ?: emptyList<Transaction>()))
+                                            .apply()
                                         savedPhone = phone
                                         currentCustomer = res.customer
                                         currentTransactions = res.transactions ?: emptyList()
@@ -88,12 +119,23 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         )
+                    } else if (currentCustomer == null) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text("Загрузка профиля...", style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
                     } else {
                         MainScreen(
                             customer = currentCustomer!!,
                             transactions = currentTransactions,
                             onLogout = {
-                                prefs.edit().remove("phone").apply()
+                                prefs.edit().remove("phone").remove("customer").remove("transactions").apply()
                                 savedPhone = null
                                 currentCustomer = null
                                 currentTransactions = emptyList()
