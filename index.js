@@ -56,17 +56,16 @@ async function buildApplePassBuffer(customer, host) {
       authenticationToken: authToken,
       organizationName: 'Bulka Bakery',
       description: 'Карта лояльности пекарни Bulka',
-      logoText: 'Bulka Bonus',
-      foregroundColor: 'rgb(255, 255, 255)',
-      backgroundColor: 'rgb(30, 20, 12)',
-      labelColor: 'rgb(200, 180, 150)',
+      logoText: '',
+      foregroundColor: '#6d3317',
+      backgroundColor: '#ffb300',
+      labelColor: '#6d3317',
       barcode: { message: customer.phone, format: 'PKBarcodeFormatQR', messageEncoding: 'iso-8859-1' },
       barcodes: [{ message: customer.phone, format: 'PKBarcodeFormatQR', messageEncoding: 'iso-8859-1' }],
       storeCard: {
         headerFields: [{ key: 'balance', label: 'БАЛАНС', value: `${customer.balance || 0} ₸` }],
         primaryFields: [{ key: 'name', label: 'ГОСТЬ', value: customer.name || 'Гость' }],
-        secondaryFields: [{ key: 'status', label: 'СТАТУС', value: `${tier.name} ${tier.percent}%` }, { key: 'phone', label: 'ТЕЛЕФОН', value: customer.phone }],
-        auxiliaryFields: [{ key: 'spent', label: 'ПОКУПКИ', value: `${(customer.total_spent || 0).toLocaleString()} ₸` }]
+        secondaryFields: [{ key: 'status', label: 'СТАТУС', value: `${tier.name} ${tier.percent}%` }, { key: 'phone', label: 'ТЕЛЕФОН', value: customer.phone }]
       }
     };
 
@@ -75,9 +74,7 @@ async function buildApplePassBuffer(customer, host) {
       'logo.png': fs.readFileSync(path.join(__dirname, 'pass.model', 'logo.png')),
       'logo@2x.png': fs.readFileSync(path.join(__dirname, 'pass.model', 'logo@2x.png')),
       'icon.png': fs.readFileSync(path.join(__dirname, 'pass.model', 'icon.png')),
-      'icon@2x.png': fs.readFileSync(path.join(__dirname, 'pass.model', 'icon@2x.png')),
-      'strip.png': fs.readFileSync(path.join(__dirname, 'pass.model', 'strip.png')),
-      'strip@2x.png': fs.readFileSync(path.join(__dirname, 'pass.model', 'strip@2x.png'))
+      'icon@2x.png': fs.readFileSync(path.join(__dirname, 'pass.model', 'icon@2x.png'))
     }, { signerCert, signerKey, wwdr });
 
     return await pass.getAsBuffer();
