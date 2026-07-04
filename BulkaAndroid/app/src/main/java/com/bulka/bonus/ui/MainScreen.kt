@@ -136,7 +136,7 @@ fun FloatingNavBar(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(32.dp))
-                            .background(if (isSelected) Color(0xFFE0F7FA) else Color.Transparent) // Light cyan highlight
+                            .background(if (isSelected) Color(0xFFFFF3D0) else Color.Transparent) // Warm amber highlight
                             .clickable { onItemClick(item.route) }
                             .padding(vertical = 12.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
@@ -144,14 +144,14 @@ fun FloatingNavBar(
                         Icon(
                             imageVector = if (isSelected) item.iconSelected else item.iconUnselected,
                             contentDescription = item.title,
-                            tint = if (isSelected) Color(0xFF00838F) else Color.Gray,
+                            tint = if (isSelected) Color(0xFF6D3317) else Color.Gray,
                             modifier = Modifier.size(24.dp)
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = item.title,
                             fontSize = 10.sp,
-                            color = if (isSelected) Color(0xFF00838F) else Color.Gray,
+                            color = if (isSelected) Color(0xFF6D3317) else Color.Gray,
                             fontWeight = if (isSelected) androidx.compose.ui.text.font.FontWeight.Bold else androidx.compose.ui.text.font.FontWeight.Normal
                         )
                     }

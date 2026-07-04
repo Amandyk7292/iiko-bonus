@@ -92,7 +92,7 @@ fun MenuScreen() {
                         onClick = { selectedCategoryId = category.id },
                         label = { Text(category.name) },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Color(0xFF00838F),
+                            selectedContainerColor = Color(0xFF6D3317),
                             selectedLabelColor = Color.White
                         )
                     )
@@ -184,16 +184,19 @@ fun ProductItem(product: MenuItem) {
                         text = "${product.price} ₸",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF00838F)
+                        color = Color(0xFF6D3317)
                     )
                     Button(
                         onClick = { /* TODO: Add to cart */ },
                         shape = RoundedCornerShape(20.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00838F)),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFFFB300),
+                            contentColor = Color(0xFF6D3317)
+                        ),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                         modifier = Modifier.height(32.dp)
                     ) {
-                        Text("+ В корзину", fontSize = 12.sp)
+                        Text("+ В корзину", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }

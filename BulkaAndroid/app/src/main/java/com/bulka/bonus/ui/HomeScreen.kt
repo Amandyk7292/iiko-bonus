@@ -416,7 +416,7 @@ fun StoryItem(story: Story, onClick: () -> Unit) {
             .width(110.dp)
             .height(140.dp)
             .clip(RoundedCornerShape(16.dp))
-            .border(2.dp, Color(0xFF2CA5E0), RoundedCornerShape(16.dp))
+            .border(2.dp, Color(0xFFFFB300), RoundedCornerShape(16.dp))
             .clickable { onClick() }
     ) {
         AsyncImage(
@@ -589,7 +589,7 @@ fun StoryViewerModal(
                             modifier = Modifier
                                 .size(32.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFF2CA5E0)),
+                                .background(Color(0xFF6D3317)),
                             contentAlignment = Alignment.Center
                         ) {
                             Text("B", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)

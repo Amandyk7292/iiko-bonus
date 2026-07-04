@@ -1,42 +1,21 @@
 const { supabase } = require('./supabase');
 
-let memoryStories = [
-  {
-    id: 1,
-    title: "СЕЗОННЫЙ ФРАППЕ",
-    coverUrl: "https://images.unsplash.com/photo-1572490122747-3968b75bf699?w=500&q=80",
-    contentUrl: "https://images.unsplash.com/photo-1572490122747-3968b75bf699?w=1000&q=80",
-    description: "Попробуй наш новый летний кофейный напиток с карамелью и льдом! Освежает и заряжает бодростью на весь день.",
-    duration: 15
-  },
-  {
-    id: 2,
-    title: "НОВИНКА",
-    coverUrl: "https://images.unsplash.com/photo-1497935586351-b67a49e012bf?w=500&q=80",
-    contentUrl: "https://images.unsplash.com/photo-1497935586351-b67a49e012bf?w=1000&q=80",
-    description: "Свежая выпечка каждое утро в Bulka! Хрустящие круассаны и ароматный эспрессо уже ждут тебя.",
-    duration: 15
-  },
-  {
-    id: 3,
-    title: "ПЛЮШКИ ЗА ДРУГА",
-    coverUrl: "https://images.unsplash.com/photo-1559525839-b184a4d698c7?w=500&q=80",
-    contentUrl: "https://images.unsplash.com/photo-1559525839-b184a4d698c7?w=1000&q=80",
-    description: "Приглашай друзей в нашу бонусную программу! Получай 500 подарочных баллов за каждого нового друга.",
-    duration: 15
-  }
-];
-
 async function getStories() {
   try {
-    const { data, error } = await supabase.from('stories').select('*').order('id', { ascending: true });
-    if (!error && data && data.length > 0) {
-      return data;
+    const { data, error } = await supabase
+      .from('stories')
+      .select('*')
+      .order('id', { ascending: true });
+      
+    if (error) {
+      console.error('Error loading stories from Supabase DB:', error.message);
+      return [];
     }
+    return data || [];
   } catch (err) {
-    console.warn('Could not load stories from DB, using memory:', err.message);
+    console.error('Exception loading stories from Supabase DB:', err.message);
+    return [];
   }
-  return memoryStories;
 }
 
 async function addStory(story) {
@@ -50,26 +29,39 @@ async function addStory(story) {
   };
 
   try {
-    const { error } = await supabase.from('stories').insert([newStory]);
+    const { data, error } = await supabase
+      .from('stories')
+      .insert([newStory])
+      .select()
+      .single();
+      
     if (error) {
-      console.warn('Could not save story to DB, saving to memory:', error.message);
+      console.error('Error saving story to Supabase DB:', error.message);
+      throw new Error(error.message);
     }
+    return data || newStory;
   } catch (err) {
-    console.warn('Error inserting story:', err.message);
+    console.error('Error inserting story into Supabase:', err.message);
+    throw err;
   }
-  memoryStories.push(newStory);
-  return newStory;
 }
 
 async function deleteStory(id) {
-  const numId = Number(id);
-  memoryStories = memoryStories.filter(s => s.id !== numId && String(s.id) !== String(id));
   try {
-    await supabase.from('stories').delete().eq('id', id);
+    const { error } = await supabase
+      .from('stories')
+      .delete()
+      .eq('id', id);
+      
+    if (error) {
+      console.error('Error deleting story from Supabase DB:', error.message);
+      throw new Error(error.message);
+    }
+    return true;
   } catch (err) {
-    console.warn('Error deleting from DB:', err.message);
+    console.error('Error deleting from Supabase:', err.message);
+    throw err;
   }
-  return true;
 }
 
 module.exports = { getStories, addStory, deleteStory };
