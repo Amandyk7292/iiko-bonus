@@ -2,12 +2,87 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 const { PKPass } = require('passkit-generator');
+const apn = require('@parse/node-apn');
 const jwt = require('jsonwebtoken');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { supabase } = require('./supabase');
 const iikoApi = require('./iiko-api');
+
+// APNs Setup
+let apnProvider = null;
+try {
+  if (process.env.WALLET_CERT && process.env.WALLET_KEY) {
+    apnProvider = new apn.Provider({
+      cert: Buffer.from(process.env.WALLET_CERT, 'base64'),
+      key: Buffer.from(process.env.WALLET_KEY, 'base64'),
+      production: true // or false depending on env, usually true for passes
+    });
+  }
+} catch (e) {
+  console.error("APN setup failed", e);
+}
+
+async function sendAppleWalletPush(customerId) {
+  if (!apnProvider) return;
+  const serialNumber = `bulka-${customerId}`;
+  const { supabase } = require('./supabase');
+  const { data: registrations } = await supabase.from('wallet_registrations').select('push_token').eq('serial_number', serialNumber);
+  if (registrations && registrations.length > 0) {
+    const notification = new apn.Notification();
+    registrations.forEach(reg => {
+      apnProvider.send(notification, reg.push_token).catch(err => console.error("APN push err:", err));
+    });
+  }
+}
+
+async function buildApplePassBuffer(customer, host) {
+    const settings = await getSettings();
+    const tier = getTierInfo(customer.total_spent, settings);
+
+    const signerCert = process.env.WALLET_CERT ? Buffer.from(process.env.WALLET_CERT, 'base64') : fs.readFileSync(path.join(__dirname, 'wallet_cert.pem'));
+    const signerKey = process.env.WALLET_KEY ? Buffer.from(process.env.WALLET_KEY, 'base64') : fs.readFileSync(path.join(__dirname, 'wallet_private_key.pem'));
+    const wwdr = process.env.WALLET_WWDR ? Buffer.from(process.env.WALLET_WWDR, 'base64') : fs.readFileSync(path.join(__dirname, 'wwdr.pem'));
+    
+    const authToken = crypto.createHash('sha256').update(customer.id.toString() + 'bulka').digest('hex');
+
+    const passJson = {
+      formatVersion: 1,
+      passTypeIdentifier: 'pass.com.bulka.bonus',
+      serialNumber: `bulka-${customer.id}`,
+      teamIdentifier: 'GKRRT4JU9G',
+      webServiceURL: `https://${host}/api/wallet`,
+      authenticationToken: authToken,
+      organizationName: 'Bulka Bakery',
+      description: 'Карта лояльности пекарни Bulka',
+      logoText: 'Bulka Bonus',
+      foregroundColor: 'rgb(255, 255, 255)',
+      backgroundColor: 'rgb(30, 20, 12)',
+      labelColor: 'rgb(200, 180, 150)',
+      barcode: { message: customer.phone, format: 'PKBarcodeFormatQR', messageEncoding: 'iso-8859-1' },
+      barcodes: [{ message: customer.phone, format: 'PKBarcodeFormatQR', messageEncoding: 'iso-8859-1' }],
+      storeCard: {
+        headerFields: [{ key: 'balance', label: 'БАЛАНС', value: `${customer.balance || 0} ₸` }],
+        primaryFields: [{ key: 'name', label: 'ГОСТЬ', value: customer.name || 'Гость' }],
+        secondaryFields: [{ key: 'status', label: 'СТАТУС', value: `${tier.name} ${tier.percent}%` }, { key: 'phone', label: 'ТЕЛЕФОН', value: customer.phone }],
+        auxiliaryFields: [{ key: 'spent', label: 'ПОКУПКИ', value: `${(customer.total_spent || 0).toLocaleString()} ₸` }]
+      }
+    };
+
+    const pass = new PKPass({
+      'pass.json': Buffer.from(JSON.stringify(passJson)),
+      'logo.png': fs.readFileSync(path.join(__dirname, 'pass.model', 'logo.png')),
+      'logo@2x.png': fs.readFileSync(path.join(__dirname, 'pass.model', 'logo@2x.png')),
+      'icon.png': fs.readFileSync(path.join(__dirname, 'pass.model', 'icon.png')),
+      'icon@2x.png': fs.readFileSync(path.join(__dirname, 'pass.model', 'icon@2x.png')),
+      'strip.png': fs.readFileSync(path.join(__dirname, 'pass.model', 'strip.png')),
+      'strip@2x.png': fs.readFileSync(path.join(__dirname, 'pass.model', 'strip@2x.png'))
+    }, { signerCert, signerKey, wwdr });
+
+    return await pass.getAsBuffer();
+}
+
 
 const { getCustomerByPhone, getOrCreateCustomerByPhone, searchCustomers, updateCustomerBalance, updateCustomerInfo, logTransaction, getAllCustomers, getTransactions, getStats, addManualBonus, checkAndExpireInactiveBonuses } = require('./customers');
 const { getSettings, updateSettings } = require('./settings');
@@ -376,6 +451,7 @@ app.post('/api/loyalty/apply', webhookMiddleware, async (req, res) => {
       sendMessage(customer.telegram_id, msg).catch(err => console.error("Error sending TG msg:", err));
     }
 
+    sendAppleWalletPush(customerId).catch(err => console.error('Push error:', err));
     res.json({ success: true, earnedBonus, cashbackPercent });
   } catch (error) { console.error(error); res.status(500).json({ error: 'Internal server error' }); }
 });
@@ -511,84 +587,7 @@ app.get('/api/wallet/download/:token', async (req, res) => {
     const { data: customer } = await supabase.from('customers').select('*').eq('phone', phone).single();
     if (!customer) return res.status(404).send('Customer not found');
 
-    const settings = await getSettings();
-    const tier = getTierInfo(customer.total_spent, settings);
-
-    // Получение сертификатов из ENV или файлов
-    const signerCert = process.env.WALLET_CERT 
-      ? Buffer.from(process.env.WALLET_CERT, 'base64') 
-      : fs.readFileSync(path.join(__dirname, 'wallet_cert.pem'));
-    const signerKey = process.env.WALLET_KEY 
-      ? Buffer.from(process.env.WALLET_KEY, 'base64') 
-      : fs.readFileSync(path.join(__dirname, 'wallet_private_key.pem'));
-    const wwdr = process.env.WALLET_WWDR 
-      ? Buffer.from(process.env.WALLET_WWDR, 'base64') 
-      : fs.readFileSync(path.join(__dirname, 'wwdr.pem'));
-
-    // Динамически собираем pass.json с реальными данными клиента
-    const passJson = {
-      formatVersion: 1,
-      passTypeIdentifier: 'pass.com.bulka.bonus',
-      serialNumber: `bulka-${customer.id}`,
-      teamIdentifier: 'GKRRT4JU9G',
-      organizationName: 'Bulka Bakery',
-      description: 'Карта лояльности пекарни Bulka',
-      logoText: 'Bulka Bonus',
-      foregroundColor: 'rgb(255, 255, 255)',
-      backgroundColor: 'rgb(30, 20, 12)',
-      labelColor: 'rgb(200, 180, 150)',
-      barcode: {
-        message: customer.phone,
-        format: 'PKBarcodeFormatQR',
-        messageEncoding: 'iso-8859-1'
-      },
-      barcodes: [{
-        message: customer.phone,
-        format: 'PKBarcodeFormatQR',
-        messageEncoding: 'iso-8859-1'
-      }],
-      storeCard: {
-        headerFields: [{
-          key: 'balance',
-          label: 'БАЛАНС',
-          value: `${customer.balance || 0} ₸`
-        }],
-        primaryFields: [{
-          key: 'name',
-          label: 'ГОСТЬ',
-          value: customer.name || 'Гость'
-        }],
-        secondaryFields: [{
-          key: 'status',
-          label: 'СТАТУС',
-          value: `${tier.name} ${tier.percent}%`
-        }, {
-          key: 'phone',
-          label: 'ТЕЛЕФОН',
-          value: customer.phone
-        }],
-        auxiliaryFields: [{
-          key: 'spent',
-          label: 'ПОКУПКИ',
-          value: `${(customer.total_spent || 0).toLocaleString()} ₸`
-        }]
-      }
-    };
-
-    const pass = new PKPass(
-      {
-        'pass.json': Buffer.from(JSON.stringify(passJson)),
-        'logo.png': fs.readFileSync(path.join(__dirname, 'pass.model', 'logo.png')),
-        'logo@2x.png': fs.readFileSync(path.join(__dirname, 'pass.model', 'logo@2x.png')),
-        'icon.png': fs.readFileSync(path.join(__dirname, 'pass.model', 'icon.png')),
-        'icon@2x.png': fs.readFileSync(path.join(__dirname, 'pass.model', 'icon@2x.png')),
-        'strip.png': fs.readFileSync(path.join(__dirname, 'pass.model', 'strip.png')),
-        'strip@2x.png': fs.readFileSync(path.join(__dirname, 'pass.model', 'strip@2x.png'))
-      },
-      { signerCert, signerKey, wwdr }
-    );
-
-    const buffer = await pass.getAsBuffer();
+    const buffer = await buildApplePassBuffer(customer, req.get('host'));
     
     res.set({
       'Content-Type': 'application/vnd.apple.pkpass',
@@ -739,6 +738,7 @@ app.post('/admin/api/customers/bonus', adminAuthMiddleware, async (req, res) => 
   try {
     const { customerId, amount, reason } = req.body;
     await addManualBonus(customerId, amount, reason);
+    sendAppleWalletPush(customerId).catch(err => console.error('Push error:', err));
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -855,6 +855,69 @@ app.post('/api/guest/profile', async (req, res) => {
 
 app.get(['/app', '/wallet', '/guest'], (req, res) => {
   res.sendFile(path.join(__dirname, 'app.html'));
+});
+
+
+// ==========================================
+// 3.6 APPLE WALLET WEB SERVICE
+// ==========================================
+
+app.post('/api/wallet/v1/devices/:deviceLibraryIdentifier/registrations/:passTypeIdentifier/:serialNumber', express.json(), async (req, res) => {
+  const { deviceLibraryIdentifier, passTypeIdentifier, serialNumber } = req.params;
+  const pushToken = req.body.pushToken;
+  if (!pushToken) return res.status(400).send();
+  const { supabase } = require('./supabase');
+  await supabase.from('wallet_registrations').upsert({
+    device_id: deviceLibraryIdentifier,
+    push_token: pushToken,
+    pass_type_id: passTypeIdentifier,
+    serial_number: serialNumber
+  }, { onConflict: 'device_id,serial_number' });
+  res.status(201).send();
+});
+
+app.delete('/api/wallet/v1/devices/:deviceLibraryIdentifier/registrations/:passTypeIdentifier/:serialNumber', async (req, res) => {
+  const { deviceLibraryIdentifier, serialNumber } = req.params;
+  const { supabase } = require('./supabase');
+  await supabase.from('wallet_registrations')
+    .delete()
+    .match({ device_id: deviceLibraryIdentifier, serial_number: serialNumber });
+  res.status(200).send();
+});
+
+app.get('/api/wallet/v1/devices/:deviceLibraryIdentifier/registrations/:passTypeIdentifier', async (req, res) => {
+  const { deviceLibraryIdentifier, passTypeIdentifier } = req.params;
+  const { supabase } = require('./supabase');
+  const { data } = await supabase.from('wallet_registrations')
+    .select('serial_number')
+    .eq('device_id', deviceLibraryIdentifier)
+    .eq('pass_type_id', passTypeIdentifier);
+  if (!data || data.length === 0) return res.status(204).send();
+  res.json({ lastUpdated: Date.now().toString(), serialNumbers: data.map(r => r.serial_number) });
+});
+
+app.get('/api/wallet/v1/passes/:passTypeIdentifier/:serialNumber', async (req, res) => {
+  const { serialNumber } = req.params;
+  const customerId = serialNumber.replace('bulka-', '');
+  const { supabase } = require('./supabase');
+  const { data: customer } = await supabase.from('customers').select('*').eq('id', customerId).single();
+  if (!customer) return res.status(404).send();
+  try {
+    const buffer = await buildApplePassBuffer(customer, req.get('host'));
+    res.set({
+      'Content-Type': 'application/vnd.apple.pkpass',
+      'Content-Disposition': `attachment; filename=${customer.phone}.pkpass`
+    });
+    res.send(buffer);
+  } catch(err) {
+    console.error(err);
+    res.status(500).send();
+  }
+});
+
+app.post('/api/wallet/v1/log', express.json(), (req, res) => {
+  console.log("Apple Wallet Logs:", req.body.logs);
+  res.status(200).send();
 });
 
 app.get('/health', (req, res) => res.send('iiko Bonus API is running'));
