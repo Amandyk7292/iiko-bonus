@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 const { PKPass } = require('passkit-generator');
+const jwt = require('jsonwebtoken');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -433,13 +434,14 @@ app.get('/wallet/:token', async (req, res) => {
 </div></body></html>`);
   }
   
-  const downloadUrl = `https://${req.get('host')}/api/wallet/download/${token}`;
+  const appleDownloadUrl = `https://${req.get('host')}/api/wallet/download/${token}`;
+  const googleDownloadUrl = `https://${req.get('host')}/api/wallet/google/download/${token}`;
   res.send(`<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Bulka Bonus — Apple Wallet</title>
+  <title>Bulka Bonus — Добавить в Wallet</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { 
@@ -456,12 +458,17 @@ app.get('/wallet/:token', async (req, res) => {
     .logo { font-size: 48px; margin-bottom: 16px; }
     h1 { font-size: 22px; color: #fff; margin-bottom: 8px; }
     p { color: #baa68e; font-size: 15px; margin-bottom: 24px; line-height: 1.5; }
+    
     .btn {
-      display: inline-block; background: #c8a87a; color: #1e140c;
-      padding: 14px 32px; border-radius: 12px; text-decoration: none;
-      font-size: 17px; font-weight: 700; transition: transform 0.2s;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      width: 100%; padding: 14px 20px; border-radius: 12px; text-decoration: none;
+      font-size: 17px; font-weight: 600; transition: transform 0.2s; margin-bottom: 12px;
     }
     .btn:active { transform: scale(0.96); }
+    
+    .btn-apple { background: #000; color: #fff; border: 1px solid #333; }
+    .btn-google { background: #fff; color: #3c4043; border: 1px solid #dadce0; }
+    
     .hint { margin-top: 20px; font-size: 12px; color: #665a4a; }
   </style>
 </head>
@@ -469,13 +476,20 @@ app.get('/wallet/:token', async (req, res) => {
   <div class="card">
     <div class="logo">🍞</div>
     <h1>Bulka Bonus Card</h1>
-    <p>Нажмите кнопку ниже, чтобы добавить вашу карту лояльности в Apple Wallet</p>
-    <a href="${downloadUrl}" class="btn"> Добавить в Wallet</a>
-    <p class="hint">Ссылка действует 10 минут и является одноразовой</p>
+    <p>Выберите, куда сохранить вашу карту лояльности</p>
+    
+    <a href="${appleDownloadUrl}" class="btn btn-apple">
+      <svg width="20" height="24" viewBox="0 0 384 512" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z"/></svg>
+      Apple Wallet
+    </a>
+    
+    <a href="${googleDownloadUrl}" class="btn btn-google">
+      <svg width="24" height="24" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg"><path fill="#4285F4" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/><path fill="#34A853" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4 16.318 4 9.656 8.337 6.306 14.691z"/><path fill="#FBBC05" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238C29.211 35.091 26.715 36 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/><path fill="#EA4335" d="M43.611 20.083H42V20H24v8h11.303c-.792 2.237-2.231 4.166-4.087 5.571.001-.001.002-.001.003-.002l6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/></svg>
+      Google Wallet
+    </a>
+    
+    <p class="hint">Ссылки действуют 10 минут и являются одноразовыми</p>
   </div>
-  <script>
-    setTimeout(function() { window.location.href = "${downloadUrl}"; }, 500);
-  </script>
 </body>
 </html>`);
 });
@@ -525,12 +539,12 @@ app.get('/api/wallet/download/:token', async (req, res) => {
       labelColor: 'rgb(200, 180, 150)',
       barcode: {
         message: customer.phone,
-        format: 'PKBarcodeFormatCode128',
+        format: 'PKBarcodeFormatQR',
         messageEncoding: 'iso-8859-1'
       },
       barcodes: [{
         message: customer.phone,
-        format: 'PKBarcodeFormatCode128',
+        format: 'PKBarcodeFormatQR',
         messageEncoding: 'iso-8859-1'
       }],
       storeCard: {
@@ -584,6 +598,88 @@ app.get('/api/wallet/download/:token', async (req, res) => {
   } catch (err) {
     console.error('Wallet generation error:', err);
     res.status(500).send('Error generating pass');
+  }
+});
+
+// Ссылка на добавление в Google Wallet (генерация JWT)
+app.get('/api/wallet/google/download/:token', async (req, res) => {
+  const token = req.params.token;
+  const tokenData = walletTokens.get(token);
+  
+  if (!tokenData || Date.now() > tokenData.expiresAt) {
+    return res.status(410).send('Ссылка истекла. Запросите новую через Telegram-бота.');
+  }
+  
+  // Мы НЕ удаляем токен, чтобы пользователь мог добавить карту и в Apple, и в Google Wallet, если захочет
+  
+  try {
+    const phone = tokenData.phone;
+    const { supabase } = require('./supabase');
+    const { data: customer } = await supabase.from('customers').select('*').eq('phone', phone).single();
+    if (!customer) return res.status(404).send('Customer not found');
+
+    const settings = await getSettings();
+    const tier = getTierInfo(customer.total_spent, settings);
+
+    const issuerId = process.env.GOOGLE_ISSUER_ID;
+    const classId = process.env.GOOGLE_CLASS_ID;
+    const credentialsRaw = process.env.GOOGLE_CREDENTIALS_JSON;
+    
+    if (!issuerId || !classId || !credentialsRaw) {
+       return res.status(500).send('Google Wallet is not configured on the server. Please check environment variables.');
+    }
+    
+    let credentials;
+    try {
+      credentials = JSON.parse(credentialsRaw);
+    } catch (e) {
+      return res.status(500).send('Invalid GOOGLE_CREDENTIALS_JSON format.');
+    }
+
+    const objectId = `${issuerId}.bulka-${customer.id}`;
+
+    const loyaltyObject = {
+      id: objectId,
+      classId: `${issuerId}.${classId}`,
+      state: 'ACTIVE',
+      accountId: customer.phone,
+      accountName: customer.name || 'Гость',
+      barcode: {
+        type: 'QR_CODE',
+        value: customer.phone,
+        alternateText: customer.phone
+      },
+      textModulesData: [
+        {
+          id: 'balance',
+          header: 'Баланс',
+          body: `${customer.balance || 0} ₸`
+        },
+        {
+          id: 'status',
+          header: 'Статус',
+          body: `${tier.name} ${tier.percent}%`
+        }
+      ]
+    };
+
+    const claims = {
+      iss: credentials.client_email,
+      aud: 'google',
+      origins: [],
+      typ: 'savetowallet',
+      payload: {
+        loyaltyObjects: [loyaltyObject]
+      }
+    };
+
+    const jwtToken = jwt.sign(claims, credentials.private_key, { algorithm: 'RS256' });
+    const saveUrl = `https://pay.google.com/gp/v/save/${jwtToken}`;
+
+    res.redirect(saveUrl);
+  } catch (err) {
+    console.error('Google Wallet generation error:', err);
+    res.status(500).send('Error generating Google Wallet pass');
   }
 });
 
