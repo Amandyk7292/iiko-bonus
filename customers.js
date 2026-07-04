@@ -18,14 +18,45 @@ function getSecretWalletCardNumber(customer) {
  */
 async function getCustomerByPhone(phone) {
   const digitsOnly = phone.replace(/[^0-9]/g, '');
-  const searchPattern = digitsOnly.length >= 10 ? digitsOnly.slice(-10) : phone.replace(/[^0-9+]/g, '');
+  
+  // 1. Попытка точного совпадения (по исходной строке)
+  let { data: customers, error: fetchError } = await supabase
+    .from('customers')
+    .select('*')
+    .eq('phone', phone)
+    .order('balance', { ascending: false })
+    .limit(1);
+    
+  if (customers && customers.length > 0) return customers[0];
 
-  const { data: customers, error: fetchError } = await supabase
+  // 2. Попытка точного совпадения (только цифры)
+  ({ data: customers, error: fetchError } = await supabase
+    .from('customers')
+    .select('*')
+    .eq('phone', digitsOnly)
+    .order('balance', { ascending: false })
+    .limit(1));
+    
+  if (customers && customers.length > 0) return customers[0];
+  
+  // 3. Попытка точного совпадения (с плюсом)
+  ({ data: customers, error: fetchError } = await supabase
+    .from('customers')
+    .select('*')
+    .eq('phone', '+' + digitsOnly)
+    .order('balance', { ascending: false })
+    .limit(1));
+    
+  if (customers && customers.length > 0) return customers[0];
+
+  // 4. Поиск по последним 10 цифрам (ilike) как запасной вариант
+  const searchPattern = digitsOnly.length >= 10 ? digitsOnly.slice(-10) : digitsOnly;
+  ({ data: customers, error: fetchError } = await supabase
     .from('customers')
     .select('*')
     .ilike('phone', `%${searchPattern}%`)
     .order('balance', { ascending: false })
-    .limit(1);
+    .limit(1));
 
   if (fetchError) throw new Error('Error fetching customer: ' + fetchError.message);
   return customers && customers.length > 0 ? customers[0] : null;
