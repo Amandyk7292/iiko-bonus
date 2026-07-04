@@ -73,7 +73,7 @@ async function useSupabaseAuthState() {
 
 let sock = null;
 
-async function initWhatsApp(otpStore, getCustomerByPhone) {
+async function initWhatsApp(otpStore, getOrCreateCustomerByPhone) {
   try {
     const { state, saveCreds } = await useSupabaseAuthState();
     
@@ -101,7 +101,7 @@ async function initWhatsApp(otpStore, getCustomerByPhone) {
         const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
         console.log('[WHATSAPP] Соединение закрыто. Переподключение:', shouldReconnect);
         if (shouldReconnect) {
-          initWhatsApp(otpStore, getCustomerByPhone);
+          initWhatsApp(otpStore, getOrCreateCustomerByPhone);
         } else {
           console.log('[WHATSAPP] Вы вышли из аккаунта. Удалите сессии из Supabase и запустите заново.');
         }
@@ -152,11 +152,7 @@ async function initWhatsApp(otpStore, getCustomerByPhone) {
         const phone = remoteJid.split('@')[0];
         
         try {
-          const customer = await getCustomerByPhone(phone);
-          if (!customer) {
-             await sock.sendMessage(remoteJid, { text: 'К сожалению, ваш номер не найден в системе лояльности Bulka.' });
-             return;
-          }
+          const customer = await getOrCreateCustomerByPhone(phone, 'Гость (WhatsApp)');
           
           // Генерируем OTP 4 цифры
           const code = Math.floor(1000 + Math.random() * 9000).toString();

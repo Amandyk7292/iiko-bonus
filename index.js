@@ -954,10 +954,7 @@ app.post('/api/auth/request-otp', async (req, res) => {
     const { phone } = req.body;
     if (!phone) return res.status(400).json({ error: 'Phone required' });
     
-    let customer = await getCustomerByPhone(phone);
-    if (!customer) {
-        return res.json({ success: false, error: 'not_found', message: 'Номер не зарегистрирован' });
-    }
+    let customer = await getOrCreateCustomerByPhone(phone, 'Гость (Android App)');
     
     // Check if valid OTP already exists (e.g. from WhatsApp bot)
     let code;
@@ -1326,7 +1323,7 @@ if (!process.env.VERCEL) {
     const telegramBot = require('./telegram');
     telegramBot.startPolling();
     // Запуск WhatsApp-бота (Baileys)
-    initWhatsApp(otpStore, getCustomerByPhone);
+    initWhatsApp(otpStore, getOrCreateCustomerByPhone);
   });
 }
 module.exports = { app, getTierInfo };
