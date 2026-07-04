@@ -108,18 +108,27 @@ fun LoginScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
+            val context = androidx.compose.ui.platform.LocalContext.current
             Button(
                 onClick = {
                     if (phoneInput.length == 10) {
                         scope.launch {
                             isLoading = true
                             errorMessage = null
-                            val fullPhone = "7$phoneInput"
+                            val fullPhone = "7\$phoneInput"
                             val (success, error) = onRequestOtp(fullPhone)
                             isLoading = false
                             if (success) {
                                 currentStep = 2
                                 otpInput = ""
+                                try {
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW)
+                                    intent.data = android.net.Uri.parse("https://wa.me/?text=Код")
+                                    context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    // WhatsApp not installed
+                                    android.widget.Toast.makeText(context, "Установите WhatsApp", android.widget.Toast.LENGTH_SHORT).show()
+                                }
                             } else {
                                 errorMessage = error ?: "Ошибка при запросе кода"
                             }
@@ -136,7 +145,7 @@ fun LoginScreen(
                 if (isLoading) {
                     CircularProgressIndicator(color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(24.dp))
                 } else {
-                    Text("ПОЛУЧИТЬ КОД", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
+                    Text("ПОЛУЧИТЬ В WHATSAPP", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
                 }
             }
         } else {
