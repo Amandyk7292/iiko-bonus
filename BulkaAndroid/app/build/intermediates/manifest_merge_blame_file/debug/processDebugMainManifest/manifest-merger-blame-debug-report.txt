@@ -9,11 +9,11 @@
 9        android:targetSdkVersion="34" />
 10
 11    <uses-permission android:name="android.permission.INTERNET" />
-11-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:5:5-67
-11-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:5:22-64
+11-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:4:5-67
+11-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:4:22-64
 12    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-12-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:6:5-77
-12-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:6:22-74
+12-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:5:5-77
+12-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:5:22-74
 13    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 13-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:22:5-79
 13-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:22:22-76
@@ -36,280 +36,281 @@
 21-->[androidx.core:core:1.12.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\077029c36d36863ffac34ba94960f389\transformed\core-1.12.0\AndroidManifest.xml:26:22-94
 22
 23    <application
-23-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:8:5-33:19
+23-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:7:5-32:19
 24        android:allowBackup="true"
-24-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:9:9-35
+24-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:8:9-35
 25        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
 25-->[androidx.core:core:1.12.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\077029c36d36863ffac34ba94960f389\transformed\core-1.12.0\AndroidManifest.xml:28:18-86
 26        android:debuggable="true"
 27        android:extractNativeLibs="false"
 28        android:icon="@android:drawable/sym_def_app_icon"
-28-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:10:9-58
+28-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:9:9-58
 29        android:label="Bulka Bonus"
-29-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:11:9-36
+29-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:10:9-36
 30        android:roundIcon="@android:drawable/sym_def_app_icon"
-30-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:12:9-63
+30-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:11:9-63
 31        android:supportsRtl="true"
-31-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:13:9-35
-32        android:theme="@style/Theme.BulkaBonus"
-32-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:14:9-48
-33        android:usesCleartextTraffic="true" >
-33-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:15:9-44
-34        <activity
-34-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:16:9-24:20
-35            android:name="com.bulka.bonus.MainActivity"
-35-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:17:13-41
-36            android:exported="true"
-36-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:18:13-36
-37            android:theme="@style/Theme.BulkaBonus" >
-37-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:19:13-52
-38            <intent-filter>
-38-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:20:13-23:29
-39                <action android:name="android.intent.action.MAIN" />
-39-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:21:17-69
-39-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:21:25-66
-40
-41                <category android:name="android.intent.category.LAUNCHER" />
-41-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:22:17-77
-41-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:22:27-74
-42            </intent-filter>
-43        </activity>
-44
-45        <service
-45-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:26:9-32:19
-46            android:name="com.bulka.bonus.service.BulkaFirebaseMessagingService"
-46-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:27:13-66
-47            android:exported="false" >
-47-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:28:13-37
-48            <intent-filter>
-48-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:29:13-31:29
-49                <action android:name="com.google.firebase.MESSAGING_EVENT" />
-49-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:30:17-78
-49-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:30:25-75
-50            </intent-filter>
-51        </service>
-52        <service
-52-->[com.google.firebase:firebase-messaging-ktx:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a47e2f27debefb0afacef5049ef2f7ad\transformed\firebase-messaging-ktx-23.4.0\AndroidManifest.xml:23:9-29:19
-53            android:name="com.google.firebase.components.ComponentDiscoveryService"
-53-->[com.google.firebase:firebase-messaging-ktx:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a47e2f27debefb0afacef5049ef2f7ad\transformed\firebase-messaging-ktx-23.4.0\AndroidManifest.xml:24:13-84
-54            android:directBootAware="true"
-54-->[com.google.firebase:firebase-common:20.4.2] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a6ec870f17bea0b3a9b177a3c4b3a4a3\transformed\firebase-common-20.4.2\AndroidManifest.xml:32:13-43
-55            android:exported="false" >
-55-->[com.google.firebase:firebase-messaging-ktx:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a47e2f27debefb0afacef5049ef2f7ad\transformed\firebase-messaging-ktx-23.4.0\AndroidManifest.xml:25:13-37
-56            <meta-data
-56-->[com.google.firebase:firebase-messaging-ktx:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a47e2f27debefb0afacef5049ef2f7ad\transformed\firebase-messaging-ktx-23.4.0\AndroidManifest.xml:26:13-28:85
-57                android:name="com.google.firebase.components:com.google.firebase.messaging.ktx.FirebaseMessagingLegacyRegistrar"
-57-->[com.google.firebase:firebase-messaging-ktx:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a47e2f27debefb0afacef5049ef2f7ad\transformed\firebase-messaging-ktx-23.4.0\AndroidManifest.xml:27:17-129
-58                android:value="com.google.firebase.components.ComponentRegistrar" />
-58-->[com.google.firebase:firebase-messaging-ktx:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a47e2f27debefb0afacef5049ef2f7ad\transformed\firebase-messaging-ktx-23.4.0\AndroidManifest.xml:28:17-82
-59            <meta-data
-59-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:57:13-59:85
-60                android:name="com.google.firebase.components:com.google.firebase.messaging.FirebaseMessagingKtxRegistrar"
-60-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:58:17-122
-61                android:value="com.google.firebase.components.ComponentRegistrar" />
-61-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:59:17-82
-62            <meta-data
-62-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:60:13-62:85
-63                android:name="com.google.firebase.components:com.google.firebase.messaging.FirebaseMessagingRegistrar"
-63-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:61:17-119
-64                android:value="com.google.firebase.components.ComponentRegistrar" />
-64-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:62:17-82
-65            <meta-data
-65-->[com.google.firebase:firebase-installations:17.2.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\4b939b350adfed1d98a3da5dda100316\transformed\firebase-installations-17.2.0\AndroidManifest.xml:15:13-17:85
-66                android:name="com.google.firebase.components:com.google.firebase.installations.FirebaseInstallationsKtxRegistrar"
-66-->[com.google.firebase:firebase-installations:17.2.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\4b939b350adfed1d98a3da5dda100316\transformed\firebase-installations-17.2.0\AndroidManifest.xml:16:17-130
-67                android:value="com.google.firebase.components.ComponentRegistrar" />
-67-->[com.google.firebase:firebase-installations:17.2.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\4b939b350adfed1d98a3da5dda100316\transformed\firebase-installations-17.2.0\AndroidManifest.xml:17:17-82
-68            <meta-data
-68-->[com.google.firebase:firebase-installations:17.2.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\4b939b350adfed1d98a3da5dda100316\transformed\firebase-installations-17.2.0\AndroidManifest.xml:18:13-20:85
-69                android:name="com.google.firebase.components:com.google.firebase.installations.FirebaseInstallationsRegistrar"
-69-->[com.google.firebase:firebase-installations:17.2.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\4b939b350adfed1d98a3da5dda100316\transformed\firebase-installations-17.2.0\AndroidManifest.xml:19:17-127
-70                android:value="com.google.firebase.components.ComponentRegistrar" />
-70-->[com.google.firebase:firebase-installations:17.2.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\4b939b350adfed1d98a3da5dda100316\transformed\firebase-installations-17.2.0\AndroidManifest.xml:20:17-82
-71            <meta-data
-71-->[com.google.firebase:firebase-common-ktx:20.4.2] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\2ba1bfd1aa85dc03f3a27a4af1395a3e\transformed\firebase-common-ktx-20.4.2\AndroidManifest.xml:12:13-14:85
-72                android:name="com.google.firebase.components:com.google.firebase.ktx.FirebaseCommonLegacyRegistrar"
-72-->[com.google.firebase:firebase-common-ktx:20.4.2] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\2ba1bfd1aa85dc03f3a27a4af1395a3e\transformed\firebase-common-ktx-20.4.2\AndroidManifest.xml:13:17-116
-73                android:value="com.google.firebase.components.ComponentRegistrar" />
-73-->[com.google.firebase:firebase-common-ktx:20.4.2] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\2ba1bfd1aa85dc03f3a27a4af1395a3e\transformed\firebase-common-ktx-20.4.2\AndroidManifest.xml:14:17-82
-74            <meta-data
-74-->[com.google.firebase:firebase-common:20.4.2] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a6ec870f17bea0b3a9b177a3c4b3a4a3\transformed\firebase-common-20.4.2\AndroidManifest.xml:35:13-37:85
-75                android:name="com.google.firebase.components:com.google.firebase.FirebaseCommonKtxRegistrar"
-75-->[com.google.firebase:firebase-common:20.4.2] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a6ec870f17bea0b3a9b177a3c4b3a4a3\transformed\firebase-common-20.4.2\AndroidManifest.xml:36:17-109
-76                android:value="com.google.firebase.components.ComponentRegistrar" />
-76-->[com.google.firebase:firebase-common:20.4.2] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a6ec870f17bea0b3a9b177a3c4b3a4a3\transformed\firebase-common-20.4.2\AndroidManifest.xml:37:17-82
-77            <meta-data
-77-->[com.google.firebase:firebase-datatransport:18.1.7] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\63292ccc9badc354a8a27eaa713966c8\transformed\firebase-datatransport-18.1.7\AndroidManifest.xml:27:13-29:85
-78                android:name="com.google.firebase.components:com.google.firebase.datatransport.TransportRegistrar"
-78-->[com.google.firebase:firebase-datatransport:18.1.7] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\63292ccc9badc354a8a27eaa713966c8\transformed\firebase-datatransport-18.1.7\AndroidManifest.xml:28:17-115
-79                android:value="com.google.firebase.components.ComponentRegistrar" />
-79-->[com.google.firebase:firebase-datatransport:18.1.7] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\63292ccc9badc354a8a27eaa713966c8\transformed\firebase-datatransport-18.1.7\AndroidManifest.xml:29:17-82
-80        </service>
-81
-82        <receiver
-82-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:29:9-40:20
-83            android:name="com.google.firebase.iid.FirebaseInstanceIdReceiver"
-83-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:30:13-78
-84            android:exported="true"
-84-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:31:13-36
-85            android:permission="com.google.android.c2dm.permission.SEND" >
-85-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:32:13-73
-86            <intent-filter>
-86-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:33:13-35:29
-87                <action android:name="com.google.android.c2dm.intent.RECEIVE" />
-87-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:34:17-81
-87-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:34:25-78
-88            </intent-filter>
-89
-90            <meta-data
-90-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:37:13-39:40
-91                android:name="com.google.android.gms.cloudmessaging.FINISHED_AFTER_HANDLED"
-91-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:38:17-92
-92                android:value="true" />
-92-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:39:17-37
-93        </receiver>
-94        <!--
-95             FirebaseMessagingService performs security checks at runtime,
-96             but set to not exported to explicitly avoid allowing another app to call it.
-97        -->
-98        <service
-98-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:46:9-53:19
-99            android:name="com.google.firebase.messaging.FirebaseMessagingService"
-99-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:47:13-82
-100            android:directBootAware="true"
-100-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:48:13-43
-101            android:exported="false" >
-101-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:49:13-37
-102            <intent-filter android:priority="-500" >
-102-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:29:13-31:29
-103                <action android:name="com.google.firebase.MESSAGING_EVENT" />
-103-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:30:17-78
-103-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:30:25-75
-104            </intent-filter>
-105        </service>
-106
-107        <provider
-107-->[androidx.emoji2:emoji2:1.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\f105c6d2a36b086be4ab60ecdfecc48d\transformed\emoji2-1.4.0\AndroidManifest.xml:24:9-32:20
-108            android:name="androidx.startup.InitializationProvider"
-108-->[androidx.emoji2:emoji2:1.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\f105c6d2a36b086be4ab60ecdfecc48d\transformed\emoji2-1.4.0\AndroidManifest.xml:25:13-67
-109            android:authorities="com.bulka.bonus.androidx-startup"
-109-->[androidx.emoji2:emoji2:1.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\f105c6d2a36b086be4ab60ecdfecc48d\transformed\emoji2-1.4.0\AndroidManifest.xml:26:13-68
-110            android:exported="false" >
-110-->[androidx.emoji2:emoji2:1.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\f105c6d2a36b086be4ab60ecdfecc48d\transformed\emoji2-1.4.0\AndroidManifest.xml:27:13-37
-111            <meta-data
-111-->[androidx.emoji2:emoji2:1.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\f105c6d2a36b086be4ab60ecdfecc48d\transformed\emoji2-1.4.0\AndroidManifest.xml:29:13-31:52
-112                android:name="androidx.emoji2.text.EmojiCompatInitializer"
-112-->[androidx.emoji2:emoji2:1.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\f105c6d2a36b086be4ab60ecdfecc48d\transformed\emoji2-1.4.0\AndroidManifest.xml:30:17-75
-113                android:value="androidx.startup" />
-113-->[androidx.emoji2:emoji2:1.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\f105c6d2a36b086be4ab60ecdfecc48d\transformed\emoji2-1.4.0\AndroidManifest.xml:31:17-49
-114            <meta-data
-114-->[androidx.lifecycle:lifecycle-process:2.7.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\ab2d23c478e10e83fb3e24ccb98b783f\transformed\lifecycle-process-2.7.0\AndroidManifest.xml:29:13-31:52
-115                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
-115-->[androidx.lifecycle:lifecycle-process:2.7.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\ab2d23c478e10e83fb3e24ccb98b783f\transformed\lifecycle-process-2.7.0\AndroidManifest.xml:30:17-78
-116                android:value="androidx.startup" />
-116-->[androidx.lifecycle:lifecycle-process:2.7.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\ab2d23c478e10e83fb3e24ccb98b783f\transformed\lifecycle-process-2.7.0\AndroidManifest.xml:31:17-49
-117            <meta-data
-117-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:29:13-31:52
-118                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
-118-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:30:17-85
-119                android:value="androidx.startup" />
-119-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:31:17-49
-120        </provider>
-121        <provider
-121-->[com.google.firebase:firebase-common:20.4.2] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a6ec870f17bea0b3a9b177a3c4b3a4a3\transformed\firebase-common-20.4.2\AndroidManifest.xml:23:9-28:39
-122            android:name="com.google.firebase.provider.FirebaseInitProvider"
-122-->[com.google.firebase:firebase-common:20.4.2] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a6ec870f17bea0b3a9b177a3c4b3a4a3\transformed\firebase-common-20.4.2\AndroidManifest.xml:24:13-77
-123            android:authorities="com.bulka.bonus.firebaseinitprovider"
-123-->[com.google.firebase:firebase-common:20.4.2] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a6ec870f17bea0b3a9b177a3c4b3a4a3\transformed\firebase-common-20.4.2\AndroidManifest.xml:25:13-72
-124            android:directBootAware="true"
-124-->[com.google.firebase:firebase-common:20.4.2] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a6ec870f17bea0b3a9b177a3c4b3a4a3\transformed\firebase-common-20.4.2\AndroidManifest.xml:26:13-43
-125            android:exported="false"
-125-->[com.google.firebase:firebase-common:20.4.2] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a6ec870f17bea0b3a9b177a3c4b3a4a3\transformed\firebase-common-20.4.2\AndroidManifest.xml:27:13-37
-126            android:initOrder="100" />
-126-->[com.google.firebase:firebase-common:20.4.2] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a6ec870f17bea0b3a9b177a3c4b3a4a3\transformed\firebase-common-20.4.2\AndroidManifest.xml:28:13-36
-127
-128        <activity
-128-->[com.google.android.gms:play-services-base:18.0.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\4c95150ea8ff11ed5bb2e801864abc25\transformed\play-services-base-18.0.1\AndroidManifest.xml:20:9-22:45
-129            android:name="com.google.android.gms.common.api.GoogleApiActivity"
-129-->[com.google.android.gms:play-services-base:18.0.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\4c95150ea8ff11ed5bb2e801864abc25\transformed\play-services-base-18.0.1\AndroidManifest.xml:20:19-85
-130            android:exported="false"
-130-->[com.google.android.gms:play-services-base:18.0.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\4c95150ea8ff11ed5bb2e801864abc25\transformed\play-services-base-18.0.1\AndroidManifest.xml:22:19-43
-131            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
-131-->[com.google.android.gms:play-services-base:18.0.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\4c95150ea8ff11ed5bb2e801864abc25\transformed\play-services-base-18.0.1\AndroidManifest.xml:21:19-78
-132
-133        <meta-data
-133-->[com.google.android.gms:play-services-basement:18.1.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\c8c137c0f6a960e7fce267de69ba88c5\transformed\play-services-basement-18.1.0\AndroidManifest.xml:21:9-23:69
-134            android:name="com.google.android.gms.version"
-134-->[com.google.android.gms:play-services-basement:18.1.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\c8c137c0f6a960e7fce267de69ba88c5\transformed\play-services-basement-18.1.0\AndroidManifest.xml:22:13-58
-135            android:value="@integer/google_play_services_version" />
-135-->[com.google.android.gms:play-services-basement:18.1.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\c8c137c0f6a960e7fce267de69ba88c5\transformed\play-services-basement-18.1.0\AndroidManifest.xml:23:13-66
-136
-137        <service
-137-->[com.google.android.datatransport:transport-backend-cct:3.1.8] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\97a00b19c93fc70adfc3fba51c30f29c\transformed\transport-backend-cct-3.1.8\AndroidManifest.xml:28:9-34:19
-138            android:name="com.google.android.datatransport.runtime.backends.TransportBackendDiscovery"
-138-->[com.google.android.datatransport:transport-backend-cct:3.1.8] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\97a00b19c93fc70adfc3fba51c30f29c\transformed\transport-backend-cct-3.1.8\AndroidManifest.xml:29:13-103
-139            android:exported="false" >
-139-->[com.google.android.datatransport:transport-backend-cct:3.1.8] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\97a00b19c93fc70adfc3fba51c30f29c\transformed\transport-backend-cct-3.1.8\AndroidManifest.xml:30:13-37
-140            <meta-data
-140-->[com.google.android.datatransport:transport-backend-cct:3.1.8] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\97a00b19c93fc70adfc3fba51c30f29c\transformed\transport-backend-cct-3.1.8\AndroidManifest.xml:31:13-33:39
-141                android:name="backend:com.google.android.datatransport.cct.CctBackendFactory"
-141-->[com.google.android.datatransport:transport-backend-cct:3.1.8] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\97a00b19c93fc70adfc3fba51c30f29c\transformed\transport-backend-cct-3.1.8\AndroidManifest.xml:32:17-94
-142                android:value="cct" />
-142-->[com.google.android.datatransport:transport-backend-cct:3.1.8] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\97a00b19c93fc70adfc3fba51c30f29c\transformed\transport-backend-cct-3.1.8\AndroidManifest.xml:33:17-36
-143        </service>
-144        <service
-144-->[com.google.android.datatransport:transport-runtime:3.1.8] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\93f1f74ff8ba75471c9e48d5f814634b\transformed\transport-runtime-3.1.8\AndroidManifest.xml:26:9-30:19
-145            android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.JobInfoSchedulerService"
-145-->[com.google.android.datatransport:transport-runtime:3.1.8] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\93f1f74ff8ba75471c9e48d5f814634b\transformed\transport-runtime-3.1.8\AndroidManifest.xml:27:13-117
-146            android:exported="false"
-146-->[com.google.android.datatransport:transport-runtime:3.1.8] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\93f1f74ff8ba75471c9e48d5f814634b\transformed\transport-runtime-3.1.8\AndroidManifest.xml:28:13-37
-147            android:permission="android.permission.BIND_JOB_SERVICE" >
-147-->[com.google.android.datatransport:transport-runtime:3.1.8] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\93f1f74ff8ba75471c9e48d5f814634b\transformed\transport-runtime-3.1.8\AndroidManifest.xml:29:13-69
-148        </service>
-149
-150        <receiver
-150-->[com.google.android.datatransport:transport-runtime:3.1.8] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\93f1f74ff8ba75471c9e48d5f814634b\transformed\transport-runtime-3.1.8\AndroidManifest.xml:32:9-34:40
-151            android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.AlarmManagerSchedulerBroadcastReceiver"
-151-->[com.google.android.datatransport:transport-runtime:3.1.8] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\93f1f74ff8ba75471c9e48d5f814634b\transformed\transport-runtime-3.1.8\AndroidManifest.xml:33:13-132
-152            android:exported="false" />
-152-->[com.google.android.datatransport:transport-runtime:3.1.8] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\93f1f74ff8ba75471c9e48d5f814634b\transformed\transport-runtime-3.1.8\AndroidManifest.xml:34:13-37
-153        <receiver
-153-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:34:9-52:20
-154            android:name="androidx.profileinstaller.ProfileInstallReceiver"
-154-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:35:13-76
-155            android:directBootAware="false"
-155-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:36:13-44
-156            android:enabled="true"
-156-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:37:13-35
-157            android:exported="true"
-157-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:38:13-36
-158            android:permission="android.permission.DUMP" >
-158-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:39:13-57
-159            <intent-filter>
-159-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:40:13-42:29
-160                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
-160-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:41:17-91
-160-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:41:25-88
-161            </intent-filter>
-162            <intent-filter>
-162-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:43:13-45:29
-163                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
-163-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:44:17-85
-163-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:44:25-82
-164            </intent-filter>
-165            <intent-filter>
-165-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:46:13-48:29
-166                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
-166-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:47:17-88
-166-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:47:25-85
-167            </intent-filter>
-168            <intent-filter>
-168-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:49:13-51:29
-169                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
-169-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:50:17-95
-169-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:50:25-92
-170            </intent-filter>
-171        </receiver>
-172    </application>
-173
-174</manifest>
+31-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:12:9-35
+32        android:testOnly="true"
+33        android:theme="@style/Theme.BulkaBonus"
+33-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:13:9-48
+34        android:usesCleartextTraffic="true" >
+34-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:14:9-44
+35        <activity
+35-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:15:9-23:20
+36            android:name="com.bulka.bonus.MainActivity"
+36-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:16:13-41
+37            android:exported="true"
+37-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:17:13-36
+38            android:theme="@style/Theme.BulkaBonus" >
+38-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:18:13-52
+39            <intent-filter>
+39-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:19:13-22:29
+40                <action android:name="android.intent.action.MAIN" />
+40-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:20:17-69
+40-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:20:25-66
+41
+42                <category android:name="android.intent.category.LAUNCHER" />
+42-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:21:17-77
+42-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:21:27-74
+43            </intent-filter>
+44        </activity>
+45
+46        <service
+46-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:25:9-31:19
+47            android:name="com.bulka.bonus.service.BulkaFirebaseMessagingService"
+47-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:26:13-66
+48            android:exported="false" >
+48-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:27:13-37
+49            <intent-filter>
+49-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:28:13-30:29
+50                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+50-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:29:17-78
+50-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:29:25-75
+51            </intent-filter>
+52        </service>
+53        <service
+53-->[com.google.firebase:firebase-messaging-ktx:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a47e2f27debefb0afacef5049ef2f7ad\transformed\firebase-messaging-ktx-23.4.0\AndroidManifest.xml:23:9-29:19
+54            android:name="com.google.firebase.components.ComponentDiscoveryService"
+54-->[com.google.firebase:firebase-messaging-ktx:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a47e2f27debefb0afacef5049ef2f7ad\transformed\firebase-messaging-ktx-23.4.0\AndroidManifest.xml:24:13-84
+55            android:directBootAware="true"
+55-->[com.google.firebase:firebase-common:20.4.2] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a6ec870f17bea0b3a9b177a3c4b3a4a3\transformed\firebase-common-20.4.2\AndroidManifest.xml:32:13-43
+56            android:exported="false" >
+56-->[com.google.firebase:firebase-messaging-ktx:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a47e2f27debefb0afacef5049ef2f7ad\transformed\firebase-messaging-ktx-23.4.0\AndroidManifest.xml:25:13-37
+57            <meta-data
+57-->[com.google.firebase:firebase-messaging-ktx:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a47e2f27debefb0afacef5049ef2f7ad\transformed\firebase-messaging-ktx-23.4.0\AndroidManifest.xml:26:13-28:85
+58                android:name="com.google.firebase.components:com.google.firebase.messaging.ktx.FirebaseMessagingLegacyRegistrar"
+58-->[com.google.firebase:firebase-messaging-ktx:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a47e2f27debefb0afacef5049ef2f7ad\transformed\firebase-messaging-ktx-23.4.0\AndroidManifest.xml:27:17-129
+59                android:value="com.google.firebase.components.ComponentRegistrar" />
+59-->[com.google.firebase:firebase-messaging-ktx:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a47e2f27debefb0afacef5049ef2f7ad\transformed\firebase-messaging-ktx-23.4.0\AndroidManifest.xml:28:17-82
+60            <meta-data
+60-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:57:13-59:85
+61                android:name="com.google.firebase.components:com.google.firebase.messaging.FirebaseMessagingKtxRegistrar"
+61-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:58:17-122
+62                android:value="com.google.firebase.components.ComponentRegistrar" />
+62-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:59:17-82
+63            <meta-data
+63-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:60:13-62:85
+64                android:name="com.google.firebase.components:com.google.firebase.messaging.FirebaseMessagingRegistrar"
+64-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:61:17-119
+65                android:value="com.google.firebase.components.ComponentRegistrar" />
+65-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:62:17-82
+66            <meta-data
+66-->[com.google.firebase:firebase-installations:17.2.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\4b939b350adfed1d98a3da5dda100316\transformed\firebase-installations-17.2.0\AndroidManifest.xml:15:13-17:85
+67                android:name="com.google.firebase.components:com.google.firebase.installations.FirebaseInstallationsKtxRegistrar"
+67-->[com.google.firebase:firebase-installations:17.2.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\4b939b350adfed1d98a3da5dda100316\transformed\firebase-installations-17.2.0\AndroidManifest.xml:16:17-130
+68                android:value="com.google.firebase.components.ComponentRegistrar" />
+68-->[com.google.firebase:firebase-installations:17.2.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\4b939b350adfed1d98a3da5dda100316\transformed\firebase-installations-17.2.0\AndroidManifest.xml:17:17-82
+69            <meta-data
+69-->[com.google.firebase:firebase-installations:17.2.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\4b939b350adfed1d98a3da5dda100316\transformed\firebase-installations-17.2.0\AndroidManifest.xml:18:13-20:85
+70                android:name="com.google.firebase.components:com.google.firebase.installations.FirebaseInstallationsRegistrar"
+70-->[com.google.firebase:firebase-installations:17.2.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\4b939b350adfed1d98a3da5dda100316\transformed\firebase-installations-17.2.0\AndroidManifest.xml:19:17-127
+71                android:value="com.google.firebase.components.ComponentRegistrar" />
+71-->[com.google.firebase:firebase-installations:17.2.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\4b939b350adfed1d98a3da5dda100316\transformed\firebase-installations-17.2.0\AndroidManifest.xml:20:17-82
+72            <meta-data
+72-->[com.google.firebase:firebase-common-ktx:20.4.2] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\2ba1bfd1aa85dc03f3a27a4af1395a3e\transformed\firebase-common-ktx-20.4.2\AndroidManifest.xml:12:13-14:85
+73                android:name="com.google.firebase.components:com.google.firebase.ktx.FirebaseCommonLegacyRegistrar"
+73-->[com.google.firebase:firebase-common-ktx:20.4.2] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\2ba1bfd1aa85dc03f3a27a4af1395a3e\transformed\firebase-common-ktx-20.4.2\AndroidManifest.xml:13:17-116
+74                android:value="com.google.firebase.components.ComponentRegistrar" />
+74-->[com.google.firebase:firebase-common-ktx:20.4.2] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\2ba1bfd1aa85dc03f3a27a4af1395a3e\transformed\firebase-common-ktx-20.4.2\AndroidManifest.xml:14:17-82
+75            <meta-data
+75-->[com.google.firebase:firebase-common:20.4.2] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a6ec870f17bea0b3a9b177a3c4b3a4a3\transformed\firebase-common-20.4.2\AndroidManifest.xml:35:13-37:85
+76                android:name="com.google.firebase.components:com.google.firebase.FirebaseCommonKtxRegistrar"
+76-->[com.google.firebase:firebase-common:20.4.2] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a6ec870f17bea0b3a9b177a3c4b3a4a3\transformed\firebase-common-20.4.2\AndroidManifest.xml:36:17-109
+77                android:value="com.google.firebase.components.ComponentRegistrar" />
+77-->[com.google.firebase:firebase-common:20.4.2] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a6ec870f17bea0b3a9b177a3c4b3a4a3\transformed\firebase-common-20.4.2\AndroidManifest.xml:37:17-82
+78            <meta-data
+78-->[com.google.firebase:firebase-datatransport:18.1.7] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\63292ccc9badc354a8a27eaa713966c8\transformed\firebase-datatransport-18.1.7\AndroidManifest.xml:27:13-29:85
+79                android:name="com.google.firebase.components:com.google.firebase.datatransport.TransportRegistrar"
+79-->[com.google.firebase:firebase-datatransport:18.1.7] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\63292ccc9badc354a8a27eaa713966c8\transformed\firebase-datatransport-18.1.7\AndroidManifest.xml:28:17-115
+80                android:value="com.google.firebase.components.ComponentRegistrar" />
+80-->[com.google.firebase:firebase-datatransport:18.1.7] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\63292ccc9badc354a8a27eaa713966c8\transformed\firebase-datatransport-18.1.7\AndroidManifest.xml:29:17-82
+81        </service>
+82
+83        <receiver
+83-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:29:9-40:20
+84            android:name="com.google.firebase.iid.FirebaseInstanceIdReceiver"
+84-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:30:13-78
+85            android:exported="true"
+85-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:31:13-36
+86            android:permission="com.google.android.c2dm.permission.SEND" >
+86-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:32:13-73
+87            <intent-filter>
+87-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:33:13-35:29
+88                <action android:name="com.google.android.c2dm.intent.RECEIVE" />
+88-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:34:17-81
+88-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:34:25-78
+89            </intent-filter>
+90
+91            <meta-data
+91-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:37:13-39:40
+92                android:name="com.google.android.gms.cloudmessaging.FINISHED_AFTER_HANDLED"
+92-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:38:17-92
+93                android:value="true" />
+93-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:39:17-37
+94        </receiver>
+95        <!--
+96             FirebaseMessagingService performs security checks at runtime,
+97             but set to not exported to explicitly avoid allowing another app to call it.
+98        -->
+99        <service
+99-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:46:9-53:19
+100            android:name="com.google.firebase.messaging.FirebaseMessagingService"
+100-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:47:13-82
+101            android:directBootAware="true"
+101-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:48:13-43
+102            android:exported="false" >
+102-->[com.google.firebase:firebase-messaging:23.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\30c77e5ffe23d8b318fc83d2e909fc6d\transformed\firebase-messaging-23.4.0\AndroidManifest.xml:49:13-37
+103            <intent-filter android:priority="-500" >
+103-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:28:13-30:29
+104                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+104-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:29:17-78
+104-->C:\Users\Asus Rog\Desktop\bulkaiiko-бонус система\BulkaAndroid\app\src\main\AndroidManifest.xml:29:25-75
+105            </intent-filter>
+106        </service>
+107
+108        <provider
+108-->[androidx.emoji2:emoji2:1.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\f105c6d2a36b086be4ab60ecdfecc48d\transformed\emoji2-1.4.0\AndroidManifest.xml:24:9-32:20
+109            android:name="androidx.startup.InitializationProvider"
+109-->[androidx.emoji2:emoji2:1.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\f105c6d2a36b086be4ab60ecdfecc48d\transformed\emoji2-1.4.0\AndroidManifest.xml:25:13-67
+110            android:authorities="com.bulka.bonus.androidx-startup"
+110-->[androidx.emoji2:emoji2:1.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\f105c6d2a36b086be4ab60ecdfecc48d\transformed\emoji2-1.4.0\AndroidManifest.xml:26:13-68
+111            android:exported="false" >
+111-->[androidx.emoji2:emoji2:1.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\f105c6d2a36b086be4ab60ecdfecc48d\transformed\emoji2-1.4.0\AndroidManifest.xml:27:13-37
+112            <meta-data
+112-->[androidx.emoji2:emoji2:1.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\f105c6d2a36b086be4ab60ecdfecc48d\transformed\emoji2-1.4.0\AndroidManifest.xml:29:13-31:52
+113                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+113-->[androidx.emoji2:emoji2:1.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\f105c6d2a36b086be4ab60ecdfecc48d\transformed\emoji2-1.4.0\AndroidManifest.xml:30:17-75
+114                android:value="androidx.startup" />
+114-->[androidx.emoji2:emoji2:1.4.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\f105c6d2a36b086be4ab60ecdfecc48d\transformed\emoji2-1.4.0\AndroidManifest.xml:31:17-49
+115            <meta-data
+115-->[androidx.lifecycle:lifecycle-process:2.7.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\ab2d23c478e10e83fb3e24ccb98b783f\transformed\lifecycle-process-2.7.0\AndroidManifest.xml:29:13-31:52
+116                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+116-->[androidx.lifecycle:lifecycle-process:2.7.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\ab2d23c478e10e83fb3e24ccb98b783f\transformed\lifecycle-process-2.7.0\AndroidManifest.xml:30:17-78
+117                android:value="androidx.startup" />
+117-->[androidx.lifecycle:lifecycle-process:2.7.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\ab2d23c478e10e83fb3e24ccb98b783f\transformed\lifecycle-process-2.7.0\AndroidManifest.xml:31:17-49
+118            <meta-data
+118-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:29:13-31:52
+119                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+119-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:30:17-85
+120                android:value="androidx.startup" />
+120-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:31:17-49
+121        </provider>
+122        <provider
+122-->[com.google.firebase:firebase-common:20.4.2] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a6ec870f17bea0b3a9b177a3c4b3a4a3\transformed\firebase-common-20.4.2\AndroidManifest.xml:23:9-28:39
+123            android:name="com.google.firebase.provider.FirebaseInitProvider"
+123-->[com.google.firebase:firebase-common:20.4.2] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a6ec870f17bea0b3a9b177a3c4b3a4a3\transformed\firebase-common-20.4.2\AndroidManifest.xml:24:13-77
+124            android:authorities="com.bulka.bonus.firebaseinitprovider"
+124-->[com.google.firebase:firebase-common:20.4.2] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a6ec870f17bea0b3a9b177a3c4b3a4a3\transformed\firebase-common-20.4.2\AndroidManifest.xml:25:13-72
+125            android:directBootAware="true"
+125-->[com.google.firebase:firebase-common:20.4.2] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a6ec870f17bea0b3a9b177a3c4b3a4a3\transformed\firebase-common-20.4.2\AndroidManifest.xml:26:13-43
+126            android:exported="false"
+126-->[com.google.firebase:firebase-common:20.4.2] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a6ec870f17bea0b3a9b177a3c4b3a4a3\transformed\firebase-common-20.4.2\AndroidManifest.xml:27:13-37
+127            android:initOrder="100" />
+127-->[com.google.firebase:firebase-common:20.4.2] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a6ec870f17bea0b3a9b177a3c4b3a4a3\transformed\firebase-common-20.4.2\AndroidManifest.xml:28:13-36
+128
+129        <activity
+129-->[com.google.android.gms:play-services-base:18.0.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\4c95150ea8ff11ed5bb2e801864abc25\transformed\play-services-base-18.0.1\AndroidManifest.xml:20:9-22:45
+130            android:name="com.google.android.gms.common.api.GoogleApiActivity"
+130-->[com.google.android.gms:play-services-base:18.0.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\4c95150ea8ff11ed5bb2e801864abc25\transformed\play-services-base-18.0.1\AndroidManifest.xml:20:19-85
+131            android:exported="false"
+131-->[com.google.android.gms:play-services-base:18.0.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\4c95150ea8ff11ed5bb2e801864abc25\transformed\play-services-base-18.0.1\AndroidManifest.xml:22:19-43
+132            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+132-->[com.google.android.gms:play-services-base:18.0.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\4c95150ea8ff11ed5bb2e801864abc25\transformed\play-services-base-18.0.1\AndroidManifest.xml:21:19-78
+133
+134        <meta-data
+134-->[com.google.android.gms:play-services-basement:18.1.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\c8c137c0f6a960e7fce267de69ba88c5\transformed\play-services-basement-18.1.0\AndroidManifest.xml:21:9-23:69
+135            android:name="com.google.android.gms.version"
+135-->[com.google.android.gms:play-services-basement:18.1.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\c8c137c0f6a960e7fce267de69ba88c5\transformed\play-services-basement-18.1.0\AndroidManifest.xml:22:13-58
+136            android:value="@integer/google_play_services_version" />
+136-->[com.google.android.gms:play-services-basement:18.1.0] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\c8c137c0f6a960e7fce267de69ba88c5\transformed\play-services-basement-18.1.0\AndroidManifest.xml:23:13-66
+137
+138        <service
+138-->[com.google.android.datatransport:transport-backend-cct:3.1.8] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\97a00b19c93fc70adfc3fba51c30f29c\transformed\transport-backend-cct-3.1.8\AndroidManifest.xml:28:9-34:19
+139            android:name="com.google.android.datatransport.runtime.backends.TransportBackendDiscovery"
+139-->[com.google.android.datatransport:transport-backend-cct:3.1.8] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\97a00b19c93fc70adfc3fba51c30f29c\transformed\transport-backend-cct-3.1.8\AndroidManifest.xml:29:13-103
+140            android:exported="false" >
+140-->[com.google.android.datatransport:transport-backend-cct:3.1.8] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\97a00b19c93fc70adfc3fba51c30f29c\transformed\transport-backend-cct-3.1.8\AndroidManifest.xml:30:13-37
+141            <meta-data
+141-->[com.google.android.datatransport:transport-backend-cct:3.1.8] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\97a00b19c93fc70adfc3fba51c30f29c\transformed\transport-backend-cct-3.1.8\AndroidManifest.xml:31:13-33:39
+142                android:name="backend:com.google.android.datatransport.cct.CctBackendFactory"
+142-->[com.google.android.datatransport:transport-backend-cct:3.1.8] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\97a00b19c93fc70adfc3fba51c30f29c\transformed\transport-backend-cct-3.1.8\AndroidManifest.xml:32:17-94
+143                android:value="cct" />
+143-->[com.google.android.datatransport:transport-backend-cct:3.1.8] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\97a00b19c93fc70adfc3fba51c30f29c\transformed\transport-backend-cct-3.1.8\AndroidManifest.xml:33:17-36
+144        </service>
+145        <service
+145-->[com.google.android.datatransport:transport-runtime:3.1.8] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\93f1f74ff8ba75471c9e48d5f814634b\transformed\transport-runtime-3.1.8\AndroidManifest.xml:26:9-30:19
+146            android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.JobInfoSchedulerService"
+146-->[com.google.android.datatransport:transport-runtime:3.1.8] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\93f1f74ff8ba75471c9e48d5f814634b\transformed\transport-runtime-3.1.8\AndroidManifest.xml:27:13-117
+147            android:exported="false"
+147-->[com.google.android.datatransport:transport-runtime:3.1.8] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\93f1f74ff8ba75471c9e48d5f814634b\transformed\transport-runtime-3.1.8\AndroidManifest.xml:28:13-37
+148            android:permission="android.permission.BIND_JOB_SERVICE" >
+148-->[com.google.android.datatransport:transport-runtime:3.1.8] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\93f1f74ff8ba75471c9e48d5f814634b\transformed\transport-runtime-3.1.8\AndroidManifest.xml:29:13-69
+149        </service>
+150
+151        <receiver
+151-->[com.google.android.datatransport:transport-runtime:3.1.8] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\93f1f74ff8ba75471c9e48d5f814634b\transformed\transport-runtime-3.1.8\AndroidManifest.xml:32:9-34:40
+152            android:name="com.google.android.datatransport.runtime.scheduling.jobscheduling.AlarmManagerSchedulerBroadcastReceiver"
+152-->[com.google.android.datatransport:transport-runtime:3.1.8] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\93f1f74ff8ba75471c9e48d5f814634b\transformed\transport-runtime-3.1.8\AndroidManifest.xml:33:13-132
+153            android:exported="false" />
+153-->[com.google.android.datatransport:transport-runtime:3.1.8] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\93f1f74ff8ba75471c9e48d5f814634b\transformed\transport-runtime-3.1.8\AndroidManifest.xml:34:13-37
+154        <receiver
+154-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:34:9-52:20
+155            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+155-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:35:13-76
+156            android:directBootAware="false"
+156-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:36:13-44
+157            android:enabled="true"
+157-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:37:13-35
+158            android:exported="true"
+158-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:38:13-36
+159            android:permission="android.permission.DUMP" >
+159-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:39:13-57
+160            <intent-filter>
+160-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:40:13-42:29
+161                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+161-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:41:17-91
+161-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:41:25-88
+162            </intent-filter>
+163            <intent-filter>
+163-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:43:13-45:29
+164                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+164-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:44:17-85
+164-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:44:25-82
+165            </intent-filter>
+166            <intent-filter>
+166-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:46:13-48:29
+167                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+167-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:47:17-88
+167-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:47:25-85
+168            </intent-filter>
+169            <intent-filter>
+169-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:49:13-51:29
+170                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+170-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:50:17-95
+170-->[androidx.profileinstaller:profileinstaller:1.3.1] C:\Users\Asus Rog\.gradle\caches\8.13\transforms\a5c1b6bfa95362b709ae23c80df3f32c\transformed\profileinstaller-1.3.1\AndroidManifest.xml:50:25-92
+171            </intent-filter>
+172        </receiver>
+173    </application>
+174
+175</manifest>
