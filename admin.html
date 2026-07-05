@@ -71,9 +71,9 @@
     .tab-active, .tab-inactive { border: 0; }
     .bonus-workspace { display: grid; grid-template-columns: 262px minmax(0, 1fr); gap: 32px; background: #ffffff; border: 1px solid #eef0f4; border-radius: 24px; padding: 28px; }
     .bonus-menu { display: flex; flex-direction: column; gap: 16px; }
-    .bonus-nav, .bonus-nav-active { width: 100%; min-height: 54px; display: flex; align-items: center; gap: 16px; padding: 0 24px; border-radius: 6px; font-size: 16px; font-weight: 700; border: 1px solid #e8e8e8; background: #ffffff; color: #8a8d94; text-align: left; transition: all 0.2s; box-shadow: 0 1px 2px rgba(20, 24, 32, 0.03); }
+    .bonus-nav, .bonus-nav-active { width: 100%; min-height: 53px; display: flex; align-items: center; gap: 16px; padding: 0 24px; border-radius: 6px; font-size: 16px; font-weight: 500; border: 1px solid #e7e7e6; background: transparent; color: #1d1f23; text-align: left; transition: all 0.2s; box-shadow: 0 1px 2px rgba(20, 24, 32, 0.03); }
     .bonus-nav:hover { color: #18805a; border-color: #bce7d5; }
-    .bonus-nav-active { color: #1d1f23; border-color: #66c78f; box-shadow: inset 0 0 0 1px #66c78f, 0 1px 2px rgba(20, 24, 32, 0.03); }
+    .bonus-nav-active { color: #1d1f23; border-color: #64c889; box-shadow: inset 0 0 0 1px #64c889, 0 1px 2px rgba(20, 24, 32, 0.03); }
     .bonus-menu-icon { width: 20px; height: 20px; border: 2px solid currentColor; border-radius: 5px; opacity: 0.45; flex: 0 0 auto; position: relative; }
     .bonus-menu-icon.circle { border-radius: 50%; }
     .bonus-menu-icon.lines::before, .bonus-menu-icon.lines::after { content: ""; position: absolute; left: 3px; right: 3px; height: 2px; background: currentColor; opacity: 0.8; }
@@ -82,7 +82,6 @@
     .bonus-panel-head { display: flex; align-items: center; gap: 16px; padding-bottom: 28px; border-bottom: 1px solid #eef0f4; margin-bottom: 28px; }
     .bonus-panel-head h3 { margin: 0; font-size: 20px; line-height: 1.2; color: #101318; font-weight: 700; }
     .bonus-panel-head p { color: #9aa0aa; font-size: 14px; }
-    .bonus-video { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 12px; border: 0; border-radius: 8px; background: var(--sagi-green); color: #ffffff; font-size: 13px; font-weight: 700; }
     .bonus-form-section { padding-bottom: 24px; margin-bottom: 24px; border-bottom: 1px solid #eef0f4; }
     .bonus-form-section label { display: block; font-size: 20px; color: #080a0d; margin-bottom: 14px; }
     .bonus-form-section label .required { color: #ef4444; }
@@ -101,7 +100,6 @@
       .sagi-page { padding: 16px; }
       .bonus-workspace { grid-template-columns: 1fr; padding: 18px; border-radius: 16px; }
       .bonus-panel-head { align-items: flex-start; flex-wrap: wrap; }
-      .bonus-video { margin-left: 0; }
     }
   </style>
 </head>
@@ -525,7 +523,6 @@
             <div class="bonus-panel-head">
               <h3>Бонусы</h3>
               <p>Информация может быть изменена в вашем профиле</p>
-              <button type="button" class="bonus-video">▶ Видео</button>
             </div>
 
         <div id="bonus-page-mode" class="bonus-page hidden grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -589,22 +586,23 @@
           <div class="bonus-form-section">
             <label for="bonus_expiration_mode">Сгорание <span class="required">*</span></label>
             <select id="bonus_expiration_mode" class="input-classic w-full h-14">
-              <option value="disabled"></option>
-              <option value="enabled">Включено</option>
-              <option value="manual">Только ручное списание</option>
+              <option value=""></option>
+              <option value="50">50%</option>
+              <option value="100">100%</option>
             </select>
           </div>
           <div class="bonus-form-section">
             <label for="bonus_expiration_period">Период <span class="required">*</span></label>
             <select id="bonus_expiration_period" class="input-classic w-full h-14">
               <option value="none">Без срока</option>
-              <option value="week">Неделя</option>
               <option value="two_weeks">Две недели</option>
               <option value="month">Месяц</option>
               <option value="two_months">Два месяца</option>
               <option value="three_months">Три месяца</option>
               <option value="half_year">Полгода</option>
               <option value="year">Год</option>
+              <option value="one_half_year">Полтора года</option>
+              <option value="two_years">2 года</option>
               <option value="custom">Свой срок</option>
             </select>
           </div>
@@ -924,8 +922,13 @@
 
     function switchBonusPage(pageId) {
       ['mode', 'standard', 'gradation', 'term', 'writeoff', 'birthday', 'promocode', 'cross', 'referral', 'automailing', 'photos', 'corporate'].forEach(id => {
-        document.getElementById('bonus-page-' + id).classList.toggle('hidden', id !== pageId);
-        document.getElementById('bonus-nav-' + id).className = id === pageId ? 'bonus-nav-active' : 'bonus-nav';
+        const page = document.getElementById('bonus-page-' + id);
+        const nav = document.getElementById('bonus-nav-' + id);
+        if (page) page.classList.toggle('hidden', id !== pageId);
+        if (nav) {
+          nav.className = id === pageId ? 'bonus-nav-active' : 'bonus-nav';
+          nav.setAttribute('aria-current', id === pageId ? 'page' : 'false');
+        }
       });
     }
 
@@ -984,7 +987,7 @@
       setValue('bonus_grad_platinum_cb', data.tier_platinum_cb || 10);
 
       setChecked('bonus_expiration_enabled', expiration.enabled !== false);
-      setValue('bonus_expiration_mode', expiration.mode || (expiration.enabled === false ? 'disabled' : 'enabled'));
+      setValue('bonus_expiration_mode', expiration.mode || expiration.burn_percent || '');
       setValue('bonus_expiration_period', expiration.period || 'none');
       setValue('bonus_bonus_name', data.bonus_name || 'Бонусы');
       setValue('bonus_expiration_days', expiration.expiration_days || 90);
@@ -1102,8 +1105,9 @@
           first_transaction_notification: getValue('bonus_first_notification')
         },
         bonus_expiration: {
-          enabled: getValue('bonus_expiration_mode', 'enabled') !== 'disabled',
-          mode: getValue('bonus_expiration_mode', 'enabled'),
+          enabled: Boolean(getValue('bonus_expiration_mode')),
+          mode: getValue('bonus_expiration_mode'),
+          burn_percent: getNumber('bonus_expiration_mode'),
           period: getValue('bonus_expiration_period', 'none'),
           expiration_days: getNumber('bonus_expiration_days', 90),
           notify_before_days: getNumber('bonus_notify_before', 30),
