@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "node --watch index.js"
+    "dev": "node --watch index.js",
+    "check:supabase": "node check-supabase.js"
   },
   "dependencies": {
     "@parse/node-apn": "^8.1.0",

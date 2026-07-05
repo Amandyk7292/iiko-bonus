@@ -34,23 +34,58 @@
     }
   </script>
   <style>
-    body { background-color: #fcfbf9; color: #333333; }
-    .card { background-color: #ffffff; border: 1px solid #efe6d5; box-shadow: 0 4px 20px rgba(184, 140, 90, 0.08); border-radius: 8px; }
-    .input-classic { border: 1px solid #e3d2b7; background: #fdfbf7; padding: 0.75rem 1rem; border-radius: 6px; color: #4a4a4a; transition: all 0.2s; }
-    .input-classic:focus { outline: none; border-color: #b88c5a; box-shadow: 0 0 0 3px rgba(184, 140, 90, 0.1); }
-    .btn-classic { background-color: #b88c5a; color: white; transition: all 0.2s; border-radius: 6px; border: 1px solid #9a714a; }
-    .btn-classic:hover { background-color: #9a714a; transform: translateY(-1px); }
-    .btn-outline { border: 1px solid #d3ba93; color: #7e5d40; background: transparent; transition: all 0.2s; border-radius: 6px; }
-    .btn-outline:hover { background: #f7f4ea; }
-    .tab-active { border-bottom: 2px solid #b88c5a; color: #7e5d40; font-weight: 600; }
-    .tab-inactive { color: #9ca3af; font-weight: 500; }
-    .tab-inactive:hover { color: #7e5d40; }
-    table th { color: #7e5d40; font-weight: 600; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.05em; border-bottom: 2px solid #efe6d5; }
-    table td { border-bottom: 1px solid #f7f4ea; }
-    table tr:hover td { background-color: #fdfbf7; }
+    :root {
+      --sagi-bg: #f6f7fb;
+      --sagi-sidebar: #ffffff;
+      --sagi-text: #1d1f23;
+      --sagi-muted: #7b8190;
+      --sagi-border: #e6e8ef;
+      --sagi-green: #4eb78b;
+      --sagi-green-dark: #25966d;
+      --sagi-soft: #f8fafc;
+    }
+    body { background-color: var(--sagi-bg); color: var(--sagi-text); letter-spacing: 0; }
+    .card { background-color: #ffffff; border: 1px solid var(--sagi-border); box-shadow: 0 8px 28px rgba(29, 31, 35, 0.04); border-radius: 6px; }
+    .input-classic { border: 1px solid #dfe3eb; background: #ffffff; padding: 0.72rem 0.9rem; border-radius: 4px; color: #1d1f23; transition: border-color 0.2s, box-shadow 0.2s; min-height: 44px; }
+    .input-classic:focus { outline: none; border-color: var(--sagi-green); box-shadow: 0 0 0 3px rgba(78, 183, 139, 0.16); }
+    .btn-classic { background-color: var(--sagi-green); color: white; transition: all 0.2s; border-radius: 4px; border: 1px solid var(--sagi-green); min-height: 44px; }
+    .btn-classic:hover { background-color: var(--sagi-green-dark); border-color: var(--sagi-green-dark); }
+    .btn-outline { border: 1px solid #dfe3eb; color: #30343b; background: #ffffff; transition: all 0.2s; border-radius: 4px; min-height: 40px; }
+    .btn-outline:hover { background: #f4f7f6; border-color: #cfd8d4; }
+    .sagi-shell { display: grid; grid-template-columns: 278px minmax(0, 1fr); min-height: 100dvh; background: var(--sagi-bg); }
+    .sagi-sidebar { background: var(--sagi-sidebar); border-right: 1px solid var(--sagi-border); padding: 18px 14px; overflow-y: auto; }
+    .sagi-brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 18px; border-bottom: 1px solid var(--sagi-border); margin-bottom: 14px; }
+    .sagi-brand-mark { width: 36px; height: 36px; border-radius: 8px; background: linear-gradient(135deg, #4eb78b, #2d7ff9); color: white; display: grid; place-items: center; font-weight: 800; }
+    .sagi-branch { padding: 10px 8px; margin-bottom: 10px; font-size: 13px; color: var(--sagi-muted); }
+    .sagi-nav-title { color: #9aa1ad; font-size: 11px; font-weight: 700; text-transform: uppercase; margin: 18px 10px 6px; }
+    .sagi-nav-link { width: 100%; display: flex; align-items: center; gap: 10px; min-height: 38px; padding: 8px 10px; border: 0; border-radius: 5px; background: transparent; color: #3d424c; font-size: 14px; font-weight: 500; text-align: left; cursor: pointer; }
+    .sagi-nav-link:hover { background: #f3f6f8; color: #1d1f23; }
+    .sagi-nav-link-active { width: 100%; display: flex; align-items: center; gap: 10px; min-height: 38px; padding: 8px 10px; border: 0; border-radius: 5px; background: #eaf7f1; color: #18805a; font-size: 14px; font-weight: 700; text-align: left; cursor: pointer; }
+    .sagi-main { min-width: 0; display: flex; flex-direction: column; }
+    .sagi-topbar { height: 64px; background: #ffffff; border-bottom: 1px solid var(--sagi-border); display: flex; align-items: center; justify-content: space-between; padding: 0 28px; }
+    .sagi-page { padding: 28px; overflow: auto; }
+    .sagi-page-title { font-size: 24px; font-weight: 700; color: #1d1f23; margin: 0; }
+    .sagi-page-subtitle { font-size: 13px; color: var(--sagi-muted); margin-top: 4px; }
+    .sagi-filter { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; padding: 16px; background: #fff; border: 1px solid var(--sagi-border); border-radius: 6px; }
+    .sagi-field label, .sagi-label { display: block; font-size: 13px; font-weight: 600; color: #555b66; margin-bottom: 6px; }
+    .tab-active, .tab-inactive { border: 0; }
+    .bonus-nav, .bonus-nav-active { white-space: nowrap; padding: 0.72rem 0.95rem; border-radius: 4px; font-size: 0.875rem; font-weight: 600; border: 1px solid transparent; transition: all 0.2s; }
+    .bonus-nav { color: #525967; background: #ffffff; border-color: var(--sagi-border); }
+    .bonus-nav:hover { color: #18805a; background: #f4fbf8; border-color: #bce7d5; }
+    .bonus-nav-active { color: #ffffff; background: var(--sagi-green); border-color: var(--sagi-green); }
+    .bonus-option { display: flex; align-items: center; gap: 0.5rem; min-height: 44px; border: 1px solid var(--sagi-border); background: #ffffff; border-radius: 4px; padding: 0.75rem; font-size: 0.875rem; cursor: pointer; }
+    table th { color: #616875; font-weight: 700; font-size: 0.75rem; letter-spacing: 0; border-bottom: 1px solid var(--sagi-border); background: #f9fafc; }
+    table td { border-bottom: 1px solid #eef0f4; }
+    table tr:hover td { background-color: #fbfcfd; }
+    @media (max-width: 920px) {
+      .sagi-shell { grid-template-columns: 1fr; }
+      .sagi-sidebar { position: static; max-height: none; border-right: 0; border-bottom: 1px solid var(--sagi-border); }
+      .sagi-topbar { padding: 0 16px; }
+      .sagi-page { padding: 16px; }
+    }
   </style>
 </head>
-<body class="min-h-screen p-4 md:p-8 font-sans">
+<body class="min-h-screen font-sans">
   
   <!-- Modal Auth -->
   <div id="authModal" class="fixed inset-0 bg-[#333333] bg-opacity-40 flex items-center justify-center z-50 backdrop-blur-sm transition-opacity duration-300">
@@ -169,31 +204,85 @@
   </div>
 
   <!-- Dashboard -->
-  <div id="dashboard" class="w-full max-w-6xl mx-auto card hidden overflow-hidden flex flex-col min-h-[80vh]">
-    <!-- Header -->
-    <div class="p-8 border-b border-beige-200 flex justify-between items-center bg-white">
-      <div>
-        <h1 class="text-3xl font-serif text-beige-800">Bonus CRM</h1>
-        <p class="text-sm text-gray-500 mt-1">Панель управления лояльностью</p>
+  <div id="dashboard" class="hidden sagi-shell">
+    <aside class="sagi-sidebar">
+      <div class="sagi-brand">
+        <div class="sagi-brand-mark">B</div>
+        <div>
+          <div class="font-bold text-gray-900">Bulka Business</div>
+          <div class="text-xs text-gray-500">Bonus admin</div>
+        </div>
       </div>
-      <button onclick="logout()" class="btn-outline px-4 py-2 text-sm">Выйти</button>
-    </div>
+      <div class="sagi-branch">
+        <div class="font-semibold text-gray-800">Туркестан 3а</div>
+        <div>• Программа лояльности</div>
+      </div>
 
-    <!-- Navigation Tabs -->
-    <div class="flex border-b border-beige-200 px-8 bg-beige-50">
-      <button onclick="switchTab('analytics')" id="tab-analytics" class="px-6 py-4 tab-active">Аналитика</button>
-      <button onclick="switchTab('customers')" id="tab-customers" class="px-6 py-4 tab-inactive">Клиенты</button>
-      <button onclick="switchTab('transactions')" id="tab-transactions" class="px-6 py-4 tab-inactive">Транзакции</button>
-      <button onclick="switchTab('stories')" id="tab-stories" class="px-6 py-4 tab-inactive text-blue-600 font-semibold">Сториз (Акции)</button>
-      <button onclick="switchTab('broadcast')" id="tab-broadcast" class="px-6 py-4 tab-inactive text-purple-700">Рассылки</button>
-      <button onclick="switchTab('settings')" id="tab-settings" class="px-6 py-4 tab-inactive">Настройки</button>
-    </div>
+      <div class="sagi-nav-title">Главное</div>
+      <button onclick="switchTab('analytics')" id="tab-analytics" class="sagi-nav-link-active">Аналитика</button>
+      <button onclick="switchTab('transactions')" id="tab-transactions" class="sagi-nav-link">Транзакции</button>
+      <button onclick="switchTab('broadcast')" id="tab-broadcast" class="sagi-nav-link">WhatsApp / Рассылки</button>
 
-    <!-- Content Area -->
-    <div class="p-8 flex-1 overflow-auto bg-white">
+      <div class="sagi-nav-title">Аналитика</div>
+      <button onclick="switchTab('analytics')" class="sagi-nav-link">Общие продажи</button>
+      <button onclick="switchTab('analytics')" class="sagi-nav-link">Лояльные и новые</button>
+      <button onclick="switchTab('bonus')" class="sagi-nav-link">Бонусы</button>
+      <button onclick="switchTab('customers')" class="sagi-nav-link">Теги</button>
+      <button onclick="switchTab('broadcast')" class="sagi-nav-link">Аналитика авторассылок</button>
+
+      <div class="sagi-nav-title">Клиенты</div>
+      <button onclick="switchTab('customers')" id="tab-customers" class="sagi-nav-link">База клиентов</button>
+
+      <div class="sagi-nav-title">Профиль</div>
+      <button onclick="switchTab('settings')" id="tab-settings" class="sagi-nav-link">Общая информация</button>
+      <button onclick="switchTab('stories')" id="tab-stories" class="sagi-nav-link">Фотографии / Сториз</button>
+      <button onclick="switchTab('bonus')" id="tab-bonus" class="sagi-nav-link">Бонусы</button>
+      <button onclick="switchTab('settings')" class="sagi-nav-link">Награды</button>
+      <button onclick="switchTab('settings')" class="sagi-nav-link">QR регистрация</button>
+      <button onclick="switchTab('broadcast')" class="sagi-nav-link">Уведомления</button>
+
+      <div class="sagi-nav-title">Реклама</div>
+      <button onclick="switchTab('stories')" class="sagi-nav-link">Общая информация</button>
+      <button onclick="switchTab('bonus'); switchBonusPage('cross')" class="sagi-nav-link">Cross</button>
+
+      <div class="sagi-nav-title">Администрация</div>
+      <button onclick="switchTab('settings')" class="sagi-nav-link">Безопасность</button>
+    </aside>
+
+    <main class="sagi-main">
+      <div class="sagi-topbar">
+        <div>
+          <p class="sagi-page-title" id="pageTitle">Аналитика</p>
+          <p class="sagi-page-subtitle" id="pageSubtitle">Обзор продаж, клиентов и бонусов</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <button class="btn-outline px-3 py-2 text-sm">RU</button>
+          <button onclick="logout()" class="btn-outline px-4 py-2 text-sm">Выйти</button>
+        </div>
+      </div>
+
+      <!-- Content Area -->
+      <div class="sagi-page">
       
       <!-- TAB: Analytics -->
       <div id="content-analytics" class="space-y-8">
+        <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+          <div>
+            <h2 class="sagi-page-title">Общие продажи</h2>
+            <p class="sagi-page-subtitle">Динамика продаж, бонусов и текущих обязательств</p>
+          </div>
+          <div class="sagi-filter">
+            <div class="sagi-field">
+              <label>Период с</label>
+              <input type="date" class="input-classic">
+            </div>
+            <div class="sagi-field">
+              <label>Период до</label>
+              <input type="date" class="input-classic">
+            </div>
+            <button onclick="fetchStats()" class="btn-classic px-5 py-2">Фильтр</button>
+          </div>
+        </div>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div class="card p-6 border-l-4 border-l-beige-500">
             <div class="flex justify-between items-start">
@@ -255,25 +344,43 @@
 
       <!-- TAB: Customers -->
       <div id="content-customers" class="hidden space-y-6">
-        <div class="flex justify-between items-center gap-4 flex-wrap">
-          <input type="text" id="searchCustomer" onkeyup="renderCustomers()" placeholder="Поиск по телефону или имени..." class="input-classic w-full max-w-md">
-          <div class="flex gap-2 flex-wrap">
-            <button onclick="triggerNotifyInactive()" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg shadow-sm transition flex items-center gap-2 text-sm">
-              Напомнить гостям (30 дней)
-            </button>
-            <button onclick="triggerExpireBonuses()" class="bg-orange-600 hover:bg-orange-700 text-white font-medium py-2 px-4 rounded-lg shadow-sm transition flex items-center gap-2 text-sm">
-              Списать неактивные (90 дней)
-            </button>
+        <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+          <div>
+            <h2 class="sagi-page-title">База клиентов</h2>
+            <p class="sagi-page-subtitle">Клиенты, статусы, бонусы, покупки, теги, рассылки</p>
           </div>
+          <button onclick="exportCustomersCsv()" class="btn-outline px-5 py-2">Экспорт</button>
+        </div>
+        <div class="sagi-filter">
+          <div class="sagi-field flex-1 min-w-[280px]">
+            <label>Поиск</label>
+            <input type="text" id="searchCustomer" onkeyup="renderCustomers()" placeholder="Поиск по имени или по номеру телефона 7077087778" class="input-classic w-full">
+          </div>
+          <div class="sagi-field">
+            <label>Последняя покупка</label>
+            <input type="date" class="input-classic">
+          </div>
+          <div class="sagi-field">
+            <label>Дата регистрации</label>
+            <input type="date" class="input-classic">
+          </div>
+          <label class="bonus-option min-w-[180px]"><input type="checkbox" id="multiSelectCustomers"> Выбрать несколько</label>
+          <button onclick="triggerNotifyInactive()" class="btn-outline px-4 py-2 text-sm">Напомнить гостям</button>
+          <button onclick="triggerExpireBonuses()" class="btn-outline px-4 py-2 text-sm text-red-600">Списать неактивные</button>
         </div>
         <div class="card overflow-x-auto">
           <table class="w-full text-left border-collapse">
             <thead class="bg-beige-50">
               <tr>
+                <th class="py-4 px-4">#</th>
                 <th class="py-4 px-6">Имя</th>
                 <th class="py-4 px-6">Телефон</th>
+                <th class="py-4 px-6">Статус</th>
+                <th class="py-4 px-6 text-right">Транзакции</th>
                 <th class="py-4 px-6 text-right">Баланс</th>
                 <th class="py-4 px-6 text-right">Общие покупки (тнг)</th>
+                <th class="py-4 px-6">Статус накоплений</th>
+                <th class="py-4 px-6">Рассылка</th>
                 <th class="py-4 px-6 text-center">Управление</th>
               </tr>
             </thead>
@@ -284,19 +391,44 @@
 
       <!-- TAB: Transactions -->
       <div id="content-transactions" class="hidden space-y-6">
-        <div class="flex justify-between items-center">
-          <input type="text" id="searchTransaction" onkeyup="renderTransactions()" placeholder="Поиск по № чека, телефону или имени..." class="input-classic w-full max-w-md">
+        <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+          <div>
+            <h2 class="sagi-page-title">Транзакции</h2>
+            <p class="sagi-page-subtitle">Оплаты, сертификаты, начисления и списания бонусов</p>
+          </div>
+          <div class="flex gap-2 flex-wrap">
+            <button onclick="alert('Форма оплаты подключается к iiko POS. Используйте кассу для проведения оплаты.')" class="btn-classic px-4 py-2">Провести оплату</button>
+            <button onclick="switchTab('stories')" class="btn-outline px-4 py-2">Выдать сертификат</button>
+            <button onclick="promptManualBonusByPhone()" class="btn-outline px-4 py-2">Начислить бонус</button>
+          </div>
+        </div>
+        <div class="sagi-filter">
+          <div class="sagi-field">
+            <label>За весь период</label>
+            <input type="date" class="input-classic">
+          </div>
+          <div class="sagi-field">
+            <label>До</label>
+            <input type="date" class="input-classic">
+          </div>
+          <div class="sagi-field flex-1 min-w-[260px]">
+            <label>Поиск</label>
+            <input type="text" id="searchTransaction" onkeyup="renderTransactions()" placeholder="Поиск по номеру телефона" class="input-classic w-full">
+          </div>
         </div>
         <div class="card overflow-x-auto">
           <table class="w-full text-left border-collapse">
             <thead class="bg-beige-50">
               <tr>
-                <th class="py-4 px-6">Дата и время</th>
+                <th class="py-4 px-6">Дата</th>
+                <th class="py-4 px-6">Номер транзакции</th>
                 <th class="py-4 px-6">Клиент</th>
-                <th class="py-4 px-6">Чек / Основание</th>
-                <th class="py-4 px-6 text-right">Сумма чека (тнг)</th>
-                <th class="py-4 px-6">Тип операции</th>
-                <th class="py-4 px-6 text-right">Сумма бонусов</th>
+                <th class="py-4 px-6">Номер телефона</th>
+                <th class="py-4 px-6">Метод оплаты</th>
+                <th class="py-4 px-6 text-right">Сумма</th>
+                <th class="py-4 px-6 text-right">Использовано</th>
+                <th class="py-4 px-6 text-right">Бонус</th>
+                <th class="py-4 px-6">Статус</th>
               </tr>
             </thead>
             <tbody id="transactionsTable" class="text-sm text-gray-700"></tbody>
@@ -344,6 +476,230 @@
             <tbody id="storiesTable" class="text-sm text-gray-700"></tbody>
           </table>
         </div>
+      </div>
+
+      <!-- TAB: Bonus -->
+      <div id="content-bonus" class="hidden space-y-6">
+        <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+          <div>
+            <h2 class="text-xl font-serif text-beige-800">Бонусная система</h2>
+            <p class="text-sm text-gray-500">Структура как в Sagi Business: режимы, правила, cross-marketing, промокоды, рефералы и авто-коммуникации.</p>
+          </div>
+          <button onclick="saveBonusSettings()" id="bonusSaveBtn" class="btn-classic px-5 py-3 font-semibold shadow-sm">Сохранить бонусный модуль</button>
+        </div>
+
+        <div class="flex gap-2 overflow-x-auto border-b border-beige-200 pb-2">
+          <button onclick="switchBonusPage('term')" id="bonus-nav-term" class="bonus-nav-active">Срок действия</button>
+          <button onclick="switchBonusPage('writeoff')" id="bonus-nav-writeoff" class="bonus-nav">Списание</button>
+          <button onclick="switchBonusPage('mode')" id="bonus-nav-mode" class="bonus-nav">Активация</button>
+          <button onclick="switchBonusPage('birthday')" id="bonus-nav-birthday" class="bonus-nav">День рождения</button>
+          <button onclick="switchBonusPage('photos')" id="bonus-nav-photos" class="bonus-nav">Фотографии</button>
+          <button onclick="switchBonusPage('standard')" id="bonus-nav-standard" class="bonus-nav">Стандартный</button>
+          <button onclick="switchBonusPage('corporate')" id="bonus-nav-corporate" class="bonus-nav">Корпоративный</button>
+          <button onclick="switchBonusPage('gradation')" id="bonus-nav-gradation" class="bonus-nav">Накопительный</button>
+          <button onclick="switchBonusPage('promocode')" id="bonus-nav-promocode" class="bonus-nav">Сумма транзакций</button>
+          <button onclick="switchBonusPage('automailing')" id="bonus-nav-automailing" class="bonus-nav">Авторассылка</button>
+          <button onclick="switchBonusPage('referral')" id="bonus-nav-referral" class="bonus-nav">Реферальная система</button>
+          <button onclick="switchBonusPage('cross')" id="bonus-nav-cross" class="bonus-nav">Cross</button>
+          <button onclick="switchBonusPage('promocode')" class="bonus-nav">Ежемесячный отчет</button>
+        </div>
+
+        <div id="bonus-page-mode" class="bonus-page hidden grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="card p-5 lg:col-span-2">
+            <h3 class="font-bold text-gray-800 mb-4">Режим начисления</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <label class="bonus-option"><input type="radio" name="bonus_mode" value="cashback"> Кэшбэк от суммы</label>
+              <label class="bonus-option"><input type="radio" name="bonus_mode" value="accumulative"> Накопительный</label>
+              <label class="bonus-option"><input type="radio" name="bonus_mode" value="cascade"> Каскад по источникам</label>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+              <label class="block text-sm">Базовый кэшбэк (%)<input type="number" id="bonus_standard_percent" class="input-classic w-full mt-1"></label>
+              <label class="block text-sm">Лимит оплаты (%)<input type="number" id="bonus_max_discount" class="input-classic w-full mt-1"></label>
+              <label class="block text-sm">Бонус за первую покупку<input type="number" id="bonus_first_transaction" class="input-classic w-full mt-1"></label>
+            </div>
+          </div>
+          <div class="card p-5">
+            <h3 class="font-bold text-gray-800 mb-4">Активация</h3>
+            <label class="flex items-center gap-2 mb-3"><input type="checkbox" id="bonus_activation_enabled"> Включена</label>
+            <label class="block text-sm mb-3">Задержка активации, дней<input type="number" id="bonus_activation_delay" class="input-classic w-full mt-1"></label>
+            <label class="block text-sm">Текст уведомления<textarea id="bonus_first_notification" rows="4" class="input-classic w-full mt-1"></textarea></label>
+          </div>
+        </div>
+
+        <div id="bonus-page-standard" class="bonus-page hidden grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="card p-5">
+            <h3 class="font-bold text-gray-800 mb-4">Стандартные правила</h3>
+            <label class="block text-sm mb-3">Начислять бонусов (%)<input type="number" id="bonus_standard_cashback" class="input-classic w-full mt-1"></label>
+            <label class="block text-sm mb-3">Максимум оплаты бонусами (%)<input type="number" id="bonus_standard_write_limit" class="input-classic w-full mt-1"></label>
+            <label class="flex items-center gap-2"><input type="checkbox" id="bonus_apply_to_all"> Применять ко всем филиалам и источникам</label>
+          </div>
+          <div class="card p-5">
+            <h3 class="font-bold text-gray-800 mb-4">Источники</h3>
+            <div class="grid grid-cols-2 gap-3">
+              <label class="bonus-option"><input type="checkbox" id="bonus_source_pos"> iiko POS</label>
+              <label class="bonus-option"><input type="checkbox" id="bonus_source_app"> Мобильное приложение</label>
+              <label class="bonus-option"><input type="checkbox" id="bonus_source_certificate"> Сертификаты</label>
+              <label class="bonus-option"><input type="checkbox" id="bonus_source_manual"> Ручные операции</label>
+            </div>
+          </div>
+        </div>
+
+        <div id="bonus-page-gradation" class="bonus-page hidden grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div class="card p-5 border-l-4 border-l-gray-400">
+            <h3 class="font-bold text-gray-700 mb-3">Bronze</h3>
+            <label class="block text-sm">Кэшбэк (%)<input type="number" id="bonus_grad_bronze" class="input-classic w-full mt-1"></label>
+          </div>
+          <div class="card p-5 border-l-4 border-l-yellow-400">
+            <h3 class="font-bold text-yellow-700 mb-3">Gold</h3>
+            <label class="block text-sm mb-3">Порог<input type="number" id="bonus_grad_gold_th" class="input-classic w-full mt-1"></label>
+            <label class="block text-sm">Кэшбэк (%)<input type="number" id="bonus_grad_gold_cb" class="input-classic w-full mt-1"></label>
+          </div>
+          <div class="card p-5 border-l-4 border-l-blue-300">
+            <h3 class="font-bold text-blue-800 mb-3">Platinum</h3>
+            <label class="block text-sm mb-3">Порог<input type="number" id="bonus_grad_platinum_th" class="input-classic w-full mt-1"></label>
+            <label class="block text-sm">Кэшбэк (%)<input type="number" id="bonus_grad_platinum_cb" class="input-classic w-full mt-1"></label>
+          </div>
+        </div>
+
+        <div id="bonus-page-term" class="bonus-page grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="card p-5">
+            <h3 class="font-bold text-gray-800 mb-4">Срок жизни бонусов</h3>
+            <label class="flex items-center gap-2 mb-3"><input type="checkbox" id="bonus_expiration_enabled"> Ограничивать срок</label>
+            <label class="block text-sm mb-3">Срок действия, дней<input type="number" id="bonus_expiration_days" class="input-classic w-full mt-1"></label>
+            <label class="block text-sm">Напомнить за, дней<input type="number" id="bonus_notify_before" class="input-classic w-full mt-1"></label>
+          </div>
+          <div class="card p-5">
+            <h3 class="font-bold text-gray-800 mb-4">Автосписание</h3>
+            <label class="flex items-center gap-2 mb-3"><input type="checkbox" id="bonus_auto_writeoff"> Включить автоматическое списание</label>
+            <p class="text-sm text-gray-500">Кнопки ручного списания и напоминаний уже доступны во вкладке клиентов.</p>
+            <div class="flex gap-2 mt-4">
+              <button onclick="triggerNotifyInactive()" class="btn-outline px-4 py-2 text-sm">Напомнить</button>
+              <button onclick="triggerExpireBonuses()" class="btn-outline px-4 py-2 text-sm">Списать</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="bonus-page-writeoff" class="bonus-page hidden card p-5">
+          <h3 class="font-bold text-gray-800 mb-4">Правила списания</h3>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <label class="block text-sm">Максимум оплаты чека (%)<input type="number" id="bonus_writeoff_percent" class="input-classic w-full mt-1"></label>
+            <label class="block text-sm">Минимальный чек<input type="number" id="bonus_writeoff_min_check" class="input-classic w-full mt-1"></label>
+            <label class="block text-sm">Шаг списания<input type="number" id="bonus_writeoff_step" class="input-classic w-full mt-1"></label>
+          </div>
+        </div>
+
+        <div id="bonus-page-birthday" class="bonus-page hidden grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="card p-5">
+            <h3 class="font-bold text-gray-800 mb-4">Бонус ко дню рождения</h3>
+            <label class="flex items-center gap-2 mb-3"><input type="checkbox" id="bonus_birthday_enabled"> Включить</label>
+            <label class="block text-sm mb-3">Количество бонусов<input type="number" id="bonus_birthday_amount" class="input-classic w-full mt-1"></label>
+            <label class="block text-sm">Срок действия, дней<input type="number" id="bonus_birthday_expiration" class="input-classic w-full mt-1"></label>
+          </div>
+          <div class="card p-5">
+            <h3 class="font-bold text-gray-800 mb-4">Сообщение</h3>
+            <textarea id="bonus_birthday_message" rows="7" class="input-classic w-full"></textarea>
+          </div>
+        </div>
+
+        <div id="bonus-page-promocode" class="bonus-page hidden space-y-4">
+          <div class="card p-5">
+            <h3 class="font-bold text-gray-800 mb-4">Добавить промокод</h3>
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-3">
+              <input id="promo_code" class="input-classic" placeholder="KOFEBONUS">
+              <input id="promo_bonus" type="number" class="input-classic" placeholder="Бонусы">
+              <input id="promo_limit" type="number" class="input-classic" placeholder="Лимит">
+              <input id="promo_until" type="date" class="input-classic">
+              <button onclick="addPromocode()" class="btn-classic px-4 py-2">Добавить</button>
+            </div>
+          </div>
+          <div class="card overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead class="bg-beige-50"><tr><th class="py-3 px-4">Код</th><th class="py-3 px-4">Бонусы</th><th class="py-3 px-4">Лимит</th><th class="py-3 px-4">До</th><th class="py-3 px-4 text-right">Действия</th></tr></thead>
+              <tbody id="promocodeTable"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="bonus-page-cross" class="bonus-page hidden grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="card p-5">
+            <h3 class="font-bold text-gray-800 mb-4">Кросс бонусы</h3>
+            <label class="flex items-center gap-2 mb-4"><input type="checkbox" id="bonus_cross_enabled"> Включить cross-бонусы</label>
+            <label class="block text-sm mb-3">Бонусы новым клиентам<input type="number" id="bonus_cross_new_clients" class="input-classic w-full mt-1"></label>
+            <label class="block text-sm mb-3">Бонусы лояльным клиентам<input type="number" id="bonus_cross_loyal_clients" class="input-classic w-full mt-1"></label>
+            <label class="block text-sm">Минимальный чек<input type="number" id="bonus_cross_min_check" class="input-classic w-full mt-1"></label>
+          </div>
+          <div class="card p-5">
+            <h3 class="font-bold text-gray-800 mb-4">Период и город</h3>
+            <label class="block text-sm mb-3">Период
+              <select id="bonus_cross_period" class="input-classic w-full mt-1">
+                <option value="none">Без срока</option>
+                <option value="week">Неделя</option>
+                <option value="two_weeks">Две недели</option>
+                <option value="month">Месяц</option>
+                <option value="two_months">Два месяца</option>
+                <option value="three_months">Три месяца</option>
+                <option value="half_year">Полгода</option>
+                <option value="year">Год</option>
+              </select>
+            </label>
+            <label class="block text-sm mb-3">Город<input id="bonus_cross_city" class="input-classic w-full mt-1" placeholder="Все города"></label>
+            <p class="text-sm text-gray-500">Настройка повторяет экран Sagi Business `/profile/bonus/cross`.</p>
+          </div>
+        </div>
+
+        <div id="bonus-page-referral" class="bonus-page hidden card p-5">
+          <h3 class="font-bold text-gray-800 mb-4">Реферальная программа</h3>
+          <label class="flex items-center gap-2 mb-4"><input type="checkbox" id="bonus_referral_enabled"> Включить referral</label>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <label class="block text-sm">Бонус пригласившему<input type="number" id="bonus_ref_inviter" class="input-classic w-full mt-1"></label>
+            <label class="block text-sm">Бонус другу<input type="number" id="bonus_ref_friend" class="input-classic w-full mt-1"></label>
+            <label class="block text-sm">Минимальный первый чек<input type="number" id="bonus_ref_min_order" class="input-classic w-full mt-1"></label>
+          </div>
+        </div>
+
+        <div id="bonus-page-automailing" class="bonus-page hidden grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div class="card p-5">
+            <h3 class="font-bold text-gray-800 mb-4">Авторассылка</h3>
+            <label class="flex items-center gap-2 mb-3"><input type="checkbox" id="bonus_auto_enabled"> Включить</label>
+            <label class="block text-sm">Неактивность, дней<input type="number" id="bonus_auto_days" class="input-classic w-full mt-1"></label>
+          </div>
+          <div class="card p-5">
+            <h3 class="font-bold text-gray-800 mb-4">Текст</h3>
+            <textarea id="bonus_auto_message" rows="7" class="input-classic w-full"></textarea>
+          </div>
+        </div>
+
+        <div id="bonus-page-photos" class="bonus-page hidden grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div class="card p-5">
+            <h3 class="font-bold text-gray-800 mb-4">Брендированная карта</h3>
+            <label class="block text-sm mb-3">Название карты<input id="bonus_card_title" class="input-classic w-full mt-1"></label>
+            <label class="block text-sm mb-3">URL баннера<input id="bonus_banner_url" class="input-classic w-full mt-1"></label>
+            <label class="block text-sm">URL логотипа<input id="bonus_logo_url" class="input-classic w-full mt-1"></label>
+          </div>
+          <div class="md:col-span-2 card p-5">
+            <h3 class="font-bold text-gray-800 mb-4">Превью</h3>
+            <div class="rounded-lg overflow-hidden border border-beige-200 bg-beige-50 max-w-md">
+              <div id="bonusCardPreview" class="h-40 bg-cover bg-center flex items-end p-5" style="background-image: linear-gradient(135deg, #ffb300, #7e5d40);">
+                <div class="bg-white/90 rounded p-3">
+                  <p id="bonusCardPreviewTitle" class="font-bold text-beige-900">Bulka Bonus</p>
+                  <p class="text-sm text-gray-600">Баланс, QR, статус гостя</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="bonus-page-corporate" class="bonus-page hidden card p-5">
+          <h3 class="font-bold text-gray-800 mb-4">Корпоративные бонусы</h3>
+          <label class="flex items-center gap-2 mb-4"><input type="checkbox" id="bonus_corp_enabled"> Включить corporate-сценарий</label>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <label class="block text-sm">Компания<input id="bonus_corp_company" class="input-classic w-full mt-1"></label>
+            <label class="block text-sm">Месячный лимит<input type="number" id="bonus_corp_limit" class="input-classic w-full mt-1"></label>
+            <label class="block text-sm">Кэшбэк сотрудникам (%)<input type="number" id="bonus_corp_cashback" class="input-classic w-full mt-1"></label>
+          </div>
+        </div>
+
+        <p id="bonusSaveMsg" class="text-sm font-medium text-green-600 hidden">Бонусный модуль сохранен.</p>
       </div>
 
       <!-- TAB: Settings -->
@@ -414,12 +770,13 @@
         </div>
       </div>
 
-    </div>
+      </div>
+    </main>
   </div>
 
   <script>
     let token = localStorage.getItem('adminToken') || '';
-    let currentData = { customers: [], transactions: [], stats: {} };
+    let currentData = { customers: [], transactions: [], stats: {}, bonusSettings: {}, promocodes: [] };
     let chartInstance = null;
 
     if(token) initApp();
@@ -446,21 +803,31 @@
       document.getElementById('authModal').classList.add('hidden');
       document.getElementById('dashboard').classList.remove('hidden');
       await Promise.all([fetchSettings(), fetchStats(), fetchCustomers(), fetchTransactions(), fetchStories()]);
+      bindBonusInputs();
       renderChart();
     }
 
     function switchTab(tabId) {
-      ['analytics', 'customers', 'transactions', 'settings', 'broadcast', 'stories'].forEach(id => {
+      const titles = {
+        analytics: ['Аналитика', 'Обзор продаж, клиентов и бонусов'],
+        customers: ['База клиентов', 'Клиенты, статусы, бонусы, покупки, теги, рассылки'],
+        transactions: ['Транзакции', 'Оплаты, сертификаты, начисления и списания бонусов'],
+        bonus: ['Бонусы', 'Сроки, списание, стандартный бонус, referral и cross'],
+        stories: ['Фотографии / Сториз', 'Рекламные материалы мобильного приложения'],
+        broadcast: ['WhatsApp / Рассылки', 'Массовые и автоматические уведомления'],
+        settings: ['Общая информация', 'Настройки программы лояльности и безопасности']
+      };
+      ['analytics', 'customers', 'transactions', 'bonus', 'settings', 'broadcast', 'stories'].forEach(id => {
         document.getElementById('content-' + id).classList.add('hidden');
-        document.getElementById('tab-' + id).className = 'px-6 py-4 tab-inactive';
+        const tab = document.getElementById('tab-' + id);
+        if (tab) tab.className = 'sagi-nav-link';
       });
       document.getElementById('content-' + tabId).classList.remove('hidden');
-      if (tabId === 'broadcast') {
-        document.getElementById('tab-' + tabId).className = 'px-6 py-4 tab-active text-purple-700';
-      } else if (tabId === 'stories') {
-        document.getElementById('tab-' + tabId).className = 'px-6 py-4 tab-active text-blue-600 font-semibold';
-      } else {
-        document.getElementById('tab-' + tabId).className = 'px-6 py-4 tab-active';
+      const activeTab = document.getElementById('tab-' + tabId);
+      if (activeTab) activeTab.className = 'sagi-nav-link-active';
+      if (titles[tabId]) {
+        document.getElementById('pageTitle').innerText = titles[tabId][0];
+        document.getElementById('pageSubtitle').innerText = titles[tabId][1];
       }
     }
 
@@ -468,6 +835,39 @@
       const res = await fetch('/admin/api/' + endpoint, { headers: { 'Authorization': 'Bearer ' + token } });
       if(!res.ok) throw new Error('Auth failed');
       return await res.json();
+    }
+
+    function setValue(id, value) {
+      const el = document.getElementById(id);
+      if (el) el.value = value ?? '';
+    }
+
+    function setChecked(id, value) {
+      const el = document.getElementById(id);
+      if (el) el.checked = Boolean(value);
+    }
+
+    function getNumber(id, fallback = 0) {
+      const el = document.getElementById(id);
+      if (!el || el.value === '') return fallback;
+      return Number(el.value);
+    }
+
+    function getValue(id, fallback = '') {
+      const el = document.getElementById(id);
+      return el ? el.value : fallback;
+    }
+
+    function getChecked(id) {
+      const el = document.getElementById(id);
+      return Boolean(el && el.checked);
+    }
+
+    function switchBonusPage(pageId) {
+      ['mode', 'standard', 'gradation', 'term', 'writeoff', 'birthday', 'promocode', 'cross', 'referral', 'automailing', 'photos', 'corporate'].forEach(id => {
+        document.getElementById('bonus-page-' + id).classList.toggle('hidden', id !== pageId);
+        document.getElementById('bonus-nav-' + id).className = id === pageId ? 'bonus-nav-active' : 'bonus-nav';
+      });
     }
 
     async function fetchSettings() {
@@ -481,8 +881,261 @@
         document.getElementById('tier_platinum_th').value = data.tier_platinum_th || 300000;
         document.getElementById('tier_platinum_cb').value = data.tier_platinum_cb || 10;
         document.getElementById('max_discount_percent').value = data.max_discount_percent || 50;
+        const localBonusSettings = JSON.parse(localStorage.getItem('bonusSettingsDraft') || '{}');
+        hydrateBonusSettings(Object.assign({}, data, localBonusSettings));
         return true;
       } catch (e) { return false; }
+    }
+
+    function hydrateBonusSettings(data) {
+      const activation = data.bonus_activation || {};
+      const expiration = data.bonus_expiration || {};
+      const birthday = data.bonus_birthday || {};
+      const cross = data.bonus_cross || {};
+      const referral = data.bonus_referral || {};
+      const automailing = data.bonus_automailing || {};
+      const media = data.bonus_card_media || {};
+      const corporate = data.bonus_corporate || {};
+
+      currentData.bonusSettings = data;
+      currentData.promocodes = Array.isArray(data.bonus_promocodes) ? data.bonus_promocodes : [];
+
+      const mode = data.bonus_mode || 'cashback';
+      const modeInput = document.querySelector(`input[name="bonus_mode"][value="${mode}"]`);
+      if (modeInput) modeInput.checked = true;
+      setValue('bonus_standard_percent', data.base_cashback_percent || 3);
+      setValue('bonus_max_discount', data.max_discount_percent || 50);
+      setValue('bonus_first_transaction', activation.first_transaction_bonus || 0);
+      setChecked('bonus_activation_enabled', activation.enabled !== false);
+      setValue('bonus_activation_delay', activation.delay_days || 0);
+      setValue('bonus_first_notification', activation.first_transaction_notification || '');
+
+      setValue('bonus_standard_cashback', data.base_cashback_percent || 3);
+      setValue('bonus_standard_write_limit', data.max_discount_percent || 50);
+      setChecked('bonus_apply_to_all', data.bonus_apply_to_all !== false);
+      setChecked('bonus_source_pos', data.bonus_source_pos !== false);
+      setChecked('bonus_source_app', data.bonus_source_app !== false);
+      setChecked('bonus_source_certificate', Boolean(data.bonus_source_certificate));
+      setChecked('bonus_source_manual', data.bonus_source_manual !== false);
+
+      setValue('bonus_grad_bronze', data.base_cashback_percent || 3);
+      setValue('bonus_grad_gold_th', data.tier_gold_th || 150000);
+      setValue('bonus_grad_gold_cb', data.tier_gold_cb || 7);
+      setValue('bonus_grad_platinum_th', data.tier_platinum_th || 300000);
+      setValue('bonus_grad_platinum_cb', data.tier_platinum_cb || 10);
+
+      setChecked('bonus_expiration_enabled', expiration.enabled !== false);
+      setValue('bonus_expiration_days', expiration.expiration_days || 90);
+      setValue('bonus_notify_before', expiration.notify_before_days || 30);
+      setChecked('bonus_auto_writeoff', expiration.auto_write_off !== false);
+      setValue('bonus_writeoff_percent', data.max_discount_percent || 50);
+      setValue('bonus_writeoff_min_check', data.bonus_writeoff_min_check || 0);
+      setValue('bonus_writeoff_step', data.bonus_writeoff_step || 1);
+
+      setChecked('bonus_birthday_enabled', birthday.enabled !== false);
+      setValue('bonus_birthday_amount', birthday.bonus_amount || 500);
+      setValue('bonus_birthday_expiration', birthday.expiration_days || 14);
+      setValue('bonus_birthday_message', birthday.message || '');
+
+      setChecked('bonus_cross_enabled', Boolean(cross.enabled));
+      setValue('bonus_cross_new_clients', cross.new_clients_bonus || cross.source_bonus || 0);
+      setValue('bonus_cross_loyal_clients', cross.loyal_clients_bonus || 0);
+      setValue('bonus_cross_min_check', cross.min_check || 0);
+      setValue('bonus_cross_period', cross.period || 'none');
+      setValue('bonus_cross_city', cross.city || 'Все города');
+
+      setChecked('bonus_referral_enabled', Boolean(referral.enabled));
+      setValue('bonus_ref_inviter', referral.inviter_bonus || 300);
+      setValue('bonus_ref_friend', referral.friend_bonus || 300);
+      setValue('bonus_ref_min_order', referral.min_first_order || 0);
+
+      setChecked('bonus_auto_enabled', Boolean(automailing.enabled));
+      setValue('bonus_auto_days', automailing.inactive_days || 30);
+      setValue('bonus_auto_message', automailing.message || '');
+
+      setValue('bonus_card_title', media.card_title || 'Bulka Bonus');
+      setValue('bonus_banner_url', media.banner_url || '');
+      setValue('bonus_logo_url', media.logo_url || '');
+      updateBonusCardPreview();
+
+      setChecked('bonus_corp_enabled', Boolean(corporate.enabled));
+      setValue('bonus_corp_company', corporate.company_name || '');
+      setValue('bonus_corp_limit', corporate.monthly_limit || 0);
+      setValue('bonus_corp_cashback', corporate.employee_cashback_percent || 5);
+      renderPromocodes();
+    }
+
+    function renderPromocodes() {
+      const tbody = document.getElementById('promocodeTable');
+      if (!tbody) return;
+      tbody.innerHTML = (currentData.promocodes || []).map((p, index) => `
+        <tr>
+          <td class="py-3 px-4 font-bold">${p.code}</td>
+          <td class="py-3 px-4">${p.bonus}</td>
+          <td class="py-3 px-4">${p.limit || '-'}</td>
+          <td class="py-3 px-4">${p.until || '-'}</td>
+          <td class="py-3 px-4 text-right"><button onclick="removePromocode(${index})" class="text-red-600 text-sm font-semibold">Удалить</button></td>
+        </tr>
+      `).join('') || '<tr><td class="py-4 px-4 text-gray-400" colspan="5">Промокодов пока нет</td></tr>';
+    }
+
+    function addPromocode() {
+      const code = getValue('promo_code').trim().toUpperCase();
+      const bonus = getNumber('promo_bonus');
+      if (!code || !bonus) {
+        alert('Укажите код и сумму бонусов');
+        return;
+      }
+      currentData.promocodes.push({
+        id: Date.now(),
+        code,
+        bonus,
+        limit: getNumber('promo_limit'),
+        until: getValue('promo_until')
+      });
+      ['promo_code', 'promo_bonus', 'promo_limit', 'promo_until'].forEach(id => setValue(id, ''));
+      renderPromocodes();
+    }
+
+    function removePromocode(index) {
+      currentData.promocodes.splice(index, 1);
+      renderPromocodes();
+    }
+
+    function updateBonusCardPreview() {
+      const title = getValue('bonus_card_title', 'Bulka Bonus');
+      const banner = getValue('bonus_banner_url');
+      const preview = document.getElementById('bonusCardPreview');
+      const titleEl = document.getElementById('bonusCardPreviewTitle');
+      if (titleEl) titleEl.innerText = title || 'Bulka Bonus';
+      if (preview) {
+        preview.style.backgroundImage = banner
+          ? `linear-gradient(0deg, rgba(0,0,0,0.2), rgba(0,0,0,0.05)), url("${banner}")`
+          : 'linear-gradient(135deg, #ffb300, #7e5d40)';
+      }
+    }
+
+    function collectBonusSettingsPayload() {
+      const selectedMode = document.querySelector('input[name="bonus_mode"]:checked');
+      return {
+        bonus_mode: selectedMode ? selectedMode.value : 'cashback',
+        base_cashback_percent: getNumber('bonus_standard_cashback', getNumber('bonus_standard_percent', 3)),
+        max_discount_percent: getNumber('bonus_standard_write_limit', getNumber('bonus_max_discount', 50)),
+        tier_gold_th: getNumber('bonus_grad_gold_th', 150000),
+        tier_gold_cb: getNumber('bonus_grad_gold_cb', 7),
+        tier_platinum_th: getNumber('bonus_grad_platinum_th', 300000),
+        tier_platinum_cb: getNumber('bonus_grad_platinum_cb', 10),
+        bonus_apply_to_all: getChecked('bonus_apply_to_all'),
+        bonus_source_pos: getChecked('bonus_source_pos'),
+        bonus_source_app: getChecked('bonus_source_app'),
+        bonus_source_certificate: getChecked('bonus_source_certificate'),
+        bonus_source_manual: getChecked('bonus_source_manual'),
+        bonus_writeoff_min_check: getNumber('bonus_writeoff_min_check'),
+        bonus_writeoff_step: getNumber('bonus_writeoff_step', 1),
+        bonus_activation: {
+          enabled: getChecked('bonus_activation_enabled'),
+          delay_days: getNumber('bonus_activation_delay'),
+          first_transaction_bonus: getNumber('bonus_first_transaction'),
+          first_transaction_notification: getValue('bonus_first_notification')
+        },
+        bonus_expiration: {
+          enabled: getChecked('bonus_expiration_enabled'),
+          expiration_days: getNumber('bonus_expiration_days', 90),
+          notify_before_days: getNumber('bonus_notify_before', 30),
+          auto_write_off: getChecked('bonus_auto_writeoff')
+        },
+        bonus_birthday: {
+          enabled: getChecked('bonus_birthday_enabled'),
+          bonus_amount: getNumber('bonus_birthday_amount', 500),
+          expiration_days: getNumber('bonus_birthday_expiration', 14),
+          message: getValue('bonus_birthday_message')
+        },
+        bonus_promocodes: currentData.promocodes || [],
+        bonus_cross: {
+          enabled: getChecked('bonus_cross_enabled'),
+          new_clients_bonus: getNumber('bonus_cross_new_clients'),
+          loyal_clients_bonus: getNumber('bonus_cross_loyal_clients'),
+          period: getValue('bonus_cross_period', 'none'),
+          city: getValue('bonus_cross_city', 'Все города'),
+          min_check: getNumber('bonus_cross_min_check')
+        },
+        bonus_referral: {
+          enabled: getChecked('bonus_referral_enabled'),
+          inviter_bonus: getNumber('bonus_ref_inviter', 300),
+          friend_bonus: getNumber('bonus_ref_friend', 300),
+          min_first_order: getNumber('bonus_ref_min_order')
+        },
+        bonus_automailing: {
+          enabled: getChecked('bonus_auto_enabled'),
+          inactive_days: getNumber('bonus_auto_days', 30),
+          message: getValue('bonus_auto_message')
+        },
+        bonus_card_media: {
+          banner_url: getValue('bonus_banner_url'),
+          logo_url: getValue('bonus_logo_url'),
+          card_title: getValue('bonus_card_title', 'Bulka Bonus')
+        },
+        bonus_corporate: {
+          enabled: getChecked('bonus_corp_enabled'),
+          company_name: getValue('bonus_corp_company'),
+          monthly_limit: getNumber('bonus_corp_limit'),
+          employee_cashback_percent: getNumber('bonus_corp_cashback', 5)
+        }
+      };
+    }
+
+    function bindBonusInputs() {
+      if (window.__bonusInputsBound) return;
+      window.__bonusInputsBound = true;
+      const pairs = [
+        ['bonus_standard_percent', 'bonus_standard_cashback'],
+        ['bonus_max_discount', 'bonus_standard_write_limit'],
+        ['bonus_max_discount', 'bonus_writeoff_percent']
+      ];
+      pairs.forEach(([a, b]) => {
+        const first = document.getElementById(a);
+        const second = document.getElementById(b);
+        if (!first || !second) return;
+        first.addEventListener('input', () => { second.value = first.value; });
+        second.addEventListener('input', () => { first.value = second.value; });
+      });
+      ['bonus_card_title', 'bonus_banner_url'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', updateBonusCardPreview);
+      });
+    }
+
+    async function saveBonusSettings() {
+      const btn = document.getElementById('bonusSaveBtn');
+      const msg = document.getElementById('bonusSaveMsg');
+      btn.innerText = 'Сохранение...';
+      btn.disabled = true;
+
+      try {
+        const payload = collectBonusSettingsPayload();
+        const res = await fetch('/admin/api/settings', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) throw new Error('Save failed');
+        localStorage.removeItem('bonusSettingsDraft');
+        Object.assign(currentData.bonusSettings, payload);
+        hydrateBonusSettings(Object.assign({}, currentData.bonusSettings, payload));
+        msg.innerText = 'Бонусный модуль сохранен.';
+        msg.className = 'text-sm font-medium text-green-600';
+      } catch (e) {
+        const payload = collectBonusSettingsPayload();
+        localStorage.setItem('bonusSettingsDraft', JSON.stringify(payload));
+        Object.assign(currentData.bonusSettings, payload);
+        msg.innerText = 'Supabase недоступен. Бонусный модуль сохранен локально в браузере.';
+        msg.className = 'text-sm font-medium text-amber-700';
+      }
+
+      msg.classList.remove('hidden');
+      btn.innerText = 'Сохранить бонусный модуль';
+      btn.disabled = false;
+      setTimeout(() => msg.classList.add('hidden'), 3000);
     }
 
     async function fetchStats() {
@@ -754,6 +1407,18 @@
       }
     }
 
+    async function promptManualBonusByPhone() {
+      const phone = prompt("Введите телефон клиента:");
+      if (!phone) return;
+      const clean = phone.replace(/\D/g, '');
+      const customer = currentData.customers.find(c => (c.phone || '').replace(/\D/g, '').includes(clean) || clean.includes((c.phone || '').replace(/\D/g, '')));
+      if (!customer) {
+        alert("Клиент не найден в базе");
+        return;
+      }
+      manualBonus(customer.id);
+    }
+
     function editCustomer(id) {
       const c = currentData.customers.find(item => item.id === id);
       if (!c) return;
@@ -854,20 +1519,47 @@
       const q = document.getElementById('searchCustomer').value.toLowerCase();
       const filtered = currentData.customers.filter(c => c.name?.toLowerCase().includes(q) || c.phone?.includes(q));
       
-      const html = filtered.map(c => `
+      const html = filtered.map((c, index) => {
+        const spent = Number(c.total_spent || 0);
+        const status = spent >= 300000 ? 'Платина' : spent >= 150000 ? 'Золото' : spent >= 50000 ? 'Серебро' : 'Бронза';
+        const txCount = c.transaction_count || c.transactions_count || '—';
+        return `
         <tr>
+          <td class="py-4 px-4 text-gray-400">${index + 1}</td>
           <td class="py-4 px-6 font-medium">${c.name || 'Без имени'}</td>
           <td class="py-4 px-6 text-gray-500">${c.phone}</td>
+          <td class="py-4 px-6"><span class="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded text-xs font-semibold">${status}</span></td>
+          <td class="py-4 px-6 text-right">${txCount}</td>
           <td class="py-4 px-6 text-right font-bold text-blue-600">${c.balance}</td>
-          <td class="py-4 px-6 text-right text-gray-600">${(c.total_spent || 0).toLocaleString()}</td>
+          <td class="py-4 px-6 text-right text-gray-600">${spent.toLocaleString()}</td>
+          <td class="py-4 px-6 text-gray-500">${status}</td>
+          <td class="py-4 px-6"><span class="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs">Активна</span></td>
           <td class="py-4 px-6 text-center space-x-2 whitespace-nowrap">
             <button onclick="manualBonus('${c.id}')" class="btn-outline px-3 py-1 text-xs">+/- Бонусы</button>
-            <button onclick="editCustomer('${c.id}')" class="bg-beige-100 hover:bg-beige-200 text-beige-800 border border-beige-300 px-3 py-1 rounded text-xs font-medium transition-all shadow-sm">Редактировать</button>
+            <button onclick="editCustomer('${c.id}')" class="btn-outline px-3 py-1 text-xs">Редактировать</button>
             <button onclick="deleteCustomerAction('${c.id}')" class="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3 py-1 rounded text-xs font-medium transition-all shadow-sm">Удалить</button>
           </td>
         </tr>
-      `).join('');
+      `}).join('');
       document.getElementById('customersTable').innerHTML = html;
+    }
+
+    function exportCustomersCsv() {
+      const rows = [['Имя', 'Телефон', 'Баланс', 'Сумма покупок']];
+      currentData.customers.forEach(c => rows.push([
+        c.name || '',
+        c.phone || '',
+        c.balance || 0,
+        c.total_spent || 0
+      ]));
+      const csv = rows.map(row => row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(',')).join('\n');
+      const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'bulka-customers.csv';
+      link.click();
+      URL.revokeObjectURL(url);
     }
 
     function renderTransactions() {
@@ -904,11 +1596,14 @@
         return `
           <tr>
             <td class="py-4 px-6 text-gray-500 text-xs">${d}</td>
-            <td class="py-4 px-6 font-medium">${name} <span class="block text-xs text-gray-400 font-normal">${phone}</span></td>
             <td class="py-4 px-6">${orderBadge}</td>
+            <td class="py-4 px-6 font-medium">${name}</td>
+            <td class="py-4 px-6 text-gray-500">${phone || '—'}</td>
+            <td class="py-4 px-6"><span class="bg-gray-100 text-gray-600 px-2.5 py-1 rounded text-xs">Бонусная система</span></td>
             <td class="py-4 px-6 text-right text-gray-700 font-medium">${t.order_total ? t.order_total.toLocaleString() : '—'}</td>
-            <td class="py-4 px-6"><span class="bg-gray-100 text-gray-600 px-2.5 py-1 rounded text-xs font-medium">${typeStr}</span></td>
-            <td class="py-4 px-6 text-right font-bold text-base ${color}">${sign}${t.amount}</td>
+            <td class="py-4 px-6 text-right ${color}">${t.type.includes('withdrawal') ? t.amount : '—'}</td>
+            <td class="py-4 px-6 text-right font-bold ${color}">${sign}${t.amount}</td>
+            <td class="py-4 px-6"><span class="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded text-xs font-medium">${typeStr}</span></td>
           </tr>
         `;
       }).join('');
