@@ -498,14 +498,16 @@ private fun NewsFeedCard(item: NewsItem) {
             .clip(RoundedCornerShape(24.dp))
             .background(MaterialTheme.colorScheme.surface)
     ) {
-        AsyncImage(
-            model = image,
-            contentDescription = item.title,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(260.dp)
-        )
+        if (image.isNotBlank()) {
+            AsyncImage(
+                model = image,
+                contentDescription = item.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(260.dp)
+            )
+        }
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
                 text = item.title,

@@ -210,7 +210,7 @@ alter table public.stories add column if not exists created_at timestamptz defau
 create table if not exists public.news (
   id bigserial primary key,
   title varchar(255) not null,
-  imageurl text not null,
+  imageurl text,
   description text,
   created_at timestamptz default now() not null
 );
@@ -219,6 +219,7 @@ alter table public.news add column if not exists title varchar(255);
 alter table public.news add column if not exists imageurl text;
 alter table public.news add column if not exists description text;
 alter table public.news add column if not exists created_at timestamptz default now();
+alter table public.news alter column imageurl drop not null;
 
 create index if not exists news_created_at_idx on public.news (created_at desc);
 

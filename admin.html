@@ -226,7 +226,7 @@
           <input type="text" id="news_title" placeholder="Новинка недели" class="input-classic w-full">
         </div>
         <div>
-          <label class="block text-xs font-semibold text-beige-800 uppercase mb-2">Фото новости</label>
+          <label class="block text-xs font-semibold text-beige-800 uppercase mb-2">Фото новости (необязательно)</label>
           <input type="hidden" id="news_image">
           <div class="border-2 border-dashed border-beige-300 rounded-xl p-4 text-center bg-beige-50/50 hover:bg-beige-50 transition flex flex-col items-center justify-center min-h-[170px] relative overflow-hidden group">
             <img id="preview_news_image" src="" onerror="this.classList.add('hidden'); const p = document.getElementById('placeholder_news_image'); if(p) p.classList.remove('hidden');" class="absolute inset-0 w-full h-full object-cover hidden rounded-xl">
@@ -1372,7 +1372,11 @@
         const created = item.created_at ? new Date(item.created_at).toLocaleDateString() : '-';
         return `
           <tr class="border-b border-beige-100 hover:bg-beige-50">
-            <td class="py-3 px-4"><img src="${item.imageUrl || item.imageurl || ''}" class="w-16 h-16 object-cover rounded shadow"></td>
+            <td class="py-3 px-4">
+              ${item.imageUrl || item.imageurl
+                ? `<img src="${item.imageUrl || item.imageurl}" class="w-16 h-16 object-cover rounded shadow">`
+                : '<div class="w-16 h-16 rounded bg-gray-100 border border-gray-200 flex items-center justify-center text-[10px] text-gray-400 text-center px-1">без фото</div>'}
+            </td>
             <td class="py-3 px-4 font-bold text-gray-800">${item.title || '-'}</td>
             <td class="py-3 px-4 text-xs text-gray-500 max-w-md truncate">${item.description || '-'}</td>
             <td class="py-3 px-4 text-xs text-gray-500">${created}</td>
@@ -1549,7 +1553,7 @@
       const title = document.getElementById('news_title').value;
       const imageUrl = document.getElementById('news_image').value;
       const description = document.getElementById('news_desc').value;
-      if (!title || !imageUrl) { alert('Укажите заголовок и фото новости!'); return; }
+      if (!title.trim()) { alert('Укажите заголовок новости!'); return; }
 
       const url = editId ? `/admin/api/news/${editId}` : '/admin/api/news';
       const method = editId ? 'PUT' : 'POST';
