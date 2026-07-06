@@ -199,6 +199,10 @@ alter table public.stories add column if not exists coverurl text;
 alter table public.stories add column if not exists contenturl text;
 alter table public.stories add column if not exists description text;
 alter table public.stories add column if not exists duration integer default 15;
+alter table public.stories add column if not exists group_id text;
+alter table public.stories add column if not exists group_title text;
+alter table public.stories add column if not exists group_coverurl text;
+alter table public.stories add column if not exists sort_order integer default 0;
 alter table public.stories add column if not exists created_at timestamptz default now();
 
 -- Stories are managed only from the admin panel. Do not seed default rows here,

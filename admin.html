@@ -159,6 +159,16 @@
           <label class="block text-xs font-semibold text-beige-800 uppercase mb-1">Заголовок на обложке</label>
           <input type="text" id="story_title" placeholder="СЕЗОННЫЙ ФРАППЕ" class="input-classic w-full">
         </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-beige-800 uppercase mb-1">Тема / актуальное</label>
+            <input type="text" id="story_group_title" placeholder="Новинки" class="input-classic w-full">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-beige-800 uppercase mb-1">ID темы</label>
+            <input type="text" id="story_group_id" placeholder="novinki" class="input-classic w-full">
+          </div>
+        </div>
         <div>
           <label class="block text-xs font-semibold text-beige-800 uppercase mb-2">Фото обложки (миниатюра)</label>
           <input type="hidden" id="story_cover">
@@ -204,6 +214,10 @@
         <div>
           <label class="block text-xs font-semibold text-beige-800 uppercase mb-1">Длительность показа (секунд)</label>
           <input type="number" id="story_duration" value="15" class="input-classic w-full">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-beige-800 uppercase mb-1">Порядок внутри темы</label>
+          <input type="number" id="story_sort_order" value="0" class="input-classic w-full">
         </div>
       </div>
 
@@ -530,6 +544,7 @@
             <thead class="bg-beige-50">
               <tr>
                 <th class="py-4 px-6">Обложка</th>
+                <th class="py-4 px-6">Тема</th>
                 <th class="py-4 px-6">Заголовок</th>
                 <th class="py-4 px-6">Описание</th>
                 <th class="py-4 px-6">Фото при открытии</th>
@@ -1338,6 +1353,10 @@
         tbody.innerHTML = list.map(s => `
           <tr class="border-b border-beige-100 hover:bg-beige-50">
             <td class="py-3 px-4"><img src="${s.coverUrl}" class="w-12 h-16 object-cover rounded shadow"></td>
+            <td class="py-3 px-4 text-xs">
+              <div class="font-bold text-gray-800">${s.groupTitle || s.group_title || s.title}</div>
+              <div class="text-gray-400">${s.groupId || s.group_id || s.id}</div>
+            </td>
             <td class="py-3 px-4 font-bold text-gray-800">${s.title}</td>
             <td class="py-3 px-4 text-xs text-gray-500 max-w-xs truncate">${s.description || '-'}</td>
             <td class="py-3 px-4"><a href="${s.contentUrl}" target="_blank" class="text-blue-600 underline text-xs">Photo link</a></td>
@@ -1430,10 +1449,13 @@
       document.getElementById('editing_story_id').value = '';
       document.getElementById('storyModalTitle').innerText = 'Создать Сториз (Инстаграм-формат)';
       document.getElementById('story_title').value = '';
+      document.getElementById('story_group_title').value = '';
+      document.getElementById('story_group_id').value = '';
       updateImagePreview('story_cover', '');
       updateImagePreview('story_content', '');
       document.getElementById('story_desc').value = '';
       document.getElementById('story_duration').value = '15';
+      document.getElementById('story_sort_order').value = '0';
       document.getElementById('storyModal').classList.remove('hidden');
     }
 
@@ -1443,10 +1465,13 @@
       document.getElementById('editing_story_id').value = s.id;
       document.getElementById('storyModalTitle').innerText = 'Редактировать Сториз';
       document.getElementById('story_title').value = s.title || '';
+      document.getElementById('story_group_title').value = s.groupTitle || s.group_title || s.title || '';
+      document.getElementById('story_group_id').value = s.groupId || s.group_id || s.id || '';
       updateImagePreview('story_cover', s.coverUrl || '');
       updateImagePreview('story_content', s.contentUrl || '');
       document.getElementById('story_desc').value = s.description || '';
       document.getElementById('story_duration').value = s.duration || 15;
+      document.getElementById('story_sort_order').value = s.sortOrder || s.sort_order || 0;
       document.getElementById('storyModal').classList.remove('hidden');
     }
 
@@ -1521,10 +1546,13 @@
     async function saveStoryAdmin() {
       const editId = document.getElementById('editing_story_id').value;
       const title = document.getElementById('story_title').value;
+      const groupTitle = document.getElementById('story_group_title').value || title;
+      const groupId = document.getElementById('story_group_id').value || groupTitle;
       const coverUrl = document.getElementById('story_cover').value;
       const contentUrl = document.getElementById('story_content').value;
       const description = document.getElementById('story_desc').value;
       const duration = document.getElementById('story_duration').value || 15;
+      const sortOrder = document.getElementById('story_sort_order').value || 0;
       if (!title || !coverUrl) { alert('Укажите заголовок и фото обложки!'); return; }
 
       const url = editId ? `/admin/api/stories/${editId}` : '/admin/api/stories';
@@ -1533,7 +1561,7 @@
       const res = await fetch(url, {
         method: method,
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify({ title, coverUrl, contentUrl, description, duration })
+        body: JSON.stringify({ title, groupTitle, groupId, groupCoverUrl: coverUrl, coverUrl, contentUrl, description, duration, sortOrder })
       });
       if (!res.ok) {
         alert('Ошибка при сохранении Сториз!');
@@ -1542,9 +1570,12 @@
       closeStoryModal();
       document.getElementById('editing_story_id').value = '';
       document.getElementById('story_title').value = '';
+      document.getElementById('story_group_title').value = '';
+      document.getElementById('story_group_id').value = '';
       document.getElementById('story_cover').value = '';
       document.getElementById('story_content').value = '';
       document.getElementById('story_desc').value = '';
+      document.getElementById('story_sort_order').value = '0';
       fetchStories();
     }
 
