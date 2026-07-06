@@ -973,12 +973,24 @@ class _HomeScreenState extends State<HomeScreen> {
   List<PromoStory> _stories = const [];
   List<NewsItem> _news = const [];
   Set<String> _viewedStoryGroups = const {};
+  Timer? _feedRefreshTimer;
+  bool _feedLoading = false;
 
   @override
   void initState() {
     super.initState();
     _loadViewedStoryGroups();
     _loadFeed();
+    _feedRefreshTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => _loadFeed(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _feedRefreshTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadViewedStoryGroups() async {
@@ -991,15 +1003,29 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadFeed() async {
-    final results = await Future.wait([
-      widget.api.getStories().catchError((_) => <PromoStory>[]),
-      widget.api.getNews().catchError((_) => <NewsItem>[]),
-    ]);
-    if (!mounted) return;
-    setState(() {
-      _stories = results[0] as List<PromoStory>;
-      _news = results[1] as List<NewsItem>;
-    });
+    if (_feedLoading) return;
+    _feedLoading = true;
+    try {
+      final results = await Future.wait<Object?>([
+        widget.api
+            .getStories()
+            .then<Object?>((value) => value)
+            .catchError((_) => null),
+        widget.api
+            .getNews()
+            .then<Object?>((value) => value)
+            .catchError((_) => null),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        final stories = results[0];
+        final news = results[1];
+        if (stories is List<PromoStory>) _stories = stories;
+        if (news is List<NewsItem>) _news = news;
+      });
+    } finally {
+      _feedLoading = false;
+    }
   }
 
   @override
@@ -1020,118 +1046,127 @@ class _HomeScreenState extends State<HomeScreen> {
         bottom: false,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            return SingleChildScrollView(
-              key: const PageStorageKey('home-scroll'),
-              padding: const EdgeInsets.only(bottom: 132),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 24,
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          InkWell(
-                            borderRadius: BorderRadius.circular(32),
-                            onTap: widget.onProfileTap,
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 52,
-                                  height: 52,
-                                  decoration: const BoxDecoration(
-                                    color: _cocoa,
-                                    shape: BoxShape.circle,
+            return RefreshIndicator(
+              color: _caramel,
+              backgroundColor: _cream,
+              onRefresh: _loadFeed,
+              child: SingleChildScrollView(
+                key: const PageStorageKey('home-scroll'),
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.only(bottom: 132),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 24,
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            InkWell(
+                              borderRadius: BorderRadius.circular(32),
+                              onTap: widget.onProfileTap,
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 52,
+                                    height: 52,
+                                    decoration: const BoxDecoration(
+                                      color: _cocoa,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.person,
+                                      color: _almond,
+                                      size: 26,
+                                    ),
                                   ),
-                                  child: const Icon(
-                                    Icons.person,
-                                    color: _almond,
-                                    size: 26,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Добро пожаловать,',
-                                      style: TextStyle(
-                                        color: _textDark.withValues(
-                                          alpha: 0.58,
+                                  const SizedBox(width: 12),
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Добро пожаловать,',
+                                        style: TextStyle(
+                                          color: _textDark.withValues(
+                                            alpha: 0.58,
+                                          ),
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
                                         ),
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
                                       ),
-                                    ),
-                                    Text(
-                                      customer.name,
-                                      style: const TextStyle(
-                                        color: _textDark,
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w800,
+                                      Text(
+                                        customer.name,
+                                        style: const TextStyle(
+                                          color: _textDark,
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w800,
+                                        ),
                                       ),
-                                    ),
-                                  ],
-                                ),
-                              ],
+                                    ],
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                          IconButton(
-                            onPressed: () {},
-                            style: IconButton.styleFrom(
-                              backgroundColor: _cream,
-                              foregroundColor: _cocoa,
-                              minimumSize: const Size(48, 48),
+                            IconButton(
+                              onPressed: _loadFeed,
+                              tooltip: 'Обновить',
+                              style: IconButton.styleFrom(
+                                backgroundColor: _cream,
+                                foregroundColor: _cocoa,
+                                minimumSize: const Size(48, 48),
+                              ),
+                              icon: const Icon(Icons.refresh_rounded),
                             ),
-                            icon: const Icon(Icons.notifications_rounded),
-                          ),
-                        ],
-                      ),
-                    ),
-                    if (storyGroups.isNotEmpty)
-                      SizedBox(
-                        height: 140,
-                        child: ListView.separated(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          scrollDirection: Axis.horizontal,
-                          itemCount: storyGroups.length,
-                          separatorBuilder: (_, _) => const SizedBox(width: 12),
-                          itemBuilder: (context, index) {
-                            final group = storyGroups[index];
-                            return StoryTile(
-                              group: group,
-                              viewed: _viewedStoryGroups.contains(group.id),
-                              onTap: () => _openStoryGroup(group),
-                            );
-                          },
+                          ],
                         ),
                       ),
-                    if (storyGroups.isNotEmpty) const SizedBox(height: 24),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: _GuestCard(
-                        customer: customer,
-                        palette: colors,
-                        onQrTap: () => showDialog<void>(
-                          context: context,
-                          builder: (_) =>
-                              QrDialog(api: widget.api, customer: customer),
+                      if (storyGroups.isNotEmpty)
+                        SizedBox(
+                          height: 140,
+                          child: ListView.separated(
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            scrollDirection: Axis.horizontal,
+                            itemCount: storyGroups.length,
+                            separatorBuilder: (_, _) =>
+                                const SizedBox(width: 12),
+                            itemBuilder: (context, index) {
+                              final group = storyGroups[index];
+                              return StoryTile(
+                                group: group,
+                                viewed: _viewedStoryGroups.contains(group.id),
+                                onTap: () => _openStoryGroup(group),
+                              );
+                            },
+                          ),
                         ),
-                      ),
-                    ),
-                    if (_news.isNotEmpty) ...[
-                      const SizedBox(height: 24),
+                      if (storyGroups.isNotEmpty) const SizedBox(height: 24),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: NewsFeed(news: _news),
+                        child: _GuestCard(
+                          customer: customer,
+                          palette: colors,
+                          onQrTap: () => showDialog<void>(
+                            context: context,
+                            builder: (_) =>
+                                QrDialog(api: widget.api, customer: customer),
+                          ),
+                        ),
                       ),
+                      if (_news.isNotEmpty) ...[
+                        const SizedBox(height: 24),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: NewsFeed(news: _news),
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
             );
@@ -2098,14 +2133,24 @@ class NewsFeed extends StatelessWidget {
           'Новости',
           style: TextStyle(
             color: _textDark,
-            fontSize: 22,
+            fontSize: 24,
             fontWeight: FontWeight.w900,
           ),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 4),
+        Text(
+          'Свежие акции, сезонные вкусы и новости пекарни',
+          style: TextStyle(
+            color: _textDark.withValues(alpha: 0.58),
+            fontSize: 14,
+            height: 1.3,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 16),
         for (final item in news) ...[
           NewsCard(item: item),
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
         ],
       ],
     );
@@ -2119,31 +2164,107 @@ class NewsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasImage = item.imageUrl.isNotEmpty;
+    final dateLabel = item.createdAt == null
+        ? null
+        : formatShortDate(item.createdAt!);
+
     return Container(
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: _cream,
-        borderRadius: BorderRadius.circular(24),
+        color: _lightCard,
+        borderRadius: BorderRadius.circular(28),
         border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
         boxShadow: [
           BoxShadow(
             color: _cocoa.withValues(alpha: 0.08),
-            blurRadius: 18,
-            offset: const Offset(0, 10),
+            blurRadius: 26,
+            offset: const Offset(0, 16),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (item.imageUrl.isNotEmpty)
-            SizedBox(
-              height: 260,
-              width: double.infinity,
-              child: _NetworkImage(url: item.imageUrl, fit: BoxFit.cover),
+          SizedBox(
+            height: 190,
+            width: double.infinity,
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                if (hasImage)
+                  _NetworkImage(url: item.imageUrl, fit: BoxFit.cover)
+                else
+                  const _NewsFallbackBanner(),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withValues(alpha: 0.04),
+                        Colors.black.withValues(alpha: 0.34),
+                      ],
+                    ),
+                  ),
+                ),
+                Positioned(
+                  left: 16,
+                  right: 16,
+                  bottom: 16,
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 7,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _lightCard.withValues(alpha: 0.92),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: const Text(
+                          'НОВОСТЬ',
+                          style: TextStyle(
+                            color: _cocoa,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                      ),
+                      if (dateLabel != null) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 7,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.36),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.22),
+                            ),
+                          ),
+                          child: Text(
+                            dateLabel,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
             ),
+          ),
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -2151,22 +2272,119 @@ class NewsCard extends StatelessWidget {
                   item.title,
                   style: const TextStyle(
                     color: _textDark,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
+                    fontSize: 20,
+                    height: 1.12,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
                 if ((item.description ?? '').isNotEmpty) ...[
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 10),
                   Text(
                     item.description!,
                     style: TextStyle(
-                      color: _textDark.withValues(alpha: 0.68),
-                      fontSize: 14,
-                      height: 1.42,
+                      color: _textDark.withValues(alpha: 0.7),
+                      fontSize: 15,
+                      height: 1.48,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ],
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: const BoxDecoration(
+                        color: _lightCardHighlight,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.bakery_dining_rounded,
+                        color: _caramel,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text(
+                        'Bulka Bakery',
+                        style: TextStyle(
+                          color: _cocoa,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    const Icon(
+                      Icons.arrow_forward_rounded,
+                      color: _caramel,
+                      size: 22,
+                    ),
+                  ],
+                ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NewsFallbackBanner extends StatelessWidget {
+  const _NewsFallbackBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFFFD28A), Color(0xFFC66A25), Color(0xFF3B2117)],
+        ),
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            right: -28,
+            top: -18,
+            child: Icon(
+              Icons.local_cafe_rounded,
+              size: 148,
+              color: Colors.white.withValues(alpha: 0.16),
+            ),
+          ),
+          Positioned(
+            left: 18,
+            top: 18,
+            child: Container(
+              width: 58,
+              height: 58,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.92),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Icon(
+                Icons.bakery_dining_rounded,
+                color: _caramel,
+                size: 30,
+              ),
+            ),
+          ),
+          const Positioned(
+            left: 18,
+            right: 18,
+            bottom: 54,
+            child: Text(
+              'Свежая новость',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 28,
+                height: 1,
+                fontWeight: FontWeight.w900,
+              ),
             ),
           ),
         ],
@@ -2921,12 +3139,14 @@ class NewsItem {
     required this.id,
     required this.title,
     required this.imageUrl,
+    this.createdAt,
     this.description,
   });
 
   final int id;
   final String title;
   final String imageUrl;
+  final String? createdAt;
   final String? description;
 
   factory NewsItem.fromJson(Map<String, dynamic> json) {
@@ -2936,6 +3156,7 @@ class NewsItem {
       imageUrl: _asString(
         json['imageUrl'] ?? json['imageurl'] ?? json['image_url'],
       ),
+      createdAt: _nullableString(json['created_at'] ?? json['createdAt']),
       description: _nullableString(json['description']),
     );
   }
@@ -3153,6 +3374,29 @@ String formatDateTime(String value) {
     final hour = date.hour.toString().padLeft(2, '0');
     final minute = date.minute.toString().padLeft(2, '0');
     return '$day $month ${date.year}, $hour:$minute';
+  } catch (_) {
+    return value;
+  }
+}
+
+String formatShortDate(String value) {
+  try {
+    final date = DateTime.parse(value).toLocal();
+    const months = [
+      'янв',
+      'фев',
+      'мар',
+      'апр',
+      'мая',
+      'июн',
+      'июл',
+      'авг',
+      'сен',
+      'окт',
+      'ноя',
+      'дек',
+    ];
+    return '${date.day} ${months[date.month - 1]}';
   } catch (_) {
     return value;
   }
