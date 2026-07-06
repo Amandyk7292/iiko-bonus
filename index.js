@@ -554,8 +554,19 @@ app.post('/api/loyalty/calculate', webhookMiddleware, async (req, res) => {
     const { customerId, orderTotal, requestedBonusAmount } = req.body;
     const total = parseMoney(orderTotal, 'orderTotal');
     const requested = parseMoney(requestedBonusAmount || 0, 'requestedBonusAmount');
-    const maxAllowedDiscount = Math.min(requested, total);
-    res.json({ discountAmount: maxAllowedDiscount, message: "Расчет успешен" });
+    const settings = await getSettings();
+    const customer = customerId
+      ? await supabase.from('customers').select('balance').eq('id', customerId).single()
+      : { data: null };
+    const balance = Number(customer.data?.balance || 0);
+    const maxByPercent = total * (Number(settings.max_discount_percent || 0) / 100);
+    const discountAmount = Math.min(requested, balance, maxByPercent, total);
+    res.json({
+      discountAmount: Number(discountAmount.toFixed(2)),
+      maxDiscountPercent: settings.max_discount_percent,
+      availableBalance: balance,
+      message: "Расчет успешен"
+    });
   } catch (error) { res.status(error.statusCode || 500).json({ error: error.statusCode ? error.message : 'Internal server error' }); }
 });
 

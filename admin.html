@@ -1202,8 +1202,7 @@
       } catch (e) {
         const payload = collectBonusSettingsPayload();
         localStorage.setItem('bonusSettingsDraft', JSON.stringify(payload));
-        Object.assign(currentData.bonusSettings, payload);
-        msg.innerText = 'Supabase недоступен. Бонусный модуль сохранен локально в браузере.';
+        msg.innerText = 'Supabase недоступен. Черновик сохранен в браузере, но касса и база эти настройки не получили.';
         msg.className = 'text-sm font-medium text-amber-700';
       }
 
