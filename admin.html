@@ -404,7 +404,9 @@
                 <th class="py-4 px-6 text-center">Управление</th>
               </tr>
             </thead>
-            <tbody id="customersTable" class="text-sm text-gray-700"></tbody>
+            <tbody id="customersTable" class="text-sm text-gray-700">
+              <tr><td colspan="10" class="py-8 px-6 text-center text-gray-400">Загрузка клиентов...</td></tr>
+            </tbody>
           </table>
         </div>
       </div>
@@ -945,8 +947,9 @@
 
     async function apiGet(endpoint) {
       const res = await fetch('/admin/api/' + endpoint, { headers: { 'Authorization': 'Bearer ' + token } });
-      if(!res.ok) throw new Error('Auth failed');
-      return await res.json();
+      const data = await res.json().catch(() => ({}));
+      if(!res.ok) throw new Error(data.error || `API error ${res.status}`);
+      return data;
     }
 
     function setValue(id, value) {
@@ -1288,9 +1291,18 @@
 
     async function fetchCustomers() {
       try {
+        document.getElementById('customersTable').innerHTML = '<tr><td colspan="10" class="py-8 px-6 text-center text-gray-400">Загрузка клиентов...</td></tr>';
         currentData.customers = await apiGet('customers');
         renderCustomers();
-      } catch (e) { console.error(e); }
+      } catch (e) {
+        console.error(e);
+        document.getElementById('customersTable').innerHTML = `
+          <tr>
+            <td colspan="10" class="py-8 px-6 text-center text-red-600">
+              Не удалось загрузить клиентов: ${e.message || 'ошибка Supabase/API'}
+            </td>
+          </tr>`;
+      }
     }
 
     async function fetchTransactions() {
@@ -1656,6 +1668,15 @@
     function renderCustomers() {
       const q = document.getElementById('searchCustomer').value.toLowerCase();
       const filtered = currentData.customers.filter(c => c.name?.toLowerCase().includes(q) || c.phone?.includes(q));
+      if (filtered.length === 0) {
+        document.getElementById('customersTable').innerHTML = `
+          <tr>
+            <td colspan="10" class="py-8 px-6 text-center text-gray-400">
+              ${currentData.customers.length === 0 ? 'Клиентов не найдено в подключенной Supabase базе.' : 'По фильтру клиентов не найдено.'}
+            </td>
+          </tr>`;
+        return;
+      }
       
       const html = filtered.map((c, index) => {
         const spent = Number(c.total_spent || 0);
