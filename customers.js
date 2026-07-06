@@ -111,19 +111,26 @@ async function updateCustomerBalance(customerId, amountChange) {
   return data[0];
 }
 
-async function applyLoyaltyTransaction({ customerId, orderId, discountAmount, earnedBonus, orderTotal, realMoneyPaid }) {
+async function applyLoyaltyTransaction({ customerId, orderId, discountAmount, earnedBonus, orderTotal, realMoneyPaid, activationDelayDays = 0 }) {
   const { data, error } = await supabase.rpc('apply_loyalty_transaction', {
     p_customer_id: customerId,
     p_order_id: String(orderId),
     p_discount_amount: Number(discountAmount || 0),
     p_earned_bonus: Number(earnedBonus || 0),
     p_order_total: Number(orderTotal || 0),
-    p_real_money_paid: Number(realMoneyPaid || 0)
+    p_real_money_paid: Number(realMoneyPaid || 0),
+    p_activation_delay_days: Number(activationDelayDays || 0)
   });
 
   if (error) throw new Error('Error applying loyalty transaction: ' + error.message);
   if (!data) throw new Error('Empty loyalty transaction result');
   return Array.isArray(data) ? data[0] : data;
+}
+
+async function activatePendingBonuses() {
+  const { data, error } = await supabase.rpc('activate_pending_bonus_transactions');
+  if (error) throw new Error('Error activating pending bonuses: ' + error.message);
+  return data || { activated_count: 0, activated_amount: 0 };
 }
 
 /**
@@ -544,5 +551,6 @@ module.exports = {
   deleteCustomer,
   updateFcmToken,
   getSecretWalletCardNumber,
-  applyLoyaltyTransaction
+  applyLoyaltyTransaction,
+  activatePendingBonuses
 };

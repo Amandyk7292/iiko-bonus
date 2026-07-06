@@ -90,7 +90,7 @@ async function buildApplePassBuffer(customer, host) {
 }
 
 
-const { getCustomerByPhone, getOrCreateCustomerByPhone, searchCustomers, updateCustomerBalance, updateCustomerInfo, logTransaction, getAllCustomers, getTransactions, getStats, addManualBonus, checkAndExpireInactiveBonuses, checkAndNotifyInactiveCustomers, updateFcmToken, getSecretWalletCardNumber, applyLoyaltyTransaction } = require('./customers');
+const { getCustomerByPhone, getOrCreateCustomerByPhone, searchCustomers, updateCustomerBalance, updateCustomerInfo, logTransaction, getAllCustomers, getTransactions, getStats, addManualBonus, checkAndExpireInactiveBonuses, checkAndNotifyInactiveCustomers, updateFcmToken, getSecretWalletCardNumber, applyLoyaltyTransaction, activatePendingBonuses } = require('./customers');
 const { sendPushNotification } = require('./push-notifications');
 const { getSettings, updateSettings } = require('./settings');
 const { sendWhatsAppMessage, initWhatsApp } = require('./whatsapp-baileys');
@@ -214,6 +214,22 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' })); // Для form s
 
 // Хранилище OTP кодов
 const { otpStore } = require('./otpStore');
+
+async function activatePendingBonusesSafe() {
+  try {
+    const result = await activatePendingBonuses();
+    const count = Number(result?.activated_count || 0);
+    if (count > 0) {
+      console.log(`Activated ${count} pending bonus transaction(s).`);
+    }
+    return result;
+  } catch (err) {
+    console.error('Pending bonus activation failed:', err.message);
+    return null;
+  }
+}
+
+setInterval(activatePendingBonusesSafe, 60 * 60 * 1000);
 
 // ==========================================
 // 1. ВЕБ-ИНТЕРФЕЙС (РЕГИСТРАЦИЯ КЛИЕНТОВ)
@@ -522,6 +538,7 @@ app.post('/api/loyalty/search', webhookMiddleware, async (req, res) => {
     const { query } = req.body;
     if (!query) return res.status(400).json({ error: 'Query is required' });
 
+    await activatePendingBonusesSafe();
     const customers = await searchCustomers(query);
     const settings = await getSettings();
 
@@ -552,6 +569,7 @@ app.post('/api/loyalty/search', webhookMiddleware, async (req, res) => {
 app.post('/api/loyalty/calculate', webhookMiddleware, async (req, res) => {
   try {
     const { customerId, orderTotal, requestedBonusAmount } = req.body;
+    await activatePendingBonusesSafe();
     const total = parseMoney(orderTotal, 'orderTotal');
     const requested = parseMoney(requestedBonusAmount || 0, 'requestedBonusAmount');
     const settings = await getSettings();
@@ -574,6 +592,7 @@ app.post('/api/loyalty/apply', webhookMiddleware, async (req, res) => {
   let logPayload = null;
   try {
     const { customerId, orderId, discountAmount, orderTotal } = req.body;
+    await activatePendingBonusesSafe();
     const discount = parseMoney(discountAmount || 0, 'discountAmount');
     const total = parseMoney(orderTotal, 'orderTotal');
     if (!customerId || !orderId) return res.status(400).json({ error: 'customerId and orderId are required' });
@@ -599,6 +618,8 @@ app.post('/api/loyalty/apply', webhookMiddleware, async (req, res) => {
     const { data: customer } = await supabase.from('customers').select('total_spent, phone, telegram_id, balance').eq('id', customerId).single();
     const tier = getTierInfo(customer?.total_spent, settings);
     const cashbackPercent = tier.percent;
+    const activationSettings = settings.bonus_activation || {};
+    const activationDelayDays = activationSettings.enabled === false ? 0 : Math.max(0, Number(activationSettings.delay_days || 0));
 
     const earnedBonus = Number((realMoneyPaid * (cashbackPercent / 100)).toFixed(2));
     const applyResult = await applyLoyaltyTransaction({
@@ -607,7 +628,8 @@ app.post('/api/loyalty/apply', webhookMiddleware, async (req, res) => {
       discountAmount: discount,
       earnedBonus,
       orderTotal: total,
-      realMoneyPaid
+      realMoneyPaid,
+      activationDelayDays
     });
 
     // Отправка Telegram и Push уведомлений
@@ -616,7 +638,8 @@ app.post('/api/loyalty/apply', webhookMiddleware, async (req, res) => {
       let msg = `<b>Ваш заказ успешно оплачен!</b>\n\n`;
       msg += `<b>Сумма чека:</b> ${total} тнг\n`;
       if (discount > 0) msg += `<b>Списано:</b> ${discount} бонусов\n`;
-      if (earnedBonus > 0) msg += `<b>Начислено:</b> ${earnedBonus} бонусов\n`;
+      if (earnedBonus > 0 && activationDelayDays > 0) msg += `<b>Будет начислено:</b> ${earnedBonus} бонусов через ${activationDelayDays} дн.\n`;
+      else if (earnedBonus > 0) msg += `<b>Начислено:</b> ${earnedBonus} бонусов\n`;
       
       const newBalance = Number(applyResult.balance || 0);
       msg += `\n<b>Текущий баланс:</b> ${newBalance.toFixed(2)} бонусов\n\nСпасибо, что выбираете нас! `;
@@ -626,7 +649,8 @@ app.post('/api/loyalty/apply', webhookMiddleware, async (req, res) => {
         const pushTitle = "Bulka Bonus: Заказ оплачен";
         let pushBody = `Чек: ${total} тнг. `;
         if (discount > 0) pushBody += `Списано: ${discount} бон. `;
-        if (earnedBonus > 0) pushBody += `Начислено: ${earnedBonus} бон. `;
+        if (earnedBonus > 0 && activationDelayDays > 0) pushBody += `Будет начислено через ${activationDelayDays} дн.: ${earnedBonus} бон. `;
+        else if (earnedBonus > 0) pushBody += `Начислено: ${earnedBonus} бон. `;
         pushBody += `Баланс: ${newBalance.toFixed(0)} бон.`;
         sendPushNotification(customer.fcm_token, pushTitle, pushBody).catch(err => console.error("Error sending Push msg:", err));
       }
@@ -641,7 +665,16 @@ app.post('/api/loyalty/apply', webhookMiddleware, async (req, res) => {
       cashbackPercent,
       balance: applyResult.balance
     });
-    res.json({ success: true, duplicate: applyResult.duplicate, earnedBonus, cashbackPercent, balance: applyResult.balance });
+    res.json({
+      success: true,
+      duplicate: applyResult.duplicate,
+      earnedBonus,
+      pendingBonus: Number(applyResult.pending_bonus || 0),
+      availableAt: applyResult.available_at || null,
+      activationDelayDays,
+      cashbackPercent,
+      balance: applyResult.balance
+    });
   } catch (error) {
     console.error(error);
     if (logPayload || req.body) {
@@ -944,6 +977,7 @@ app.post('/admin/api/settings', adminAuthMiddleware, async (req, res) => {
 
 app.get('/admin/api/customers', adminAuthMiddleware, async (req, res) => {
   try {
+    await activatePendingBonusesSafe();
     const data = await getAllCustomers();
     res.json(data);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -951,6 +985,7 @@ app.get('/admin/api/customers', adminAuthMiddleware, async (req, res) => {
 
 app.get('/admin/api/transactions', adminAuthMiddleware, async (req, res) => {
   try {
+    await activatePendingBonusesSafe();
     const data = await getTransactions();
     res.json(data);
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -958,6 +993,7 @@ app.get('/admin/api/transactions', adminAuthMiddleware, async (req, res) => {
 
 app.get('/admin/api/stats', adminAuthMiddleware, async (req, res) => {
   try {
+    await activatePendingBonusesSafe();
     const data = await getStats();
     res.json(data);
   } catch (err) { res.status(500).json({ error: err.message }); }

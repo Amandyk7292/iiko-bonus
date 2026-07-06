@@ -63,6 +63,8 @@ create table if not exists public.transactions (
   amount numeric(12, 2) not null,
   order_total numeric(12, 2),
   description text,
+  available_at timestamptz,
+  activated_at timestamptz,
   timestamp timestamptz default now() not null,
   created_at timestamptz default now() not null
 );
@@ -73,6 +75,8 @@ alter table public.transactions add column if not exists type varchar(50);
 alter table public.transactions add column if not exists amount numeric(12, 2);
 alter table public.transactions add column if not exists order_total numeric(12, 2);
 alter table public.transactions add column if not exists description text;
+alter table public.transactions add column if not exists available_at timestamptz;
+alter table public.transactions add column if not exists activated_at timestamptz;
 alter table public.transactions add column if not exists timestamp timestamptz default now();
 alter table public.transactions add column if not exists created_at timestamptz default now();
 
@@ -93,6 +97,8 @@ end $$;
 create index if not exists transactions_customer_id_idx on public.transactions (customer_id);
 create index if not exists transactions_timestamp_idx on public.transactions (timestamp desc);
 create index if not exists transactions_order_id_idx on public.transactions (order_id);
+create index if not exists transactions_pending_available_idx on public.transactions (available_at)
+  where type = 'pending_deposit';
 
 do $$
 begin
@@ -252,13 +258,16 @@ begin
 end;
 $$;
 
+drop function if exists public.apply_loyalty_transaction(uuid, text, numeric, numeric, numeric, numeric);
+
 create or replace function public.apply_loyalty_transaction(
   p_customer_id uuid,
   p_order_id text,
   p_discount_amount numeric,
   p_earned_bonus numeric,
   p_order_total numeric,
-  p_real_money_paid numeric
+  p_real_money_paid numeric,
+  p_activation_delay_days integer default 0
 )
 returns jsonb
 language plpgsql
@@ -268,6 +277,9 @@ as $$
 declare
   v_balance numeric;
   v_total_spent numeric;
+  v_active_bonus numeric := 0;
+  v_pending_bonus numeric := 0;
+  v_available_at timestamptz;
 begin
   if p_order_id is null or btrim(p_order_id) = '' then
     raise exception 'order_id is required';
@@ -279,7 +291,7 @@ begin
     select 1
     from public.transactions
     where order_id = p_order_id
-      and type in ('withdrawal', 'deposit')
+      and type in ('withdrawal', 'deposit', 'pending_deposit')
   ) then
     select balance, total_spent
       into v_balance, v_total_spent
@@ -289,13 +301,22 @@ begin
     return jsonb_build_object(
       'duplicate', true,
       'balance', v_balance,
-      'total_spent', v_total_spent
+      'total_spent', v_total_spent,
+      'pending_bonus', 0,
+      'available_at', null
     );
+  end if;
+
+  if coalesce(p_earned_bonus, 0) > 0 and coalesce(p_activation_delay_days, 0) > 0 then
+    v_pending_bonus := coalesce(p_earned_bonus, 0);
+    v_available_at := now() + make_interval(days => p_activation_delay_days);
+  else
+    v_active_bonus := coalesce(p_earned_bonus, 0);
   end if;
 
   update public.customers
   set
-    balance = balance - coalesce(p_discount_amount, 0) + coalesce(p_earned_bonus, 0),
+    balance = balance - coalesce(p_discount_amount, 0) + v_active_bonus,
     total_spent = total_spent + coalesce(p_real_money_paid, 0),
     updated_at = now()
   where id = p_customer_id
@@ -313,20 +334,71 @@ begin
   end if;
 
   if coalesce(p_earned_bonus, 0) > 0 then
-    insert into public.transactions (customer_id, order_id, type, amount, order_total, description)
-    values (p_customer_id, p_order_id, 'deposit', p_earned_bonus, p_real_money_paid, 'Кэшбэк за покупку');
+    if v_pending_bonus > 0 then
+      insert into public.transactions (customer_id, order_id, type, amount, order_total, description, available_at)
+      values (p_customer_id, p_order_id, 'pending_deposit', v_pending_bonus, p_real_money_paid, 'Кэшбэк ожидает активации', v_available_at);
+    else
+      insert into public.transactions (customer_id, order_id, type, amount, order_total, description)
+      values (p_customer_id, p_order_id, 'deposit', v_active_bonus, p_real_money_paid, 'Кэшбэк за покупку');
+    end if;
   end if;
 
   return jsonb_build_object(
     'duplicate', false,
     'balance', v_balance,
-    'total_spent', v_total_spent
+    'total_spent', v_total_spent,
+    'pending_bonus', v_pending_bonus,
+    'available_at', v_available_at
   );
 end;
 $$;
 
+create or replace function public.activate_pending_bonus_transactions()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_count integer := 0;
+  v_amount numeric := 0;
+begin
+  with due as (
+    update public.transactions
+    set
+      type = 'deposit',
+      activated_at = now(),
+      description = coalesce(description, '') || ' / активирован'
+    where type = 'pending_deposit'
+      and available_at is not null
+      and available_at <= now()
+    returning customer_id, amount
+  ),
+  due_totals as (
+    select customer_id, sum(amount) as amount
+    from due
+    group by customer_id
+  ),
+  updated_customers as (
+    update public.customers c
+    set
+      balance = balance + t.amount,
+      updated_at = now()
+    from due_totals t
+    where c.id = t.customer_id
+    returning t.amount
+  )
+  select count(*), coalesce(sum(amount), 0)
+    into v_count, v_amount
+    from due;
+
+  return jsonb_build_object('activated_count', v_count, 'activated_amount', v_amount);
+end;
+$$;
+
 grant execute on function public.increment_customer_balance(uuid, numeric) to service_role;
-grant execute on function public.apply_loyalty_transaction(uuid, text, numeric, numeric, numeric, numeric) to service_role;
+grant execute on function public.apply_loyalty_transaction(uuid, text, numeric, numeric, numeric, numeric, integer) to service_role;
+grant execute on function public.activate_pending_bonus_transactions() to service_role;
 
 -- --------------------------------------------------------------------
 -- WhatsApp / OTP session storage

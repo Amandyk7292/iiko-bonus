@@ -1681,6 +1681,7 @@
         
         let typeStr = t.type;
         if(t.type === 'deposit') typeStr = 'Начисление кэшбэка';
+        if(t.type === 'pending_deposit') typeStr = 'Ожидает активации';
         if(t.type === 'withdrawal') typeStr = 'Оплата бонусами';
         if(t.type === 'manual_deposit') typeStr = 'Ручное начисление';
         if(t.type === 'manual_withdrawal') typeStr = 'Ручное списание';
