@@ -74,11 +74,8 @@
     .bonus-nav, .bonus-nav-active { width: 100%; min-height: 53px; display: flex; align-items: center; gap: 16px; padding: 0 24px; border-radius: 6px; font-size: 16px; font-weight: 500; border: 1px solid #e7e7e6; background: transparent; color: #1d1f23; text-align: left; transition: all 0.2s; box-shadow: 0 1px 2px rgba(20, 24, 32, 0.03); }
     .bonus-nav:hover { color: #18805a; border-color: #bce7d5; }
     .bonus-nav-active { color: #1d1f23; border-color: #64c889; box-shadow: inset 0 0 0 1px #64c889, 0 1px 2px rgba(20, 24, 32, 0.03); }
-    .bonus-menu-icon { width: 20px; height: 20px; border: 2px solid currentColor; border-radius: 5px; opacity: 0.45; flex: 0 0 auto; position: relative; }
-    .bonus-menu-icon.circle { border-radius: 50%; }
-    .bonus-menu-icon.lines::before, .bonus-menu-icon.lines::after { content: ""; position: absolute; left: 3px; right: 3px; height: 2px; background: currentColor; opacity: 0.8; }
-    .bonus-menu-icon.lines::before { top: 5px; }
-    .bonus-menu-icon.lines::after { bottom: 5px; }
+    .bonus-menu-icon { width: 20px; height: 20px; opacity: 0.62; flex: 0 0 auto; stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+    .bonus-nav-active .bonus-menu-icon { opacity: 0.9; color: #18805a; }
     .bonus-panel-head { display: flex; align-items: center; gap: 16px; padding-bottom: 28px; border-bottom: 1px solid #eef0f4; margin-bottom: 28px; }
     .bonus-panel-head h3 { margin: 0; font-size: 20px; line-height: 1.2; color: #101318; font-weight: 700; }
     .bonus-panel-head p { color: #9aa0aa; font-size: 14px; }
@@ -554,18 +551,18 @@
 
         <div class="bonus-workspace">
           <aside class="bonus-menu">
-            <button onclick="switchBonusPage('term')" id="bonus-nav-term" class="bonus-nav-active"><span class="bonus-menu-icon circle"></span>Срок действия</button>
-            <button onclick="switchBonusPage('writeoff')" id="bonus-nav-writeoff" class="bonus-nav"><span class="bonus-menu-icon lines"></span>Списание</button>
-            <button onclick="switchBonusPage('mode')" id="bonus-nav-mode" class="bonus-nav"><span class="bonus-menu-icon circle"></span>Активация</button>
-            <button onclick="switchBonusPage('birthday')" id="bonus-nav-birthday" class="bonus-nav"><span class="bonus-menu-icon"></span>День рождения</button>
-            <button onclick="switchBonusPage('photos')" id="bonus-nav-photos" class="bonus-nav"><span class="bonus-menu-icon"></span>Фотографии</button>
-            <button onclick="switchBonusPage('standard')" id="bonus-nav-standard" class="bonus-nav"><span class="bonus-menu-icon lines"></span>Стандартный</button>
-            <button onclick="switchBonusPage('corporate')" id="bonus-nav-corporate" class="bonus-nav"><span class="bonus-menu-icon"></span>Корпоративный</button>
-            <button onclick="switchBonusPage('gradation')" id="bonus-nav-gradation" class="bonus-nav"><span class="bonus-menu-icon lines"></span>Накопительный</button>
-            <button onclick="switchBonusPage('promocode')" id="bonus-nav-promocode" class="bonus-nav"><span class="bonus-menu-icon lines"></span>Сумма транзакций</button>
-            <button onclick="switchBonusPage('automailing')" id="bonus-nav-automailing" class="bonus-nav"><span class="bonus-menu-icon circle"></span>Авторассылка</button>
-            <button onclick="switchBonusPage('referral')" id="bonus-nav-referral" class="bonus-nav"><span class="bonus-menu-icon circle"></span>Реферальная система</button>
-            <button onclick="switchBonusPage('cross')" id="bonus-nav-cross" class="bonus-nav"><span class="bonus-menu-icon"></span>Cross</button>
+            <button onclick="switchBonusPage('term')" id="bonus-nav-term" class="bonus-nav-active"><svg class="bonus-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3"></rect><path d="M8 3v4M16 3v4M4 10h16M8 14h4"></path></svg>Срок действия</button>
+            <button onclick="switchBonusPage('writeoff')" id="bonus-nav-writeoff" class="bonus-nav"><svg class="bonus-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14v11a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V7Z"></path><path d="M8 7V5a4 4 0 0 1 8 0v2M9 12h6M9 16h4"></path></svg>Списание</button>
+            <button onclick="switchBonusPage('mode')" id="bonus-nav-mode" class="bonus-nav"><svg class="bonus-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"></path><circle cx="9" cy="12" r="3"></circle><path d="M14 6h5M5 18h5"></path><circle cx="14" cy="18" r="3"></circle><circle cx="10" cy="6" r="3"></circle></svg>Активация</button>
+            <button onclick="switchBonusPage('birthday')" id="bonus-nav-birthday" class="bonus-nav"><svg class="bonus-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11h16v9H4zM4 15h16M12 11v9M7 11c-2-2-1-5 2-5 2 0 3 2 3 5M17 11c2-2 1-5-2-5-2 0-3 2-3 5"></path></svg>День рождения</button>
+            <button onclick="switchBonusPage('photos')" id="bonus-nav-photos" class="bonus-nav"><svg class="bonus-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="3"></rect><circle cx="9" cy="10" r="1.5"></circle><path d="M7 17l4-4 3 3 2-2 3 3"></path></svg>Фотографии</button>
+            <button onclick="switchBonusPage('standard')" id="bonus-nav-standard" class="bonus-nav"><svg class="bonus-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.7 5.5 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.8 1-6.1-4.4-4.3 6.1-.9L12 3Z"></path></svg>Стандартный</button>
+            <button onclick="switchBonusPage('corporate')" id="bonus-nav-corporate" class="bonus-nav"><svg class="bonus-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21V7l8-4 8 4v14M9 21v-6h6v6M8 10h.01M12 10h.01M16 10h.01"></path></svg>Корпоративный</button>
+            <button onclick="switchBonusPage('gradation')" id="bonus-nav-gradation" class="bonus-nav"><svg class="bonus-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19V9M12 19V5M19 19v-7M3 19h18"></path></svg>Накопительный</button>
+            <button onclick="switchBonusPage('promocode')" id="bonus-nav-promocode" class="bonus-nav"><svg class="bonus-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="3"></rect><path d="M8 9h8M8 13h5M15 16h1"></path></svg>Сумма транзакций</button>
+            <button onclick="switchBonusPage('automailing')" id="bonus-nav-automailing" class="bonus-nav"><svg class="bonus-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l16-7-4 15-4-6-8-2Z"></path><path d="M12 14l4-9"></path></svg>Авторассылка</button>
+            <button onclick="switchBonusPage('referral')" id="bonus-nav-referral" class="bonus-nav"><svg class="bonus-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="8" r="3"></circle><circle cx="17" cy="16" r="3"></circle><path d="M11 9.5l3.5 3.5M5 18c.8-2 2.2-3 4-3"></path></svg>Реферальная система</button>
+            <button onclick="switchBonusPage('cross')" id="bonus-nav-cross" class="bonus-nav"><svg class="bonus-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"></path><circle cx="7" cy="7" r="3"></circle><circle cx="17" cy="17" r="3"></circle></svg>Cross</button>
           </aside>
 
           <section class="min-w-0">
