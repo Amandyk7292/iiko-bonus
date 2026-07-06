@@ -76,9 +76,6 @@
     .bonus-nav-active { color: #1d1f23; border-color: #64c889; box-shadow: inset 0 0 0 1px #64c889, 0 1px 2px rgba(20, 24, 32, 0.03); }
     .bonus-menu-icon { width: 20px; height: 20px; opacity: 0.62; flex: 0 0 auto; stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
     .bonus-nav-active .bonus-menu-icon { opacity: 0.9; color: #18805a; }
-    .bonus-panel-head { display: flex; align-items: center; gap: 16px; padding-bottom: 28px; border-bottom: 1px solid #eef0f4; margin-bottom: 28px; }
-    .bonus-panel-head h3 { margin: 0; font-size: 20px; line-height: 1.2; color: #101318; font-weight: 700; }
-    .bonus-panel-head p { color: #9aa0aa; font-size: 14px; }
     .bonus-form-section { padding-bottom: 24px; margin-bottom: 24px; border-bottom: 1px solid #eef0f4; }
     .bonus-form-section label { display: block; font-size: 20px; color: #080a0d; margin-bottom: 14px; }
     .bonus-form-section label .required { color: #ef4444; }
@@ -96,7 +93,6 @@
       .sagi-topbar { padding: 0 16px; }
       .sagi-page { padding: 16px; }
       .bonus-workspace { grid-template-columns: 1fr; padding: 18px; border-radius: 16px; }
-      .bonus-panel-head { align-items: flex-start; flex-wrap: wrap; }
     }
   </style>
 </head>
@@ -276,22 +272,16 @@
       
       <!-- TAB: Analytics -->
       <div id="content-analytics" class="space-y-8">
-        <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
-          <div>
-            <h2 class="sagi-page-title">Общие продажи</h2>
-            <p class="sagi-page-subtitle">Динамика продаж, бонусов и текущих обязательств</p>
+        <div class="sagi-filter">
+          <div class="sagi-field">
+            <label>Период с</label>
+            <input type="date" class="input-classic">
           </div>
-          <div class="sagi-filter">
-            <div class="sagi-field">
-              <label>Период с</label>
-              <input type="date" class="input-classic">
-            </div>
-            <div class="sagi-field">
-              <label>Период до</label>
-              <input type="date" class="input-classic">
-            </div>
-            <button onclick="fetchStats()" class="btn-classic px-5 py-2">Фильтр</button>
+          <div class="sagi-field">
+            <label>Период до</label>
+            <input type="date" class="input-classic">
           </div>
+          <button onclick="fetchStats()" class="btn-classic px-5 py-2">Фильтр</button>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div class="card p-6 border-l-4 border-l-beige-500">
@@ -354,11 +344,7 @@
 
       <!-- TAB: Customers -->
       <div id="content-customers" class="hidden space-y-6">
-        <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
-          <div>
-            <h2 class="sagi-page-title">База клиентов</h2>
-            <p class="sagi-page-subtitle">Клиенты, статусы, бонусы, покупки, теги, рассылки</p>
-          </div>
+        <div class="flex justify-end">
           <button onclick="exportCustomersCsv()" class="btn-outline px-5 py-2">Экспорт</button>
         </div>
         <div class="sagi-filter">
@@ -403,16 +389,10 @@
 
       <!-- TAB: Transactions -->
       <div id="content-transactions" class="hidden space-y-6">
-        <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
-          <div>
-            <h2 class="sagi-page-title">Транзакции</h2>
-            <p class="sagi-page-subtitle">Оплаты, сертификаты, начисления и списания бонусов</p>
-          </div>
-          <div class="flex gap-2 flex-wrap">
-            <button onclick="alert('Форма оплаты подключается к iiko POS. Используйте кассу для проведения оплаты.')" class="btn-classic px-4 py-2">Провести оплату</button>
-            <button onclick="switchTab('stories')" class="btn-outline px-4 py-2">Выдать сертификат</button>
-            <button onclick="promptManualBonusByPhone()" class="btn-outline px-4 py-2">Начислить бонус</button>
-          </div>
+        <div class="flex gap-2 flex-wrap justify-end">
+          <button onclick="alert('Форма оплаты подключается к iiko POS. Используйте кассу для проведения оплаты.')" class="btn-classic px-4 py-2">Провести оплату</button>
+          <button onclick="switchTab('stories')" class="btn-outline px-4 py-2">Выдать сертификат</button>
+          <button onclick="promptManualBonusByPhone()" class="btn-outline px-4 py-2">Начислить бонус</button>
         </div>
         <div class="sagi-filter">
           <div class="sagi-field">
@@ -450,11 +430,7 @@
 
       <!-- TAB: iiko Front -->
       <div id="content-iiko" class="hidden space-y-6">
-        <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
-          <div>
-            <h2 class="sagi-page-title">iiko Front</h2>
-            <p class="sagi-page-subtitle">Доставка начислений с касс, повторы и ошибки закрытых заказов</p>
-          </div>
+        <div class="flex justify-end">
           <button onclick="fetchIikoOperations()" class="btn-classic px-5 py-2">Обновить</button>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -516,11 +492,7 @@
 
       <!-- TAB: Stories -->
       <div id="content-stories" class="hidden space-y-6">
-        <div class="flex justify-between items-center mb-4">
-          <div>
-            <h2 class="text-xl font-serif text-beige-800">Управление рекламными Сториз</h2>
-            <p class="text-sm text-gray-500">Отображаются в мобильном приложении над картой в стиле Instagram (по 15 секунд).</p>
-          </div>
+        <div class="flex justify-end mb-4">
           <button onclick="openStoryModal()" class="btn-classic px-5 py-2.5 font-medium shadow-sm flex items-center gap-2">
             <span>+ Создать Сториз</span>
           </button>
@@ -544,11 +516,6 @@
 
       <!-- TAB: Bonus -->
       <div id="content-bonus" class="hidden space-y-6">
-        <div>
-          <h2 class="text-xl font-serif text-beige-800">Бонусная система</h2>
-          <p class="text-sm text-gray-500">Структура как в Sagi Business: режимы, правила, cross-marketing, промокоды, рефералы и авто-коммуникации.</p>
-        </div>
-
         <div class="bonus-workspace">
           <aside class="bonus-menu">
             <button onclick="switchBonusPage('term')" id="bonus-nav-term" class="bonus-nav-active"><svg class="bonus-menu-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="3"></rect><path d="M8 3v4M16 3v4M4 10h16M8 14h4"></path></svg>Срок действия</button>
@@ -566,11 +533,6 @@
           </aside>
 
           <section class="min-w-0">
-            <div class="bonus-panel-head">
-              <h3>Бонусы</h3>
-              <p>Информация может быть изменена в вашем профиле</p>
-            </div>
-
         <div id="bonus-page-mode" class="bonus-page hidden grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div class="card p-5 lg:col-span-2">
             <h3 class="font-bold text-gray-800 mb-4">Режим начисления</h3>
