@@ -12,8 +12,6 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <!-- QRCode.js -->
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-  <!-- CryptoJS -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
   <!-- Telegram WebApp SDK -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
@@ -467,25 +465,37 @@
       const qrPhoneText = document.getElementById('qrPhoneText');
       if (window.qrInterval) clearInterval(window.qrInterval);
       
-      function updateQr() {
+      let loadedQrWindow = null;
+      let currentQrToken = '';
+
+      async function updateQr() {
         const timeWindow = Math.floor(Date.now() / 300000);
         const secondsLeft = 300 - Math.floor((Date.now() % 300000) / 1000);
-        
-        const cleanPhone = c.phone.replace(/[^0-9]/g, '');
-        const secret = 'BULKA_SUPER_SECRET_2026';
-        const hashInput = `${cleanPhone}:${timeWindow}:${secret}`;
-        const hash = CryptoJS.SHA256(hashInput).toString(CryptoJS.enc.Hex).slice(0, 8);
-        const otpString = `BULKA-OTP-${cleanPhone}-${timeWindow}-${hash}`;
-        
-        qrContainer.innerHTML = '';
-        new QRCode(qrContainer, {
-          text: otpString,
-          width: 180,
-          height: 180,
-          colorDark: "#000000",
-          colorLight: "#ffffff",
-          correctLevel: QRCode.CorrectLevel.M
-        });
+
+        if (loadedQrWindow !== timeWindow || !currentQrToken) {
+          try {
+            const res = await fetch('/api/guest/qr-token', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ phone: c.phone })
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success || !data.token) throw new Error(data.error || 'QR error');
+            currentQrToken = data.token;
+            loadedQrWindow = timeWindow;
+            qrContainer.innerHTML = '';
+            new QRCode(qrContainer, {
+              text: currentQrToken,
+              width: 180,
+              height: 180,
+              colorDark: "#000000",
+              colorLight: "#ffffff",
+              correctLevel: QRCode.CorrectLevel.M
+            });
+          } catch (e) {
+            qrContainer.innerHTML = '<div class="w-[180px] h-[180px] bg-white text-red-600 text-xs flex items-center justify-center text-center p-4">QR временно недоступен</div>';
+          }
+        }
         
         const m = Math.floor(secondsLeft / 60).toString().padStart(2, '0');
         const s = (secondsLeft % 60).toString().padStart(2, '0');

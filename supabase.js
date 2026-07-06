@@ -7,7 +7,11 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
 
 if (!supabaseUrl || !supabaseKey) {
-  console.warn("ВНИМАНИЕ: SUPABASE_URL или SUPABASE_SERVICE_ROLE_KEY не заданы в .env");
+  const message = "SUPABASE_URL или SUPABASE_SERVICE_ROLE_KEY не заданы в .env";
+  if (process.env.NODE_ENV === 'production' || process.env.RENDER || process.env.VERCEL) {
+    throw new Error(message);
+  }
+  console.warn("ВНИМАНИЕ: " + message);
 }
 
 const supabase = createClient(supabaseUrl || 'https://placeholder.supabase.co', supabaseKey || 'placeholder-key');

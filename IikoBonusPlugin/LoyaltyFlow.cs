@@ -3,9 +3,12 @@ using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.IO;
+using System.Reflection;
 using System.Runtime.Serialization.Json;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.Threading;
+using System.Xml.Linq;
 using Resto.Front.Api;
 using Resto.Front.Api.Data.Common;
 using Resto.Front.Api.Data.Orders;
@@ -55,11 +58,125 @@ namespace Resto.Front.Api.IikoBonusPlugin
         public CustomerData customer { get; set; }
     }
 
+    [System.Runtime.Serialization.DataContract]
+    public class LoyaltyApplyQueueItem
+    {
+        [System.Runtime.Serialization.DataMember]
+        public string orderId { get; set; }
+        [System.Runtime.Serialization.DataMember]
+        public string customerId { get; set; }
+        [System.Runtime.Serialization.DataMember]
+        public decimal discountAmount { get; set; }
+        [System.Runtime.Serialization.DataMember]
+        public decimal orderTotal { get; set; }
+        [System.Runtime.Serialization.DataMember]
+        public int attempts { get; set; }
+        [System.Runtime.Serialization.DataMember]
+        public string createdAtUtc { get; set; }
+        [System.Runtime.Serialization.DataMember]
+        public string lastAttemptAtUtc { get; set; }
+        [System.Runtime.Serialization.DataMember]
+        public string lastError { get; set; }
+    }
+
     public static class LoyaltyFlow
     {
         private static readonly HttpClient _httpClient = new HttpClient();
-        private const string ApiBaseUrl = "https://iiko-bonus.onrender.com/api/loyalty";
-        private const string ApiToken = "secret-token";
+        private static readonly string ApiBaseUrl = ReadPluginSetting("IIKO_LOYALTY_API_BASE_URL") ?? "https://iiko-bonus.onrender.com/api/loyalty";
+        private static readonly string ApiToken = ReadPluginSetting("IIKO_LOYALTY_API_TOKEN") ?? ReadPluginSetting("API_TOKEN");
+        private static readonly int RetryIntervalSec = ReadIntSetting("IIKO_LOYALTY_RETRY_INTERVAL_SEC", 60);
+        private static readonly int MaxAttempts = ReadIntSetting("IIKO_LOYALTY_MAX_ATTEMPTS", 0);
+        private static readonly string QueuePath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? AppDomain.CurrentDomain.BaseDirectory, "BulkaBonusPendingApplies.json");
+        private static readonly object QueueLock = new object();
+        private static Timer _retryTimer;
+        private static bool _flushInProgress;
+
+        static LoyaltyFlow()
+        {
+            _httpClient.Timeout = TimeSpan.FromSeconds(ReadIntSetting("IIKO_LOYALTY_TIMEOUT_SEC", 10));
+        }
+
+        private static string ReadPluginSetting(string key)
+        {
+            var envValue = Environment.GetEnvironmentVariable(key);
+            if (!string.IsNullOrWhiteSpace(envValue)) return envValue.Trim();
+
+            try
+            {
+                var assemblyPath = Assembly.GetExecutingAssembly().Location;
+                var configPath = assemblyPath + ".config";
+                if (!File.Exists(configPath)) return null;
+
+                var doc = XDocument.Load(configPath);
+                foreach (var add in doc.Descendants("add"))
+                {
+                    var addKey = add.Attribute("key")?.Value;
+                    if (string.Equals(addKey, key, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var value = add.Attribute("value")?.Value;
+                        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                PluginContext.Log.Error("IikoBonusPlugin: Failed to read config setting " + key + ": " + ex);
+            }
+
+            return null;
+        }
+
+        private static int ReadIntSetting(string key, int fallback)
+        {
+            var raw = ReadPluginSetting(key);
+            if (int.TryParse(raw, out var value) && value >= 0) return value;
+            return fallback;
+        }
+
+        public static void StartBackgroundRetry()
+        {
+            if (_retryTimer != null) return;
+            _retryTimer = new Timer(_ => FlushPendingApplyRequests(), null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(Math.Max(10, RetryIntervalSec)));
+            Task.Run(() => CheckServerStatus());
+        }
+
+        public static void StopBackgroundRetry()
+        {
+            try
+            {
+                _retryTimer?.Dispose();
+                _retryTimer = null;
+            }
+            catch { }
+        }
+
+        public static string GetQueueStatusText()
+        {
+            var pending = LoadQueue();
+            var tokenStatus = IsTokenConfigured() ? "токен задан" : "токен НЕ задан";
+            return "Bulka Bonus\nAPI: " + ApiBaseUrl + "\n" + tokenStatus + "\nВ очереди начислений: " + pending.Count;
+        }
+
+        private static bool IsTokenConfigured()
+        {
+            return !string.IsNullOrWhiteSpace(ApiToken) && ApiToken != "replace-with-api-token";
+        }
+
+        private static bool EnsureApiToken(IViewManager vm)
+        {
+            if (IsTokenConfigured()) return true;
+            const string message = "Не задан IIKO_LOYALTY_API_TOKEN для бонусной системы.";
+            PluginContext.Log.Error("IikoBonusPlugin: " + message);
+            try { vm.ShowErrorPopup(message, "ОК"); } catch { }
+            return false;
+        }
+
+        private static bool EnsureApiToken()
+        {
+            if (IsTokenConfigured()) return true;
+            PluginContext.Log.Error("IikoBonusPlugin: Не задан IIKO_LOYALTY_API_TOKEN для бонусной системы.");
+            return false;
+        }
 
         public static void Run(IOrder order, IOperationService os, IViewManager vm)
         {
@@ -195,6 +312,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         {
             try
             {
+                if (!EnsureApiToken(vm)) return;
                 vm.ChangeProgressBarMessage("Поиск клиента...");
 
                 // Шаг 2: Ищем клиента
@@ -452,7 +570,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     {
                         PluginContext.Log.Info("IikoBonusPlugin: Order " + order.Number + " closed. Applying loyalty for customer " + loyaltyData.CustomerId + ", discount " + loyaltyData.DiscountAmount + ", fullSum " + order.FullSum + "...");
                         
-                        Task.Run(() => SendApplyRequest(loyaltyData.CustomerId, order.Number.ToString(), loyaltyData.DiscountAmount, order.FullSum));
+                        EnqueueApplyRequest(order.Id.ToString(), loyaltyData.CustomerId, loyaltyData.DiscountAmount, order.FullSum);
+                        Task.Run(() => FlushPendingApplyRequests());
                     }
                 }
                 else
@@ -474,6 +593,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         {
             try
             {
+                if (!EnsureApiToken()) return null;
                 var payloadStr = "{\"phone\":\"" + phone.Replace("\"", "\\\"") + "\",\"name\":\"" + name.Replace("\"", "\\\"") + "\"}";
                 var content = new StringContent(payloadStr, Encoding.UTF8, "application/json");
                 
@@ -511,11 +631,132 @@ namespace Resto.Front.Api.IikoBonusPlugin
             }
         }
 
-        private static void SendApplyRequest(string customerId, string orderId, decimal discountAmount, decimal orderTotal)
+        private static void EnqueueApplyRequest(string orderId, string customerId, decimal discountAmount, decimal orderTotal)
+        {
+            lock (QueueLock)
+            {
+                var queue = LoadQueueUnsafe();
+                if (queue.Any(x => x.orderId == orderId)) return;
+
+                queue.Add(new LoyaltyApplyQueueItem
+                {
+                    orderId = orderId,
+                    customerId = customerId,
+                    discountAmount = discountAmount,
+                    orderTotal = orderTotal,
+                    attempts = 0,
+                    createdAtUtc = DateTime.UtcNow.ToString("o"),
+                    lastAttemptAtUtc = "",
+                    lastError = ""
+                });
+                SaveQueueUnsafe(queue);
+            }
+        }
+
+        private static List<LoyaltyApplyQueueItem> LoadQueue()
+        {
+            lock (QueueLock)
+            {
+                return LoadQueueUnsafe();
+            }
+        }
+
+        private static List<LoyaltyApplyQueueItem> LoadQueueUnsafe()
         {
             try
             {
-                var payloadStr = "{\"customerId\":\"" + customerId + "\",\"orderId\":\"" + orderId + "\",\"discountAmount\":" + discountAmount.ToString(System.Globalization.CultureInfo.InvariantCulture) + ",\"orderTotal\":" + orderTotal.ToString(System.Globalization.CultureInfo.InvariantCulture) + "}";
+                if (!File.Exists(QueuePath)) return new List<LoyaltyApplyQueueItem>();
+                var serializer = new DataContractJsonSerializer(typeof(List<LoyaltyApplyQueueItem>));
+                using (var fs = File.OpenRead(QueuePath))
+                {
+                    return (List<LoyaltyApplyQueueItem>)serializer.ReadObject(fs) ?? new List<LoyaltyApplyQueueItem>();
+                }
+            }
+            catch (Exception ex)
+            {
+                PluginContext.Log.Error("IikoBonusPlugin: Failed to load queue: " + ex);
+                return new List<LoyaltyApplyQueueItem>();
+            }
+        }
+
+        private static void SaveQueueUnsafe(List<LoyaltyApplyQueueItem> queue)
+        {
+            var serializer = new DataContractJsonSerializer(typeof(List<LoyaltyApplyQueueItem>));
+            var tempPath = QueuePath + ".tmp";
+            using (var fs = File.Create(tempPath))
+            {
+                serializer.WriteObject(fs, queue);
+            }
+            if (File.Exists(QueuePath)) File.Delete(QueuePath);
+            File.Move(tempPath, QueuePath);
+        }
+
+        private static void FlushPendingApplyRequests()
+        {
+            if (_flushInProgress) return;
+            _flushInProgress = true;
+            try
+            {
+                if (!EnsureApiToken()) return;
+
+                List<LoyaltyApplyQueueItem> queue;
+                lock (QueueLock)
+                {
+                    queue = LoadQueueUnsafe();
+                }
+
+                if (queue.Count == 0) return;
+                var remaining = new List<LoyaltyApplyQueueItem>();
+
+                foreach (var item in queue)
+                {
+                    if (MaxAttempts > 0 && item.attempts >= MaxAttempts)
+                    {
+                        remaining.Add(item);
+                        continue;
+                    }
+
+                    item.attempts += 1;
+                    item.lastAttemptAtUtc = DateTime.UtcNow.ToString("o");
+                    string error;
+                    if (SendApplyRequest(item, out error))
+                    {
+                        PluginContext.Log.Info("IikoBonusPlugin: Loyalty apply delivered for order " + item.orderId + " after " + item.attempts + " attempt(s).");
+                    }
+                    else
+                    {
+                        item.lastError = error;
+                        remaining.Add(item);
+                        PluginContext.Log.Error("IikoBonusPlugin: Loyalty apply still pending for order " + item.orderId + ": " + error);
+                    }
+                }
+
+                lock (QueueLock)
+                {
+                    SaveQueueUnsafe(remaining);
+                }
+            }
+            catch (Exception ex)
+            {
+                PluginContext.Log.Error("IikoBonusPlugin: Flush queue failed: " + ex);
+            }
+            finally
+            {
+                _flushInProgress = false;
+            }
+        }
+
+        private static bool SendApplyRequest(LoyaltyApplyQueueItem item, out string errorMessage)
+        {
+            errorMessage = "";
+            try
+            {
+                if (!EnsureApiToken())
+                {
+                    errorMessage = "API token is not configured";
+                    return false;
+                }
+                var payloadStr = "{\"customerId\":\"" + EscapeJson(item.customerId) + "\",\"orderId\":\"" + EscapeJson(item.orderId) + "\",\"discountAmount\":" + item.discountAmount.ToString(System.Globalization.CultureInfo.InvariantCulture) + ",\"orderTotal\":" + item.orderTotal.ToString(System.Globalization.CultureInfo.InvariantCulture) + "}";
                 var content = new StringContent(payloadStr, Encoding.UTF8, "application/json");
                 
                 var request = new HttpRequestMessage(HttpMethod.Post, ApiBaseUrl + "/apply")
@@ -534,16 +775,43 @@ namespace Resto.Front.Api.IikoBonusPlugin
 
                 if (response.IsSuccessStatusCode)
                 {
-                    PluginContext.Log.Info("IikoBonusPlugin: Loyalty applied successfully for order " + orderId + ". Response: " + responseString);
+                    PluginContext.Log.Info("IikoBonusPlugin: Loyalty applied successfully for order " + item.orderId + ". Response: " + responseString);
+                    return true;
                 }
                 else
                 {
-                    PluginContext.Log.Error("IikoBonusPlugin: Failed to apply loyalty for order " + orderId + ". Status: " + response.StatusCode + ", Response: " + responseString);
+                    errorMessage = "Status: " + response.StatusCode + ", Response: " + responseString;
+                    PluginContext.Log.Error("IikoBonusPlugin: Failed to apply loyalty for order " + item.orderId + ". " + errorMessage);
+                    return false;
                 }
             }
             catch (Exception ex)
             {
-                PluginContext.Log.Error("IikoBonusPlugin: Exception sending apply request for order " + orderId + ": " + ex);
+                errorMessage = ex.Message;
+                PluginContext.Log.Error("IikoBonusPlugin: Exception sending apply request for order " + item.orderId + ": " + ex);
+                return false;
+            }
+        }
+
+        private static string EscapeJson(string value)
+        {
+            return (value ?? "").Replace("\\", "\\\\").Replace("\"", "\\\"");
+        }
+
+        private static void CheckServerStatus()
+        {
+            try
+            {
+                if (!EnsureApiToken()) return;
+                var request = new HttpRequestMessage(HttpMethod.Get, ApiBaseUrl + "/config-check");
+                request.Headers.Add("Authorization", "Bearer " + ApiToken);
+                var responseTask = _httpClient.SendAsync(request);
+                responseTask.Wait();
+                PluginContext.Log.Info("IikoBonusPlugin: config-check status " + responseTask.Result.StatusCode);
+            }
+            catch (Exception ex)
+            {
+                PluginContext.Log.Error("IikoBonusPlugin: config-check failed: " + ex.Message);
             }
         }
     }

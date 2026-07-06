@@ -38,13 +38,22 @@ async function sendAppleWalletPush(customerId) {
   }
 }
 
+function readSecretBuffer(envKey, localFile) {
+  if (process.env[envKey]) return Buffer.from(process.env[envKey], 'base64');
+  if (!isProduction) {
+    const filePath = path.join(__dirname, localFile);
+    if (fs.existsSync(filePath)) return fs.readFileSync(filePath);
+  }
+  throw new Error(`${envKey} is required`);
+}
+
 async function buildApplePassBuffer(customer, host) {
     const settings = await getSettings();
     const tier = getTierInfo(customer.total_spent, settings);
 
-    const signerCert = process.env.WALLET_CERT ? Buffer.from(process.env.WALLET_CERT, 'base64') : fs.readFileSync(path.join(__dirname, 'wallet_cert.pem'));
-    const signerKey = process.env.WALLET_KEY ? Buffer.from(process.env.WALLET_KEY, 'base64') : fs.readFileSync(path.join(__dirname, 'wallet_private_key.pem'));
-    const wwdr = process.env.WALLET_WWDR ? Buffer.from(process.env.WALLET_WWDR, 'base64') : fs.readFileSync(path.join(__dirname, 'wwdr.pem'));
+    const signerCert = readSecretBuffer('WALLET_CERT', 'wallet_cert.pem');
+    const signerKey = readSecretBuffer('WALLET_KEY', 'wallet_private_key.pem');
+    const wwdr = readSecretBuffer('WALLET_WWDR', 'wwdr.pem');
     
     const authToken = crypto.createHash('sha256').update(customer.id.toString() + 'bulka').digest('hex');
 
@@ -81,10 +90,101 @@ async function buildApplePassBuffer(customer, host) {
 }
 
 
-const { getCustomerByPhone, getOrCreateCustomerByPhone, searchCustomers, updateCustomerBalance, updateCustomerInfo, logTransaction, getAllCustomers, getTransactions, getStats, addManualBonus, checkAndExpireInactiveBonuses, checkAndNotifyInactiveCustomers, updateFcmToken, getSecretWalletCardNumber } = require('./customers');
+const { getCustomerByPhone, getOrCreateCustomerByPhone, searchCustomers, updateCustomerBalance, updateCustomerInfo, logTransaction, getAllCustomers, getTransactions, getStats, addManualBonus, checkAndExpireInactiveBonuses, checkAndNotifyInactiveCustomers, updateFcmToken, getSecretWalletCardNumber, applyLoyaltyTransaction } = require('./customers');
 const { sendPushNotification } = require('./push-notifications');
 const { getSettings, updateSettings } = require('./settings');
 const { sendWhatsAppMessage, initWhatsApp } = require('./whatsapp-baileys');
+
+const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER || process.env.VERCEL;
+const requiredEnvVars = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'API_TOKEN', 'ADMIN_PASSWORD', 'BULKA_SECRET'];
+const missingRequiredEnv = requiredEnvVars.filter(key => !process.env[key]);
+if (missingRequiredEnv.length > 0) {
+  const message = `Missing required environment variables: ${missingRequiredEnv.join(', ')}`;
+  if (isProduction) {
+    throw new Error(message);
+  }
+  console.warn(`WARNING: ${message}`);
+}
+
+const API_TOKEN = process.env.API_TOKEN;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map(origin => origin.trim())
+  .filter(Boolean);
+
+function normalizePhone(phone) {
+  return String(phone || '').replace(/[^0-9+]/g, '');
+}
+
+function buildDynamicQrToken(phone, timeWindow = Math.floor(Date.now() / 300000)) {
+  const digitsOnly = String(phone || '').replace(/[^0-9]/g, '');
+  if (digitsOnly.length < 10) {
+    const err = new Error('Valid phone required');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (!process.env.BULKA_SECRET) throw new Error('BULKA_SECRET is required');
+  const hash = crypto
+    .createHash('sha256')
+    .update(`${digitsOnly}:${timeWindow}:${process.env.BULKA_SECRET}`)
+    .digest('hex')
+    .slice(0, 8);
+  const expiresAt = (timeWindow + 1) * 300000;
+  return {
+    token: `BULKA-OTP-${digitsOnly}-${timeWindow}-${hash}`,
+    expiresAt,
+    ttlSeconds: Math.max(1, Math.floor((expiresAt - Date.now()) / 1000))
+  };
+}
+
+function parseMoney(value, fieldName, { min = 0 } = {}) {
+  const amount = Number(value);
+  if (!Number.isFinite(amount) || amount < min) {
+    const err = new Error(`${fieldName} must be a number >= ${min}`);
+    err.statusCode = 400;
+    throw err;
+  }
+  return Math.round(amount * 100) / 100;
+}
+
+function makeRateLimiter({ windowMs, max, key = req => req.ip, message = 'Too many requests' }) {
+  const buckets = new Map();
+  return (req, res, next) => {
+    const now = Date.now();
+    const bucketKey = key(req);
+    const bucket = buckets.get(bucketKey);
+    if (!bucket || now > bucket.resetAt) {
+      buckets.set(bucketKey, { count: 1, resetAt: now + windowMs });
+      return next();
+    }
+    bucket.count += 1;
+    if (bucket.count > max) {
+      return res.status(429).json({ error: message });
+    }
+    next();
+  };
+}
+
+const authRateLimit = makeRateLimiter({
+  windowMs: 10 * 60 * 1000,
+  max: 8,
+  key: req => `${req.ip}:${normalizePhone(req.body?.phone)}`,
+  message: 'Слишком много попыток. Попробуйте позже.'
+});
+
+const adminRateLimit = makeRateLimiter({
+  windowMs: 5 * 60 * 1000,
+  max: 120,
+  message: 'Слишком много запросов к админке.'
+});
+
+const walletRateLimit = makeRateLimiter({
+  windowMs: 10 * 60 * 1000,
+  max: 20,
+  key: req => `${req.ip}:${normalizePhone(req.body?.phone)}`,
+  message: 'Слишком много запросов Wallet-ссылки.'
+});
 
 function getTierInfo(totalSpent, settings) {
   const spent = Number(totalSpent) || 0;
@@ -100,7 +200,15 @@ function getTierInfo(totalSpent, settings) {
 }
 
 const app = express();
-app.use(cors());
+app.set('trust proxy', 1);
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin || ALLOWED_ORIGINS.length === 0 || ALLOWED_ORIGINS.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  }
+}));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' })); // Для form submit
 
@@ -332,14 +440,56 @@ app.post('/api/register-iiko', async (req, res) => {
 // ==========================================
 
 // Авторизация по токену для вебхуков
-const API_TOKEN = process.env.API_TOKEN || 'secret-token';
 const webhookMiddleware = (req, res, next) => {
   const token = req.headers['authorization'];
-  if (token && token !== `Bearer ${API_TOKEN}`) {
+  if (!API_TOKEN || token !== `Bearer ${API_TOKEN}`) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   next();
 };
+
+async function logIikoOperation(entry) {
+  try {
+    await supabase.from('iiko_operation_logs').insert([{
+      order_id: entry.orderId || 'UNKNOWN',
+      customer_id: entry.customerId || null,
+      status: entry.status,
+      duplicate: Boolean(entry.duplicate),
+      discount_amount: entry.discountAmount || 0,
+      earned_bonus: entry.earnedBonus || 0,
+      order_total: entry.orderTotal || 0,
+      cashback_percent: entry.cashbackPercent ?? null,
+      balance: entry.balance ?? null,
+      error_message: entry.errorMessage || null,
+      payload: entry.payload || null
+    }]);
+  } catch (err) {
+    console.error('Failed to log iiko operation:', err.message);
+  }
+}
+
+app.get('/api/loyalty/config-check', webhookMiddleware, async (req, res) => {
+  try {
+    const settings = await getSettings();
+    res.json({
+      success: true,
+      service: 'Bulka Bonus loyalty',
+      timestamp: new Date().toISOString(),
+      settings: {
+        base_cashback_percent: settings.base_cashback_percent,
+        tier_silver_th: settings.tier_silver_th,
+        tier_silver_cb: settings.tier_silver_cb,
+        tier_gold_th: settings.tier_gold_th,
+        tier_gold_cb: settings.tier_gold_cb,
+        tier_platinum_th: settings.tier_platinum_th,
+        tier_platinum_cb: settings.tier_platinum_cb,
+        max_discount_percent: settings.max_discount_percent
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Internal server error' });
+  }
+});
 
 app.post('/api/loyalty/customer', webhookMiddleware, async (req, res) => {
   try {
@@ -402,28 +552,36 @@ app.post('/api/loyalty/search', webhookMiddleware, async (req, res) => {
 app.post('/api/loyalty/calculate', webhookMiddleware, async (req, res) => {
   try {
     const { customerId, orderTotal, requestedBonusAmount } = req.body;
-    const maxAllowedDiscount = Math.min(requestedBonusAmount || 0, orderTotal);
+    const total = parseMoney(orderTotal, 'orderTotal');
+    const requested = parseMoney(requestedBonusAmount || 0, 'requestedBonusAmount');
+    const maxAllowedDiscount = Math.min(requested, total);
     res.json({ discountAmount: maxAllowedDiscount, message: "Расчет успешен" });
-  } catch (error) { res.status(500).json({ error: 'Internal server error' }); }
+  } catch (error) { res.status(error.statusCode || 500).json({ error: error.statusCode ? error.message : 'Internal server error' }); }
 });
 
 app.post('/api/loyalty/apply', webhookMiddleware, async (req, res) => {
+  let logPayload = null;
   try {
     const { customerId, orderId, discountAmount, orderTotal } = req.body;
+    const discount = parseMoney(discountAmount || 0, 'discountAmount');
+    const total = parseMoney(orderTotal, 'orderTotal');
+    if (!customerId || !orderId) return res.status(400).json({ error: 'customerId and orderId are required' });
+    logPayload = { customerId, orderId, discountAmount: discount, orderTotal: total, payload: req.body };
     const settings = await getSettings();
 
     // Проверка лимита списания
-    const maxAllowedDiscount = orderTotal * (settings.max_discount_percent / 100);
-    if (discountAmount > maxAllowedDiscount) {
+    const maxAllowedDiscount = total * (settings.max_discount_percent / 100);
+    if (discount > maxAllowedDiscount) {
+      await logIikoOperation({
+        ...logPayload,
+        status: 'error',
+        errorMessage: `Списание превышает лимит ${settings.max_discount_percent}%`,
+        payload: req.body
+      });
       return res.status(400).json({ error: `Списание превышает лимит ${settings.max_discount_percent}%` });
     }
 
-    if (discountAmount > 0) {
-      await updateCustomerBalance(customerId, -discountAmount);
-      await logTransaction({ customerId, orderId, type: 'withdrawal', amount: discountAmount, orderTotal: orderTotal });
-    }
-
-    const realMoneyPaid = orderTotal - (discountAmount || 0);
+    const realMoneyPaid = total - discount;
 
     // Получаем текущие траты клиента для определения процента
     const { supabase } = require('./supabase');
@@ -432,37 +590,61 @@ app.post('/api/loyalty/apply', webhookMiddleware, async (req, res) => {
     const cashbackPercent = tier.percent;
 
     const earnedBonus = Number((realMoneyPaid * (cashbackPercent / 100)).toFixed(2));
-    
-    if (earnedBonus > 0) {
-      await updateCustomerBalance(customerId, earnedBonus);
-      await logTransaction({ customerId, orderId, type: 'deposit', amount: earnedBonus, orderTotal: realMoneyPaid });
-    }
+    const applyResult = await applyLoyaltyTransaction({
+      customerId,
+      orderId,
+      discountAmount: discount,
+      earnedBonus,
+      orderTotal: total,
+      realMoneyPaid
+    });
 
     // Отправка Telegram и Push уведомлений
-    if (customer && (discountAmount > 0 || earnedBonus > 0)) {
+    if (!applyResult.duplicate && customer && (discount > 0 || earnedBonus > 0)) {
       const { sendMessage } = require('./telegram');
       let msg = `<b>Ваш заказ успешно оплачен!</b>\n\n`;
-      msg += `<b>Сумма чека:</b> ${orderTotal} тнг\n`;
-      if (discountAmount > 0) msg += `<b>Списано:</b> ${discountAmount} бонусов\n`;
+      msg += `<b>Сумма чека:</b> ${total} тнг\n`;
+      if (discount > 0) msg += `<b>Списано:</b> ${discount} бонусов\n`;
       if (earnedBonus > 0) msg += `<b>Начислено:</b> ${earnedBonus} бонусов\n`;
       
-      const newBalance = Number(customer.balance || 0) - (discountAmount || 0) + (earnedBonus || 0);
+      const newBalance = Number(applyResult.balance || 0);
       msg += `\n<b>Текущий баланс:</b> ${newBalance.toFixed(2)} бонусов\n\nСпасибо, что выбираете нас! `;
       
       if (customer.telegram_id) sendMessage(customer.telegram_id, msg).catch(err => console.error("Error sending TG msg:", err));
       if (customer.fcm_token) {
         const pushTitle = "Bulka Bonus: Заказ оплачен";
-        let pushBody = `Чек: ${orderTotal} тнг. `;
-        if (discountAmount > 0) pushBody += `Списано: ${discountAmount} бон. `;
+        let pushBody = `Чек: ${total} тнг. `;
+        if (discount > 0) pushBody += `Списано: ${discount} бон. `;
         if (earnedBonus > 0) pushBody += `Начислено: ${earnedBonus} бон. `;
         pushBody += `Баланс: ${newBalance.toFixed(0)} бон.`;
         sendPushNotification(customer.fcm_token, pushTitle, pushBody).catch(err => console.error("Error sending Push msg:", err));
       }
     }
 
-    sendAppleWalletPush(customerId).catch(err => console.error('Push error:', err));
-    res.json({ success: true, earnedBonus, cashbackPercent });
-  } catch (error) { console.error(error); res.status(500).json({ error: 'Internal server error' }); }
+    if (!applyResult.duplicate) sendAppleWalletPush(customerId).catch(err => console.error('Push error:', err));
+    await logIikoOperation({
+      ...logPayload,
+      status: 'success',
+      duplicate: applyResult.duplicate,
+      earnedBonus,
+      cashbackPercent,
+      balance: applyResult.balance
+    });
+    res.json({ success: true, duplicate: applyResult.duplicate, earnedBonus, cashbackPercent, balance: applyResult.balance });
+  } catch (error) {
+    console.error(error);
+    if (logPayload || req.body) {
+      await logIikoOperation({
+        ...(logPayload || {}),
+        orderId: logPayload?.orderId || req.body?.orderId || 'UNKNOWN',
+        customerId: logPayload?.customerId || req.body?.customerId || null,
+        status: 'error',
+        errorMessage: error.message,
+        payload: req.body || null
+      });
+    }
+    res.status(error.statusCode || 500).json({ error: error.statusCode ? error.message : 'Internal server error' });
+  }
 });
 
 // ==========================================
@@ -481,7 +663,7 @@ setInterval(() => {
 }, 5 * 60 * 1000);
 
 // API для генерации одноразового токена (вызывается из telegram.js)
-app.post('/api/wallet/token', async (req, res) => {
+app.post('/api/wallet/token', walletRateLimit, async (req, res) => {
   try {
     const { phone } = req.body;
     if (!phone) return res.status(400).json({ error: 'Phone required' });
@@ -616,12 +798,6 @@ async function generateGoogleWalletUrl(customer, settings, tier) {
   if (!credentialsRaw && process.env.FIREBASE_SERVICE_ACCOUNT) {
     credentialsRaw = process.env.FIREBASE_SERVICE_ACCOUNT;
   }
-  if (!credentialsRaw) {
-    const fs = require('fs');
-    const path = require('path');
-    const keyPath = path.join(__dirname, 'firebase-service-account.json');
-    if (fs.existsSync(keyPath)) credentialsRaw = fs.readFileSync(keyPath, 'utf8');
-  }
   
   if (!credentialsRaw) {
      throw new Error('Google Wallet is not configured on the server (missing credentials).');
@@ -727,15 +903,15 @@ app.get('/api/wallet/google/direct', async (req, res) => {
 // ==========================================
 // 4. ADMIN PANEL UI & API
 // ==========================================
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '123456';
-
 const adminAuthMiddleware = (req, res, next) => {
   const token = req.headers['authorization'];
-  if (token !== `Bearer ${ADMIN_PASSWORD}`) {
+  if (!ADMIN_PASSWORD || token !== `Bearer ${ADMIN_PASSWORD}`) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   next();
 };
+
+app.use('/admin/api', adminRateLimit);
 
 app.get('/admin/api/settings', adminAuthMiddleware, async (req, res) => {
   try {
@@ -776,10 +952,26 @@ app.get('/admin/api/stats', adminAuthMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.get('/admin/api/iiko-operations', adminAuthMiddleware, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('iiko_operation_logs')
+      .select('*, customers(phone, name)')
+      .order('created_at', { ascending: false })
+      .limit(200);
+    if (error) {
+      if (error.code === '42P01') return res.json([]);
+      throw error;
+    }
+    res.json(data || []);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.post('/admin/api/customers/bonus', adminAuthMiddleware, async (req, res) => {
   try {
     const { customerId, amount, reason } = req.body;
-    await addManualBonus(customerId, amount, reason);
+    const parsedAmount = parseMoney(amount, 'amount', { min: -100000000 });
+    await addManualBonus(customerId, parsedAmount, reason);
     sendAppleWalletPush(customerId).catch(err => console.error('Push error:', err));
     
     // Отправка уведомления гостю
@@ -898,6 +1090,9 @@ app.post('/admin/api/upload', adminAuthMiddleware, async (req, res) => {
   try {
     const { imageBase64, filename } = req.body;
     if (!imageBase64) return res.status(400).json({ error: 'No image provided' });
+    if (!/^data:image\/(jpeg|jpg|png|webp|gif);base64,/.test(imageBase64)) {
+      return res.status(400).json({ error: 'Unsupported image type' });
+    }
 
     const { supabase } = require('./supabase');
     
@@ -916,7 +1111,11 @@ app.post('/admin/api/upload', adminAuthMiddleware, async (req, res) => {
 
     const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
     const buffer = Buffer.from(base64Data, 'base64');
-    const ext = filename ? filename.split('.').pop() : 'jpg';
+    if (buffer.length > 10 * 1024 * 1024) {
+      return res.status(400).json({ error: 'Image is too large' });
+    }
+    const extRaw = filename ? filename.split('.').pop() : 'jpg';
+    const ext = ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(String(extRaw).toLowerCase()) ? String(extRaw).toLowerCase() : 'jpg';
     const filePath = `photo_${Date.now()}_${Math.floor(Math.random() * 1000)}.${ext}`;
 
     const { data, error } = await supabase.storage
@@ -949,10 +1148,11 @@ app.get('/admin', (req, res) => {
 // ==========================================
 // 5. GUEST MINI APP API & UI
 // ==========================================
-app.post('/api/auth/request-otp', async (req, res) => {
+app.post('/api/auth/request-otp', authRateLimit, async (req, res) => {
   try {
-    const { phone, token } = req.body;
-    if (!phone) return res.status(400).json({ error: 'Phone required' });
+    const { token } = req.body;
+    const phone = normalizePhone(req.body.phone);
+    if (!phone || phone.replace(/[^0-9]/g, '').length < 10) return res.status(400).json({ error: 'Valid phone required' });
     
     let customer = await getOrCreateCustomerByPhone(phone, 'Гость (Android App)');
     
@@ -982,9 +1182,10 @@ app.post('/api/auth/request-otp', async (req, res) => {
   }
 });
 
-app.post('/api/auth/verify-otp', async (req, res) => {
+app.post('/api/auth/verify-otp', authRateLimit, async (req, res) => {
   try {
-    const { phone, code } = req.body;
+    const phone = normalizePhone(req.body.phone);
+    const { code } = req.body;
     if (!phone || !code) return res.status(400).json({ error: 'Phone and code required' });
     
     console.log(`[VERIFY-OTP] Attempting verify for phone="${phone}", code="${code}"`);
@@ -1046,7 +1247,9 @@ app.post('/api/auth/verify-otp', async (req, res) => {
 
 app.post('/api/customer/fcm-token', async (req, res) => {
   try {
-    const { phone, fcmToken } = req.body;
+    const phone = normalizePhone(req.body.phone);
+    const { fcmToken } = req.body;
+    if (!phone || !fcmToken) return res.status(400).json({ error: 'phone and fcmToken required' });
     await updateFcmToken(phone, fcmToken);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
@@ -1054,8 +1257,9 @@ app.post('/api/customer/fcm-token', async (req, res) => {
 
 app.post('/api/guest/profile', async (req, res) => {
   try {
-    const { phone, name, register, fcmToken } = req.body;
-    if (!phone) return res.status(400).json({ error: 'Phone required' });
+    const { name, register, fcmToken } = req.body;
+    const phone = normalizePhone(req.body.phone);
+    if (!phone || phone.replace(/[^0-9]/g, '').length < 10) return res.status(400).json({ error: 'Valid phone required' });
 
     let customer = await getCustomerByPhone(phone);
     if (!customer) {
@@ -1103,6 +1307,17 @@ app.post('/api/guest/profile', async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/guest/qr-token', authRateLimit, async (req, res) => {
+  try {
+    const phone = normalizePhone(req.body.phone);
+    const customer = await getCustomerByPhone(phone);
+    if (!customer) return res.status(404).json({ success: false, error: 'Customer not found' });
+    res.json({ success: true, ...buildDynamicQrToken(customer.phone) });
+  } catch (err) {
+    res.status(err.statusCode || 500).json({ success: false, error: err.message });
   }
 });
 

@@ -27,5 +27,12 @@ convert-wwdr.js
 build/
 .gradle/
 .idea/
+**/build/
+**/.gradle/
+**/.idea/
+**/bin/
+**/obj/
 *.apk
 *.aab
+*.exe
+IikoBonusPlugin/Resto.Front.Api.IikoBonusPlugin.dll.config

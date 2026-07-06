@@ -106,6 +106,42 @@ begin
 end $$;
 
 -- --------------------------------------------------------------------
+-- iiko plugin delivery log
+-- --------------------------------------------------------------------
+create table if not exists public.iiko_operation_logs (
+  id bigserial primary key,
+  order_id text not null,
+  customer_id uuid references public.customers(id) on delete set null,
+  status varchar(32) not null,
+  duplicate boolean default false not null,
+  discount_amount numeric(12, 2) default 0 not null,
+  earned_bonus numeric(12, 2) default 0 not null,
+  order_total numeric(12, 2) default 0 not null,
+  cashback_percent numeric(6, 2),
+  balance numeric(12, 2),
+  error_message text,
+  payload jsonb,
+  created_at timestamptz default now() not null
+);
+
+alter table public.iiko_operation_logs add column if not exists order_id text;
+alter table public.iiko_operation_logs add column if not exists customer_id uuid;
+alter table public.iiko_operation_logs add column if not exists status varchar(32);
+alter table public.iiko_operation_logs add column if not exists duplicate boolean default false;
+alter table public.iiko_operation_logs add column if not exists discount_amount numeric(12, 2) default 0;
+alter table public.iiko_operation_logs add column if not exists earned_bonus numeric(12, 2) default 0;
+alter table public.iiko_operation_logs add column if not exists order_total numeric(12, 2) default 0;
+alter table public.iiko_operation_logs add column if not exists cashback_percent numeric(6, 2);
+alter table public.iiko_operation_logs add column if not exists balance numeric(12, 2);
+alter table public.iiko_operation_logs add column if not exists error_message text;
+alter table public.iiko_operation_logs add column if not exists payload jsonb;
+alter table public.iiko_operation_logs add column if not exists created_at timestamptz default now();
+
+create index if not exists iiko_operation_logs_created_at_idx on public.iiko_operation_logs (created_at desc);
+create index if not exists iiko_operation_logs_order_id_idx on public.iiko_operation_logs (order_id);
+create index if not exists iiko_operation_logs_status_idx on public.iiko_operation_logs (status);
+
+-- --------------------------------------------------------------------
 -- Admin / bonus settings
 -- value stays TEXT because backend stores numbers, strings, arrays, objects.
 -- JSON objects are stored as JSON strings and parsed by settings.js.
@@ -172,11 +208,125 @@ create table if not exists public.wallet_registrations (
   id bigserial primary key,
   serial_number varchar(140) not null,
   push_token text not null,
+  device_id text,
+  pass_type_id text,
   created_at timestamptz default now() not null,
   unique(serial_number, push_token)
 );
 
+alter table public.wallet_registrations add column if not exists device_id text;
+alter table public.wallet_registrations add column if not exists pass_type_id text;
+alter table public.wallet_registrations add column if not exists created_at timestamptz default now();
+
 create index if not exists wallet_registrations_serial_idx on public.wallet_registrations (serial_number);
+create unique index if not exists wallet_registrations_device_serial_unique
+  on public.wallet_registrations (device_id, serial_number)
+  where device_id is not null;
+
+-- --------------------------------------------------------------------
+-- Atomic balance and idempotent order application
+-- --------------------------------------------------------------------
+create or replace function public.increment_customer_balance(
+  p_customer_id uuid,
+  p_amount_change numeric
+)
+returns table(balance numeric)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  update public.customers
+  set
+    balance = balance + p_amount_change,
+    updated_at = now()
+  where id = p_customer_id
+    and balance + p_amount_change >= 0
+  returning customers.balance into balance;
+
+  if not found then
+    raise exception 'customer not found or insufficient balance';
+  end if;
+
+  return next;
+end;
+$$;
+
+create or replace function public.apply_loyalty_transaction(
+  p_customer_id uuid,
+  p_order_id text,
+  p_discount_amount numeric,
+  p_earned_bonus numeric,
+  p_order_total numeric,
+  p_real_money_paid numeric
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_balance numeric;
+  v_total_spent numeric;
+begin
+  if p_order_id is null or btrim(p_order_id) = '' then
+    raise exception 'order_id is required';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtext(p_order_id));
+
+  if exists (
+    select 1
+    from public.transactions
+    where order_id = p_order_id
+      and type in ('withdrawal', 'deposit')
+  ) then
+    select balance, total_spent
+      into v_balance, v_total_spent
+    from public.customers
+    where id = p_customer_id;
+
+    return jsonb_build_object(
+      'duplicate', true,
+      'balance', v_balance,
+      'total_spent', v_total_spent
+    );
+  end if;
+
+  update public.customers
+  set
+    balance = balance - coalesce(p_discount_amount, 0) + coalesce(p_earned_bonus, 0),
+    total_spent = total_spent + coalesce(p_real_money_paid, 0),
+    updated_at = now()
+  where id = p_customer_id
+    and balance - coalesce(p_discount_amount, 0) >= 0
+  returning balance, total_spent
+    into v_balance, v_total_spent;
+
+  if not found then
+    raise exception 'customer not found or insufficient balance';
+  end if;
+
+  if coalesce(p_discount_amount, 0) > 0 then
+    insert into public.transactions (customer_id, order_id, type, amount, order_total, description)
+    values (p_customer_id, p_order_id, 'withdrawal', p_discount_amount, p_order_total, 'Оплата бонусами');
+  end if;
+
+  if coalesce(p_earned_bonus, 0) > 0 then
+    insert into public.transactions (customer_id, order_id, type, amount, order_total, description)
+    values (p_customer_id, p_order_id, 'deposit', p_earned_bonus, p_real_money_paid, 'Кэшбэк за покупку');
+  end if;
+
+  return jsonb_build_object(
+    'duplicate', false,
+    'balance', v_balance,
+    'total_spent', v_total_spent
+  );
+end;
+$$;
+
+grant execute on function public.increment_customer_balance(uuid, numeric) to service_role;
+grant execute on function public.apply_loyalty_transaction(uuid, text, numeric, numeric, numeric, numeric) to service_role;
 
 -- --------------------------------------------------------------------
 -- WhatsApp / OTP session storage
@@ -209,12 +359,20 @@ alter table public.settings enable row level security;
 alter table public.stories enable row level security;
 alter table public.wallet_registrations enable row level security;
 alter table public.whatsapp_sessions enable row level security;
+alter table public.iiko_operation_logs enable row level security;
 
 drop policy if exists "Allow all access for Service Role" on public.customers;
 drop policy if exists "Allow all access for Service Role" on public.transactions;
 drop policy if exists "Allow all access for Service Role" on public.settings;
 drop policy if exists "Allow all access for Service Role" on public.stories;
 drop policy if exists "Allow all access for Service Role" on public.wallet_registrations;
+drop policy if exists "service_role_all_customers" on public.customers;
+drop policy if exists "service_role_all_transactions" on public.transactions;
+drop policy if exists "service_role_all_settings" on public.settings;
+drop policy if exists "service_role_all_stories" on public.stories;
+drop policy if exists "service_role_all_wallet" on public.wallet_registrations;
+drop policy if exists "service_role_all_whatsapp" on public.whatsapp_sessions;
+drop policy if exists "service_role_all_iiko_logs" on public.iiko_operation_logs;
 
 create policy "service_role_all_customers" on public.customers for all to service_role using (true) with check (true);
 create policy "service_role_all_transactions" on public.transactions for all to service_role using (true) with check (true);
@@ -222,6 +380,7 @@ create policy "service_role_all_settings" on public.settings for all to service_
 create policy "service_role_all_stories" on public.stories for all to service_role using (true) with check (true);
 create policy "service_role_all_wallet" on public.wallet_registrations for all to service_role using (true) with check (true);
 create policy "service_role_all_whatsapp" on public.whatsapp_sessions for all to service_role using (true) with check (true);
+create policy "service_role_all_iiko_logs" on public.iiko_operation_logs for all to service_role using (true) with check (true);
 
 drop policy if exists "Public read stories bucket" on storage.objects;
 create policy "Public read stories bucket"

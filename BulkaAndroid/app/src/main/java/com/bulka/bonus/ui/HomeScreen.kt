@@ -40,6 +40,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.window.DialogProperties
 import com.bulka.bonus.data.BulkaApi
 import com.bulka.bonus.data.PromoStory
+import com.bulka.bonus.data.QrTokenRequest
 import kotlinx.coroutines.launch
 
 data class Story(
@@ -334,17 +335,28 @@ fun HomeScreen(
                     
                     var timeRemaining by remember { mutableStateOf(300 - ((System.currentTimeMillis() % 300000) / 1000).toInt()) }
                     var otpString by remember { mutableStateOf("") }
+                    var qrError by remember { mutableStateOf<String?>(null) }
+                    var loadedWindow by remember { mutableStateOf<Long?>(null) }
                     
                     LaunchedEffect(Unit) {
+                        val api = BulkaApi.create()
                         while(true) {
                             val timeWindow = System.currentTimeMillis() / 300000
                             timeRemaining = 300 - ((System.currentTimeMillis() % 300000) / 1000).toInt()
-                            val cleanPhone = customer.phone.replace(Regex("[^0-9]"), "")
-                            val input = "$cleanPhone:$timeWindow:BULKA_SUPER_SECRET_2026"
-                            val md = java.security.MessageDigest.getInstance("SHA-256")
-                            val hashBytes = md.digest(input.toByteArray())
-                            val hash = hashBytes.joinToString("") { "%02x".format(it) }.take(8)
-                            otpString = "BULKA-OTP-$cleanPhone-$timeWindow-$hash"
+                            if (loadedWindow != timeWindow || otpString.isBlank()) {
+                                try {
+                                    val response = api.getQrToken(QrTokenRequest(customer.phone))
+                                    if (response.success && !response.token.isNullOrBlank()) {
+                                        otpString = response.token
+                                        loadedWindow = timeWindow
+                                        qrError = null
+                                    } else {
+                                        qrError = response.error ?: "QR временно недоступен"
+                                    }
+                                } catch (e: Exception) {
+                                    qrError = "QR временно недоступен"
+                                }
+                            }
                             kotlinx.coroutines.delay(1000)
                         }
                     }
@@ -364,6 +376,15 @@ fun HomeScreen(
                             modifier = Modifier
                                 .size(200.dp)
                                 .background(Color.White)
+                        )
+                    }
+
+                    if (qrError != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = qrError ?: "",
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 12.sp
                         )
                     }
                     

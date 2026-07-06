@@ -7,8 +7,10 @@ const crypto = require('crypto');
  */
 function getSecretWalletCardNumber(customer) {
   if (!customer || !customer.id) return 'CARD-UNKNOWN';
-  const secretString = `${customer.id}:${customer.phone}:BULKA_WALLET_2026`;
-  const hash = crypto.createHash('md5').update(secretString).digest('hex').slice(0, 6).toUpperCase();
+  const secret = process.env.BULKA_SECRET;
+  if (!secret) throw new Error('BULKA_SECRET is required');
+  const secretString = `${customer.id}:${customer.phone}:${secret}`;
+  const hash = crypto.createHash('sha256').update(secretString).digest('hex').slice(0, 10).toUpperCase();
   return `CARD-${customer.id}-${hash}`;
 }
 
@@ -99,28 +101,29 @@ async function getOrCreateCustomerByPhone(phone, name = 'Новый Гость')
  * Обновление баланса клиента
  */
 async function updateCustomerBalance(customerId, amountChange) {
-  // Получаем текущий баланс
-  const { data: doc, error: fetchError } = await supabase
-    .from('customers')
-    .select('balance')
-    .eq('id', customerId)
-    .single();
-    
-  if (fetchError || !doc) {
-    throw new Error('Customer not found');
-  }
-  
-  const newBalance = Number(doc.balance) + Number(amountChange);
-  
-  // Обновляем баланс
-  const { error: updateError } = await supabase
-    .from('customers')
-    .update({ balance: newBalance })
-    .eq('id', customerId);
-    
-  if (updateError) {
-    throw new Error('Error updating balance: ' + updateError.message);
-  }
+  const { data, error } = await supabase.rpc('increment_customer_balance', {
+    p_customer_id: customerId,
+    p_amount_change: Number(amountChange)
+  });
+
+  if (error) throw new Error('Error updating balance atomically: ' + error.message);
+  if (!data || data.length === 0) throw new Error('Customer not found');
+  return data[0];
+}
+
+async function applyLoyaltyTransaction({ customerId, orderId, discountAmount, earnedBonus, orderTotal, realMoneyPaid }) {
+  const { data, error } = await supabase.rpc('apply_loyalty_transaction', {
+    p_customer_id: customerId,
+    p_order_id: String(orderId),
+    p_discount_amount: Number(discountAmount || 0),
+    p_earned_bonus: Number(earnedBonus || 0),
+    p_order_total: Number(orderTotal || 0),
+    p_real_money_paid: Number(realMoneyPaid || 0)
+  });
+
+  if (error) throw new Error('Error applying loyalty transaction: ' + error.message);
+  if (!data) throw new Error('Empty loyalty transaction result');
+  return Array.isArray(data) ? data[0] : data;
 }
 
 /**
@@ -135,7 +138,8 @@ async function logTransaction(transactionData) {
         order_id: transactionData.orderId,
         type: transactionData.type,
         amount: transactionData.amount,
-        order_total: transactionData.orderTotal || null
+        order_total: transactionData.orderTotal || null,
+        description: transactionData.description || null
       }
     ]);
     
@@ -268,7 +272,8 @@ async function searchCustomers(query) {
         throw new Error('Срок действия QR-кода истек. Попросите гостя обновить QR-код в приложении.');
       }
       
-      const secret = process.env.BULKA_SECRET || 'BULKA_SUPER_SECRET_2026';
+      const secret = process.env.BULKA_SECRET;
+      if (!secret) throw new Error('BULKA_SECRET is required');
       const expectedHash = crypto.createHash('sha256').update(`${phone}:${timeWindow}:${secret}`).digest('hex').slice(0, 8);
       if (hash !== expectedHash) {
         throw new Error('Недействительный или поддельный QR-код.');
@@ -298,7 +303,9 @@ async function searchCustomers(query) {
         .single();
         
       if (!error && customer) {
-        const expectedSuffix = crypto.createHash('md5').update(`${customer.id}:${customer.phone}:BULKA_WALLET_2026`).digest('hex').slice(0, 6).toUpperCase();
+        const secret = process.env.BULKA_SECRET;
+        if (!secret) throw new Error('BULKA_SECRET is required');
+        const expectedSuffix = crypto.createHash('sha256').update(`${customer.id}:${customer.phone}:${secret}`).digest('hex').slice(0, 10).toUpperCase();
         if (hashSuffix === expectedSuffix) {
           return [customer];
         }
@@ -536,5 +543,6 @@ module.exports = {
   checkAndNotifyInactiveCustomers,
   deleteCustomer,
   updateFcmToken,
-  getSecretWalletCardNumber
+  getSecretWalletCardNumber,
+  applyLoyaltyTransaction
 };

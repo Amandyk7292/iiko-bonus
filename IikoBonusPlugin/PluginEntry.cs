@@ -18,6 +18,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
     public sealed class PluginEntry : IFrontPlugin
     {
         private IDisposable _buttonSubscription;
+        private IDisposable _statusButtonSubscription;
         private IDisposable _orderSubscription;
         private IDisposable _billPrintSubscription;
         private IDisposable _cashPrintSubscription;
@@ -63,6 +64,21 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     }
                 );
 
+                _statusButtonSubscription = PluginContext.Operations.AddButtonToOrderEditScreen(
+                    "Бонусы статус",
+                    (ValueTuple<IOrder, IOperationService, IViewManager> args) =>
+                    {
+                        try
+                        {
+                            args.Item3.ShowOkPopup("Статус бонусной системы", LoyaltyFlow.GetQueueStatusText(), "ОК");
+                        }
+                        catch (Exception ex)
+                        {
+                            PluginContext.Log.Error("IikoBonusPlugin: Error showing status: " + ex);
+                        }
+                    }
+                );
+
                 _orderSubscription = PluginContext.Notifications.OrderChanged.Subscribe(
                     new OrderChangedObserver(LoyaltyFlow.OnOrderChanged)
                 );
@@ -71,6 +87,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 _cashPrintSubscription = PluginContext.Notifications.CashChequePrinting.Subscribe(OnCashChequePrinting);
 
                 _barcodeSubscription = PluginContext.Notifications.OrderEditBarcodeScanned.Subscribe(LoyaltyFlow.OnBarcodeScanned);
+                LoyaltyFlow.StartBackgroundRetry();
 
                 PluginContext.Log.Info("IikoBonusPlugin: Initialized successfully.");
             }
@@ -159,14 +176,15 @@ namespace Resto.Front.Api.IikoBonusPlugin
             try
             {
                 _buttonSubscription?.Dispose();
+                _statusButtonSubscription?.Dispose();
                 _orderSubscription?.Dispose();
                 _billPrintSubscription?.Dispose();
                 _cashPrintSubscription?.Dispose();
                 _barcodeSubscription?.Dispose();
+                LoyaltyFlow.StopBackgroundRetry();
             }
             catch { }
             PluginContext.Log.Info("IikoBonusPlugin: Disposed.");
         }
     }
 }
-

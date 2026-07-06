@@ -8,10 +8,11 @@
     <RootNamespace>Resto.Front.Api.IikoBonusPlugin</RootNamespace>
     <Platforms>AnyCPU</Platforms>
     <Version>1.0.0</Version>
+    <IikoFrontApiVersion>9.5.6059</IikoFrontApiVersion>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Resto.Front.Api.V9" Version="9.5.6059" />
+    <PackageReference Include="Resto.Front.Api.V9" Version="$(IikoFrontApiVersion)" />
   </ItemGroup>
 
   <ItemGroup>
@@ -21,6 +22,9 @@
 
   <ItemGroup>
     <None Update="Manifest.xml">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Resto.Front.Api.IikoBonusPlugin.dll.config">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>

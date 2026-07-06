@@ -239,6 +239,7 @@
       <div class="sagi-nav-title">Главное</div>
       <button onclick="switchTab('analytics')" id="tab-analytics" class="sagi-nav-link-active">Аналитика</button>
       <button onclick="switchTab('transactions')" id="tab-transactions" class="sagi-nav-link">Транзакции</button>
+      <button onclick="switchTab('iiko')" id="tab-iiko" class="sagi-nav-link">iiko Front</button>
       <button onclick="switchTab('broadcast')" id="tab-broadcast" class="sagi-nav-link">WhatsApp / Рассылки</button>
 
       <div class="sagi-nav-title">Аналитика</div>
@@ -264,6 +265,7 @@
       <button onclick="switchTab('bonus'); switchBonusPage('cross')" class="sagi-nav-link">Cross</button>
 
       <div class="sagi-nav-title">Администрация</div>
+      <button onclick="switchTab('iiko')" class="sagi-nav-link">Мониторинг касс</button>
       <button onclick="switchTab('settings')" class="sagi-nav-link">Безопасность</button>
     </aside>
 
@@ -450,6 +452,58 @@
               </tr>
             </thead>
             <tbody id="transactionsTable" class="text-sm text-gray-700"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TAB: iiko Front -->
+      <div id="content-iiko" class="hidden space-y-6">
+        <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+          <div>
+            <h2 class="sagi-page-title">iiko Front</h2>
+            <p class="sagi-page-subtitle">Доставка начислений с касс, повторы и ошибки закрытых заказов</p>
+          </div>
+          <button onclick="fetchIikoOperations()" class="btn-classic px-5 py-2">Обновить</button>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div class="card p-5">
+            <p class="text-gray-500 text-sm font-medium mb-1">Операций</p>
+            <p class="text-2xl font-serif text-gray-800" id="iiko-total">0</p>
+          </div>
+          <div class="card p-5">
+            <p class="text-gray-500 text-sm font-medium mb-1">Успешно</p>
+            <p class="text-2xl font-serif text-emerald-700" id="iiko-success">0</p>
+          </div>
+          <div class="card p-5">
+            <p class="text-gray-500 text-sm font-medium mb-1">Ошибок</p>
+            <p class="text-2xl font-serif text-red-600" id="iiko-errors">0</p>
+          </div>
+          <div class="card p-5">
+            <p class="text-gray-500 text-sm font-medium mb-1">Начислено</p>
+            <p class="text-2xl font-serif text-blue-700" id="iiko-earned">0</p>
+          </div>
+        </div>
+        <div class="sagi-filter">
+          <div class="sagi-field flex-1 min-w-[260px]">
+            <label>Поиск</label>
+            <input type="text" id="searchIikoOperation" onkeyup="renderIikoOperations()" placeholder="Заказ, клиент, телефон, ошибка" class="input-classic w-full">
+          </div>
+        </div>
+        <div class="card overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead class="bg-beige-50">
+              <tr>
+                <th class="py-4 px-6">Дата</th>
+                <th class="py-4 px-6">Заказ</th>
+                <th class="py-4 px-6">Клиент</th>
+                <th class="py-4 px-6 text-right">Чек</th>
+                <th class="py-4 px-6 text-right">Списано</th>
+                <th class="py-4 px-6 text-right">Начислено</th>
+                <th class="py-4 px-6">Статус</th>
+                <th class="py-4 px-6">Ошибка</th>
+              </tr>
+            </thead>
+            <tbody id="iikoOperationsTable" class="text-sm text-gray-700"></tbody>
           </table>
         </div>
       </div>
@@ -833,7 +887,7 @@
 
   <script>
     let token = localStorage.getItem('adminToken') || '';
-    let currentData = { customers: [], transactions: [], stats: {}, bonusSettings: {}, promocodes: [] };
+    let currentData = { customers: [], transactions: [], iikoOperations: [], stats: {}, bonusSettings: {}, promocodes: [] };
     let chartInstance = null;
 
     if(token) initApp();
@@ -859,7 +913,7 @@
     async function initApp() {
       document.getElementById('authModal').classList.add('hidden');
       document.getElementById('dashboard').classList.remove('hidden');
-      await Promise.all([fetchSettings(), fetchStats(), fetchCustomers(), fetchTransactions(), fetchStories()]);
+      await Promise.all([fetchSettings(), fetchStats(), fetchCustomers(), fetchTransactions(), fetchIikoOperations(), fetchStories()]);
       bindBonusInputs();
       renderChart();
     }
@@ -869,12 +923,13 @@
         analytics: ['Аналитика', 'Обзор продаж, клиентов и бонусов'],
         customers: ['База клиентов', 'Клиенты, статусы, бонусы, покупки, теги, рассылки'],
         transactions: ['Транзакции', 'Оплаты, сертификаты, начисления и списания бонусов'],
+        iiko: ['iiko Front', 'Доставка начислений с касс и ошибки интеграции'],
         bonus: ['Бонусы', 'Сроки, списание, стандартный бонус, referral и cross'],
         stories: ['Фотографии / Сториз', 'Рекламные материалы мобильного приложения'],
         broadcast: ['WhatsApp / Рассылки', 'Массовые и автоматические уведомления'],
         settings: ['Общая информация', 'Настройки программы лояльности и безопасности']
       };
-      ['analytics', 'customers', 'transactions', 'bonus', 'settings', 'broadcast', 'stories'].forEach(id => {
+      ['analytics', 'customers', 'transactions', 'iiko', 'bonus', 'settings', 'broadcast', 'stories'].forEach(id => {
         document.getElementById('content-' + id).classList.add('hidden');
         const tab = document.getElementById('tab-' + id);
         if (tab) tab.className = 'sagi-nav-link';
@@ -1242,6 +1297,13 @@
       try {
         currentData.transactions = await apiGet('transactions');
         renderTransactions();
+      } catch (e) { console.error(e); }
+    }
+
+    async function fetchIikoOperations() {
+      try {
+        currentData.iikoOperations = await apiGet('iiko-operations');
+        renderIikoOperations();
       } catch (e) { console.error(e); }
     }
 
@@ -1684,6 +1746,51 @@
         `;
       }).join('');
       document.getElementById('transactionsTable').innerHTML = html;
+    }
+
+    function renderIikoOperations() {
+      const rows = currentData.iikoOperations || [];
+      const q = (document.getElementById('searchIikoOperation')?.value || '').toLowerCase();
+      const filtered = rows.filter(op => {
+        const customer = op.customers || {};
+        return String(op.order_id || '').toLowerCase().includes(q)
+          || String(customer.name || '').toLowerCase().includes(q)
+          || String(customer.phone || '').toLowerCase().includes(q)
+          || String(op.error_message || '').toLowerCase().includes(q)
+          || String(op.status || '').toLowerCase().includes(q);
+      });
+
+      const successCount = rows.filter(op => op.status === 'success').length;
+      const errorCount = rows.filter(op => op.status === 'error').length;
+      const earnedTotal = rows.reduce((sum, op) => sum + Number(op.earned_bonus || 0), 0);
+      document.getElementById('iiko-total').innerText = rows.length;
+      document.getElementById('iiko-success').innerText = successCount;
+      document.getElementById('iiko-errors').innerText = errorCount;
+      document.getElementById('iiko-earned').innerText = earnedTotal.toLocaleString();
+
+      const html = filtered.map(op => {
+        const d = new Date(op.created_at).toLocaleString();
+        const customer = op.customers || {};
+        const statusClass = op.status === 'success' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700';
+        const statusText = op.duplicate ? 'Повтор, пропущено' : (op.status === 'success' ? 'Успешно' : 'Ошибка');
+        return `
+          <tr>
+            <td class="py-4 px-6 text-gray-500 text-xs whitespace-nowrap">${d}</td>
+            <td class="py-4 px-6 font-mono text-xs">${op.order_id || '—'}</td>
+            <td class="py-4 px-6">
+              <div class="font-medium">${customer.name || '—'}</div>
+              <div class="text-xs text-gray-500">${customer.phone || ''}</div>
+            </td>
+            <td class="py-4 px-6 text-right">${Number(op.order_total || 0).toLocaleString()}</td>
+            <td class="py-4 px-6 text-right text-red-500">${Number(op.discount_amount || 0).toLocaleString()}</td>
+            <td class="py-4 px-6 text-right text-emerald-700 font-semibold">${Number(op.earned_bonus || 0).toLocaleString()}</td>
+            <td class="py-4 px-6"><span class="${statusClass} px-2.5 py-1 rounded text-xs font-medium">${statusText}</span></td>
+            <td class="py-4 px-6 text-xs text-red-600 max-w-md truncate">${op.error_message || '—'}</td>
+          </tr>
+        `;
+      }).join('');
+
+      document.getElementById('iikoOperationsTable').innerHTML = html || '<tr><td colspan="8" class="py-8 px-6 text-center text-gray-500">Операций пока нет</td></tr>';
     }
 
     let chartInstance2 = null;

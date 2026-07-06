@@ -1,7 +1,5 @@
 const { initializeApp, cert } = require('firebase-admin/app');
 const { getMessaging } = require('firebase-admin/messaging');
-const fs = require('fs');
-const path = require('path');
 
 let initialized = false;
 let messagingInstance = null;
@@ -17,19 +15,6 @@ function initFirebase() {
                 console.error('Error parsing FIREBASE_SERVICE_ACCOUNT env:', e.message);
             }
         }
-        if (!serviceAccount) {
-            const keyPath = path.join(__dirname, 'firebase-service-account.json');
-            if (fs.existsSync(keyPath)) {
-                serviceAccount = JSON.parse(fs.readFileSync(keyPath, 'utf8'));
-            } else {
-                const files = fs.readdirSync(__dirname);
-                const sdkFile = files.find(f => f.startsWith('bulka-bonus-firebase-adminsdk-') && f.endsWith('.json'));
-                if (sdkFile) {
-                    serviceAccount = JSON.parse(fs.readFileSync(path.join(__dirname, sdkFile), 'utf8'));
-                }
-            }
-        }
-
         if (serviceAccount) {
             const app = initializeApp({
                 credential: cert(serviceAccount)

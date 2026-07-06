@@ -14,6 +14,10 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
+        val apiBaseUrl = providers.gradleProperty("BULKA_API_BASE_URL")
+            .orElse("https://iiko-bonus.onrender.com")
+            .get()
+        buildConfigField("String", "BULKA_API_BASE_URL", "\"$apiBaseUrl\"")
         vectorDrawables {
             useSupportLibrary = true
         }
@@ -34,6 +38,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.1"
