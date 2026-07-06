@@ -37,6 +37,7 @@ sealed class BottomNavItem(
     val title: String
 ) {
     object Home : BottomNavItem("home", Icons.Filled.Home, Icons.Outlined.Home, "Главная")
+    object News : BottomNavItem("news", Icons.Filled.List, Icons.Outlined.List, "Новости")
     object Menu : BottomNavItem("menu", Icons.Filled.List, Icons.Outlined.List, "Меню")
     object Orders : BottomNavItem("orders", Icons.Filled.Person, Icons.Outlined.Person, "Мои заказы")
     object Cart : BottomNavItem("cart", Icons.Filled.ShoppingCart, Icons.Outlined.ShoppingCart, "Корзина")
@@ -51,6 +52,7 @@ fun MainScreen(
     val navController = rememberNavController()
     val items = listOf(
         BottomNavItem.Home,
+        BottomNavItem.News,
         BottomNavItem.Orders
     )
 
@@ -90,6 +92,7 @@ fun MainScreen(
                     ) 
                 }
                 composable("menu") { MenuScreen() }
+                composable("news") { NewsScreen() }
                 composable("orders") { OrdersScreen(transactions = transactions) }
                 composable("cart") { CartScreen() }
                 composable("profile") { 
