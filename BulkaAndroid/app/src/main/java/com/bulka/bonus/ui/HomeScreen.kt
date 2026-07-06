@@ -31,14 +31,18 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.border
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.window.DialogProperties
 import com.bulka.bonus.data.BulkaApi
+import com.bulka.bonus.data.NewsItem
 import com.bulka.bonus.data.PromoStory
 import com.bulka.bonus.data.QrTokenRequest
 import kotlinx.coroutines.launch
@@ -59,11 +63,13 @@ fun HomeScreen(
 ) {
     var showQrModal by remember { mutableStateOf(false) }
     var stories by remember { mutableStateOf<List<Story>>(emptyList()) }
+    var news by remember { mutableStateOf<List<NewsItem>>(emptyList()) }
     var selectedStoryIndex by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(Unit) {
+        val api = BulkaApi.create()
         try {
-            val res = BulkaApi.create().getStories()
+            val res = api.getStories()
             if (res.success && res.stories != null) {
                 stories = res.stories.map {
                     Story(
@@ -79,12 +85,23 @@ fun HomeScreen(
         } catch (e: Exception) {
             e.printStackTrace()
         }
+
+        try {
+            val res = api.getNews()
+            if (res.success && res.news != null) {
+                news = res.news
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState())
+            .padding(bottom = 116.dp)
     ) {
         // Top Header
         Row(
@@ -302,6 +319,11 @@ fun HomeScreen(
                 }
             }
         }
+
+        if (news.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(24.dp))
+            NewsFeedSection(news = news)
+        }
     }
 
     if (showQrModal) {
@@ -444,6 +466,63 @@ fun HomeScreen(
             initialIndex = index,
             onClose = { selectedStoryIndex = null }
         )
+    }
+}
+
+@Composable
+private fun NewsFeedSection(news: List<NewsItem>) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Text(
+            text = "Новости",
+            color = MaterialTheme.colorScheme.onBackground,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Black
+        )
+        news.forEach { item ->
+            NewsFeedCard(item = item)
+        }
+    }
+}
+
+@Composable
+private fun NewsFeedCard(item: NewsItem) {
+    val image = item.imageUrl.ifBlank { item.imageurl.orEmpty() }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(MaterialTheme.colorScheme.surface)
+    ) {
+        AsyncImage(
+            model = image,
+            contentDescription = item.title,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(260.dp)
+        )
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = item.title,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+            if (!item.description.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = item.description,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f),
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp
+                )
+            }
+        }
     }
 }
 

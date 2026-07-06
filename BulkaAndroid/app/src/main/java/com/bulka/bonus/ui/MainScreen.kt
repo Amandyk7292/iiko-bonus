@@ -7,11 +7,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.List
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.ShoppingCart
 import androidx.compose.material3.*
@@ -37,8 +35,6 @@ sealed class BottomNavItem(
     val title: String
 ) {
     object Home : BottomNavItem("home", Icons.Filled.Home, Icons.Outlined.Home, "Главная")
-    object News : BottomNavItem("news", Icons.Filled.List, Icons.Outlined.List, "Новости")
-    object Menu : BottomNavItem("menu", Icons.Filled.List, Icons.Outlined.List, "Меню")
     object Orders : BottomNavItem("orders", Icons.Filled.Person, Icons.Outlined.Person, "Мои заказы")
     object Cart : BottomNavItem("cart", Icons.Filled.ShoppingCart, Icons.Outlined.ShoppingCart, "Корзина")
 }
@@ -52,7 +48,6 @@ fun MainScreen(
     val navController = rememberNavController()
     val items = listOf(
         BottomNavItem.Home,
-        BottomNavItem.News,
         BottomNavItem.Orders
     )
 
@@ -91,8 +86,6 @@ fun MainScreen(
                         onNavigateToProfile = { navController.navigate("profile") }
                     ) 
                 }
-                composable("menu") { MenuScreen() }
-                composable("news") { NewsScreen() }
                 composable("orders") { OrdersScreen(transactions = transactions) }
                 composable("cart") { CartScreen() }
                 composable("profile") { 

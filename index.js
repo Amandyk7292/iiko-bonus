@@ -10,6 +10,7 @@ const crypto = require('crypto');
 const { supabase } = require('./supabase');
 const iikoApi = require('./iiko-api');
 const { getStories, addStory, updateStory, deleteStory } = require('./stories');
+const { getNews, addNews, updateNews, deleteNews } = require('./news');
 
 // APNs Setup
 let apnProvider = null;
@@ -1133,6 +1134,34 @@ app.delete('/admin/api/stories/:id', adminAuthMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.get('/admin/api/news', adminAuthMiddleware, async (req, res) => {
+  try {
+    const news = await getNews();
+    res.json({ success: true, news });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/admin/api/news', adminAuthMiddleware, async (req, res) => {
+  try {
+    const item = await addNews(req.body);
+    res.json({ success: true, item });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/admin/api/news/:id', adminAuthMiddleware, async (req, res) => {
+  try {
+    const item = await updateNews(req.params.id, req.body);
+    res.json({ success: true, item });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/admin/api/news/:id', adminAuthMiddleware, async (req, res) => {
+  try {
+    const result = await deleteNews(req.params.id);
+    res.json({ success: true, ...result });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.post('/admin/api/upload', adminAuthMiddleware, async (req, res) => {
   try {
     const { imageBase64, filename } = req.body;
@@ -1441,6 +1470,15 @@ app.get('/api/guest/stories', async (req, res) => {
   try {
     const stories = await getStories();
     res.json({ success: true, stories });
+  } catch (err) {
+    res.json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/guest/news', async (req, res) => {
+  try {
+    const news = await getNews();
+    res.json({ success: true, news });
   } catch (err) {
     res.json({ success: false, error: err.message });
   }

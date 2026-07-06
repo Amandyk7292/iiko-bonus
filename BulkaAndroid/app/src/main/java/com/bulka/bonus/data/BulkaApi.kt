@@ -4,6 +4,7 @@ import com.bulka.bonus.BuildConfig
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
+import retrofit2.http.GET
 import retrofit2.http.POST
 
 data class OtpRequest(val phone: String, val token: String? = null)
@@ -22,6 +23,16 @@ data class PromoStory(
 )
 data class StoriesResponse(val success: Boolean, val stories: List<PromoStory>?)
 
+data class NewsItem(
+    val id: Long,
+    val title: String,
+    val imageUrl: String,
+    val imageurl: String? = null,
+    val description: String? = null,
+    val created_at: String? = null
+)
+data class NewsResponse(val success: Boolean, val news: List<NewsItem>?, val error: String? = null)
+
 interface BulkaApi {
     @POST("/api/guest/profile")
     suspend fun getProfile(@Body request: AuthRequest): ProfileResponse
@@ -35,11 +46,14 @@ interface BulkaApi {
     @POST("/api/auth/verify-otp")
     suspend fun verifyOtp(@Body request: OtpVerifyRequest): ProfileResponse
 
-    @retrofit2.http.GET("/api/guest/menu")
+    @GET("/api/guest/menu")
     suspend fun getMenu(): MenuResponse
 
-    @retrofit2.http.GET("/api/guest/stories")
+    @GET("/api/guest/stories")
     suspend fun getStories(): StoriesResponse
+
+    @GET("/api/guest/news")
+    suspend fun getNews(): NewsResponse
 
     companion object {
         fun create(): BulkaApi {

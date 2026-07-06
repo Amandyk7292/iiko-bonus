@@ -214,6 +214,49 @@
     </div>
   </div>
 
+  <!-- Modal Add News -->
+  <div id="newsModal" class="fixed inset-0 bg-[#333333] bg-opacity-40 flex items-center justify-center z-50 backdrop-blur-sm hidden transition-opacity duration-300">
+    <div class="card p-8 w-full max-w-md text-left relative">
+      <input type="hidden" id="editing_news_id">
+      <h3 id="newsModalTitle" class="text-2xl font-serif text-beige-800 mb-6">Создать новость</h3>
+
+      <div class="space-y-4 mb-6">
+        <div>
+          <label class="block text-xs font-semibold text-beige-800 uppercase mb-1">Заголовок</label>
+          <input type="text" id="news_title" placeholder="Новинка недели" class="input-classic w-full">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-beige-800 uppercase mb-2">Фото новости</label>
+          <input type="hidden" id="news_image">
+          <div class="border-2 border-dashed border-beige-300 rounded-xl p-4 text-center bg-beige-50/50 hover:bg-beige-50 transition flex flex-col items-center justify-center min-h-[170px] relative overflow-hidden group">
+            <img id="preview_news_image" src="" onerror="this.classList.add('hidden'); const p = document.getElementById('placeholder_news_image'); if(p) p.classList.remove('hidden');" class="absolute inset-0 w-full h-full object-cover hidden rounded-xl">
+            <div id="placeholder_news_image" class="flex flex-col items-center justify-center py-3 z-10 w-full">
+              <p class="text-xs text-gray-500 mb-2">Фото не выбрано</p>
+              <label class="btn-classic px-4 py-2 text-xs font-semibold cursor-pointer shadow-sm inline-block">
+                <span>Загрузить фото</span>
+                <input type="file" accept="image/*" class="hidden" onchange="uploadStoryPhoto(this, 'news_image')">
+              </label>
+            </div>
+            <label id="change_btn_news_image" class="absolute bottom-2 right-2 btn-classic px-3 py-1.5 text-xs font-semibold cursor-pointer shadow-md hidden z-10">
+              <span>Заменить фото</span>
+              <input type="file" accept="image/*" class="hidden" onchange="uploadStoryPhoto(this, 'news_image')">
+            </label>
+          </div>
+          <p id="status_news_image" class="text-[11px] text-green-600 mt-1 hidden font-medium">Загрузка в Supabase Storage...</p>
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-beige-800 uppercase mb-1">Описание</label>
+          <textarea id="news_desc" rows="3" placeholder="Текст новости для ленты..." class="input-classic w-full"></textarea>
+        </div>
+      </div>
+
+      <div class="flex gap-3">
+        <button onclick="saveNewsAdmin()" class="btn-classic flex-1 py-3 font-medium shadow-sm">Сохранить</button>
+        <button onclick="closeNewsModal()" class="btn-outline px-6 py-3 font-medium">Отмена</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Dashboard -->
   <div id="dashboard" class="hidden sagi-shell">
     <aside class="sagi-sidebar">
@@ -236,6 +279,7 @@
       <div class="sagi-nav-title">Профиль</div>
       <button onclick="switchTab('settings')" id="tab-settings" class="sagi-nav-link">Общая информация</button>
       <button onclick="switchTab('stories')" id="tab-stories" class="sagi-nav-link">Фотографии / Сториз</button>
+      <button onclick="switchTab('news')" id="tab-news" class="sagi-nav-link">Новости</button>
       <button onclick="switchTab('bonus')" id="tab-bonus" class="sagi-nav-link">Бонусы</button>
     </aside>
 
@@ -494,6 +538,29 @@
               </tr>
             </thead>
             <tbody id="storiesTable" class="text-sm text-gray-700"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TAB: News -->
+      <div id="content-news" class="hidden space-y-6">
+        <div class="flex justify-end mb-4">
+          <button onclick="openNewsModal()" class="btn-classic px-5 py-2.5 font-medium shadow-sm flex items-center gap-2">
+            <span>+ Создать новость</span>
+          </button>
+        </div>
+        <div class="card overflow-hidden">
+          <table class="w-full text-left border-collapse">
+            <thead class="bg-beige-50">
+              <tr>
+                <th class="py-4 px-6">Фото</th>
+                <th class="py-4 px-6">Заголовок</th>
+                <th class="py-4 px-6">Описание</th>
+                <th class="py-4 px-6">Дата</th>
+                <th class="py-4 px-6 text-right">Действия</th>
+              </tr>
+            </thead>
+            <tbody id="newsTable" class="text-sm text-gray-700"></tbody>
           </table>
         </div>
       </div>
@@ -825,7 +892,7 @@
 
   <script>
     let token = localStorage.getItem('adminToken') || '';
-    let currentData = { customers: [], transactions: [], iikoOperations: [], stats: {}, bonusSettings: {}, promocodes: [] };
+    let currentData = { customers: [], transactions: [], iikoOperations: [], stats: {}, bonusSettings: {}, promocodes: [], stories: [], news: [] };
     let chartInstance = null;
 
     if(token) initApp();
@@ -851,7 +918,7 @@
     async function initApp() {
       document.getElementById('authModal').classList.add('hidden');
       document.getElementById('dashboard').classList.remove('hidden');
-      await Promise.all([fetchSettings(), fetchStats(), fetchCustomers(), fetchTransactions(), fetchIikoOperations(), fetchStories()]);
+      await Promise.all([fetchSettings(), fetchStats(), fetchCustomers(), fetchTransactions(), fetchIikoOperations(), fetchStories(), fetchNews()]);
       bindBonusInputs();
       renderChart();
     }
@@ -864,10 +931,11 @@
         iiko: ['iiko Front', 'Доставка начислений с касс и ошибки интеграции'],
         bonus: ['Бонусы', 'Сроки, списание, стандартный бонус, referral и cross'],
         stories: ['Фотографии / Сториз', 'Рекламные материалы мобильного приложения'],
+        news: ['Новости', 'Лента новостей мобильного приложения'],
         broadcast: ['WhatsApp / Рассылки', 'Массовые и автоматические уведомления'],
         settings: ['Общая информация', 'Настройки программы лояльности и безопасности']
       };
-      ['analytics', 'customers', 'transactions', 'iiko', 'bonus', 'settings', 'broadcast', 'stories'].forEach(id => {
+      ['analytics', 'customers', 'transactions', 'iiko', 'bonus', 'settings', 'broadcast', 'stories', 'news'].forEach(id => {
         document.getElementById('content-' + id).classList.add('hidden');
         const tab = document.getElementById('tab-' + id);
         if (tab) tab.className = 'sagi-nav-link';
@@ -1283,6 +1351,46 @@
       } catch (e) { console.error(e); }
     }
 
+    async function fetchNews() {
+      try {
+        const res = await apiGet('news');
+        const list = res.news || [];
+        currentData.news = list;
+        renderNews();
+      } catch (e) {
+        console.error(e);
+        const tbody = document.getElementById('newsTable');
+        if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="py-8 px-6 text-center text-red-600">Не удалось загрузить новости</td></tr>';
+      }
+    }
+
+    function renderNews() {
+      const tbody = document.getElementById('newsTable');
+      if (!tbody) return;
+      const list = currentData.news || [];
+      tbody.innerHTML = list.map(item => {
+        const created = item.created_at ? new Date(item.created_at).toLocaleDateString() : '-';
+        return `
+          <tr class="border-b border-beige-100 hover:bg-beige-50">
+            <td class="py-3 px-4"><img src="${item.imageUrl || item.imageurl || ''}" class="w-16 h-16 object-cover rounded shadow"></td>
+            <td class="py-3 px-4 font-bold text-gray-800">${item.title || '-'}</td>
+            <td class="py-3 px-4 text-xs text-gray-500 max-w-md truncate">${item.description || '-'}</td>
+            <td class="py-3 px-4 text-xs text-gray-500">${created}</td>
+            <td class="py-3 px-4 text-right whitespace-nowrap">
+              <button onclick="editNewsAdmin(${item.id})" class="bg-amber-100 hover:bg-amber-200 text-amber-800 border border-amber-300 px-3 py-1.5 rounded text-xs font-medium transition-all shadow-sm mr-2" style="background: #ffb300; color: #3e2723; font-weight: bold;">Изменить</button>
+              <button onclick="deleteNewsAdmin(${item.id})" class="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3 py-1.5 rounded text-xs font-medium transition-all shadow-sm">Удалить</button>
+            </td>
+          </tr>
+        `;
+      }).join('') || '<tr><td colspan="5" class="py-8 px-6 text-center text-gray-400">Новостей пока нет</td></tr>';
+    }
+
+    async function deleteNewsAdmin(id) {
+      if (!confirm('Удалить эту новость?')) return;
+      await fetch('/admin/api/news/' + id, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token } });
+      fetchNews();
+    }
+
     async function deleteStoryAdmin(id) {
       if (!confirm('Удалить эту историю?')) return;
       await fetch('/admin/api/stories/' + id, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token } });
@@ -1340,6 +1448,30 @@
 
     function closeStoryModal() {
       document.getElementById('storyModal').classList.add('hidden');
+    }
+
+    function openNewsModal() {
+      document.getElementById('editing_news_id').value = '';
+      document.getElementById('newsModalTitle').innerText = 'Создать новость';
+      document.getElementById('news_title').value = '';
+      updateImagePreview('news_image', '');
+      document.getElementById('news_desc').value = '';
+      document.getElementById('newsModal').classList.remove('hidden');
+    }
+
+    function editNewsAdmin(id) {
+      const item = (currentData.news || []).find(n => String(n.id) === String(id));
+      if (!item) return;
+      document.getElementById('editing_news_id').value = item.id;
+      document.getElementById('newsModalTitle').innerText = 'Редактировать новость';
+      document.getElementById('news_title').value = item.title || '';
+      updateImagePreview('news_image', item.imageUrl || item.imageurl || '');
+      document.getElementById('news_desc').value = item.description || '';
+      document.getElementById('newsModal').classList.remove('hidden');
+    }
+
+    function closeNewsModal() {
+      document.getElementById('newsModal').classList.add('hidden');
     }
 
     async function uploadStoryPhoto(fileInput, targetInputId) {
@@ -1410,6 +1542,33 @@
       document.getElementById('story_content').value = '';
       document.getElementById('story_desc').value = '';
       fetchStories();
+    }
+
+    async function saveNewsAdmin() {
+      const editId = document.getElementById('editing_news_id').value;
+      const title = document.getElementById('news_title').value;
+      const imageUrl = document.getElementById('news_image').value;
+      const description = document.getElementById('news_desc').value;
+      if (!title || !imageUrl) { alert('Укажите заголовок и фото новости!'); return; }
+
+      const url = editId ? `/admin/api/news/${editId}` : '/admin/api/news';
+      const method = editId ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ title, imageUrl, description })
+      });
+      if (!res.ok) {
+        alert('Ошибка при сохранении новости!');
+        return;
+      }
+      closeNewsModal();
+      document.getElementById('editing_news_id').value = '';
+      document.getElementById('news_title').value = '';
+      document.getElementById('news_image').value = '';
+      document.getElementById('news_desc').value = '';
+      fetchNews();
     }
 
     async function saveSettings() {

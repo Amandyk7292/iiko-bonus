@@ -201,11 +201,26 @@ alter table public.stories add column if not exists description text;
 alter table public.stories add column if not exists duration integer default 15;
 alter table public.stories add column if not exists created_at timestamptz default now();
 
-insert into public.stories (id, title, coverurl, contenturl, description, duration) values
-  (1, 'СЕЗОННЫЙ ФРАППЕ', 'https://images.unsplash.com/photo-1572490122747-3968b75bf699?w=500&q=80', 'https://images.unsplash.com/photo-1572490122747-3968b75bf699?w=1000&q=80', 'Попробуй наш новый летний кофейный напиток с карамелью и льдом.', 15),
-  (2, 'НОВИНКА', 'https://images.unsplash.com/photo-1497935586351-b67a49e012bf?w=500&q=80', 'https://images.unsplash.com/photo-1497935586351-b67a49e012bf?w=1000&q=80', 'Свежая выпечка каждое утро в Bulka.', 15),
-  (3, 'ПЛЮШКИ ЗА ДРУГА', 'https://images.unsplash.com/photo-1559525839-b184a4d698c7?w=500&q=80', 'https://images.unsplash.com/photo-1559525839-b184a4d698c7?w=1000&q=80', 'Приглашай друзей и получай бонусы.', 15)
-on conflict (id) do nothing;
+-- Stories are managed only from the admin panel. Do not seed default rows here,
+-- otherwise deleted admin stories come back when this schema is rerun.
+
+-- --------------------------------------------------------------------
+-- Instagram-style news feed in mobile app
+-- --------------------------------------------------------------------
+create table if not exists public.news (
+  id bigserial primary key,
+  title varchar(255) not null,
+  imageurl text not null,
+  description text,
+  created_at timestamptz default now() not null
+);
+
+alter table public.news add column if not exists title varchar(255);
+alter table public.news add column if not exists imageurl text;
+alter table public.news add column if not exists description text;
+alter table public.news add column if not exists created_at timestamptz default now();
+
+create index if not exists news_created_at_idx on public.news (created_at desc);
 
 -- --------------------------------------------------------------------
 -- Apple Wallet push registrations
@@ -429,6 +444,7 @@ alter table public.customers enable row level security;
 alter table public.transactions enable row level security;
 alter table public.settings enable row level security;
 alter table public.stories enable row level security;
+alter table public.news enable row level security;
 alter table public.wallet_registrations enable row level security;
 alter table public.whatsapp_sessions enable row level security;
 alter table public.iiko_operation_logs enable row level security;
@@ -437,11 +453,13 @@ drop policy if exists "Allow all access for Service Role" on public.customers;
 drop policy if exists "Allow all access for Service Role" on public.transactions;
 drop policy if exists "Allow all access for Service Role" on public.settings;
 drop policy if exists "Allow all access for Service Role" on public.stories;
+drop policy if exists "Allow all access for Service Role" on public.news;
 drop policy if exists "Allow all access for Service Role" on public.wallet_registrations;
 drop policy if exists "service_role_all_customers" on public.customers;
 drop policy if exists "service_role_all_transactions" on public.transactions;
 drop policy if exists "service_role_all_settings" on public.settings;
 drop policy if exists "service_role_all_stories" on public.stories;
+drop policy if exists "service_role_all_news" on public.news;
 drop policy if exists "service_role_all_wallet" on public.wallet_registrations;
 drop policy if exists "service_role_all_whatsapp" on public.whatsapp_sessions;
 drop policy if exists "service_role_all_iiko_logs" on public.iiko_operation_logs;
@@ -450,6 +468,7 @@ create policy "service_role_all_customers" on public.customers for all to servic
 create policy "service_role_all_transactions" on public.transactions for all to service_role using (true) with check (true);
 create policy "service_role_all_settings" on public.settings for all to service_role using (true) with check (true);
 create policy "service_role_all_stories" on public.stories for all to service_role using (true) with check (true);
+create policy "service_role_all_news" on public.news for all to service_role using (true) with check (true);
 create policy "service_role_all_wallet" on public.wallet_registrations for all to service_role using (true) with check (true);
 create policy "service_role_all_whatsapp" on public.whatsapp_sessions for all to service_role using (true) with check (true);
 create policy "service_role_all_iiko_logs" on public.iiko_operation_logs for all to service_role using (true) with check (true);
@@ -494,4 +513,5 @@ for each row execute function public.set_updated_at();
 select
   'Bulka Supabase setup complete' as status,
   (select count(*) from public.settings) as settings_count,
-  (select count(*) from public.stories) as stories_count;
+  (select count(*) from public.stories) as stories_count,
+  (select count(*) from public.news) as news_count;
