@@ -100,7 +100,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
       ),
       body: SafeArea(
         child: _loading 
-            ? Center(child: CircularProgressIndicator(color: _orange))
+            ? const Center(child: CircularProgressIndicator(color: Colors.orange))
             : (_showCities ? _buildCitiesList() : _buildLocationsList(filteredLocations)),
       ),
     );
