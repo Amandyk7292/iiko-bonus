@@ -12,7 +12,7 @@ function normalizeLocation(row, fallback = {}) {
 
 async function getAdminLocations() {
   const { data, error } = await supabase
-    .from('locations')
+    .from('bulka_locations')
     .select('*')
     .order('created_at', { ascending: false });
 
@@ -31,7 +31,7 @@ async function addLocation(item) {
   };
 
   const { data, error } = await supabase
-    .from('locations')
+    .from('bulka_locations')
     .insert([newItem])
     .select()
     .single();
@@ -48,7 +48,7 @@ async function updateLocation(id, item) {
   };
 
   const { data, error } = await supabase
-    .from('locations')
+    .from('bulka_locations')
     .update(updatedItem)
     .eq('id', id)
     .select()
@@ -60,7 +60,7 @@ async function updateLocation(id, item) {
 
 async function deleteLocation(id) {
   const { error } = await supabase
-    .from('locations')
+    .from('bulka_locations')
     .delete()
     .eq('id', id);
 

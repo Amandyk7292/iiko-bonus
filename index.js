@@ -1526,7 +1526,7 @@ app.get('/api/guest/news', async (req, res) => {
 app.get('/api/guest/locations', async (req, res) => {
   try {
     const { supabase } = require('./supabase');
-    const { data: locations, error } = await supabase.from('locations').select('*');
+    const { data: locations, error } = await supabase.from('bulka_locations').select('*');
     if (error) throw error;
     
     const cityLocations = {};
