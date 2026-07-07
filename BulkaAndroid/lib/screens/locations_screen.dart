@@ -23,7 +23,8 @@ class _LocationsScreenState extends State<LocationsScreen> {
 
   Future<void> _loadLocations() async {
     try {
-      final locs = await GetIt.I<BulkaApiClient>().getLocations();
+      final api = BulkaApiClient();
+      final locs = await api.getLocations();
       setState(() {
         if (locs.isNotEmpty) {
           _cityLocations = locs;
@@ -99,7 +100,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
       ),
       body: SafeArea(
         child: _loading 
-            ? const Center(child: CircularProgressIndicator(color: _orange))
+            ? Center(child: CircularProgressIndicator(color: _orange))
             : (_showCities ? _buildCitiesList() : _buildLocationsList(filteredLocations)),
       ),
     );
