@@ -1484,6 +1484,23 @@ app.get('/api/guest/news', async (req, res) => {
   }
 });
 
+app.get('/api/guest/locations', async (req, res) => {
+  try {
+    const { supabase } = require('./supabase');
+    const { data: locations, error } = await supabase.from('locations').select('*');
+    if (error) throw error;
+    
+    // Временно группируем все локации в один город, пока в БД нет поля city
+    const cityLocations = {
+      'Шымкент': locations.map(loc => loc.name || loc.address).filter(Boolean),
+      'Алматы': []
+    };
+    res.json({ success: true, cityLocations });
+  } catch (err) {
+    res.json({ success: false, error: err.message });
+  }
+});
+
 app.get('/api/guest/test-menu', async (req, res) => {
   try {
     const token = await iikoApi.getToken();
