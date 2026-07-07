@@ -400,6 +400,7 @@
       <button onclick="switchTab('stories')" id="tab-stories" class="sagi-nav-link">Фотографии / Сториз</button>
       <button onclick="switchTab('news')" id="tab-news" class="sagi-nav-link">Новости</button>
       <button onclick="switchTab('bonus')" id="tab-bonus" class="sagi-nav-link">Бонусы</button>
+      <button onclick="switchTab('locations')" id="tab-locations" class="sagi-nav-link">Локации</button>
     </aside>
 
     <main class="sagi-main">
@@ -681,6 +682,28 @@
               </tr>
             </thead>
             <tbody id="newsTable" class="text-sm text-gray-700"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TAB: Locations -->
+      <div id="content-locations" class="hidden space-y-6">
+        <div class="flex justify-end mb-4">
+          <button onclick="openLocationModal()" class="btn-classic px-5 py-2.5 font-medium shadow-sm flex items-center gap-2">
+            <span>+ Добавить локацию</span>
+          </button>
+        </div>
+        <div class="card overflow-hidden">
+          <table class="w-full text-left border-collapse">
+            <thead class="bg-beige-50">
+              <tr>
+                <th class="py-4 px-6">Город</th>
+                <th class="py-4 px-6">Название</th>
+                <th class="py-4 px-6">Адрес</th>
+                <th class="py-4 px-6 text-right">Действия</th>
+              </tr>
+            </thead>
+            <tbody id="locationsTable" class="text-sm text-gray-700"></tbody>
           </table>
         </div>
       </div>
@@ -1010,9 +1033,25 @@
     </main>
   </div>
 
+  <div id="modal-location" class="sagi-modal hidden">
+    <div class="sagi-modal-content">
+      <h2 id="modalLocationTitle" class="text-xl font-bold mb-4">Добавить локацию</h2>
+      <input type="hidden" id="modalLocationId">
+      <div class="space-y-4">
+        <div><label class="block text-sm mb-1">Город</label><input type="text" id="modalLocationCity" class="input-classic w-full"></div>
+        <div><label class="block text-sm mb-1">Название</label><input type="text" id="modalLocationName" class="input-classic w-full"></div>
+        <div><label class="block text-sm mb-1">Адрес</label><input type="text" id="modalLocationAddress" class="input-classic w-full"></div>
+      </div>
+      <div class="flex justify-end gap-3 mt-6">
+        <button onclick="closeLocationModal()" class="btn-outline px-4 py-2">Отмена</button>
+        <button onclick="saveLocation()" class="btn-classic px-4 py-2" id="btnSaveLocation">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     let token = localStorage.getItem('adminToken') || '';
-    let currentData = { customers: [], transactions: [], iikoOperations: [], stats: {}, bonusSettings: {}, promocodes: [], stories: [], news: [] };
+    let currentData = { customers: [], transactions: [], iikoOperations: [], stats: {}, bonusSettings: {}, promocodes: [], stories: [], news: [], locations: [] };
     let chartInstance = null;
 
     if(token) initApp();
@@ -1038,7 +1077,7 @@
     async function initApp() {
       document.getElementById('authModal').classList.add('hidden');
       document.getElementById('dashboard').classList.remove('hidden');
-      await Promise.all([fetchSettings(), fetchStats(), fetchCustomers(), fetchTransactions(), fetchIikoOperations(), fetchStories(), fetchNews()]);
+      await Promise.all([fetchSettings(), fetchStats(), fetchCustomers(), fetchTransactions(), fetchIikoOperations(), fetchStories(), fetchNews(), fetchLocations()]);
       bindBonusInputs();
       renderChart();
     }
@@ -1052,10 +1091,11 @@
         bonus: ['Бонусы', 'Сроки, списание, стандартный бонус, referral и cross'],
         stories: ['Фотографии / Сториз', 'Рекламные материалы мобильного приложения'],
         news: ['Новости', 'Лента новостей мобильного приложения'],
+        locations: ['Локации', 'Управление городами и точками'],
         broadcast: ['WhatsApp / Рассылки', 'Массовые и автоматические уведомления'],
         settings: ['Общая информация', 'Настройки программы лояльности и безопасности']
       };
-      ['analytics', 'customers', 'transactions', 'iiko', 'bonus', 'settings', 'broadcast', 'stories', 'news'].forEach(id => {
+      ['analytics', 'customers', 'transactions', 'iiko', 'bonus', 'settings', 'broadcast', 'stories', 'news', 'locations'].forEach(id => {
         document.getElementById('content-' + id).classList.add('hidden');
         const tab = document.getElementById('tab-' + id);
         if (tab) tab.className = 'sagi-nav-link';
@@ -1496,6 +1536,90 @@
           </tr>
         `).join('');
       } catch (e) { console.error(e); }
+    }
+
+    // --- Locations ---
+    async function fetchLocations() {
+      try {
+        const res = await fetch('/admin/api/locations', { headers: { 'Authorization': `Bearer ${token}` } });
+        const json = await res.json();
+        if(json.success) { currentData.locations = json.locations; renderLocations(); }
+      } catch (err) { console.error('fetchLocations error', err); }
+    }
+
+    function renderLocations() {
+      const html = (currentData.locations || []).map((loc, idx) => `
+        <tr class="border-b last:border-0 hover:bg-beige-50/50">
+          <td class="py-4 px-6 font-medium">${loc.city || '—'}</td>
+          <td class="py-4 px-6">${loc.name || '—'}</td>
+          <td class="py-4 px-6">${loc.address || '—'}</td>
+          <td class="py-4 px-6 text-right">
+            <button onclick="editLocation(${idx})" class="text-beige-600 hover:text-beige-800 text-sm font-medium mr-3">Редактировать</button>
+            <button onclick="deleteLocation('${loc.id}')" class="text-red-500 hover:text-red-700 text-sm font-medium">Удалить</button>
+          </td>
+        </tr>
+      `).join('');
+      document.getElementById('locationsTable').innerHTML = html || '<tr><td colspan="4" class="py-6 text-center text-gray-500">Нет локаций</td></tr>';
+      enhanceResponsiveTables();
+    }
+
+    function openLocationModal() {
+      document.getElementById('modalLocationId').value = '';
+      document.getElementById('modalLocationCity').value = '';
+      document.getElementById('modalLocationName').value = '';
+      document.getElementById('modalLocationAddress').value = '';
+      document.getElementById('modalLocationTitle').innerText = 'Добавить локацию';
+      document.getElementById('modal-location').classList.remove('hidden');
+    }
+
+    function closeLocationModal() {
+      document.getElementById('modal-location').classList.add('hidden');
+    }
+
+    function editLocation(idx) {
+      const loc = currentData.locations[idx];
+      document.getElementById('modalLocationId').value = loc.id;
+      document.getElementById('modalLocationCity').value = loc.city || '';
+      document.getElementById('modalLocationName').value = loc.name || '';
+      document.getElementById('modalLocationAddress').value = loc.address || '';
+      document.getElementById('modalLocationTitle').innerText = 'Редактировать локацию';
+      document.getElementById('modal-location').classList.remove('hidden');
+    }
+
+    async function saveLocation() {
+      const btn = document.getElementById('btnSaveLocation');
+      btn.innerText = 'Сохранение...'; btn.disabled = true;
+      const id = document.getElementById('modalLocationId').value;
+      const city = document.getElementById('modalLocationCity').value;
+      const name = document.getElementById('modalLocationName').value;
+      const address = document.getElementById('modalLocationAddress').value;
+      
+      const method = id ? 'PUT' : 'POST';
+      const url = id ? '/admin/api/locations/' + id : '/admin/api/locations';
+      
+      try {
+        const res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ city, name, address })
+        });
+        const json = await res.json();
+        if(json.success) {
+          closeLocationModal();
+          await fetchLocations();
+        } else alert('Ошибка: ' + (json.error || 'Unknown'));
+      } catch (err) { alert('Ошибка сети: ' + err.message); }
+      btn.innerText = 'Сохранить'; btn.disabled = false;
+    }
+
+    async function deleteLocation(id) {
+      if(!confirm('Удалить эту локацию?')) return;
+      try {
+        const res = await fetch('/admin/api/locations/' + id, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+        const json = await res.json();
+        if(json.success) await fetchLocations();
+        else alert('Ошибка: ' + (json.error || 'Unknown'));
+      } catch (err) { alert('Ошибка сети: ' + err.message); }
     }
 
     async function fetchNews() {

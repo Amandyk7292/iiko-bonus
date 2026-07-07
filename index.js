@@ -11,6 +11,7 @@ const { supabase } = require('./supabase');
 const iikoApi = require('./iiko-api');
 const { getStories, addStory, updateStory, deleteStory } = require('./stories');
 const { getNews, addNews, updateNews, deleteNews } = require('./news');
+const { getAdminLocations, addLocation, updateLocation, deleteLocation } = require('./locations');
 
 // APNs Setup
 let apnProvider = null;
@@ -1162,6 +1163,44 @@ app.delete('/admin/api/news/:id', adminAuthMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// --- Admin API: Locations ---
+app.get('/admin/api/locations', adminAuthMiddleware, async (req, res) => {
+  try {
+    const locations = await getAdminLocations();
+    res.json({ success: true, locations });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/admin/api/locations', adminAuthMiddleware, async (req, res) => {
+  try {
+    const item = await addLocation(req.body);
+    res.json({ success: true, item });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.put('/admin/api/locations/:id', adminAuthMiddleware, async (req, res) => {
+  try {
+    const item = await updateLocation(req.params.id, req.body);
+    res.json({ success: true, item });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/admin/api/locations/:id', adminAuthMiddleware, async (req, res) => {
+  try {
+    const result = await deleteLocation(req.params.id);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+
 app.post('/admin/api/upload', adminAuthMiddleware, async (req, res) => {
   try {
     const { imageBase64, filename } = req.body;
@@ -1490,11 +1529,13 @@ app.get('/api/guest/locations', async (req, res) => {
     const { data: locations, error } = await supabase.from('locations').select('*');
     if (error) throw error;
     
-    // Временно группируем все локации в один город, пока в БД нет поля city
-    const cityLocations = {
-      'Шымкент': locations.map(loc => loc.name || loc.address).filter(Boolean),
-      'Алматы': []
-    };
+    const cityLocations = {};
+    for (const loc of locations) {
+      const city = loc.city || 'Шымкент'; // дефолт, если пусто
+      if (!cityLocations[city]) cityLocations[city] = [];
+      const title = [loc.name, loc.address].filter(Boolean).join(', ');
+      if (title) cityLocations[city].push(title);
+    }
     res.json({ success: true, cityLocations });
   } catch (err) {
     res.json({ success: false, error: err.message });
