@@ -1033,9 +1033,9 @@
     </main>
   </div>
 
-  <div id="modal-location" class="sagi-modal hidden">
-    <div class="sagi-modal-content">
-      <h2 id="modalLocationTitle" class="text-xl font-bold mb-4">Добавить локацию</h2>
+  <div id="modal-location" class="fixed inset-0 bg-[#333333] bg-opacity-40 flex items-center justify-center z-50 backdrop-blur-sm hidden transition-opacity duration-300">
+    <div class="card p-8 w-full max-w-md max-h-[90vh] overflow-y-auto">
+      <h3 id="modalLocationTitle" class="text-2xl font-serif text-beige-800 mb-6">Добавить локацию</h3>
       <input type="hidden" id="modalLocationId">
       <div class="space-y-4">
         <div><label class="block text-sm mb-1">Город</label><input type="text" id="modalLocationCity" class="input-classic w-full"></div>
