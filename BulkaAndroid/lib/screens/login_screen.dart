@@ -254,34 +254,87 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ),
       const SizedBox(height: 22),
-      TextField(
-        controller: _otpController,
-        keyboardType: TextInputType.number,
-        maxLength: 4,
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Pinput(
+          length: 4,
+          controller: _otpController,
+          hapticFeedbackType: HapticFeedbackType.lightImpact,
+          onChanged: (value) {
+            setState(() => _error = null);
+          },
+          onCompleted: (pin) {
+            if (pin.length == 4) {
+              _verify();
+            }
+          },
+          defaultPinTheme: PinTheme(
+            width: 64,
+            height: 64,
+            textStyle: const TextStyle(
+              fontSize: 30,
+              color: _textDark,
+              fontWeight: FontWeight.w900,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _bulkaBrown.withValues(alpha: 0.3)),
+              boxShadow: [
+                BoxShadow(
+                  color: _bulkaBrown.withValues(alpha: 0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+          ),
+          focusedPinTheme: PinTheme(
+            width: 64,
+            height: 64,
+            textStyle: const TextStyle(
+              fontSize: 30,
+              color: _textDark,
+              fontWeight: FontWeight.w900,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _bulkaBrown, width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: _bulkaBrown.withValues(alpha: 0.15),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+          ),
+          errorPinTheme: PinTheme(
+            width: 64,
+            height: 64,
+            textStyle: const TextStyle(
+              fontSize: 30,
+              color: Colors.red,
+              fontWeight: FontWeight.w900,
+            ),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.red, width: 2),
+            ),
+          ),
+          forceErrorState: _error != null,
+        ),
+      ),
+      const SizedBox(height: 8),
+      Text(
+        'Действует несколько минут',
+        style: TextStyle(
+          color: _textDark.withValues(alpha: 0.5),
+          fontSize: 12,
+        ),
         textAlign: TextAlign.center,
-        textInputAction: TextInputAction.done,
-        style: const TextStyle(
-          color: _textDark,
-          fontSize: 30,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 12,
-        ),
-        onChanged: (value) {
-          final digits = value.onlyDigits.take(4).join();
-          if (digits != value) {
-            _otpController.value = TextEditingValue(
-              text: digits,
-              selection: TextSelection.collapsed(offset: digits.length),
-            );
-          }
-          setState(() => _error = null);
-        },
-        decoration: _inputDecoration(
-          label: 'Код подтверждения',
-          helper: 'Действует несколько минут',
-          error: _error,
-          icon: Icons.password_rounded,
-        ),
       ),
       if (_error != null) ...[
         const SizedBox(height: 10),

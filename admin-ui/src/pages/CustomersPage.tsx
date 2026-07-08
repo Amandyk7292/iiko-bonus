@@ -106,7 +106,11 @@ export default function CustomersPage() {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return customers.filter(c => c.name?.toLowerCase().includes(q) || c.phone?.includes(q));
+    return customers.filter(c => {
+      const nameMatch = (c.name || '').toLowerCase().includes(q);
+      const phoneMatch = String(c.phone || '').toLowerCase().includes(q);
+      return nameMatch || phoneMatch;
+    });
   }, [search, customers]);
 
   return (
