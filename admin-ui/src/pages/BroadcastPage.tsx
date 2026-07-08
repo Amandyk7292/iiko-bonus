@@ -97,7 +97,7 @@ export default function BroadcastPage() {
                 if (!window.confirm('Отправить Push-уведомление всем клиентам приложения?')) return;
                 setLoading(true);
                 try {
-                  const token = localStorage.getItem('bulka_admin_token') || '';
+                  const token = localStorage.getItem('adminPwd') || '';
                   const res = await fetch('/admin/api/push/mass', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },

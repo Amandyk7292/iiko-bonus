@@ -78,7 +78,7 @@ export default function CustomersPage() {
     if (!amount || isNaN(Number(amount))) return;
     const reason = window.prompt("Причина (необязательно):") || "Ручное начисление";
     try {
-      await fetch('/admin/api/customers/bonus', {
+      const response = await fetch('/admin/api/customers/bonus', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('adminPwd')}`,
@@ -86,6 +86,10 @@ export default function CustomersPage() {
         },
         body: JSON.stringify({ customerId: id, amount: Number(amount), reason })
       });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP Error ${response.status}`);
+      }
       alert('Успешно');
       fetchCustomers();
     } catch (e: any) {
