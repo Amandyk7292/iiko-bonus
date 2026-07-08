@@ -16,6 +16,126 @@ class StoryGroup {
   final String? subtitle;
 }
 
+class PromoBannerShimmer extends StatefulWidget {
+  const PromoBannerShimmer({super.key});
+
+  @override
+  State<PromoBannerShimmer> createState() => _PromoBannerShimmerState();
+}
+
+class _PromoBannerShimmerState extends State<PromoBannerShimmer>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final v = _controller.value;
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Container(
+            height: 146,
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(28),
+              gradient: LinearGradient(
+                begin: Alignment(-2.0 + 4.0 * v, -0.5),
+                end: Alignment(-1.0 + 4.0 * v, 0.5),
+                colors: const [
+                  Color(0xFF4A2210),
+                  Color(0xFF6D3A20),
+                  Color(0xFFD4AF37),
+                  Color(0xFF6D3A20),
+                  Color(0xFF4A2210),
+                ],
+                stops: const [0.0, 0.35, 0.5, 0.65, 1.0],
+              ),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x1F6D3317),
+                  blurRadius: 20,
+                  offset: Offset(0, 10),
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.all(22),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 180,
+                        height: 22,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.22),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        width: 240,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        width: 140,
+                        height: 14,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Center(
+                    child: Text(
+                      '✨',
+                      style: TextStyle(fontSize: 24),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class PromoBannerSlider extends StatefulWidget {
   const PromoBannerSlider({
     required this.groups,
@@ -155,8 +275,6 @@ class _BannerFullCoverWidget extends StatelessWidget {
     if (group.coverUrl.startsWith('http')) {
       return _NetworkImage(url: group.coverUrl, fit: BoxFit.cover);
     }
-
-    final isHappy = group.id == 'happy_hours' || group.title.contains('ЧАСЫ') || group.title.contains('2+1');
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -199,10 +317,10 @@ class _BannerFullCoverWidget extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 16),
-          Text(
-            isHappy ? '2+1' : '🎁',
-            style: const TextStyle(
-              fontSize: 48,
+          const Text(
+            '✨',
+            style: TextStyle(
+              fontSize: 44,
             ),
           ),
         ],

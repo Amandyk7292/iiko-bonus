@@ -26,6 +26,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Set<String> _viewedStoryGroups = const {};
   Timer? _feedRefreshTimer;
   bool _feedLoading = false;
+  bool _initialLoading = true;
   bool _loyaltyExpanded = true;
 
   @override
@@ -74,9 +75,15 @@ class _HomeScreenState extends State<HomeScreen> {
         final news = results[1];
         if (stories is List<PromoStory>) _stories = stories;
         if (news is List<NewsItem>) _news = news;
+        _initialLoading = false;
       });
     } finally {
       _feedLoading = false;
+      if (mounted && _initialLoading) {
+        setState(() {
+          _initialLoading = false;
+        });
+      }
     }
   }
 
@@ -147,17 +154,22 @@ class _HomeScreenState extends State<HomeScreen> {
                           ],
                         ),
                       ),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 24),
-                        child: _SectionTitle('Тут много интересного'),
-                      ),
-                      const SizedBox(height: 14),
-                      PromoBannerSlider(
-                        groups: storyGroups,
-                        viewedGroups: _viewedStoryGroups,
-                        onGroupTap: _openStoryGroup,
-                      ),
-                      const SizedBox(height: 24),
+                      if (_initialLoading || storyGroups.isNotEmpty) ...[
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 24),
+                          child: _SectionTitle('Тут много интересного'),
+                        ),
+                        const SizedBox(height: 14),
+                        if (_initialLoading)
+                          const PromoBannerShimmer()
+                        else
+                          PromoBannerSlider(
+                            groups: storyGroups,
+                            viewedGroups: _viewedStoryGroups,
+                            onGroupTap: _openStoryGroup,
+                          ),
+                        const SizedBox(height: 24),
+                      ],
                       const Padding(
                         padding: EdgeInsets.symmetric(horizontal: 24),
                         child: _SectionTitle('Выберите тип заказа'),
@@ -213,44 +225,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<StoryGroup> _groupStories(List<PromoStory> stories) {
     if (stories.isEmpty) {
-      return const [
-        StoryGroup(
-          id: 'happy_hours',
-          title: 'СЧАСТЛИВЫЕ ЧАСЫ',
-          subtitle: 'После 21:00 — 3 булочки по цене 2-х!',
-          coverUrl: '',
-          stories: [
-            PromoStory(
-              id: 991,
-              title: 'ЗАБЕРИТЕ ВКУСНЫЙ БОНУС К ВЕЧЕРУ',
-              description: '3 булочки по цене 2х после 21:00',
-              imageUrl: '',
-              contentUrl: '',
-              groupId: 'happy_hours',
-              groupTitle: 'СЧАСТЛИВЫЕ ЧАСЫ',
-              groupCoverUrl: '',
-            ),
-          ],
-        ),
-        StoryGroup(
-          id: 'invite_friend',
-          title: 'ПЛЮШКИ ЗА ДРУГА',
-          subtitle: 'Пригласите друга и получите 500 баллов',
-          coverUrl: '',
-          stories: [
-            PromoStory(
-              id: 992,
-              title: 'ДАРИМ БОНУСЫ ЗА ДРУЗЕЙ',
-              description: 'Поделитесь приложением с другом и получайте бонусные баллы на свой счет с каждой покупки!',
-              imageUrl: '',
-              contentUrl: '',
-              groupId: 'invite_friend',
-              groupTitle: 'ПЛЮШКИ ЗА ДРУГА',
-              groupCoverUrl: '',
-            ),
-          ],
-        ),
-      ];
+      return const [];
     }
 
     final byGroup = <String, List<PromoStory>>{};
