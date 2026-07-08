@@ -109,23 +109,60 @@ String formatMoney(double value) {
   return value.toStringAsFixed(2);
 }
 
+List<String> _getLocalizedMonths() {
+  final lang = appLanguageNotifier.value;
+  if (lang == 'kk') {
+    return [
+      'қаң',
+      'ақп',
+      'нау',
+      'сәу',
+      'мам',
+      'мау',
+      'шіл',
+      'там',
+      'қыр',
+      'қаз',
+      'қар',
+      'жел',
+    ];
+  }
+  if (lang == 'en') {
+    return [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+  }
+  return [
+    'янв',
+    'фев',
+    'мар',
+    'апр',
+    'мая',
+    'июн',
+    'июл',
+    'авг',
+    'сен',
+    'окт',
+    'ноя',
+    'дек',
+  ];
+}
+
 String formatDateTime(String value) {
   try {
     final date = DateTime.parse(value).toLocal();
-    const months = [
-      'янв',
-      'фев',
-      'мар',
-      'апр',
-      'мая',
-      'июн',
-      'июл',
-      'авг',
-      'сен',
-      'окт',
-      'ноя',
-      'дек',
-    ];
+    final months = _getLocalizedMonths();
     final day = date.day.toString().padLeft(2, '0');
     final month = months[date.month - 1];
     final hour = date.hour.toString().padLeft(2, '0');
@@ -139,20 +176,7 @@ String formatDateTime(String value) {
 String formatShortDate(String value) {
   try {
     final date = DateTime.parse(value).toLocal();
-    const months = [
-      'янв',
-      'фев',
-      'мар',
-      'апр',
-      'мая',
-      'июн',
-      'июл',
-      'авг',
-      'сен',
-      'окт',
-      'ноя',
-      'дек',
-    ];
+    final months = _getLocalizedMonths();
     return '${date.day} ${months[date.month - 1]}';
   } catch (_) {
     return value;

@@ -9,9 +9,9 @@ class OrdersScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Мои заказы',
-          style: TextStyle(
+        title: Text(
+          'orders_title'.tr,
+          style: const TextStyle(
             fontFamily: _headingFont,
             fontWeight: FontWeight.w400,
           ),
@@ -36,9 +36,9 @@ class OrdersScreen extends StatelessWidget {
                       size: 38,
                     ),
                     const SizedBox(height: 12),
-                    const Text(
-                      'У вас пока нет заказов',
-                      style: TextStyle(
+                    Text(
+                      'orders_empty_title'.tr,
+                      style: const TextStyle(
                         color: _textDark,
                         fontFamily: _headingFont,
                         fontSize: 18,
@@ -47,7 +47,7 @@ class OrdersScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'История начислений появится после покупки.',
+                      'orders_empty_sub'.tr,
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: _textDark.withValues(alpha: 0.58),
@@ -112,7 +112,7 @@ class TransactionCard extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    transaction.label,
+                    localizeTransactionLabel(transaction.label),
                     style: const TextStyle(
                       color: _textDark,
                       fontFamily: _headingFont,
@@ -134,7 +134,7 @@ class TransactionCard extends StatelessWidget {
             if ((transaction.orderTotal ?? 0) > 0) ...[
               const SizedBox(height: 8),
               Text(
-                'Сумма чека: ${formatMoney(transaction.orderTotal!)} ₸',
+                '${'check_sum'.tr}: ${formatMoney(transaction.orderTotal!)} ₸',
                 style: TextStyle(
                   color: _textDark.withValues(alpha: 0.7),
                   fontSize: 14,

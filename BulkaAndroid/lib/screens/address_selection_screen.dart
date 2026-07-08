@@ -92,7 +92,7 @@ class _AddressSelectionScreenState extends State<AddressSelectionScreen> {
             onPressed: _addAddress,
             icon: const Icon(Icons.add_rounded, size: 32),
             color: _cocoa.withValues(alpha: 0.48),
-            tooltip: 'Добавить адрес',
+            tooltip: 'add_address'.tr,
           ),
           const SizedBox(width: 14),
         ],
@@ -102,11 +102,11 @@ class _AddressSelectionScreenState extends State<AddressSelectionScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(24, 16, 24, 0),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
               child: Text(
-                'Мои адреса',
-                style: TextStyle(
+                'my_addresses'.tr,
+                style: const TextStyle(
                   color: Colors.black,
                   fontFamily: _headingFont,
                   fontSize: 24,
@@ -118,10 +118,10 @@ class _AddressSelectionScreenState extends State<AddressSelectionScreen> {
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
                   : _addresses.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Text(
-                        'Адреса пока не добавлены',
-                        style: TextStyle(
+                        'no_addresses'.tr,
+                        style: const TextStyle(
                           color: Colors.black,
                           fontSize: 22,
                           fontWeight: FontWeight.w600,

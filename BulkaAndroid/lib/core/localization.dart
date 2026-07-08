@@ -69,8 +69,8 @@ const Map<String, Map<String, String>> _appTranslations = {
   },
   'nav_catalog': {
     'ru': 'Каталог',
-    'kk': 'Каталог',
-    'en': 'Catalog',
+    'kk': 'Мәзір',
+    'en': 'Menu',
   },
   'nav_cart': {
     'ru': 'Корзина',
@@ -195,4 +195,69 @@ const Map<String, Map<String, String>> _appTranslations = {
     'kk': '% кэшбэк сыйлаймыз!',
     'en': '% cashback on every purchase!',
   },
+  // Orders screen
+  'orders_title': {
+    'ru': 'Мои заказы',
+    'kk': 'Менің тапсырыстарым',
+    'en': 'My orders',
+  },
+  'orders_empty_title': {
+    'ru': 'У вас пока нет заказов',
+    'kk': 'Әзірге тапсырыстар жоқ',
+    'en': 'No orders yet',
+  },
+  'orders_empty_sub': {
+    'ru': 'История начислений появится после покупки.',
+    'kk': 'Тапсырыс тарихы сатылымнан кейін пайда болады.',
+    'en': 'Transaction history will appear after purchase.',
+  },
+  'check_sum': {
+    'ru': 'Сумма чека',
+    'kk': 'Чек сомасы',
+    'en': 'Bill amount',
+  },
+  'tx_pay_bonus': {
+    'ru': 'Оплата бонусами',
+    'kk': 'Бонустармен төлеу',
+    'en': 'Paid with bonuses',
+  },
+  'tx_cashback': {
+    'ru': 'Начисление кэшбэка',
+    'kk': 'Кэшбэк есептелді',
+    'en': 'Cashback earned',
+  },
+  'tx_gift': {
+    'ru': 'Подарок / Начисление',
+    'kk': 'Сыйлық / Бонус қосылды',
+    'en': 'Gift / Accrual',
+  },
+  'add_address': {
+    'ru': 'Добавить адрес',
+    'kk': 'Мекенжай қосу',
+    'en': 'Add address',
+  },
+  'my_addresses': {
+    'ru': 'Мои адреса',
+    'kk': 'Менің мекенжайларым',
+    'en': 'My addresses',
+  },
+  'no_addresses': {
+    'ru': 'Адреса пока не добавлены',
+    'kk': 'Мекенжайлар қосылмаған',
+    'en': 'No addresses added yet',
+  },
 };
+
+String localizeTransactionLabel(String label) {
+  final l = label.toLowerCase();
+  if (l.contains('оплата бонусами') || l.contains('списание')) {
+    return 'tx_pay_bonus'.tr;
+  }
+  if (l.contains('начисление кэшбэка') || l.contains('кешбэк') || l.contains('кэшбэк')) {
+    return 'tx_cashback'.tr;
+  }
+  if (l.contains('подарок') || l.contains('начисление')) {
+    return 'tx_gift'.tr;
+  }
+  return label;
+}
