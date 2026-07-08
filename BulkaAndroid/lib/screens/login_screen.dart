@@ -129,10 +129,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
   List<Widget> _phoneStep(BuildContext context) {
     return [
-      const _AuthStepHeader(
-        step: 'Шаг 1 из 2',
-        title: 'Вход по номеру',
-        subtitle: 'Укажите номер, привязанный к карте гостя Bulka.',
+      _AuthStepHeader(
+        step: 'login_step_1'.tr,
+        title: 'login_phone_title'.tr,
+        subtitle: 'login_phone_sub'.tr,
       ),
       const SizedBox(height: 22),
       TextField(
@@ -156,7 +156,7 @@ class _LoginScreenState extends State<LoginScreen> {
           setState(() => _error = null);
         },
         decoration: _inputDecoration(
-          label: 'Номер телефона',
+          label: 'phone_label'.tr,
           prefix: '+7 ',
           error: _error,
           icon: Icons.phone_rounded,
@@ -168,7 +168,7 @@ class _LoginScreenState extends State<LoginScreen> {
         if (_error!.toLowerCase().contains('telegram')) ...[
           const SizedBox(height: 14),
           _PrimaryButton(
-            text: 'ОТКРЫТЬ TELEGRAM',
+            text: 'open_telegram'.tr,
             icon: Icons.near_me_rounded,
             color: const Color(0xFF2CA5E0),
             textColor: Colors.white,
@@ -178,7 +178,7 @@ class _LoginScreenState extends State<LoginScreen> {
       ],
       const SizedBox(height: 26),
       _PrimaryButton(
-        text: 'Получить код в WhatsApp',
+        text: 'get_code_whatsapp'.tr,
         icon: Icons.sms_rounded,
         loading: _loading,
         onPressed: _phoneController.text.length == 10 ? _sendCode : null,
@@ -189,10 +189,10 @@ class _LoginScreenState extends State<LoginScreen> {
   List<Widget> _otpCodeStep(BuildContext context) {
     final phone = '+7 ${_phoneController.text}';
     return [
-      const _AuthStepHeader(
-        step: 'Шаг 2 из 2',
-        title: 'Подтвердите ваш номер',
-        subtitle: 'Код отправлен через WhatsApp.',
+      _AuthStepHeader(
+        step: 'login_step_2'.tr,
+        title: 'confirm_phone_title'.tr,
+        subtitle: 'code_sent_whatsapp'.tr,
       ),
       const SizedBox(height: 18),
       Container(
@@ -223,7 +223,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Код для $phone',
+                    '${'code_for'.tr}$phone',
                     style: const TextStyle(
                       color: _textDark,
                       fontSize: 15,
@@ -232,7 +232,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Введите 4 цифры из сообщения',
+                    'enter_4_digits'.tr,
                     style: TextStyle(
                       color: _textDark.withValues(alpha: 0.62),
                       fontSize: 13,
@@ -320,7 +320,7 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
       const SizedBox(height: 8),
       Text(
-        'Действует несколько минут',
+        'valid_few_mins'.tr,
         style: TextStyle(
           color: _textDark.withValues(alpha: 0.5),
           fontSize: 12,
@@ -333,7 +333,7 @@ class _LoginScreenState extends State<LoginScreen> {
       ],
       const SizedBox(height: 26),
       _PrimaryButton(
-        text: 'Войти',
+        text: 'login_btn'.tr,
         icon: Icons.arrow_forward_rounded,
         loading: _loading,
         onPressed: _otpController.text.length == 4 ? _verify : null,
@@ -346,9 +346,9 @@ class _LoginScreenState extends State<LoginScreen> {
             _error = null;
           });
         },
-        child: const Text(
-          'Изменить номер',
-          style: TextStyle(color: _bulkaBrown),
+        child: Text(
+          'change_phone_btn'.tr,
+          style: const TextStyle(color: _bulkaBrown),
         ),
       ),
     ];

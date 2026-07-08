@@ -45,7 +45,7 @@ class _QrDialogState extends State<QrDialog> {
       });
     } catch (_) {
       if (!mounted) return;
-      setState(() => _error = 'QR временно недоступен');
+      setState(() => _error = 'qr_unavailable'.tr);
     }
   }
 
@@ -66,9 +66,9 @@ class _QrDialogState extends State<QrDialog> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'МОЙ QR',
-                  style: TextStyle(
+                Text(
+                  'my_qr'.tr,
+                  style: const TextStyle(
                     color: _textDark,
                     fontWeight: FontWeight.w900,
                     fontSize: 16,
@@ -127,7 +127,7 @@ class _QrDialogState extends State<QrDialog> {
               child: Column(
                 children: [
                   Text(
-                    'Динамический код обновится через',
+                    'qr_update_in'.tr,
                     style: TextStyle(
                       color: _textDark.withValues(alpha: 0.58),
                       fontSize: 12,
@@ -149,8 +149,8 @@ class _QrDialogState extends State<QrDialog> {
             const SizedBox(height: 20),
             _PrimaryButton(
               text: isApple
-                  ? 'Добавить в Apple Wallet'
-                  : 'Добавить в Google Wallet',
+                  ? 'add_apple_wallet'.tr
+                  : 'add_google_wallet'.tr,
               icon: Icons.account_balance_wallet_rounded,
               color: const Color(0xFF1F1F1F),
               textColor: Colors.white,

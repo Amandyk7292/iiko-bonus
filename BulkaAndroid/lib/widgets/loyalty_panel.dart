@@ -72,9 +72,9 @@ class _LoyaltyPanel extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text(
-                                'Покажите QR-\nкод кассиру',
-                                style: TextStyle(
+                              Text(
+                                'show_qr_cashier'.tr,
+                                style: const TextStyle(
                                   color: Color(0xFF6D3317),
                                   fontFamily: _headingFont,
                                   fontSize: 22,
@@ -95,9 +95,9 @@ class _LoyaltyPanel extends StatelessWidget {
                                       borderRadius: BorderRadius.circular(18),
                                     ),
                                   ),
-                                  child: const Text(
-                                    'Открыть',
-                                    style: TextStyle(
+                                  child: Text(
+                                    'open_qr_btn'.tr,
+                                    style: const TextStyle(
                                       color: Color(0xFF6D3317),
                                       fontSize: 18,
                                       fontWeight: FontWeight.w500,
@@ -145,7 +145,7 @@ class _LoyaltyPanel extends StatelessWidget {
                           ),
                         ),
                         Tooltip(
-                          message: expanded ? 'Свернуть' : 'Развернуть',
+                          message: expanded ? 'collapse_tooltip'.tr : 'expand_tooltip'.tr,
                           child: GestureDetector(
                             behavior: HitTestBehavior.opaque,
                             onTap: onToggle,
@@ -181,13 +181,13 @@ class _LoyaltyPanel extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _RewardProgress(
-                    title: '+1% кешбэк после 6 покупки в течение 30 дней.',
+                    title: 'reward_6_desc'.tr,
                     remaining: firstReward.remaining,
                     progress: firstReward.progress,
                   ),
                   const SizedBox(height: 22),
                   _RewardProgress(
-                    title: '+1% кешбэк после 12 покупки в течение 30 дней.',
+                    title: 'reward_12_desc'.tr,
                     remaining: secondReward.remaining,
                     progress: secondReward.progress,
                   ),
@@ -199,14 +199,14 @@ class _LoyaltyPanel extends StatelessWidget {
                     height: 58,
                     child: GradientButton(
                       onPressed: onHistoryTap,
-                      child: const Row(
+                      child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.history, size: 20, color: Colors.white),
-                          SizedBox(width: 8),
+                          const Icon(Icons.history, size: 20, color: Colors.white),
+                          const SizedBox(width: 8),
                           Text(
-                            'История баланса',
-                            style: TextStyle(
+                            'balance_history_btn'.tr,
+                            style: const TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.w400,
                             ),
@@ -408,7 +408,7 @@ class _RewardProgress extends StatelessWidget {
         ),
         const SizedBox(height: 20),
         Text(
-          'Осталось покупок: $remaining',
+          '${'remaining_purchases'.tr}: $remaining',
           style: const TextStyle(
             color: Colors.black,
             fontSize: 20,

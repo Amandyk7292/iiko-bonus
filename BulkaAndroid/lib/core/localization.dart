@@ -246,6 +246,169 @@ const Map<String, Map<String, String>> _appTranslations = {
     'kk': 'Мекенжайлар қосылмаған',
     'en': 'No addresses added yet',
   },
+  // Home headers
+  'home_select_order_type': {
+    'ru': 'Выберите тип заказа',
+    'kk': 'Тапсырыс түрін таңдаңыз',
+    'en': 'Select order type',
+  },
+  'home_loyalty_header': {
+    'ru': 'Накопительная',
+    'kk': 'Жинақтау жүйесі',
+    'en': 'Loyalty program',
+  },
+  // Loyalty panel & QR
+  'show_qr_cashier': {
+    'ru': 'Покажите QR-\nкод кассиру',
+    'kk': 'QR-кодты\nкассирге көрсетіңіз',
+    'en': 'Show QR code\nto cashier',
+  },
+  'open_qr_btn': {
+    'ru': 'Открыть',
+    'kk': 'Ашу',
+    'en': 'Open',
+  },
+  'reward_6_desc': {
+    'ru': '+1% кешбэк после 6 покупки в течение 30 дней.',
+    'kk': '30 күн ішінде 6 сатып алудан кейін +1% кэшбэк.',
+    'en': '+1% cashback after 6 purchases within 30 days.',
+  },
+  'reward_12_desc': {
+    'ru': '+1% кешбэк после 12 покупки в течение 30 дней.',
+    'kk': '30 күн ішінде 12 сатып алудан кейін +1% кэшбэк.',
+    'en': '+1% cashback after 12 purchases within 30 days.',
+  },
+  'remaining_purchases': {
+    'ru': 'Осталось покупок',
+    'kk': 'Қалған сатып алулар',
+    'en': 'Purchases remaining',
+  },
+  'balance_history_btn': {
+    'ru': 'История баланса',
+    'kk': 'Теңгерім тарихы',
+    'en': 'Balance history',
+  },
+  'my_qr': {
+    'ru': 'МОЙ QR',
+    'kk': 'МЕНІҢ QR',
+    'en': 'MY QR',
+  },
+  'qr_unavailable': {
+    'ru': 'QR временно недоступен',
+    'kk': 'QR уақытша қолжетімсіз',
+    'en': 'QR temporarily unavailable',
+  },
+  'qr_update_in': {
+    'ru': 'Динамический код обновится через',
+    'kk': 'Динамикалық код жаңарады:',
+    'en': 'Dynamic code updates in',
+  },
+  'add_apple_wallet': {
+    'ru': 'Добавить в Apple Wallet',
+    'kk': 'Apple Wallet-қа қосу',
+    'en': 'Add to Apple Wallet',
+  },
+  'add_google_wallet': {
+    'ru': 'Добавить в Google Wallet',
+    'kk': 'Google Wallet-қа қосу',
+    'en': 'Add to Google Wallet',
+  },
+  // Login screen
+  'login_step_1': {
+    'ru': 'Шаг 1 из 2',
+    'kk': '1-қадам / 2',
+    'en': 'Step 1 of 2',
+  },
+  'login_phone_title': {
+    'ru': 'Вход по номеру',
+    'kk': 'Нөмір бойынша кіру',
+    'en': 'Sign in with phone',
+  },
+  'login_phone_sub': {
+    'ru': 'Укажите номер, привязанный к карте гостя Bulka.',
+    'kk': 'Bulka қонақ картасына тіркелген нөмірді көрсетіңіз.',
+    'en': 'Enter the phone number linked to your Bulka guest card.',
+  },
+  'phone_label': {
+    'ru': 'Номер телефона',
+    'kk': 'Телефон нөмірі',
+    'en': 'Phone number',
+  },
+  'open_telegram': {
+    'ru': 'ОТКРЫТЬ TELEGRAM',
+    'kk': 'TELEGRAM АШУ',
+    'en': 'OPEN TELEGRAM',
+  },
+  'login_step_2': {
+    'ru': 'Шаг 2 из 2',
+    'kk': '2-қадам / 2',
+    'en': 'Step 2 of 2',
+  },
+  'confirm_phone_title': {
+    'ru': 'Подтвердите ваш номер',
+    'kk': 'Нөміріңізді растаңыз',
+    'en': 'Confirm your number',
+  },
+  'code_sent_whatsapp': {
+    'ru': 'Код отправлен через WhatsApp.',
+    'kk': 'Код WhatsApp арқылы жіберілді.',
+    'en': 'Code sent via WhatsApp.',
+  },
+  'code_for': {
+    'ru': 'Код для ',
+    'kk': 'Код нөмірге: ',
+    'en': 'Code for ',
+  },
+  'enter_4_digits': {
+    'ru': 'Введите 4 цифры из сообщения',
+    'kk': 'Хабарламадағы 4 санды енгізіңіз',
+    'en': 'Enter 4 digits from the message',
+  },
+  'valid_few_mins': {
+    'ru': 'Действует несколько минут',
+    'kk': 'Бірнеше минут жарамды',
+    'en': 'Valid for a few minutes',
+  },
+  'login_btn': {
+    'ru': 'Войти',
+    'kk': 'Кіру',
+    'en': 'Sign in',
+  },
+  'change_phone_btn': {
+    'ru': 'Изменить номер',
+    'kk': 'Нөмірді өзгерту',
+    'en': 'Change phone number',
+  },
+  'get_code_whatsapp': {
+    'ru': 'Получить код в WhatsApp',
+    'kk': 'WhatsApp арқылы код алу',
+    'en': 'Get code via WhatsApp',
+  },
+  'news_title': {
+    'ru': 'Новости',
+    'kk': 'Жаңалықтар',
+    'en': 'News',
+  },
+  'news_sub': {
+    'ru': 'Свежие акции, сезонные вкусы и новости пекарни',
+    'kk': 'Жаңа акциялар, маусымдық дәмдер мен наубайхана жаңалықтары',
+    'en': 'Fresh promotions, seasonal tastes and bakery news',
+  },
+  'news_badge': {
+    'ru': 'НОВОСТЬ',
+    'kk': 'ЖАҢАЛЫҚ',
+    'en': 'NEWS',
+  },
+  'collapse_tooltip': {
+    'ru': 'Свернуть',
+    'kk': 'Жиыру',
+    'en': 'Collapse',
+  },
+  'expand_tooltip': {
+    'ru': 'Развернуть',
+    'kk': 'Жаю',
+    'en': 'Expand',
+  },
 };
 
 String localizeTransactionLabel(String label) {

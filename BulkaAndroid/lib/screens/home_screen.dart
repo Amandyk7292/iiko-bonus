@@ -170,21 +170,21 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         const SizedBox(height: 24),
                       ],
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 24),
-                        child: _SectionTitle('Выберите тип заказа'),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: _SectionTitle('home_select_order_type'.tr),
                       ),
                       const SizedBox(height: 20),
                       Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 24),
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
                         child: _OrderTypeSection(
                           onDeliveryTap: _openDeliveryAddresses,
                         ),
                       ),
                       const SizedBox(height: 28),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 24),
-                        child: _SectionTitle('Накопительная'),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: _SectionTitle('home_loyalty_header'.tr),
                       ),
                       const SizedBox(height: 18),
                       Padding(

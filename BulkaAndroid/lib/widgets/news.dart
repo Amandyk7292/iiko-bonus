@@ -10,9 +10,9 @@ class NewsFeed extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Новости',
-          style: TextStyle(
+        Text(
+          'news_title'.tr,
+          style: const TextStyle(
             color: _textDark,
             fontFamily: _headingFont,
             fontSize: 24,
@@ -21,7 +21,7 @@ class NewsFeed extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          'Свежие акции, сезонные вкусы и новости пекарни',
+          'news_sub'.tr,
           style: TextStyle(
             color: _textDark.withValues(alpha: 0.58),
             fontSize: 14,
@@ -106,9 +106,9 @@ class NewsCard extends StatelessWidget {
                           color: _lightCard.withValues(alpha: 0.92),
                           borderRadius: BorderRadius.circular(999),
                         ),
-                        child: const Text(
-                          'НОВОСТЬ',
-                          style: TextStyle(
+                        child: Text(
+                          'news_badge'.tr,
+                          style: const TextStyle(
                             color: _cocoa,
                             fontSize: 11,
                             fontWeight: FontWeight.w900,
