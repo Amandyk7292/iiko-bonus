@@ -75,7 +75,7 @@ class _LoyaltyPanel extends StatelessWidget {
                               const Text(
                                 'Покажите QR-\nкод кассиру',
                                 style: TextStyle(
-                                  color: Color(0xFF5A2E1E),
+                                  color: Color(0xFF6D3317),
                                   fontFamily: _headingFont,
                                   fontSize: 22,
                                   height: 1.08,
@@ -90,7 +90,7 @@ class _LoyaltyPanel extends StatelessWidget {
                                   onPressed: onQrTap,
                                   style: FilledButton.styleFrom(
                                     backgroundColor: Colors.white,
-                                    foregroundColor: Colors.black,
+                                    foregroundColor: const Color(0xFF6D3317),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(18),
                                     ),
@@ -98,8 +98,9 @@ class _LoyaltyPanel extends StatelessWidget {
                                   child: const Text(
                                     'Открыть',
                                     style: TextStyle(
+                                      color: Color(0xFF6D3317),
                                       fontSize: 18,
-                                      fontWeight: FontWeight.w400,
+                                      fontWeight: FontWeight.w500,
                                     ),
                                   ),
                                 ),
@@ -125,7 +126,7 @@ class _LoyaltyPanel extends StatelessWidget {
                               Text(
                                 'Баланс: $balance баллов',
                                 style: const TextStyle(
-                                  color: Color(0xFF5A2E1E),
+                                  color: Color(0xFF6D3317),
                                   fontFamily: _headingFont,
                                   fontSize: 20,
                                   fontWeight: FontWeight.w400,
@@ -135,7 +136,7 @@ class _LoyaltyPanel extends StatelessWidget {
                               Text(
                                 'Дарим ${customer.cashbackPercent}% кешбэк после каждой покупки!',
                                 style: const TextStyle(
-                                  color: Colors.black,
+                                  color: Color(0xFF6D3317),
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -157,7 +158,7 @@ class _LoyaltyPanel extends StatelessWidget {
                                   duration: const Duration(milliseconds: 180),
                                   child: const Icon(
                                     Icons.keyboard_arrow_down_rounded,
-                                    color: Colors.black,
+                                    color: Color(0xFF6D3317),
                                     size: 22,
                                   ),
                                 ),

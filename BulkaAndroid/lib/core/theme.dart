@@ -1,7 +1,7 @@
 part of '../main.dart';
 
 const _bulkaYellow = Color(0xFFE8A11A);
-const _bulkaBrown = Color(0xFF5A2E1E);
+const _bulkaBrown = Color(0xFF6D3317);
 const _milkyBackground = Color(0xFFFFFFFF);
 const _lightCard = Color(0xFFFFFFFF);
 const _lightCardHighlight = Color(0xFFFFE8C2);
@@ -17,7 +17,7 @@ const _brandFont = 'Circe';
 const _headingFont = 'KulikovSoft';
 
 const _softShadow = [
-  BoxShadow(color: Color(0x1F5A2E1E), blurRadius: 24, offset: Offset(0, 14)),
+  BoxShadow(color: Color(0x1F6D3317), blurRadius: 24, offset: Offset(0, 14)),
 ];
 
 ThemeData buildBulkaTheme() {
@@ -37,56 +37,69 @@ ThemeData buildBulkaTheme() {
     fontFamily: _brandFont,
     textTheme: const TextTheme(
       displayLarge: TextStyle(
+        color: _textDark,
         fontFamily: _headingFont,
         fontWeight: FontWeight.w400,
       ),
       displayMedium: TextStyle(
+        color: _textDark,
         fontFamily: _headingFont,
         fontWeight: FontWeight.w400,
       ),
       displaySmall: TextStyle(
+        color: _textDark,
         fontFamily: _headingFont,
         fontWeight: FontWeight.w400,
       ),
       headlineLarge: TextStyle(
+        color: _textDark,
         fontFamily: _headingFont,
         fontWeight: FontWeight.w400,
       ),
       headlineMedium: TextStyle(
+        color: _textDark,
         fontFamily: _headingFont,
         fontWeight: FontWeight.w400,
       ),
       headlineSmall: TextStyle(
+        color: _textDark,
         fontFamily: _headingFont,
         fontWeight: FontWeight.w400,
       ),
       titleLarge: TextStyle(
+        color: _textDark,
         fontFamily: _headingFont,
         fontWeight: FontWeight.w400,
       ),
       titleMedium: TextStyle(
+        color: _textDark,
         fontFamily: _headingFont,
         fontWeight: FontWeight.w400,
       ),
       titleSmall: TextStyle(
+        color: _textDark,
         fontFamily: _headingFont,
         fontWeight: FontWeight.w400,
       ),
-      bodyLarge: TextStyle(fontFamily: _brandFont, fontWeight: FontWeight.w400),
+      bodyLarge: TextStyle(color: _textDark, fontFamily: _brandFont, fontWeight: FontWeight.w400),
       bodyMedium: TextStyle(
+        color: _textDark,
         fontFamily: _brandFont,
         fontWeight: FontWeight.w300,
       ),
-      bodySmall: TextStyle(fontFamily: _brandFont, fontWeight: FontWeight.w300),
+      bodySmall: TextStyle(color: _textDark, fontFamily: _brandFont, fontWeight: FontWeight.w300),
       labelLarge: TextStyle(
+        color: _textDark,
         fontFamily: _brandFont,
         fontWeight: FontWeight.w400,
       ),
       labelMedium: TextStyle(
+        color: _textDark,
         fontFamily: _brandFont,
         fontWeight: FontWeight.w400,
       ),
       labelSmall: TextStyle(
+        color: _textDark,
         fontFamily: _brandFont,
         fontWeight: FontWeight.w400,
       ),

@@ -313,7 +313,7 @@ class _SectionTitle extends StatelessWidget {
     return Text(
       text,
       style: const TextStyle(
-        color: Colors.black,
+        color: Color(0xFF6D3317),
         fontFamily: _headingFont,
         fontSize: 27,
         height: 1.05,
@@ -340,7 +340,7 @@ class _IconCircleButton extends StatelessWidget {
       onPressed: onTap,
       tooltip: tooltip,
       style: IconButton.styleFrom(
-        foregroundColor: const Color(0xFF201A18),
+        foregroundColor: const Color(0xFF6D3317),
         minimumSize: const Size(48, 48),
         tapTargetSize: MaterialTapTargetSize.padded,
       ),
@@ -453,7 +453,7 @@ class _OrderTypeCard extends StatelessWidget {
                     ),
                     child: const Icon(
                       Icons.chevron_right_rounded,
-                      color: Color(0xFF5A2E1E),
+                      color: Color(0xFF6D3317),
                       size: 28,
                     ),
                   ),
@@ -486,7 +486,7 @@ class _OrderCardTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const style = TextStyle(
-      color: Colors.black,
+      color: Color(0xFF6D3317),
       fontFamily: _headingFont,
       fontSize: 19,
       height: 1.08,
