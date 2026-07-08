@@ -272,7 +272,8 @@ async function initWhatsApp(otpStore, getOrCreateCustomerByPhone) {
         }
         
         try {
-          const customer = await getOrCreateCustomerByPhone(phone, 'Гость (WhatsApp)');
+          // Don't create customer here - only generate OTP
+          // Customer will be created when they verify the code in the app
           
           // Re-use existing OTP if present, otherwise generate a new one
           let code;

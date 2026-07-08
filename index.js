@@ -1274,7 +1274,7 @@ app.post('/api/auth/request-otp', authRateLimit, async (req, res) => {
     const phone = normalizePhone(req.body.phone);
     if (!phone || phone.replace(/[^0-9]/g, '').length < 10) return res.status(400).json({ error: 'Valid phone required' });
     
-    let customer = await getOrCreateCustomerByPhone(phone, 'Гость (Android App)');
+    // Don't create customer here — only create after OTP is verified
     
     // If a token was provided, save it so the WhatsApp bot can map it to this phone number
     if (token) {
@@ -1326,7 +1326,7 @@ app.post('/api/auth/verify-otp', authRateLimit, async (req, res) => {
     // Success - clear OTP and return profile
     await otpStore.delete(phone);
     
-    let customer = await getCustomerByPhone(phone);
+    let customer = await getOrCreateCustomerByPhone(phone, 'Гость');
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
     
     const settings = await getSettings();
