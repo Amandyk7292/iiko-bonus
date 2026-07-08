@@ -391,12 +391,23 @@ class _OrderTypeCard extends StatelessWidget {
               gradient: const LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [Color(0xFFFFD54F), Color(0xFFFFB300)],
+                colors: [Color(0xFFF7ECDC), Color(0xFFEADCBE)],
               ),
             ),
             child: Stack(
               clipBehavior: Clip.hardEdge,
               children: [
+                Positioned(
+                  right: tall ? -18 : -10,
+                  bottom: tall ? 10 : -14,
+                  child: SizedBox(
+                    width: tall ? 175 : 105,
+                    height: tall ? 175 : 105,
+                    child: const CustomPaint(
+                      painter: _OrderSplashPainter(),
+                    ),
+                  ),
+                ),
                 Positioned(
                   right: tall ? -34 : 0,
                   bottom: tall ? -8 : -12,
@@ -440,6 +451,42 @@ class _OrderTypeCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _OrderSplashPainter extends CustomPainter {
+  const _OrderSplashPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.78)
+      ..style = PaintingStyle.fill;
+
+    final center = Offset(size.width * 0.5, size.height * 0.5);
+    final radius = size.width * 0.42;
+    final waveDepth = size.width * 0.08;
+    const petals = 10;
+
+    final path = Path();
+    const steps = 120;
+    for (int i = 0; i <= steps; i++) {
+      final t = (i / steps) * 2 * pi;
+      final r = radius + waveDepth * cos(petals * t);
+      final x = center.dx + r * cos(t);
+      final y = center.dy + r * sin(t);
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+    path.close();
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _OrderSplashPainter oldDelegate) => false;
 }
 
 enum _OrderIllustrationKind {
