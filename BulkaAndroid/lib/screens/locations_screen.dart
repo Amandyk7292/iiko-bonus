@@ -72,7 +72,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
         .toList();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFAF9F7),
+      backgroundColor: Colors.white,
       appBar: AppBar(
         centerTitle: true,
         leading: IconButton(

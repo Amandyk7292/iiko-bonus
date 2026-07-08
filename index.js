@@ -1256,9 +1256,7 @@ app.post('/admin/api/upload', adminAuthMiddleware, async (req, res) => {
   }
 });
 
-app.get('/admin', (req, res) => {
-  res.sendFile(path.join(__dirname, 'admin.html'));
-});
+app.use('/admin', express.static(path.join(__dirname, 'admin-ui/dist')));
 
 // ==========================================
 // 5. GUEST MINI APP API & UI

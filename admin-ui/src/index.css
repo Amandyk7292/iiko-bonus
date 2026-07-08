@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+@theme {
+  --color-beige-50: #fdfbf7;
+  --color-beige-100: #f7f4ea;
+  --color-beige-200: #efe6d5;
+  --color-beige-300: #e3d2b7;
+  --color-beige-400: #d3ba93;
+  --color-beige-500: #c5a374;
+  --color-beige-600: #b88c5a;
+  --color-beige-700: #9a714a;
+  --color-beige-800: #7e5d40;
+  --color-beige-900: #664d36;
+
+  --font-sans: 'Inter', sans-serif;
+  --font-serif: 'Playfair Display', serif;
+}
+
+@layer base {
+  :root {
+    --sagi-bg: #fff7ea;
+    --sagi-sidebar: #ffffff;
+    --sagi-text: #2d1a12;
+    --sagi-muted: #77675c;
+    --sagi-border: #eadcc8;
+    --sagi-green: #c66a25;
+    --sagi-green-dark: #9f4d17;
+    --sagi-soft: #fffaf2;
+    --sagi-cream: #fffaf2;
+    --sagi-cocoa: #3b2117;
+    --sagi-shadow: 0 18px 48px rgba(59, 33, 23, 0.10);
+  }
+
+  html { scroll-behavior: smooth; }
+  body { background-color: var(--sagi-bg); color: var(--sagi-text); letter-spacing: 0; }
+}
+
+@layer components {
+  .card { background-color: rgba(255,255,255,0.96); border: 1px solid var(--sagi-border); box-shadow: var(--sagi-shadow); border-radius: 18px; }
+  .input-classic { border: 1px solid #e2d2bc; background: #ffffff; padding: 0.76rem 0.9rem; border-radius: 12px; color: var(--sagi-text); transition: border-color 0.2s, box-shadow 0.2s, background 0.2s; min-height: 46px; }
+  .input-classic:focus { outline: none; border-color: var(--sagi-green); box-shadow: 0 0 0 4px rgba(198, 106, 37, 0.14); background: #fffdf8; }
+  .btn-classic { background-color: var(--sagi-green); color: white; transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease; border-radius: 12px; border: 1px solid var(--sagi-green); min-height: 46px; box-shadow: 0 10px 22px rgba(198, 106, 37, 0.18); }
+  .btn-classic:hover { background-color: var(--sagi-green-dark); border-color: var(--sagi-green-dark); transform: translateY(-1px); }
+  .btn-classic:active, .btn-outline:active { transform: translateY(0) scale(0.99); }
+  .btn-outline { border: 1px solid #e2d2bc; color: var(--sagi-cocoa); background: #ffffff; transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease; border-radius: 12px; min-height: 42px; }
+  .btn-outline:hover { background: #fff7ea; border-color: #d8b98f; transform: translateY(-1px); }
+  .sagi-shell { display: grid; grid-template-columns: 278px minmax(0, 1fr); min-height: 100dvh; background: var(--sagi-bg); }
+  .sagi-sidebar { background: var(--sagi-sidebar); border-right: 1px solid var(--sagi-border); padding: 18px 14px; overflow-y: auto; }
+  .sagi-brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 18px; border-bottom: 1px solid var(--sagi-border); margin-bottom: 14px; }
+  .sagi-brand-mark { width: 36px; height: 36px; border-radius: 12px; background: linear-gradient(135deg, #c66a25, #3b2117); color: white; display: grid; place-items: center; font-weight: 800; }
+  .sagi-nav-title { color: #9aa1ad; font-size: 11px; font-weight: 700; text-transform: uppercase; margin: 18px 10px 6px; }
+  .sagi-nav-link { width: 100%; display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 9px 10px; border: 0; border-radius: 12px; background: transparent; color: #3d424c; font-size: 14px; font-weight: 500; text-align: left; cursor: pointer; transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease; }
+  .sagi-nav-link:hover { background: #fff3df; color: var(--sagi-cocoa); transform: translateX(2px); }
+  .sagi-nav-link-active { width: 100%; display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 9px 10px; border: 0; border-radius: 12px; background: #fde5c2; color: #74350f; font-size: 14px; font-weight: 800; text-align: left; cursor: pointer; }
+  .sagi-main { min-width: 0; display: flex; flex-direction: column; }
+  .sagi-topbar { min-height: 64px; background: rgba(255,255,255,0.92); backdrop-filter: blur(14px); border-bottom: 1px solid var(--sagi-border); display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 28px; position: sticky; top: 0; z-index: 30; }
+  .sagi-page { padding: 28px; overflow: auto; }
+  .sagi-page-title { font-size: 24px; font-weight: 700; color: #1d1f23; margin: 0; }
+  .sagi-page-subtitle { font-size: 13px; color: var(--sagi-muted); margin-top: 4px; }
+  .sagi-filter { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; padding: 16px; background: #fff; border: 1px solid var(--sagi-border); border-radius: 18px; box-shadow: 0 10px 28px rgba(59, 33, 23, 0.04); }
+  .sagi-field label, .sagi-label { display: block; font-size: 13px; font-weight: 600; color: #555b66; margin-bottom: 6px; }
+}

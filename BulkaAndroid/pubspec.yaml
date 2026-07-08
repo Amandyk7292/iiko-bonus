@@ -34,6 +34,9 @@ dependencies:
   qr_flutter: ^4.1.0
   shared_preferences: ^2.5.3
   url_launcher: ^6.3.2
+  flutter_map: ^8.3.1
+  latlong2: ^0.10.1
+  geolocator: ^14.0.3
 
 dev_dependencies:
   flutter_test:
@@ -56,6 +59,31 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - assets/brand/
+    - assets/order/
+
+  fonts:
+    - family: Circe
+      fonts:
+        - asset: Circe_Light-s.p.0cbc6h0ugczie.ttf
+          weight: 300
+        - asset: Circe_Regular-s.p.0jj5ux0wu7s4k.ttf
+          weight: 400
+        - asset: Circe_Light-s.p.0cbc6h0ugczie.ttf
+          weight: 500
+        - asset: Circe_Light-s.p.0cbc6h0ugczie.ttf
+          weight: 600
+        - asset: Circe_Bold-s.p.0wwbfdru4uw8s.ttf
+          weight: 700
+        - asset: Circe_Bold-s.p.0wwbfdru4uw8s.ttf
+          weight: 800
+        - asset: Circe_Bold-s.p.0wwbfdru4uw8s.ttf
+          weight: 900
+    - family: KulikovSoft
+      fonts:
+        - asset: KulikovSoft-Regular-B57es-8y (1).otf
 
   # To add assets to your application, add an assets section, like this:
   # assets:
