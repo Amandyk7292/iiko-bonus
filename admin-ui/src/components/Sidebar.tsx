@@ -7,11 +7,14 @@ export default function Sidebar() {
 
   return (
     <aside className="sagi-sidebar">
-      <div className="sagi-brand">
-        <div className="sagi-brand-mark">B</div>
+      <div className="sagi-brand flex items-center gap-3">
+        <img
+          src="/bulka_logo.png"
+          alt="Bulka Logo"
+          className="h-10 w-auto object-contain"
+        />
         <div>
-          <div className="font-bold text-gray-900">Bulka Business</div>
-          <div className="text-xs text-gray-500">Bonus admin</div>
+          <div className="font-bold text-gray-900 text-base">Bulka Business</div>
         </div>
       </div>
       

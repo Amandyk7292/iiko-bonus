@@ -112,21 +112,6 @@ class _PromoBannerShimmerState extends State<PromoBannerShimmer>
                     ],
                   ),
                 ),
-                const SizedBox(width: 16),
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.15),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Center(
-                    child: Text(
-                      '✨',
-                      style: TextStyle(fontSize: 24),
-                    ),
-                  ),
-                ),
               ],
             ),
           ),
@@ -314,13 +299,6 @@ class _BannerFullCoverWidget extends StatelessWidget {
                   ),
                 ),
               ],
-            ),
-          ),
-          const SizedBox(width: 16),
-          const Text(
-            '✨',
-            style: TextStyle(
-              fontSize: 44,
             ),
           ),
         ],
