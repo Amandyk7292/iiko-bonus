@@ -59,6 +59,21 @@ namespace Resto.Front.Api.IikoBonusPlugin
     }
 
     [System.Runtime.Serialization.DataContract]
+    public class OrderItemData
+    {
+        [System.Runtime.Serialization.DataMember]
+        public string productId { get; set; }
+        [System.Runtime.Serialization.DataMember]
+        public string productName { get; set; }
+        [System.Runtime.Serialization.DataMember]
+        public decimal amount { get; set; }
+        [System.Runtime.Serialization.DataMember]
+        public decimal price { get; set; }
+        [System.Runtime.Serialization.DataMember]
+        public decimal total { get; set; }
+    }
+
+    [System.Runtime.Serialization.DataContract]
     public class LoyaltyApplyQueueItem
     {
         [System.Runtime.Serialization.DataMember]
@@ -77,6 +92,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
         public string lastAttemptAtUtc { get; set; }
         [System.Runtime.Serialization.DataMember]
         public string lastError { get; set; }
+        [System.Runtime.Serialization.DataMember]
+        public OrderItemData[] items { get; set; }
     }
 
     public static class LoyaltyFlow
@@ -570,7 +587,26 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     {
                         PluginContext.Log.Info("IikoBonusPlugin: Order " + order.Number + " closed. Applying loyalty for customer " + loyaltyData.CustomerId + ", discount " + loyaltyData.DiscountAmount + ", fullSum " + order.FullSum + "...");
                         
-                        EnqueueApplyRequest(order.Id.ToString(), loyaltyData.CustomerId, loyaltyData.DiscountAmount, order.FullSum);
+                        var itemsList = new List<OrderItemData>();
+                        if (order.Items != null)
+                        {
+                            foreach (var item in order.Items)
+                            {
+                                if (item is IOrderProductItem productItem && productItem.Product != null)
+                                {
+                                    itemsList.Add(new OrderItemData
+                                    {
+                                        productId = productItem.Product.Id.ToString(),
+                                        productName = productItem.Product.Name,
+                                        amount = productItem.Amount,
+                                        price = productItem.Product.Price,
+                                        total = productItem.Amount * productItem.Product.Price
+                                    });
+                                }
+                            }
+                        }
+
+                        EnqueueApplyRequest(order.Id.ToString(), loyaltyData.CustomerId, loyaltyData.DiscountAmount, order.FullSum, itemsList.ToArray());
                         Task.Run(() => FlushPendingApplyRequests());
                     }
                 }
@@ -631,7 +667,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             }
         }
 
-        private static void EnqueueApplyRequest(string orderId, string customerId, decimal discountAmount, decimal orderTotal)
+        private static void EnqueueApplyRequest(string orderId, string customerId, decimal discountAmount, decimal orderTotal, OrderItemData[] items = null)
         {
             lock (QueueLock)
             {
@@ -644,6 +680,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     customerId = customerId,
                     discountAmount = discountAmount,
                     orderTotal = orderTotal,
+                    items = items,
                     attempts = 0,
                     createdAtUtc = DateTime.UtcNow.ToString("o"),
                     lastAttemptAtUtc = "",

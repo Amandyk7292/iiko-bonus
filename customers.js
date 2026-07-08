@@ -111,7 +111,7 @@ async function updateCustomerBalance(customerId, amountChange) {
   return data[0];
 }
 
-async function applyLoyaltyTransaction({ customerId, orderId, discountAmount, earnedBonus, orderTotal, realMoneyPaid, activationDelayDays = 0 }) {
+async function applyLoyaltyTransaction({ customerId, orderId, discountAmount, earnedBonus, orderTotal, realMoneyPaid, activationDelayDays = 0, items = null }) {
   const { data, error } = await supabase.rpc('apply_loyalty_transaction', {
     p_customer_id: customerId,
     p_order_id: String(orderId),
@@ -119,7 +119,8 @@ async function applyLoyaltyTransaction({ customerId, orderId, discountAmount, ea
     p_earned_bonus: Number(earnedBonus || 0),
     p_order_total: Number(orderTotal || 0),
     p_real_money_paid: Number(realMoneyPaid || 0),
-    p_activation_delay_days: Number(activationDelayDays || 0)
+    p_activation_delay_days: Number(activationDelayDays || 0),
+    p_items: items ? items : null
   });
 
   if (error) throw new Error('Error applying loyalty transaction: ' + error.message);
@@ -146,7 +147,8 @@ async function logTransaction(transactionData) {
         type: transactionData.type,
         amount: transactionData.amount,
         order_total: transactionData.orderTotal || null,
-        description: transactionData.description || null
+        description: transactionData.description || null,
+        items: transactionData.items || null
       }
     ]);
     

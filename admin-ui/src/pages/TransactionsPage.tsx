@@ -5,6 +5,7 @@ export default function TransactionsPage() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const fetchTransactions = async () => {
     setLoading(true);
@@ -118,16 +119,61 @@ export default function TransactionsPage() {
                 }
 
                 return (
-                  <tr key={t.id}>
-                    <td className="py-4 px-6 text-gray-500 text-xs">{d}</td>
-                    <td className="py-4 px-6">{orderBadge}</td>
-                    <td className="py-4 px-6 font-medium">{name}</td>
-                    <td className="py-4 px-6 text-gray-500">{phone}</td>
-                    <td className="py-4 px-6 text-right text-gray-700 font-medium">{t.order_total?.toLocaleString() || '—'}</td>
-                    <td className={`py-4 px-6 text-right ${color}`}>{t.type.includes('withdrawal') ? t.amount : '—'}</td>
-                    <td className={`py-4 px-6 text-right font-bold ${color}`}>{sign}{t.amount}</td>
-                    <td className="py-4 px-6"><span className="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded text-xs font-medium">{typeStr}</span></td>
-                  </tr>
+                  <React.Fragment key={t.id}>
+                    <tr 
+                      className={`hover:bg-beige-50 transition-colors ${t.items && t.items.length > 0 ? 'cursor-pointer' : ''}`}
+                      onClick={() => {
+                        if (t.items && t.items.length > 0) {
+                          setExpandedId(expandedId === t.id ? null : t.id);
+                        }
+                      }}
+                    >
+                      <td className="py-4 px-6 text-gray-500 text-xs">{d}</td>
+                      <td className="py-4 px-6">
+                        <div className="flex items-center gap-2">
+                          {orderBadge}
+                          {t.items && t.items.length > 0 && (
+                            <svg className={`w-4 h-4 text-gray-400 transition-transform ${expandedId === t.id ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-4 px-6 font-medium">{name}</td>
+                      <td className="py-4 px-6 text-gray-500">{phone}</td>
+                      <td className="py-4 px-6 text-right text-gray-700 font-medium">{t.order_total?.toLocaleString() || '—'}</td>
+                      <td className={`py-4 px-6 text-right ${color}`}>{t.type.includes('withdrawal') ? t.amount : '—'}</td>
+                      <td className={`py-4 px-6 text-right font-bold ${color}`}>{sign}{t.amount}</td>
+                      <td className="py-4 px-6"><span className="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded text-xs font-medium">{typeStr}</span></td>
+                    </tr>
+                    {expandedId === t.id && t.items && t.items.length > 0 && (
+                      <tr className="bg-beige-50/50">
+                        <td colSpan={8} className="py-4 px-6 border-t border-beige-100">
+                          <div className="pl-12">
+                            <h4 className="text-sm font-semibold text-beige-800 mb-3">Состав заказа</h4>
+                            <table className="w-full max-w-3xl text-sm bg-white rounded-lg shadow-sm overflow-hidden border border-beige-100">
+                              <thead className="bg-beige-100/50 text-gray-500 text-xs uppercase tracking-wider">
+                                <tr>
+                                  <th className="py-2 px-4 text-left font-medium">Товар</th>
+                                  <th className="py-2 px-4 text-right font-medium">Кол-во</th>
+                                  <th className="py-2 px-4 text-right font-medium">Цена</th>
+                                  <th className="py-2 px-4 text-right font-medium">Сумма</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-beige-100">
+                                {t.items.map((item: any, idx: number) => (
+                                  <tr key={idx} className="hover:bg-beige-50/30">
+                                    <td className="py-2 px-4 text-gray-800">{item.productName || 'Неизвестный товар'}</td>
+                                    <td className="py-2 px-4 text-right text-gray-600">{item.amount}</td>
+                                    <td className="py-2 px-4 text-right text-gray-600">{item.price?.toLocaleString()}</td>
+                                    <td className="py-2 px-4 text-right font-medium text-gray-800">{item.total?.toLocaleString()}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 );
               })
             )}

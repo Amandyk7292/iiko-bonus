@@ -77,6 +77,7 @@ alter table public.transactions add column if not exists order_total numeric(12,
 alter table public.transactions add column if not exists description text;
 alter table public.transactions add column if not exists available_at timestamptz;
 alter table public.transactions add column if not exists activated_at timestamptz;
+alter table public.transactions add column if not exists items jsonb;
 alter table public.transactions add column if not exists timestamp timestamptz default now();
 alter table public.transactions add column if not exists created_at timestamptz default now();
 
@@ -285,9 +286,10 @@ create or replace function public.apply_loyalty_transaction(
   p_order_id text,
   p_discount_amount numeric,
   p_earned_bonus numeric,
-  p_order_total numeric,
-  p_real_money_paid numeric,
-  p_activation_delay_days integer default 0
+  p_order_total numeric default 0,
+  p_real_money_paid numeric default 0,
+  p_activation_delay_days integer default 0,
+  p_items jsonb default null
 )
 returns jsonb
 language plpgsql
@@ -349,17 +351,17 @@ begin
   end if;
 
   if coalesce(p_discount_amount, 0) > 0 then
-    insert into public.transactions (customer_id, order_id, type, amount, order_total, description)
-    values (p_customer_id, p_order_id, 'withdrawal', p_discount_amount, p_order_total, 'Оплата бонусами');
+    insert into public.transactions (customer_id, order_id, type, amount, order_total, description, items)
+    values (p_customer_id, p_order_id, 'withdrawal', p_discount_amount, p_order_total, 'Оплата бонусами', p_items);
   end if;
 
   if coalesce(p_earned_bonus, 0) > 0 then
     if v_pending_bonus > 0 then
-      insert into public.transactions (customer_id, order_id, type, amount, order_total, description, available_at)
-      values (p_customer_id, p_order_id, 'pending_deposit', v_pending_bonus, p_real_money_paid, 'Кэшбэк ожидает активации', v_available_at);
+      insert into public.transactions (customer_id, order_id, type, amount, order_total, description, available_at, items)
+      values (p_customer_id, p_order_id, 'pending_deposit', v_pending_bonus, p_real_money_paid, 'Кэшбэк ожидает активации', v_available_at, p_items);
     else
-      insert into public.transactions (customer_id, order_id, type, amount, order_total, description)
-      values (p_customer_id, p_order_id, 'deposit', v_active_bonus, p_real_money_paid, 'Кэшбэк за покупку');
+      insert into public.transactions (customer_id, order_id, type, amount, order_total, description, items)
+      values (p_customer_id, p_order_id, 'deposit', v_active_bonus, p_real_money_paid, 'Кэшбэк за покупку', p_items);
     end if;
   end if;
 

@@ -593,12 +593,12 @@ app.post('/api/loyalty/calculate', webhookMiddleware, async (req, res) => {
 app.post('/api/loyalty/apply', webhookMiddleware, async (req, res) => {
   let logPayload = null;
   try {
-    const { customerId, orderId, discountAmount, orderTotal } = req.body;
+    const { customerId, orderId, discountAmount, orderTotal, items } = req.body;
     await activatePendingBonusesSafe();
     const discount = parseMoney(discountAmount || 0, 'discountAmount');
     const total = parseMoney(orderTotal, 'orderTotal');
     if (!customerId || !orderId) return res.status(400).json({ error: 'customerId and orderId are required' });
-    logPayload = { customerId, orderId, discountAmount: discount, orderTotal: total, payload: req.body };
+    logPayload = { customerId, orderId, discountAmount: discount, orderTotal: total, items, payload: req.body };
     const settings = await getSettings();
 
     // Проверка лимита списания
@@ -631,7 +631,8 @@ app.post('/api/loyalty/apply', webhookMiddleware, async (req, res) => {
       earnedBonus,
       orderTotal: total,
       realMoneyPaid,
-      activationDelayDays
+      activationDelayDays,
+      items
     });
 
     // Отправка Telegram и Push уведомлений
