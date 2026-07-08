@@ -88,8 +88,6 @@ class _PromoBannerSliderState extends State<PromoBannerSlider> {
             onPageChanged: (idx) => setState(() => _currentIndex = idx),
             itemBuilder: (context, idx) {
               final group = widget.groups[idx];
-              final firstStory = group.stories.isNotEmpty ? group.stories.first : null;
-              final subText = group.subtitle ?? firstStory?.description ?? firstStory?.title ?? 'Специальное предложение для гостей Bulka!';
 
               return Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -98,11 +96,6 @@ class _PromoBannerSliderState extends State<PromoBannerSlider> {
                   borderRadius: BorderRadius.circular(22),
                   child: Container(
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [Color(0xFFFFFBF3), Color(0xFFFAF0DD)],
-                      ),
                       borderRadius: BorderRadius.circular(22),
                       border: Border.all(color: const Color(0xFFEADBBE), width: 1.2),
                       boxShadow: [
@@ -113,64 +106,14 @@ class _PromoBannerSliderState extends State<PromoBannerSlider> {
                         ),
                       ],
                     ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFFFE8C2),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: const Text(
-                                    '✨ АКЦИЯ',
-                                    style: TextStyle(
-                                      color: Color(0xFF7E4A1D),
-                                      fontSize: 9.5,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 7),
-                                Text(
-                                  group.title.toUpperCase(),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontFamily: _headingFont,
-                                    fontSize: 16.5,
-                                    fontWeight: FontWeight.w900,
-                                    color: Color(0xFF4A2210),
-                                    height: 1.15,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  subText,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 12.0,
-                                    color: Color(0xFF8B5E3C),
-                                    height: 1.25,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        SizedBox(
-                          width: 130,
-                          height: double.infinity,
-                          child: _PromoBannerIllustration(group: group),
-                        ),
-                      ],
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(20.8),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          _BannerFullCoverWidget(group: group),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -202,70 +145,65 @@ class _PromoBannerSliderState extends State<PromoBannerSlider> {
   }
 }
 
-class _PromoBannerIllustration extends StatelessWidget {
-  const _PromoBannerIllustration({required this.group});
+class _BannerFullCoverWidget extends StatelessWidget {
+  const _BannerFullCoverWidget({required this.group});
 
   final StoryGroup group;
 
   @override
   Widget build(BuildContext context) {
     if (group.coverUrl.startsWith('http')) {
-      return ClipRRect(
-        borderRadius: const BorderRadius.horizontal(right: Radius.circular(20)),
-        child: _NetworkImage(url: group.coverUrl, fit: BoxFit.cover),
-      );
+      return _NetworkImage(url: group.coverUrl, fit: BoxFit.cover);
     }
 
     final isHappy = group.id == 'happy_hours' || group.title.contains('ЧАСЫ') || group.title.contains('2+1');
     return Container(
-      alignment: Alignment.center,
       decoration: const BoxDecoration(
-        borderRadius: BorderRadius.horizontal(right: Radius.circular(20)),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF4A2210), Color(0xFF231007)],
+        ),
       ),
-      child: Stack(
-        alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: Row(
         children: [
-          Positioned(
-            right: -10,
-            bottom: -10,
-            child: Container(
-              width: 90,
-              height: 90,
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFE3B0).withValues(alpha: 0.45),
-                shape: BoxShape.circle,
-              ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  group.title.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: _headingFont,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFFEADBBE),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  group.subtitle ?? 'Специальное предложение от Bulka Cafe',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: Colors.white70,
+                    height: 1.25,
+                  ),
+                ),
+              ],
             ),
           ),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                isHappy ? '2+1' : '🎁',
-                style: TextStyle(
-                  fontFamily: _headingFont,
-                  fontSize: isHappy ? 34 : 36,
-                  fontWeight: FontWeight.w900,
-                  color: const Color(0xFFD38B28),
-                  shadows: [
-                    Shadow(
-                      color: const Color(0xFF6D3317).withValues(alpha: 0.20),
-                      blurRadius: 8,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                isHappy ? 'БОНУС ВЕЧЕРОМ' : '+500 БАЛЛОВ',
-                style: const TextStyle(
-                  fontSize: 9.5,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF8B5E3C),
-                ),
-              ),
-            ],
+          const SizedBox(width: 16),
+          Text(
+            isHappy ? '2+1' : '🎁',
+            style: const TextStyle(
+              fontSize: 48,
+            ),
           ),
         ],
       ),
