@@ -391,7 +391,7 @@ class _OrderTypeCard extends StatelessWidget {
               gradient: const LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [Color(0xFFF7ECDC), Color(0xFFEADCBE)],
+                colors: [Color(0xFFFFD54F), Color(0xFFFFB300)],
               ),
             ),
             child: Stack(
@@ -459,7 +459,7 @@ class _OrderSplashPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.78)
+      ..color = Colors.white.withValues(alpha: 0.45)
       ..style = PaintingStyle.fill;
 
     final center = Offset(size.width * 0.5, size.height * 0.5);
