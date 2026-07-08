@@ -63,16 +63,16 @@ export default function IikoPage() {
             ) : (
               operations.map(op => (
                 <tr key={op.id}>
-                  <td className="py-4 px-6 text-gray-500 text-xs">{new Date(op.timestamp).toLocaleString()}</td>
+                  <td className="py-4 px-6 text-gray-500 text-xs">{new Date(op.created_at).toLocaleString()}</td>
                   <td className="py-4 px-6 font-mono text-xs">{op.order_id || '—'}</td>
                   <td className="py-4 px-6">
-                    <span className={`px-2 py-1 rounded text-xs ${op.type.includes('payment') ? 'bg-blue-50 text-blue-700' : 'bg-emerald-50 text-emerald-700'}`}>
-                      {op.type === 'iiko_payment' ? 'Списание' : 'Начисление'}
+                    <span className={`px-2 py-1 rounded text-xs ${op.discount_amount > 0 ? 'bg-blue-50 text-blue-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                      {op.discount_amount > 0 ? 'Списание' : 'Начисление'}
                     </span>
                   </td>
                   <td className="py-4 px-6 text-right font-medium">{op.order_total || '—'}</td>
-                  <td className="py-4 px-6 text-right text-red-500">{op.type === 'iiko_payment' ? op.amount : '—'}</td>
-                  <td className="py-4 px-6 text-right text-green-600 font-bold">{op.type === 'iiko_deposit' ? `+${op.amount}` : '—'}</td>
+                  <td className="py-4 px-6 text-right text-red-500">{op.discount_amount > 0 ? op.discount_amount : '—'}</td>
+                  <td className="py-4 px-6 text-right text-green-600 font-bold">{op.earned_bonus > 0 ? `+${op.earned_bonus}` : '—'}</td>
                   <td className="py-4 px-6 text-gray-500">{op.customers?.phone || '—'}</td>
                   <td className="py-4 px-6">
                     <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded font-medium">SUCCESS</span>
