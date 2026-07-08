@@ -19,7 +19,7 @@ export default function Sidebar() {
       <NavLink to="/analytics" className={getNavClass}>Аналитика</NavLink>
       <NavLink to="/transactions" className={getNavClass}>Транзакции</NavLink>
       <NavLink to="/iiko" className={getNavClass}>iiko Front</NavLink>
-      <NavLink to="/broadcast" className={getNavClass}>WhatsApp / Рассылки</NavLink>
+      {/* <NavLink to="/broadcast" className={getNavClass}>WhatsApp / Рассылки</NavLink> */}
 
       <div className="sagi-nav-title">Клиенты</div>
       <NavLink to="/customers" className={getNavClass}>База клиентов</NavLink>
