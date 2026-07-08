@@ -247,35 +247,45 @@ async function initWhatsApp(otpStore, getOrCreateCustomerByPhone) {
       }
 
       if (textMessage.toLowerCase().startsWith('код')) {
-        if (remoteJid.endsWith('@lid')) {
-            console.log(`[WHATSAPP] LID MESSAGE DUMP:`, JSON.stringify(msg, null, 2));
+        const parts = textMessage.trim().split(/\s+/);
+        
+        // If no token provided — tell the user they need it
+        if (parts.length < 2 || parts[1].length < 8) {
+            await sock.sendMessage(remoteJid, { 
+                text: '⚠️ Для получения кода нужен идентификатор из приложения.\n\nОткройте приложение Bulka, введите номер и нажмите "Получить код в WhatsApp" — сообщение отправится автоматически.' 
+            });
+            return;
         }
         
-        let phone = remoteJid.split('@')[0];
+        const token = parts[1];
         
-        // Extract token if present (e.g., "Код 123456")
-        const parts = textMessage.trim().split(/\s+/);
-        if (parts.length > 1) {
-            const token = parts[1];
-            try {
-                const { data } = await supabase.from('whatsapp_sessions').select('data').eq('id', `token_${token}`).maybeSingle();
-                if (data && data.data) {
-                    const parsed = JSON.parse(data.data);
-                    if (parsed.phone && parsed.expires > Date.now()) {
-                        phone = parsed.phone;
-                        console.log(`[WHATSAPP] Resolved token ${token} to phone ${phone}`);
-                    }
+        // Look up the token to find the phone number
+        let phone = null;
+        try {
+            const { data } = await supabase.from('whatsapp_sessions').select('data').eq('id', `token_${token}`).maybeSingle();
+            if (data && data.data) {
+                const parsed = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
+                if (parsed.phone && parsed.expires > Date.now()) {
+                    phone = parsed.phone;
+                    console.log(`[WHATSAPP] Resolved token ${token} to phone ${phone}`);
+                    
+                    // Delete used token so it can't be reused
+                    await supabase.from('whatsapp_sessions').delete().eq('id', `token_${token}`);
                 }
-            } catch (e) {
-                console.error('[WHATSAPP] Error resolving token:', e.message);
             }
+        } catch (e) {
+            console.error('[WHATSAPP] Error resolving token:', e.message);
+        }
+        
+        if (!phone) {
+            await sock.sendMessage(remoteJid, { 
+                text: '❌ Идентификатор недействителен или истёк.\n\nВернитесь в приложение и запросите код заново.' 
+            });
+            return;
         }
         
         try {
-          // Don't create customer here - only generate OTP
-          // Customer will be created when they verify the code in the app
-          
-          // Re-use existing OTP if present, otherwise generate a new one
+          // Generate OTP code (4 digits)
           let code;
           const existing = await otpStore.get(phone);
           if (existing && existing.expires > Date.now()) {
@@ -285,11 +295,12 @@ async function initWhatsApp(otpStore, getOrCreateCustomerByPhone) {
               await otpStore.set(phone, { code, expires: Date.now() + 5 * 60 * 1000 }); // 5 min expiry
           }
           
-          const replyText = `*Ваш код для входа в приложение:*\n\n${code}\n\n_Код действителен 5 минут._`;
+          const replyText = `*Ваш код для входа в приложение:*\n\n🔐 *${code}*\n\n_Код действителен 5 минут._`;
           await sock.sendMessage(remoteJid, { text: replyText });
           console.log(`[WHATSAPP] Отправлен код ${code} пользователю ${phone}`);
         } catch (err) {
           console.error('[WHATSAPP] Ошибка обработки запроса кода:', err);
+          await sock.sendMessage(remoteJid, { text: '❌ Произошла ошибка. Попробуйте позже.' });
         }
       }
     });

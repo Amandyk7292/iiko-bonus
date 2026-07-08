@@ -35,7 +35,9 @@ class _LoginScreenState extends State<LoginScreen> {
       _error = null;
     });
     final phone = '7${_phoneController.text}';
-    final token = (100000 + Random().nextInt(900000)).toString();
+    final chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    final rng = Random();
+    final token = List.generate(12, (_) => chars[rng.nextInt(chars.length)]).join();
     final error = await widget.onRequestOtp(phone, token);
     if (!mounted) return;
     setState(() => _loading = false);
