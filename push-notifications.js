@@ -57,6 +57,14 @@ async function sendPushNotification(fcmToken, title, body, data = {}) {
                     priority: 'high',
                     defaultSound: true
                 }
+            },
+            apns: {
+                payload: {
+                    aps: {
+                        sound: 'default',
+                        badge: 1
+                    }
+                }
             }
         };
         const response = await messagingInstance.send(message);

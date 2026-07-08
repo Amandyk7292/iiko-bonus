@@ -195,7 +195,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFAFAF7),
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 110),
@@ -218,14 +218,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         children: [
                           const Icon(
                             Icons.language_rounded,
-                            color: Color(0xFF231007),
+                            color: Color(0xFF6D3317),
                             size: 22,
                           ),
                           const SizedBox(width: 6),
                           Text(
                             _langCode,
                             style: const TextStyle(
-                              color: Color(0xFF231007),
+                              color: Color(0xFF6D3317),
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
                             ),
@@ -237,29 +237,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Text(
                     'profile_title'.tr,
                     style: const TextStyle(
-                      color: Color(0xFF231007),
+                      color: Color(0xFF6D3317),
                       fontFamily: _headingFont,
                       fontSize: 20,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  InkWell(
-                    onTap: () => widget.onLogout(),
-                    borderRadius: BorderRadius.circular(20),
-                    child: Container(
-                      width: 36,
-                      height: 36,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF4A2210),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.arrow_forward_rounded,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                    ),
-                  ),
+                  _LogoutSplitButton(onLogout: () => widget.onLogout()),
                 ],
               ),
 
@@ -270,6 +254,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: const Color(0xFF6D3317).withValues(alpha: 0.10),
+                  ),
                   boxShadow: const [
                     BoxShadow(
                       color: Color(0x0C000000),
@@ -328,7 +315,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              color: Color(0xFF231007),
+                              color: Color(0xFF6D3317),
                               fontSize: 17,
                               fontWeight: FontWeight.w700,
                             ),
@@ -336,8 +323,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           const SizedBox(height: 4),
                           Text(
                             widget.customer.phone,
-                            style: const TextStyle(
-                              color: Color(0xFF9E9E9E),
+                            style: TextStyle(
+                              color: const Color(0xFF6D3317).withValues(alpha: 0.65),
                               fontSize: 14,
                               fontWeight: FontWeight.w400,
                             ),
@@ -355,7 +342,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       child: const Icon(
                         Icons.chevron_right_rounded,
-                        color: Color(0xFF231007),
+                        color: Color(0xFF6D3317),
                         size: 20,
                       ),
                     ),
@@ -370,6 +357,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: const Color(0xFF6D3317).withValues(alpha: 0.10),
+                  ),
                   boxShadow: const [
                     BoxShadow(
                       color: Color(0x0C000000),
@@ -473,7 +463,7 @@ class _ProfileMenuItem extends StatelessWidget {
           children: [
             Icon(
               icon,
-              color: const Color(0xFFC5A059),
+              color: const Color(0xFF6D3317),
               size: 24,
             ),
             const SizedBox(width: 16),
@@ -481,15 +471,15 @@ class _ProfileMenuItem extends StatelessWidget {
               child: Text(
                 title,
                 style: const TextStyle(
-                  color: Color(0xFF231007),
+                  color: Color(0xFF6D3317),
                   fontSize: 16,
                   fontWeight: FontWeight.w500,
                 ),
               ),
             ),
-            const Icon(
+            Icon(
               Icons.chevron_right_rounded,
-              color: Color(0xFFD3C1A5),
+              color: const Color(0xFF6D3317).withValues(alpha: 0.45),
               size: 22,
             ),
           ],
@@ -498,3 +488,91 @@ class _ProfileMenuItem extends StatelessWidget {
     );
   }
 }
+
+class _LogoutSplitButton extends StatelessWidget {
+  const _LogoutSplitButton({required this.onLogout});
+
+  final VoidCallback onLogout;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onLogout,
+      borderRadius: BorderRadius.circular(20),
+      child: CustomPaint(
+        size: const Size(36, 36),
+        painter: _SplitLogoutPainter(),
+      ),
+    );
+  }
+}
+
+class _SplitLogoutPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final rR = Radius.circular(size.width / 2);
+    final clipPath = Path()..addRRect(RRect.fromRectAndRadius(rect, rR));
+
+    canvas.save();
+    canvas.clipPath(clipPath);
+
+    // Left half: white
+    final leftRect = Rect.fromLTRB(0, 0, size.width / 2, size.height);
+    canvas.drawRect(leftRect, Paint()..color = Colors.white);
+
+    // Right half: #6D3317
+    final rightRect = Rect.fromLTRB(size.width / 2, 0, size.width, size.height);
+    canvas.drawRect(rightRect, Paint()..color = const Color(0xFF6D3317));
+
+    // Outer border around circle
+    canvas.drawCircle(
+      rect.center,
+      size.width / 2 - 0.75,
+      Paint()
+        ..color = const Color(0xFF6D3317)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5,
+    );
+
+    // Left half arrow in #6D3317
+    canvas.save();
+    canvas.clipRect(leftRect);
+    _drawArrow(canvas, size, const Color(0xFF6D3317));
+    canvas.restore();
+
+    // Right half arrow in white
+    canvas.save();
+    canvas.clipRect(rightRect);
+    _drawArrow(canvas, size, Colors.white);
+    canvas.restore();
+
+    canvas.restore();
+  }
+
+  void _drawArrow(Canvas canvas, Size size, Color color) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.2
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+
+    // Arrow shaft: horizontal line
+    canvas.drawLine(Offset(cx - 5, cy), Offset(cx + 5, cy), paint);
+
+    // Arrow head pointing right ->
+    final path = Path()
+      ..moveTo(cx + 1, cy - 4.2)
+      ..lineTo(cx + 5.5, cy)
+      ..lineTo(cx + 1, cy + 4.2);
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+

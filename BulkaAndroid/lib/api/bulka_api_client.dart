@@ -54,6 +54,29 @@ class BulkaApiClient {
     return response;
   }
 
+  Future<ProfileResponse> registerCustomer({
+    required String phone,
+    required String name,
+    String? surname,
+    String? gender,
+    String? birthdate,
+    String? email,
+  }) async {
+    final json = await _post('/api/auth/register', {
+      'phone': phone,
+      'name': name,
+      'surname': surname,
+      'gender': gender,
+      'birthdate': birthdate,
+      'email': email,
+    });
+    final response = ProfileResponse.fromJson(json);
+    if (!response.success) {
+      throw ApiException(response.message ?? response.error ?? 'Ошибка при регистрации');
+    }
+    return response;
+  }
+
   Future<String> getQrToken(String phone) async {
     final json = await _post('/api/guest/qr-token', {'phone': phone});
     final token = _asString(json['token']);

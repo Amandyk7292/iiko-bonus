@@ -55,23 +55,26 @@ class _PromoBannerShimmerState extends State<PromoBannerShimmer>
             clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(28),
+              border: Border.all(
+                color: const Color(0xFF6D3317).withValues(alpha: 0.10),
+              ),
               gradient: LinearGradient(
                 begin: Alignment(-2.0 + 4.0 * v, -0.5),
                 end: Alignment(-1.0 + 4.0 * v, 0.5),
                 colors: const [
-                  Color(0xFF4A2210),
-                  Color(0xFF6D3A20),
-                  Color(0xFFD4AF37),
-                  Color(0xFF6D3A20),
-                  Color(0xFF4A2210),
+                  Color(0xFFFFFFFF),
+                  Color(0xFFFAFAF7),
+                  Color(0xFFFFE8C2),
+                  Color(0xFFFAFAF7),
+                  Color(0xFFFFFFFF),
                 ],
                 stops: const [0.0, 0.35, 0.5, 0.65, 1.0],
               ),
               boxShadow: const [
                 BoxShadow(
-                  color: Color(0x1F6D3317),
-                  blurRadius: 20,
-                  offset: Offset(0, 10),
+                  color: Color(0x0C000000),
+                  blurRadius: 16,
+                  offset: Offset(0, 4),
                 ),
               ],
             ),
@@ -87,7 +90,7 @@ class _PromoBannerShimmerState extends State<PromoBannerShimmer>
                         width: 180,
                         height: 22,
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.22),
+                          color: const Color(0xFFE8E3DA),
                           borderRadius: BorderRadius.circular(8),
                         ),
                       ),
@@ -96,7 +99,7 @@ class _PromoBannerShimmerState extends State<PromoBannerShimmer>
                         width: 240,
                         height: 14,
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.15),
+                          color: const Color(0xFFF0EBE3),
                           borderRadius: BorderRadius.circular(6),
                         ),
                       ),
@@ -105,7 +108,7 @@ class _PromoBannerShimmerState extends State<PromoBannerShimmer>
                         width: 140,
                         height: 14,
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.15),
+                          color: const Color(0xFFF0EBE3),
                           borderRadius: BorderRadius.circular(6),
                         ),
                       ),

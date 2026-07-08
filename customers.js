@@ -499,6 +499,7 @@ async function checkAndNotifyInactiveCustomers(inactivityDays = 30) {
         
         try {
           const { sendMessage } = require('./telegram');
+          const { sendPushNotification } = require('./push-notifications');
           if (c.telegram_id) await sendMessage(c.telegram_id, message).catch(() => {});
           if (c.fcm_token) await sendPushNotification(c.fcm_token, "Мы скучаем! Ваши бонусы скоро сгорят", `На счету ${c.balance} бонусов, они сгорят через ${daysLeft} дней. Загляните к нам за кофе!`).catch(() => {});
           
@@ -537,7 +538,45 @@ async function deleteCustomer(customerId) {
   return true;
 }
 
+async function checkAndNotifyBirthdays() {
+  const { sendPushNotification } = require('./push-notifications');
+  const now = new Date();
+  const currentMonth = now.getMonth() + 1; // 1-12
+  const currentDay = now.getDate();
+
+  // Ищем клиентов, у которых сегодня день рождения (нужно разобрать birthdate: YYYY-MM-DD или DD.MM.YYYY)
+  const { data: customers, error } = await supabase.from('customers').select('*').not('birthdate', 'is', null);
+  if (error || !customers) return;
+
+  for (const c of customers) {
+    if (!c.birthdate) continue;
+    let bMonth, bDay;
+    if (c.birthdate.includes('-')) {
+      // YYYY-MM-DD
+      const parts = c.birthdate.split('-');
+      if (parts.length === 3) {
+        bMonth = parseInt(parts[1], 10);
+        bDay = parseInt(parts[2], 10);
+      }
+    } else if (c.birthdate.includes('.')) {
+      // DD.MM.YYYY
+      const parts = c.birthdate.split('.');
+      if (parts.length === 3) {
+        bDay = parseInt(parts[0], 10);
+        bMonth = parseInt(parts[1], 10);
+      }
+    }
+
+    if (bMonth === currentMonth && bDay === currentDay) {
+      if (c.fcm_token) {
+        await sendPushNotification(c.fcm_token, "С днём рождения!", "Поздравляем с днём рождения! Заходите к нам за праздничным кофе и выпечкой!");
+      }
+    }
+  }
+}
+
 module.exports = {
+  checkAndNotifyBirthdays,
   getCustomerByPhone,
   getOrCreateCustomerByPhone,
   searchCustomers,

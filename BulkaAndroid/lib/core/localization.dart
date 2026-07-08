@@ -314,6 +314,81 @@ const Map<String, Map<String, String>> _appTranslations = {
     'en': 'Add to Google Wallet',
   },
   // Login screen
+  'login_brand_title': {
+    'ru': 'Регистрация/Вход',
+    'kk': 'Тіркелу/Кіру',
+    'en': 'Register/Login',
+  },
+  'reg_title': {
+    'ru': 'Авторизация',
+    'kk': 'Авторизация',
+    'en': 'Registration',
+  },
+  'reg_gender_label': {
+    'ru': 'Выберите пол',
+    'kk': 'Жынысты таңдаңыз',
+    'en': 'Select gender',
+  },
+  'reg_male': {
+    'ru': 'Мужчина',
+    'kk': 'Ер',
+    'en': 'Male',
+  },
+  'reg_female': {
+    'ru': 'Женщина',
+    'kk': 'Әйел',
+    'en': 'Female',
+  },
+  'reg_name_hint': {
+    'ru': 'Имя',
+    'kk': 'Аты',
+    'en': 'First name',
+  },
+  'reg_surname_hint': {
+    'ru': 'Фамилия',
+    'kk': 'Тегі',
+    'en': 'Last name',
+  },
+  'reg_dob_hint': {
+    'ru': 'Дата рождения',
+    'kk': 'Туған күні',
+    'en': 'Date of birth',
+  },
+  'reg_email_hint': {
+    'ru': 'E-mail',
+    'kk': 'E-mail',
+    'en': 'E-mail',
+  },
+  'reg_terms_checkbox': {
+    'ru': 'Ознакомился (-лась) и подтверждаю принятие условий',
+    'kk': 'Шарттармен таныстым және қабылдаймын',
+    'en': 'I have read and agree to the terms',
+  },
+  'reg_next_btn': {
+    'ru': 'Далее',
+    'kk': 'Жалғастыру',
+    'en': 'Continue',
+  },
+  'reg_err_name': {
+    'ru': 'Пожалуйста, введите имя',
+    'kk': 'Атыңызды енгізіңіз',
+    'en': 'Please enter your name',
+  },
+  'reg_err_terms': {
+    'ru': 'Необходимо принять условия',
+    'kk': 'Шарттарды қабылдау қажет',
+    'en': 'You must agree to the terms',
+  },
+  'splash_loading': {
+    'ru': 'Загрузка...',
+    'kk': 'Жүктелуде...',
+    'en': 'Loading...',
+  },
+  'splash_loading_profile': {
+    'ru': 'Загрузка профиля...',
+    'kk': 'Профиль жүктелуде...',
+    'en': 'Loading profile...',
+  },
   'login_step_1': {
     'ru': 'Шаг 1 из 2',
     'kk': '1-қадам / 2',

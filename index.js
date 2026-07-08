@@ -92,7 +92,7 @@ async function buildApplePassBuffer(customer, host) {
 }
 
 
-const { getCustomerByPhone, getOrCreateCustomerByPhone, searchCustomers, updateCustomerBalance, updateCustomerInfo, logTransaction, getAllCustomers, getTransactions, getStats, addManualBonus, checkAndExpireInactiveBonuses, checkAndNotifyInactiveCustomers, updateFcmToken, getSecretWalletCardNumber, applyLoyaltyTransaction, activatePendingBonuses } = require('./customers');
+const { getCustomerByPhone, getOrCreateCustomerByPhone, searchCustomers, updateCustomerBalance, updateCustomerInfo, logTransaction, getAllCustomers, getTransactions, getStats, addManualBonus, checkAndExpireInactiveBonuses, checkAndNotifyInactiveCustomers, updateFcmToken, getSecretWalletCardNumber, applyLoyaltyTransaction, activatePendingBonuses, checkAndNotifyBirthdays } = require('./customers');
 const { sendPushNotification } = require('./push-notifications');
 const { getSettings, updateSettings } = require('./settings');
 const { sendWhatsAppMessage, initWhatsApp } = require('./whatsapp-baileys');
@@ -1017,6 +1017,39 @@ app.get('/admin/api/iiko-operations', adminAuthMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.post('/admin/api/push/test', adminAuthMiddleware, async (req, res) => {
+  try {
+    const { title, body, fcmToken } = req.body;
+    if (!title || !body || !fcmToken) return res.status(400).json({ error: 'title, body, fcmToken required' });
+    const { sendPushNotification } = require('./push-notifications');
+    const success = await sendPushNotification(fcmToken, title, body);
+    res.json({ success });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/admin/api/push/mass', adminAuthMiddleware, async (req, res) => {
+  try {
+    const { title, body } = req.body;
+    if (!title || !body) return res.status(400).json({ error: 'title and body required' });
+    const { sendPushNotification } = require('./push-notifications');
+    
+    // Получаем всех клиентов, у которых есть fcm_token (чтобы не тянуть всю базу, если не нужно)
+    // У нас может не быть отдельного столбца fcm_token, он либо есть, либо в отдельной таблице.
+    // Проверим, есть ли он в таблице customers. Если нет, то мы сохраняем его в customers.fcm_token.
+    const { data: customers } = await supabase.from('customers').select('fcm_token').not('fcm_token', 'is', null);
+    if (!customers || customers.length === 0) return res.json({ success: true, count: 0 });
+
+    let count = 0;
+    for (const c of customers) {
+      if (c.fcm_token) {
+        await sendPushNotification(c.fcm_token, title, body);
+        count++;
+      }
+    }
+    res.json({ success: true, count });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.post('/admin/api/customers/bonus', adminAuthMiddleware, async (req, res) => {
   try {
     const { customerId, amount, reason } = req.body;
@@ -1339,12 +1372,20 @@ app.post('/api/auth/verify-otp', authRateLimit, async (req, res) => {
         return res.json({ success: false, error: 'invalid', message: 'Неверный код' });
     }
     
-    // Success - clear OTP and return profile
+    // Success - clear OTP and check if customer exists
     await otpStore.delete(phone);
     
-    let customer = await getOrCreateCustomerByPhone(phone, 'Гость');
-    if (!customer) return res.status(404).json({ error: 'Customer not found' });
-    
+    let existingCustomer = await getCustomerByPhone(phone);
+    const isPlaceholder = existingCustomer && (!existingCustomer.name || existingCustomer.name === 'Гость');
+    if (!existingCustomer || isPlaceholder) {
+      return res.json({
+        success: true,
+        exists: false,
+        phone
+      });
+    }
+
+    const customer = existingCustomer;
     const settings = await getSettings();
     const tier = getTierInfo(customer.total_spent, settings);
     const vipThreshold = settings.vip_threshold || 300000;
@@ -1376,6 +1417,65 @@ app.post('/api/auth/verify-otp', authRateLimit, async (req, res) => {
       transactions: transactions || []
     });
     
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const phone = normalizePhone(req.body.phone);
+    const { name, surname, gender, birthdate, email } = req.body;
+    if (!phone) return res.status(400).json({ success: false, error: 'Phone required' });
+
+    const fullName = [name, surname].filter(Boolean).join(' ').trim() || 'Новый Гость';
+    let customer = await getOrCreateCustomerByPhone(phone, fullName);
+    if (!customer) return res.status(404).json({ success: false, error: 'Cannot create customer' });
+
+    const updateData = { name: fullName };
+    if (surname) updateData.surname = surname;
+    if (email) updateData.email = email;
+    if (gender) updateData.gender = gender;
+    if (birthdate) updateData.birthdate = birthdate;
+
+    try {
+      await supabase.from('customers').update(updateData).eq('id', customer.id);
+      Object.assign(customer, updateData);
+    } catch (e) {
+      await supabase.from('customers').update({ name: fullName }).eq('id', customer.id);
+      customer.name = fullName;
+    }
+
+    const settings = await getSettings();
+    const tier = getTierInfo(customer.total_spent, settings);
+    const vipThreshold = settings.vip_threshold || 300000;
+    const isVip = tier.name === 'Платина';
+    const cashbackPercent = tier.percent;
+
+    const { data: transactions } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('customer_id', customer.id)
+      .order('timestamp', { ascending: false })
+      .limit(20);
+
+    res.json({
+      success: true,
+      exists: true,
+      customer: {
+        id: customer.id,
+        name: customer.name,
+        phone: customer.phone,
+        balance: customer.balance,
+        total_spent: customer.total_spent,
+        created_at: customer.created_at,
+        isVip,
+        cashbackPercent,
+        vipThreshold,
+        tier
+      },
+      transactions: transactions || []
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -1687,10 +1787,12 @@ app.get('/api/telegram/set-webhook', async (req, res) => {
 setTimeout(() => {
   checkAndExpireInactiveBonuses(90).catch(err => console.error('Error auto-expiring bonuses:', err));
   checkAndNotifyInactiveCustomers(30).catch(err => console.error('Error auto-notifying inactive customers:', err));
+  checkAndNotifyBirthdays().catch(err => console.error('Error auto-notifying birthdays:', err));
 }, 15000);
 setInterval(() => {
   checkAndExpireInactiveBonuses(90).catch(err => console.error('Error auto-expiring bonuses:', err));
   checkAndNotifyInactiveCustomers(30).catch(err => console.error('Error auto-notifying inactive customers:', err));
+  checkAndNotifyBirthdays().catch(err => console.error('Error auto-notifying birthdays:', err));
 }, 24 * 60 * 60 * 1000);
 
 const PORT = process.env.PORT || 3000;

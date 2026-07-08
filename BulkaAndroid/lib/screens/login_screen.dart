@@ -4,11 +4,20 @@ class LoginScreen extends StatefulWidget {
   const LoginScreen({
     required this.onRequestOtp,
     required this.onVerifyOtp,
+    this.onRegister,
     super.key,
   });
 
   final Future<String?> Function(String phone, String token) onRequestOtp;
   final Future<String?> Function(String phone, String code) onVerifyOtp;
+  final Future<String?> Function({
+    required String phone,
+    required String name,
+    String? surname,
+    String? gender,
+    String? birthdate,
+    String? email,
+  })? onRegister;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -17,14 +26,186 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _phoneController = TextEditingController();
   final _otpController = TextEditingController();
+  final _nameController = TextEditingController();
+  final _surnameController = TextEditingController();
+  final _emailController = TextEditingController();
+
   bool _otpStep = false;
+  bool _registerStep = false;
   bool _loading = false;
   String? _error;
+  String _selectedLang = 'Русский';
+  String? _selectedGender;
+  String? _birthdate;
+  bool _termsAccepted = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedLang = AppLang.nameFromCode(AppLang.current);
+  }
+
+  String get _langCode {
+    return AppLang.shortLabel(AppLang.current);
+  }
+
+  void _showLanguageBottomSheet() {
+    String tempLang = _selectedLang;
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final languages = ['Русский', 'Қазақша', 'English'];
+
+            return Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const SizedBox(width: 36),
+                      Text(
+                        'select_lang_title'.tr,
+                        style: const TextStyle(
+                          color: Color(0xFF231007),
+                          fontFamily: _headingFont,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      InkWell(
+                        onTap: () => Navigator.pop(context),
+                        borderRadius: BorderRadius.circular(20),
+                        child: Container(
+                          width: 32,
+                          height: 32,
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFEADBBE),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.close_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  ...languages.map((lang) {
+                    final isSelected = tempLang == lang;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: InkWell(
+                        onTap: () {
+                          setModalState(() {
+                            tempLang = lang;
+                          });
+                        },
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 16,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? const Color(0xFFFAFAF7)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: isSelected
+                                  ? const Color(0xFF6D3317)
+                                  : const Color(0xFFEADBBE),
+                              width: isSelected ? 1.5 : 1,
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                lang,
+                                style: TextStyle(
+                                  color: isSelected
+                                      ? const Color(0xFF6D3317)
+                                      : const Color(0xFF231007),
+                                  fontSize: 16,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                ),
+                              ),
+                              if (isSelected)
+                                const Icon(
+                                  Icons.check_circle_rounded,
+                                  color: Color(0xFF6D3317),
+                                  size: 22,
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        await AppLang.setLanguage(
+                          AppLang.codeFromName(tempLang),
+                        );
+                        if (!context.mounted) return;
+                        setState(() {
+                          _selectedLang = tempLang;
+                        });
+                        Navigator.pop(context);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFDEC588),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(22),
+                        ),
+                      ),
+                      child: Text(
+                        'apply_btn'.tr,
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 
   @override
   void dispose() {
     _phoneController.dispose();
     _otpController.dispose();
+    _nameController.dispose();
+    _surnameController.dispose();
+    _emailController.dispose();
     super.dispose();
   }
 
@@ -69,6 +250,49 @@ class _LoginScreenState extends State<LoginScreen> {
       _otpController.text,
     );
     if (!mounted) return;
+    if (error == 'NEW_USER') {
+      setState(() {
+        _loading = false;
+        _error = null;
+        _registerStep = true;
+      });
+      return;
+    }
+    setState(() {
+      _loading = false;
+      _error = error;
+    });
+  }
+
+  Future<void> _submitRegister() async {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      setState(() => _error = 'reg_err_name'.tr);
+      return;
+    }
+    if (!_termsAccepted) {
+      setState(() => _error = 'reg_err_terms'.tr);
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    final registerFn = widget.onRegister;
+    String? error;
+    if (registerFn != null) {
+      error = await registerFn(
+        phone: '7${_phoneController.text}',
+        name: name,
+        surname: _surnameController.text.trim(),
+        gender: _selectedGender,
+        birthdate: _birthdate,
+        email: _emailController.text.trim(),
+      );
+    }
+
+    if (!mounted) return;
     setState(() {
       _loading = false;
       _error = error;
@@ -77,51 +301,431 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_registerStep) {
+      return _buildRegistrationScreen(context);
+    }
     return Scaffold(
       body: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Colors.white, Color(0xFFFFF2CD), Color(0xFFFFB300)],
-          ),
-        ),
+        decoration: const BoxDecoration(color: Colors.white),
         child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 460),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const _BrandHeader(),
-                    const SizedBox(height: 28),
-                    _AuthCard(
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 240),
-                        switchInCurve: Curves.easeOutCubic,
-                        switchOutCurve: Curves.easeInCubic,
-                        child: _otpStep
-                            ? Column(
-                                key: const ValueKey('otp'),
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: _otpCodeStep(context),
-                              )
-                            : Column(
-                                key: const ValueKey('phone'),
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: _phoneStep(context),
-                              ),
-                      ),
+          child: Stack(
+            children: [
+              Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 48, 20, 32),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 460),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const _BrandHeader(),
+                        const SizedBox(height: 28),
+                        _AuthCard(
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 240),
+                            switchInCurve: Curves.easeOutCubic,
+                            switchOutCurve: Curves.easeInCubic,
+                            child: _otpStep
+                                ? Column(
+                                    key: const ValueKey('otp'),
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    children: _otpCodeStep(context),
+                                  )
+                                : Column(
+                                    key: const ValueKey('phone'),
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    children: _phoneStep(context),
+                                  ),
+                          ),
+                        ),
+                      ],
                     ),
-
-                  ],
+                  ),
                 ),
               ),
+              Positioned(
+                top: 12,
+                left: 16,
+                child: _buildLanguageBadge(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRegistrationScreen(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF6D3317)),
+          onPressed: () {
+            setState(() {
+              _registerStep = false;
+              _error = null;
+            });
+          },
+        ),
+        title: Text(
+          'reg_title'.tr,
+          style: const TextStyle(
+            color: Color(0xFF6D3317),
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        centerTitle: true,
+        actions: [
+          _buildLanguageBadge(),
+          const SizedBox(width: 16),
+        ],
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 460),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const SizedBox(height: 8),
+                Center(
+                  child: Container(
+                    width: 96,
+                    height: 96,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFAF6F2),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: const Color(0xFFDEC588), width: 2),
+                    ),
+                    padding: const EdgeInsets.all(12),
+                    child: Image.asset('assets/brand/bulka_logo.png'),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  'reg_gender_label'.tr,
+                  style: const TextStyle(
+                    color: Color(0xFF6D3317),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(child: _buildGenderOption('m', 'reg_male'.tr)),
+                    const SizedBox(width: 16),
+                    Expanded(child: _buildGenderOption('f', 'reg_female'.tr)),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildRegTextField(
+                        controller: _nameController,
+                        hint: 'reg_name_hint'.tr,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildRegTextField(
+                        controller: _surnameController,
+                        hint: 'reg_surname_hint'.tr,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _buildDateField(context),
+                const SizedBox(height: 12),
+                _buildReadOnlyPhoneField(),
+                const SizedBox(height: 12),
+                _buildRegTextField(
+                  controller: _emailController,
+                  hint: 'reg_email_hint'.tr,
+                  keyboardType: TextInputType.emailAddress,
+                ),
+                const SizedBox(height: 20),
+                GestureDetector(
+                  onTap: () {
+                    setState(() => _termsAccepted = !_termsAccepted);
+                  },
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: _termsAccepted
+                              ? const Color(0xFF6D3317)
+                              : const Color(0xFFFAF6F2),
+                          border: Border.all(
+                            color: const Color(0xFF6D3317),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: _termsAccepted
+                            ? const Icon(Icons.check, size: 16, color: Colors.white)
+                            : null,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'reg_terms_checkbox'.tr,
+                          style: const TextStyle(
+                            color: Color(0xFF6D3317),
+                            fontSize: 13.5,
+                            height: 1.3,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_error != null) ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF0F0),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.redAccent.withValues(alpha: 0.4)),
+                    ),
+                    child: Text(
+                      _error!,
+                      style: const TextStyle(
+                        color: Colors.redAccent,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 28),
+                ElevatedButton(
+                  onPressed: _loading ? null : _submitRegister,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFDEC588),
+                    foregroundColor: const Color(0xFF6D3317),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: _loading
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: Color(0xFF6D3317),
+                          ),
+                        )
+                      : Text(
+                          'reg_next_btn'.tr,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                ),
+              ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGenderOption(String value, String label) {
+    final selected = _selectedGender == value;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedGender = value),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 22,
+            height: 22,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: selected ? const Color(0xFF6D3317) : const Color(0xFFFAF6F2),
+              border: Border.all(color: const Color(0xFF6D3317), width: 1.5),
+            ),
+            child: selected
+                ? Center(
+                    child: Container(
+                      width: 10,
+                      height: 10,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white,
+                      ),
+                    ),
+                  )
+                : null,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Color(0xFF6D3317),
+              fontSize: 14.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRegTextField({
+    required TextEditingController controller,
+    required String hint,
+    TextInputType? keyboardType,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFFAF6F2),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFEADBBE)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: TextField(
+        controller: controller,
+        keyboardType: keyboardType,
+        style: const TextStyle(color: Color(0xFF6D3317), fontSize: 15),
+        decoration: InputDecoration(
+          border: InputBorder.none,
+          hintText: hint,
+          hintStyle: TextStyle(
+            color: const Color(0xFF6D3317).withValues(alpha: 0.45),
+            fontSize: 14.5,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDateField(BuildContext context) {
+    return GestureDetector(
+      onTap: () async {
+        final picked = await showDatePicker(
+          context: context,
+          initialDate: DateTime(2000, 1, 1),
+          firstDate: DateTime(1930),
+          lastDate: DateTime.now(),
+          builder: (context, child) {
+            return Theme(
+              data: Theme.of(context).copyWith(
+                colorScheme: const ColorScheme.light(
+                  primary: Color(0xFF6D3317),
+                  onPrimary: Colors.white,
+                  onSurface: Color(0xFF6D3317),
+                ),
+              ),
+              child: child!,
+            );
+          },
+        );
+        if (picked != null) {
+          final day = picked.day.toString().padLeft(2, '0');
+          final month = picked.month.toString().padLeft(2, '0');
+          final year = picked.year;
+          setState(() {
+            _birthdate = '$day.$month.$year';
+          });
+        }
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFFFAF6F2),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFEADBBE)),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        child: Text(
+          _birthdate ?? 'reg_dob_hint'.tr,
+          style: TextStyle(
+            color: _birthdate != null
+                ? const Color(0xFF6D3317)
+                : const Color(0xFF6D3317).withValues(alpha: 0.45),
+            fontSize: 15,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReadOnlyPhoneField() {
+    final phoneText = _phoneController.text.startsWith('7')
+        ? _phoneController.text
+        : '7${_phoneController.text}';
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFFFAF6F2),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFEADBBE)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      child: Text(
+        phoneText,
+        style: const TextStyle(
+          color: Color(0xFF6D3317),
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLanguageBadge() {
+    return InkWell(
+      onTap: _showLanguageBottomSheet,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFF6D3317).withValues(alpha: 0.25)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x0A000000),
+              blurRadius: 8,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.language_rounded,
+              color: Color(0xFF6D3317),
+              size: 18,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              _langCode,
+              style: const TextStyle(
+                color: Color(0xFF6D3317),
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -368,10 +972,10 @@ class _BrandHeader extends StatelessWidget {
           fit: BoxFit.contain,
         ),
         const SizedBox(height: 16),
-        const Text(
-          'Регистрация/Вход',
+        Text(
+          'login_brand_title'.tr,
           textAlign: TextAlign.center,
-          style: TextStyle(
+          style: const TextStyle(
             color: _textDark,
             fontFamily: _headingFont,
             fontSize: 28,

@@ -139,6 +139,7 @@ class BonusTransaction {
     required this.timestamp,
     this.orderId,
     this.orderTotal,
+    this.items,
   });
 
   final String id;
@@ -148,6 +149,7 @@ class BonusTransaction {
   final double amount;
   final double? orderTotal;
   final String timestamp;
+  final List<dynamic>? items;
 
   bool get isEarning =>
       type.toLowerCase().contains('deposit') || type.toLowerCase() == 'earning';
@@ -178,6 +180,7 @@ class BonusTransaction {
       amount: _asDouble(json['amount']),
       orderTotal: _nullableDouble(json['order_total'] ?? json['orderTotal']),
       timestamp: _asString(json['timestamp']),
+      items: json['items'] != null ? List<dynamic>.from(json['items']) : null,
     );
   }
 
@@ -189,6 +192,7 @@ class BonusTransaction {
     'amount': amount,
     'order_total': orderTotal,
     'timestamp': timestamp,
+    'items': items,
   };
 }
 

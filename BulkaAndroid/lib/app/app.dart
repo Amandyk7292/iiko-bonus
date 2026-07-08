@@ -90,7 +90,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
     try {
       final profile = await _api.verifyOtp(phone: phone, code: code);
       if (!profile.exists || profile.customer == null) {
-        return 'Профиль не найден';
+        return 'NEW_USER';
       }
       await _saveSession(phone, profile.customer!, profile.transactions);
       if (!mounted) return null;
@@ -103,6 +103,40 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
       return null;
     } catch (error) {
       return _userError(error, 'Неверный код');
+    }
+  }
+
+  Future<String?> _registerCustomer({
+    required String phone,
+    required String name,
+    String? surname,
+    String? gender,
+    String? birthdate,
+    String? email,
+  }) async {
+    try {
+      final profile = await _api.registerCustomer(
+        phone: phone,
+        name: name,
+        surname: surname,
+        gender: gender,
+        birthdate: birthdate,
+        email: email,
+      );
+      if (!profile.exists || profile.customer == null) {
+        return 'Ошибка при регистрации';
+      }
+      await _saveSession(phone, profile.customer!, profile.transactions);
+      if (!mounted) return null;
+      setState(() {
+        _savedPhone = phone;
+        _customer = profile.customer;
+        _transactions = profile.transactions;
+      });
+      _startProfileRefresh(phone);
+      return null;
+    } catch (error) {
+      return _userError(error, 'Ошибка при регистрации');
     }
   }
 
@@ -151,14 +185,18 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
 
   Widget _buildHome() {
     if (_booting) {
-      return const SplashScreen(text: 'Загрузка...');
+      return SplashScreen(text: 'splash_loading'.tr);
     }
     if (_savedPhone == null) {
-      return LoginScreen(onRequestOtp: _requestOtp, onVerifyOtp: _verifyOtp);
+      return LoginScreen(
+        onRequestOtp: _requestOtp,
+        onVerifyOtp: _verifyOtp,
+        onRegister: _registerCustomer,
+      );
     }
     final customer = _customer;
     if (customer == null) {
-      return const SplashScreen(text: 'Загрузка профиля...');
+      return SplashScreen(text: 'splash_loading_profile'.tr);
     }
     return MainShell(
       api: _api,

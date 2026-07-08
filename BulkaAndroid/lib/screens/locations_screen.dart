@@ -111,7 +111,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
     return ListView.separated(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       itemCount: cities.length,
-      separatorBuilder: (_, __) => Divider(height: 1, color: _textDark.withValues(alpha: 0.08)),
+      separatorBuilder: (context, index) => Divider(height: 1, color: _textDark.withValues(alpha: 0.08)),
       itemBuilder: (context, index) {
         final city = cities[index];
         return ListTile(
@@ -194,7 +194,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
           child: ListView.separated(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             itemCount: locations.length,
-            separatorBuilder: (_, __) => Divider(height: 1, color: _textDark.withValues(alpha: 0.08)),
+            separatorBuilder: (context, index) => Divider(height: 1, color: _textDark.withValues(alpha: 0.08)),
             itemBuilder: (context, index) {
               final location = locations[index];
               return ListTile(
