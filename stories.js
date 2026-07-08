@@ -1,5 +1,55 @@
 const { supabase } = require('./supabase');
 
+function parseDescription(descRaw, fallbackStory = {}) {
+  let text = descRaw || '';
+  let i18n = null;
+
+  if (typeof descRaw === 'string' && descRaw.trim().startsWith('{')) {
+    try {
+      const parsed = JSON.parse(descRaw);
+      if (parsed && (parsed.i18n || parsed.text !== undefined)) {
+        text = parsed.text || parsed.i18n?.ru?.description || '';
+        i18n = parsed.i18n;
+      }
+    } catch (e) {}
+  }
+
+  const ruCover = fallbackStory.coverUrl || fallbackStory.coverurl || '';
+  const ruContent = fallbackStory.contentUrl || fallbackStory.contenturl || ruCover;
+  const ruTitle = fallbackStory.title || '';
+
+  const defaultI18n = {
+    ru: {
+      title: i18n?.ru?.title || ruTitle,
+      description: i18n?.ru?.description || text,
+      coverUrl: i18n?.ru?.coverUrl || ruCover,
+      contentUrl: i18n?.ru?.contentUrl || ruContent,
+    },
+    kz: {
+      title: i18n?.kz?.title || '',
+      description: i18n?.kz?.description || '',
+      coverUrl: i18n?.kz?.coverUrl || '',
+      contentUrl: i18n?.kz?.contentUrl || '',
+    },
+    en: {
+      title: i18n?.en?.title || '',
+      description: i18n?.en?.description || '',
+      coverUrl: i18n?.en?.coverUrl || '',
+      contentUrl: i18n?.en?.contentUrl || '',
+    }
+  };
+
+  return { text, i18n: defaultI18n };
+}
+
+function serializeDescription(text, i18n) {
+  if (!i18n) return text || '';
+  return JSON.stringify({
+    text: text || i18n.ru?.description || '',
+    i18n
+  });
+}
+
 async function getStories() {
   try {
     const { data, error } = await supabase
@@ -17,6 +67,9 @@ async function getStories() {
       const groupTitle = s.group_title || s.grouptitle || s.groupTitle || s.title || '';
       const groupId = String(s.group_id || s.groupid || s.groupId || s.id);
       const groupCover = s.group_coverurl || s.groupCoverUrl || s.group_cover_url || cover;
+      
+      const { text, i18n } = parseDescription(s.description, { title: s.title, coverUrl: cover, contentUrl: content });
+
       return {
         id: s.id,
         title: s.title || '',
@@ -30,7 +83,8 @@ async function getStories() {
         group_id: groupId,
         group_title: groupTitle,
         group_coverurl: groupCover,
-        description: s.description || '',
+        description: text,
+        i18n,
         duration: Number(s.duration) || 15,
         sortOrder: Number(s.sort_order || s.sortOrder) || 0
       };
@@ -42,20 +96,24 @@ async function getStories() {
 }
 
 async function addStory(story) {
-  const cover = story.coverUrl || story.coverurl || "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=500&q=80";
-  const content = story.contentUrl || story.contenturl || cover;
-  const groupTitle = story.groupTitle || story.group_title || story.title || "Новая тема";
+  const ruTitle = story.i18n?.ru?.title || story.title || "Новая история";
+  const cover = story.i18n?.ru?.coverUrl || story.coverUrl || story.coverurl || "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=500&q=80";
+  const content = story.i18n?.ru?.contentUrl || story.contentUrl || story.contenturl || cover;
+  const groupTitle = story.groupTitle || story.group_title || ruTitle;
   const groupId = String(story.groupId || story.group_id || groupTitle).trim().toLowerCase().replace(/\s+/g, '-');
   const groupCover = story.groupCoverUrl || story.group_coverurl || story.group_cover_url || cover;
+  
+  const descStr = serializeDescription(story.description, story.i18n);
+
   const newStory = {
     id: Date.now(),
-    title: story.title || "Новая история",
+    title: ruTitle,
     coverurl: cover,
     contenturl: content,
     group_id: groupId,
     group_title: groupTitle,
     group_coverurl: groupCover,
-    description: story.description || "",
+    description: descStr,
     duration: Number(story.duration) || 15,
     sort_order: Number(story.sortOrder || story.sort_order) || 0
   };
@@ -77,9 +135,12 @@ async function addStory(story) {
     const finalGroupTitle = saved.group_title || saved.groupTitle || groupTitle;
     const finalGroupId = String(saved.group_id || saved.groupId || groupId);
     const finalGroupCover = saved.group_coverurl || saved.groupCoverUrl || groupCover;
+    
+    const { text, i18n } = parseDescription(saved.description, { title: saved.title, coverUrl: finalCover, contentUrl: finalContent });
+
     return {
       id: saved.id,
-      title: saved.title || newStory.title,
+      title: saved.title || ruTitle,
       coverUrl: finalCover,
       contentUrl: finalContent,
       coverurl: finalCover,
@@ -90,7 +151,8 @@ async function addStory(story) {
       group_id: finalGroupId,
       group_title: finalGroupTitle,
       group_coverurl: finalGroupCover,
-      description: saved.description || '',
+      description: text,
+      i18n,
       duration: saved.duration || 15,
       sortOrder: Number(saved.sort_order || saved.sortOrder) || 0
     };
@@ -119,19 +181,23 @@ async function deleteStory(id) {
 }
 
 async function updateStory(id, story) {
-  const cover = story.coverUrl || story.coverurl || "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=500&q=80";
-  const content = story.contentUrl || story.contenturl || cover;
-  const groupTitle = story.groupTitle || story.group_title || story.title || "Тема";
+  const ruTitle = story.i18n?.ru?.title || story.title || "Обновленная история";
+  const cover = story.i18n?.ru?.coverUrl || story.coverUrl || story.coverurl || "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=500&q=80";
+  const content = story.i18n?.ru?.contentUrl || story.contentUrl || story.contenturl || cover;
+  const groupTitle = story.groupTitle || story.group_title || ruTitle;
   const groupId = String(story.groupId || story.group_id || groupTitle).trim().toLowerCase().replace(/\s+/g, '-');
   const groupCover = story.groupCoverUrl || story.group_coverurl || story.group_cover_url || cover;
+  
+  const descStr = serializeDescription(story.description, story.i18n);
+
   const updatedData = {
-    title: story.title || "Обновленная история",
+    title: ruTitle,
     coverurl: cover,
     contenturl: content,
     group_id: groupId,
     group_title: groupTitle,
     group_coverurl: groupCover,
-    description: story.description || "",
+    description: descStr,
     duration: Number(story.duration) || 15,
     sort_order: Number(story.sortOrder || story.sort_order) || 0
   };
@@ -154,6 +220,9 @@ async function updateStory(id, story) {
     const finalGroupTitle = saved.group_title || saved.groupTitle || groupTitle;
     const finalGroupId = String(saved.group_id || saved.groupId || groupId);
     const finalGroupCover = saved.group_coverurl || saved.groupCoverUrl || groupCover;
+    
+    const { text, i18n } = parseDescription(saved.description, { title: saved.title, coverUrl: finalCover, contentUrl: finalContent });
+
     return {
       id: saved.id || id,
       title: saved.title || updatedData.title,
@@ -167,7 +236,8 @@ async function updateStory(id, story) {
       group_id: finalGroupId,
       group_title: finalGroupTitle,
       group_coverurl: finalGroupCover,
-      description: saved.description || '',
+      description: text,
+      i18n,
       duration: saved.duration || 15,
       sortOrder: Number(saved.sort_order || saved.sortOrder) || 0
     };
