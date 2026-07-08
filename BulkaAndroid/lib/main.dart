@@ -16,6 +16,7 @@ import 'package:pinput/pinput.dart';
 part 'api/bulka_api_client.dart';
 part 'app/app.dart';
 part 'core/helpers.dart';
+part 'core/localization.dart';
 part 'core/theme.dart';
 part 'models/models.dart';
 part 'repositories/address_repository.dart';
@@ -35,6 +36,8 @@ part 'widgets/qr_dialog.dart';
 part 'widgets/stories.dart';
 part 'widgets/gradient_button.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await AppLang.init();
   runApp(const BulkaBonusApp());
 }

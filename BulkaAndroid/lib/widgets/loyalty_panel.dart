@@ -124,7 +124,7 @@ class _LoyaltyPanel extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Баланс: $balance баллов',
+                                '${'balance_prefix'.tr}$balance${'points_suffix'.tr}',
                                 style: const TextStyle(
                                   color: Color(0xFF6D3317),
                                   fontFamily: _headingFont,
@@ -134,7 +134,7 @@ class _LoyaltyPanel extends StatelessWidget {
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                'Дарим ${customer.cashbackPercent}% кешбэк после каждой покупки!',
+                                '${'cashback_gift_1'.tr}${customer.cashbackPercent}${'cashback_gift_2'.tr}',
                                 style: const TextStyle(
                                   color: Color(0xFF6D3317),
                                   fontSize: 16,

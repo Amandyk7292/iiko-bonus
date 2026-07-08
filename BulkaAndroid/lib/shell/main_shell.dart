@@ -31,16 +31,16 @@ class _MainShellState extends State<MainShell> {
         onHistoryTap: () => setState(() => _tab = 2),
         onProfileTap: () => setState(() => _tab = 4),
       ),
-      const _ComingSoonScreen(
-        title: 'Каталог',
+      _ComingSoonScreen(
+        title: 'nav_catalog'.tr,
         icon: Icons.bakery_dining_rounded,
-        subtitle: 'Скоро здесь появятся любимые булочки, десерты и напитки.',
+        subtitle: 'catalog_sub'.tr,
       ),
       OrdersScreen(transactions: widget.transactions),
-      const _ComingSoonScreen(
-        title: 'Акции',
+      _ComingSoonScreen(
+        title: 'nav_promos'.tr,
         icon: Icons.card_giftcard_rounded,
-        subtitle: 'Персональные предложения и сезонные акции будут здесь.',
+        subtitle: 'promos_sub'.tr,
       ),
       ProfileScreen(
         customer: widget.customer,
@@ -72,11 +72,11 @@ class FloatingNavBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final items = [
-      _NavItem('Главная', Icons.home, Icons.home_outlined),
-      _NavItem('Каталог', Icons.bakery_dining, Icons.bakery_dining_outlined),
+      _NavItem('nav_home'.tr, Icons.home, Icons.home_outlined),
+      _NavItem('nav_catalog'.tr, Icons.bakery_dining, Icons.bakery_dining_outlined),
       _NavItem('', Icons.shopping_bag, Icons.shopping_bag_outlined),
-      _NavItem('Акции', Icons.card_giftcard, Icons.card_giftcard_outlined),
-      _NavItem('Профиль', Icons.person, Icons.person_outline),
+      _NavItem('nav_promos'.tr, Icons.card_giftcard, Icons.card_giftcard_outlined),
+      _NavItem('nav_profile'.tr, Icons.person, Icons.person_outline),
     ];
 
     return SafeArea(

@@ -155,9 +155,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                       if (_initialLoading || storyGroups.isNotEmpty) ...[
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 24),
-                          child: _SectionTitle('Тут много интересного'),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: _SectionTitle('home_interesting'.tr),
                         ),
                         const SizedBox(height: 14),
                         if (_initialLoading)
@@ -334,16 +334,16 @@ class _OrderTypeSection extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Expanded(
+        Expanded(
           child: Column(
             children: [
               _OrderTypeCard(
-                title: 'Самовывоз',
+                title: 'order_pickup'.tr,
                 illustration: _OrderIllustrationKind.pickup,
               ),
-              SizedBox(height: 14),
+              const SizedBox(height: 14),
               _OrderTypeCard(
-                title: 'Пред заказ',
+                title: 'order_preorder'.tr,
                 illustration: _OrderIllustrationKind.preorder,
               ),
             ],
@@ -352,7 +352,7 @@ class _OrderTypeSection extends StatelessWidget {
         const SizedBox(width: 14),
         Expanded(
           child: _OrderTypeCard(
-            title: 'Доставка',
+            title: 'order_delivery'.tr,
             illustration: _OrderIllustrationKind.delivery,
             tall: true,
             onTap: onDeliveryTap,

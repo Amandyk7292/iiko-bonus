@@ -136,11 +136,16 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Bulka Bonus',
-      theme: buildBulkaTheme(),
-      home: _buildHome(),
+    return ValueListenableBuilder<String>(
+      valueListenable: appLanguageNotifier,
+      builder: (context, lang, child) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'Bulka Bonus',
+          theme: buildBulkaTheme(),
+          home: _buildHome(),
+        );
+      },
     );
   }
 

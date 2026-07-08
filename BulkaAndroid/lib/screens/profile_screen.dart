@@ -25,25 +25,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _loadLang();
   }
 
-  Future<void> _loadLang() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!mounted) return;
+  void _loadLang() {
     setState(() {
-      _selectedLang = prefs.getString('user_lang_name') ?? 'Русский';
+      _selectedLang = AppLang.nameFromCode(AppLang.current);
     });
   }
 
   String get _langCode {
-    switch (_selectedLang) {
-      case 'O\'zbek':
-        return 'Uz';
-      case 'Қазақша':
-        return 'Kz';
-      case 'English':
-        return 'En';
-      default:
-        return 'Ru';
-    }
+    return AppLang.shortLabel(AppLang.current);
   }
 
   void _showLanguageBottomSheet() {
@@ -56,7 +45,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            final languages = ['Русский', 'O\'zbek', 'Қазақша', 'English'];
+            final languages = ['Русский', 'Қазақша', 'English'];
 
             return Container(
               decoration: const BoxDecoration(
@@ -71,9 +60,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const SizedBox(width: 36),
-                      const Text(
-                        'Выберите язык',
-                        style: TextStyle(
+                      Text(
+                        'select_lang_title'.tr,
+                        style: const TextStyle(
                           color: Color(0xFF231007),
                           fontFamily: _headingFont,
                           fontSize: 20,
@@ -158,8 +147,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     height: 52,
                     child: ElevatedButton(
                       onPressed: () async {
-                        final prefs = await SharedPreferences.getInstance();
-                        await prefs.setString('user_lang_name', tempLang);
+                        await AppLang.setLanguage(
+                          AppLang.codeFromName(tempLang),
+                        );
                         if (!context.mounted) return;
                         setState(() {
                           _selectedLang = tempLang;
@@ -174,9 +164,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           borderRadius: BorderRadius.circular(22),
                         ),
                       ),
-                      child: const Text(
-                        'Применить',
-                        style: TextStyle(
+                      child: Text(
+                        'apply_btn'.tr,
+                        style: const TextStyle(
                           fontSize: 17,
                           fontWeight: FontWeight.w700,
                         ),
@@ -244,9 +234,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                   ),
-                  const Text(
-                    'Профиль',
-                    style: TextStyle(
+                  Text(
+                    'profile_title'.tr,
+                    style: const TextStyle(
                       color: Color(0xFF231007),
                       fontFamily: _headingFont,
                       fontSize: 20,
@@ -392,7 +382,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   children: [
                     _ProfileMenuItem(
                       icon: Icons.receipt_long_outlined,
-                      title: 'Мои заказы',
+                      title: 'menu_orders'.tr,
                       onTap: () => _showInfoMessage('Список заказов пуст'),
                     ),
                     const Divider(
@@ -403,7 +393,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     _ProfileMenuItem(
                       icon: Icons.person_outline_rounded,
-                      title: 'Личные данные',
+                      title: 'menu_personal'.tr,
                       onTap: () => _showInfoMessage('Редактирование профиля'),
                     ),
                     const Divider(
@@ -414,7 +404,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     _ProfileMenuItem(
                       icon: Icons.location_on_outlined,
-                      title: 'Мои адреса',
+                      title: 'menu_addresses'.tr,
                       onTap: () => _showInfoMessage('Ваши сохранённые адреса'),
                     ),
                     const Divider(
@@ -425,7 +415,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     _ProfileMenuItem(
                       icon: Icons.mail_outline_rounded,
-                      title: 'Связаться с нами',
+                      title: 'menu_contact'.tr,
                       onTap: () => _showInfoMessage('Служба поддержки Bulka'),
                     ),
                     const Divider(
@@ -436,7 +426,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     _ProfileMenuItem(
                       icon: Icons.menu_book_rounded,
-                      title: 'Информация',
+                      title: 'menu_info'.tr,
                       onTap: () => _showInfoMessage('Bulka App v1.0'),
                     ),
                     const Divider(
@@ -447,7 +437,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     _ProfileMenuItem(
                       icon: Icons.lock_outline_rounded,
-                      title: 'Создать PIN-код',
+                      title: 'menu_pin'.tr,
                       onTap: () => _showInfoMessage('Настройка PIN-кода'),
                     ),
                   ],
