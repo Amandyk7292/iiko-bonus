@@ -1122,6 +1122,14 @@ app.post('/admin/api/stories', adminAuthMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+app.post('/admin/api/stories/update', adminAuthMiddleware, async (req, res) => {
+  try {
+    const id = req.body.id;
+    const story = await updateStory(id, req.body);
+    res.json({ success: true, story });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 app.put('/admin/api/stories/:id', adminAuthMiddleware, async (req, res) => {
   try {
     const story = await updateStory(req.params.id, req.body);
@@ -1146,6 +1154,14 @@ app.get('/admin/api/news', adminAuthMiddleware, async (req, res) => {
 app.post('/admin/api/news', adminAuthMiddleware, async (req, res) => {
   try {
     const item = await addNews(req.body);
+    res.json({ success: true, item });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/admin/api/news/update', adminAuthMiddleware, async (req, res) => {
+  try {
+    const id = req.body.id;
+    const item = await updateNews(id, req.body);
     res.json({ success: true, item });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
