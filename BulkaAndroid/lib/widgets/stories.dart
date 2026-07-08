@@ -487,7 +487,10 @@ class _StoryViewerState extends State<StoryViewer>
   }
 
   void _play() {
-    final duration = Duration(seconds: max(widget.stories[_index].duration, 3));
+    final durationSec = widget.stories[_index].duration > 0
+        ? widget.stories[_index].duration
+        : 15;
+    final duration = Duration(seconds: durationSec);
     _controller
       ..duration = duration
       ..reset()
@@ -558,10 +561,9 @@ class _StoryViewerState extends State<StoryViewer>
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.black.withValues(alpha: 0.7),
+                    Colors.black.withValues(alpha: 0.55),
                     Colors.transparent,
                     Colors.transparent,
-                    Colors.black.withValues(alpha: 0.8),
                   ],
                 ),
               ),
@@ -586,7 +588,7 @@ class _StoryViewerState extends State<StoryViewer>
             ),
             SafeArea(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -606,10 +608,10 @@ class _StoryViewerState extends State<StoryViewer>
                                       : i == _index
                                       ? _controller.value
                                       : 0,
-                                  minHeight: 3,
+                                  minHeight: 2.5,
                                   color: Colors.white,
                                   backgroundColor: Colors.white.withValues(
-                                    alpha: 0.3,
+                                    alpha: 0.35,
                                   ),
                                   borderRadius: BorderRadius.circular(2),
                                 ),
@@ -618,70 +620,96 @@ class _StoryViewerState extends State<StoryViewer>
                         ],
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Container(
-                          width: 32,
-                          height: 32,
-                          decoration: const BoxDecoration(
-                            color: _bulkaBrown,
-                            shape: BoxShape.circle,
-                          ),
-                          alignment: Alignment.center,
-                          child: const Text(
-                            'B',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
+                    const SizedBox(height: 6),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: IconButton(
+                        onPressed: () => Navigator.of(context).maybePop(),
+                        icon: const Icon(
+                          Icons.close,
+                          color: Colors.white,
+                          size: 28,
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            story.title,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: () => Navigator.of(context).maybePop(),
-                          icon: const Icon(
-                            Icons.close,
-                            color: Colors.white,
-                            size: 28,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
-            if ((story.description ?? '').isNotEmpty)
-              Positioned(
-                left: 20,
-                right: 20,
-                bottom: 40,
-                child: SafeArea(
-                  top: false,
-                  child: Text(
-                    story.description!,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      height: 1.45,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _StoryFullImage extends StatelessWidget {
+  const _StoryFullImage({required this.story});
+
+  final PromoStory story;
+
+  @override
+  Widget build(BuildContext context) {
+    final url = story.contentUrl.isNotEmpty
+        ? story.contentUrl
+        : (story.imageUrl.isNotEmpty
+            ? story.imageUrl
+            : story.groupCoverUrl);
+    if (url.startsWith('http')) {
+      return _NetworkImage(url: url, fit: BoxFit.cover);
+    }
+    final isHappy = story.groupId == 'happy_hours' || story.title.contains('ЧАСЫ') || story.title.contains('2+1');
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF381B10), Color(0xFF140804)],
+        ),
+      ),
+      alignment: Alignment.center,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            isHappy ? '2 + 1' : '🎁',
+            style: TextStyle(
+              fontFamily: _headingFont,
+              fontSize: isHappy ? 80 : 86,
+              fontWeight: FontWeight.w900,
+              color: const Color(0xFFDCAE68),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 28),
+            child: Text(
+              story.title.toUpperCase(),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFamily: _headingFont,
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          if ((story.description ?? '').isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 36),
+              child: Text(
+                story.description!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 16,
+                  color: Color(0xFFEADBBE),
+                  height: 1.4,
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -704,7 +732,7 @@ class _StoryCubeStage extends StatelessWidget {
   Widget build(BuildContext context) {
     final next = target;
     if (next == null) {
-      return _NetworkImage(url: current.contentUrl, fit: BoxFit.cover);
+      return _StoryFullImage(story: current);
     }
 
     final eased = Curves.easeInOutCubic.transform(progress.clamp(0, 1));
@@ -716,7 +744,7 @@ class _StoryCubeStage extends StatelessWidget {
         return Stack(
           fit: StackFit.expand,
           children: [
-            _NetworkImage(url: current.contentUrl, fit: BoxFit.cover),
+            _StoryFullImage(story: current),
             if (forward) ...[
               Positioned(
                 right: 0,
@@ -772,15 +800,10 @@ class _StoryCubeStage extends StatelessWidget {
             ],
             Center(
               child: Container(
-                width: 2,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.28),
-                      blurRadius: 18,
-                    ),
-                  ],
+                width: 1.5,
+                height: height,
+                color: Colors.black.withValues(
+                  alpha: 0.35 * sin(progress * pi),
                 ),
               ),
             ),
@@ -834,7 +857,7 @@ class _CubeHalfFace extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  _NetworkImage(url: story.contentUrl, fit: BoxFit.cover),
+                  _StoryFullImage(story: story),
                   DecoratedBox(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(

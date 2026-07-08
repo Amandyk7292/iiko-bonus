@@ -286,8 +286,9 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       barrierDismissible: true,
       barrierLabel: 'Story',
-      barrierColor: Colors.black54,
-      pageBuilder: (_, _, _) => PromoModalViewer(group: group),
+      barrierColor: Colors.black,
+      pageBuilder: (_, _, _) =>
+          StoryViewer(stories: group.stories, initialIndex: 0),
     );
     await _markStoryGroupViewed(group.id);
   }
