@@ -112,9 +112,13 @@ export default function StoriesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end mb-4">
+      <div className="flex justify-between items-center mb-4">
+        <div>
+          <h2 className="text-xl font-serif font-bold text-beige-900">Управление акциями и баннерами</h2>
+          <p className="text-xs text-gray-600">Настройте широкие рекламные карточки главного экрана и всплывающие окна акций</p>
+        </div>
         <button onClick={() => handleOpenModal()} className="btn-classic px-5 py-2.5 font-medium shadow-sm flex items-center gap-2">
-          <span>+ Создать Сториз</span>
+          <span>+ Создать баннер акции</span>
         </button>
       </div>
 
@@ -122,10 +126,10 @@ export default function StoriesPage() {
         <table className="w-full text-left border-collapse">
           <thead className="bg-beige-50">
             <tr>
-              <th className="py-4 px-6">Обложка</th>
-              <th className="py-4 px-6">Тема</th>
-              <th className="py-4 px-6">Заголовок</th>
-              <th className="py-4 px-6 text-center">Время (сек)</th>
+              <th className="py-4 px-6">Иллюстрация</th>
+              <th className="py-4 px-6">Название акции (на карточке)</th>
+              <th className="py-4 px-6">Подзаголовок / Описание</th>
+              <th className="py-4 px-6 text-center">Порядок</th>
               <th className="py-4 px-6 text-right">Действия</th>
             </tr>
           </thead>
@@ -133,7 +137,7 @@ export default function StoriesPage() {
             {loading ? (
               <tr><td colSpan={5} className="py-8 text-center text-gray-400">Загрузка...</td></tr>
             ) : stories.length === 0 ? (
-              <tr><td colSpan={5} className="py-8 text-center text-gray-400">Сториз пока нет</td></tr>
+              <tr><td colSpan={5} className="py-8 text-center text-gray-400">Акции пока не созданы (в приложении отображаются базовые акции)</td></tr>
             ) : (
               stories.map(s => (
                 <tr key={s.id}>
@@ -141,8 +145,8 @@ export default function StoriesPage() {
                     <img src={s.groupCoverUrl || s.coverUrl} className="w-12 h-12 object-cover rounded-md border border-gray-200" />
                   </td>
                   <td className="py-4 px-6 font-medium text-gray-900">{s.groupTitle || s.title}</td>
-                  <td className="py-4 px-6">{s.title}</td>
-                  <td className="py-4 px-6 text-center">{s.duration || 15}</td>
+                  <td className="py-4 px-6 text-gray-600">{s.description || s.title}</td>
+                  <td className="py-4 px-6 text-center">{s.sortOrder || 0}</td>
                   <td className="py-4 px-6 text-right space-x-2 whitespace-nowrap">
                     <button onClick={() => handleOpenModal(s)} className="btn-outline px-3 py-1 text-xs">Редактировать</button>
                     <button onClick={() => handleDelete(s.id)} className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3 py-1 rounded text-xs font-medium">Удалить</button>
@@ -157,26 +161,21 @@ export default function StoriesPage() {
       {modalOpen && (
         <div className="fixed inset-0 bg-[#333333] bg-opacity-40 flex items-center justify-center z-50 backdrop-blur-sm">
           <div className="card p-8 w-full max-w-md text-left max-h-[90vh] overflow-y-auto">
-            <h3 className="text-2xl font-serif text-beige-800 mb-6">{editingStory ? 'Редактировать Сториз' : 'Создать Сториз'}</h3>
+            <h3 className="text-2xl font-serif text-beige-800 mb-6">{editingStory ? 'Редактировать баннер акции' : 'Создать баннер акции'}</h3>
             
             <form onSubmit={handleSave} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-beige-800 uppercase mb-1">Заголовок</label>
-                <input required type="text" value={form.title} onChange={e => setForm({...form, title: e.target.value})} className="input-classic w-full" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-beige-800 uppercase mb-1">Тема</label>
-                  <input type="text" value={form.groupTitle} onChange={e => setForm({...form, groupTitle: e.target.value})} className="input-classic w-full" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-beige-800 uppercase mb-1">ID темы</label>
-                  <input type="text" value={form.groupId} onChange={e => setForm({...form, groupId: e.target.value})} className="input-classic w-full" />
-                </div>
+                <label className="block text-xs font-semibold text-beige-800 uppercase mb-1">Заголовок акции (Крупно на баннере)</label>
+                <input required type="text" placeholder="Например: СЧАСТЛИВЫЕ ЧАСЫ" value={form.groupTitle || form.title} onChange={e => setForm({...form, title: e.target.value, groupTitle: e.target.value})} className="input-classic w-full" />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-beige-800 uppercase mb-2">Обложка</label>
+                <label className="block text-xs font-semibold text-beige-800 uppercase mb-1">Подзаголовок / Описание акции</label>
+                <textarea rows={2} placeholder="Например: После 21:00 — 3 булочки по цене 2-х!" value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="input-classic w-full" />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-beige-800 uppercase mb-2">Иллюстрация баннера (Справа на карточке)</label>
                 <div className="flex gap-4 items-center">
                   {form.coverUrl && <img src={form.coverUrl} className="w-16 h-16 rounded object-cover" />}
                   <input type="file" accept="image/*" onChange={e => uploadFile(e, 'coverUrl')} className="text-xs" />
@@ -184,7 +183,7 @@ export default function StoriesPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-beige-800 uppercase mb-2">Контент (Фото)</label>
+                <label className="block text-xs font-semibold text-beige-800 uppercase mb-2">Фото внутри модального окна (При нажатии)</label>
                 <div className="flex gap-4 items-center">
                   {form.contentUrl && <img src={form.contentUrl} className="w-16 h-16 rounded object-cover" />}
                   <input type="file" accept="image/*" onChange={e => uploadFile(e, 'contentUrl')} className="text-xs" />
@@ -193,15 +192,10 @@ export default function StoriesPage() {
               
               {uploadStatus && <p className="text-xs font-bold text-blue-600">{uploadStatus}</p>}
 
-              <div>
-                <label className="block text-xs font-semibold text-beige-800 uppercase mb-1">Описание / Текст</label>
-                <textarea rows={2} value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="input-classic w-full" />
-              </div>
-
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-beige-800 uppercase mb-1">Время (сек)</label>
-                  <input type="number" value={form.duration} onChange={e => setForm({...form, duration: Number(e.target.value)})} className="input-classic w-full" />
+                  <label className="block text-xs font-semibold text-beige-800 uppercase mb-1">ID группы</label>
+                  <input type="text" placeholder="happy_hours" value={form.groupId} onChange={e => setForm({...form, groupId: e.target.value})} className="input-classic w-full" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-beige-800 uppercase mb-1">Порядок</label>

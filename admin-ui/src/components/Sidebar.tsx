@@ -26,7 +26,7 @@ export default function Sidebar() {
 
       <div className="sagi-nav-title">Профиль</div>
       <NavLink to="/settings" className={getNavClass}>Общая информация</NavLink>
-      <NavLink to="/stories" className={getNavClass}>Фотографии / Сториз</NavLink>
+      <NavLink to="/stories" className={getNavClass}>Акции / Баннеры</NavLink>
       <NavLink to="/news" className={getNavClass}>Новости</NavLink>
       <NavLink to="/bonus" className={getNavClass}>Бонусы</NavLink>
       <NavLink to="/locations" className={getNavClass}>Локации</NavLink>
