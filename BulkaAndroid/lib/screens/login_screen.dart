@@ -81,7 +81,7 @@ class _LoginScreenState extends State<LoginScreen> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [_milkyBackground, Color(0xFFFFE4B9), Color(0xFFFFF8EE)],
+            colors: [Colors.white, Color(0xFFFFF2CD), Color(0xFFFFB300)],
           ),
         ),
         child: SafeArea(
@@ -114,16 +114,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                       ),
                     ),
-                    const SizedBox(height: 18),
-                    Text(
-                      'Свежие бонусы, персональные предложения и QR-карта всегда под рукой.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: _textDark.withValues(alpha: 0.62),
-                        fontSize: 13,
-                        height: 1.45,
-                      ),
-                    ),
+
                   ],
                 ),
               ),
@@ -165,7 +156,6 @@ class _LoginScreenState extends State<LoginScreen> {
         decoration: _inputDecoration(
           label: 'Номер телефона',
           prefix: '+7 ',
-          helper: '10 цифр без +7',
           error: _error,
           icon: Icons.phone_rounded,
         ),
@@ -199,9 +189,8 @@ class _LoginScreenState extends State<LoginScreen> {
     return [
       const _AuthStepHeader(
         step: 'Шаг 2 из 2',
-        title: 'Введите код',
-        subtitle:
-            'Код отправлен через WhatsApp. Если удобнее, можно получить его в Telegram.',
+        title: 'Подтвердите ваш номер',
+        subtitle: 'Код отправлен через WhatsApp.',
       ),
       const SizedBox(height: 18),
       Container(
@@ -342,7 +331,7 @@ class _LoginScreenState extends State<LoginScreen> {
       ],
       const SizedBox(height: 26),
       _PrimaryButton(
-        text: 'Войти в Bulka Bonus',
+        text: 'Войти',
         icon: Icons.arrow_forward_rounded,
         loading: _loading,
         onPressed: _otpController.text.length == 4 ? _verify : null,
@@ -371,45 +360,20 @@ class _BrandHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Container(
-          width: 76,
-          height: 76,
-          decoration: BoxDecoration(
-            color: _cocoa,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: _softShadow,
-          ),
-          child: const Center(
-            child: Text(
-              'B',
-              style: TextStyle(
-                color: _almond,
-                fontFamily: _headingFont,
-                fontSize: 38,
-                fontWeight: FontWeight.w400,
-              ),
-            ),
-          ),
+        Image.asset(
+          'assets/brand/bulka_logo.png',
+          height: 70,
+          fit: BoxFit.contain,
         ),
         const SizedBox(height: 16),
         const Text(
-          'Bulka Bonus',
+          'Регистрация/Вход',
           textAlign: TextAlign.center,
           style: TextStyle(
             color: _textDark,
             fontFamily: _headingFont,
-            fontSize: 34,
+            fontSize: 28,
             fontWeight: FontWeight.w400,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'карта гостя любимой пекарни',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: _textDark.withValues(alpha: 0.58),
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
           ),
         ),
       ],

@@ -11,7 +11,7 @@ export default function CustomersPage() {
     setLoading(true);
     try {
       const data = await api.getCustomers();
-      setCustomers(data.customers || []);
+      setCustomers(Array.isArray(data) ? data : (data.customers || []));
     } catch (e) {
       console.error(e);
     } finally {
