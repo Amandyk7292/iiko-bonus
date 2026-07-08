@@ -6,105 +6,433 @@ class StoryGroup {
     required this.title,
     required this.coverUrl,
     required this.stories,
+    this.subtitle,
   });
 
   final String id;
   final String title;
   final String coverUrl;
   final List<PromoStory> stories;
+  final String? subtitle;
 }
 
-class StoryTile extends StatelessWidget {
-  const StoryTile({
-    required this.group,
-    required this.viewed,
-    required this.onTap,
+class PromoBannerSlider extends StatefulWidget {
+  const PromoBannerSlider({
+    required this.groups,
+    required this.viewedGroups,
+    required this.onGroupTap,
     super.key,
   });
 
-  final StoryGroup group;
-  final bool viewed;
-  final VoidCallback onTap;
+  final List<StoryGroup> groups;
+  final Set<String> viewedGroups;
+  final ValueChanged<StoryGroup> onGroupTap;
+
+  @override
+  State<PromoBannerSlider> createState() => _PromoBannerSliderState();
+}
+
+class _PromoBannerSliderState extends State<PromoBannerSlider> {
+  late final PageController _pageController;
+  int _currentIndex = 0;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController();
+    _startTimer();
+  }
+
+  void _startTimer() {
+    _timer?.cancel();
+    if (widget.groups.length > 1) {
+      _timer = Timer.periodic(const Duration(seconds: 5), (_) {
+        if (!mounted || !_pageController.hasClients) return;
+        final next = (_currentIndex + 1) % widget.groups.length;
+        _pageController.animateToPage(
+          next,
+          duration: const Duration(milliseconds: 500),
+          curve: Curves.easeInOutCubic,
+        );
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant PromoBannerSlider oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.groups.length != widget.groups.length) {
+      _startTimer();
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _pageController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        width: 76,
-        height: 98,
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          color: const Color(0xFF1B1B1B),
-          borderRadius: BorderRadius.circular(8),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.12),
-              blurRadius: 10,
-              offset: const Offset(0, 5),
-            ),
-          ],
+    if (widget.groups.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      children: [
+        SizedBox(
+          height: 136,
+          child: PageView.builder(
+            controller: _pageController,
+            itemCount: widget.groups.length,
+            onPageChanged: (idx) => setState(() => _currentIndex = idx),
+            itemBuilder: (context, idx) {
+              final group = widget.groups[idx];
+              final firstStory = group.stories.isNotEmpty ? group.stories.first : null;
+              final subText = group.subtitle ?? firstStory?.description ?? firstStory?.title ?? 'Специальное предложение для гостей Bulka!';
+
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: InkWell(
+                  onTap: () => widget.onGroupTap(group),
+                  borderRadius: BorderRadius.circular(22),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [Color(0xFFFFFBF3), Color(0xFFFAF0DD)],
+                      ),
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(color: const Color(0xFFEADBBE), width: 1.2),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF6D3317).withValues(alpha: 0.10),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFFFE8C2),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Text(
+                                    '✨ АКЦИЯ',
+                                    style: TextStyle(
+                                      color: Color(0xFF7E4A1D),
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 7),
+                                Text(
+                                  group.title.toUpperCase(),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontFamily: _headingFont,
+                                    fontSize: 16.5,
+                                    fontWeight: FontWeight.w900,
+                                    color: Color(0xFF4A2210),
+                                    height: 1.15,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  subText,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 12.0,
+                                    color: Color(0xFF8B5E3C),
+                                    height: 1.25,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        SizedBox(
+                          width: 130,
+                          height: double.infinity,
+                          child: _PromoBannerIllustration(group: group),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
         ),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            ColorFiltered(
-              colorFilter: viewed
-                  ? const ColorFilter.matrix([
-                      0.2126,
-                      0.7152,
-                      0.0722,
-                      0,
-                      0,
-                      0.2126,
-                      0.7152,
-                      0.0722,
-                      0,
-                      0,
-                      0.2126,
-                      0.7152,
-                      0.0722,
-                      0,
-                      0,
-                      0,
-                      0,
-                      0,
-                      1,
-                      0,
-                    ])
-                  : const ColorFilter.mode(Colors.transparent, BlendMode.dst),
-              child: _NetworkImage(url: group.coverUrl, fit: BoxFit.cover),
-            ),
-            if (viewed) ColoredBox(color: Colors.black.withValues(alpha: 0.34)),
-            DecoratedBox(
+        if (widget.groups.length > 1) ...[
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(widget.groups.length, (idx) {
+              final active = idx == _currentIndex;
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 280),
+                margin: const EdgeInsets.symmetric(horizontal: 3),
+                width: active ? 20 : 6,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: active ? const Color(0xFFFFB300) : const Color(0xFFE4D3BA),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              );
+            }),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _PromoBannerIllustration extends StatelessWidget {
+  const _PromoBannerIllustration({required this.group});
+
+  final StoryGroup group;
+
+  @override
+  Widget build(BuildContext context) {
+    if (group.coverUrl.startsWith('http')) {
+      return ClipRRect(
+        borderRadius: const BorderRadius.horizontal(right: Radius.circular(20)),
+        child: _NetworkImage(url: group.coverUrl, fit: BoxFit.cover),
+      );
+    }
+
+    final isHappy = group.id == 'happy_hours' || group.title.contains('ЧАСЫ') || group.title.contains('2+1');
+    return Container(
+      alignment: Alignment.center,
+      decoration: const BoxDecoration(
+        borderRadius: BorderRadius.horizontal(right: Radius.circular(20)),
+      ),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Positioned(
+            right: -10,
+            bottom: -10,
+            child: Container(
+              width: 90,
+              height: 90,
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black.withValues(alpha: 0.76),
-                    Colors.black.withValues(alpha: 0.22),
-                    Colors.black.withValues(alpha: 0.34),
+                color: const Color(0xFFFFE3B0).withValues(alpha: 0.45),
+                shape: BoxShape.circle,
+              ),
+            ),
+          ),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                isHappy ? '2+1' : '🎁',
+                style: TextStyle(
+                  fontFamily: _headingFont,
+                  fontSize: isHappy ? 34 : 36,
+                  fontWeight: FontWeight.w900,
+                  color: const Color(0xFFD38B28),
+                  shadows: [
+                    Shadow(
+                      color: const Color(0xFF6D3317).withValues(alpha: 0.20),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                isHappy ? 'БОНУС ВЕЧЕРОМ' : '+500 БАЛЛОВ',
+                style: const TextStyle(
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF8B5E3C),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class PromoModalViewer extends StatelessWidget {
+  const PromoModalViewer({required this.group, super.key});
+
+  final StoryGroup group;
+
+  @override
+  Widget build(BuildContext context) {
+    final story = group.stories.isNotEmpty ? group.stories.first : null;
+    final title = group.title;
+    final subtitle = group.subtitle ?? story?.description ?? story?.title ?? 'Специальное предложение для гостей Bulka Cafe!';
+    final isHappy = group.id == 'happy_hours' || title.contains('ЧАСЫ') || title.contains('2+1');
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFFDF8F0),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFFEADBBE)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF6D3317).withValues(alpha: 0.05),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: const Text(
+                      'Bulka Cafe & Bakery',
+                      style: TextStyle(
+                        fontFamily: _headingFont,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF5A2A18),
+                      ),
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: IconButton(
+                      onPressed: () => Navigator.of(context).maybePop(),
+                      icon: const Icon(Icons.close, color: Color(0xFF5A2A18), size: 26),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const SizedBox(height: 12),
+                    Text(
+                      title.toUpperCase(),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontFamily: _headingFont,
+                        fontSize: 25,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF4A2210),
+                        height: 1.15,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      subtitle,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: Color(0xFF7D5034),
+                        height: 1.35,
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    Container(
+                      height: 220,
+                      width: double.infinity,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFFBF4),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: const Color(0xFFEADBBE), width: 1.2),
+                      ),
+                      child: (story != null && story.contentUrl.startsWith('http'))
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(23),
+                              child: _NetworkImage(url: story.contentUrl, fit: BoxFit.cover),
+                            )
+                          : Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  isHappy ? '2 + 1' : '🎁',
+                                  style: TextStyle(
+                                    fontFamily: _headingFont,
+                                    fontSize: isHappy ? 64 : 68,
+                                    fontWeight: FontWeight.w900,
+                                    color: const Color(0xFFD38B28),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  isHappy ? '3 булочки по цене 2-х после 21:00' : 'Бонус за каждого друга',
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF8B5E3C),
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
                   ],
                 ),
               ),
             ),
-            Positioned(
-              left: 7,
-              right: 7,
-              top: 7,
-              child: Text(
-                group.title.toUpperCase(),
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontFamily: _headingFont,
-                  fontSize: 8.5,
-                  height: 1.08,
-                  fontWeight: FontWeight.w400,
-                ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(28, 0, 28, 20),
+              child: Column(
+                children: [
+                  const Text(
+                    'Только для участников программы лояльности!',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12.5, color: Color(0xFF9A714A)),
+                  ),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.of(context).maybePop(),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFDCAE68),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: const Text(
+                        'Заказать',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

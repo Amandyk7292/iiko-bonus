@@ -151,27 +151,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         padding: EdgeInsets.symmetric(horizontal: 24),
                         child: _SectionTitle('Тут много интересного'),
                       ),
-                      if (storyGroups.isNotEmpty) ...[
-                        const SizedBox(height: 14),
-                        SizedBox(
-                          height: 98,
-                          child: ListView.separated(
-                            padding: const EdgeInsets.symmetric(horizontal: 24),
-                            scrollDirection: Axis.horizontal,
-                            itemCount: storyGroups.length,
-                            separatorBuilder: (_, _) =>
-                                const SizedBox(width: 10),
-                            itemBuilder: (context, index) {
-                              final group = storyGroups[index];
-                              return StoryTile(
-                                group: group,
-                                viewed: _viewedStoryGroups.contains(group.id),
-                                onTap: () => _openStoryGroup(group),
-                              );
-                            },
-                          ),
-                        ),
-                      ],
+                      const SizedBox(height: 14),
+                      PromoBannerSlider(
+                        groups: storyGroups,
+                        viewedGroups: _viewedStoryGroups,
+                        onGroupTap: _openStoryGroup,
+                      ),
                       const SizedBox(height: 24),
                       const Padding(
                         padding: EdgeInsets.symmetric(horizontal: 24),
@@ -227,6 +212,47 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   List<StoryGroup> _groupStories(List<PromoStory> stories) {
+    if (stories.isEmpty) {
+      return const [
+        StoryGroup(
+          id: 'happy_hours',
+          title: 'СЧАСТЛИВЫЕ ЧАСЫ',
+          subtitle: 'После 21:00 — 3 булочки по цене 2-х!',
+          coverUrl: '',
+          stories: [
+            PromoStory(
+              id: 991,
+              title: 'ЗАБЕРИТЕ ВКУСНЫЙ БОНУС К ВЕЧЕРУ',
+              description: '3 булочки по цене 2х после 21:00',
+              imageUrl: '',
+              contentUrl: '',
+              groupId: 'happy_hours',
+              groupTitle: 'СЧАСТЛИВЫЕ ЧАСЫ',
+              groupCoverUrl: '',
+            ),
+          ],
+        ),
+        StoryGroup(
+          id: 'invite_friend',
+          title: 'ПЛЮШКИ ЗА ДРУГА',
+          subtitle: 'Пригласите друга и получите 500 баллов',
+          coverUrl: '',
+          stories: [
+            PromoStory(
+              id: 992,
+              title: 'ДАРИМ БОНУСЫ ЗА ДРУЗЕЙ',
+              description: 'Поделитесь приложением с другом и получайте бонусные баллы на свой счет с каждой покупки!',
+              imageUrl: '',
+              contentUrl: '',
+              groupId: 'invite_friend',
+              groupTitle: 'ПЛЮШКИ ЗА ДРУГА',
+              groupCoverUrl: '',
+            ),
+          ],
+        ),
+      ];
+    }
+
     final byGroup = <String, List<PromoStory>>{};
     for (final story in stories) {
       byGroup.putIfAbsent(story.groupId, () => []).add(story);
@@ -243,6 +269,7 @@ class _HomeScreenState extends State<HomeScreen> {
           return StoryGroup(
             id: entry.key,
             title: first.groupTitle.isNotEmpty ? first.groupTitle : first.title,
+            subtitle: first.description?.isNotEmpty == true ? first.description : first.title,
             coverUrl: first.groupCoverUrl.isNotEmpty
                 ? first.groupCoverUrl
                 : first.imageUrl,
@@ -259,9 +286,8 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       barrierDismissible: true,
       barrierLabel: 'Story',
-      barrierColor: Colors.black,
-      pageBuilder: (_, _, _) =>
-          StoryViewer(stories: group.stories, initialIndex: 0),
+      barrierColor: Colors.black54,
+      pageBuilder: (_, _, _) => PromoModalViewer(group: group),
     );
     await _markStoryGroupViewed(group.id);
   }
