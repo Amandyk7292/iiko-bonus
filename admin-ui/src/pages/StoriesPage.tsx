@@ -175,7 +175,9 @@ export default function StoriesPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-beige-800 uppercase mb-2">Иллюстрация баннера (Справа на карточке)</label>
+                <label className="block text-xs font-semibold text-beige-800 uppercase mb-1">
+                  Горизонтальная обложка баннера (Рекомендуемый размер: 1080 × 480 px)
+                </label>
                 <div className="flex gap-4 items-center">
                   {form.coverUrl && <img src={form.coverUrl} className="w-16 h-16 rounded object-cover" />}
                   <input type="file" accept="image/*" onChange={e => uploadFile(e, 'coverUrl')} className="text-xs" />
@@ -183,7 +185,9 @@ export default function StoriesPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-beige-800 uppercase mb-2">Фото внутри модального окна (При нажатии)</label>
+                <label className="block text-xs font-semibold text-beige-800 uppercase mb-1">
+                  Вертикальная история на весь экран (Рекомендуемый размер: 1080 × 1920 px)
+                </label>
                 <div className="flex gap-4 items-center">
                   {form.contentUrl && <img src={form.contentUrl} className="w-16 h-16 rounded object-cover" />}
                   <input type="file" accept="image/*" onChange={e => uploadFile(e, 'contentUrl')} className="text-xs" />
@@ -192,10 +196,14 @@ export default function StoriesPage() {
               
               {uploadStatus && <p className="text-xs font-bold text-blue-600">{uploadStatus}</p>}
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-beige-800 uppercase mb-1">ID группы</label>
                   <input type="text" placeholder="happy_hours" value={form.groupId} onChange={e => setForm({...form, groupId: e.target.value})} className="input-classic w-full" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-beige-800 uppercase mb-1">Время (сек)</label>
+                  <input type="number" value={form.duration} onChange={e => setForm({...form, duration: Number(e.target.value)})} className="input-classic w-full" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-beige-800 uppercase mb-1">Порядок</label>
