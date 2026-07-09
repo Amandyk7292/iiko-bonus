@@ -8,6 +8,7 @@ const adminRoutes = require('./routes/admin.routes');
 const loyaltyRoutes = require('./routes/loyalty.routes');
 const walletRoutes = require('./routes/wallet.routes');
 const publicRoutes = require('./routes/public.routes');
+const legacyRoutes = require('./routes/legacy.routes');
 
 const app = express();
 
@@ -36,6 +37,7 @@ app.use(adminRoutes);
 app.use(loyaltyRoutes);
 app.use(walletRoutes);
 app.use(publicRoutes);
+app.use(legacyRoutes);
 
 app.use('/admin', express.static(path.join(process.cwd(), 'admin-ui/dist')));
 app.get('/admin/*', (req, res) => {
