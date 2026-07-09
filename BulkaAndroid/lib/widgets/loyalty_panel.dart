@@ -334,6 +334,7 @@ class _InlineQrPreviewState extends State<_InlineQrPreview> {
                 QrImageView(
                   data: _token!,
                   backgroundColor: Colors.white,
+                  errorCorrectionLevel: QrErrorCorrectLevel.H,
                   eyeStyle: const QrEyeStyle(
                     eyeShape: QrEyeShape.square,
                     color: Color(0xFF4E2C1E),
@@ -344,8 +345,8 @@ class _InlineQrPreviewState extends State<_InlineQrPreview> {
                   ),
                 ),
                 Container(
-                  width: 28,
-                  height: 28,
+                  width: 22,
+                  height: 22,
                   decoration: BoxDecoration(
                     color: Colors.white,
                     shape: BoxShape.circle,

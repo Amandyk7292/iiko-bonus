@@ -111,6 +111,7 @@ class _QrDialogState extends State<QrDialog> {
                           data: _token!,
                           size: 200,
                           backgroundColor: Colors.white,
+                          errorCorrectionLevel: QrErrorCorrectLevel.H,
                           eyeStyle: const QrEyeStyle(
                             eyeShape: QrEyeShape.square,
                             color: Color(0xFF4E2C1E),
@@ -121,18 +122,12 @@ class _QrDialogState extends State<QrDialog> {
                           ),
                         ),
                         Container(
-                          width: 48,
-                          height: 48,
+                          width: 38,
+                          height: 38,
                           decoration: BoxDecoration(
                             color: Colors.white,
                             shape: BoxShape.circle,
                             border: Border.all(color: Colors.white, width: 3),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.08),
-                                blurRadius: 6,
-                              ),
-                            ],
                           ),
                           child: ClipOval(
                             child: Image.asset(
