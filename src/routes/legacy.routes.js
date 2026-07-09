@@ -8,6 +8,8 @@ const { getOrCreateCustomerByPhone, getCustomerByPhone } = require('../services/
 const otpStore = require('../services/otpStore.service');
 const { supabase } = require('../config/supabase');
 const iikoApi = require('../services/iiko.service');
+const { getStories } = require('../services/story.service');
+const { getNews } = require('../services/news.service');
 const admin = require('firebase-admin');
 
 // --- Helper functions (originally in old index.js) ---
