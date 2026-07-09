@@ -662,77 +662,68 @@ class _LogoutSplitButton extends StatelessWidget {
     return InkWell(
       onTap: onLogout,
       borderRadius: BorderRadius.circular(20),
-      child: CustomPaint(
-        size: const Size(36, 36),
-        painter: _SplitLogoutPainter(),
+      child: Container(
+        width: 38,
+        height: 38,
+        alignment: Alignment.center,
+        child: Image.asset(
+          'assets/brand/entrance.png',
+          width: 26,
+          height: 26,
+          color: const Color(0xFF6D3317),
+          errorBuilder: (_, __, ___) => const _EntranceVectorIcon(size: 26),
+        ),
       ),
     );
   }
 }
 
-class _SplitLogoutPainter extends CustomPainter {
+class _EntranceVectorIcon extends StatelessWidget {
+  final double size;
+  const _EntranceVectorIcon({this.size = 26});
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: Size(size, size),
+      painter: _EntranceVectorPainter(),
+    );
+  }
+}
+
+class _EntranceVectorPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
-    final rR = Radius.circular(size.width / 2);
-    final clipPath = Path()..addRRect(RRect.fromRectAndRadius(rect, rR));
+    final Paint p = Paint()
+      ..color = const Color(0xFF6D3317)
+      ..style = PaintingStyle.fill;
 
-    canvas.save();
-    canvas.clipPath(clipPath);
+    final double w = size.width;
+    final double h = size.height;
 
-    // Left half: white
-    final leftRect = Rect.fromLTRB(0, 0, size.width / 2, size.height);
-    canvas.drawRect(leftRect, Paint()..color = Colors.white);
+    final Path door = Path()
+      ..moveTo(w * 0.55, h * 0.1)
+      ..lineTo(w * 0.88, h * 0.1)
+      ..lineTo(w * 0.88, h * 0.9)
+      ..lineTo(w * 0.55, h * 0.9)
+      ..lineTo(w * 0.55, h * 0.78)
+      ..lineTo(w * 0.78, h * 0.78)
+      ..lineTo(w * 0.78, h * 0.22)
+      ..lineTo(w * 0.55, h * 0.22)
+      ..close();
 
-    // Right half: #6D3317
-    final rightRect = Rect.fromLTRB(size.width / 2, 0, size.width, size.height);
-    canvas.drawRect(rightRect, Paint()..color = const Color(0xFF6D3317));
+    final Path arrow = Path()
+      ..moveTo(w * 0.12, h * 0.43)
+      ..lineTo(w * 0.52, h * 0.43)
+      ..lineTo(w * 0.52, h * 0.28)
+      ..lineTo(w * 0.74, h * 0.50)
+      ..lineTo(w * 0.52, h * 0.72)
+      ..lineTo(w * 0.52, h * 0.57)
+      ..lineTo(w * 0.12, h * 0.57)
+      ..close();
 
-    // Outer border around circle
-    canvas.drawCircle(
-      rect.center,
-      size.width / 2 - 0.75,
-      Paint()
-        ..color = const Color(0xFF6D3317)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5,
-    );
-
-    // Left half arrow in #6D3317
-    canvas.save();
-    canvas.clipRect(leftRect);
-    _drawArrow(canvas, size, const Color(0xFF6D3317));
-    canvas.restore();
-
-    // Right half arrow in white
-    canvas.save();
-    canvas.clipRect(rightRect);
-    _drawArrow(canvas, size, Colors.white);
-    canvas.restore();
-
-    canvas.restore();
-  }
-
-  void _drawArrow(Canvas canvas, Size size, Color color) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.2
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-
-    // Arrow shaft: horizontal line
-    canvas.drawLine(Offset(cx - 5, cy), Offset(cx + 5, cy), paint);
-
-    // Arrow head pointing right ->
-    final path = Path()
-      ..moveTo(cx + 1, cy - 4.2)
-      ..lineTo(cx + 5.5, cy)
-      ..lineTo(cx + 1, cy + 4.2);
-    canvas.drawPath(path, paint);
+    canvas.drawPath(door, p);
+    canvas.drawPath(arrow, p);
   }
 
   @override
