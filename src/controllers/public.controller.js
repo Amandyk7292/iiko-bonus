@@ -1,5 +1,5 @@
 const path = require('path');
-const { getCustomerByPhone, getOrCreateCustomerByPhone } = require('../services/customer.service');
+const { getCustomerByPhone, getOrCreateCustomerByPhone, updateCustomerInfo, deleteCustomerByPhone } = require('../services/customer.service');
 
 const renderApp = (req, res) => {
   res.sendFile(path.join(process.cwd(), 'public', 'app.html'));
@@ -30,8 +30,52 @@ const registerIiko = async (req, res) => {
   }
 };
 
+const getProfile = async (req, res) => {
+  try {
+    const phone = req.headers['x-customer-phone'];
+    if (!phone) return res.status(401).json({ error: 'Не авторизован' });
+
+    const customer = await getCustomerByPhone(phone);
+    if (!customer) return res.status(404).json({ error: 'Клиент не найден' });
+
+    res.json({ success: true, customer });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+const updateProfile = async (req, res) => {
+  try {
+    const phone = req.headers['x-customer-phone'];
+    if (!phone) return res.status(401).json({ error: 'Не авторизован' });
+
+    const customer = await getCustomerByPhone(phone);
+    if (!customer) return res.status(404).json({ error: 'Клиент не найден' });
+
+    await updateCustomerInfo(customer.id, req.body);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+const deleteProfile = async (req, res) => {
+  try {
+    const phone = req.headers['x-customer-phone'];
+    if (!phone) return res.status(401).json({ error: 'Не авторизован' });
+
+    await deleteCustomerByPhone(phone);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 module.exports = {
   renderApp,
   renderAdmin,
-  registerIiko
+  registerIiko,
+  getProfile,
+  updateProfile,
+  deleteProfile
 };

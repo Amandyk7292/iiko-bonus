@@ -6,4 +6,8 @@ router.get('/', publicController.renderApp);
 router.get('/admin', publicController.renderAdmin);
 router.post('/api/register-iiko', publicController.registerIiko);
 
+router.get('/api/customer/profile', publicController.getProfile);
+router.put('/api/customer/profile', publicController.updateProfile);
+router.delete('/api/customer/profile', publicController.deleteProfile);
+
 module.exports = router;

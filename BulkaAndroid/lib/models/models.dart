@@ -48,6 +48,11 @@ class Customer {
     required this.cashbackPercent,
     required this.vipThreshold,
     required this.tier,
+    this.lastName,
+    this.gender,
+    this.birthDate,
+    this.email,
+    this.region,
   });
 
   final String id;
@@ -60,6 +65,11 @@ class Customer {
   final int cashbackPercent;
   final int vipThreshold;
   final Tier? tier;
+  final String? lastName;
+  final String? gender;
+  final String? birthDate;
+  final String? email;
+  final String? region;
 
   factory Customer.fromJson(Map<String, dynamic> json) {
     return Customer(
@@ -75,6 +85,11 @@ class Customer {
       ),
       vipThreshold: _asInt(json['vipThreshold'] ?? json['vip_threshold']),
       tier: json['tier'] is Map ? Tier.fromJson(_asMap(json['tier'])) : null,
+      lastName: _nullableString(json['last_name'] ?? json['lastName']),
+      gender: _nullableString(json['gender']),
+      birthDate: _nullableString(json['birth_date'] ?? json['birthdate']),
+      email: _nullableString(json['email']),
+      region: _nullableString(json['region']),
     );
   }
 
@@ -89,6 +104,11 @@ class Customer {
     'cashbackPercent': cashbackPercent,
     'vipThreshold': vipThreshold,
     'tier': tier?.toJson(),
+    'last_name': lastName,
+    'gender': gender,
+    'birth_date': birthDate,
+    'email': email,
+    'region': region,
   };
 }
 

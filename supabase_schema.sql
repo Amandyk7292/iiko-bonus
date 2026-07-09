@@ -18,6 +18,10 @@ create table if not exists public.customers (
   telegram_id varchar(80),
   fcm_token text,
   birth_date date,
+  last_name varchar(160),
+  gender varchar(20),
+  email varchar(255),
+  region varchar(160),
   tags text[] default '{}',
   created_at timestamptz default now() not null,
   updated_at timestamptz default now() not null
@@ -30,6 +34,10 @@ alter table public.customers add column if not exists total_spent numeric(12, 2)
 alter table public.customers add column if not exists telegram_id varchar(80);
 alter table public.customers add column if not exists fcm_token text;
 alter table public.customers add column if not exists birth_date date;
+alter table public.customers add column if not exists last_name varchar(160);
+alter table public.customers add column if not exists gender varchar(20);
+alter table public.customers add column if not exists email varchar(255);
+alter table public.customers add column if not exists region varchar(160);
 alter table public.customers add column if not exists tags text[] default '{}';
 alter table public.customers add column if not exists created_at timestamptz default now();
 alter table public.customers add column if not exists updated_at timestamptz default now();

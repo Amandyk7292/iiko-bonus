@@ -27,6 +27,7 @@ part 'screens/home_screen.dart';
 part 'screens/login_screen.dart';
 part 'screens/orders_screen.dart';
 part 'screens/profile_screen.dart';
+part 'screens/personal_data_screen.dart';
 part 'screens/locations_screen.dart';
 part 'shell/main_shell.dart';
 part 'widgets/loyalty_panel.dart';

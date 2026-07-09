@@ -77,6 +77,49 @@ class BulkaApiClient {
     return response;
   }
 
+  Future<void> updateProfile({
+    required String phone,
+    String? name,
+    String? lastName,
+    String? gender,
+    String? birthDate,
+    String? email,
+    String? region,
+  }) async {
+    final response = await _client.put(
+      _uri('/api/customer/profile'),
+      headers: {
+        'Content-Type': 'application/json',
+        'x-customer-phone': phone,
+      },
+      body: jsonEncode({
+        if (name != null) 'name': name,
+        if (lastName != null) 'last_name': lastName,
+        if (gender != null) 'gender': gender,
+        if (birthDate != null) 'birth_date': birthDate,
+        if (email != null) 'email': email,
+        if (region != null) 'region': region,
+      }),
+    );
+    final json = _decode(response);
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'Ошибка при сохранении'));
+    }
+  }
+
+  Future<void> deleteAccount(String phone) async {
+    final response = await _client.delete(
+      _uri('/api/customer/profile'),
+      headers: {
+        'x-customer-phone': phone,
+      },
+    );
+    final json = _decode(response);
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'Ошибка при удалении аккаунта'));
+    }
+  }
+
   Future<String> getQrToken(String phone) async {
     final json = await _post('/api/guest/qr-token', {'phone': phone});
     final token = _asString(json['token']);

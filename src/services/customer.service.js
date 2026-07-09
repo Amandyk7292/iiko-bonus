@@ -344,9 +344,14 @@ async function searchCustomers(query) {
   return data;
 }
 
-async function updateCustomerInfo(customerId, { name, phone, balance, total_spent }) {
+async function updateCustomerInfo(customerId, { name, last_name, gender, email, region, birth_date, phone, balance, total_spent }) {
   const updates = {};
   if (name !== undefined && name !== null) updates.name = name;
+  if (last_name !== undefined) updates.last_name = last_name;
+  if (gender !== undefined) updates.gender = gender;
+  if (email !== undefined) updates.email = email;
+  if (region !== undefined) updates.region = region;
+  if (birth_date !== undefined) updates.birth_date = birth_date || null;
   if (phone !== undefined && phone !== null) updates.phone = phone;
   if (balance !== undefined && balance !== null) updates.balance = Number(balance);
   if (total_spent !== undefined && total_spent !== null) updates.total_spent = Number(total_spent);
