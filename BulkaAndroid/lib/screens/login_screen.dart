@@ -774,7 +774,7 @@ class _LoginScreenState extends State<LoginScreen> {
       const SizedBox(height: 26),
       _PrimaryButton(
         text: 'get_code_whatsapp'.tr,
-        icon: Icons.sms_rounded,
+        iconAsset: 'assets/brand/whatsapp.png',
         loading: _loading,
         onPressed: _phoneController.text.length == 10 ? _sendCode : null,
       ),
@@ -1096,6 +1096,7 @@ class _PrimaryButton extends StatelessWidget {
   final Color color;
   final Color textColor;
   final IconData? icon;
+  final String? iconAsset;
 
   const _PrimaryButton({
     required this.onPressed,
@@ -1104,6 +1105,7 @@ class _PrimaryButton extends StatelessWidget {
     this.color = _bulkaYellow,
     this.textColor = _textDark,
     this.icon,
+    this.iconAsset,
   });
 
   @override
@@ -1114,7 +1116,10 @@ class _PrimaryButton extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          if (icon != null) ...[
+          if (iconAsset != null) ...[
+            Image.asset(iconAsset!, width: 22, height: 22),
+            const SizedBox(width: 10),
+          ] else if (icon != null) ...[
             Icon(icon, size: 24, color: Colors.white),
             const SizedBox(width: 8),
           ],
