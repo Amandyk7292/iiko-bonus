@@ -594,7 +594,57 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  String _formatCurrency(double val) {
+    final int v = val.round();
+    final String s = v.toString();
+    final buffer = StringBuffer();
+    for (int i = 0; i < s.length; i++) {
+      if (i > 0 && (s.length - i) % 3 == 0) {
+        buffer.write(' ');
+      }
+      buffer.write(s[i]);
+    }
+    return buffer.toString();
+  }
+
   Widget _buildLoyaltyProgressCard() {
+    final customer = widget.customer;
+    final int percent = customer.cashbackPercent > 0
+        ? customer.cashbackPercent
+        : (customer.tier?.percent ?? 5);
+    final tierObj = customer.tier;
+
+    String currentName = 'Бронза';
+    int level = 1;
+    String nextName = 'Серебро';
+    int nextPercent = 7;
+    double progress = 0.25;
+    double remaining = 15000;
+
+    if (percent >= 10 || (tierObj?.name.toLowerCase().contains('зол') ?? false)) {
+      currentName = 'Золото';
+      level = 3;
+      nextName = '';
+      progress = 1.0;
+      remaining = 0;
+    } else if (percent >= 7 || (tierObj?.name.toLowerCase().contains('сер') ?? false)) {
+      currentName = 'Серебро';
+      level = 2;
+      nextName = 'Золото';
+      nextPercent = 10;
+      progress = tierObj?.progress ?? 0.65;
+      remaining = tierObj?.remaining ?? 4500;
+    } else {
+      currentName = 'Бронза';
+      level = 1;
+      nextName = 'Серебро';
+      nextPercent = 7;
+      progress = tierObj?.progress ?? 0.25;
+      remaining = tierObj?.remaining ?? 15000;
+    }
+
+    progress = progress.clamp(0.05, 1.0);
+
     return Container(
       decoration: BoxDecoration(
         gradient: const LinearGradient(
@@ -634,9 +684,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  const Text(
-                    'Статус: Серебро (7%)',
-                    style: TextStyle(
+                  Text(
+                    'Статус: $currentName ($percent%)',
+                    style: const TextStyle(
                       color: Color(0xFF4E2C1E),
                       fontFamily: _headingFont,
                       fontSize: 16,
@@ -651,9 +701,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   color: const Color(0xFFFFB300).withValues(alpha: 0.25),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Text(
-                  'Уровень 2 из 3',
-                  style: TextStyle(
+                child: Text(
+                  'Уровень $level из 3',
+                  style: const TextStyle(
                     color: Color(0xFF6D3317),
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -663,9 +713,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
           ),
           const SizedBox(height: 14),
-          const Text(
-            'До статуса Золото (кешбэк 10%) осталось совершить покупки на 4 500 ₸',
-            style: TextStyle(
+          Text(
+            level == 3
+                ? 'Поздравляем! У вас максимальный статус Золото (кешбэк 10%)'
+                : 'До статуса $nextName (кешбэк $nextPercent%) осталось совершить покупки на ${_formatCurrency(remaining)} ₸',
+            style: const TextStyle(
               color: Color(0xFF6D3317),
               fontSize: 13.5,
               height: 1.35,
@@ -675,20 +727,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 12),
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: const LinearProgressIndicator(
-              value: 0.65,
+            child: LinearProgressIndicator(
+              value: progress,
               minHeight: 10,
-              backgroundColor: Color(0xFFEFE5CE),
-              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF9800)),
+              backgroundColor: const Color(0xFFEFE5CE),
+              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFFF9800)),
             ),
           ),
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildTierLabel('Бронза 5%', true),
-              _buildTierLabel('Серебро 7%', true),
-              _buildTierLabel('Золото 10%', false),
+              _buildTierLabel('Бронза 5%', level >= 1),
+              _buildTierLabel('Серебро 7%', level >= 2),
+              _buildTierLabel('Золото 10%', level >= 3),
             ],
           ),
         ],
