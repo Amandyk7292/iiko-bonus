@@ -9,7 +9,7 @@ class LocationsScreen extends StatefulWidget {
 
 class _LocationsScreenState extends State<LocationsScreen> {
   bool _showCities = false;
-  String _selectedCity = 'Шымкент';
+  String _selectedCity = '';
   String _searchQuery = '';
   bool _loading = true;
 
@@ -26,16 +26,8 @@ class _LocationsScreenState extends State<LocationsScreen> {
       final api = BulkaApiClient();
       final locs = await api.getLocations();
       setState(() {
-        if (locs.isNotEmpty) {
-          _cityLocations = locs;
-        } else {
-          // Fallback if empty
-          _cityLocations = {
-            'Шымкент': [],
-            'Алматы': [],
-          };
-        }
-        if (!_cityLocations.containsKey(_selectedCity)) {
+        _cityLocations = locs;
+        if (_cityLocations.isNotEmpty && !_cityLocations.containsKey(_selectedCity)) {
           _selectedCity = _cityLocations.keys.first;
         }
         _loading = false;
@@ -43,10 +35,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
     } catch (e) {
       setState(() {
         _loading = false;
-        _cityLocations = {
-          'Шымкент': [],
-          'Алматы': [],
-        };
+        _cityLocations = {};
       });
     }
   }
