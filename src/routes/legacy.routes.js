@@ -149,6 +149,11 @@ router.post('/api/auth/verify-otp', authRateLimit, async (req, res) => {
       exists: true,
       customer: {
         id: customer.id,
+        last_name: customer.last_name,
+        gender: customer.gender,
+        birth_date: customer.birth_date,
+        email: customer.email,
+        region: customer.region,
         name: customer.name,
         phone: customer.phone,
         balance: customer.balance,
@@ -209,6 +214,11 @@ router.post('/api/auth/register', async (req, res) => {
       exists: true,
       customer: {
         id: customer.id,
+        last_name: customer.last_name,
+        gender: customer.gender,
+        birth_date: customer.birth_date,
+        email: customer.email,
+        region: customer.region,
         name: customer.name,
         phone: customer.phone,
         balance: customer.balance,
@@ -274,6 +284,11 @@ router.post('/api/guest/profile', async (req, res) => {
       exists: true,
       customer: {
         id: customer.id,
+        last_name: customer.last_name,
+        gender: customer.gender,
+        birth_date: customer.birth_date,
+        email: customer.email,
+        region: customer.region,
         name: customer.name,
         phone: customer.phone,
         balance: customer.balance,
@@ -505,3 +520,4 @@ router.post('/api/wallet/v1/log', express.json(), (req, res) => {
 });
 
 module.exports = router;
+
