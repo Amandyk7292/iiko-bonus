@@ -59,6 +59,19 @@ export default function BonusPage() {
             <label>Уровни лояльности (Пороги и %)</label>
             <div className="grid grid-cols-2 gap-4 max-w-2xl">
               <div className="card p-4 bg-gray-50/50">
+                <p className="font-bold text-gray-700 mb-2">Серебро</p>
+                <div className="space-y-3">
+                  <div>
+                    <span className="text-xs text-gray-500">Порог (тнг)</span>
+                    <input type="number" value={settings.tier_silver_th || 0} onChange={e => handleChange('tier_silver_th', Number(e.target.value))} className="input-classic w-full" />
+                  </div>
+                  <div>
+                    <span className="text-xs text-gray-500">Кэшбэк (%)</span>
+                    <input type="number" value={settings.tier_silver_cb || 0} onChange={e => handleChange('tier_silver_cb', Number(e.target.value))} className="input-classic w-full" />
+                  </div>
+                </div>
+              </div>
+              <div className="card p-4 bg-gray-50/50">
                 <p className="font-bold text-gray-700 mb-2">Золото</p>
                 <div className="space-y-3">
                   <div>
@@ -68,19 +81,6 @@ export default function BonusPage() {
                   <div>
                     <span className="text-xs text-gray-500">Кэшбэк (%)</span>
                     <input type="number" value={settings.tier_gold_cb || 0} onChange={e => handleChange('tier_gold_cb', Number(e.target.value))} className="input-classic w-full" />
-                  </div>
-                </div>
-              </div>
-              <div className="card p-4 bg-gray-50/50">
-                <p className="font-bold text-gray-700 mb-2">Платина</p>
-                <div className="space-y-3">
-                  <div>
-                    <span className="text-xs text-gray-500">Порог (тнг)</span>
-                    <input type="number" value={settings.tier_platinum_th || 0} onChange={e => handleChange('tier_platinum_th', Number(e.target.value))} className="input-classic w-full" />
-                  </div>
-                  <div>
-                    <span className="text-xs text-gray-500">Кэшбэк (%)</span>
-                    <input type="number" value={settings.tier_platinum_cb || 0} onChange={e => handleChange('tier_platinum_cb', Number(e.target.value))} className="input-classic w-full" />
                   </div>
                 </div>
               </div>

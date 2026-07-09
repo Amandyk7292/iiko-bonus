@@ -115,12 +115,29 @@ class Customer {
   };
 }
 
+class TierItem {
+  const TierItem({required this.name, required this.percent});
+  final String name;
+  final int percent;
+
+  factory TierItem.fromJson(Map<String, dynamic> json) {
+    return TierItem(
+      name: _asString(json['name']),
+      percent: _asInt(json['percent']),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {'name': name, 'percent': percent};
+}
+
 class Tier {
   const Tier({
     required this.name,
     required this.percent,
     required this.remaining,
     required this.progress,
+    this.level = 1,
+    this.allTiers = const [],
     this.nextTier,
     this.nextTh,
   });
@@ -131,8 +148,17 @@ class Tier {
   final int? nextTh;
   final double remaining;
   final double progress;
+  final int level;
+  final List<TierItem> allTiers;
 
   factory Tier.fromJson(Map<String, dynamic> json) {
+    final list = json['allTiers'] is List
+        ? (json['allTiers'] as List)
+            .map((e) => e is Map ? TierItem.fromJson(_asMap(e)) : const TierItem(name: '', percent: 0))
+            .where((e) => e.name.isNotEmpty)
+            .toList()
+        : const <TierItem>[];
+
     return Tier(
       name: _asString(json['name']),
       percent: _asInt(json['percent']),
@@ -140,6 +166,8 @@ class Tier {
       nextTh: _nullableInt(json['nextTh'] ?? json['next_th']),
       remaining: _asDouble(json['remaining']),
       progress: _asDouble(json['progress']),
+      level: _asInt(json['level'], fallback: 1),
+      allTiers: list,
     );
   }
 
@@ -150,6 +178,8 @@ class Tier {
     'nextTh': nextTh,
     'remaining': remaining,
     'progress': progress,
+    'level': level,
+    'allTiers': allTiers.map((e) => e.toJson()).toList(),
   };
 }
 

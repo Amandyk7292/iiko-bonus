@@ -609,38 +609,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildLoyaltyProgressCard() {
     final customer = widget.customer;
-    final int percent = customer.cashbackPercent > 0
-        ? customer.cashbackPercent
-        : (customer.tier?.percent ?? 5);
     final tierObj = customer.tier;
 
-    String currentName = 'Бронза';
-    int level = 1;
-    String nextName = 'Серебро';
-    int nextPercent = 7;
-    double progress = 0.25;
-    double remaining = 15000;
+    String currentName = tierObj?.name ?? 'Бронза';
+    int percent = tierObj?.percent ?? (customer.cashbackPercent > 0 ? customer.cashbackPercent : 5);
+    int level = tierObj?.level ?? 1;
+    String? nextName = tierObj?.nextTier;
+    double remaining = tierObj?.remaining ?? 15000;
+    double progress = tierObj != null ? (tierObj.progress / 100.0) : 0.25;
 
-    if (percent >= 10 || (tierObj?.name.toLowerCase().contains('зол') ?? false)) {
-      currentName = 'Золото';
-      level = 3;
-      nextName = '';
-      progress = 1.0;
-      remaining = 0;
-    } else if (percent >= 7 || (tierObj?.name.toLowerCase().contains('сер') ?? false)) {
-      currentName = 'Серебро';
-      level = 2;
-      nextName = 'Золото';
-      nextPercent = 10;
-      progress = tierObj?.progress ?? 0.65;
-      remaining = tierObj?.remaining ?? 4500;
-    } else {
-      currentName = 'Бронза';
-      level = 1;
-      nextName = 'Серебро';
-      nextPercent = 7;
-      progress = tierObj?.progress ?? 0.25;
-      remaining = tierObj?.remaining ?? 15000;
+    final t1Name = tierObj != null && tierObj.allTiers.isNotEmpty
+        ? '${tierObj.allTiers[0].name} ${tierObj.allTiers[0].percent}%'
+        : 'Бронза 5%';
+    final t2Name = tierObj != null && tierObj.allTiers.length > 1
+        ? '${tierObj.allTiers[1].name} ${tierObj.allTiers[1].percent}%'
+        : 'Серебро 7%';
+    final t3Name = tierObj != null && tierObj.allTiers.length > 2
+        ? '${tierObj.allTiers[2].name} ${tierObj.allTiers[2].percent}%'
+        : 'Золото 10%';
+
+    int nextPercent = 7;
+    if (tierObj != null && tierObj.allTiers.isNotEmpty) {
+      for (final t in tierObj.allTiers) {
+        if (t.name == nextName) {
+          nextPercent = t.percent;
+          break;
+        }
+      }
     }
 
     progress = progress.clamp(0.05, 1.0);
@@ -714,8 +709,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 14),
           Text(
-            level == 3
-                ? 'Поздравляем! У вас максимальный статус Золото (кешбэк 10%)'
+            nextName == null || nextName.isEmpty
+                ? 'Поздравляем! У вас максимальный статус $currentName (кешбэк $percent%)'
                 : 'До статуса $nextName (кешбэк $nextPercent%) осталось совершить покупки на ${_formatCurrency(remaining)} ₸',
             style: const TextStyle(
               color: Color(0xFF6D3317),
@@ -738,9 +733,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildTierLabel('Бронза 5%', level >= 1),
-              _buildTierLabel('Серебро 7%', level >= 2),
-              _buildTierLabel('Золото 10%', level >= 3),
+              _buildTierLabel(t1Name, level >= 1),
+              _buildTierLabel(t2Name, level >= 2),
+              _buildTierLabel(t3Name, level >= 3),
             ],
           ),
         ],
