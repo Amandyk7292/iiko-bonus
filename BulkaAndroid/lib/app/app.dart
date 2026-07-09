@@ -248,28 +248,13 @@ class _SplashScreenState extends State<SplashScreen>
     return Scaffold(
       backgroundColor: const Color(0xFFFFB300),
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            ScaleTransition(
-              scale: _scaleAnimation,
-              child: Image.asset(
-                'assets/brand/bulka_logo.png',
-                width: 240,
-                fit: BoxFit.contain,
-              ),
-            ),
-            const SizedBox(height: 32),
-            Text(
-              widget.text,
-              style: const TextStyle(
-                color: Color(0xFF4E2C1E),
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.3,
-              ),
-            ),
-          ],
+        child: ScaleTransition(
+          scale: _scaleAnimation,
+          child: Image.asset(
+            'assets/brand/bulka_logo.png',
+            width: 330,
+            fit: BoxFit.contain,
+          ),
         ),
       ),
     );
