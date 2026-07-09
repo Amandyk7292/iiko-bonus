@@ -39,6 +39,120 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return AppLang.shortLabel(AppLang.current);
   }
 
+  Future<void> _confirmLogout() async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          backgroundColor: const Color(0xFFFFFDF8),
+          elevation: 8,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF6D3317).withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  alignment: Alignment.center,
+                  child: Image.asset(
+                    'assets/brand/entrance.png',
+                    width: 32,
+                    height: 32,
+                    color: const Color(0xFF6D3317),
+                    errorBuilder: (_, __, ___) => const _EntranceVectorIcon(size: 32),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'logout_confirm_title'.tr,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Color(0xFF6D3317),
+                    fontFamily: _headingFont,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'logout_confirm_msg'.tr,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Color(0xFF5A4D46),
+                    fontSize: 15,
+                    height: 1.35,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.of(context).pop(false),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          side: const BorderSide(
+                            color: Color(0xFFE2D6CA),
+                            width: 1.5,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: Text(
+                          'logout_confirm_cancel'.tr,
+                          style: const TextStyle(
+                            color: Color(0xFF6D3317),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.of(context).pop(true),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF6D3317),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: Text(
+                          'logout_confirm_yes'.tr,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      await widget.onLogout();
+    }
+  }
+
   void _showLanguageBottomSheet() {
     String tempLang = _selectedLang;
 
@@ -247,7 +361,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  _LogoutSplitButton(onLogout: () => widget.onLogout()),
+                  _LogoutSplitButton(onLogout: _confirmLogout),
                 ],
               ),
 

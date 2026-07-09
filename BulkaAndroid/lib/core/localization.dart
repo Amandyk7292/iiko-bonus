@@ -484,6 +484,26 @@ const Map<String, Map<String, String>> _appTranslations = {
     'kk': 'Жаю',
     'en': 'Expand',
   },
+  'logout_confirm_title': {
+    'ru': 'Выйти из аккаунта?',
+    'kk': 'Аккаунттан шығу?',
+    'en': 'Log out of account?',
+  },
+  'logout_confirm_msg': {
+    'ru': 'Вы уверены, что хотите выйти из аккаунта Bulka пекарня?',
+    'kk': 'Bulka пекарня аккаунтынан шыққыңыз келетініне сенімдісіз бе?',
+    'en': 'Are you sure you want to log out of your Bulka account?',
+  },
+  'logout_confirm_cancel': {
+    'ru': 'Отмена',
+    'kk': 'Болдырмау',
+    'en': 'Cancel',
+  },
+  'logout_confirm_yes': {
+    'ru': 'Выйти',
+    'kk': 'Шығу',
+    'en': 'Log out',
+  },
 };
 
 String localizeTransactionLabel(String label) {
