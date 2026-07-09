@@ -1,16 +1,66 @@
 const express = require('express');
+const crypto = require('crypto');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const qrcode = require('qrcode');
 const { getSettings, getTierInfo } = require('../services/settings.service');
-const { getOrCreateCustomerByPhone } = require('../services/customer.service');
+const { getOrCreateCustomerByPhone, getCustomerByPhone } = require('../services/customer.service');
 const otpStore = require('../services/otpStore.service');
 const supabase = require('../config/supabase');
-
-// Mock authRateLimit
-const authRateLimit = (req, res, next) => next();
-
+const iikoApi = require('../services/iiko.service');
 const admin = require('firebase-admin');
+
+// --- Helper functions (originally in old index.js) ---
+
+function normalizePhone(phone) {
+  return String(phone || '').replace(/[^0-9+]/g, '');
+}
+
+function buildDynamicQrToken(phone, timeWindow = Math.floor(Date.now() / 300000)) {
+  const digitsOnly = String(phone || '').replace(/[^0-9]/g, '');
+  if (digitsOnly.length < 10) {
+    const err = new Error('Valid phone required');
+    err.statusCode = 400;
+    throw err;
+  }
+  if (!process.env.BULKA_SECRET) throw new Error('BULKA_SECRET is required');
+  const hash = crypto
+    .createHash('sha256')
+    .update(`${digitsOnly}:${timeWindow}:${process.env.BULKA_SECRET}`)
+    .digest('hex')
+    .slice(0, 8);
+  const expiresAt = (timeWindow + 1) * 300000;
+  return {
+    token: `BULKA-OTP-${digitsOnly}-${timeWindow}-${hash}`,
+    expiresAt,
+    ttlSeconds: Math.max(1, Math.floor((expiresAt - Date.now()) / 1000))
+  };
+}
+
+function makeRateLimiter({ windowMs, max, key = req => req.ip, message = 'Too many requests' }) {
+  const buckets = new Map();
+  return (req, res, next) => {
+    const now = Date.now();
+    const bucketKey = key(req);
+    const bucket = buckets.get(bucketKey);
+    if (!bucket || now > bucket.resetAt) {
+      buckets.set(bucketKey, { count: 1, resetAt: now + windowMs });
+      return next();
+    }
+    bucket.count += 1;
+    if (bucket.count > max) {
+      return res.status(429).json({ error: message });
+    }
+    next();
+  };
+}
+
+const authRateLimit = makeRateLimiter({
+  windowMs: 10 * 60 * 1000,
+  max: 8,
+  key: req => `${req.ip}:${normalizePhone(req.body?.phone)}`,
+  message: 'Слишком много попыток. Попробуйте позже.'
+});
 
 router.post('/api/auth/request-otp', authRateLimit, async (req, res) => {
   try {
