@@ -102,7 +102,11 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
       
       await widget.onProfileUpdated();
       
-      _showInfoMessage('Профиль успешно сохранен!');
+      if (_emailController.text.trim().isNotEmpty) {
+        _showInfoMessage('Профиль сохранен! На вашу почту отправлено письмо подтверждения Firebase.');
+      } else {
+        _showInfoMessage('Профиль успешно сохранен!');
+      }
       widget.onBack();
     } catch (e) {
       _showInfoMessage('Ошибка: ${e.toString()}', isError: true);
