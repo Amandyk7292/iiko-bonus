@@ -1,6 +1,5 @@
 const { supabase } = require('../config/supabase');
 const { sendPushNotification } = require('./push.service');
-const { sendFirebaseVerificationEmail } = require('./firebaseAuth.service');
 const crypto = require('crypto');
 
 /**
@@ -362,12 +361,6 @@ async function updateCustomerInfo(customerId, { name, last_name, gender, email, 
     .update(updates)
     .eq('id', customerId);
   if (error) throw new Error(error.message);
-
-  if (email && email.includes('@')) {
-    sendFirebaseVerificationEmail(email, name || '').catch(err =>
-      console.error('Ошибка отправки подтверждения почты Firebase:', err.message)
-    );
-  }
 }
 
 async function updateFcmToken(phone, fcmToken) {

@@ -28,7 +28,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final _otpController = TextEditingController();
   final _nameController = TextEditingController();
   final _surnameController = TextEditingController();
-  final _emailController = TextEditingController();
 
   bool _otpStep = false;
   bool _registerStep = false;
@@ -205,7 +204,6 @@ class _LoginScreenState extends State<LoginScreen> {
     _otpController.dispose();
     _nameController.dispose();
     _surnameController.dispose();
-    _emailController.dispose();
     super.dispose();
   }
 
@@ -288,7 +286,6 @@ class _LoginScreenState extends State<LoginScreen> {
         surname: _surnameController.text.trim(),
         gender: _selectedGender,
         birthdate: _birthdate,
-        email: _emailController.text.trim(),
       );
     }
 
@@ -446,12 +443,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 _buildDateField(context),
                 const SizedBox(height: 12),
                 _buildReadOnlyPhoneField(),
-                const SizedBox(height: 12),
-                _buildRegTextField(
-                  controller: _emailController,
-                  hint: 'reg_email_hint'.tr,
-                  keyboardType: TextInputType.emailAddress,
-                ),
                 const SizedBox(height: 20),
                 GestureDetector(
                   onTap: () {

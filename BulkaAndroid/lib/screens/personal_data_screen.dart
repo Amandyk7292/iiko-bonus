@@ -23,7 +23,6 @@ class PersonalDataScreen extends StatefulWidget {
 class _PersonalDataScreenState extends State<PersonalDataScreen> {
   late TextEditingController _nameController;
   late TextEditingController _lastNameController;
-  late TextEditingController _emailController;
   late TextEditingController _birthDateController;
   
   String? _selectedGender;
@@ -37,7 +36,6 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
     super.initState();
     _nameController = TextEditingController(text: widget.customer.name == 'Гость' ? '' : widget.customer.name);
     _lastNameController = TextEditingController(text: widget.customer.lastName ?? '');
-    _emailController = TextEditingController(text: widget.customer.email ?? '');
     _selectedCity = widget.customer.region;
     
     _selectedGender = widget.customer.gender;
@@ -70,7 +68,6 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
   void dispose() {
     _nameController.dispose();
     _lastNameController.dispose();
-    _emailController.dispose();
     _birthDateController.dispose();
     super.dispose();
   }
@@ -96,17 +93,11 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
         lastName: _lastNameController.text.trim(),
         gender: _selectedGender,
         birthDate: _birthDate,
-        email: _emailController.text.trim(),
         region: _selectedCity ?? widget.customer.region ?? '',
       );
       
       await widget.onProfileUpdated();
-      
-      if (_emailController.text.trim().isNotEmpty) {
-        _showInfoMessage('Данные сохранены! На вашу почту отправлено письмо для подтверждения.');
-      } else {
-        _showInfoMessage('Профиль успешно сохранен!');
-      }
+      _showInfoMessage('Профиль успешно сохранен!');
       widget.onBack();
     } catch (e) {
       _showInfoMessage('Ошибка: ${e.toString()}', isError: true);
@@ -495,50 +486,6 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
 
                     // Date of Birth
                     _buildDateField(),
-
-                    // Email
-                    _buildTextField(
-                      'E-mail',
-                      _emailController,
-                      badge: _emailController.text.trim().isNotEmpty
-                          ? Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: widget.customer.emailVerified
-                                    ? const Color(0xFFE8F5E9)
-                                    : const Color(0xFFFFF3E0),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    widget.customer.emailVerified
-                                        ? Icons.verified_rounded
-                                        : Icons.mark_email_unread_rounded,
-                                    size: 14,
-                                    color: widget.customer.emailVerified
-                                        ? const Color(0xFF2E7D32)
-                                        : const Color(0xFFEF6C00),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    widget.customer.emailVerified
-                                        ? 'Подтверждена'
-                                        : 'Не подтверждена',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: widget.customer.emailVerified
-                                          ? const Color(0xFF2E7D32)
-                                          : const Color(0xFFEF6C00),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : null,
-                    ),
 
                     // City Dropdown
                     if (_cities.isNotEmpty) _buildCityDropdown(),

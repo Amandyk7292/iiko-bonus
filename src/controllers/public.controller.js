@@ -1,7 +1,6 @@
 const path = require('path');
 const { getCustomerByPhone, getOrCreateCustomerByPhone, updateCustomerInfo, deleteCustomerByPhone } = require('../services/customer.service');
 const { getCitiesWithPoints } = require('../services/location.service');
-const { checkEmailVerified } = require('../services/firebaseAuth.service');
 
 const renderApp = (req, res) => {
   res.sendFile(path.join(process.cwd(), 'public', 'app.html'));
@@ -40,12 +39,7 @@ const getProfile = async (req, res) => {
     const customer = await getCustomerByPhone(phone);
     if (!customer) return res.status(404).json({ error: 'Клиент не найден' });
 
-    let emailVerified = false;
-    if (customer.email) {
-      emailVerified = await checkEmailVerified(customer.email);
-    }
-
-    res.json({ success: true, customer: { ...customer, emailVerified } });
+    res.json({ success: true, customer });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
