@@ -50,6 +50,10 @@
 		<string>tg</string>
 		<string>whatsapp</string>
 	</array>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Приложению требуется доступ к геолокации для отображения ближайших точек пекарни на карте.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Приложению требуется доступ к геолокации для отображения ближайших точек пекарни на карте.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
