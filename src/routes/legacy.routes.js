@@ -408,16 +408,19 @@ router.get('/api/guest/news', async (req, res) => {
 
 router.get('/api/guest/locations', async (req, res) => {
   try {
-    const { supabase } = require('./supabase');
-    const { data: locations, error } = await supabase.from('bulka_locations').select('*');
-    if (error) throw error;
+    const { getCitiesWithPoints } = require('../services/location.service');
+    const cities = await getCitiesWithPoints();
     
     const cityLocations = {};
-    for (const loc of locations) {
-      const city = loc.city || '╨и╤Л╨╝╨║╨╡╨╜╤В'; // ╨┤╨╡╤Д╨╛╨╗╤В, ╨╡╤Б╨╗╨╕ ╨┐╤Г╤Б╤В╨╛
-      if (!cityLocations[city]) cityLocations[city] = [];
-      const title = [loc.name, loc.address].filter(Boolean).join(', ');
-      if (title) cityLocations[city].push(title);
+    for (const city of cities) {
+      const cityName = city.name || 'Другое';
+      cityLocations[cityName] = [];
+      if (city.points && Array.isArray(city.points)) {
+        for (const pt of city.points) {
+          const title = [pt.name, pt.address].filter(Boolean).join(', ');
+          if (title) cityLocations[cityName].push(title);
+        }
+      }
     }
     res.json({ success: true, cityLocations });
   } catch (err) {
