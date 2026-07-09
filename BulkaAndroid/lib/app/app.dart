@@ -173,7 +173,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
       builder: (context, lang, child) {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
-          title: 'Bulka Bonus',
+          title: 'Bulka пекарня',
           theme: buildBulkaTheme(),
           home: _buildHome(),
         );
