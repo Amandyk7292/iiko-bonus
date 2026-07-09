@@ -50,6 +50,120 @@ function serializeDescription(text, i18n) {
   });
 }
 
+const DEFAULT_STORIES = [
+  {
+    id: 1,
+    title: 'Свежая выпечка каждое утро',
+    coverUrl: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=800&q=80',
+    contentUrl: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=800&q=80',
+    coverurl: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=800&q=80',
+    contenturl: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=800&q=80',
+    groupId: 'fresh-bakery',
+    groupTitle: 'Свежая выпечка',
+    groupCoverUrl: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=800&q=80',
+    group_id: 'fresh-bakery',
+    group_title: 'Свежая выпечка',
+    group_coverurl: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=800&q=80',
+    description: 'Горячие хрустящие круассаны, багеты и булочки из печи каждое утро с 7:30!',
+    i18n: {
+      ru: {
+        title: 'Свежая выпечка каждое утро',
+        description: 'Горячие хрустящие круассаны, багеты и булочки из печи каждое утро с 7:30!',
+        coverUrl: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=800&q=80',
+        contentUrl: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=800&q=80'
+      },
+      kz: {
+        title: 'Күн сайын таңертең жаңа піскен нан өнімдері',
+        description: 'Таңғы 7:30-дан бастап пештен жаңа шыққан қытырлақ круассандар мен багеттер!',
+        coverUrl: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=800&q=80',
+        contentUrl: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=800&q=80'
+      },
+      en: {
+        title: 'Fresh bakery every morning',
+        description: 'Warm crispy croissants and freshly baked pastries every morning from 7:30 AM!',
+        coverUrl: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=800&q=80',
+        contentUrl: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=800&q=80'
+      }
+    },
+    duration: 15,
+    sortOrder: 1
+  },
+  {
+    id: 2,
+    title: 'Кешбэк бонусами до 10%',
+    coverUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800&q=80',
+    contentUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800&q=80',
+    coverurl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800&q=80',
+    contenturl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800&q=80',
+    groupId: 'bonuses',
+    groupTitle: 'Бонусы Bulka',
+    groupCoverUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800&q=80',
+    group_id: 'bonuses',
+    group_title: 'Бонусы Bulka',
+    group_coverurl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800&q=80',
+    description: 'Копите баллы с каждой покупки и оплачивайте ими до 50% чека в любой пекарне Bulka.',
+    i18n: {
+      ru: {
+        title: 'Кешбэк бонусами до 10%',
+        description: 'Копите баллы с каждой покупки и оплачивайте ими до 50% чека в любой пекарне Bulka.',
+        coverUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800&q=80',
+        contentUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800&q=80'
+      },
+      kz: {
+        title: '10%-ға дейін бонустық кэшбэк',
+        description: 'Әрбір саудаңыздан бонус жинап, чек сомасының 50%-на дейін төлеңіз.',
+        coverUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800&q=80',
+        contentUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800&q=80'
+      },
+      en: {
+        title: 'Cashback up to 10%',
+        description: 'Collect bonus points from every purchase and pay up to 50% of your bill.',
+        coverUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800&q=80',
+        contentUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800&q=80'
+      }
+    },
+    duration: 15,
+    sortOrder: 2
+  },
+  {
+    id: 3,
+    title: 'Авторский кофе и десерты',
+    coverUrl: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=800&q=80',
+    contentUrl: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=800&q=80',
+    coverurl: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=800&q=80',
+    contenturl: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=800&q=80',
+    groupId: 'coffee',
+    groupTitle: 'Вкусный кофе',
+    groupCoverUrl: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=800&q=80',
+    group_id: 'coffee',
+    group_title: 'Вкусный кофе',
+    group_coverurl: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=800&q=80',
+    description: 'Попробуйте наш ароматный капучино, латте или флэт уайт на 100% арабике вместе со свежими десертами.',
+    i18n: {
+      ru: {
+        title: 'Авторский кофе и десерты',
+        description: 'Попробуйте наш ароматный капучино, латте или флэт уайт на 100% арабике вместе со свежими десертами.',
+        coverUrl: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=800&q=80',
+        contentUrl: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=800&q=80'
+      },
+      kz: {
+        title: 'Арнайы кофе және десерттер',
+        description: '100% арабика дәнінен дайындалған хош иісті капучино мен латтені дәмі тіл үйіретін десерттермен татыңыз.',
+        coverUrl: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=800&q=80',
+        contentUrl: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=800&q=80'
+      },
+      en: {
+        title: 'Specialty coffee and pastries',
+        description: 'Enjoy aromatic cappuccino, latte or flat white made with 100% arabica beans paired with fresh pastries.',
+        coverUrl: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=800&q=80',
+        contentUrl: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=800&q=80'
+      }
+    },
+    duration: 15,
+    sortOrder: 3
+  }
+];
+
 async function getStories() {
   try {
     const { data, error } = await supabase
@@ -57,11 +171,11 @@ async function getStories() {
       .select('*')
       .order('id', { ascending: true });
       
-    if (error) {
-      console.error('Error loading stories from Supabase DB:', error.message);
-      return [];
+    if (error || !data || data.length === 0) {
+      if (error) console.error('Error loading stories from Supabase DB:', error.message);
+      return DEFAULT_STORIES;
     }
-    return (data || []).map(s => {
+    return data.map(s => {
       const cover = s.coverurl || s.coverUrl || s.cover_url || '';
       const content = s.contenturl || s.contentUrl || s.content_url || cover;
       const groupTitle = s.group_title || s.grouptitle || s.groupTitle || s.title || '';
@@ -91,7 +205,7 @@ async function getStories() {
     });
   } catch (err) {
     console.error('Exception loading stories from Supabase DB:', err.message);
-    return [];
+    return DEFAULT_STORIES;
   }
 }
 

@@ -20,13 +20,46 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
+const _defaultPromoStories = [
+  PromoStory(
+    id: 1,
+    title: 'Свежая выпечка каждое утро',
+    imageUrl: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=800&q=80',
+    contentUrl: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=800&q=80',
+    groupId: 'fresh-bakery',
+    groupTitle: 'Свежая выпечка',
+    groupCoverUrl: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=800&q=80',
+    description: 'Горячие хрустящие круассаны, багеты и булочки из печи каждое утро с 7:30!',
+  ),
+  PromoStory(
+    id: 2,
+    title: 'Кешбэк бонусами до 10%',
+    imageUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800&q=80',
+    contentUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800&q=80',
+    groupId: 'bonuses',
+    groupTitle: 'Бонусы Bulka',
+    groupCoverUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=800&q=80',
+    description: 'Копите баллы с каждой покупки и оплачивайте ими до 50% чека в любой пекарне Bulka.',
+  ),
+  PromoStory(
+    id: 3,
+    title: 'Авторский кофе и десерты',
+    imageUrl: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=800&q=80',
+    contentUrl: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=800&q=80',
+    groupId: 'coffee',
+    groupTitle: 'Вкусный кофе',
+    groupCoverUrl: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=800&q=80',
+    description: 'Попробуйте наш ароматный капучино, латте или флэт уайт на 100% арабике вместе со свежими десертами.',
+  ),
+];
+
 class _HomeScreenState extends State<HomeScreen> {
-  List<PromoStory> _stories = const [];
+  List<PromoStory> _stories = _defaultPromoStories;
   List<NewsItem> _news = const [];
   Set<String> _viewedStoryGroups = const {};
   Timer? _feedRefreshTimer;
   bool _feedLoading = false;
-  bool _initialLoading = true;
+  bool _initialLoading = false;
   bool _loyaltyExpanded = true;
 
   @override
@@ -73,7 +106,11 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         final stories = results[0];
         final news = results[1];
-        if (stories is List<PromoStory>) _stories = stories;
+        if (stories is List<PromoStory> && stories.isNotEmpty) {
+          _stories = stories;
+        } else if (_stories.isEmpty) {
+          _stories = _defaultPromoStories;
+        }
         if (news is List<NewsItem>) _news = news;
         _initialLoading = false;
       });
