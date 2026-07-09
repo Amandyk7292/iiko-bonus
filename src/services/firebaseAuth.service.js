@@ -48,7 +48,8 @@ async function sendFirebaseVerificationEmail(email, displayName = '') {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         requestType: 'VERIFY_EMAIL',
-        idToken: signData.idToken
+        idToken: signData.idToken,
+        continueUrl: 'https://bulka-bonus.firebaseapp.com'
       })
     });
 
