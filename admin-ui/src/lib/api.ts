@@ -80,6 +80,16 @@ export const api = {
   addLocation: (data: any) => request(`/locations`, { method: 'POST', body: JSON.stringify(data) }),
   updateLocation: (id: string, data: any) => request(`/locations/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteLocation: (id: string) => request(`/locations/${id}`, { method: 'DELETE' }),
+
+  getCities: () => request(`/cities`),
+  addCity: (data: any) => request(`/cities`, { method: 'POST', body: JSON.stringify(data) }),
+  updateCity: (id: string, data: any) => request(`/cities/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteCity: (id: string) => request(`/cities/${id}`, { method: 'DELETE' }),
+  
+  addPoint: (cityId: string, data: any) => request(`/cities/${cityId}/points`, { method: 'POST', body: JSON.stringify(data) }),
+  updatePoint: (id: string, data: any) => request(`/points/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deletePoint: (id: string) => request(`/points/${id}`, { method: 'DELETE' }),
+
   
   uploadPhoto: async (base64: string, filename: string) => {
     return request(`/upload`, { 
