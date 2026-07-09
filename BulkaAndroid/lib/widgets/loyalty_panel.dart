@@ -328,7 +328,38 @@ class _InlineQrPreviewState extends State<_InlineQrPreview> {
             )
           : _token == null
           ? const Icon(Icons.qr_code_2_rounded, color: _caramel, size: 58)
-          : QrImageView(data: _token!, backgroundColor: Colors.white),
+          : Stack(
+              alignment: Alignment.center,
+              children: [
+                QrImageView(
+                  data: _token!,
+                  backgroundColor: Colors.white,
+                  eyeStyle: const QrEyeStyle(
+                    eyeShape: QrEyeShape.square,
+                    color: Color(0xFF4E2C1E),
+                  ),
+                  dataModuleStyle: const QrDataModuleStyle(
+                    dataModuleShape: QrDataModuleShape.circle,
+                    color: Color(0xFF4E2C1E),
+                  ),
+                ),
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 2),
+                  ),
+                  child: ClipOval(
+                    child: Image.asset(
+                      'assets/brand/qr_logo.png',
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 }

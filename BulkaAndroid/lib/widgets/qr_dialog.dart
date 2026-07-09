@@ -104,10 +104,44 @@ class _QrDialogState extends State<QrDialog> {
               alignment: Alignment.center,
               child: _token == null
                   ? const CircularProgressIndicator(color: _bulkaYellow)
-                  : QrImageView(
-                      data: _token!,
-                      size: 200,
-                      backgroundColor: Colors.white,
+                  : Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        QrImageView(
+                          data: _token!,
+                          size: 200,
+                          backgroundColor: Colors.white,
+                          eyeStyle: const QrEyeStyle(
+                            eyeShape: QrEyeShape.square,
+                            color: Color(0xFF4E2C1E),
+                          ),
+                          dataModuleStyle: const QrDataModuleStyle(
+                            dataModuleShape: QrDataModuleShape.circle,
+                            color: Color(0xFF4E2C1E),
+                          ),
+                        ),
+                        Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 3),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.08),
+                                blurRadius: 6,
+                              ),
+                            ],
+                          ),
+                          child: ClipOval(
+                            child: Image.asset(
+                              'assets/brand/qr_logo.png',
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
             ),
             if (_error != null) ...[
