@@ -1117,7 +1117,12 @@ class _PrimaryButton extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           if (iconAsset != null) ...[
-            Image.asset(iconAsset!, width: 22, height: 22),
+            Image.asset(
+              iconAsset!,
+              width: 22,
+              height: 22,
+              errorBuilder: (_, __, ___) => const _WhatsAppVectorIcon(size: 22),
+            ),
             const SizedBox(width: 10),
           ] else if (icon != null) ...[
             Icon(icon, size: 24, color: Colors.white),
@@ -1128,4 +1133,68 @@ class _PrimaryButton extends StatelessWidget {
       ),
     );
   }
+}
+
+class _WhatsAppVectorIcon extends StatelessWidget {
+  final double size;
+
+  const _WhatsAppVectorIcon({this.size = 22});
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      size: Size(size, size),
+      painter: _WhatsAppVectorPainter(),
+    );
+  }
+}
+
+class _WhatsAppVectorPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double w = size.width;
+    final double h = size.height;
+
+    final Paint greenPaint = Paint()
+      ..color = const Color(0xFF25D366)
+      ..style = PaintingStyle.fill;
+
+    final Path bubblePath = Path();
+    bubblePath.addOval(
+      Rect.fromCircle(center: Offset(w * 0.52, h * 0.46), radius: w * 0.44),
+    );
+
+    final Path tailPath = Path()
+      ..moveTo(w * 0.22, h * 0.77)
+      ..lineTo(w * 0.08, h * 0.92)
+      ..lineTo(w * 0.28, h * 0.85)
+      ..close();
+
+    final Path fullBubble =
+        Path.combine(PathOperation.union, bubblePath, tailPath);
+    canvas.drawPath(fullBubble, greenPaint);
+
+    final Paint whitePaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = w * 0.12
+      ..strokeCap = StrokeCap.round;
+
+    final Path handsetPath = Path()
+      ..moveTo(w * 0.35, h * 0.35)
+      ..quadraticBezierTo(w * 0.32, h * 0.45, w * 0.42, h * 0.55)
+      ..quadraticBezierTo(w * 0.52, h * 0.65, w * 0.63, h * 0.62);
+
+    canvas.drawPath(handsetPath, whitePaint);
+
+    final Paint whiteFill = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+
+    canvas.drawCircle(Offset(w * 0.35, h * 0.35), w * 0.08, whiteFill);
+    canvas.drawCircle(Offset(w * 0.63, h * 0.62), w * 0.08, whiteFill);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
