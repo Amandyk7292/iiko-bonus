@@ -24,12 +24,13 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
   late TextEditingController _nameController;
   late TextEditingController _lastNameController;
   late TextEditingController _emailController;
-  late TextEditingController _regionController;
   late TextEditingController _birthDateController;
   
   String? _selectedGender;
+  String? _selectedCity;
   String? _birthDate;
   bool _isLoading = false;
+  List<City> _cities = [];
 
   @override
   void initState() {
@@ -37,13 +38,32 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
     _nameController = TextEditingController(text: widget.customer.name == 'Гость' ? '' : widget.customer.name);
     _lastNameController = TextEditingController(text: widget.customer.lastName ?? '');
     _emailController = TextEditingController(text: widget.customer.email ?? '');
-    _regionController = TextEditingController(text: widget.customer.region ?? '');
+    _selectedCity = widget.customer.region;
     
     _selectedGender = widget.customer.gender;
     _birthDate = widget.customer.birthDate;
     
     // Convert stored date (YYYY-MM-DD) to display format (DD.MM.YYYY)
     _birthDateController = TextEditingController(text: _formatDateForDisplay(_birthDate));
+    
+    _loadCities();
+  }
+
+  Future<void> _loadCities() async {
+    try {
+      final cities = await widget.api.getCities();
+      if (mounted) {
+        setState(() {
+          _cities = cities;
+          // Validate selected city
+          if (_selectedCity != null && _selectedCity!.isNotEmpty && !_cities.any((c) => c.name == _selectedCity)) {
+             // Keep it if it's custom, or we can clear it. Better to keep it so data is not lost.
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('Failed to load cities: $e');
+    }
   }
 
   @override
@@ -51,7 +71,6 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
     _nameController.dispose();
     _lastNameController.dispose();
     _emailController.dispose();
-    _regionController.dispose();
     _birthDateController.dispose();
     super.dispose();
   }
@@ -78,7 +97,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
         gender: _selectedGender,
         birthDate: _birthDate,
         email: _emailController.text.trim(),
-        region: _regionController.text.trim(),
+        region: _selectedCity ?? widget.customer.region ?? '',
       );
       
       await widget.onProfileUpdated();
@@ -172,6 +191,72 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
     
     // Update _birthDate if we have a complete date
     _birthDate = _parseDateForApi(formatted);
+  }
+
+  Widget _buildCityDropdown() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Город',
+            style: TextStyle(
+              color: Color(0xFF231007),
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: const Color(0xFFE5D5C5).withOpacity(0.5),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFC66A25).withOpacity(0.04),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                isExpanded: true,
+                value: _selectedCity?.isNotEmpty == true ? _selectedCity : null,
+                hint: const Text('Выберите город', style: TextStyle(color: Color(0x66231007), fontSize: 16)),
+                icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Color(0xFFC66A25)),
+                dropdownColor: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                items: [
+                  if (_selectedCity != null && _selectedCity!.isNotEmpty && !_cities.any((c) => c.name == _selectedCity))
+                    DropdownMenuItem<String>(
+                      value: _selectedCity,
+                      child: Text(_selectedCity!, style: const TextStyle(color: Color(0xFF231007), fontSize: 16)),
+                    ),
+                  ..._cities.map((city) {
+                    return DropdownMenuItem<String>(
+                      value: city.name,
+                      child: Text(city.name, style: const TextStyle(color: Color(0xFF231007), fontSize: 16)),
+                    );
+                  })
+                ],
+                onChanged: (value) {
+                  setState(() {
+                    _selectedCity = value;
+                  });
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildDateField() {
@@ -404,8 +489,8 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                     // Email
                     _buildTextField('E-mail', _emailController),
 
-                    // Region
-                    _buildTextField('Регион', _regionController),
+                    // City Dropdown
+                    if (_cities.isNotEmpty) _buildCityDropdown(),
 
                     const SizedBox(height: 12),
 

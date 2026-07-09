@@ -26,6 +26,16 @@ class BulkaApiClient {
     return ProfileResponse.fromJson(json);
   }
 
+  Future<List<City>> getCities() async {
+    final json = await _get('/api/public/cities');
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'Не удалось загрузить города'));
+    }
+    final list = json['cities'] as List?;
+    if (list == null) return [];
+    return list.map((item) => City.fromJson(_asMap(item))).toList();
+  }
+
   Future<void> requestOtp({
     required String phone,
     required String token,

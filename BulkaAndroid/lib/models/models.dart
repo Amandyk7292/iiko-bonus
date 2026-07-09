@@ -369,3 +369,39 @@ class DeliveryAddress {
     );
   }
 }
+
+class City {
+  final String id;
+  final String name;
+  final List<Point> points;
+
+  const City({required this.id, required this.name, this.points = const []});
+
+  factory City.fromJson(Map<String, dynamic> json) {
+    final pointsList = json['points'] as List?;
+    return City(
+      id: _asString(json['id']),
+      name: _asString(json['name']),
+      points: pointsList != null
+          ? pointsList.map((p) => Point.fromJson(_asMap(p))).toList()
+          : [],
+    );
+  }
+}
+
+class Point {
+  final String id;
+  final String name;
+  final String address;
+
+  const Point({required this.id, required this.name, required this.address});
+
+  factory Point.fromJson(Map<String, dynamic> json) {
+    return Point(
+      id: _asString(json['id']),
+      name: _asString(json['name']),
+      address: _asString(json['address']),
+    );
+  }
+}
+
