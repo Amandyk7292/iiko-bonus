@@ -16,10 +16,10 @@ async function getCitiesWithPoints() {
   return data || [];
 }
 
-async function createCity(name) {
+async function createCity(name, i18n) {
   const { data, error } = await supabase
     .from('cities')
-    .insert([{ name }])
+    .insert([{ name, i18n }])
     .select()
     .single();
 
@@ -27,10 +27,10 @@ async function createCity(name) {
   return data;
 }
 
-async function updateCity(id, name) {
+async function updateCity(id, name, i18n) {
   const { data, error } = await supabase
     .from('cities')
-    .update({ name })
+    .update({ name, i18n })
     .eq('id', id)
     .select()
     .single();
@@ -48,10 +48,10 @@ async function deleteCity(id) {
   if (error) throw new Error(error.message);
 }
 
-async function createPoint(cityId, name, address, latitude, longitude) {
+async function createPoint(cityId, name, address, latitude, longitude, i18n) {
   const { data, error } = await supabase
     .from('points')
-    .insert([{ city_id: cityId, name, address, latitude, longitude }])
+    .insert([{ city_id: cityId, name, address, latitude, longitude, i18n }])
     .select()
     .single();
 
@@ -59,10 +59,11 @@ async function createPoint(cityId, name, address, latitude, longitude) {
   return data;
 }
 
-async function updatePoint(id, name, address, latitude, longitude) {
+async function updatePoint(id, name, address, latitude, longitude, i18n) {
   const updates = { name, address };
   if (latitude !== undefined) updates.latitude = latitude;
   if (longitude !== undefined) updates.longitude = longitude;
+  if (i18n !== undefined) updates.i18n = i18n;
 
   const { data, error } = await supabase
     .from('points')

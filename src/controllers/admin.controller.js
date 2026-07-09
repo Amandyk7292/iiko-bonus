@@ -257,14 +257,14 @@ const getCitiesHandler = async (req, res) => {
 
 const addCityHandler = async (req, res) => {
   try {
-    const city = await createCity(req.body.name);
+    const city = await createCity(req.body.name, req.body.i18n);
     res.json({ success: true, city });
   } catch (err) { res.status(500).json({ error: err.message }); }
 };
 
 const updateCityHandler = async (req, res) => {
   try {
-    const city = await updateCity(req.params.id, req.body.name);
+    const city = await updateCity(req.params.id, req.body.name, req.body.i18n);
     res.json({ success: true, city });
   } catch (err) { res.status(500).json({ error: err.message }); }
 };
@@ -278,16 +278,16 @@ const deleteCityHandler = async (req, res) => {
 
 const addPointHandler = async (req, res) => {
   try {
-    const { city_id, name, address, latitude, longitude } = req.body;
-    const point = await createPoint(city_id, name, address, latitude, longitude);
+    const { city_id, name, address, latitude, longitude, i18n } = req.body;
+    const point = await createPoint(city_id, name, address, latitude, longitude, i18n);
     res.json({ success: true, point });
   } catch (err) { res.status(500).json({ error: err.message }); }
 };
 
 const updatePointHandler = async (req, res) => {
   try {
-    const { name, address, latitude, longitude } = req.body;
-    const point = await updatePoint(req.params.id, name, address, latitude, longitude);
+    const { name, address, latitude, longitude, i18n } = req.body;
+    const point = await updatePoint(req.params.id, name, address, latitude, longitude, i18n);
     res.json({ success: true, point });
   } catch (err) { res.status(500).json({ error: err.message }); }
 };

@@ -1,20 +1,39 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 
+type LanguageKey = 'ru' | 'kz' | 'en';
+const LANGUAGES: { key: LanguageKey; label: string }[] = [
+  { key: 'ru', label: 'Русский' },
+  { key: 'kz', label: 'Қазақша' },
+  { key: 'en', label: 'English' }
+];
+
 export default function LocationsPage() {
   const [cities, setCities] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
+  // Общие
+  const [activeTab, setActiveTab] = useState<LanguageKey>('ru');
+  const [translating, setTranslating] = useState(false);
+
   // Модалка для Городов
   const [cityModalOpen, setCityModalOpen] = useState(false);
   const [editingCity, setEditingCity] = useState<any | null>(null);
-  const [cityForm, setCityForm] = useState({ name: '' });
+  const [cityI18n, setCityI18n] = useState<Record<LanguageKey, { name: string }>>({
+    ru: { name: '' },
+    kz: { name: '' },
+    en: { name: '' }
+  });
 
   // Модалка для Точек
   const [pointModalOpen, setPointModalOpen] = useState(false);
   const [editingPoint, setEditingPoint] = useState<any | null>(null);
   const [targetCityId, setTargetCityId] = useState<string>('');
-  const [pointForm, setPointForm] = useState({ name: '', address: '' });
+  const [pointI18n, setPointI18n] = useState<Record<LanguageKey, { name: string, address: string }>>({
+    ru: { name: '', address: '' },
+    kz: { name: '', address: '' },
+    en: { name: '', address: '' }
+  });
 
   const fetchCities = async () => {
     setLoading(true);
@@ -32,29 +51,75 @@ export default function LocationsPage() {
     fetchCities();
   }, []);
 
-  // Города CRUD
+  const translateText = async (text: string, from: string, to: string) => {
+    if (!text) return '';
+    try {
+      const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${from}|${to}`);
+      const data = await res.json();
+      return data?.responseData?.translatedText || text;
+    } catch (e) {
+      console.error(e);
+      return text;
+    }
+  };
+
+  // --- ГОРОДА ---
   const handleOpenCityModal = (city?: any) => {
+    setActiveTab('ru');
     if (city) {
       setEditingCity(city);
-      setCityForm({ name: city.name || '' });
+      const i18n = city.i18n || {};
+      setCityI18n({
+        ru: { name: i18n.ru?.name || city.name || '' },
+        kz: { name: i18n.kz?.name || '' },
+        en: { name: i18n.en?.name || '' }
+      });
     } else {
       setEditingCity(null);
-      setCityForm({ name: '' });
+      setCityI18n({
+        ru: { name: '' },
+        kz: { name: '' },
+        en: { name: '' }
+      });
     }
     setCityModalOpen(true);
   };
 
+  const handleAutoTranslateCity = async () => {
+    if (!cityI18n.ru.name) return;
+    setTranslating(true);
+    try {
+      const [kzName, enName] = await Promise.all([
+        translateText(cityI18n.ru.name, 'ru', 'kk'),
+        translateText(cityI18n.ru.name, 'ru', 'en')
+      ]);
+      setCityI18n(prev => ({
+        ...prev,
+        kz: { name: kzName },
+        en: { name: enName }
+      }));
+    } finally {
+      setTranslating(false);
+    }
+  };
+
   const handleSaveCity = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!cityForm.name) {
-      alert('Введите название города!');
+    if (!cityI18n.ru.name) {
+      alert('Введите название города на русском!');
       return;
     }
+    
+    const payload = {
+      name: cityI18n.ru.name,
+      i18n: cityI18n
+    };
+
     try {
       if (editingCity) {
-        await api.updateCity(editingCity.id, cityForm);
+        await api.updateCity(editingCity.id, payload);
       } else {
-        await api.addCity(cityForm);
+        await api.addCity(payload);
       }
       setCityModalOpen(false);
       fetchCities();
@@ -73,30 +138,69 @@ export default function LocationsPage() {
     }
   };
 
-  // Точки CRUD
+  // --- ТОЧКИ ---
   const handleOpenPointModal = (cityId: string, point?: any) => {
     setTargetCityId(cityId);
+    setActiveTab('ru');
     if (point) {
       setEditingPoint(point);
-      setPointForm({ name: point.name || '', address: point.address || '' });
+      const i18n = point.i18n || {};
+      setPointI18n({
+        ru: { name: i18n.ru?.name || point.name || '', address: i18n.ru?.address || point.address || '' },
+        kz: { name: i18n.kz?.name || '', address: i18n.kz?.address || '' },
+        en: { name: i18n.en?.name || '', address: i18n.en?.address || '' }
+      });
     } else {
       setEditingPoint(null);
-      setPointForm({ name: '', address: '' });
+      setPointI18n({
+        ru: { name: '', address: '' },
+        kz: { name: '', address: '' },
+        en: { name: '', address: '' }
+      });
     }
     setPointModalOpen(true);
   };
 
+  const handleAutoTranslatePoint = async () => {
+    if (!pointI18n.ru.name && !pointI18n.ru.address) return;
+    setTranslating(true);
+    try {
+      const [kzName, enName, kzAddress, enAddress] = await Promise.all([
+        translateText(pointI18n.ru.name, 'ru', 'kk'),
+        translateText(pointI18n.ru.name, 'ru', 'en'),
+        translateText(pointI18n.ru.address, 'ru', 'kk'),
+        translateText(pointI18n.ru.address, 'ru', 'en')
+      ]);
+      setPointI18n(prev => ({
+        ...prev,
+        kz: { name: kzName, address: kzAddress },
+        en: { name: enName, address: enAddress }
+      }));
+    } finally {
+      setTranslating(false);
+    }
+  };
+
   const handleSavePoint = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!pointForm.name || !pointForm.address) {
-      alert('Заполните все поля!');
+    if (!pointI18n.ru.name || !pointI18n.ru.address) {
+      alert('Заполните название и адрес на русском!');
       return;
     }
+    
+    const payload = {
+      name: pointI18n.ru.name,
+      address: pointI18n.ru.address,
+      latitude: 0,
+      longitude: 0,
+      i18n: pointI18n
+    };
+
     try {
       if (editingPoint) {
-        await api.updatePoint(editingPoint.id, pointForm);
+        await api.updatePoint(editingPoint.id, payload);
       } else {
-        await api.addPoint(targetCityId, pointForm);
+        await api.addPoint(targetCityId, payload);
       }
       setPointModalOpen(false);
       fetchCities();
@@ -115,28 +219,49 @@ export default function LocationsPage() {
     }
   };
 
+  // --- UI Components ---
+  const renderLanguageTabs = () => (
+    <div className="flex border-b border-gray-200 mb-6">
+      {LANGUAGES.map(lang => (
+        <button
+          key={lang.key}
+          type="button"
+          onClick={() => setActiveTab(lang.key)}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === lang.key
+              ? 'border-indigo-600 text-indigo-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          {lang.label}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-12">
+    <div className="space-y-6 max-w-5xl mx-auto pb-12 font-sans">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-serif font-bold text-[#6d3317]">Города и точки</h2>
-          <p className="text-sm text-gray-600 mt-1">Управляйте списком городов и их филиалами</p>
+          <h2 className="text-2xl font-bold text-gray-900">Города и филиалы</h2>
+          <p className="text-sm text-gray-500 mt-1">Управление локациями и их переводами</p>
         </div>
-        <button onClick={() => handleOpenCityModal()} className="btn-classic px-5 py-3 font-medium shadow-md flex items-center justify-center gap-2 transition-all hover:scale-[1.02]">
-          <span>+ Добавить город</span>
+        <button onClick={() => handleOpenCityModal()} className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium shadow-sm transition-colors flex items-center gap-2">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+          Добавить город
         </button>
       </div>
 
-      <div className="card overflow-hidden border border-amber-900/10 shadow-lg">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <table className="w-full text-left border-collapse">
-          <thead className="bg-[#fcf8f2] border-b border-amber-900/10">
+          <thead className="bg-gray-50 border-b border-gray-200">
             <tr>
-              <th className="py-4 px-6 text-xs uppercase tracking-wider font-semibold text-[#6d3317]">Город / Название точки</th>
-              <th className="py-4 px-6 text-xs uppercase tracking-wider font-semibold text-[#6d3317]">Адрес</th>
-              <th className="py-4 px-6 text-xs uppercase tracking-wider font-semibold text-[#6d3317] text-right">Действия</th>
+              <th className="py-3 px-6 text-xs font-semibold text-gray-600 uppercase tracking-wider">Город / Филиал</th>
+              <th className="py-3 px-6 text-xs font-semibold text-gray-600 uppercase tracking-wider">Адрес</th>
+              <th className="py-3 px-6 text-xs font-semibold text-gray-600 uppercase tracking-wider text-right">Действия</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-amber-900/5 text-sm text-gray-700">
+          <tbody className="divide-y divide-gray-100 text-sm text-gray-700">
             {loading ? (
               <tr><td colSpan={3} className="py-12 text-center text-gray-400">Загрузка...</td></tr>
             ) : cities.length === 0 ? (
@@ -149,37 +274,44 @@ export default function LocationsPage() {
               cities.map(city => (
                 <React.Fragment key={city.id}>
                   {/* Строка Города */}
-                  <tr className="bg-[#fdfbf7] border-b-2 border-amber-900/5">
-                    <td className="py-4 px-6 font-bold text-lg text-[#6d3317]">
-                      🏢 {city.name}
+                  <tr className="bg-gray-50/50">
+                    <td className="py-4 px-6">
+                      <span className="font-bold text-gray-900">{city.i18n?.ru?.name || city.name}</span>
                     </td>
-                    <td className="py-4 px-6 text-gray-500">—</td>
+                    <td className="py-4 px-6 text-gray-400">—</td>
                     <td className="py-4 px-6 text-right space-x-2 whitespace-nowrap">
-                      <button onClick={() => handleOpenPointModal(city.id)} className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 px-3 py-1 rounded text-xs font-medium">+ Добавить точку</button>
-                      <button onClick={() => handleOpenCityModal(city)} className="btn-outline px-3 py-1 text-xs ml-2">Изменить</button>
-                      <button onClick={() => handleDeleteCity(city.id)} className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3 py-1 rounded text-xs font-medium ml-2">Удалить</button>
+                      <button onClick={() => handleOpenPointModal(city.id)} className="text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-md text-xs font-medium transition-colors">
+                        + Добавить точку
+                      </button>
+                      <button onClick={() => handleOpenCityModal(city)} className="text-gray-600 hover:text-gray-900 border border-gray-200 hover:bg-gray-50 px-3 py-1.5 rounded-md text-xs font-medium transition-colors">
+                        Изменить
+                      </button>
+                      <button onClick={() => handleDeleteCity(city.id)} className="text-red-600 hover:text-red-800 border border-red-100 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-md text-xs font-medium transition-colors">
+                        Удалить
+                      </button>
                     </td>
                   </tr>
                   
                   {/* Точки Города */}
                   {(!city.points || city.points.length === 0) ? (
                     <tr>
-                      <td colSpan={3} className="py-4 px-12 text-gray-400 italic bg-white text-sm">
+                      <td colSpan={3} className="py-4 px-12 text-gray-400 italic text-sm">
                         Нет точек в этом городе
                       </td>
                     </tr>
                   ) : (
                     city.points.map((point: any) => (
-                      <tr key={point.id} className="bg-white hover:bg-[#fefcf8] transition-colors">
-                        <td className="py-4 pl-12 pr-6 font-medium text-gray-800 border-l-4 border-l-amber-200">
-                          📍 {point.name}
+                      <tr key={point.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="py-4 pl-12 pr-6 font-medium text-gray-700 relative">
+                          <span className="absolute left-6 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-gray-300"></span>
+                          {point.i18n?.ru?.name || point.name}
                         </td>
                         <td className="py-4 px-6 text-gray-600">
-                          {point.address}
+                          {point.i18n?.ru?.address || point.address}
                         </td>
-                        <td className="py-4 px-6 text-right space-x-2 whitespace-nowrap">
-                          <button onClick={() => handleOpenPointModal(city.id, point)} className="text-blue-600 hover:text-blue-800 text-xs font-medium px-2">Ред.</button>
-                          <button onClick={() => handleDeletePoint(point.id)} className="text-red-500 hover:text-red-700 text-xs font-medium px-2">Удалить</button>
+                        <td className="py-4 px-6 text-right space-x-3 whitespace-nowrap">
+                          <button onClick={() => handleOpenPointModal(city.id, point)} className="text-indigo-600 hover:text-indigo-800 text-xs font-medium">Редактировать</button>
+                          <button onClick={() => handleDeletePoint(point.id)} className="text-red-500 hover:text-red-700 text-xs font-medium">Удалить</button>
                         </td>
                       </tr>
                     ))
@@ -193,19 +325,45 @@ export default function LocationsPage() {
 
       {/* Модалка Города */}
       {cityModalOpen && (
-        <div className="fixed inset-0 bg-[#333333] bg-opacity-40 flex items-center justify-center z-50 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md border border-amber-900/10 overflow-hidden">
-            <div className="px-8 pt-7 pb-5 bg-[#fcf8f2] border-b border-amber-900/10">
-              <h3 className="text-2xl font-serif font-bold text-[#6d3317]">{editingCity ? 'Редактировать город' : 'Новый город'}</h3>
+        <div className="fixed inset-0 bg-gray-900/50 flex items-center justify-center z-50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="px-6 pt-6 pb-4 border-b border-gray-100 flex justify-between items-center">
+              <h3 className="text-lg font-bold text-gray-900">{editingCity ? 'Редактировать город' : 'Новый город'}</h3>
+              <button onClick={() => setCityModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
             </div>
-            <form onSubmit={handleSaveCity} className="p-8 space-y-5">
-              <div>
-                <label className="block text-xs font-bold text-[#6d3317] uppercase tracking-wider mb-1.5">Название города</label>
-                <input required type="text" value={cityForm.name} onChange={e => setCityForm({...cityForm, name: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#6d3317] focus:ring-2 focus:ring-[#6d3317]/20 outline-none text-gray-900 transition-all text-sm font-medium" placeholder="Ақтау" />
+            <form onSubmit={handleSaveCity} className="p-6">
+              
+              <div className="flex justify-between items-center mb-2">
+                {renderLanguageTabs()}
+                <button 
+                  type="button" 
+                  onClick={handleAutoTranslateCity}
+                  disabled={translating || !cityI18n.ru.name}
+                  className="mb-6 px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 flex items-center gap-1"
+                >
+                  {translating ? 'Переводим...' : '✨ Автоперевод'}
+                </button>
               </div>
-              <div className="flex gap-3 pt-3">
-                <button type="submit" className="btn-classic flex-1 py-3 font-semibold shadow-md">Сохранить</button>
-                <button type="button" onClick={() => setCityModalOpen(false)} className="px-6 py-3 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 font-medium">Отмена</button>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">Название города</label>
+                  <input 
+                    required={activeTab === 'ru'} 
+                    type="text" 
+                    value={cityI18n[activeTab].name} 
+                    onChange={e => setCityI18n({...cityI18n, [activeTab]: { ...cityI18n[activeTab], name: e.target.value }})} 
+                    className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none text-gray-900 transition-all text-sm" 
+                    placeholder={activeTab === 'ru' ? "Актау" : (activeTab === 'kz' ? "Ақтау" : "Aktau")} 
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-8">
+                <button type="submit" className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-lg font-medium transition-colors">Сохранить</button>
+                <button type="button" onClick={() => setCityModalOpen(false)} className="px-6 py-2.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium transition-colors">Отмена</button>
               </div>
             </form>
           </div>
@@ -214,23 +372,56 @@ export default function LocationsPage() {
 
       {/* Модалка Точки */}
       {pointModalOpen && (
-        <div className="fixed inset-0 bg-[#333333] bg-opacity-40 flex items-center justify-center z-50 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md border border-amber-900/10 overflow-hidden">
-            <div className="px-8 pt-7 pb-5 bg-[#fcf8f2] border-b border-amber-900/10">
-              <h3 className="text-2xl font-serif font-bold text-[#6d3317]">{editingPoint ? 'Редактировать точку' : 'Новая точка'}</h3>
+        <div className="fixed inset-0 bg-gray-900/50 flex items-center justify-center z-50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="px-6 pt-6 pb-4 border-b border-gray-100 flex justify-between items-center">
+              <h3 className="text-lg font-bold text-gray-900">{editingPoint ? 'Редактировать точку' : 'Новая точка'}</h3>
+              <button onClick={() => setPointModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
             </div>
-            <form onSubmit={handleSavePoint} className="p-8 space-y-5">
-              <div>
-                <label className="block text-xs font-bold text-[#6d3317] uppercase tracking-wider mb-1.5">Название (ТЦ, Филиал)</label>
-                <input required type="text" value={pointForm.name} onChange={e => setPointForm({...pointForm, name: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#6d3317] focus:ring-2 focus:ring-[#6d3317]/20 outline-none text-gray-900 transition-all text-sm font-medium" placeholder="ТРЦ Актау" />
+            <form onSubmit={handleSavePoint} className="p-6">
+
+              <div className="flex justify-between items-center mb-2">
+                {renderLanguageTabs()}
+                <button 
+                  type="button" 
+                  onClick={handleAutoTranslatePoint}
+                  disabled={translating || (!pointI18n.ru.name && !pointI18n.ru.address)}
+                  className="mb-6 px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 flex items-center gap-1"
+                >
+                  {translating ? 'Переводим...' : '✨ Автоперевод'}
+                </button>
               </div>
-              <div>
-                <label className="block text-xs font-bold text-[#6d3317] uppercase tracking-wider mb-1.5">Точный адрес</label>
-                <input required type="text" value={pointForm.address} onChange={e => setPointForm({...pointForm, address: e.target.value})} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-[#6d3317] focus:ring-2 focus:ring-[#6d3317]/20 outline-none text-gray-900 transition-all text-sm font-medium" placeholder="16 мкр, д 11" />
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">Название (ТЦ, Филиал)</label>
+                  <input 
+                    required={activeTab === 'ru'} 
+                    type="text" 
+                    value={pointI18n[activeTab].name} 
+                    onChange={e => setPointI18n({...pointI18n, [activeTab]: { ...pointI18n[activeTab], name: e.target.value }})} 
+                    className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none text-gray-900 transition-all text-sm" 
+                    placeholder="ТРЦ Актау" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">Точный адрес</label>
+                  <input 
+                    required={activeTab === 'ru'} 
+                    type="text" 
+                    value={pointI18n[activeTab].address} 
+                    onChange={e => setPointI18n({...pointI18n, [activeTab]: { ...pointI18n[activeTab], address: e.target.value }})} 
+                    className="w-full px-4 py-2.5 rounded-lg border border-gray-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none text-gray-900 transition-all text-sm" 
+                    placeholder="16 мкр, д 11" 
+                  />
+                </div>
               </div>
-              <div className="flex gap-3 pt-3">
-                <button type="submit" className="btn-classic flex-1 py-3 font-semibold shadow-md">Сохранить</button>
-                <button type="button" onClick={() => setPointModalOpen(false)} className="px-6 py-3 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 font-medium">Отмена</button>
+
+              <div className="flex gap-3 pt-8">
+                <button type="submit" className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-lg font-medium transition-colors">Сохранить</button>
+                <button type="button" onClick={() => setPointModalOpen(false)} className="px-6 py-2.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 font-medium transition-colors">Отмена</button>
               </div>
             </form>
           </div>
