@@ -27,7 +27,9 @@ InputDecoration _inputDecoration({
     prefixStyle: const TextStyle(
       color: _textDark,
       fontSize: 18,
-      fontWeight: FontWeight.w900,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 0.5,
+      height: 1.25,
     ),
     enabledBorder: OutlineInputBorder(
       borderSide: BorderSide(color: _almond.withValues(alpha: 0.8)),

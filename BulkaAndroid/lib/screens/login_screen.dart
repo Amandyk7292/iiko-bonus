@@ -738,7 +738,9 @@ class _LoginScreenState extends State<LoginScreen> {
         style: const TextStyle(
           color: _textDark,
           fontSize: 18,
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.5,
+          height: 1.25,
         ),
         onChanged: (value) {
           final digits = value.onlyDigits.take(10).join();
