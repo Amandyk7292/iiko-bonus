@@ -6,7 +6,7 @@ const qrcode = require('qrcode');
 const { getSettings, getTierInfo } = require('../services/settings.service');
 const { getOrCreateCustomerByPhone, getCustomerByPhone } = require('../services/customer.service');
 const otpStore = require('../services/otpStore.service');
-const supabase = require('../config/supabase');
+const { supabase } = require('../config/supabase');
 const iikoApi = require('../services/iiko.service');
 const admin = require('firebase-admin');
 
