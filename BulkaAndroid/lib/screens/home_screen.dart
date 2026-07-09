@@ -163,17 +163,20 @@ class _HomeScreenState extends State<HomeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(24, 22, 24, 12),
+                        padding: const EdgeInsets.fromLTRB(8, 16, 24, 8),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Image.asset(
-                              'assets/brand/bulka_logo.png',
-                              width: 118,
-                              height: 54,
-                              fit: BoxFit.contain,
-                              alignment: Alignment.centerLeft,
-                              filterQuality: FilterQuality.high,
+                            Transform.translate(
+                              offset: const Offset(-12, 0),
+                              child: Image.asset(
+                                'assets/brand/bulka_logo.png',
+                                width: 165,
+                                height: 64,
+                                fit: BoxFit.contain,
+                                alignment: Alignment.centerLeft,
+                                filterQuality: FilterQuality.high,
+                              ),
                             ),
                             Row(
                               children: [
