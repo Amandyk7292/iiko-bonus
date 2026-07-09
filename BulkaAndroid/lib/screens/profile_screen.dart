@@ -372,6 +372,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ),
               ),
 
+              const SizedBox(height: 16),
+
+              // Loyalty Status Progress Card
+              _buildLoyaltyProgressCard(),
+
               const SizedBox(height: 20),
 
               // Menu List Card
@@ -472,6 +477,129 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildLoyaltyProgressCard() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFFFFF9E6), Color(0xFFFFF2CD)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFFFB300).withValues(alpha: 0.4)),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0C000000),
+            blurRadius: 16,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFFFB300),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.workspace_premium_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Статус: Серебро (7%)',
+                    style: TextStyle(
+                      color: Color(0xFF4E2C1E),
+                      fontFamily: _headingFont,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFB300).withValues(alpha: 0.25),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Text(
+                  'Уровень 2 из 3',
+                  style: TextStyle(
+                    color: Color(0xFF6D3317),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          const Text(
+            'До статуса Золото (кешбэк 10%) осталось совершить покупки на 4 500 ₸',
+            style: TextStyle(
+              color: Color(0xFF6D3317),
+              fontSize: 13.5,
+              height: 1.35,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: const LinearProgressIndicator(
+              value: 0.65,
+              minHeight: 10,
+              backgroundColor: Color(0xFFEFE5CE),
+              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF9800)),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _buildTierLabel('Бронза 5%', true),
+              _buildTierLabel('Серебро 7%', true),
+              _buildTierLabel('Золото 10%', false),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTierLabel(String title, bool achieved) {
+    return Row(
+      children: [
+        Icon(
+          achieved ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+          size: 14,
+          color: achieved ? const Color(0xFFFF9800) : const Color(0xFFAFA28D),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          title,
+          style: TextStyle(
+            color: achieved ? const Color(0xFF4E2C1E) : const Color(0xFFAFA28D),
+            fontSize: 12,
+            fontWeight: achieved ? FontWeight.w700 : FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 }

@@ -275,6 +275,19 @@ class PromoStory {
       duration: _asInt(json['duration'], fallback: 15),
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'coverUrl': imageUrl,
+        'contentUrl': contentUrl,
+        'groupId': groupId,
+        'groupTitle': groupTitle,
+        'groupCoverUrl': groupCoverUrl,
+        'sortOrder': sortOrder,
+        'description': description,
+        'duration': duration,
+      };
 }
 
 class NewsItem {
@@ -303,6 +316,14 @@ class NewsItem {
       description: _nullableString(json['description']),
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'imageUrl': imageUrl,
+        'createdAt': createdAt,
+        'description': description,
+      };
 }
 
 class DeliveryLocation {
