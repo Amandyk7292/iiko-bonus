@@ -50,6 +50,19 @@
 		<string>tg</string>
 		<string>whatsapp</string>
 	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.bulka.bonus</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>bulka</string>
+			</array>
+		</dict>
+	</array>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>fetch</string>
