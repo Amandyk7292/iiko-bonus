@@ -67,4 +67,5 @@ const otpStore = {
     }
 };
 
-module.exports = { otpStore };
+otpStore.otpStore = otpStore;
+module.exports = otpStore;
