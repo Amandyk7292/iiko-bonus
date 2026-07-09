@@ -86,7 +86,7 @@ export const api = {
   updateCity: (id: string, data: any) => request(`/cities/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteCity: (id: string) => request(`/cities/${id}`, { method: 'DELETE' }),
   
-  addPoint: (cityId: string, data: any) => request(`/cities/${cityId}/points`, { method: 'POST', body: JSON.stringify(data) }),
+  addPoint: (cityId: string, data: any) => request(`/points`, { method: 'POST', body: JSON.stringify({ ...data, city_id: cityId }) }),
   updatePoint: (id: string, data: any) => request(`/points/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deletePoint: (id: string) => request(`/points/${id}`, { method: 'DELETE' }),
 
