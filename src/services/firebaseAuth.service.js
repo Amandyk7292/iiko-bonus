@@ -67,6 +67,18 @@ async function sendFirebaseVerificationEmail(email, displayName = '') {
   }
 }
 
+async function checkEmailVerified(email) {
+  if (!email || !email.includes('@')) return false;
+  try {
+    const auth = getAuth();
+    const userRecord = await auth.getUserByEmail(email);
+    return Boolean(userRecord.emailVerified);
+  } catch (e) {
+    return false;
+  }
+}
+
 module.exports = {
-  sendFirebaseVerificationEmail
+  sendFirebaseVerificationEmail,
+  checkEmailVerified
 };

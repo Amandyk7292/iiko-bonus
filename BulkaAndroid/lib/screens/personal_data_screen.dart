@@ -303,17 +303,23 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
     );
   }
 
-  Widget _buildTextField(String label, TextEditingController controller, {bool readOnly = false, VoidCallback? onTap, Function(String)? onChanged, TextInputType? keyboardType}) {
+  Widget _buildTextField(String label, TextEditingController controller, {bool readOnly = false, VoidCallback? onTap, Function(String)? onChanged, TextInputType? keyboardType, Widget? badge}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: const TextStyle(
-            color: Color(0xFF231007),
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                color: Color(0xFF231007),
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            if (badge != null) badge,
+          ],
         ),
         const SizedBox(height: 8),
         Container(
@@ -491,7 +497,48 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                     _buildDateField(),
 
                     // Email
-                    _buildTextField('E-mail', _emailController),
+                    _buildTextField(
+                      'E-mail',
+                      _emailController,
+                      badge: _emailController.text.trim().isNotEmpty
+                          ? Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: widget.customer.emailVerified
+                                    ? const Color(0xFFE8F5E9)
+                                    : const Color(0xFFFFF3E0),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    widget.customer.emailVerified
+                                        ? Icons.verified_rounded
+                                        : Icons.mark_email_unread_rounded,
+                                    size: 14,
+                                    color: widget.customer.emailVerified
+                                        ? const Color(0xFF2E7D32)
+                                        : const Color(0xFFEF6C00),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    widget.customer.emailVerified
+                                        ? 'Подтверждена'
+                                        : 'Не подтверждена',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: widget.customer.emailVerified
+                                          ? const Color(0xFF2E7D32)
+                                          : const Color(0xFFEF6C00),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : null,
+                    ),
 
                     // City Dropdown
                     if (_cities.isNotEmpty) _buildCityDropdown(),

@@ -53,6 +53,7 @@ class Customer {
     this.birthDate,
     this.email,
     this.region,
+    this.emailVerified = false,
   });
 
   final String id;
@@ -70,6 +71,7 @@ class Customer {
   final String? birthDate;
   final String? email;
   final String? region;
+  final bool emailVerified;
 
   factory Customer.fromJson(Map<String, dynamic> json) {
     return Customer(
@@ -90,6 +92,7 @@ class Customer {
       birthDate: _nullableString(json['birth_date'] ?? json['birthdate']),
       email: _nullableString(json['email']),
       region: _nullableString(json['region']),
+      emailVerified: json['emailVerified'] == true || json['email_verified'] == true,
     );
   }
 
