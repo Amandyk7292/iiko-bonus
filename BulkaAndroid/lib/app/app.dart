@@ -64,9 +64,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
         _customer = profile.customer;
         _transactions = profile.transactions;
       });
-    } catch (_) {
-      // Keep cached profile when network is unavailable.
-    }
+    } catch (_) {}
   }
 
   void _startProfileRefresh(String phone) {
@@ -203,6 +201,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
       customer: customer,
       transactions: _transactions,
       onLogout: _logout,
+      onRefreshProfile: () => _refreshProfile(_savedPhone!),
     );
   }
 }

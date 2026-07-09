@@ -2,15 +2,19 @@ part of '../main.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
+    required this.api,
     required this.customer,
     required this.onBack,
     required this.onLogout,
+    required this.onRefreshProfile,
     super.key,
   });
 
+  final BulkaApiClient api;
   final Customer customer;
   final VoidCallback onBack;
   final Future<void> Function() onLogout;
+  final Future<void> Function() onRefreshProfile;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -257,11 +261,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     context,
                     MaterialPageRoute(
                       builder: (context) => PersonalDataScreen(
+                        api: widget.api,
                         customer: widget.customer,
                         onBack: () => Navigator.pop(context),
-                        onProfileUpdated: () async {
-                          // Profile will auto-refresh via polling, or we can manually trigger if needed.
-                        },
+                        onLogout: widget.onLogout,
+                        onProfileUpdated: widget.onRefreshProfile,
                       ),
                     ),
                   );
@@ -407,9 +411,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           context,
                           MaterialPageRoute(
                             builder: (context) => PersonalDataScreen(
+                              api: widget.api,
                               customer: widget.customer,
                               onBack: () => Navigator.pop(context),
-                              onProfileUpdated: () async {},
+                              onLogout: widget.onLogout,
+                              onProfileUpdated: widget.onRefreshProfile,
                             ),
                           ),
                         );

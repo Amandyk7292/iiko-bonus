@@ -17,7 +17,15 @@ const {
 } = require('../services/customer.service');
 const { getStories, addStory, updateStory, deleteStory } = require('../services/story.service');
 const { getNews, addNews, updateNews, deleteNews } = require('../services/news.service');
-const { getAdminLocations, addLocation, updateLocation, deleteLocation } = require('../services/location.service');
+const {
+  getCitiesWithPoints,
+  createCity,
+  updateCity,
+  deleteCity,
+  createPoint,
+  updatePoint,
+  deletePoint
+} = require('../services/location.service');
 
 // Settings
 const getSettingsHandler = async (req, res) => {
@@ -239,28 +247,54 @@ const deleteNewsHandler = async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 };
 
-// Locations
-const getLocationsHandler = async (req, res) => {
+// Cities and Points
+const getCitiesHandler = async (req, res) => {
   try {
-    const locs = await getAdminLocations();
-    res.json({ success: true, locations: locs });
+    const cities = await getCitiesWithPoints();
+    res.json({ success: true, cities });
   } catch (err) { res.status(500).json({ error: err.message }); }
 };
-const addLocationHandler = async (req, res) => {
+
+const addCityHandler = async (req, res) => {
   try {
-    const loc = await addLocation(req.body);
-    res.json({ success: true, location: loc });
+    const city = await createCity(req.body.name);
+    res.json({ success: true, city });
   } catch (err) { res.status(500).json({ error: err.message }); }
 };
-const updateLocationHandler = async (req, res) => {
+
+const updateCityHandler = async (req, res) => {
   try {
-    const loc = await updateLocation(req.params.id, req.body);
-    res.json({ success: true, location: loc });
+    const city = await updateCity(req.params.id, req.body.name);
+    res.json({ success: true, city });
   } catch (err) { res.status(500).json({ error: err.message }); }
 };
-const deleteLocationHandler = async (req, res) => {
+
+const deleteCityHandler = async (req, res) => {
   try {
-    await deleteLocation(req.params.id);
+    await deleteCity(req.params.id);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+};
+
+const addPointHandler = async (req, res) => {
+  try {
+    const { city_id, name, address, latitude, longitude } = req.body;
+    const point = await createPoint(city_id, name, address, latitude, longitude);
+    res.json({ success: true, point });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+};
+
+const updatePointHandler = async (req, res) => {
+  try {
+    const { name, address, latitude, longitude } = req.body;
+    const point = await updatePoint(req.params.id, name, address, latitude, longitude);
+    res.json({ success: true, point });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+};
+
+const deletePointHandler = async (req, res) => {
+  try {
+    await deletePoint(req.params.id);
     res.json({ success: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
 };
@@ -272,5 +306,6 @@ module.exports = {
   addBonusHandler, updateCustomerHandler, expireInactiveHandler, notifyInactiveHandler, deleteCustomerHandler, broadcastHandler,
   getStoriesHandler, addStoryHandler, updateStoryHandler, deleteStoryHandler,
   getNewsHandler, addNewsHandler, updateNewsHandler, deleteNewsHandler,
-  getLocationsHandler, addLocationHandler, updateLocationHandler, deleteLocationHandler
+  getCitiesHandler, addCityHandler, updateCityHandler, deleteCityHandler,
+  addPointHandler, updatePointHandler, deletePointHandler
 };

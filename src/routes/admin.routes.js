@@ -34,9 +34,13 @@ router.post('/admin/api/news', adminAuthMiddleware, adminController.addNewsHandl
 router.put('/admin/api/news/:id', adminAuthMiddleware, adminController.updateNewsHandler);
 router.delete('/admin/api/news/:id', adminAuthMiddleware, adminController.deleteNewsHandler);
 
-router.get('/admin/api/locations', adminAuthMiddleware, adminController.getLocationsHandler);
-router.post('/admin/api/locations', adminAuthMiddleware, adminController.addLocationHandler);
-router.put('/admin/api/locations/:id', adminAuthMiddleware, adminController.updateLocationHandler);
-router.delete('/admin/api/locations/:id', adminAuthMiddleware, adminController.deleteLocationHandler);
+router.get('/admin/api/cities', adminAuthMiddleware, adminController.getCitiesHandler);
+router.post('/admin/api/cities', adminAuthMiddleware, adminController.addCityHandler);
+router.put('/admin/api/cities/:id', adminAuthMiddleware, adminController.updateCityHandler);
+router.delete('/admin/api/cities/:id', adminAuthMiddleware, adminController.deleteCityHandler);
+
+router.post('/admin/api/points', adminAuthMiddleware, adminController.addPointHandler);
+router.put('/admin/api/points/:id', adminAuthMiddleware, adminController.updatePointHandler);
+router.delete('/admin/api/points/:id', adminAuthMiddleware, adminController.deletePointHandler);
 
 module.exports = router;

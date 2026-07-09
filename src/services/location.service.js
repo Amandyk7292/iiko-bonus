@@ -1,76 +1,95 @@
 const { supabase } = require('../config/supabase');
 
-function normalizeLocation(row, fallback = {}) {
-  return {
-    id: row.id || fallback.id,
-    name: row.name || fallback.name || '',
-    address: row.address || fallback.address || '',
-    city: row.city || fallback.city || '',
-    created_at: row.created_at || fallback.created_at || null
-  };
-}
-
-async function getAdminLocations() {
+async function getCitiesWithPoints() {
   const { data, error } = await supabase
-    .from('bulka_locations')
-    .select('*')
-    .order('created_at', { ascending: false });
+    .from('cities')
+    .select(`
+      *,
+      points (*)
+    `)
+    .order('name', { ascending: true });
 
   if (error) {
-    console.error('Error loading locations from Supabase DB:', error.message);
+    console.error('Error loading cities:', error.message);
     return [];
   }
-  return (data || []).map(row => normalizeLocation(row));
+  return data || [];
 }
 
-async function addLocation(item) {
-  const newItem = {
-    name: item.name || '',
-    address: item.address || '',
-    city: item.city || ''
-  };
-
+async function createCity(name) {
   const { data, error } = await supabase
-    .from('bulka_locations')
-    .insert([newItem])
+    .from('cities')
+    .insert([{ name }])
     .select()
     .single();
 
   if (error) throw new Error(error.message);
-  return normalizeLocation(data, newItem);
+  return data;
 }
 
-async function updateLocation(id, item) {
-  const updatedItem = {
-    name: item.name || '',
-    address: item.address || '',
-    city: item.city || ''
-  };
-
+async function updateCity(id, name) {
   const { data, error } = await supabase
-    .from('bulka_locations')
-    .update(updatedItem)
+    .from('cities')
+    .update({ name })
     .eq('id', id)
     .select()
     .single();
 
   if (error) throw new Error(error.message);
-  return normalizeLocation(data, { ...updatedItem, id });
+  return data;
 }
 
-async function deleteLocation(id) {
+async function deleteCity(id) {
   const { error } = await supabase
-    .from('bulka_locations')
+    .from('cities')
     .delete()
     .eq('id', id);
 
   if (error) throw new Error(error.message);
-  return { success: true };
+}
+
+async function createPoint(cityId, name, address, latitude, longitude) {
+  const { data, error } = await supabase
+    .from('points')
+    .insert([{ city_id: cityId, name, address, latitude, longitude }])
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+async function updatePoint(id, name, address, latitude, longitude) {
+  const updates = { name, address };
+  if (latitude !== undefined) updates.latitude = latitude;
+  if (longitude !== undefined) updates.longitude = longitude;
+
+  const { data, error } = await supabase
+    .from('points')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+async function deletePoint(id) {
+  const { error } = await supabase
+    .from('points')
+    .delete()
+    .eq('id', id);
+
+  if (error) throw new Error(error.message);
 }
 
 module.exports = {
-  getAdminLocations,
-  addLocation,
-  updateLocation,
-  deleteLocation
+  getCitiesWithPoints,
+  createCity,
+  updateCity,
+  deleteCity,
+  createPoint,
+  updatePoint,
+  deletePoint
 };

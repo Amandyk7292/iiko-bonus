@@ -10,4 +10,6 @@ router.get('/api/customer/profile', publicController.getProfile);
 router.put('/api/customer/profile', publicController.updateProfile);
 router.delete('/api/customer/profile', publicController.deleteProfile);
 
+router.get('/api/public/cities', publicController.getCities);
+
 module.exports = router;

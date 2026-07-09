@@ -688,26 +688,14 @@
 
       <!-- TAB: Locations -->
       <div id="content-locations" class="hidden space-y-6">
-        <div class="flex justify-end mb-4">
-          <button onclick="openLocationModal()" class="btn-classic px-5 py-2.5 font-medium shadow-sm flex items-center gap-2">
-            <span>+ Добавить локацию</span>
+        <div class="flex justify-between mb-4">
+          <h2 class="text-xl font-serif text-beige-800">Города и точки</h2>
+          <button onclick="openCityModal()" class="btn-classic px-5 py-2.5 font-medium shadow-sm flex items-center gap-2">
+            <span>+ Добавить город</span>
           </button>
         </div>
-        <div class="card overflow-hidden">
-          <table class="w-full text-left border-collapse">
-            <thead class="bg-beige-50">
-              <tr>
-                <th class="py-4 px-6">Город</th>
-                <th class="py-4 px-6">Название</th>
-                <th class="py-4 px-6">Адрес</th>
-                <th class="py-4 px-6 text-right">Действия</th>
-              </tr>
-            </thead>
-            <tbody id="locationsTable" class="text-sm text-gray-700"></tbody>
-          </table>
-        </div>
+        <div id="citiesContainer" class="space-y-4"></div>
       </div>
-
       <!-- TAB: Bonus -->
       <div id="content-bonus" class="hidden space-y-6">
         <div class="bonus-workspace">
@@ -1033,18 +1021,32 @@
     </main>
   </div>
 
-  <div id="modal-location" class="fixed inset-0 bg-[#333333] bg-opacity-40 flex items-center justify-center z-50 backdrop-blur-sm hidden transition-opacity duration-300">
+  <div id="modal-city" class="fixed inset-0 bg-[#333333] bg-opacity-40 flex items-center justify-center z-50 backdrop-blur-sm hidden transition-opacity duration-300">
     <div class="card p-8 w-full max-w-md max-h-[90vh] overflow-y-auto">
-      <h3 id="modalLocationTitle" class="text-2xl font-serif text-beige-800 mb-6">Добавить локацию</h3>
-      <input type="hidden" id="modalLocationId">
+      <h3 id="modalCityTitle" class="text-2xl font-serif text-beige-800 mb-6">Добавить город</h3>
+      <input type="hidden" id="modalCityId">
       <div class="space-y-4">
-        <div><label class="block text-sm mb-1">Город</label><input type="text" id="modalLocationCity" class="input-classic w-full"></div>
-        <div><label class="block text-sm mb-1">Название</label><input type="text" id="modalLocationName" class="input-classic w-full"></div>
-        <div><label class="block text-sm mb-1">Адрес</label><input type="text" id="modalLocationAddress" class="input-classic w-full"></div>
+        <div><label class="block text-sm mb-1">Город</label><input type="text" id="modalCityName" class="input-classic w-full"></div>
       </div>
       <div class="flex justify-end gap-3 mt-6">
-        <button onclick="closeLocationModal()" class="btn-outline px-4 py-2">Отмена</button>
-        <button onclick="saveLocation()" class="btn-classic px-4 py-2" id="btnSaveLocation">Сохранить</button>
+        <button onclick="closeCityModal()" class="btn-outline px-4 py-2">Отмена</button>
+        <button onclick="saveCity()" class="btn-classic px-4 py-2" id="btnSaveCity">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-point" class="fixed inset-0 bg-[#333333] bg-opacity-40 flex items-center justify-center z-50 backdrop-blur-sm hidden transition-opacity duration-300">
+    <div class="card p-8 w-full max-w-md max-h-[90vh] overflow-y-auto">
+      <h3 id="modalPointTitle" class="text-2xl font-serif text-beige-800 mb-6">Добавить точку</h3>
+      <input type="hidden" id="modalPointId">
+      <input type="hidden" id="modalPointCityId">
+      <div class="space-y-4">
+        <div><label class="block text-sm mb-1">Название</label><input type="text" id="modalPointName" class="input-classic w-full"></div>
+        <div><label class="block text-sm mb-1">Адрес</label><input type="text" id="modalPointAddress" class="input-classic w-full"></div>
+      </div>
+      <div class="flex justify-end gap-3 mt-6">
+        <button onclick="closePointModal()" class="btn-outline px-4 py-2">Отмена</button>
+        <button onclick="savePoint()" class="btn-classic px-4 py-2" id="btnSavePoint">Сохранить</button>
       </div>
     </div>
   </div>
@@ -1077,7 +1079,7 @@
     async function initApp() {
       document.getElementById('authModal').classList.add('hidden');
       document.getElementById('dashboard').classList.remove('hidden');
-      await Promise.all([fetchSettings(), fetchStats(), fetchCustomers(), fetchTransactions(), fetchIikoOperations(), fetchStories(), fetchNews(), fetchLocations()]);
+      await Promise.all([fetchSettings(), fetchStats(), fetchCustomers(), fetchTransactions(), fetchIikoOperations(), fetchStories(), fetchNews(), fetchCities()]);
       bindBonusInputs();
       renderChart();
     }
@@ -1538,86 +1540,161 @@
       } catch (e) { console.error(e); }
     }
 
-    // --- Locations ---
-    async function fetchLocations() {
+    // --- Cities and Points ---
+    async function fetchCities() {
       try {
-        const res = await fetch('/admin/api/locations', { headers: { 'Authorization': `Bearer ${token}` } });
+        const res = await fetch('/admin/api/cities', { headers: { 'Authorization': `Bearer ${token}` } });
         const json = await res.json();
-        if(json.success) { currentData.locations = json.locations; renderLocations(); }
-      } catch (err) { console.error('fetchLocations error', err); }
+        if(json.success) { currentData.cities = json.cities; renderCities(); }
+      } catch (err) { console.error('fetchCities error', err); }
     }
 
-    function renderLocations() {
-      const html = (currentData.locations || []).map((loc, idx) => `
-        <tr class="border-b last:border-0 hover:bg-beige-50/50">
-          <td class="py-4 px-6 font-medium">${loc.city || '—'}</td>
-          <td class="py-4 px-6">${loc.name || '—'}</td>
-          <td class="py-4 px-6">${loc.address || '—'}</td>
-          <td class="py-4 px-6 text-right">
-            <button onclick="editLocation(${idx})" class="text-beige-600 hover:text-beige-800 text-sm font-medium mr-3">Редактировать</button>
-            <button onclick="deleteLocation('${loc.id}')" class="text-red-500 hover:text-red-700 text-sm font-medium">Удалить</button>
-          </td>
-        </tr>
-      `).join('');
-      document.getElementById('locationsTable').innerHTML = html || '<tr><td colspan="4" class="py-6 text-center text-gray-500">Нет локаций</td></tr>';
-      enhanceResponsiveTables();
+    function renderCities() {
+      let html = '';
+      if(!currentData.cities || currentData.cities.length === 0) {
+        html = '<div class="text-gray-500 text-center py-6">Нет городов</div>';
+      } else {
+        html = currentData.cities.map(city => {
+          const pointsHtml = (city.points || []).map(p => `
+            <div class="flex justify-between items-center py-3 border-b last:border-0 hover:bg-beige-50/50">
+              <div>
+                <div class="font-medium text-beige-800">${p.name || '—'}</div>
+                <div class="text-sm text-gray-500">${p.address || '—'}</div>
+              </div>
+              <div class="flex gap-3">
+                <button onclick="editPoint('${city.id}', '${p.id}')" class="text-beige-600 hover:text-beige-800 text-sm font-medium">Редактировать</button>
+                <button onclick="deletePoint('${p.id}')" class="text-red-500 hover:text-red-700 text-sm font-medium">Удалить</button>
+              </div>
+            </div>
+          `).join('');
+
+          return `
+            <div class="card p-5 mb-4">
+              <div class="flex justify-between items-center mb-4 border-b pb-3">
+                <h3 class="text-lg font-serif text-beige-800">${city.name}</h3>
+                <div class="flex gap-3">
+                  <button onclick="openPointModal('${city.id}')" class="text-sagi-green text-sm font-medium">+ Добавить точку</button>
+                  <button onclick="editCity('${city.id}')" class="text-beige-600 hover:text-beige-800 text-sm font-medium">Редактировать</button>
+                  <button onclick="deleteCity('${city.id}')" class="text-red-500 hover:text-red-700 text-sm font-medium">Удалить</button>
+                </div>
+              </div>
+              <div>${pointsHtml || '<div class="text-gray-400 text-sm">Нет точек в этом городе</div>'}</div>
+            </div>
+          `;
+        }).join('');
+      }
+      document.getElementById('citiesContainer').innerHTML = html;
     }
 
-    function openLocationModal() {
-      document.getElementById('modalLocationId').value = '';
-      document.getElementById('modalLocationCity').value = '';
-      document.getElementById('modalLocationName').value = '';
-      document.getElementById('modalLocationAddress').value = '';
-      document.getElementById('modalLocationTitle').innerText = 'Добавить локацию';
-      document.getElementById('modal-location').classList.remove('hidden');
+    function openCityModal() {
+      document.getElementById('modalCityId').value = '';
+      document.getElementById('modalCityName').value = '';
+      document.getElementById('modalCityTitle').innerText = 'Добавить город';
+      document.getElementById('modal-city').classList.remove('hidden');
     }
 
-    function closeLocationModal() {
-      document.getElementById('modal-location').classList.add('hidden');
+    function closeCityModal() {
+      document.getElementById('modal-city').classList.add('hidden');
     }
 
-    function editLocation(idx) {
-      const loc = currentData.locations[idx];
-      document.getElementById('modalLocationId').value = loc.id;
-      document.getElementById('modalLocationCity').value = loc.city || '';
-      document.getElementById('modalLocationName').value = loc.name || '';
-      document.getElementById('modalLocationAddress').value = loc.address || '';
-      document.getElementById('modalLocationTitle').innerText = 'Редактировать локацию';
-      document.getElementById('modal-location').classList.remove('hidden');
+    function editCity(id) {
+      const city = currentData.cities.find(c => c.id === id);
+      if(!city) return;
+      document.getElementById('modalCityId').value = city.id;
+      document.getElementById('modalCityName').value = city.name || '';
+      document.getElementById('modalCityTitle').innerText = 'Редактировать город';
+      document.getElementById('modal-city').classList.remove('hidden');
     }
 
-    async function saveLocation() {
-      const btn = document.getElementById('btnSaveLocation');
+    async function saveCity() {
+      const btn = document.getElementById('btnSaveCity');
       btn.innerText = 'Сохранение...'; btn.disabled = true;
-      const id = document.getElementById('modalLocationId').value;
-      const city = document.getElementById('modalLocationCity').value;
-      const name = document.getElementById('modalLocationName').value;
-      const address = document.getElementById('modalLocationAddress').value;
+      const id = document.getElementById('modalCityId').value;
+      const name = document.getElementById('modalCityName').value;
       
       const method = id ? 'PUT' : 'POST';
-      const url = id ? '/admin/api/locations/' + id : '/admin/api/locations';
+      const url = id ? '/admin/api/cities/' + id : '/admin/api/cities';
       
       try {
         const res = await fetch(url, {
           method,
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ city, name, address })
+          body: JSON.stringify({ name })
         });
         const json = await res.json();
-        if(json.success) {
-          closeLocationModal();
-          await fetchLocations();
-        } else alert('Ошибка: ' + (json.error || 'Unknown'));
+        if(json.success) { closeCityModal(); await fetchCities(); }
+        else alert('Ошибка: ' + (json.error || 'Unknown'));
       } catch (err) { alert('Ошибка сети: ' + err.message); }
       btn.innerText = 'Сохранить'; btn.disabled = false;
     }
 
-    async function deleteLocation(id) {
-      if(!confirm('Удалить эту локацию?')) return;
+    async function deleteCity(id) {
+      if(!confirm('Удалить этот город? Все точки в нём также будут удалены!')) return;
       try {
-        const res = await fetch('/admin/api/locations/' + id, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+        const res = await fetch('/admin/api/cities/' + id, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
         const json = await res.json();
-        if(json.success) await fetchLocations();
+        if(json.success) await fetchCities();
+        else alert('Ошибка: ' + (json.error || 'Unknown'));
+      } catch (err) { alert('Ошибка сети: ' + err.message); }
+    }
+
+    function openPointModal(cityId) {
+      document.getElementById('modalPointId').value = '';
+      document.getElementById('modalPointCityId').value = cityId;
+      document.getElementById('modalPointName').value = '';
+      document.getElementById('modalPointAddress').value = '';
+      document.getElementById('modalPointTitle').innerText = 'Добавить точку';
+      document.getElementById('modal-point').classList.remove('hidden');
+    }
+
+    function closePointModal() {
+      document.getElementById('modal-point').classList.add('hidden');
+    }
+
+    function editPoint(cityId, pointId) {
+      const city = currentData.cities.find(c => c.id === cityId);
+      if(!city) return;
+      const p = city.points.find(x => x.id === pointId);
+      if(!p) return;
+      
+      document.getElementById('modalPointId').value = p.id;
+      document.getElementById('modalPointCityId').value = city.id;
+      document.getElementById('modalPointName').value = p.name || '';
+      document.getElementById('modalPointAddress').value = p.address || '';
+      document.getElementById('modalPointTitle').innerText = 'Редактировать точку';
+      document.getElementById('modal-point').classList.remove('hidden');
+    }
+
+    async function savePoint() {
+      const btn = document.getElementById('btnSavePoint');
+      btn.innerText = 'Сохранение...'; btn.disabled = true;
+      const id = document.getElementById('modalPointId').value;
+      const city_id = document.getElementById('modalPointCityId').value;
+      const name = document.getElementById('modalPointName').value;
+      const address = document.getElementById('modalPointAddress').value;
+      
+      const method = id ? 'PUT' : 'POST';
+      const url = id ? '/admin/api/points/' + id : '/admin/api/points';
+      
+      try {
+        const res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ city_id, name, address })
+        });
+        const json = await res.json();
+        if(json.success) { closePointModal(); await fetchCities(); }
+        else alert('Ошибка: ' + (json.error || 'Unknown'));
+      } catch (err) { alert('Ошибка сети: ' + err.message); }
+      btn.innerText = 'Сохранить'; btn.disabled = false;
+    }
+
+    async function deletePoint(id) {
+      if(!confirm('Удалить эту точку?')) return;
+      try {
+        const res = await fetch('/admin/api/points/' + id, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+        const json = await res.json();
+        if(json.success) await fetchCities();
         else alert('Ошибка: ' + (json.error || 'Unknown'));
       } catch (err) { alert('Ошибка сети: ' + err.message); }
     }

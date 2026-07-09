@@ -6,6 +6,7 @@ class MainShell extends StatefulWidget {
     required this.customer,
     required this.transactions,
     required this.onLogout,
+    required this.onRefreshProfile,
     super.key,
   });
 
@@ -13,6 +14,7 @@ class MainShell extends StatefulWidget {
   final Customer customer;
   final List<BonusTransaction> transactions;
   final Future<void> Function() onLogout;
+  final Future<void> Function() onRefreshProfile;
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -43,9 +45,11 @@ class _MainShellState extends State<MainShell> {
         subtitle: 'promos_sub'.tr,
       ),
       ProfileScreen(
+        api: widget.api,
         customer: widget.customer,
         onBack: () => setState(() => _tab = 0),
         onLogout: widget.onLogout,
+        onRefreshProfile: widget.onRefreshProfile,
       ),
     ];
 

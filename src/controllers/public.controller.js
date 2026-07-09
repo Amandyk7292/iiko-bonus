@@ -1,5 +1,6 @@
 const path = require('path');
 const { getCustomerByPhone, getOrCreateCustomerByPhone, updateCustomerInfo, deleteCustomerByPhone } = require('../services/customer.service');
+const { getCitiesWithPoints } = require('../services/location.service');
 
 const renderApp = (req, res) => {
   res.sendFile(path.join(process.cwd(), 'public', 'app.html'));
@@ -71,11 +72,21 @@ const deleteProfile = async (req, res) => {
   }
 };
 
+const getCities = async (req, res) => {
+  try {
+    const cities = await getCitiesWithPoints();
+    res.json({ success: true, cities });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
 module.exports = {
   renderApp,
   renderAdmin,
   registerIiko,
   getProfile,
   updateProfile,
-  deleteProfile
+  deleteProfile,
+  getCities
 };

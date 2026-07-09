@@ -28,6 +28,7 @@ void main() {
           customer: _testCustomer,
           transactions: _testTransactions,
           onLogout: () async {},
+          onRefreshProfile: () async {},
         ),
       ),
     );
@@ -86,6 +87,7 @@ void main() {
           customer: _testCustomer,
           transactions: _testTransactions,
           onLogout: () async {},
+          onRefreshProfile: () async {},
         ),
       ),
     );

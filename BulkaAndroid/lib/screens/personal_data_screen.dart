@@ -2,14 +2,18 @@ part of '../main.dart';
 
 class PersonalDataScreen extends StatefulWidget {
   const PersonalDataScreen({
+    required this.api,
     required this.customer,
     required this.onBack,
+    required this.onLogout,
     required this.onProfileUpdated,
     super.key,
   });
 
+  final BulkaApiClient api;
   final Customer customer;
   final VoidCallback onBack;
+  final Future<void> Function() onLogout;
   final Future<void> Function() onProfileUpdated;
 
   @override
@@ -21,6 +25,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
   late TextEditingController _lastNameController;
   late TextEditingController _emailController;
   late TextEditingController _regionController;
+  late TextEditingController _birthDateController;
   
   String? _selectedGender;
   String? _birthDate;
@@ -36,6 +41,9 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
     
     _selectedGender = widget.customer.gender;
     _birthDate = widget.customer.birthDate;
+    
+    // Convert stored date (YYYY-MM-DD) to display format (DD.MM.YYYY)
+    _birthDateController = TextEditingController(text: _formatDateForDisplay(_birthDate));
   }
 
   @override
@@ -44,6 +52,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
     _lastNameController.dispose();
     _emailController.dispose();
     _regionController.dispose();
+    _birthDateController.dispose();
     super.dispose();
   }
 
@@ -62,7 +71,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
   Future<void> _saveProfile() async {
     setState(() => _isLoading = true);
     try {
-      await api.updateProfile(
+      await widget.api.updateProfile(
         phone: widget.customer.phone,
         name: _nameController.text.trim(),
         lastName: _lastNameController.text.trim(),
@@ -108,15 +117,10 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
     if (confirm == true) {
       setState(() => _isLoading = true);
       try {
-        await api.deleteAccount(widget.customer.phone);
-        await prefs.remove('auth_token');
-        await prefs.remove('auth_phone');
+        await widget.api.deleteAccount(widget.customer.phone);
         if (mounted) {
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(builder: (_) => const LoginScreen()),
-            (route) => false,
-          );
+          Navigator.pop(context); // Close dialog or screen
+          await widget.onLogout();
         }
       } catch (e) {
         _showInfoMessage('Ошибка: ${e.toString()}', isError: true);
@@ -125,48 +129,92 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
     }
   }
 
-  Future<void> _selectDate() async {
-    final initialDate = _birthDate != null && _birthDate!.isNotEmpty
-        ? DateTime.tryParse(_birthDate!) ?? DateTime.now()
-        : DateTime(1990, 1, 1);
-        
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: initialDate,
-      firstDate: DateTime(1900),
-      lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Color(0xFFDEC588),
-              onPrimary: Colors.white,
-              onSurface: Color(0xFF231007),
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-    if (picked != null) {
-      setState(() {
-        _birthDate = "\${picked.year.toString().padLeft(4, '0')}-\${picked.month.toString().padLeft(2, '0')}-\${picked.day.toString().padLeft(2, '0')}";
-      });
-    }
-  }
-
-  String _formatDate(String? dateString) {
+  // Convert YYYY-MM-DD to DD.MM.YYYY for display
+  String _formatDateForDisplay(String? dateString) {
     if (dateString == null || dateString.isEmpty) return '';
     try {
       final parts = dateString.split('T')[0].split('-');
       if (parts.length == 3) {
-        return '\${parts[2]}.\${parts[1]}.\${parts[0]}';
+        return '${parts[2]}.${parts[1]}.${parts[0]}';
       }
     } catch (_) {}
     return dateString;
   }
 
-  Widget _buildTextField(String label, TextEditingController controller, {bool readOnly = false, VoidCallback? onTap}) {
+  // Convert DD.MM.YYYY to YYYY-MM-DD for API
+  String? _parseDateForApi(String displayDate) {
+    if (displayDate.isEmpty) return null;
+    final parts = displayDate.split('.');
+    if (parts.length == 3 && parts[0].length == 2 && parts[1].length == 2 && parts[2].length == 4) {
+      return '${parts[2]}-${parts[1]}-${parts[0]}';
+    }
+    return null;
+  }
+
+  // Auto-format date input: insert dots after DD and MM
+  void _onBirthDateChanged(String value) {
+    // Remove all non-digits
+    String digits = value.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.length > 8) digits = digits.substring(0, 8);
+    
+    String formatted = '';
+    for (int i = 0; i < digits.length; i++) {
+      if (i == 2 || i == 4) formatted += '.';
+      formatted += digits[i];
+    }
+    
+    if (formatted != value) {
+      _birthDateController.value = TextEditingValue(
+        text: formatted,
+        selection: TextSelection.collapsed(offset: formatted.length),
+      );
+    }
+    
+    // Update _birthDate if we have a complete date
+    _birthDate = _parseDateForApi(formatted);
+  }
+
+  Widget _buildDateField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Дата рождения',
+          style: TextStyle(
+            color: Color(0xFF231007),
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFF3F3F3)),
+          ),
+          child: TextField(
+            controller: _birthDateController,
+            keyboardType: TextInputType.number,
+            onChanged: _onBirthDateChanged,
+            style: const TextStyle(
+              fontSize: 16,
+              color: Color(0xFF6D3317),
+            ),
+            decoration: InputDecoration(
+              hintText: 'ДД.ММ.ГГГГ',
+              hintStyle: TextStyle(color: const Color(0xFF6D3317).withValues(alpha: 0.3)),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              border: InputBorder.none,
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _buildTextField(String label, TextEditingController controller, {bool readOnly = false, VoidCallback? onTap, Function(String)? onChanged, TextInputType? keyboardType}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -199,7 +247,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               border: InputBorder.none,
               suffixIcon: onTap != null 
-                  ? const Icon(Icons.chevron_right_rounded, color: Color(0xFFC5A059))
+                  ? const Icon(Icons.chevron_right_rounded, color: Color(0xFFFFC107))
                   : null,
             ),
           ),
@@ -225,7 +273,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
             height: 20,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: isSelected ? const Color(0xFFDEC588) : const Color(0xFFEEEEEE),
+              color: isSelected ? const Color(0xFFFFC107) : const Color(0xFFEEEEEE),
             ),
             child: isSelected
                 ? Center(
@@ -266,7 +314,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
               child: Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFFC5A059), size: 20),
+                    icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF6D3317), size: 20),
                     onPressed: widget.onBack,
                   ),
                   const Expanded(
@@ -298,7 +346,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                         width: 80,
                         height: 80,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFDEC588),
+                          color: const Color(0xFFFFC107),
                           shape: BoxShape.circle,
                           border: Border.all(color: Colors.white, width: 4),
                           boxShadow: const [
@@ -351,12 +399,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                     ),
 
                     // Date of Birth
-                    _buildTextField(
-                      'Дата рождения',
-                      TextEditingController(text: _formatDate(_birthDate)),
-                      readOnly: true,
-                      onTap: _selectDate,
-                    ),
+                    _buildDateField(),
 
                     // Email
                     _buildTextField('E-mail', _emailController),
@@ -367,35 +410,18 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                     const SizedBox(height: 12),
 
                     // Save Button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _saveProfile,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFDEC588),
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(22),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: GradientButton(
+                        onPressed: _saveProfile,
+                        loading: _isLoading,
+                        child: const Text(
+                          'Сохранить',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
-                        child: _isLoading
-                            ? const SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                ),
-                              )
-                            : const Text(
-                                'Сохранить',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
                       ),
                     ),
 
