@@ -2,10 +2,12 @@
   "name": "iiko-bonus-backend",
   "version": "1.0.0",
   "description": "Backend for iiko external loyalty system",
-  "main": "index.js",
+  "main": "src/server.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "node --watch index.js",
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "lint": "eslint src/**/*.js",
+    "lint:fix": "eslint src/**/*.js --fix",
     "check:supabase": "node check-supabase.js"
   },
   "dependencies": {
@@ -16,14 +18,23 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "express-rate-limit": "^8.5.2",
     "firebase-admin": "^14.1.0",
     "google-auth-library": "^10.9.0",
+    "helmet": "^8.2.0",
     "jimp": "^1.6.1",
     "jsonwebtoken": "^9.0.3",
+    "morgan": "^1.11.0",
     "node-fetch": "^2.7.0",
     "node-forge": "^1.4.0",
     "passkit-generator": "^3.5.7",
     "pino": "^10.3.1",
     "qrcode-terminal": "^0.12.0"
+  },
+  "devDependencies": {
+    "eslint": "^10.6.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.6",
+    "prettier": "^3.9.4"
   }
 }

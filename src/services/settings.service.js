@@ -1,4 +1,4 @@
-const { supabase } = require('./supabase');
+const { supabase } = require('../config/supabase');
 
 const defaultSettings = {
   base_cashback_percent: 3,

@@ -1,5 +1,5 @@
-const { supabase } = require('./supabase');
-const { sendPushNotification } = require('./push-notifications');
+const { supabase } = require('../config/supabase');
+const { sendPushNotification } = require('./push.service');
 const crypto = require('crypto');
 
 /**
@@ -482,7 +482,7 @@ async function checkAndNotifyInactiveCustomers(inactivityDays = 30) {
   let notifiedCount = 0;
   let totalNotifiedBalance = 0;
 
-  const { sendMessage } = require('./telegram');
+  const { sendMessage } = require('./telegram.service');
 
   for (const c of customers) {
     const lastActivityDate = latestActivityMap[c.id] || (c.created_at ? new Date(c.created_at) : new Date(0));
@@ -498,8 +498,8 @@ async function checkAndNotifyInactiveCustomers(inactivityDays = 30) {
         const message = `Вы давно не заглядывали к нам! На вашем счету <b>${c.balance} бонусов</b>, они сгорят через ${daysLeft} дней.\n\nЗагляните к нам за свежей выпечкой и ароматным кофе!`;
         
         try {
-          const { sendMessage } = require('./telegram');
-          const { sendPushNotification } = require('./push-notifications');
+          const { sendMessage } = require('./telegram.service');
+          const { sendPushNotification } = require('./push.service');
           if (c.telegram_id) await sendMessage(c.telegram_id, message).catch(() => {});
           if (c.fcm_token) await sendPushNotification(c.fcm_token, "Мы скучаем! Ваши бонусы скоро сгорят", `На счету ${c.balance} бонусов, они сгорят через ${daysLeft} дней. Загляните к нам за кофе!`).catch(() => {});
           
@@ -539,7 +539,7 @@ async function deleteCustomer(customerId) {
 }
 
 async function checkAndNotifyBirthdays() {
-  const { sendPushNotification } = require('./push-notifications');
+  const { sendPushNotification } = require('./push.service');
   const now = new Date();
   const currentMonth = now.getMonth() + 1; // 1-12
   const currentDay = now.getDate();
@@ -575,7 +575,20 @@ async function checkAndNotifyBirthdays() {
   }
 }
 
+async function activatePendingBonusesSafe() {
+  try {
+    const result = await activatePendingBonuses();
+    const count = Number(result?.activated_count || 0);
+    if (count > 0) {
+      console.log(`Activated ${count} pending bonus transaction(s).`);
+    }
+  } catch (e) {
+    console.error('Failed to activate pending bonuses:', e);
+  }
+}
+
 module.exports = {
+  activatePendingBonusesSafe,
   checkAndNotifyBirthdays,
   getCustomerByPhone,
   getOrCreateCustomerByPhone,

@@ -44,15 +44,15 @@
   .btn-classic:active, .btn-outline:active { transform: translateY(0) scale(0.99); }
   .btn-outline { border: 1px solid #e2d2bc; color: var(--sagi-cocoa); background: #ffffff; transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease; border-radius: 12px; min-height: 42px; }
   .btn-outline:hover { background: #fff7ea; border-color: #d8b98f; transform: translateY(-1px); }
-  .sagi-shell { display: grid; grid-template-columns: 278px minmax(0, 1fr); min-height: 100dvh; background: var(--sagi-bg); }
-  .sagi-sidebar { background: var(--sagi-sidebar); border-right: 1px solid var(--sagi-border); padding: 18px 14px; overflow-y: auto; }
+  .sagi-shell { display: flex; flex-direction: column; min-height: 100dvh; background: var(--sagi-bg); }
+  .sagi-sidebar { position: fixed; top: 0; bottom: 0; left: 0; width: 278px; z-index: 50; background: var(--sagi-sidebar); border-right: 1px solid var(--sagi-border); padding: 18px 14px; overflow-y: auto; transition: transform 0.3s ease; }
   .sagi-brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 18px; border-bottom: 1px solid var(--sagi-border); margin-bottom: 14px; }
   .sagi-brand-mark { width: 36px; height: 36px; border-radius: 12px; background: linear-gradient(135deg, #c66a25, #3b2117); color: white; display: grid; place-items: center; font-weight: 800; }
   .sagi-nav-title { color: #9aa1ad; font-size: 11px; font-weight: 700; text-transform: uppercase; margin: 18px 10px 6px; }
   .sagi-nav-link { width: 100%; display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 9px 10px; border: 0; border-radius: 12px; background: transparent; color: #3d424c; font-size: 14px; font-weight: 500; text-align: left; cursor: pointer; transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease; }
   .sagi-nav-link:hover { background: #fff3df; color: var(--sagi-cocoa); transform: translateX(2px); }
   .sagi-nav-link-active { width: 100%; display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 9px 10px; border: 0; border-radius: 12px; background: #fde5c2; color: #74350f; font-size: 14px; font-weight: 800; text-align: left; cursor: pointer; }
-  .sagi-main { min-width: 0; display: flex; flex-direction: column; }
+  .sagi-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   .sagi-topbar { min-height: 64px; background: rgba(255,255,255,0.92); backdrop-filter: blur(14px); border-bottom: 1px solid var(--sagi-border); display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 28px; position: sticky; top: 0; z-index: 30; }
   .sagi-page { padding: 28px; overflow: auto; }
   .sagi-page-title { font-size: 24px; font-weight: 700; color: #1d1f23; margin: 0; }

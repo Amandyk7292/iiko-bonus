@@ -1,4 +1,4 @@
-const { supabase } = require('./supabase');
+const { supabase } = require('../config/supabase');
 
 function normalizeNews(row, fallback = {}) {
   const image = row.imageurl || row.imageUrl || row.image_url || fallback.imageUrl || '';

@@ -257,7 +257,7 @@ create or replace function public.increment_customer_balance(
   p_customer_id uuid,
   p_amount_change numeric
 )
-returns table(balance numeric)
+returns table(new_balance numeric)
 language plpgsql
 security definer
 set search_path = public
@@ -265,11 +265,11 @@ as $$
 begin
   update public.customers
   set
-    balance = balance + p_amount_change,
+    balance = customers.balance + p_amount_change,
     updated_at = now()
   where id = p_customer_id
-    and balance + p_amount_change >= 0
-  returning customers.balance into balance;
+    and customers.balance + p_amount_change >= 0
+  returning customers.balance into new_balance;
 
   if not found then
     raise exception 'customer not found or insufficient balance';

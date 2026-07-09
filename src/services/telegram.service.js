@@ -1,6 +1,6 @@
 const fetch = require('node-fetch') || global.fetch;
-const { getCustomerByPhone, getOrCreateCustomerByPhone } = require('./customers');
-const { getSettings } = require('./settings');
+const { getCustomerByPhone, getOrCreateCustomerByPhone } = require('./customer.service');
+const { getSettings } = require('./settings.service');
 
 // Токен бота по умолчанию (от пользователя) или из переменных окружения
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8786019464:AAHjKVN6mHF5un4ZedUpaxbCg32Q5PC4wbw';
@@ -77,11 +77,11 @@ async function handleUpdate(update) {
     try {
       // Регистрируем или находим клиента (строго без подарка +300 бонусов!)
       const customer = await getOrCreateCustomerByPhone(phone, name);
-      const { supabase } = require('./supabase');
+      const { supabase } = require('../config/supabase');
       await supabase.from('customers').update({ telegram_id: chatId }).eq('id', customer.id);
       
       const settings = await getSettings();
-      const { getTierInfo } = require('./index');
+      const { getTierInfo } = require('../utils/tier.util');
       const tier = getTierInfo(customer.total_spent, settings);
       
       let statusStr = `<b>${tier.name} (${tier.percent}%)</b>`;

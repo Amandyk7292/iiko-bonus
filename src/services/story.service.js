@@ -1,4 +1,4 @@
-const { supabase } = require('./supabase');
+const { supabase } = require('../config/supabase');
 
 function parseDescription(descRaw, fallbackStory = {}) {
   let text = descRaw || '';

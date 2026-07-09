@@ -1,7 +1,7 @@
 const { makeWASocket, DisconnectReason, initAuthCreds, BufferJSON } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const qrcode = require('qrcode-terminal');
-const { supabase } = require('./supabase');
+const { supabase } = require('../config/supabase');
 
 /**
  * Адаптер для сохранения сессии Baileys в Supabase

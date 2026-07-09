@@ -58,6 +58,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('adminPwd'));
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -75,9 +76,9 @@ export default function App() {
 
   return (
     <div className="sagi-shell">
-      <Sidebar />
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <main className="sagi-main">
-        <Topbar />
+        <Topbar onMenuClick={() => setSidebarOpen(true)} />
         <div className="sagi-page">
           <Routes>
             <Route path="/" element={<Navigate to="/analytics" replace />} />

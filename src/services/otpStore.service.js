@@ -1,4 +1,4 @@
-const { supabase } = require('./supabase');
+const { supabase } = require('../config/supabase');
 
 // In-memory Map as PRIMARY store (fast, always works within same process)
 const memoryStore = new Map();
