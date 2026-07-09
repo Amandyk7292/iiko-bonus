@@ -51,9 +51,19 @@
 		<string>whatsapp</string>
 	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Приложению требуется доступ к геолокации для отображения ближайших точек пекарни на карте.</string>
+	<string>Доступ к геолокации необходим для определения расстояния до ближайших пекарен Bulka, отображения их на карте и удобного выбора точки самовывоза.</string>
 	<key>NSLocationAlwaysUsageDescription</key>
-	<string>Приложению требуется доступ к геолокации для отображения ближайших точек пекарни на карте.</string>
+	<string>Доступ к геолокации необходим для определения расстояния до ближайших пекарен Bulka, отображения их на карте и удобного выбора точки самовывоза.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Доступ к геолокации необходим для определения расстояния до ближайших пекарен Bulka, отображения их на карте и удобного выбора точки самовывоза.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Камера необходима для сканирования QR-кодов программы лояльности на кассе в пекарнях Bulka при начислении и списании бонусных баллов.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Доступ к фотогалерее необходим для сохранения электронных чеков и загрузки фотографии в профиль гостя.</string>
+	<key>NSUserTrackingUsageDescription</key>
+	<string>Данные используются исключительно для персонализации бонусных предложений, подарков и акций в пекарне Bulka.</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
