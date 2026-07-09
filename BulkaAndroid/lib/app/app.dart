@@ -36,6 +36,10 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
       prefs.getString('transactions'),
     );
 
+    final minSplashDelay = Future.delayed(const Duration(milliseconds: 2200));
+
+    if (!mounted) return;
+    await minSplashDelay;
     if (!mounted) return;
     setState(() {
       _prefs = prefs;
@@ -228,7 +232,7 @@ class _SplashScreenState extends State<SplashScreen>
       duration: const Duration(milliseconds: 1500),
     )..repeat(reverse: true);
 
-    _scaleAnimation = Tween<double>(begin: 0.93, end: 1.07).animate(
+    _scaleAnimation = Tween<double>(begin: 0.92, end: 1.08).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
   }
@@ -251,7 +255,7 @@ class _SplashScreenState extends State<SplashScreen>
               scale: _scaleAnimation,
               child: Image.asset(
                 'assets/brand/bulka_logo.png',
-                width: 220,
+                width: 240,
                 fit: BoxFit.contain,
               ),
             ),
