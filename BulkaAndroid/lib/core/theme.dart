@@ -81,13 +81,21 @@ ThemeData buildBulkaTheme() {
         fontFamily: _headingFont,
         fontWeight: FontWeight.w400,
       ),
-      bodyLarge: TextStyle(color: _textDark, fontFamily: _brandFont, fontWeight: FontWeight.w400),
+      bodyLarge: TextStyle(
+        color: _textDark,
+        fontFamily: _brandFont,
+        fontWeight: FontWeight.w400,
+      ),
       bodyMedium: TextStyle(
         color: _textDark,
         fontFamily: _brandFont,
         fontWeight: FontWeight.w300,
       ),
-      bodySmall: TextStyle(color: _textDark, fontFamily: _brandFont, fontWeight: FontWeight.w300),
+      bodySmall: TextStyle(
+        color: _textDark,
+        fontFamily: _brandFont,
+        fontWeight: FontWeight.w300,
+      ),
       labelLarge: TextStyle(
         color: _textDark,
         fontFamily: _brandFont,

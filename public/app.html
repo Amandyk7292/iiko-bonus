@@ -101,8 +101,14 @@
           
           <label>Номер телефона</label>
           <input type="tel" id="phone" placeholder="+7 (___) ___-__-__" required>
+
+          <div id="otpBlock" style="display:none">
+            <label>Код подтверждения</label>
+            <input type="text" inputmode="numeric" maxlength="4" id="otp" placeholder="0000">
+            <a id="waLink" target="_blank" rel="noopener noreferrer">Открыть WhatsApp для получения кода</a>
+          </div>
           
-          <button type="submit" id="submitBtn">Выпустить карту</button>
+          <button type="submit" id="submitBtn">Получить код в WhatsApp</button>
         </form>
       </div>
 
@@ -132,6 +138,15 @@
             e.target.value = formatted;
         });
 
+        let otpRequested = false;
+        let registrationToken = '';
+
+        function makeRequestToken() {
+          const bytes = new Uint8Array(12);
+          crypto.getRandomValues(bytes);
+          return Array.from(bytes, value => (value % 36).toString(36)).join('');
+        }
+
         document.getElementById('regForm').addEventListener('submit', async (e) => {
           e.preventDefault();
           
@@ -147,14 +162,47 @@
           const errorDiv = document.getElementById('errorMessage');
           
           btn.disabled = true;
-          btn.innerText = 'Регистрация...';
+          btn.innerText = 'Проверка...';
           successDiv.style.display = 'none';
           errorDiv.style.display = 'none';
           
           try {
+            if (!otpRequested) {
+              const requestToken = makeRequestToken();
+              const otpRes = await fetch('/api/auth/request-otp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone: rawPhone, token: requestToken })
+              });
+              const otpData = await otpRes.json();
+              if (!otpRes.ok) throw new Error(otpData.error || 'Не удалось запросить код');
+              otpRequested = true;
+              document.getElementById('otpBlock').style.display = 'block';
+              document.getElementById('otp').required = true;
+              document.getElementById('waLink').href = 'https://wa.me/77008317499?text=' + encodeURIComponent('Код ' + requestToken);
+              return;
+            }
+
+            if (!registrationToken) {
+              const verifyRes = await fetch('/api/auth/verify-otp', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone: rawPhone, code: document.getElementById('otp').value })
+              });
+              const verifyData = await verifyRes.json();
+              if (!verifyRes.ok || verifyData.success !== true) throw new Error(verifyData.message || verifyData.error || 'Неверный код');
+              if (verifyData.exists) {
+                successDiv.innerText = 'Этот номер уже зарегистрирован в программе лояльности.';
+                successDiv.style.display = 'block';
+                return;
+              }
+              registrationToken = verifyData.registrationToken || '';
+              if (!registrationToken) throw new Error('Сервер не выдал разрешение на регистрацию');
+            }
+
             const res = await fetch('/api/register-iiko', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + registrationToken },
               body: JSON.stringify({
                 name: document.getElementById('name').value,
                 phone: rawPhone
@@ -165,6 +213,9 @@
             if (res.ok) {
               successDiv.style.display = 'block';
               document.getElementById('regForm').reset();
+              document.getElementById('otpBlock').style.display = 'none';
+              otpRequested = false;
+              registrationToken = '';
             } else {
               throw new Error(data.error || 'Ошибка');
             }
@@ -173,10 +224,9 @@
             errorDiv.style.display = 'block';
           } finally {
             btn.disabled = false;
-            btn.innerText = 'Выпустить карту';
+            btn.innerText = otpRequested ? 'Подтвердить и зарегистрироваться' : 'Получить код в WhatsApp';
           }
         });
       </script>
     </body>
     </html>
-  

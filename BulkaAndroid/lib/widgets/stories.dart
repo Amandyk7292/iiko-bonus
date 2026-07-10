@@ -205,10 +205,15 @@ class _PromoBannerSliderState extends State<PromoBannerSlider> {
                   child: Container(
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(22),
-                      border: Border.all(color: const Color(0xFFEADBBE), width: 1.2),
+                      border: Border.all(
+                        color: const Color(0xFFEADBBE),
+                        width: 1.2,
+                      ),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF6D3317).withValues(alpha: 0.10),
+                          color: const Color(
+                            0xFF6D3317,
+                          ).withValues(alpha: 0.10),
                           blurRadius: 16,
                           offset: const Offset(0, 6),
                         ),
@@ -218,9 +223,7 @@ class _PromoBannerSliderState extends State<PromoBannerSlider> {
                       borderRadius: BorderRadius.circular(20.8),
                       child: Stack(
                         fit: StackFit.expand,
-                        children: [
-                          _BannerFullCoverWidget(group: group),
-                        ],
+                        children: [_BannerFullCoverWidget(group: group)],
                       ),
                     ),
                   ),
@@ -241,7 +244,9 @@ class _PromoBannerSliderState extends State<PromoBannerSlider> {
                 width: active ? 20 : 6,
                 height: 5,
                 decoration: BoxDecoration(
-                  color: active ? const Color(0xFFFFB300) : const Color(0xFFE4D3BA),
+                  color: active
+                      ? const Color(0xFFFFB300)
+                      : const Color(0xFFE4D3BA),
                   borderRadius: BorderRadius.circular(3),
                 ),
               );
@@ -319,8 +324,15 @@ class PromoModalViewer extends StatelessWidget {
   Widget build(BuildContext context) {
     final story = group.stories.isNotEmpty ? group.stories.first : null;
     final title = group.title;
-    final subtitle = group.subtitle ?? story?.description ?? story?.title ?? 'Специальное предложение для гостей Bulka Cafe!';
-    final isHappy = group.id == 'happy_hours' || title.contains('ЧАСЫ') || title.contains('2+1');
+    final subtitle =
+        group.subtitle ??
+        story?.description ??
+        story?.title ??
+        'Специальное предложение для гостей Bulka Cafe!';
+    final isHappy =
+        group.id == 'happy_hours' ||
+        title.contains('ЧАСЫ') ||
+        title.contains('2+1');
 
     return Scaffold(
       backgroundColor: const Color(0xFFFDF8F0),
@@ -333,14 +345,19 @@ class PromoModalViewer extends StatelessWidget {
                 alignment: Alignment.center,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 18,
+                      vertical: 7,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(color: const Color(0xFFEADBBE)),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF6D3317).withValues(alpha: 0.05),
+                          color: const Color(
+                            0xFF6D3317,
+                          ).withValues(alpha: 0.05),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -360,7 +377,11 @@ class PromoModalViewer extends StatelessWidget {
                     alignment: Alignment.centerRight,
                     child: IconButton(
                       onPressed: () => Navigator.of(context).maybePop(),
-                      icon: const Icon(Icons.close, color: Color(0xFF5A2A18), size: 26),
+                      icon: const Icon(
+                        Icons.close,
+                        color: Color(0xFF5A2A18),
+                        size: 26,
+                      ),
                     ),
                   ),
                 ],
@@ -368,7 +389,10 @@ class PromoModalViewer extends StatelessWidget {
             ),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 28,
+                  vertical: 16,
+                ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -402,18 +426,25 @@ class PromoModalViewer extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: const Color(0xFFFFFBF4),
                         borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: const Color(0xFFEADBBE), width: 1.2),
+                        border: Border.all(
+                          color: const Color(0xFFEADBBE),
+                          width: 1.2,
+                        ),
                       ),
-                      child: (story != null && story.contentUrl.startsWith('http'))
+                      child:
+                          (story != null && story.contentUrl.startsWith('http'))
                           ? ClipRRect(
                               borderRadius: BorderRadius.circular(23),
-                              child: _NetworkImage(url: story.contentUrl, fit: BoxFit.cover),
+                              child: _NetworkImage(
+                                url: story.contentUrl,
+                                fit: BoxFit.cover,
+                              ),
                             )
                           : Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Text(
-                                  isHappy ? '2 + 1' : '🎁',
+                                  isHappy ? '2 + 1' : 'Подарок',
                                   style: TextStyle(
                                     fontFamily: _headingFont,
                                     fontSize: isHappy ? 64 : 68,
@@ -423,7 +454,9 @@ class PromoModalViewer extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  isHappy ? '3 булочки по цене 2-х после 21:00' : 'Бонус за каждого друга',
+                                  isHappy
+                                      ? '3 булочки по цене 2-х после 21:00'
+                                      : 'Бонус за каждого друга',
                                   style: const TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w700,
@@ -672,10 +705,7 @@ class _StoryViewerState extends State<StoryViewer>
                                 fontSize: 16.5,
                                 fontWeight: FontWeight.w600,
                                 shadows: [
-                                  Shadow(
-                                    blurRadius: 6,
-                                    color: Colors.black54,
-                                  ),
+                                  Shadow(blurRadius: 6, color: Colors.black54),
                                 ],
                               ),
                             ),
@@ -711,13 +741,14 @@ class _StoryFullImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final url = story.contentUrl.isNotEmpty
         ? story.contentUrl
-        : (story.imageUrl.isNotEmpty
-            ? story.imageUrl
-            : story.groupCoverUrl);
+        : (story.imageUrl.isNotEmpty ? story.imageUrl : story.groupCoverUrl);
     if (url.startsWith('http')) {
       return _NetworkImage(url: url, fit: BoxFit.cover);
     }
-    final isHappy = story.groupId == 'happy_hours' || story.title.contains('ЧАСЫ') || story.title.contains('2+1');
+    final isHappy =
+        story.groupId == 'happy_hours' ||
+        story.title.contains('ЧАСЫ') ||
+        story.title.contains('2+1');
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -731,7 +762,7 @@ class _StoryFullImage extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(
-            isHappy ? '2 + 1' : '🎁',
+            isHappy ? '2 + 1' : 'Подарок',
             style: TextStyle(
               fontFamily: _headingFont,
               fontSize: isHappy ? 80 : 86,

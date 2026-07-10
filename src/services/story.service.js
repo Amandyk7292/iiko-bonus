@@ -11,7 +11,9 @@ function parseDescription(descRaw, fallbackStory = {}) {
         text = parsed.text || parsed.i18n?.ru?.description || '';
         i18n = parsed.i18n;
       }
-    } catch (e) {}
+    } catch (_error) {
+      i18n = null;
+    }
   }
 
   const ruCover = fallbackStory.coverUrl || fallbackStory.coverurl || '';
@@ -36,7 +38,7 @@ function parseDescription(descRaw, fallbackStory = {}) {
       description: i18n?.en?.description || '',
       coverUrl: i18n?.en?.coverUrl || '',
       contentUrl: i18n?.en?.contentUrl || '',
-    }
+    },
   };
 
   return { text, i18n: defaultI18n };
@@ -46,7 +48,7 @@ function serializeDescription(text, i18n) {
   if (!i18n) return text || '';
   return JSON.stringify({
     text: text || i18n.ru?.description || '',
-    i18n
+    i18n,
   });
 }
 
@@ -56,19 +58,23 @@ async function getStories() {
       .from('stories')
       .select('*')
       .order('id', { ascending: true });
-      
+
     if (error) {
       console.error('Error loading stories from Supabase DB:', error.message);
       return [];
     }
-    return (data || []).map(s => {
+    return (data || []).map((s) => {
       const cover = s.coverurl || s.coverUrl || s.cover_url || '';
       const content = s.contenturl || s.contentUrl || s.content_url || cover;
       const groupTitle = s.group_title || s.grouptitle || s.groupTitle || s.title || '';
       const groupId = String(s.group_id || s.groupid || s.groupId || s.id);
       const groupCover = s.group_coverurl || s.groupCoverUrl || s.group_cover_url || cover;
-      
-      const { text, i18n } = parseDescription(s.description, { title: s.title, coverUrl: cover, contentUrl: content });
+
+      const { text, i18n } = parseDescription(s.description, {
+        title: s.title,
+        coverUrl: cover,
+        contentUrl: content,
+      });
 
       return {
         id: s.id,
@@ -86,23 +92,30 @@ async function getStories() {
         description: text,
         i18n,
         duration: Number(s.duration) || 15,
-        sortOrder: Number(s.sort_order || s.sortOrder) || 0
+        sortOrder: Number(s.sort_order || s.sortOrder) || 0,
       };
     });
   } catch (err) {
     console.error('Exception loading stories from Supabase DB:', err.message);
-    return DEFAULT_STORIES;
+    return [];
   }
 }
 
 async function addStory(story) {
-  const ruTitle = story.i18n?.ru?.title || story.title || "Новая история";
-  const cover = story.i18n?.ru?.coverUrl || story.coverUrl || story.coverurl || "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=500&q=80";
+  const ruTitle = story.i18n?.ru?.title || story.title || 'Новая история';
+  const cover =
+    story.i18n?.ru?.coverUrl ||
+    story.coverUrl ||
+    story.coverurl ||
+    'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=500&q=80';
   const content = story.i18n?.ru?.contentUrl || story.contentUrl || story.contenturl || cover;
   const groupTitle = story.groupTitle || story.group_title || ruTitle;
-  const groupId = String(story.groupId || story.group_id || groupTitle).trim().toLowerCase().replace(/\s+/g, '-');
+  const groupId = String(story.groupId || story.group_id || groupTitle)
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '-');
   const groupCover = story.groupCoverUrl || story.group_coverurl || story.group_cover_url || cover;
-  
+
   const descStr = serializeDescription(story.description, story.i18n);
 
   const newStory = {
@@ -115,16 +128,12 @@ async function addStory(story) {
     group_coverurl: groupCover,
     description: descStr,
     duration: Number(story.duration) || 15,
-    sort_order: Number(story.sortOrder || story.sort_order) || 0
+    sort_order: Number(story.sortOrder || story.sort_order) || 0,
   };
 
   try {
-    const { data, error } = await supabase
-      .from('stories')
-      .insert([newStory])
-      .select()
-      .single();
-      
+    const { data, error } = await supabase.from('stories').insert([newStory]).select().single();
+
     if (error) {
       console.error('Error saving story to Supabase DB:', error.message);
       throw new Error(error.message);
@@ -135,8 +144,12 @@ async function addStory(story) {
     const finalGroupTitle = saved.group_title || saved.groupTitle || groupTitle;
     const finalGroupId = String(saved.group_id || saved.groupId || groupId);
     const finalGroupCover = saved.group_coverurl || saved.groupCoverUrl || groupCover;
-    
-    const { text, i18n } = parseDescription(saved.description, { title: saved.title, coverUrl: finalCover, contentUrl: finalContent });
+
+    const { text, i18n } = parseDescription(saved.description, {
+      title: saved.title,
+      coverUrl: finalCover,
+      contentUrl: finalContent,
+    });
 
     return {
       id: saved.id,
@@ -154,7 +167,7 @@ async function addStory(story) {
       description: text,
       i18n,
       duration: saved.duration || 15,
-      sortOrder: Number(saved.sort_order || saved.sortOrder) || 0
+      sortOrder: Number(saved.sort_order || saved.sortOrder) || 0,
     };
   } catch (err) {
     console.error('Error inserting story into Supabase:', err.message);
@@ -164,11 +177,8 @@ async function addStory(story) {
 
 async function deleteStory(id) {
   try {
-    const { error } = await supabase
-      .from('stories')
-      .delete()
-      .eq('id', id);
-      
+    const { error } = await supabase.from('stories').delete().eq('id', id);
+
     if (error) {
       console.error('Error deleting story from Supabase DB:', error.message);
       throw new Error(error.message);
@@ -181,13 +191,20 @@ async function deleteStory(id) {
 }
 
 async function updateStory(id, story) {
-  const ruTitle = story.i18n?.ru?.title || story.title || "Обновленная история";
-  const cover = story.i18n?.ru?.coverUrl || story.coverUrl || story.coverurl || "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=500&q=80";
+  const ruTitle = story.i18n?.ru?.title || story.title || 'Обновленная история';
+  const cover =
+    story.i18n?.ru?.coverUrl ||
+    story.coverUrl ||
+    story.coverurl ||
+    'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=500&q=80';
   const content = story.i18n?.ru?.contentUrl || story.contentUrl || story.contenturl || cover;
   const groupTitle = story.groupTitle || story.group_title || ruTitle;
-  const groupId = String(story.groupId || story.group_id || groupTitle).trim().toLowerCase().replace(/\s+/g, '-');
+  const groupId = String(story.groupId || story.group_id || groupTitle)
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '-');
   const groupCover = story.groupCoverUrl || story.group_coverurl || story.group_cover_url || cover;
-  
+
   const descStr = serializeDescription(story.description, story.i18n);
 
   const updatedData = {
@@ -199,7 +216,7 @@ async function updateStory(id, story) {
     group_coverurl: groupCover,
     description: descStr,
     duration: Number(story.duration) || 15,
-    sort_order: Number(story.sortOrder || story.sort_order) || 0
+    sort_order: Number(story.sortOrder || story.sort_order) || 0,
   };
 
   try {
@@ -209,7 +226,7 @@ async function updateStory(id, story) {
       .eq('id', id)
       .select()
       .single();
-      
+
     if (error) {
       console.error('Error updating story in Supabase DB:', error.message);
       throw new Error(error.message);
@@ -220,8 +237,12 @@ async function updateStory(id, story) {
     const finalGroupTitle = saved.group_title || saved.groupTitle || groupTitle;
     const finalGroupId = String(saved.group_id || saved.groupId || groupId);
     const finalGroupCover = saved.group_coverurl || saved.groupCoverUrl || groupCover;
-    
-    const { text, i18n } = parseDescription(saved.description, { title: saved.title, coverUrl: finalCover, contentUrl: finalContent });
+
+    const { text, i18n } = parseDescription(saved.description, {
+      title: saved.title,
+      coverUrl: finalCover,
+      contentUrl: finalContent,
+    });
 
     return {
       id: saved.id || id,
@@ -239,7 +260,7 @@ async function updateStory(id, story) {
       description: text,
       i18n,
       duration: saved.duration || 15,
-      sortOrder: Number(saved.sort_order || saved.sortOrder) || 0
+      sortOrder: Number(saved.sort_order || saved.sortOrder) || 0,
     };
   } catch (err) {
     console.error('Error updating story in Supabase:', err.message);

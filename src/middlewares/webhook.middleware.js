@@ -1,8 +1,11 @@
-const API_SECRET = process.env.API_SECRET || 'bulka_secret_123';
+const { safeEqual, readBearerToken } = require('../services/auth.service');
 
 const webhookMiddleware = (req, res, next) => {
-  const token = req.headers['authorization'];
-  if (!API_SECRET || token !== `Bearer ${API_SECRET}`) {
+  const apiSecret = process.env.API_SECRET || process.env.API_TOKEN || '';
+  if (apiSecret.length < 32) {
+    return res.status(503).json({ error: 'Loyalty API authentication is not configured' });
+  }
+  if (!safeEqual(readBearerToken(req), apiSecret)) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
   next();

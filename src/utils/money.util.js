@@ -1,7 +1,11 @@
-function parseMoney(value, fieldName, { min = 0 } = {}) {
+function parseMoney(value, fieldName, { min = 0, max = 100000000 } = {}) {
   const parsed = Number(value);
-  if (isNaN(parsed) || parsed < min) {
-    throw new Error(`Invalid value for ${fieldName}: must be a number >= ${min}`);
+  if (!Number.isFinite(parsed) || parsed < min || parsed > max) {
+    const error = new Error(
+      `Invalid value for ${fieldName}: must be a finite number between ${min} and ${max}`,
+    );
+    error.statusCode = 400;
+    throw error;
   }
   return parsed;
 }

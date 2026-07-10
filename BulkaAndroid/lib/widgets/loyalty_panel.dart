@@ -145,7 +145,9 @@ class _LoyaltyPanel extends StatelessWidget {
                           ),
                         ),
                         Tooltip(
-                          message: expanded ? 'collapse_tooltip'.tr : 'expand_tooltip'.tr,
+                          message: expanded
+                              ? 'collapse_tooltip'.tr
+                              : 'expand_tooltip'.tr,
                           child: GestureDetector(
                             behavior: HitTestBehavior.opaque,
                             onTap: onToggle,
@@ -202,7 +204,11 @@ class _LoyaltyPanel extends StatelessWidget {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.history, size: 20, color: Colors.white),
+                          const Icon(
+                            Icons.history,
+                            size: 20,
+                            color: Colors.white,
+                          ),
                           const SizedBox(width: 8),
                           Text(
                             'balance_history_btn'.tr,

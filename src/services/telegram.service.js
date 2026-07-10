@@ -1,9 +1,10 @@
 const fetch = require('node-fetch') || global.fetch;
-const { getCustomerByPhone, getOrCreateCustomerByPhone } = require('./customer.service');
+const { getOrCreateCustomerByPhone } = require('./customer.service');
 const { getSettings } = require('./settings.service');
+const { createWalletToken } = require('./wallet.service');
 
 // Токен бота по умолчанию (от пользователя) или из переменных окружения
-const TOKEN = process.env.TELEGRAM_BOT_TOKEN || '8786019464:AAHjKVN6mHF5un4ZedUpaxbCg32Q5PC4wbw';
+const TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 // URL для WebApp (ваш продакшен на Render по умолчанию)
 const WEBAPP_URL = process.env.WEBAPP_URL || 'https://iiko-bonus.onrender.com/app';
 
@@ -12,11 +13,12 @@ let isRunning = false;
 
 async function callApi(method, data = {}) {
   try {
+    if (!TOKEN) throw new Error('TELEGRAM_BOT_TOKEN is not configured');
     const url = `https://api.telegram.org/bot${TOKEN}/${method}`;
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
+      body: JSON.stringify(data),
     });
     return await res.json();
   } catch (err) {
@@ -29,7 +31,7 @@ async function sendMessage(chatId, text, replyMarkup = null) {
   const payload = {
     chat_id: chatId,
     text: text,
-    parse_mode: 'HTML'
+    parse_mode: 'HTML',
   };
   if (replyMarkup) {
     payload.reply_markup = replyMarkup;
@@ -48,9 +50,9 @@ async function handleUpdate(update) {
     keyboard: [
       [{ text: 'Отправить мой номер телефона', request_contact: true }],
       [{ text: 'Моя карта (Mini App)', web_app: { url: WEBAPP_URL } }],
-      [{ text: 'Мой баланс и статус' }, { text: 'Правила программы' }]
+      [{ text: 'Мой баланс и статус' }, { text: 'Правила программы' }],
     ],
-    resize_keyboard: true
+    resize_keyboard: true,
   };
 
   const inlineCardButton = {
@@ -58,10 +60,10 @@ async function handleUpdate(update) {
       [
         {
           text: 'Открыть виртуальную карту (QR)',
-          web_app: { url: WEBAPP_URL }
-        }
-      ]
-    ]
+          web_app: { url: WEBAPP_URL },
+        },
+      ],
+    ],
   };
 
   if (text.startsWith('/start') || text.startsWith('/help')) {
@@ -71,53 +73,46 @@ async function handleUpdate(update) {
   }
 
   if (contact && contact.phone_number) {
+    if (!contact.user_id || contact.user_id !== msg.from.id) {
+      await sendMessage(
+        chatId,
+        'Можно использовать только собственный контакт, отправленный кнопкой бота.',
+      );
+      return;
+    }
     const phone = contact.phone_number;
-    const name = `${msg.from.first_name || ''} ${msg.from.last_name || ''}`.trim() || 'Гость Telegram';
-    
+    const name =
+      `${msg.from.first_name || ''} ${msg.from.last_name || ''}`.trim() || 'Гость Telegram';
+
     try {
       // Регистрируем или находим клиента (строго без подарка +300 бонусов!)
       const customer = await getOrCreateCustomerByPhone(phone, name);
       const { supabase } = require('../config/supabase');
       await supabase.from('customers').update({ telegram_id: chatId }).eq('id', customer.id);
-      
+
       const settings = await getSettings();
       const { getTierInfo } = require('../utils/tier.util');
       const tier = getTierInfo(customer.total_spent, settings);
-      
-      let statusStr = `<b>${tier.name} (${tier.percent}%)</b>`;
-      let nextStr = tier.nextTier ? `\n<b>До статуса "${tier.nextTier}":</b> осталось ${tier.remaining.toLocaleString()} тнг` : '';
 
-      const replyText = `<b>Вы успешно авторизованы!</b>\n\n<b>Гость:</b> ${customer.name || name}\n<b>Телефон:</b> ${customer.phone}\n<b>Баланс:</b> <code>${customer.balance || 0}</code> бонусов\n<b>Уровень:</b> ${statusStr}\n<b>Всего покупок:</b> ${(customer.total_spent || 0).toLocaleString()} тнг${nextStr}\n\nЧтобы показать ваш статический QR-код на кассе, откройте виртуальную карту ниже:`;
-      
-      // Генерируем одноразовый токен для Apple Wallet
-      let walletUrl = '';
-      try {
-        const tokenRes = await fetch(`${WEBAPP_URL.replace('/app', '')}/api/wallet/token`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: customer.phone })
-        });
-        const tokenData = await tokenRes.json();
-        walletUrl = tokenData.url;
-      } catch (e) {
-        console.error('Wallet token error:', e.message);
-      }
+      let statusStr = `<b>${tier.name} (${tier.percent}%)</b>`;
+      let nextStr = tier.nextTier
+        ? `\n<b>До статуса "${tier.nextTier}":</b> осталось ${tier.remaining.toLocaleString()} тнг`
+        : '';
+
+      const replyText = `<b>Вы успешно авторизованы!</b>\n\n<b>Гость:</b> ${customer.name || name}\n<b>Телефон:</b> ${customer.phone}\n<b>Баланс:</b> <code>${customer.balance || 0}</code> бонусов\n<b>Уровень:</b> ${statusStr}\n<b>Всего покупок:</b> ${(customer.total_spent || 0).toLocaleString()} тнг${nextStr}\n\nОткройте карту лояльности ниже:`;
+
+      const baseUrl = WEBAPP_URL.replace(/\/app\/?$/, '');
+      const walletUrl = `${baseUrl}/wallet/${createWalletToken(customer.phone)}`;
 
       const userCardButton = {
         inline_keyboard: [
           [
             {
-              text: 'Открыть мою виртуальную карту (QR)',
-              web_app: { url: `${WEBAPP_URL}?phone=${encodeURIComponent(customer.phone)}` }
-            }
+              text: 'Открыть карту лояльности',
+              url: walletUrl,
+            },
           ],
-          ...(walletUrl ? [[
-            {
-              text: ' Добавить в Apple Wallet',
-              url: walletUrl
-            }
-          ]] : [])
-        ]
+        ],
       };
 
       await sendMessage(chatId, replyText, userCardButton);
@@ -128,7 +123,10 @@ async function handleUpdate(update) {
   }
 
   if (text.includes('Мой баланс') || text.includes('баланс')) {
-    await sendMessage(chatId, `Чтобы проверить баланс, пожалуйста, нажмите кнопку <b>«Отправить мой номер телефона»</b> в меню внизу. Так система определит ваш профиль в базе ресторана.`);
+    await sendMessage(
+      chatId,
+      `Чтобы проверить баланс, пожалуйста, нажмите кнопку <b>«Отправить мой номер телефона»</b> в меню внизу. Так система определит ваш профиль в базе ресторана.`,
+    );
     return;
   }
 
@@ -140,15 +138,25 @@ async function handleUpdate(update) {
 
   // Если пользователь ввел номер телефона вручную текстом
   if (/^[+0-9]{10,15}$/.test(text.replace(/[^0-9+]/g, ''))) {
-    await sendMessage(chatId, `<b>Ручной ввод чужих номеров запрещен</b>\n\nДля защиты баланса баллов от несанкционированного доступа, определение аккаунта происходит строго через подтверждение контакта в Telegram.\n\nПожалуйста, нажмите кнопку <b>«Отправить мой номер телефона»</b> внизу экрана.`);
+    await sendMessage(
+      chatId,
+      `<b>Ручной ввод чужих номеров запрещен</b>\n\nДля защиты баланса баллов от несанкционированного доступа, определение аккаунта происходит строго через подтверждение контакта в Telegram.\n\nПожалуйста, нажмите кнопку <b>«Отправить мой номер телефона»</b> внизу экрана.`,
+    );
     return;
   }
 
-  await sendMessage(chatId, `Я вас не понял Воспользуйтесь кнопками меню или отправьте команду /start`);
+  await sendMessage(
+    chatId,
+    `Я вас не понял Воспользуйтесь кнопками меню или отправьте команду /start`,
+  );
 }
 
 async function startPolling() {
   if (isRunning) return;
+  if (!TOKEN) {
+    console.warn('Telegram polling is disabled because TELEGRAM_BOT_TOKEN is not configured.');
+    return;
+  }
   isRunning = true;
   console.log('Telegram Bot polling started successfully...');
 
@@ -160,7 +168,7 @@ async function startPolling() {
       try {
         const res = await callApi('getUpdates', {
           offset: offset,
-          timeout: 30
+          timeout: 30,
         });
 
         if (res && res.ok && res.result) {
@@ -171,7 +179,7 @@ async function startPolling() {
         }
       } catch (err) {
         console.error('Polling loop error:', err.message);
-        await new Promise(r => setTimeout(r, 3000));
+        await new Promise((r) => setTimeout(r, 3000));
       }
     }
   };

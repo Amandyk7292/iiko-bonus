@@ -292,7 +292,9 @@ class _HomeScreenState extends State<HomeScreen> {
           return StoryGroup(
             id: entry.key,
             title: first.groupTitle.isNotEmpty ? first.groupTitle : first.title,
-            subtitle: first.description?.isNotEmpty == true ? first.description : first.title,
+            subtitle: first.description?.isNotEmpty == true
+                ? first.description
+                : first.title,
             coverUrl: first.groupCoverUrl.isNotEmpty
                 ? first.groupCoverUrl
                 : first.imageUrl,
@@ -451,9 +453,7 @@ class _OrderTypeCard extends StatelessWidget {
                   child: SizedBox(
                     width: tall ? 175 : 105,
                     height: tall ? 175 : 105,
-                    child: const CustomPaint(
-                      painter: _OrderSplashPainter(),
-                    ),
+                    child: const CustomPaint(painter: _OrderSplashPainter()),
                   ),
                 ),
                 Positioned(

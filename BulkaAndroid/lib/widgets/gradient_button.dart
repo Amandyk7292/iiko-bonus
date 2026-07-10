@@ -30,10 +30,7 @@ class GradientButton extends StatelessWidget {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: onPressed == null || loading
-                ? [
-                    const Color(0xFFE0E0E0),
-                    const Color(0xFFBDBDBD),
-                  ]
+                ? [const Color(0xFFE0E0E0), const Color(0xFFBDBDBD)]
                 : [
                     const Color(0xFFFFD54F),
                     const Color(0xFFFFB300),
@@ -47,7 +44,7 @@ class GradientButton extends StatelessWidget {
                     color: Color(0x33FFA000),
                     blurRadius: 8,
                     offset: Offset(0, 4),
-                  )
+                  ),
                 ],
         ),
         child: FilledButton(

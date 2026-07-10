@@ -1,7 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const isProduction = process.env.NODE_ENV === 'production' || process.env.RENDER || process.env.VERCEL;
+const isProduction =
+  process.env.NODE_ENV === 'production' || process.env.RENDER || process.env.VERCEL;
 
 function readSecretBuffer(envKey, localFile) {
   if (process.env[envKey]) return Buffer.from(process.env[envKey], 'base64');

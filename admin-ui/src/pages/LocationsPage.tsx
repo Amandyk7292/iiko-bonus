@@ -343,7 +343,7 @@ export default function LocationsPage() {
                   disabled={translating || !cityI18n.ru.name}
                   className="mb-6 px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 flex items-center gap-1"
                 >
-                  {translating ? 'Переводим...' : '✨ Автоперевод'}
+                  {translating ? 'Переводим...' : 'Автоперевод'}
                 </button>
               </div>
 
@@ -390,7 +390,7 @@ export default function LocationsPage() {
                   disabled={translating || (!pointI18n.ru.name && !pointI18n.ru.address)}
                   className="mb-6 px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 flex items-center gap-1"
                 >
-                  {translating ? 'Переводим...' : '✨ Автоперевод'}
+                  {translating ? 'Переводим...' : 'Автоперевод'}
                 </button>
               </div>
 

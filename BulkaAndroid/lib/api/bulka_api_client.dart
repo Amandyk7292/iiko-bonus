@@ -9,6 +9,19 @@ class BulkaApiClient {
   BulkaApiClient({http.Client? client}) : _client = client ?? http.Client();
 
   final http.Client _client;
+  String? _accessToken;
+
+  void setAccessToken(String? token) {
+    _accessToken = token;
+  }
+
+  Map<String, String> _headers({String? bearerToken, bool json = true}) {
+    final token = bearerToken ?? _accessToken;
+    return {
+      if (json) 'Content-Type': 'application/json',
+      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+    };
+  }
 
   Uri _uri(String path) {
     final base = _apiBaseUrl.endsWith('/')
@@ -18,11 +31,7 @@ class BulkaApiClient {
   }
 
   Future<ProfileResponse> getProfile(String phone) async {
-    final json = await _post('/api/guest/profile', {
-      'phone': phone,
-      'name': '',
-      'register': false,
-    });
+    final json = await _post('/api/guest/profile', {'phone': phone});
     return ProfileResponse.fromJson(json);
   }
 
@@ -71,6 +80,7 @@ class BulkaApiClient {
     String? gender,
     String? birthdate,
     String? email,
+    required String registrationToken,
   }) async {
     final json = await _post('/api/auth/register', {
       'phone': phone,
@@ -79,10 +89,12 @@ class BulkaApiClient {
       'gender': gender,
       'birthdate': birthdate,
       'email': email,
-    });
+    }, bearerToken: registrationToken);
     final response = ProfileResponse.fromJson(json);
     if (!response.success) {
-      throw ApiException(response.message ?? response.error ?? 'Ошибка при регистрации');
+      throw ApiException(
+        response.message ?? response.error ?? 'Ошибка при регистрации',
+      );
     }
     return response;
   }
@@ -98,17 +110,14 @@ class BulkaApiClient {
   }) async {
     final response = await _client.put(
       _uri('/api/customer/profile'),
-      headers: {
-        'Content-Type': 'application/json',
-        'x-customer-phone': phone,
-      },
+      headers: {..._headers()},
       body: jsonEncode({
-        if (name != null) 'name': name,
-        if (lastName != null) 'last_name': lastName,
-        if (gender != null) 'gender': gender,
-        if (birthDate != null) 'birth_date': birthDate,
-        if (email != null) 'email': email,
-        if (region != null) 'region': region,
+        'name': ?name,
+        'last_name': ?lastName,
+        'gender': ?gender,
+        'birth_date': ?birthDate,
+        'email': ?email,
+        'region': ?region,
       }),
     );
     final json = _decode(response);
@@ -120,9 +129,7 @@ class BulkaApiClient {
   Future<void> deleteAccount(String phone) async {
     final response = await _client.delete(
       _uri('/api/customer/profile'),
-      headers: {
-        'x-customer-phone': phone,
-      },
+      headers: {..._headers(json: false)},
     );
     final json = _decode(response);
     if (json['success'] != true) {
@@ -131,16 +138,21 @@ class BulkaApiClient {
   }
 
   Future<String> getQrToken(String phone) async {
-    final json = await _post('/api/guest/qr-token', {'phone': phone});
+    final json = await _post('/api/guest/qr-token', {});
     final token = _asString(json['token']);
     if (json['success'] == true && token.isNotEmpty) return token;
     throw ApiException(_messageFrom(json, 'QR временно недоступен'));
   }
 
   Future<String> createWalletUrl(String phone) async {
-    final json = await _post('/api/wallet/token', {'phone': phone});
-    final url = _asString(json['url']);
-    if (url.isNotEmpty) return url;
+    final json = await _post('/api/wallet/token', {});
+    final preferred = defaultTargetPlatform == TargetPlatform.iOS
+        ? _asString(json['appleUrl'])
+        : _asString(json['googleUrl']);
+    final path = preferred.isNotEmpty ? preferred : _asString(json['url']);
+    if (path.isNotEmpty) {
+      return path.startsWith('http') ? path : _uri(path).toString();
+    }
     throw ApiException(_messageFrom(json, 'Wallet временно недоступен'));
   }
 
@@ -169,8 +181,9 @@ class BulkaApiClient {
       final result = <String, List<String>>{};
       for (final entry in data.entries) {
         if (entry.value is List) {
-          result[entry.key.toString()] =
-              (entry.value as List).map((e) => e.toString()).toList();
+          result[entry.key.toString()] = (entry.value as List)
+              .map((e) => e.toString())
+              .toList();
         }
       }
       return result;
@@ -185,11 +198,12 @@ class BulkaApiClient {
 
   Future<Map<String, dynamic>> _post(
     String path,
-    Map<String, dynamic> body,
-  ) async {
+    Map<String, dynamic> body, {
+    String? bearerToken,
+  }) async {
     final response = await _client.post(
       _uri(path),
-      headers: {'Content-Type': 'application/json'},
+      headers: _headers(bearerToken: bearerToken),
       body: jsonEncode(body),
     );
     return _decode(response);
@@ -200,16 +214,20 @@ class BulkaApiClient {
     final decoded = text.isEmpty ? <String, dynamic>{} : jsonDecode(text);
     final json = _asMap(decoded);
     if (response.statusCode >= 400) {
-      throw ApiException(_messageFrom(json, 'Ошибка сети'));
+      throw ApiException(
+        _messageFrom(json, 'Ошибка сети'),
+        statusCode: response.statusCode,
+      );
     }
     return json;
   }
 }
 
 class ApiException implements Exception {
-  ApiException(this.message);
+  ApiException(this.message, {this.statusCode});
 
   final String message;
+  final int? statusCode;
 
   @override
   String toString() => message;

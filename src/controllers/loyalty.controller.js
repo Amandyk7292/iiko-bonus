@@ -2,22 +2,34 @@ const { supabase } = require('../config/supabase');
 const { getSettings } = require('../services/settings.service');
 const { getTierInfo } = require('../utils/tier.util');
 const { parseMoney } = require('../utils/money.util');
-const { 
-  getOrCreateCustomerByPhone, 
-  searchCustomers, 
-  activatePendingBonusesSafe, 
-  applyLoyaltyTransaction 
+const {
+  getOrCreateCustomerByPhone,
+  searchCustomers,
+  activatePendingBonusesSafe,
+  applyLoyaltyTransaction,
 } = require('../services/customer.service');
 const { sendPushNotification } = require('../services/push.service');
 const { sendAppleWalletPush } = require('../services/wallet.service');
 
-async function logIikoOperation(payload, balance, errorMsg) {
+async function logIikoOperation(payload, result, errorMsg) {
   try {
-    await supabase.from('iiko_operations').insert([{
-      balance: balance ?? null,
-      error_message: errorMsg || null,
-      payload: payload || null
-    }]);
+    if (!payload?.orderId) return;
+    const { error } = await supabase.from('iiko_operation_logs').insert([
+      {
+        order_id: String(payload.orderId),
+        customer_id: payload.customerId || null,
+        status: errorMsg ? 'error' : result?.duplicate ? 'duplicate' : 'success',
+        duplicate: Boolean(result?.duplicate),
+        discount_amount: Number(payload.discountAmount || 0),
+        earned_bonus: Number(payload.earnedBonus || 0),
+        order_total: Number(payload.orderTotal || 0),
+        cashback_percent: payload.cashbackPercent ?? null,
+        balance: result?.balance ?? null,
+        error_message: errorMsg || null,
+        payload: payload || null,
+      },
+    ]);
+    if (error) console.error('Failed to log iiko operation:', error.message);
   } catch (err) {
     console.error('Failed to log iiko operation:', err.message);
   }
@@ -38,10 +50,10 @@ async function configCheck(req, res) {
         tier_gold_cb: settings.tier_gold_cb,
         tier_platinum_th: settings.tier_platinum_th,
         tier_platinum_cb: settings.tier_platinum_cb,
-        max_discount_percent: settings.max_discount_percent
-      }
+        max_discount_percent: settings.max_discount_percent,
+      },
     });
-  } catch (error) {
+  } catch (_error) {
     res.status(500).json({ success: false, error: 'Internal server error' });
   }
 }
@@ -51,7 +63,7 @@ async function getCustomerInfo(req, res) {
     const { phone, name } = req.body;
     const customer = await getOrCreateCustomerByPhone(phone, name || 'Новый Гость');
     const settings = await getSettings();
-    
+
     const tier = getTierInfo(customer.total_spent, settings);
     const currentCashbackPercent = tier.percent;
 
@@ -65,10 +77,12 @@ async function getCustomerInfo(req, res) {
         cashbackPercent: currentCashbackPercent,
         tier: tier,
         maxDiscountPercent: settings.max_discount_percent,
-        balances: [{ walletId: 'bonus-wallet', name: 'Бонусы', balance: customer.balance }]
-      }
+        balances: [{ walletId: 'bonus-wallet', name: 'Бонусы', balance: customer.balance }],
+      },
     });
-  } catch (error) { res.status(500).json({ error: 'Internal server error' }); }
+  } catch (_error) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
 }
 
 async function searchCustomersHandler(req, res) {
@@ -80,7 +94,7 @@ async function searchCustomersHandler(req, res) {
     const customers = await searchCustomers(query);
     const settings = await getSettings();
 
-    const formattedCustomers = customers.map(customer => {
+    const formattedCustomers = customers.map((customer) => {
       const tier = getTierInfo(customer.total_spent, settings);
       const currentCashbackPercent = tier.percent;
 
@@ -93,14 +107,14 @@ async function searchCustomersHandler(req, res) {
         cashbackPercent: currentCashbackPercent,
         tier: tier,
         maxDiscountPercent: settings.max_discount_percent,
-        balances: [{ walletId: 'bonus-wallet', name: 'Бонусы', balance: customer.balance }]
+        balances: [{ walletId: 'bonus-wallet', name: 'Бонусы', balance: customer.balance }],
       };
     });
 
     res.json({ customers: formattedCustomers });
-  } catch (error) { 
-    console.error(error); 
-    res.status(500).json({ error: 'Internal server error' }); 
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 }
 
@@ -121,9 +135,13 @@ async function calculateBonus(req, res) {
       discountAmount: Number(discountAmount.toFixed(2)),
       maxDiscountPercent: settings.max_discount_percent,
       availableBalance: balance,
-      message: "Расчет успешен"
+      message: 'Расчет успешен',
     });
-  } catch (error) { res.status(error.statusCode || 500).json({ error: error.statusCode ? error.message : 'Internal server error' }); }
+  } catch (error) {
+    res
+      .status(error.statusCode || 500)
+      .json({ error: error.statusCode ? error.message : 'Internal server error' });
+  }
 }
 
 async function applyBonus(req, res) {
@@ -133,65 +151,101 @@ async function applyBonus(req, res) {
     await activatePendingBonusesSafe();
     const discount = parseMoney(discountAmount || 0, 'discountAmount');
     const total = parseMoney(orderTotal, 'orderTotal');
-    if (!customerId || !orderId) return res.status(400).json({ error: 'customerId and orderId are required' });
-    logPayload = { customerId, orderId, discountAmount: discount, orderTotal: total, items, payload: req.body };
+    if (!customerId || !orderId)
+      return res.status(400).json({ error: 'customerId and orderId are required' });
     const settings = await getSettings();
 
-    const customerBefore = await supabase.from('customers').select('total_spent').eq('id', customerId).single();
-    if (!customerBefore.data) throw new Error("Customer not found");
+    const customerBefore = await supabase
+      .from('customers')
+      .select('balance,total_spent')
+      .eq('id', customerId)
+      .single();
+    if (!customerBefore.data) throw new Error('Customer not found');
     const tier = getTierInfo(customerBefore.data.total_spent, settings);
     const currentCashbackPercent = tier.percent;
+    const balance = Number(customerBefore.data.balance || 0);
+    const maxByPercent = total * (Number(settings.max_discount_percent || 0) / 100);
+    const maxAllowedDiscount = Math.min(balance, maxByPercent, total);
+    if (discount > maxAllowedDiscount + 0.001) {
+      const error = new Error(
+        `discountAmount exceeds allowed maximum ${maxAllowedDiscount.toFixed(2)}`,
+      );
+      error.statusCode = 400;
+      throw error;
+    }
 
     const realMoneyPaid = total - discount;
     let earnedBonus = 0;
     if (realMoneyPaid > 0) {
-      earnedBonus = realMoneyPaid * (currentCashbackPercent / 100);
+      earnedBonus = Number((realMoneyPaid * (currentCashbackPercent / 100)).toFixed(2));
     }
-    
-    const activationDelayDays = settings.activation_delay_days || 0;
 
-    const result = await applyLoyaltyTransaction(
+    const activationDelayDays =
+      settings.bonus_activation?.enabled === false
+        ? 0
+        : Number(settings.bonus_activation?.delay_days || 0);
+    logPayload = {
       customerId,
       orderId,
-      discount,
+      discountAmount: discount,
       earnedBonus,
-      total,
+      orderTotal: total,
+      cashbackPercent: currentCashbackPercent,
+      items,
+    };
+
+    const result = await applyLoyaltyTransaction({
+      customerId,
+      orderId,
+      discountAmount: discount,
+      earnedBonus,
+      orderTotal: total,
       realMoneyPaid,
       activationDelayDays,
-      items
-    );
+      items,
+    });
 
-    await logIikoOperation(logPayload, result.balance, null);
+    await logIikoOperation(logPayload, result, null);
 
     // Push notification logic
-    try {
-      const { data: cData } = await supabase.from('customers').select('fcm_token').eq('id', customerId).single();
-      if (cData && cData.fcm_token) {
-        let pushBody = `Счет: ${total} ₸. `;
-        if (discount > 0) pushBody += `Списано: ${discount} б. `;
-        if (earnedBonus > 0 && activationDelayDays > 0) pushBody += `Будет зачислен через ${activationDelayDays} д.: ${earnedBonus} б. `;
-        else if (earnedBonus > 0) pushBody += `Начислено: ${earnedBonus} б. `;
-        pushBody += `Текущий баланс: ${result.balance} б.`;
+    if (!result.duplicate)
+      try {
+        const { data: cData } = await supabase
+          .from('customers')
+          .select('fcm_token')
+          .eq('id', customerId)
+          .single();
+        if (cData && cData.fcm_token) {
+          let pushBody = `Счет: ${total} ₸. `;
+          if (discount > 0) pushBody += `Списано: ${discount} б. `;
+          if (earnedBonus > 0 && activationDelayDays > 0)
+            pushBody += `Будет зачислен через ${activationDelayDays} д.: ${earnedBonus} б. `;
+          else if (earnedBonus > 0) pushBody += `Начислено: ${earnedBonus} б. `;
+          pushBody += `Текущий баланс: ${result.balance} б.`;
 
-        await sendPushNotification(cData.fcm_token, 'Ваш заказ оформлен!', pushBody);
+          await sendPushNotification(cData.fcm_token, 'Ваш заказ оформлен!', pushBody);
+        }
+        sendAppleWalletPush(customerId).catch((err) => console.error(err));
+      } catch (pushErr) {
+        console.error('Push notification failed:', pushErr);
       }
-      sendAppleWalletPush(customerId).catch(err => console.error(err));
-    } catch (pushErr) {
-      console.error('Push notification failed:', pushErr);
-    }
 
     res.json({
       success: true,
       newBalance: result.balance,
-      discountApplied: discount,
-      earnedBonus: earnedBonus,
+      discountApplied: result.duplicate ? 0 : discount,
+      earnedBonus: result.duplicate ? 0 : earnedBonus,
+      duplicate: Boolean(result.duplicate),
       activationDelayDays: activationDelayDays,
-      message: 'Transaction recorded successfully.'
+      message: result.duplicate
+        ? 'Transaction was already recorded.'
+        : 'Transaction recorded successfully.',
     });
-
   } catch (error) {
     if (logPayload) await logIikoOperation(logPayload, null, error.message);
-    res.status(500).json({ error: error.message || 'Internal server error' });
+    res
+      .status(error.statusCode || 500)
+      .json({ error: error.statusCode ? error.message : 'Internal server error' });
   }
 }
 
@@ -200,5 +254,5 @@ module.exports = {
   getCustomerInfo,
   searchCustomersHandler,
   calculateBonus,
-  applyBonus
+  applyBonus,
 };

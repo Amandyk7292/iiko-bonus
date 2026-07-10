@@ -8,6 +8,8 @@ class ProfileResponse {
     required this.transactions,
     this.error,
     this.message,
+    this.accessToken,
+    this.registrationToken,
   });
 
   final bool success;
@@ -16,6 +18,8 @@ class ProfileResponse {
   final List<BonusTransaction> transactions;
   final String? error;
   final String? message;
+  final String? accessToken;
+  final String? registrationToken;
 
   factory ProfileResponse.fromJson(Map<String, dynamic> json) {
     final transactions = json['transactions'];
@@ -32,6 +36,8 @@ class ProfileResponse {
           : const [],
       error: _nullableString(json['error']),
       message: _nullableString(json['message']),
+      accessToken: _nullableString(json['accessToken']),
+      registrationToken: _nullableString(json['registrationToken']),
     );
   }
 }
@@ -92,7 +98,8 @@ class Customer {
       birthDate: _nullableString(json['birth_date'] ?? json['birthdate']),
       email: _nullableString(json['email']),
       region: _nullableString(json['region']),
-      emailVerified: json['emailVerified'] == true || json['email_verified'] == true,
+      emailVerified:
+          json['emailVerified'] == true || json['email_verified'] == true,
     );
   }
 
@@ -154,9 +161,13 @@ class Tier {
   factory Tier.fromJson(Map<String, dynamic> json) {
     final list = json['allTiers'] is List
         ? (json['allTiers'] as List)
-            .map((e) => e is Map ? TierItem.fromJson(_asMap(e)) : const TierItem(name: '', percent: 0))
-            .where((e) => e.name.isNotEmpty)
-            .toList()
+              .map(
+                (e) => e is Map
+                    ? TierItem.fromJson(_asMap(e))
+                    : const TierItem(name: '', percent: 0),
+              )
+              .where((e) => e.name.isNotEmpty)
+              .toList()
         : const <TierItem>[];
 
     return Tier(
@@ -307,17 +318,17 @@ class PromoStory {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        'coverUrl': imageUrl,
-        'contentUrl': contentUrl,
-        'groupId': groupId,
-        'groupTitle': groupTitle,
-        'groupCoverUrl': groupCoverUrl,
-        'sortOrder': sortOrder,
-        'description': description,
-        'duration': duration,
-      };
+    'id': id,
+    'title': title,
+    'coverUrl': imageUrl,
+    'contentUrl': contentUrl,
+    'groupId': groupId,
+    'groupTitle': groupTitle,
+    'groupCoverUrl': groupCoverUrl,
+    'sortOrder': sortOrder,
+    'description': description,
+    'duration': duration,
+  };
 }
 
 class NewsItem {
@@ -348,12 +359,12 @@ class NewsItem {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        'imageUrl': imageUrl,
-        'createdAt': createdAt,
-        'description': description,
-      };
+    'id': id,
+    'title': title,
+    'imageUrl': imageUrl,
+    'createdAt': createdAt,
+    'description': description,
+  };
 }
 
 class DeliveryLocation {
@@ -458,4 +469,3 @@ class Point {
     );
   }
 }
-

@@ -28,19 +28,21 @@ class IikoAPI {
       body = {
         appId: this.appId,
         clientSecret: this.clientSecret,
-        apiKey: this.apiLogin
+        apiKey: this.apiLogin,
       };
     }
 
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Ошибка получения токена iiko (${this.appId && this.clientSecret ? 'v2' : 'v1'}): ${errorText}`);
+      throw new Error(
+        `Ошибка получения токена iiko (${this.appId && this.clientSecret ? 'v2' : 'v1'}): ${errorText}`,
+      );
     }
 
     const data = await response.json();
@@ -51,7 +53,11 @@ class IikoAPI {
   }
 
   async getOrganizationId() {
-    if (this.organizationId && this.organizationId.includes('-') && this.organizationId.length > 20) {
+    if (
+      this.organizationId &&
+      this.organizationId.includes('-') &&
+      this.organizationId.length > 20
+    ) {
       return this.organizationId;
     }
     const token = await this.getToken();
@@ -59,9 +65,9 @@ class IikoAPI {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ returnAdditionalInfo: false, includeDisabled: false })
+      body: JSON.stringify({ returnAdditionalInfo: false, includeDisabled: false }),
     });
     if (!response.ok) {
       const errorText = await response.text();
@@ -81,7 +87,7 @@ class IikoAPI {
   async registerCustomer(phone, name) {
     const token = await this.getToken();
     const orgId = await this.getOrganizationId();
-    
+
     // Очищаем телефон (оставляем только цифры, для iiko формат обычно без плюса или с плюсом в зависимости от настроек)
     // По стандарту лучше отправлять как есть, но без пробелов
     const cleanPhone = phone.replace(/[^0-9+]/g, '');
@@ -90,17 +96,17 @@ class IikoAPI {
       organizationId: orgId,
       customer: {
         phone: cleanPhone,
-        name: name || 'Новый Гость'
-      }
+        name: name || 'Новый Гость',
+      },
     };
 
     const response = await fetch(`${this.baseUrl}/api/1/loyalty/customers/create_or_update`, {
       method: 'POST',
-      headers: { 
+      headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
@@ -118,14 +124,14 @@ class IikoAPI {
 
     const token = await this.getToken();
     let orgId = await this.getOrganizationId();
-    
+
     let response = await fetch(`${this.baseUrl}/api/1/nomenclature`, {
       method: 'POST',
-      headers: { 
+      headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+        Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ organizationId: orgId })
+      body: JSON.stringify({ organizationId: orgId }),
     });
 
     if (!response.ok) {
@@ -136,22 +142,30 @@ class IikoAPI {
     let menuData = await response.json();
 
     // Если в первой точке пусто (нет товаров или категорий), ищем точку, где меню есть!
-    if ((!menuData.products || menuData.products.length === 0) && this.allOrganizations && this.allOrganizations.length > 1) {
-      console.log(`В точке ${orgId} нет товаров. Ищем по остальным ${this.allOrganizations.length} точкам...`);
+    if (
+      (!menuData.products || menuData.products.length === 0) &&
+      this.allOrganizations &&
+      this.allOrganizations.length > 1
+    ) {
+      console.log(
+        `В точке ${orgId} нет товаров. Ищем по остальным ${this.allOrganizations.length} точкам...`,
+      );
       for (const org of this.allOrganizations) {
         if (org.id === orgId) continue;
         const res = await fetch(`${this.baseUrl}/api/1/nomenclature`, {
           method: 'POST',
-          headers: { 
+          headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+            Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ organizationId: org.id })
+          body: JSON.stringify({ organizationId: org.id }),
         });
         if (res.ok) {
           const data = await res.json();
           if (data.products && data.products.length > 0) {
-            console.log(`Найдено меню с ${data.products.length} товарами в точке: ${org.name} (${org.id})`);
+            console.log(
+              `Найдено меню с ${data.products.length} товарами в точке: ${org.name} (${org.id})`,
+            );
             this.organizationId = org.id;
             menuData = data;
             menuData.orgName = org.name;
@@ -165,14 +179,16 @@ class IikoAPI {
     if (!menuData.products || menuData.products.length === 0) {
       console.log('Номенклатура v1 пуста. Проверяем External Menus (/api/2/menu)...');
       try {
-        const allOrgIds = this.allOrganizations ? this.allOrganizations.map(o => o.id) : [this.organizationId || orgId];
+        const allOrgIds = this.allOrganizations
+          ? this.allOrganizations.map((o) => o.id)
+          : [this.organizationId || orgId];
         const extRes = await fetch(`${this.baseUrl}/api/2/menu`, {
           method: 'POST',
-          headers: { 
+          headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+            Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ organizationIds: allOrgIds })
+          body: JSON.stringify({ organizationIds: allOrgIds }),
         });
         if (extRes.ok) {
           const extData = await extRes.json();
@@ -181,24 +197,24 @@ class IikoAPI {
             console.log('Найдено Внешнее Меню:', extData.externalMenus[0].name, extMenuId);
             const itemsRes = await fetch(`${this.baseUrl}/api/2/menu/by_id`, {
               method: 'POST',
-              headers: { 
+              headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
+                Authorization: `Bearer ${token}`,
               },
               body: JSON.stringify({
                 externalMenuId: extMenuId,
-                organizationIds: allOrgIds
-              })
+                organizationIds: allOrgIds,
+              }),
             });
             if (itemsRes.ok) {
               const itemsData = await itemsRes.json();
               // Преобразуем формат v2 в v1
-              const groups = (itemsData.itemCategories || []).map(c => ({
+              const groups = (itemsData.itemCategories || []).map((c) => ({
                 id: c.id,
                 name: c.name,
-                order: c.order || 0
+                order: c.order || 0,
               }));
-              const products = (itemsData.items || []).map(i => {
+              const products = (itemsData.items || []).map((i) => {
                 let price = 0;
                 let imageUrl = i.buttonImageUrl;
                 if (i.itemSizes && i.itemSizes.length > 0) {
@@ -214,11 +230,17 @@ class IikoAPI {
                   parentGroup: i.itemCategoryId,
                   type: 'Dish',
                   sizePrices: [{ price: { currentPrice: price } }],
-                  imageLinks: imageUrl ? [imageUrl] : []
+                  imageLinks: imageUrl ? [imageUrl] : [],
                 };
               });
-              console.log(`Загружено из Внешнего Меню v2: ${groups.length} категорий, ${products.length} товаров`);
-              menuData = { groups, products, orgName: extData.externalMenus[0].name + ' (External v2)' };
+              console.log(
+                `Загружено из Внешнего Меню v2: ${groups.length} категорий, ${products.length} товаров`,
+              );
+              menuData = {
+                groups,
+                products,
+                orgName: extData.externalMenus[0].name + ' (External v2)',
+              };
             }
           }
         }

@@ -1,11 +1,30 @@
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '225588';
+const {
+  signAdminToken,
+  verifyToken,
+  safeEqual,
+  readBearerToken,
+} = require('../services/auth.service');
 
-const adminAuthMiddleware = (req, res, next) => {
-  const token = req.headers['authorization'];
-  if (!ADMIN_PASSWORD || token !== `Bearer ${ADMIN_PASSWORD}`) {
-    return res.status(401).json({ error: 'Admin password is invalid or expired. Please log in again.' });
+const adminLoginHandler = (req, res) => {
+  const configuredPassword = process.env.ADMIN_PASSWORD || '';
+  if (configuredPassword.length < 12) {
+    return res.status(503).json({ error: 'Admin authentication is not configured' });
   }
-  next();
+  if (!safeEqual(req.body?.password, configuredPassword)) {
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+  return res.json({ token: signAdminToken() });
 };
 
-module.exports = { adminAuthMiddleware };
+const adminAuthMiddleware = (req, res, next) => {
+  try {
+    const payload = verifyToken(readBearerToken(req), 'bulka-admin');
+    if (payload.role !== 'admin') throw new Error('Invalid role');
+    req.admin = payload;
+    next();
+  } catch (_error) {
+    return res.status(401).json({ error: 'Admin session is invalid or expired' });
+  }
+};
+
+module.exports = { adminAuthMiddleware, adminLoginHandler };

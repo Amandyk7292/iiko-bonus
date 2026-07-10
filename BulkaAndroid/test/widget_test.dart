@@ -15,7 +15,10 @@ void main() {
       ),
     );
 
-    expect(find.text('Bulka Bonus'), findsOneWidget);
+    expect(
+      find.image(const AssetImage('assets/brand/bulka_logo.png')),
+      findsOneWidget,
+    );
     expect(find.text('Получить код в WhatsApp'), findsOneWidget);
   });
 
@@ -40,13 +43,13 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Тут много интересного'), findsOneWidget);
-    expect(find.text('НОВИНКА'), findsOneWidget);
+    expect(find.text('НОВИНКА'), findsWidgets);
     expect(find.text('Выберите тип заказа'), findsOneWidget);
     expect(find.text('Накопительная'), findsOneWidget);
     expect(find.text('Осталось покупок: 4'), findsOneWidget);
     expect(find.text('Осталось покупок: 10'), findsOneWidget);
 
-    await tester.tap(find.text('НОВИНКА'));
+    await tester.tap(find.text('НОВИНКА').last);
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.byType(StoryViewer), findsOneWidget);
 
@@ -60,9 +63,9 @@ void main() {
 
     await tester.tap(find.text('Профиль'));
     await tester.pumpAndSettle();
-    expect(find.text('Мой профиль'), findsOneWidget);
+    expect(find.text('Профиль'), findsWidgets);
 
-    await tester.tap(find.byIcon(Icons.arrow_back_rounded));
+    await tester.tap(find.text('Главная'));
     await tester.pumpAndSettle();
 
     expect(

@@ -64,7 +64,7 @@ export default function BroadcastPage() {
                 if (!window.confirm('Отправить Push-уведомление всем клиентам приложения?')) return;
                 setLoading(true);
                 try {
-                  const token = localStorage.getItem('adminPwd') || '';
+                  const token = localStorage.getItem('adminToken') || '';
                   const res = await fetch('/admin/api/push/mass', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },

@@ -17,7 +17,8 @@ class LoginScreen extends StatefulWidget {
     String? gender,
     String? birthdate,
     String? email,
-  })? onRegister;
+  })?
+  onRegister;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -216,7 +217,10 @@ class _LoginScreenState extends State<LoginScreen> {
     final phone = '7${_phoneController.text}';
     final chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
     final rng = Random();
-    final token = List.generate(12, (_) => chars[rng.nextInt(chars.length)]).join();
+    final token = List.generate(
+      12,
+      (_) => chars[rng.nextInt(chars.length)],
+    ).join();
     final error = await widget.onRequestOtp(phone, token);
     if (!mounted) return;
     setState(() => _loading = false);
@@ -326,12 +330,14 @@ class _LoginScreenState extends State<LoginScreen> {
                             child: _otpStep
                                 ? Column(
                                     key: const ValueKey('otp'),
-                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
                                     children: _otpCodeStep(context),
                                   )
                                 : Column(
                                     key: const ValueKey('phone'),
-                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
                                     children: _phoneStep(context),
                                   ),
                           ),
@@ -341,11 +347,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
-              Positioned(
-                top: 12,
-                left: 16,
-                child: _buildLanguageBadge(),
-              ),
+              Positioned(top: 12, left: 16, child: _buildLanguageBadge()),
             ],
           ),
         ),
@@ -360,7 +362,10 @@ class _LoginScreenState extends State<LoginScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF6D3317)),
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Color(0xFF6D3317),
+          ),
           onPressed: () {
             setState(() {
               _registerStep = false;
@@ -377,10 +382,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
         centerTitle: true,
-        actions: [
-          _buildLanguageBadge(),
-          const SizedBox(width: 16),
-        ],
+        actions: [_buildLanguageBadge(), const SizedBox(width: 16)],
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -398,7 +400,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     decoration: BoxDecoration(
                       color: const Color(0xFFFAF6F2),
                       shape: BoxShape.circle,
-                      border: Border.all(color: const Color(0xFFDEC588), width: 2),
+                      border: Border.all(
+                        color: const Color(0xFFDEC588),
+                        width: 2,
+                      ),
                     ),
                     padding: const EdgeInsets.all(12),
                     child: Image.asset('assets/brand/bulka_logo.png'),
@@ -465,7 +470,11 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                         child: _termsAccepted
-                            ? const Icon(Icons.check, size: 16, color: Colors.white)
+                            ? const Icon(
+                                Icons.check,
+                                size: 16,
+                                color: Colors.white,
+                              )
                             : null,
                       ),
                       const SizedBox(width: 12),
@@ -485,11 +494,16 @@ class _LoginScreenState extends State<LoginScreen> {
                 if (_error != null) ...[
                   const SizedBox(height: 16),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFFFF0F0),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.redAccent.withValues(alpha: 0.4)),
+                      border: Border.all(
+                        color: Colors.redAccent.withValues(alpha: 0.4),
+                      ),
                     ),
                     child: Text(
                       _error!,
@@ -551,7 +565,9 @@ class _LoginScreenState extends State<LoginScreen> {
             height: 22,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: selected ? const Color(0xFF6D3317) : const Color(0xFFFAF6F2),
+              color: selected
+                  ? const Color(0xFF6D3317)
+                  : const Color(0xFFFAF6F2),
               border: Border.all(color: const Color(0xFF6D3317), width: 1.5),
             ),
             child: selected
@@ -690,7 +706,9 @@ class _LoginScreenState extends State<LoginScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFF6D3317).withValues(alpha: 0.25)),
+          border: Border.all(
+            color: const Color(0xFF6D3317).withValues(alpha: 0.25),
+          ),
           boxShadow: const [
             BoxShadow(
               color: Color(0x0A000000),
@@ -918,10 +936,7 @@ class _LoginScreenState extends State<LoginScreen> {
       const SizedBox(height: 8),
       Text(
         'valid_few_mins'.tr,
-        style: TextStyle(
-          color: _textDark.withValues(alpha: 0.5),
-          fontSize: 12,
-        ),
+        style: TextStyle(color: _textDark.withValues(alpha: 0.5), fontSize: 12),
         textAlign: TextAlign.center,
       ),
       if (_error != null) ...[
@@ -1123,14 +1138,16 @@ class _PrimaryButton extends StatelessWidget {
               iconAsset!,
               width: 22,
               height: 22,
-              errorBuilder: (_, __, ___) => const _WhatsAppVectorIcon(size: 22),
+              errorBuilder: (_, _, _) => const _WhatsAppVectorIcon(size: 22),
             ),
             const SizedBox(width: 10),
           ] else if (icon != null) ...[
             Icon(icon, size: 24, color: Colors.white),
             const SizedBox(width: 8),
           ],
-          Text(text),
+          Flexible(
+            child: Text(text, maxLines: 1, overflow: TextOverflow.ellipsis),
+          ),
         ],
       ),
     );
@@ -1172,8 +1189,11 @@ class _WhatsAppVectorPainter extends CustomPainter {
       ..lineTo(w * 0.28, h * 0.85)
       ..close();
 
-    final Path fullBubble =
-        Path.combine(PathOperation.union, bubblePath, tailPath);
+    final Path fullBubble = Path.combine(
+      PathOperation.union,
+      bubblePath,
+      tailPath,
+    );
     canvas.drawPath(fullBubble, greenPaint);
 
     final Paint whitePaint = Paint()

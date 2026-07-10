@@ -3,10 +3,12 @@ const { supabase } = require('../config/supabase');
 async function getCitiesWithPoints() {
   const { data, error } = await supabase
     .from('cities')
-    .select(`
+    .select(
+      `
       *,
       points (*)
-    `)
+    `,
+    )
     .order('name', { ascending: true });
 
   if (error) {
@@ -17,11 +19,7 @@ async function getCitiesWithPoints() {
 }
 
 async function createCity(name, i18n) {
-  const { data, error } = await supabase
-    .from('cities')
-    .insert([{ name, i18n }])
-    .select()
-    .single();
+  const { data, error } = await supabase.from('cities').insert([{ name, i18n }]).select().single();
 
   if (error) throw new Error(error.message);
   return data;
@@ -40,10 +38,7 @@ async function updateCity(id, name, i18n) {
 }
 
 async function deleteCity(id) {
-  const { error } = await supabase
-    .from('cities')
-    .delete()
-    .eq('id', id);
+  const { error } = await supabase.from('cities').delete().eq('id', id);
 
   if (error) throw new Error(error.message);
 }
@@ -77,10 +72,7 @@ async function updatePoint(id, name, address, latitude, longitude, i18n) {
 }
 
 async function deletePoint(id) {
-  const { error } = await supabase
-    .from('points')
-    .delete()
-    .eq('id', id);
+  const { error } = await supabase.from('points').delete().eq('id', id);
 
   if (error) throw new Error(error.message);
 }
@@ -92,5 +84,5 @@ module.exports = {
   deleteCity,
   createPoint,
   updatePoint,
-  deletePoint
+  deletePoint,
 };

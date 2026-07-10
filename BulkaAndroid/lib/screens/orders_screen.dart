@@ -119,7 +119,8 @@ class TransactionCard extends StatelessWidget {
               Expanded(
                 child: ListView.separated(
                   itemCount: transaction.items!.length,
-                  separatorBuilder: (_, __) => Divider(color: _almond.withValues(alpha: 0.3)),
+                  separatorBuilder: (_, _) =>
+                      Divider(color: _almond.withValues(alpha: 0.3)),
                   itemBuilder: (context, index) {
                     final item = transaction.items![index];
                     final name = item['name'] ?? 'Товар';

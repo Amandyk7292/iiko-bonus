@@ -27,7 +27,8 @@ class _LocationsScreenState extends State<LocationsScreen> {
       final locs = await api.getLocations();
       setState(() {
         _cityLocations = locs;
-        if (_cityLocations.isNotEmpty && !_cityLocations.containsKey(_selectedCity)) {
+        if (_cityLocations.isNotEmpty &&
+            !_cityLocations.containsKey(_selectedCity)) {
           _selectedCity = _cityLocations.keys.first;
         }
         _loading = false;
@@ -88,9 +89,13 @@ class _LocationsScreenState extends State<LocationsScreen> {
         backgroundColor: Colors.transparent,
       ),
       body: SafeArea(
-        child: _loading 
-            ? const Center(child: CircularProgressIndicator(color: Colors.orange))
-            : (_showCities ? _buildCitiesList() : _buildLocationsList(filteredLocations)),
+        child: _loading
+            ? const Center(
+                child: CircularProgressIndicator(color: Colors.orange),
+              )
+            : (_showCities
+                  ? _buildCitiesList()
+                  : _buildLocationsList(filteredLocations)),
       ),
     );
   }
@@ -100,17 +105,15 @@ class _LocationsScreenState extends State<LocationsScreen> {
     return ListView.separated(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       itemCount: cities.length,
-      separatorBuilder: (context, index) => Divider(height: 1, color: _textDark.withValues(alpha: 0.08)),
+      separatorBuilder: (context, index) =>
+          Divider(height: 1, color: _textDark.withValues(alpha: 0.08)),
       itemBuilder: (context, index) {
         final city = cities[index];
         return ListTile(
           contentPadding: EdgeInsets.zero,
           title: Text(
             city,
-            style: const TextStyle(
-              fontSize: 18,
-              color: _textDark,
-            ),
+            style: const TextStyle(fontSize: 18, color: _textDark),
           ),
           trailing: const Icon(Icons.chevron_right_rounded, color: _almond),
           onTap: () => _onCityTapped(city),
@@ -131,30 +134,28 @@ class _LocationsScreenState extends State<LocationsScreen> {
                 onTap: () => setState(() => _showCities = true),
                 child: Row(
                   children: [
-                    const Icon(Icons.chevron_left_rounded, color: _almond, size: 20),
+                    const Icon(
+                      Icons.chevron_left_rounded,
+                      color: _almond,
+                      size: 20,
+                    ),
                     const SizedBox(width: 4),
                     const Text(
                       'Все Локации',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: _textDark,
-                      ),
+                      style: TextStyle(fontSize: 16, color: _textDark),
                     ),
                   ],
                 ),
               ),
               GestureDetector(
                 onTap: () {
-                  Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => const AddressMapScreen(),
-                  ));
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const AddressMapScreen()),
+                  );
                 },
                 child: const Text(
                   'Посмотреть на карте',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Color(0xFFD3AD72),
-                  ),
+                  style: TextStyle(fontSize: 16, color: Color(0xFFD3AD72)),
                 ),
               ),
             ],
@@ -174,7 +175,10 @@ class _LocationsScreenState extends State<LocationsScreen> {
                 hintStyle: TextStyle(color: Colors.black38, fontSize: 16),
                 suffixIcon: Icon(Icons.search, color: Color(0xFFD3AD72)),
                 border: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 16,
+                ),
               ),
             ),
           ),
@@ -183,19 +187,20 @@ class _LocationsScreenState extends State<LocationsScreen> {
           child: ListView.separated(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             itemCount: locations.length,
-            separatorBuilder: (context, index) => Divider(height: 1, color: _textDark.withValues(alpha: 0.08)),
+            separatorBuilder: (context, index) =>
+                Divider(height: 1, color: _textDark.withValues(alpha: 0.08)),
             itemBuilder: (context, index) {
               final location = locations[index];
               return ListTile(
                 contentPadding: EdgeInsets.zero,
                 title: Text(
                   location,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    color: _textDark,
-                  ),
+                  style: const TextStyle(fontSize: 18, color: _textDark),
                 ),
-                trailing: const Icon(Icons.chevron_right_rounded, color: _almond),
+                trailing: const Icon(
+                  Icons.chevron_right_rounded,
+                  color: _almond,
+                ),
                 onTap: () => _onLocationTapped(location),
               );
             },

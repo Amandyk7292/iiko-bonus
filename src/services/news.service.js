@@ -8,7 +8,7 @@ function normalizeNews(row, fallback = {}) {
     imageUrl: image,
     imageurl: image,
     description: row.description || fallback.description || '',
-    created_at: row.created_at || fallback.created_at || null
+    created_at: row.created_at || fallback.created_at || null,
   };
 }
 
@@ -22,21 +22,17 @@ async function getNews() {
     console.error('Error loading news from Supabase DB:', error.message);
     return [];
   }
-  return (data || []).map(row => normalizeNews(row));
+  return (data || []).map((row) => normalizeNews(row));
 }
 
 async function addNews(item) {
   const newItem = {
     title: item.title || 'Новость',
     imageurl: item.imageUrl || item.imageurl || '',
-    description: item.description || ''
+    description: item.description || '',
   };
 
-  const { data, error } = await supabase
-    .from('news')
-    .insert([newItem])
-    .select()
-    .single();
+  const { data, error } = await supabase.from('news').insert([newItem]).select().single();
 
   if (error) throw new Error(error.message);
   return normalizeNews(data, newItem);
@@ -46,7 +42,7 @@ async function updateNews(id, item) {
   const updatedItem = {
     title: item.title || 'Новость',
     imageurl: item.imageUrl || item.imageurl || '',
-    description: item.description || ''
+    description: item.description || '',
   };
 
   const { data, error } = await supabase
@@ -61,11 +57,7 @@ async function updateNews(id, item) {
 }
 
 async function deleteNews(id) {
-  const { data, error } = await supabase
-    .from('news')
-    .delete()
-    .eq('id', id)
-    .select('id');
+  const { data, error } = await supabase.from('news').delete().eq('id', id).select('id');
 
   if (error) throw new Error(error.message);
   return { deleted: (data || []).length };

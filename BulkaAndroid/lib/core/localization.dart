@@ -62,48 +62,16 @@ extension AppLocalizationExt on String {
 
 const Map<String, Map<String, String>> _appTranslations = {
   // Navigation
-  'nav_home': {
-    'ru': 'Главная',
-    'kk': 'Басты бет',
-    'en': 'Home',
-  },
-  'nav_catalog': {
-    'ru': 'Каталог',
-    'kk': 'Мәзір',
-    'en': 'Menu',
-  },
-  'nav_cart': {
-    'ru': 'Корзина',
-    'kk': 'Себет',
-    'en': 'Cart',
-  },
-  'nav_promos': {
-    'ru': 'Акции',
-    'kk': 'Акциялар',
-    'en': 'Promos',
-  },
-  'nav_profile': {
-    'ru': 'Профиль',
-    'kk': 'Профиль',
-    'en': 'Profile',
-  },
+  'nav_home': {'ru': 'Главная', 'kk': 'Басты бет', 'en': 'Home'},
+  'nav_catalog': {'ru': 'Каталог', 'kk': 'Мәзір', 'en': 'Menu'},
+  'nav_cart': {'ru': 'Корзина', 'kk': 'Себет', 'en': 'Cart'},
+  'nav_promos': {'ru': 'Акции', 'kk': 'Акциялар', 'en': 'Promos'},
+  'nav_profile': {'ru': 'Профиль', 'kk': 'Профиль', 'en': 'Profile'},
 
   // Order types
-  'order_pickup': {
-    'ru': 'Самовывоз',
-    'kk': 'Алып кету',
-    'en': 'Pickup',
-  },
-  'order_delivery': {
-    'ru': 'Доставка',
-    'kk': 'Жеткізу',
-    'en': 'Delivery',
-  },
-  'order_preorder': {
-    'ru': 'Пред заказ',
-    'kk': 'Алдын ала',
-    'en': 'Preorder',
-  },
+  'order_pickup': {'ru': 'Самовывоз', 'kk': 'Алып кету', 'en': 'Pickup'},
+  'order_delivery': {'ru': 'Доставка', 'kk': 'Жеткізу', 'en': 'Delivery'},
+  'order_preorder': {'ru': 'Пред заказ', 'kk': 'Алдын ала', 'en': 'Preorder'},
 
   // Home screen sections
   'home_interesting': {
@@ -118,21 +86,13 @@ const Map<String, Map<String, String>> _appTranslations = {
   },
 
   // Profile screen
-  'profile_title': {
-    'ru': 'Профиль',
-    'kk': 'Профиль',
-    'en': 'Profile',
-  },
+  'profile_title': {'ru': 'Профиль', 'kk': 'Профиль', 'en': 'Profile'},
   'select_lang_title': {
     'ru': 'Выберите язык',
     'kk': 'Тілді таңдаңыз',
     'en': 'Select language',
   },
-  'apply_btn': {
-    'ru': 'Применить',
-    'kk': 'Қолдану',
-    'en': 'Apply',
-  },
+  'apply_btn': {'ru': 'Применить', 'kk': 'Қолдану', 'en': 'Apply'},
   'menu_orders': {
     'ru': 'Мои заказы',
     'kk': 'Менің тапсырыстарым',
@@ -153,11 +113,7 @@ const Map<String, Map<String, String>> _appTranslations = {
     'kk': 'Бізбен байланысу',
     'en': 'Contact us',
   },
-  'menu_info': {
-    'ru': 'Информация',
-    'kk': 'Ақпарат',
-    'en': 'Information',
-  },
+  'menu_info': {'ru': 'Информация', 'kk': 'Ақпарат', 'en': 'Information'},
   'menu_pin': {
     'ru': 'Создать PIN-код',
     'kk': 'PIN-код құру',
@@ -167,7 +123,8 @@ const Map<String, Map<String, String>> _appTranslations = {
   // Subtitles / Coming soon
   'catalog_sub': {
     'ru': 'Скоро здесь появятся любимые булочки, десерты и напитки.',
-    'kk': 'Жақында мұнда сүйікті тоқаштар, десерттер мен сусындар пайда болады.',
+    'kk':
+        'Жақында мұнда сүйікті тоқаштар, десерттер мен сусындар пайда болады.',
     'en': 'Favorite pastries, desserts, and drinks will appear here soon.',
   },
   'promos_sub': {
@@ -175,21 +132,9 @@ const Map<String, Map<String, String>> _appTranslations = {
     'kk': 'Жеке ұсыныстар мен маусымдық акциялар осында болады.',
     'en': 'Personal offers and seasonal promotions will be here.',
   },
-  'balance_prefix': {
-    'ru': 'Баланс: ',
-    'kk': 'Теңгерім: ',
-    'en': 'Balance: ',
-  },
-  'points_suffix': {
-    'ru': ' баллов',
-    'kk': ' ұпай',
-    'en': ' points',
-  },
-  'cashback_gift_1': {
-    'ru': 'Дарим ',
-    'kk': 'Әр сатылымнан ',
-    'en': 'Get ',
-  },
+  'balance_prefix': {'ru': 'Баланс: ', 'kk': 'Теңгерім: ', 'en': 'Balance: '},
+  'points_suffix': {'ru': ' баллов', 'kk': ' ұпай', 'en': ' points'},
+  'cashback_gift_1': {'ru': 'Дарим ', 'kk': 'Әр сатылымнан ', 'en': 'Get '},
   'cashback_gift_2': {
     'ru': '% кешбэк после каждой покупки!',
     'kk': '% кэшбэк сыйлаймыз!',
@@ -211,11 +156,7 @@ const Map<String, Map<String, String>> _appTranslations = {
     'kk': 'Тапсырыс тарихы сатылымнан кейін пайда болады.',
     'en': 'Transaction history will appear after purchase.',
   },
-  'check_sum': {
-    'ru': 'Сумма чека',
-    'kk': 'Чек сомасы',
-    'en': 'Bill amount',
-  },
+  'check_sum': {'ru': 'Сумма чека', 'kk': 'Чек сомасы', 'en': 'Bill amount'},
   'tx_pay_bonus': {
     'ru': 'Оплата бонусами',
     'kk': 'Бонустармен төлеу',
@@ -263,11 +204,7 @@ const Map<String, Map<String, String>> _appTranslations = {
     'kk': 'QR-кодты\nкассирге көрсетіңіз',
     'en': 'Show QR code\nto cashier',
   },
-  'open_qr_btn': {
-    'ru': 'Открыть',
-    'kk': 'Ашу',
-    'en': 'Open',
-  },
+  'open_qr_btn': {'ru': 'Открыть', 'kk': 'Ашу', 'en': 'Open'},
   'reward_6_desc': {
     'ru': '+1% кешбэк после 6 покупки в течение 30 дней.',
     'kk': '30 күн ішінде 6 сатып алудан кейін +1% кэшбэк.',
@@ -288,11 +225,7 @@ const Map<String, Map<String, String>> _appTranslations = {
     'kk': 'Теңгерім тарихы',
     'en': 'Balance history',
   },
-  'my_qr': {
-    'ru': 'МОЙ QR',
-    'kk': 'МЕНІҢ QR',
-    'en': 'MY QR',
-  },
+  'my_qr': {'ru': 'МОЙ QR', 'kk': 'МЕНІҢ QR', 'en': 'MY QR'},
   'qr_unavailable': {
     'ru': 'QR временно недоступен',
     'kk': 'QR уақытша қолжетімсіз',
@@ -319,56 +252,28 @@ const Map<String, Map<String, String>> _appTranslations = {
     'kk': 'Тіркелу/Кіру',
     'en': 'Register/Login',
   },
-  'reg_title': {
-    'ru': 'Авторизация',
-    'kk': 'Авторизация',
-    'en': 'Registration',
-  },
+  'reg_title': {'ru': 'Авторизация', 'kk': 'Авторизация', 'en': 'Registration'},
   'reg_gender_label': {
     'ru': 'Выберите пол',
     'kk': 'Жынысты таңдаңыз',
     'en': 'Select gender',
   },
-  'reg_male': {
-    'ru': 'Мужчина',
-    'kk': 'Ер',
-    'en': 'Male',
-  },
-  'reg_female': {
-    'ru': 'Женщина',
-    'kk': 'Әйел',
-    'en': 'Female',
-  },
-  'reg_name_hint': {
-    'ru': 'Имя',
-    'kk': 'Аты',
-    'en': 'First name',
-  },
-  'reg_surname_hint': {
-    'ru': 'Фамилия',
-    'kk': 'Тегі',
-    'en': 'Last name',
-  },
+  'reg_male': {'ru': 'Мужчина', 'kk': 'Ер', 'en': 'Male'},
+  'reg_female': {'ru': 'Женщина', 'kk': 'Әйел', 'en': 'Female'},
+  'reg_name_hint': {'ru': 'Имя', 'kk': 'Аты', 'en': 'First name'},
+  'reg_surname_hint': {'ru': 'Фамилия', 'kk': 'Тегі', 'en': 'Last name'},
   'reg_dob_hint': {
     'ru': 'Дата рождения',
     'kk': 'Туған күні',
     'en': 'Date of birth',
   },
-  'reg_email_hint': {
-    'ru': 'E-mail',
-    'kk': 'E-mail',
-    'en': 'E-mail',
-  },
+  'reg_email_hint': {'ru': 'E-mail', 'kk': 'E-mail', 'en': 'E-mail'},
   'reg_terms_checkbox': {
     'ru': 'Ознакомился (-лась) и подтверждаю принятие условий',
     'kk': 'Шарттармен таныстым және қабылдаймын',
     'en': 'I have read and agree to the terms',
   },
-  'reg_next_btn': {
-    'ru': 'Далее',
-    'kk': 'Жалғастыру',
-    'en': 'Continue',
-  },
+  'reg_next_btn': {'ru': 'Далее', 'kk': 'Жалғастыру', 'en': 'Continue'},
   'reg_err_name': {
     'ru': 'Пожалуйста, введите имя',
     'kk': 'Атыңызды енгізіңіз',
@@ -429,11 +334,7 @@ const Map<String, Map<String, String>> _appTranslations = {
     'kk': 'Код WhatsApp арқылы жіберілді.',
     'en': 'Code sent via WhatsApp.',
   },
-  'code_for': {
-    'ru': 'Код для ',
-    'kk': 'Код нөмірге: ',
-    'en': 'Code for ',
-  },
+  'code_for': {'ru': 'Код для ', 'kk': 'Код нөмірге: ', 'en': 'Code for '},
   'enter_4_digits': {
     'ru': 'Введите 4 цифры из сообщения',
     'kk': 'Хабарламадағы 4 санды енгізіңіз',
@@ -444,11 +345,7 @@ const Map<String, Map<String, String>> _appTranslations = {
     'kk': 'Бірнеше минут жарамды',
     'en': 'Valid for a few minutes',
   },
-  'login_btn': {
-    'ru': 'Войти',
-    'kk': 'Кіру',
-    'en': 'Sign in',
-  },
+  'login_btn': {'ru': 'Войти', 'kk': 'Кіру', 'en': 'Sign in'},
   'change_phone_btn': {
     'ru': 'Изменить номер',
     'kk': 'Нөмірді өзгерту',
@@ -459,31 +356,15 @@ const Map<String, Map<String, String>> _appTranslations = {
     'kk': 'WhatsApp арқылы код алу',
     'en': 'Get code via WhatsApp',
   },
-  'news_title': {
-    'ru': 'Новости',
-    'kk': 'Жаңалықтар',
-    'en': 'News',
-  },
+  'news_title': {'ru': 'Новости', 'kk': 'Жаңалықтар', 'en': 'News'},
   'news_sub': {
     'ru': 'Свежие акции, сезонные вкусы и новости пекарни',
     'kk': 'Жаңа акциялар, маусымдық дәмдер мен наубайхана жаңалықтары',
     'en': 'Fresh promotions, seasonal tastes and bakery news',
   },
-  'news_badge': {
-    'ru': 'НОВОСТЬ',
-    'kk': 'ЖАҢАЛЫҚ',
-    'en': 'NEWS',
-  },
-  'collapse_tooltip': {
-    'ru': 'Свернуть',
-    'kk': 'Жиыру',
-    'en': 'Collapse',
-  },
-  'expand_tooltip': {
-    'ru': 'Развернуть',
-    'kk': 'Жаю',
-    'en': 'Expand',
-  },
+  'news_badge': {'ru': 'НОВОСТЬ', 'kk': 'ЖАҢАЛЫҚ', 'en': 'NEWS'},
+  'collapse_tooltip': {'ru': 'Свернуть', 'kk': 'Жиыру', 'en': 'Collapse'},
+  'expand_tooltip': {'ru': 'Развернуть', 'kk': 'Жаю', 'en': 'Expand'},
   'logout_confirm_title': {
     'ru': 'Выйти из аккаунта?',
     'kk': 'Аккаунттан шығу?',
@@ -494,16 +375,8 @@ const Map<String, Map<String, String>> _appTranslations = {
     'kk': 'Bulka пекарня аккаунтынан шыққыңыз келетініне сенімдісіз бе?',
     'en': 'Are you sure you want to log out of your Bulka account?',
   },
-  'logout_confirm_cancel': {
-    'ru': 'Отмена',
-    'kk': 'Болдырмау',
-    'en': 'Cancel',
-  },
-  'logout_confirm_yes': {
-    'ru': 'Выйти',
-    'kk': 'Шығу',
-    'en': 'Log out',
-  },
+  'logout_confirm_cancel': {'ru': 'Отмена', 'kk': 'Болдырмау', 'en': 'Cancel'},
+  'logout_confirm_yes': {'ru': 'Выйти', 'kk': 'Шығу', 'en': 'Log out'},
 };
 
 String localizeTransactionLabel(String label) {
@@ -511,7 +384,9 @@ String localizeTransactionLabel(String label) {
   if (l.contains('оплата бонусами') || l.contains('списание')) {
     return 'tx_pay_bonus'.tr;
   }
-  if (l.contains('начисление кэшбэка') || l.contains('кешбэк') || l.contains('кэшбэк')) {
+  if (l.contains('начисление кэшбэка') ||
+      l.contains('кешбэк') ||
+      l.contains('кэшбэк')) {
     return 'tx_cashback'.tr;
   }
   if (l.contains('подарок') || l.contains('начисление')) {

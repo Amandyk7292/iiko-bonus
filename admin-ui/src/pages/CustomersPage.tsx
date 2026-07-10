@@ -81,7 +81,7 @@ export default function CustomersPage() {
       const response = await fetch('/admin/api/customers/bonus', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('adminPwd')}`,
+          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ customerId: id, amount: Number(amount), reason })

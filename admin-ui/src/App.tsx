@@ -57,7 +57,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
 }
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('adminPwd'));
+  const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('adminToken'));
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
 

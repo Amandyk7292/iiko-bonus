@@ -237,6 +237,29 @@ alter table public.news alter column imageurl drop not null;
 create index if not exists news_created_at_idx on public.news (created_at desc);
 
 -- --------------------------------------------------------------------
+-- Cities and service points
+-- --------------------------------------------------------------------
+create table if not exists public.cities (
+  id bigserial primary key,
+  name varchar(160) not null,
+  i18n jsonb default '{}'::jsonb not null,
+  created_at timestamptz default now() not null
+);
+
+create table if not exists public.points (
+  id bigserial primary key,
+  city_id bigint not null references public.cities(id) on delete cascade,
+  name varchar(200) not null,
+  address text not null,
+  latitude numeric(10, 7),
+  longitude numeric(10, 7),
+  i18n jsonb default '{}'::jsonb not null,
+  created_at timestamptz default now() not null
+);
+
+create index if not exists points_city_id_idx on public.points(city_id);
+
+-- --------------------------------------------------------------------
 -- Apple Wallet push registrations
 -- --------------------------------------------------------------------
 create table if not exists public.wallet_registrations (
@@ -254,9 +277,14 @@ alter table public.wallet_registrations add column if not exists pass_type_id te
 alter table public.wallet_registrations add column if not exists created_at timestamptz default now();
 
 create index if not exists wallet_registrations_serial_idx on public.wallet_registrations (serial_number);
-create unique index if not exists wallet_registrations_device_serial_unique
-  on public.wallet_registrations (device_id, serial_number)
-  where device_id is not null;
+drop index if exists public.wallet_registrations_device_serial_unique;
+delete from public.wallet_registrations newer
+using public.wallet_registrations older
+where newer.id > older.id
+  and newer.device_id is not distinct from older.device_id
+  and newer.serial_number = older.serial_number;
+create unique index wallet_registrations_device_serial_unique
+  on public.wallet_registrations (device_id, serial_number);
 
 -- --------------------------------------------------------------------
 -- Atomic balance and idempotent order application
@@ -271,6 +299,9 @@ security definer
 set search_path = public
 as $$
 begin
+  if p_customer_id is null or p_amount_change is null then
+    raise exception 'customer_id and amount_change are required';
+  end if;
   update public.customers
   set
     balance = customers.balance + p_amount_change,
@@ -288,6 +319,8 @@ end;
 $$;
 
 drop function if exists public.apply_loyalty_transaction(uuid, text, numeric, numeric, numeric, numeric);
+drop function if exists public.apply_loyalty_transaction(uuid, text, numeric, numeric, numeric, numeric, integer);
+drop function if exists public.apply_loyalty_transaction(uuid, text, numeric, numeric, numeric, numeric, integer, jsonb);
 
 create or replace function public.apply_loyalty_transaction(
   p_customer_id uuid,
@@ -310,19 +343,36 @@ declare
   v_active_bonus numeric := 0;
   v_pending_bonus numeric := 0;
   v_available_at timestamptz;
+  v_existing_customer_id uuid;
 begin
   if p_order_id is null or btrim(p_order_id) = '' then
     raise exception 'order_id is required';
   end if;
 
+  if p_customer_id is null
+    or coalesce(p_discount_amount, 0) < 0
+    or coalesce(p_earned_bonus, 0) < 0
+    or coalesce(p_order_total, 0) < 0
+    or coalesce(p_real_money_paid, 0) < 0
+    or coalesce(p_activation_delay_days, 0) < 0
+    or coalesce(p_discount_amount, 0) > coalesce(p_order_total, 0)
+    or abs((coalesce(p_order_total, 0) - coalesce(p_discount_amount, 0)) - coalesce(p_real_money_paid, 0)) > 0.01 then
+    raise exception 'invalid loyalty transaction values';
+  end if;
+
   perform pg_advisory_xact_lock(hashtext(p_order_id));
 
-  if exists (
-    select 1
+  select customer_id
+    into v_existing_customer_id
     from public.transactions
     where order_id = p_order_id
-      and type in ('withdrawal', 'deposit', 'pending_deposit')
-  ) then
+      and type in ('withdrawal', 'deposit', 'pending_deposit', 'order')
+    limit 1;
+
+  if v_existing_customer_id is not null then
+    if v_existing_customer_id <> p_customer_id then
+      raise exception 'order_id already belongs to another customer';
+    end if;
     select balance, total_spent
       into v_balance, v_total_spent
     from public.customers
@@ -371,6 +421,11 @@ begin
       insert into public.transactions (customer_id, order_id, type, amount, order_total, description, items)
       values (p_customer_id, p_order_id, 'deposit', v_active_bonus, p_real_money_paid, 'Кэшбэк за покупку', p_items);
     end if;
+  end if;
+
+  if coalesce(p_discount_amount, 0) = 0 and coalesce(p_earned_bonus, 0) = 0 then
+    insert into public.transactions (customer_id, order_id, type, amount, order_total, description, items)
+    values (p_customer_id, p_order_id, 'order', 0, p_real_money_paid, 'Покупка без движения бонусов', p_items);
   end if;
 
   return jsonb_build_object(
@@ -426,9 +481,80 @@ begin
 end;
 $$;
 
+create or replace function public.expire_customer_bonus(
+  p_customer_id uuid,
+  p_expected_balance numeric,
+  p_order_id text
+)
+returns numeric
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_expired numeric;
+begin
+  if p_customer_id is null or coalesce(p_expected_balance, 0) <= 0 or p_order_id is null then
+    raise exception 'invalid expiration arguments';
+  end if;
+
+  update public.customers
+  set balance = 0, updated_at = now()
+  where id = p_customer_id and balance = p_expected_balance and balance > 0
+  returning p_expected_balance into v_expired;
+
+  if v_expired is null then return 0; end if;
+
+  insert into public.transactions(customer_id, order_id, type, amount, description)
+  values (p_customer_id, p_order_id, 'expiration', v_expired, 'Автоматическое сгорание бонусов');
+  return v_expired;
+end;
+$$;
+
+create or replace function public.apply_manual_bonus(
+  p_customer_id uuid,
+  p_amount_change numeric,
+  p_reason text default null
+)
+returns numeric
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_balance numeric;
+begin
+  if p_customer_id is null or p_amount_change is null or abs(p_amount_change) > 100000000 then
+    raise exception 'invalid manual bonus arguments';
+  end if;
+  update public.customers
+  set balance = balance + p_amount_change, updated_at = now()
+  where id = p_customer_id and balance + p_amount_change >= 0
+  returning balance into v_balance;
+  if v_balance is null then raise exception 'customer not found or insufficient balance'; end if;
+
+  insert into public.transactions(customer_id, order_id, type, amount, description)
+  values (
+    p_customer_id,
+    'MANUAL-' || gen_random_uuid()::text,
+    case when p_amount_change >= 0 then 'manual_deposit' else 'manual_withdrawal' end,
+    abs(p_amount_change),
+    nullif(btrim(coalesce(p_reason, '')), '')
+  );
+  return v_balance;
+end;
+$$;
+
+revoke all on function public.increment_customer_balance(uuid, numeric) from public, anon, authenticated;
+revoke all on function public.apply_loyalty_transaction(uuid, text, numeric, numeric, numeric, numeric, integer, jsonb) from public, anon, authenticated;
+revoke all on function public.activate_pending_bonus_transactions() from public, anon, authenticated;
+revoke all on function public.expire_customer_bonus(uuid, numeric, text) from public, anon, authenticated;
+revoke all on function public.apply_manual_bonus(uuid, numeric, text) from public, anon, authenticated;
 grant execute on function public.increment_customer_balance(uuid, numeric) to service_role;
-grant execute on function public.apply_loyalty_transaction(uuid, text, numeric, numeric, numeric, numeric, integer) to service_role;
+grant execute on function public.apply_loyalty_transaction(uuid, text, numeric, numeric, numeric, numeric, integer, jsonb) to service_role;
 grant execute on function public.activate_pending_bonus_transactions() to service_role;
+grant execute on function public.expire_customer_bonus(uuid, numeric, text) to service_role;
+grant execute on function public.apply_manual_bonus(uuid, numeric, text) to service_role;
 
 -- --------------------------------------------------------------------
 -- WhatsApp / OTP session storage
@@ -436,8 +562,11 @@ grant execute on function public.activate_pending_bonus_transactions() to servic
 create table if not exists public.whatsapp_sessions (
   id text primary key,
   data jsonb not null,
+  expires_at timestamptz,
   updated_at timestamptz default timezone('utc'::text, now()) not null
 );
+alter table public.whatsapp_sessions add column if not exists expires_at timestamptz;
+create index if not exists whatsapp_sessions_expires_at_idx on public.whatsapp_sessions(expires_at) where expires_at is not null;
 
 -- --------------------------------------------------------------------
 -- Storage bucket for admin story uploads
@@ -463,6 +592,8 @@ alter table public.news enable row level security;
 alter table public.wallet_registrations enable row level security;
 alter table public.whatsapp_sessions enable row level security;
 alter table public.iiko_operation_logs enable row level security;
+alter table public.cities enable row level security;
+alter table public.points enable row level security;
 
 drop policy if exists "Allow all access for Service Role" on public.customers;
 drop policy if exists "Allow all access for Service Role" on public.transactions;
@@ -478,6 +609,8 @@ drop policy if exists "service_role_all_news" on public.news;
 drop policy if exists "service_role_all_wallet" on public.wallet_registrations;
 drop policy if exists "service_role_all_whatsapp" on public.whatsapp_sessions;
 drop policy if exists "service_role_all_iiko_logs" on public.iiko_operation_logs;
+drop policy if exists "service_role_all_cities" on public.cities;
+drop policy if exists "service_role_all_points" on public.points;
 
 create policy "service_role_all_customers" on public.customers for all to service_role using (true) with check (true);
 create policy "service_role_all_transactions" on public.transactions for all to service_role using (true) with check (true);
@@ -487,6 +620,8 @@ create policy "service_role_all_news" on public.news for all to service_role usi
 create policy "service_role_all_wallet" on public.wallet_registrations for all to service_role using (true) with check (true);
 create policy "service_role_all_whatsapp" on public.whatsapp_sessions for all to service_role using (true) with check (true);
 create policy "service_role_all_iiko_logs" on public.iiko_operation_logs for all to service_role using (true) with check (true);
+create policy "service_role_all_cities" on public.cities for all to service_role using (true) with check (true);
+create policy "service_role_all_points" on public.points for all to service_role using (true) with check (true);
 
 drop policy if exists "Public read stories bucket" on storage.objects;
 create policy "Public read stories bucket"

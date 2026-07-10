@@ -1,26 +1,38 @@
-const crypto = require('crypto');
-const { walletTokens, buildApplePassBuffer, generateGoogleWalletUrl } = require('../services/wallet.service');
+const {
+  createWalletToken,
+  resolveWalletToken,
+  buildApplePassBuffer,
+  generateGoogleWalletUrl,
+  verifyApplePassAuthorization,
+} = require('../services/wallet.service');
 const { supabase } = require('../config/supabase');
 const { getSettings } = require('../services/settings.service');
 const { getTierInfo } = require('../utils/tier.util');
 
 async function createToken(req, res) {
-  const phone = req.body.phone;
-  if (!phone) return res.status(400).json({ error: 'Phone number required' });
+  const { data: customer, error } = await supabase
+    .from('customers')
+    .select('phone')
+    .eq('id', req.customerAuth.id)
+    .single();
+  if (error || !customer) return res.status(404).json({ error: 'Customer not found' });
+  const phone = customer.phone;
 
-  const token = crypto.randomBytes(32).toString('hex');
-  walletTokens.set(token, { phone, expiresAt: Date.now() + 5 * 60 * 1000 });
+  const token = createWalletToken(phone);
 
   res.json({
+    url: `/wallet/${token}`,
     appleUrl: `/api/wallet/download/${token}`,
-    googleUrl: `/api/wallet/google/download/${token}`
+    googleUrl: `/api/wallet/google/download/${token}`,
   });
 }
 
 async function renderWalletChoice(req, res) {
   const token = req.params.token;
-  if (!walletTokens.has(token)) {
-    return res.status(410).send('Ссылка истекла. Пожалуйста, запросите новую ссылку в Telegram боте.');
+  if (!resolveWalletToken(token)) {
+    return res
+      .status(410)
+      .send('Ссылка истекла. Пожалуйста, запросите новую ссылку в Telegram боте.');
   }
 
   const html = `
@@ -64,18 +76,24 @@ async function renderWalletChoice(req, res) {
 
 async function downloadApplePass(req, res) {
   const token = req.params.token;
-  const tokenData = walletTokens.get(token);
-  
-  if (!tokenData || Date.now() > tokenData.expiresAt) {
-    return res.status(410).send('Ссылка истекла. Пожалуйста, запросите новую ссылку в Telegram боте.');
+  const tokenData = resolveWalletToken(token);
+
+  if (!tokenData) {
+    return res
+      .status(410)
+      .send('Ссылка истекла. Пожалуйста, запросите новую ссылку в Telegram боте.');
   }
 
   try {
     const phone = tokenData.phone;
-    const { data: customer } = await supabase.from('customers').select('*').eq('phone', phone).single();
+    const { data: customer } = await supabase
+      .from('customers')
+      .select('*')
+      .eq('phone', phone)
+      .single();
     if (!customer) return res.status(404).send('Customer not found');
 
-    const passBuffer = await buildApplePassBuffer(customer, req.headers.host);
+    const passBuffer = await buildApplePassBuffer(customer);
     res.set('Content-Type', 'application/vnd.apple.pkpass');
     res.set('Content-Disposition', `attachment; filename="bulka-${customer.id}.pkpass"`);
     res.send(passBuffer);
@@ -87,15 +105,19 @@ async function downloadApplePass(req, res) {
 
 async function downloadGooglePass(req, res) {
   const token = req.params.token;
-  const tokenData = walletTokens.get(token);
-  
-  if (!tokenData || Date.now() > tokenData.expiresAt) {
+  const tokenData = resolveWalletToken(token);
+
+  if (!tokenData) {
     return res.status(410).send('Ссылка истекла. Запросите новую через Telegram-бота.');
   }
-  
+
   try {
     const phone = tokenData.phone;
-    const { data: customer } = await supabase.from('customers').select('*').eq('phone', phone).single();
+    const { data: customer } = await supabase
+      .from('customers')
+      .select('*')
+      .eq('phone', phone)
+      .single();
     if (!customer) return res.status(404).send('Customer not found');
 
     const settings = await getSettings();
@@ -109,62 +131,70 @@ async function downloadGooglePass(req, res) {
   }
 }
 
-async function directGooglePass(req, res) {
-  const phone = req.query.phone;
-  if (!phone) return res.status(400).send('Phone required');
-  
-  try {
-    const digitsOnly = phone.replace(/[^0-9]/g, '');
-    const searchPattern = digitsOnly.length >= 10 ? digitsOnly.slice(-10) : digitsOnly;
-    const { data: customer } = await supabase.from('customers').select('*').ilike('phone', `%${searchPattern}%`).single();
-    if (!customer) return res.status(404).send('Customer not found');
-
-    const settings = await getSettings();
-    const tier = getTierInfo(customer.total_spent, settings);
-    const saveUrl = await generateGoogleWalletUrl(customer, settings, tier);
-
-    res.redirect(saveUrl);
-  } catch (err) {
-    console.error('Google Wallet direct error:', err);
-    res.status(500).send('Error generating Google Wallet pass: ' + err.message);
-  }
-}
-
 async function handleAppleWalletWebService(req, res) {
   const deviceId = req.params.deviceLibraryIdentifier;
   const serialNumber = req.params.serialNumber;
-  const pushToken = req.body.pushToken;
+  const customerId = serialNumber.replace('bulka-', '');
+  const { data: customer } = await supabase
+    .from('customers')
+    .select('*')
+    .eq('id', customerId)
+    .single();
+  if (!customer) return res.status(404).send();
+  if (!verifyApplePassAuthorization(req.headers.authorization, customerId))
+    return res.status(401).send();
+  const pushToken = req.body?.pushToken;
 
   if (req.method === 'POST' && req.path.includes('/devices/')) {
-      const { error } = await supabase.from('wallet_registrations').upsert({
+    if (!pushToken) return res.status(400).send();
+    const { error } = await supabase.from('wallet_registrations').upsert(
+      {
         device_id: deviceId,
         serial_number: serialNumber,
-        push_token: pushToken
-      });
-      if (error) console.error("Error saving wallet reg:", error);
-      res.status(200).send();
+        push_token: pushToken,
+        pass_type_id: 'pass.com.bulka.bonus',
+      },
+      { onConflict: 'device_id,serial_number' },
+    );
+    if (error) throw error;
+    res.status(201).send();
   } else if (req.method === 'DELETE') {
-      await supabase.from('wallet_registrations').delete().match({ device_id: deviceId, serial_number: serialNumber });
-      res.status(200).send();
+    const { error } = await supabase
+      .from('wallet_registrations')
+      .delete()
+      .match({ device_id: deviceId, serial_number: serialNumber });
+    if (error) throw error;
+    res.status(200).send();
   } else if (req.method === 'GET' && req.path.includes('/passes/')) {
-      const customerId = serialNumber.replace('bulka-', '');
-      const { data: customer } = await supabase.from('customers').select('*').eq('id', customerId).single();
-      if (!customer) return res.status(404).send();
-      try {
-        const passBuffer = await buildApplePassBuffer(customer, req.headers.host);
-        res.set('Content-Type', 'application/vnd.apple.pkpass');
-        res.send(passBuffer);
-      } catch(err) {
-        console.error(err);
-        res.status(500).send();
-      }
+    try {
+      const passBuffer = await buildApplePassBuffer(customer);
+      res.set('Content-Type', 'application/vnd.apple.pkpass');
+      res.send(passBuffer);
+    } catch (err) {
+      console.error(err);
+      res.status(500).send();
+    }
   } else {
     res.status(200).send();
   }
 }
 
+async function listAppleWalletRegistrations(req, res) {
+  const { data, error } = await supabase
+    .from('wallet_registrations')
+    .select('serial_number')
+    .eq('device_id', req.params.deviceLibraryIdentifier)
+    .eq('pass_type_id', 'pass.com.bulka.bonus');
+  if (error) throw error;
+  if (!data || data.length === 0) return res.status(204).send();
+  res.json({
+    lastUpdated: new Date().toISOString(),
+    serialNumbers: [...new Set(data.map((row) => row.serial_number))],
+  });
+}
+
 async function logAppleWalletError(req, res) {
-  console.log("Apple Wallet Logs:", req.body.logs);
+  console.warn('Apple Wallet client reported an error');
   res.status(200).send();
 }
 
@@ -173,7 +203,7 @@ module.exports = {
   renderWalletChoice,
   downloadApplePass,
   downloadGooglePass,
-  directGooglePass,
   handleAppleWalletWebService,
-  logAppleWalletError
+  listAppleWalletRegistrations,
+  logAppleWalletError,
 };

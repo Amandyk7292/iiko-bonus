@@ -67,7 +67,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     width: 32,
                     height: 32,
                     color: const Color(0xFF6D3317),
-                    errorBuilder: (_, __, ___) => const _EntranceVectorIcon(size: 32),
+                    errorBuilder: (_, _, _) =>
+                        const _EntranceVectorIcon(size: 32),
                   ),
                 ),
                 const SizedBox(height: 18),
@@ -426,10 +427,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               gradient: LinearGradient(
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
-                                colors: [
-                                  Color(0xFFE5C583),
-                                  Color(0xFFB8924B),
-                                ],
+                                colors: [Color(0xFFE5C583), Color(0xFFB8924B)],
                               ),
                             ),
                             child: const Icon(
@@ -459,7 +457,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             Text(
                               widget.customer.phone,
                               style: TextStyle(
-                                color: const Color(0xFF6D3317).withValues(alpha: 0.65),
+                                color: const Color(
+                                  0xFF6D3317,
+                                ).withValues(alpha: 0.65),
                                 fontSize: 14,
                                 fontWeight: FontWeight.w400,
                               ),
@@ -612,7 +612,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final tierObj = customer.tier;
 
     String currentName = tierObj?.name ?? 'Бронза';
-    int percent = tierObj?.percent ?? (customer.cashbackPercent > 0 ? customer.cashbackPercent : 5);
+    int percent =
+        tierObj?.percent ??
+        (customer.cashbackPercent > 0 ? customer.cashbackPercent : 5);
     int level = tierObj?.level ?? 1;
     String? nextName = tierObj?.nextTier;
     double remaining = tierObj?.remaining ?? 15000;
@@ -648,7 +650,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFFFB300).withValues(alpha: 0.4)),
+        border: Border.all(
+          color: const Color(0xFFFFB300).withValues(alpha: 0.4),
+        ),
         boxShadow: const [
           BoxShadow(
             color: Color(0x0C000000),
@@ -691,7 +695,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 ],
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFFFB300).withValues(alpha: 0.25),
                   borderRadius: BorderRadius.circular(12),
@@ -726,7 +733,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               value: progress,
               minHeight: 10,
               backgroundColor: const Color(0xFFEFE5CE),
-              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFFF9800)),
+              valueColor: const AlwaysStoppedAnimation<Color>(
+                Color(0xFFFF9800),
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -785,11 +794,7 @@ class _ProfileMenuItem extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         child: Row(
           children: [
-            Icon(
-              icon,
-              color: const Color(0xFF6D3317),
-              size: 24,
-            ),
+            Icon(icon, color: const Color(0xFF6D3317), size: 24),
             const SizedBox(width: 16),
             Expanded(
               child: Text(
@@ -832,7 +837,7 @@ class _LogoutSplitButton extends StatelessWidget {
           width: 26,
           height: 26,
           color: const Color(0xFF6D3317),
-          errorBuilder: (_, __, ___) => const _EntranceVectorIcon(size: 26),
+          errorBuilder: (_, _, _) => const _EntranceVectorIcon(size: 26),
         ),
       ),
     );
@@ -890,4 +895,3 @@ class _EntranceVectorPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
-

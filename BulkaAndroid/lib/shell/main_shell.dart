@@ -77,9 +77,17 @@ class FloatingNavBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final items = [
       _NavItem('nav_home'.tr, Icons.home, Icons.home_outlined),
-      _NavItem('nav_catalog'.tr, Icons.bakery_dining, Icons.bakery_dining_outlined),
+      _NavItem(
+        'nav_catalog'.tr,
+        Icons.bakery_dining,
+        Icons.bakery_dining_outlined,
+      ),
       _NavItem('', Icons.shopping_bag, Icons.shopping_bag_outlined),
-      _NavItem('nav_promos'.tr, Icons.card_giftcard, Icons.card_giftcard_outlined),
+      _NavItem(
+        'nav_promos'.tr,
+        Icons.card_giftcard,
+        Icons.card_giftcard_outlined,
+      ),
       _NavItem('nav_profile'.tr, Icons.person, Icons.person_outline),
     ];
 

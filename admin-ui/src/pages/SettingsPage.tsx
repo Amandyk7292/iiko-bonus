@@ -2,7 +2,7 @@ import React from 'react';
 
 export default function SettingsPage() {
   const logout = () => {
-    localStorage.removeItem('adminPwd');
+    localStorage.removeItem('adminToken');
     window.location.reload();
   };
 

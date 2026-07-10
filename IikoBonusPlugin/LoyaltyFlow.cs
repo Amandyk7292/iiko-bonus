@@ -104,9 +104,10 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private static readonly int RetryIntervalSec = ReadIntSetting("IIKO_LOYALTY_RETRY_INTERVAL_SEC", 60);
         private static readonly int MaxAttempts = ReadIntSetting("IIKO_LOYALTY_MAX_ATTEMPTS", 0);
         private static readonly string QueuePath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? AppDomain.CurrentDomain.BaseDirectory, "BulkaBonusPendingApplies.json");
+        private static readonly string ActiveOrdersPath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? AppDomain.CurrentDomain.BaseDirectory, "BulkaBonusActiveOrders.json");
         private static readonly object QueueLock = new object();
         private static Timer _retryTimer;
-        private static bool _flushInProgress;
+        private static int _flushInProgress;
 
         static LoyaltyFlow()
         {
@@ -157,6 +158,50 @@ namespace Resto.Front.Api.IikoBonusPlugin
             Task.Run(() => CheckServerStatus());
         }
 
+        public static void RestoreActiveOrders()
+        {
+            lock (QueueLock)
+            {
+                try
+                {
+                    if (!File.Exists(ActiveOrdersPath)) return;
+                    var serializer = new DataContractJsonSerializer(typeof(Dictionary<Guid, PluginEntry.OrderLoyaltyData>));
+                    using (var fs = File.OpenRead(ActiveOrdersPath))
+                    {
+                        var saved = (Dictionary<Guid, PluginEntry.OrderLoyaltyData>)serializer.ReadObject(fs);
+                        if (saved == null) return;
+                        foreach (var pair in saved) PluginEntry.ActiveOrders[pair.Key] = pair.Value;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    PluginContext.Log.Error("IikoBonusPlugin: Failed to restore active orders: " + ex);
+                }
+            }
+        }
+
+        public static void PersistActiveOrders()
+        {
+            lock (QueueLock)
+            {
+                try
+                {
+                    var serializer = new DataContractJsonSerializer(typeof(Dictionary<Guid, PluginEntry.OrderLoyaltyData>));
+                    var tempPath = ActiveOrdersPath + ".tmp";
+                    using (var fs = File.Create(tempPath))
+                    {
+                        serializer.WriteObject(fs, PluginEntry.ActiveOrders.ToDictionary(x => x.Key, x => x.Value));
+                    }
+                    if (File.Exists(ActiveOrdersPath)) File.Delete(ActiveOrdersPath);
+                    File.Move(tempPath, ActiveOrdersPath);
+                }
+                catch (Exception ex)
+                {
+                    PluginContext.Log.Error("IikoBonusPlugin: Failed to persist active orders: " + ex);
+                }
+            }
+        }
+
         public static void StopBackgroundRetry()
         {
             try
@@ -176,7 +221,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
 
         private static bool IsTokenConfigured()
         {
-            return !string.IsNullOrWhiteSpace(ApiToken) && ApiToken != "replace-with-api-token";
+            return !string.IsNullOrWhiteSpace(ApiToken) && ApiToken.Length >= 32 && ApiToken != "replace-with-api-token";
         }
 
         private static bool EnsureApiToken(IViewManager vm)
@@ -236,6 +281,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                         existingData.DiscountAmount = newDiscount;
                         existingData.OrderFullSum = order.FullSum;
                         PluginEntry.ActiveOrders[order.Id] = existingData;
+                        PersistActiveOrders();
 
                         ApplyLoyaltyDiscountToOrder(order, os, vm, newDiscount);
                         return;
@@ -244,12 +290,14 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     {
                         RemoveLoyaltyDiscountFromOrder(order, os);
                         PluginEntry.ActiveOrders.TryRemove(order.Id, out _);
+                        PersistActiveOrders();
                         // Continuing below to search for a new customer
                     }
                     else if (action == 2) // Открепить клиента от чека
                     {
                         RemoveLoyaltyDiscountFromOrder(order, os);
                         PluginEntry.ActiveOrders.TryRemove(order.Id, out _);
+                        PersistActiveOrders();
                         vm.ShowOkPopup("Успех", "Клиент успешно откреплён от заказа.", "ОК");
                         return;
                     }
@@ -366,7 +414,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 var customers = data?.customers;
                 if (customers == null || customers.Count == 0)
                 {
-                    int choice = vm.ShowChooserPopup("Клиент не найден", new List<string> { "✅ Зарегистрировать «" + query + "»", "❌ Отмена" }, 0, Resto.Front.Api.UI.ButtonWidth.Wider, "Отмена");
+                    int choice = vm.ShowChooserPopup("Клиент не найден", new List<string> { "Зарегистрировать «" + query + "»", "Отмена" }, 0, Resto.Front.Api.UI.ButtonWidth.Wider, "Отмена");
                     if (choice != 0) return;
 
                     string defaultPhone = query.StartsWith("+") || query.Length >= 10 ? query : "+7";
@@ -448,8 +496,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 {
                     var options = new List<string>
                     {
-                        $"💳 Списать ({autoDiscount.ToString("0.##")} бон.)",
-                        "🎁 Только накопить"
+                        $"Списать ({autoDiscount.ToString("0.##")} бон.)",
+                        "Только накопить"
                     };
                     
                     int choice = vm.ShowChooserPopup(info + "\n\nВыберите действие:", options, 0, Resto.Front.Api.UI.ButtonWidth.Wider, "Отмена");
@@ -476,6 +524,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     DiscountAmount = discountAmount,
                     OrderFullSum = order.FullSum
                 };
+                PersistActiveOrders();
 
                 ApplyLoyaltyDiscountToOrder(order, os, vm, discountAmount);
             }
@@ -578,6 +627,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 if (order.Status == OrderStatus.Deleted)
                 {
                     PluginEntry.ActiveOrders.TryRemove(order.Id, out _);
+                    PersistActiveOrders();
                     return;
                 }
 
@@ -607,6 +657,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                         }
 
                         EnqueueApplyRequest(order.Id.ToString(), loyaltyData.CustomerId, loyaltyData.DiscountAmount, order.FullSum, itemsList.ToArray());
+                        PersistActiveOrders();
                         Task.Run(() => FlushPendingApplyRequests());
                     }
                 }
@@ -616,6 +667,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     {
                         activeData.OrderFullSum = order.FullSum;
                         PluginEntry.ActiveOrders[order.Id] = activeData;
+                        PersistActiveOrders();
                     }
                 }
             }
@@ -730,8 +782,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
 
         private static void FlushPendingApplyRequests()
         {
-            if (_flushInProgress) return;
-            _flushInProgress = true;
+            if (Interlocked.CompareExchange(ref _flushInProgress, 1, 0) != 0) return;
             try
             {
                 if (!EnsureApiToken()) return;
@@ -770,7 +821,15 @@ namespace Resto.Front.Api.IikoBonusPlugin
 
                 lock (QueueLock)
                 {
-                    SaveQueueUnsafe(remaining);
+                    var attemptedIds = new HashSet<string>(queue.Select(x => x.orderId));
+                    var currentQueue = LoadQueueUnsafe();
+                    var newlyEnqueued = currentQueue.Where(x => !attemptedIds.Contains(x.orderId));
+                    var merged = remaining
+                        .Concat(newlyEnqueued)
+                        .GroupBy(x => x.orderId)
+                        .Select(g => g.First())
+                        .ToList();
+                    SaveQueueUnsafe(merged);
                 }
             }
             catch (Exception ex)
@@ -779,7 +838,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             }
             finally
             {
-                _flushInProgress = false;
+                Interlocked.Exchange(ref _flushInProgress, 0);
             }
         }
 
@@ -793,7 +852,13 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     errorMessage = "API token is not configured";
                     return false;
                 }
-                var payloadStr = "{\"customerId\":\"" + EscapeJson(item.customerId) + "\",\"orderId\":\"" + EscapeJson(item.orderId) + "\",\"discountAmount\":" + item.discountAmount.ToString(System.Globalization.CultureInfo.InvariantCulture) + ",\"orderTotal\":" + item.orderTotal.ToString(System.Globalization.CultureInfo.InvariantCulture) + "}";
+                string payloadStr;
+                var serializer = new DataContractJsonSerializer(typeof(LoyaltyApplyQueueItem));
+                using (var ms = new MemoryStream())
+                {
+                    serializer.WriteObject(ms, item);
+                    payloadStr = Encoding.UTF8.GetString(ms.ToArray());
+                }
                 var content = new StringContent(payloadStr, Encoding.UTF8, "application/json");
                 
                 var request = new HttpRequestMessage(HttpMethod.Post, ApiBaseUrl + "/apply")

@@ -13,6 +13,8 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
   Timer? _refreshTimer;
   bool _booting = true;
   String? _savedPhone;
+  String? _accessToken;
+  String? _registrationToken;
   Customer? _customer;
   List<BonusTransaction> _transactions = const [];
 
@@ -31,6 +33,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
   Future<void> _bootstrap() async {
     final prefs = await SharedPreferences.getInstance();
     final phone = prefs.getString('phone');
+    final accessToken = prefs.getString('accessToken');
     final cachedCustomer = _readCustomer(prefs.getString('customer'));
     final cachedTransactions = _readTransactions(
       prefs.getString('transactions'),
@@ -43,13 +46,15 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
     if (!mounted) return;
     setState(() {
       _prefs = prefs;
-      _savedPhone = phone;
+      _savedPhone = accessToken == null ? null : phone;
+      _accessToken = accessToken;
       _customer = cachedCustomer;
       _transactions = cachedTransactions;
       _booting = false;
     });
 
-    if (phone != null) {
+    _api.setAccessToken(accessToken);
+    if (phone != null && accessToken != null) {
       await _refreshProfile(phone);
       _startProfileRefresh(phone);
     }
@@ -63,12 +68,19 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
         await _logout();
         return;
       }
-      await _saveSession(phone, profile.customer!, profile.transactions);
+      await _saveSession(
+        phone,
+        profile.customer!,
+        profile.transactions,
+        _accessToken!,
+      );
       setState(() {
         _customer = profile.customer;
         _transactions = profile.transactions;
       });
-    } catch (_) {}
+    } catch (error) {
+      if (error is ApiException && error.statusCode == 401) await _logout();
+    }
   }
 
   void _startProfileRefresh(String phone) {
@@ -92,9 +104,15 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
     try {
       final profile = await _api.verifyOtp(phone: phone, code: code);
       if (!profile.exists || profile.customer == null) {
+        _registrationToken = profile.registrationToken;
+        if (_registrationToken == null) return 'Сервер не выдал регистрацию';
         return 'NEW_USER';
       }
-      await _saveSession(phone, profile.customer!, profile.transactions);
+      final token = profile.accessToken;
+      if (token == null) return 'Сервер не выдал сессию';
+      _accessToken = token;
+      _api.setAccessToken(token);
+      await _saveSession(phone, profile.customer!, profile.transactions, token);
       if (!mounted) return null;
       setState(() {
         _savedPhone = phone;
@@ -124,11 +142,17 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
         gender: gender,
         birthdate: birthdate,
         email: email,
+        registrationToken: _registrationToken ?? '',
       );
       if (!profile.exists || profile.customer == null) {
         return 'Ошибка при регистрации';
       }
-      await _saveSession(phone, profile.customer!, profile.transactions);
+      final token = profile.accessToken;
+      if (token == null) return 'Сервер не выдал сессию';
+      _accessToken = token;
+      _registrationToken = null;
+      _api.setAccessToken(token);
+      await _saveSession(phone, profile.customer!, profile.transactions, token);
       if (!mounted) return null;
       setState(() {
         _savedPhone = phone;
@@ -146,9 +170,11 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
     String phone,
     Customer customer,
     List<BonusTransaction> transactions,
+    String accessToken,
   ) async {
     final prefs = _prefs ?? await SharedPreferences.getInstance();
     await prefs.setString('phone', phone);
+    await prefs.setString('accessToken', accessToken);
     await prefs.setString('customer', jsonEncode(customer.toJson()));
     await prefs.setString(
       'transactions',
@@ -162,9 +188,13 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
     await prefs.remove('phone');
     await prefs.remove('customer');
     await prefs.remove('transactions');
+    await prefs.remove('accessToken');
+    _api.setAccessToken(null);
     if (!mounted) return;
     setState(() {
       _savedPhone = null;
+      _accessToken = null;
+      _registrationToken = null;
       _customer = null;
       _transactions = const [];
     });
@@ -232,9 +262,10 @@ class _SplashScreenState extends State<SplashScreen>
       duration: const Duration(milliseconds: 1500),
     )..repeat(reverse: true);
 
-    _scaleAnimation = Tween<double>(begin: 0.92, end: 1.08).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _scaleAnimation = Tween<double>(
+      begin: 0.92,
+      end: 1.08,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override

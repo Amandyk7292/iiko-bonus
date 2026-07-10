@@ -1,7 +1,8 @@
 const BASE_URL = '/admin/api';
+localStorage.removeItem('adminPwd');
 
 function getToken() {
-  return localStorage.getItem('adminPwd');
+  return localStorage.getItem('adminToken');
 }
 
 async function request(endpoint: string, options: RequestInit = {}) {
@@ -25,7 +26,7 @@ async function request(endpoint: string, options: RequestInit = {}) {
 
   if (!response.ok) {
     if (response.status === 401 || response.status === 403) {
-      localStorage.removeItem('adminPwd');
+      localStorage.removeItem('adminToken');
       window.dispatchEvent(new Event('unauthorized'));
     }
     const errorData = await response.json().catch(() => ({}));
@@ -37,24 +38,27 @@ async function request(endpoint: string, options: RequestInit = {}) {
 
 export const api = {
   login: async (password: string) => {
-    // The backend just expects a Bearer token. To verify, we fetch stats.
-    const response = await fetch(`${BASE_URL}/stats?type=sales`, {
-      headers: { Authorization: `Bearer ${password}` }
+    const response = await fetch(`${BASE_URL}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password })
     });
     if (!response.ok) throw new Error('Неверный пароль');
-    localStorage.setItem('adminPwd', password);
+    const data = await response.json();
+    if (!data.token) throw new Error('Сервер не выдал сессию');
+    localStorage.setItem('adminToken', data.token);
     return true;
   },
   
   logout: () => {
-    localStorage.removeItem('adminPwd');
+    localStorage.removeItem('adminToken');
     window.location.reload();
   },
 
   getStats: (type?: string) => request(`/stats${type ? `?type=${type}` : ''}`),
   
   getCustomers: (query = '') => request(`/customers${query ? `?search=${encodeURIComponent(query)}` : ''}`),
-  updateCustomer: (id: string, data: any) => request(`/customers/update`, { method: 'POST', body: JSON.stringify({ id, ...data }) }),
+  updateCustomer: (id: string, data: any) => request(`/customers/update`, { method: 'POST', body: JSON.stringify({ customerId: id, ...data }) }),
   notifyInactive: () => request(`/customers/notify-inactive`, { method: 'POST' }),
   expireInactive: () => request(`/customers/expire-inactive`, { method: 'POST' }),
   deleteCustomer: (id: string) => request(`/customers/${id}`, { method: 'DELETE' }),
@@ -68,19 +72,14 @@ export const api = {
   
   getStories: () => request(`/stories`),
   addStory: (data: any) => request(`/stories`, { method: 'POST', body: JSON.stringify(data) }),
-  updateStory: (data: any) => request(`/stories/update`, { method: 'POST', body: JSON.stringify(data) }),
+  updateStory: (data: any) => request(`/stories/${data.id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteStory: (id: string) => request(`/stories/${id}`, { method: 'DELETE' }),
   
   getNews: () => request(`/news`),
   addNews: (data: any) => request(`/news`, { method: 'POST', body: JSON.stringify(data) }),
-  updateNews: (data: any) => request(`/news/update`, { method: 'POST', body: JSON.stringify(data) }),
+  updateNews: (data: any) => request(`/news/${data.id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteNews: (id: string) => request(`/news/${id}`, { method: 'DELETE' }),
   
-  getLocations: () => request(`/locations`),
-  addLocation: (data: any) => request(`/locations`, { method: 'POST', body: JSON.stringify(data) }),
-  updateLocation: (id: string, data: any) => request(`/locations/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  deleteLocation: (id: string) => request(`/locations/${id}`, { method: 'DELETE' }),
-
   getCities: () => request(`/cities`),
   addCity: (data: any) => request(`/cities`, { method: 'POST', body: JSON.stringify(data) }),
   updateCity: (id: string, data: any) => request(`/cities/${id}`, { method: 'PUT', body: JSON.stringify(data) }),

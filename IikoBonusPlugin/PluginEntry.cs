@@ -44,6 +44,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             try
             {
                 PluginContext.Log.Info("IikoBonusPlugin: Initializing...");
+                LoyaltyFlow.RestoreActiveOrders();
 
                 _buttonSubscription = PluginContext.Operations.AddButtonToOrderEditScreen(
                     "Бонусы",

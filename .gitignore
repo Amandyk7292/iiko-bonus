@@ -35,4 +35,5 @@ build/
 *.apk
 *.aab
 *.exe
+*.p8
 IikoBonusPlugin/Resto.Front.Api.IikoBonusPlugin.dll.config

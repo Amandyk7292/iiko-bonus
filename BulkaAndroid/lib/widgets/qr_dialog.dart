@@ -177,9 +177,7 @@ class _QrDialogState extends State<QrDialog> {
             ),
             const SizedBox(height: 20),
             _PrimaryButton(
-              text: isApple
-                  ? 'add_apple_wallet'.tr
-                  : 'add_google_wallet'.tr,
+              text: isApple ? 'add_apple_wallet'.tr : 'add_google_wallet'.tr,
               icon: Icons.account_balance_wallet_rounded,
               color: const Color(0xFF1F1F1F),
               textColor: Colors.white,
@@ -193,11 +191,9 @@ class _QrDialogState extends State<QrDialog> {
 
   Future<void> _openWallet() async {
     try {
-      final uri = defaultTargetPlatform == TargetPlatform.iOS
-          ? Uri.parse(await widget.api.createWalletUrl(widget.customer.phone))
-          : Uri.parse(
-              '$_apiBaseUrl/api/wallet/google/direct?phone=${widget.customer.phone}',
-            );
+      final uri = Uri.parse(
+        await widget.api.createWalletUrl(widget.customer.phone),
+      );
       if (!mounted) return;
       await _openExternalUrl(context, uri, 'Не удалось открыть Wallet');
     } catch (_) {

@@ -8,6 +8,7 @@
     "dev": "node --watch src/server.js",
     "lint": "eslint src/**/*.js",
     "lint:fix": "eslint src/**/*.js --fix",
+    "test": "node --test test/security.test.js",
     "check:supabase": "node check-supabase.js"
   },
   "dependencies": {
@@ -33,9 +34,15 @@
     "qrcode-terminal": "^0.12.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "eslint": "^10.6.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.6",
+    "globals": "^17.7.0",
     "prettier": "^3.9.4"
+  },
+  "overrides": {
+    "joi": "17.13.4",
+    "uuid": "11.1.1"
   }
 }
