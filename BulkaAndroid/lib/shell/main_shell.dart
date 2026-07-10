@@ -23,42 +23,110 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _tab = 0;
 
+  void _changeTab(int index) {
+    if (index == _tab) return;
+    BulkaMotion.selection();
+    setState(() => _tab = index);
+  }
+
   @override
   Widget build(BuildContext context) {
     final pages = [
       HomeScreen(
+        key: const PageStorageKey('home-tab'),
         api: widget.api,
         customer: widget.customer,
         transactions: widget.transactions,
-        onHistoryTap: () => setState(() => _tab = 2),
-        onProfileTap: () => setState(() => _tab = 4),
+        onHistoryTap: () => _changeTab(2),
+        onProfileTap: () => _changeTab(4),
       ),
       _ComingSoonScreen(
+        key: const PageStorageKey('catalog-tab'),
         title: 'nav_catalog'.tr,
         icon: Icons.bakery_dining_rounded,
         subtitle: 'catalog_sub'.tr,
       ),
-      OrdersScreen(transactions: widget.transactions),
+      OrdersScreen(
+        key: const PageStorageKey('orders-tab'),
+        transactions: widget.transactions,
+      ),
       _ComingSoonScreen(
+        key: const PageStorageKey('promos-tab'),
         title: 'nav_promos'.tr,
         icon: Icons.card_giftcard_rounded,
         subtitle: 'promos_sub'.tr,
       ),
       ProfileScreen(
+        key: const PageStorageKey('profile-tab'),
         api: widget.api,
         customer: widget.customer,
-        onBack: () => setState(() => _tab = 0),
+        onBack: () => _changeTab(0),
         onLogout: widget.onLogout,
         onRefreshProfile: widget.onRefreshProfile,
       ),
     ];
 
-    return Scaffold(
-      body: IndexedStack(index: _tab, children: pages),
-      bottomNavigationBar: FloatingNavBar(
-        selectedIndex: _tab,
-        onChanged: (index) => setState(() => _tab = index),
+    return PopScope(
+      canPop: _tab == 0,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && _tab != 0) {
+          _changeTab(0);
+        }
+      },
+      child: Scaffold(
+        body: BulkaAdaptiveFrame(
+          child: _PersistentTabSwitcher(index: _tab, children: pages),
+        ),
+        bottomNavigationBar: FloatingNavBar(
+          selectedIndex: _tab,
+          onChanged: _changeTab,
+        ),
       ),
+    );
+  }
+}
+
+class _PersistentTabSwitcher extends StatelessWidget {
+  const _PersistentTabSwitcher({required this.index, required this.children});
+
+  final int index;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final duration = BulkaMotion.duration(context, BulkaMotion.standard);
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        for (var i = 0; i < children.length; i++)
+          ExcludeSemantics(
+            excluding: i != index,
+            child: IgnorePointer(
+              ignoring: i != index,
+              child: TickerMode(
+                enabled: i == index,
+                child: AnimatedOpacity(
+                  opacity: i == index ? 1 : 0,
+                  duration: duration,
+                  curve: Curves.easeOutCubic,
+                  child: AnimatedSlide(
+                    offset: i == index
+                        ? Offset.zero
+                        : Offset(i < index ? -0.025 : 0.025, 0),
+                    duration: duration,
+                    curve: Curves.easeOutCubic,
+                    child: AnimatedScale(
+                      scale: i == index ? 1 : 0.992,
+                      duration: duration,
+                      curve: Curves.easeOutCubic,
+                      child: children[i],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -115,6 +183,7 @@ class FloatingNavBar extends StatelessWidget {
                 for (var i = 0; i < items.length; i++)
                   Expanded(
                     child: _NavButton(
+                      key: ValueKey('nav-$i'),
                       item: items[i],
                       selected: i == selectedIndex,
                       onTap: () => onChanged(i),
@@ -134,6 +203,7 @@ class _NavButton extends StatelessWidget {
     required this.item,
     required this.selected,
     required this.onTap,
+    super.key,
   });
 
   final _NavItem item;
@@ -142,71 +212,91 @@ class _NavButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final duration = BulkaMotion.duration(context, BulkaMotion.fast);
     final color = selected ? _cocoa : _textDark.withValues(alpha: 0.44);
     final isCenter = item.title.isEmpty;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(32),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOutCubic,
-        height: isCenter ? 72 : 66,
-        padding: EdgeInsets.only(top: isCenter ? 0 : 7, bottom: 4),
-        decoration: BoxDecoration(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(28),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              width: isCenter ? 64 : 33,
-              height: isCenter ? 64 : 33,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: isCenter
-                    ? const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [Color(0xFFFFD54F), Color(0xFFFFB300)],
-                      )
-                    : null,
-                color: isCenter
-                    ? null
-                    : selected
-                    ? _almond.withValues(alpha: 0.62)
-                    : Colors.transparent,
-                boxShadow: isCenter
-                    ? [
-                        BoxShadow(
-                          color: _caramel.withValues(alpha: 0.25),
-                          blurRadius: 22,
-                          offset: const Offset(0, 10),
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Icon(
-                selected ? item.selectedIcon : item.icon,
-                color: isCenter ? Colors.white : color,
-                size: isCenter ? 30 : 23,
-              ),
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: isCenter ? 'Заказы' : item.title,
+      child: BulkaPressScale(
+        pressedScale: 0.94,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(32),
+          child: AnimatedContainer(
+            duration: duration,
+            curve: Curves.easeOutCubic,
+            height: isCenter ? 72 : 66,
+            padding: EdgeInsets.only(top: isCenter ? 0 : 7, bottom: 4),
+            decoration: BoxDecoration(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(28),
             ),
-            if (!isCenter) ...[
-              const SizedBox(height: 1),
-              Text(
-                item.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 10,
-                  fontWeight: selected ? FontWeight.w900 : FontWeight.w500,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedScale(
+                  scale: selected ? 1.06 : 1,
+                  duration: duration,
+                  curve: Curves.easeOutBack,
+                  child: AnimatedContainer(
+                    duration: duration,
+                    width: isCenter ? 64 : 33,
+                    height: isCenter ? 64 : 33,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: isCenter
+                          ? const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [Color(0xFFFFD54F), Color(0xFFFFB300)],
+                            )
+                          : null,
+                      color: isCenter
+                          ? null
+                          : selected
+                          ? _almond.withValues(alpha: 0.62)
+                          : Colors.transparent,
+                      boxShadow: isCenter
+                          ? [
+                              BoxShadow(
+                                color: _caramel.withValues(alpha: 0.25),
+                                blurRadius: selected ? 26 : 18,
+                                offset: Offset(0, selected ? 8 : 10),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: AnimatedSwitcher(
+                      duration: duration,
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      child: Icon(
+                        selected ? item.selectedIcon : item.icon,
+                        key: ValueKey(selected),
+                        color: isCenter ? Colors.white : color,
+                        size: isCenter ? 30 : 23,
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-            ],
-          ],
+                if (!isCenter) ...[
+                  const SizedBox(height: 1),
+                  Text(
+                    item.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 10,
+                      fontWeight: selected ? FontWeight.w900 : FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -218,6 +308,7 @@ class _ComingSoonScreen extends StatelessWidget {
     required this.title,
     required this.icon,
     required this.subtitle,
+    super.key,
   });
 
   final String title;

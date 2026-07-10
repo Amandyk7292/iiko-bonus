@@ -325,33 +325,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  InkWell(
-                    onTap: _showLanguageBottomSheet,
-                    borderRadius: BorderRadius.circular(20),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 6,
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.language_rounded,
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      InkWell(
+                        onTap: widget.onBack,
+                        borderRadius: BorderRadius.circular(20),
+                        child: const Padding(
+                          padding: EdgeInsets.all(8),
+                          child: Icon(
+                            Icons.arrow_back_ios_new_rounded,
                             color: Color(0xFF6D3317),
-                            size: 22,
+                            size: 20,
                           ),
-                          const SizedBox(width: 6),
-                          Text(
-                            _langCode,
-                            style: const TextStyle(
-                              color: Color(0xFF6D3317),
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 4),
+                      InkWell(
+                        onTap: _showLanguageBottomSheet,
+                        borderRadius: BorderRadius.circular(20),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 6,
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.language_rounded,
+                                color: Color(0xFF6D3317),
+                                size: 22,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                _langCode,
+                                style: const TextStyle(
+                                  color: Color(0xFF6D3317),
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   Text(
                     'profile_title'.tr,
