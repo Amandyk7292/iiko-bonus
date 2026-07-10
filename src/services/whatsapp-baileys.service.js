@@ -8,6 +8,7 @@ const pino = require('pino');
 const qrcode = require('qrcode-terminal');
 const { supabase } = require('../config/supabase');
 const crypto = require('crypto');
+const { resolveWhatsAppSenderDigits } = require('../utils/whatsapp.util');
 
 /**
  * Адаптер для сохранения сессии Baileys в Supabase
@@ -313,11 +314,10 @@ async function initWhatsApp(otpStore, getOrCreateCustomerByPhone) {
           if (data && data.data) {
             const parsed = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
             if (parsed.phone && parsed.expires > Date.now()) {
-              const senderDigits = String(remoteJid).endsWith('@s.whatsapp.net')
-                ? String(remoteJid)
-                    .split('@')[0]
-                    .replace(/[^0-9]/g, '')
-                : '';
+              const senderDigits = await resolveWhatsAppSenderDigits(
+                msg.key,
+                sock.signalRepository?.lidMapping,
+              );
               const requestedDigits = String(parsed.phone).replace(/[^0-9]/g, '');
               if (!senderDigits || senderDigits.slice(-10) !== requestedDigits.slice(-10)) {
                 await sock.sendMessage(remoteJid, {

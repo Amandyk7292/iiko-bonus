@@ -7,6 +7,7 @@ const { signCustomerToken, verifyToken } = require('../src/services/auth.service
 const { validateRuntimeConfig, shouldRunBots } = require('../src/config/env');
 const { parseMoney } = require('../src/utils/money.util');
 const { getTierInfo } = require('../src/utils/tier.util');
+const { resolveWhatsAppSenderDigits } = require('../src/utils/whatsapp.util');
 
 test('customer token is signed, scoped and verifiable', () => {
   const previous = process.env.CUSTOMER_JWT_SECRET;
@@ -26,6 +27,24 @@ test('customer token is signed, scoped and verifiable', () => {
 test('bots run independently from background workers', () => {
   assert.equal(shouldRunBots({ RUN_BACKGROUND_WORKERS: 'false' }), true);
   assert.equal(shouldRunBots({ RUN_BACKGROUND_WORKERS: 'false', RUN_BOTS: 'false' }), false);
+});
+
+test('WhatsApp sender resolves from PN alternative and LID mapping', async () => {
+  assert.equal(
+    await resolveWhatsAppSenderDigits({
+      remoteJid: '123456789@lid',
+      remoteJidAlt: '77762003590@s.whatsapp.net',
+    }),
+    '77762003590',
+  );
+
+  const lidMapping = {
+    getPNForLID: async () => '77762003590@s.whatsapp.net',
+  };
+  assert.equal(
+    await resolveWhatsAppSenderDigits({ remoteJid: '123456789@lid' }, lidMapping),
+    '77762003590',
+  );
 });
 
 test('production configuration fails closed when secrets are missing', () => {
