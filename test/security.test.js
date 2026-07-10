@@ -4,7 +4,7 @@ const path = require('node:path');
 const test = require('node:test');
 
 const { signCustomerToken, verifyToken } = require('../src/services/auth.service');
-const { validateRuntimeConfig } = require('../src/config/env');
+const { validateRuntimeConfig, shouldRunBots } = require('../src/config/env');
 const { parseMoney } = require('../src/utils/money.util');
 const { getTierInfo } = require('../src/utils/tier.util');
 
@@ -21,6 +21,11 @@ test('customer token is signed, scoped and verifiable', () => {
     if (previous === undefined) delete process.env.CUSTOMER_JWT_SECRET;
     else process.env.CUSTOMER_JWT_SECRET = previous;
   }
+});
+
+test('bots run independently from background workers', () => {
+  assert.equal(shouldRunBots({ RUN_BACKGROUND_WORKERS: 'false' }), true);
+  assert.equal(shouldRunBots({ RUN_BACKGROUND_WORKERS: 'false', RUN_BOTS: 'false' }), false);
 });
 
 test('production configuration fails closed when secrets are missing', () => {

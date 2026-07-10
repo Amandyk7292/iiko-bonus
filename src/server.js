@@ -10,11 +10,13 @@ const {
 } = require('./services/customer.service');
 const { startPolling: startTelegramBot } = require('./services/telegram.service');
 const { getSettings } = require('./services/settings.service');
+const { shouldRunBots } = require('./config/env');
 
 const PORT = process.env.PORT || 3000;
 
 if (!process.env.VERCEL) {
   const runWorkers = process.env.RUN_BACKGROUND_WORKERS === 'true';
+  const runBots = shouldRunBots();
   if (runWorkers) setInterval(activatePendingBonusesSafe, 60 * 60 * 1000);
 
   let dailyChecksRunning = false;
@@ -51,7 +53,7 @@ if (!process.env.VERCEL) {
   app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 
-    if (runWorkers) {
+    if (runBots) {
       try {
         startTelegramBot();
       } catch (e) {

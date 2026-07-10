@@ -25,4 +25,8 @@ function validateRuntimeConfig() {
   }
 }
 
-module.exports = { validateRuntimeConfig };
+function shouldRunBots(env = process.env) {
+  return env.RUN_BOTS !== 'false';
+}
+
+module.exports = { validateRuntimeConfig, shouldRunBots };
