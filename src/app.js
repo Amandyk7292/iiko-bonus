@@ -49,16 +49,24 @@ app.use(
   }),
 );
 
-const allowedOrigins = String(process.env.ALLOWED_ORIGINS || '')
+const configuredOrigins = String(process.env.ALLOWED_ORIGINS || '')
   .split(',')
   .map((origin) => origin.trim())
   .filter(Boolean);
+const publicOrigin = (() => {
+  try {
+    return process.env.PUBLIC_BASE_URL ? new URL(process.env.PUBLIC_BASE_URL).origin : null;
+  } catch {
+    return null;
+  }
+})();
+const allowedOrigins = new Set([...configuredOrigins, publicOrigin].filter(Boolean));
 app.use(
   cors({
     origin(origin, callback) {
       if (
         !origin ||
-        allowedOrigins.includes(origin) ||
+        allowedOrigins.has(origin) ||
         (!isProduction && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin))
       ) {
         return callback(null, true);
