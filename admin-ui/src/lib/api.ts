@@ -177,4 +177,6 @@ export const api = {
     if (!response.ok) throw new ApiError('Ошибка загрузки фото', response.status);
     return response.json();
   },
+  translate: (text: string, targetLang: string) =>
+    request<{ success: boolean; translated: string }>('/translate', json('POST', { text, targetLang })),
 };
