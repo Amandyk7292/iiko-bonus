@@ -1,6 +1,6 @@
 // ─── Kaspi Pay — Frontend App ───
 
-const API = '';
+const API = '/kaspi-pos';
 
 // ─── State ───
 
@@ -61,7 +61,7 @@ const saveSession = (data) => {
 
   // Sync session credentials to Express backend in-memory store
   if (merged.tokenSN && merged.vtokenSecret) {
-    fetch('/api/session/credentials', {
+    fetch(API + '/api/session/credentials', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -91,7 +91,7 @@ const tryRestoreSession = async () => {
     showMainScreen(session);
 
     // Sync restored session credentials to Express backend in-memory store
-    fetch('/api/session/credentials', {
+    fetch(API + '/api/session/credentials', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -295,7 +295,7 @@ const logout = async () => {
   clearSession();
 
   // Clear backend session store
-  fetch('/api/session/credentials', { method: 'DELETE' }).catch(() => {});
+  fetch(API + '/api/session/credentials', { method: 'DELETE' }).catch(() => {});
 
   await apiPost('/api/auth/logout', { tokenSN });
   $('mainScreen').classList.add('hidden');
