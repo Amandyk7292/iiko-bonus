@@ -199,19 +199,19 @@ const Map<String, Map<String, String>> _appTranslations = {
     'en': 'Balance history',
   },
   'cart_empty_title': {
-    'ru': 'Корзина для будущих заказов',
-    'kk': 'Болашақ тапсырыстарға арналған себет',
-    'en': 'Cart for future orders',
+    'ru': 'Ой!',
+    'kk': 'Ой!',
+    'en': 'Oops!',
   },
   'cart_empty_sub': {
-    'ru': 'Здесь вы сможете собирать любимую выпечку, кофе и оформлять заказ онлайн с самовывозом или доставкой.',
-    'kk': 'Мұнда сіз сүйікті нан өнімдерін, кофені жинап, алып кету немесе жеткізу арқылы онлайн тапсырыс бере аласыз.',
-    'en': 'Here you can collect your favorite pastries and coffee to order online for pickup or delivery.',
+    'ru': 'Ничего не найдено!',
+    'kk': 'Ештеңе табылмады!',
+    'en': 'Nothing found!',
   },
   'cart_action': {
-    'ru': 'Выбрать пекарню',
-    'kk': 'Наубайхананы таңдау',
-    'en': 'Select bakery',
+    'ru': 'Перейти в меню',
+    'kk': 'Мәзірге өту',
+    'en': 'Go to menu',
   },
   'orders_title': {
     'ru': 'Мои заказы',

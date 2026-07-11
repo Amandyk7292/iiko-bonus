@@ -19,54 +19,49 @@ class OrdersScreen extends StatelessWidget {
         ),
       ),
       body: Center(
-        child: Container(
-          margin: const EdgeInsets.all(24),
-          padding: const EdgeInsets.all(28),
-          decoration: BoxDecoration(
-            color: _cream,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: _softShadow,
-          ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 76,
-                height: 76,
+                width: 170,
+                height: 170,
                 decoration: BoxDecoration(
-                  color: _bulkaYellow.withValues(alpha: 0.18),
+                  color: _almond.withValues(alpha: 0.35),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
-                  Icons.shopping_bag_rounded,
-                  color: _caramel,
-                  size: 40,
+                padding: const EdgeInsets.all(20),
+                child: Image.asset(
+                  'assets/brand/cart_logo.png',
+                  fit: BoxFit.contain,
                 ),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 28),
               Text(
                 'cart_empty_title'.tr,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: _textDark,
                   fontFamily: _headingFont,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w500,
+                  fontSize: 28,
+                  fontWeight: FontWeight.w400,
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               Text(
                 'cart_empty_sub'.tr,
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: _textDark.withValues(alpha: 0.65),
-                  fontSize: 14,
-                  height: 1.4,
+                style: const TextStyle(
+                  color: _textDark,
+                  fontFamily: _headingFont,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w400,
                 ),
               ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
+              const SizedBox(height: 32),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 36),
                 child: GradientButton(
                   onPressed: onExplore ??
                       () {
@@ -76,7 +71,10 @@ class OrdersScreen extends StatelessWidget {
                           ),
                         );
                       },
-                  child: Text('cart_action'.tr),
+                  child: Text(
+                    'cart_action'.tr,
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
                 ),
               ),
             ],
