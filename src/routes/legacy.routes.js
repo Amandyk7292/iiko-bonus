@@ -406,17 +406,27 @@ router.post('/api/guest/qr-token', publicApiRateLimit, customerAuthMiddleware, a
 router.get('/api/guest/menu', async (req, res) => {
   try {
     const rawMenu = await iikoApi.getMenu();
-    const stopIds = await iikoApi.getStopListProductIds(
-      req.query.organizationId || iikoApi.organizationId,
-    );
+    let stopIds = new Set();
+    try {
+      stopIds = await iikoApi.getStopListProductIds(
+        req.query.organizationId || iikoApi.organizationId,
+      );
+    } catch (stopErr) {
+      console.warn('Не удалось получить стоп-лист, продолжаем без него:', stopErr.message);
+    }
 
-    // Подгружаем оверрайды из базы данных
+    // Подгружаем оверрайды из базы данных (если таблицы не существуют — продолжим с пустыми)
     const menuService = require('../services/menu.service');
-    const [productOverrides, categoryOverrides, customProducts] = await Promise.all([
-      menuService.getProductOverrides(),
-      menuService.getCategoryOverrides(),
-      menuService.getCustomProducts(),
-    ]);
+    let productOverrides = [], categoryOverrides = [], customProducts = [];
+    try {
+      [productOverrides, categoryOverrides, customProducts] = await Promise.all([
+        menuService.getProductOverrides(),
+        menuService.getCategoryOverrides(),
+        menuService.getCustomProducts(),
+      ]);
+    } catch (dbErr) {
+      console.warn('Не удалось загрузить оверрайды меню из Supabase:', dbErr.message);
+    }
 
     const prodOverridesMap = new Map(productOverrides.map((o) => [o.iiko_product_id, o]));
     const catOverridesMap = new Map(categoryOverrides.map((o) => [o.iiko_category_id, o]));
@@ -442,9 +452,9 @@ router.get('/api/guest/menu', async (req, res) => {
 
       categories.push({
         id: cat.id,
-        name: override?.custom_name || cat.name,
-        order: override?.sort_order !== 0 ? override.sort_order : cat.order,
-        imageUrl: override?.custom_image_url || null,
+        name: (override && override.custom_name) || cat.name,
+        order: (override && override.sort_order) ? override.sort_order : cat.order,
+        imageUrl: (override && override.custom_image_url) || null,
       });
     }
 
@@ -479,13 +489,13 @@ router.get('/api/guest/menu', async (req, res) => {
       products.push({
         id: p.id,
         name: p.name,
-        description: override?.custom_description || p.description || '',
+        description: (override && override.custom_description) || p.description || '',
         price: price,
         categoryId: p.parentGroup,
-        imageUrl: override?.custom_image_url || imageUrl,
+        imageUrl: (override && override.custom_image_url) || imageUrl,
         inStopList: isStopped,
         isAvailable: !isStopped,
-        sortOrder: override?.sort_order || 0,
+        sortOrder: (override && override.sort_order) || 0,
       });
     }
 
