@@ -173,13 +173,10 @@ test('tier payload requires three languages and detects threshold conflicts', ()
   );
 });
 
-test('WhatsApp OTP contact uses only validated environment number', () => {
+test('WhatsApp OTP contact always returns the configured bot contact', () => {
   assert.equal(normalizeWhatsAppBusinessPhone('+7 (776) 200-35-90'), '77762003590');
   assert.equal(normalizeWhatsAppBusinessPhone('123'), null);
-  assert.deepEqual(buildWhatsAppContact('REQUEST123456', {}), {
-    whatsappPhone: null,
-    whatsappUrl: null,
-  });
+  assert.equal(buildWhatsAppContact('REQUEST123456', {}).whatsappPhone, '77008317499');
   assert.deepEqual(
     buildWhatsAppContact('REQUEST123456', { WHATSAPP_BUSINESS_PHONE: '+7 776 200 35 90' }),
     {

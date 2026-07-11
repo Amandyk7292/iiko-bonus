@@ -408,6 +408,11 @@ const Map<String, Map<String, String>> _appTranslations = {
     'kk': 'WhatsApp арқылы код алу',
     'en': 'Get code via WhatsApp',
   },
+  'open_whatsapp': {
+    'ru': 'Открыть WhatsApp ещё раз',
+    'kk': 'WhatsApp-ты қайта ашу',
+    'en': 'Open WhatsApp again',
+  },
   'news_title': {'ru': 'Новости', 'kk': 'Жаңалықтар', 'en': 'News'},
   'news_sub': {
     'ru': 'Свежие акции, сезонные вкусы и новости пекарни',

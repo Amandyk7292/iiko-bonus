@@ -42,6 +42,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _termsAccepted = false;
   String? _otpDeliveryPhone;
   bool _otpDeliveryHasLink = false;
+  Uri? _otpWhatsappUri;
 
   @override
   void initState() {
@@ -233,13 +234,17 @@ class _LoginScreenState extends State<LoginScreen> {
         _otpController.clear();
         _otpDeliveryPhone = phoneHint;
         _otpDeliveryHasLink = false;
+        _otpWhatsappUri = null;
       });
       final rawUrl = result.whatsappUrl?.trim();
       final uri = rawUrl == null || rawUrl.isEmpty
           ? null
           : Uri.tryParse(rawUrl);
       if (uri != null && uri.hasScheme && mounted) {
-        setState(() => _otpDeliveryHasLink = true);
+        setState(() {
+          _otpDeliveryHasLink = true;
+          _otpWhatsappUri = uri;
+        });
         await _openExternalUrl(context, uri, 'error_open_whatsapp'.tr);
       }
     } else {
@@ -843,6 +848,18 @@ class _LoginScreenState extends State<LoginScreen> {
             ? 'whatsapp_phone_instruction'.trArgs({'phone': _otpDeliveryPhone})
             : 'whatsapp_fallback_instruction'.tr,
       ),
+      if (_otpWhatsappUri != null) ...[
+        const SizedBox(height: 4),
+        TextButton.icon(
+          onPressed: () => _openExternalUrl(
+            context,
+            _otpWhatsappUri!,
+            'error_open_whatsapp'.tr,
+          ),
+          icon: const Icon(Icons.open_in_new_rounded, size: 18),
+          label: Text('open_whatsapp'.tr),
+        ),
+      ],
       const SizedBox(height: 18),
       Container(
         padding: const EdgeInsets.all(14),

@@ -40,8 +40,15 @@ function normalizeWhatsAppBusinessPhone(value) {
   return digits.length >= 10 && digits.length <= 15 ? digits : null;
 }
 
+// Public support number used by the existing WhatsApp bot.  Render may omit
+// optional environment variables during a redeploy; OTP must still be able to
+// open the bot instead of leaving a customer on a dead confirmation screen.
+const DEFAULT_WHATSAPP_BUSINESS_PHONE = '77008317499';
+
 function buildWhatsAppContact(requestToken, env = process.env) {
-  const whatsappPhone = normalizeWhatsAppBusinessPhone(env.WHATSAPP_BUSINESS_PHONE);
+  const whatsappPhone =
+    normalizeWhatsAppBusinessPhone(env.WHATSAPP_BUSINESS_PHONE) ||
+    normalizeWhatsAppBusinessPhone(DEFAULT_WHATSAPP_BUSINESS_PHONE);
   if (!whatsappPhone) return { whatsappPhone: null, whatsappUrl: null };
   const token = String(requestToken || '').trim();
   const query = token ? `?text=${encodeURIComponent(`код ${token}`)}` : '';
