@@ -33,8 +33,13 @@ class OrdersScreen extends StatelessWidget {
                 ),
                 padding: const EdgeInsets.all(20),
                 child: Image.asset(
-                  'assets/brand/cart_logo.png',
+                  'assets/brand/bulka_logo.png',
                   fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Icon(
+                    Icons.shopping_bag_rounded,
+                    size: 64,
+                    color: _caramel,
+                  ),
                 ),
               ),
               const SizedBox(height: 28),
