@@ -551,15 +551,15 @@ class _CatalogScreenState extends State<CatalogScreen> {
           const SizedBox(height: 2),
           // In stock subtext
           Text(
-            product.isStopListed
+            product.isStopListed == true
                 ? 'В стоп-листе'
                 : 'В наличии - ${product.inStockCount} шт',
             style: TextStyle(
               fontSize: 11,
-              color: product.isStopListed
+              color: product.isStopListed == true
                   ? _errorRed
                   : _sage.withValues(alpha: 0.9),
-              fontWeight: product.isStopListed
+              fontWeight: product.isStopListed == true
                   ? FontWeight.w600
                   : FontWeight.w400,
             ),
@@ -568,7 +568,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
           // Cart Button / Controls
           SizedBox(
             height: 36,
-            child: product.isStopListed
+            child: product.isStopListed == true
                 ? Container(
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
