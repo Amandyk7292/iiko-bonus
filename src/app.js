@@ -33,6 +33,7 @@ app.use(
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
         frameAncestors: ["'none'"],
+        scriptSrcAttr: ["'unsafe-inline'"],
       },
     },
     crossOriginEmbedderPolicy: false,
