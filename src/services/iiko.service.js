@@ -246,6 +246,29 @@ class IikoAPI {
       }
     }
 
+    // Очищаем названия товаров и категорий от служебных символов iiko (например "Плюшка+++", "Круассан +")
+    const cleanIikoName = (name) => {
+      if (!name || typeof name !== 'string') return '';
+      return name
+        .replace(/\+{2,}/g, '') // Убираем ++, +++
+        .replace(/\+$/g, '')    // Убираем один + в конце строки
+        .replace(/\s{2,}/g, ' ') // Убираем двойные пробелы
+        .trim();
+    };
+
+    if (menuData && menuData.products) {
+      menuData.products = menuData.products.map(p => ({
+        ...p,
+        name: cleanIikoName(p.name),
+      }));
+    }
+    if (menuData && menuData.groups) {
+      menuData.groups = menuData.groups.map(g => ({
+        ...g,
+        name: cleanIikoName(g.name),
+      }));
+    }
+
     // Кешируем ЛЮБОЙ ответ (даже пустой), чтобы не получить бан от API
     this.cachedMenu = menuData;
     if (menuData && menuData.products && menuData.products.length > 0) {
