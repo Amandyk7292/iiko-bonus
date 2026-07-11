@@ -9,6 +9,7 @@ class CatalogProduct {
     required this.imageUrl,
     required this.inStockCount,
     this.description = '',
+    this.isStopListed = false,
   });
 
   final String id;
@@ -18,6 +19,7 @@ class CatalogProduct {
   final String imageUrl;
   final int inStockCount;
   final String description;
+  final bool isStopListed;
 }
 
 class CatalogScreen extends StatefulWidget {
@@ -549,38 +551,61 @@ class _CatalogScreenState extends State<CatalogScreen> {
           const SizedBox(height: 2),
           // In stock subtext
           Text(
-            'В наличии - ${product.inStockCount} шт',
+            product.isStopListed
+                ? 'В стоп-листе'
+                : 'В наличии - ${product.inStockCount} шт',
             style: TextStyle(
               fontSize: 11,
-              color: _sage.withValues(alpha: 0.9),
+              color: product.isStopListed
+                  ? _errorRed
+                  : _sage.withValues(alpha: 0.9),
+              fontWeight: product.isStopListed
+                  ? FontWeight.w600
+                  : FontWeight.w400,
             ),
           ),
           const SizedBox(height: 8),
           // Cart Button / Controls
           SizedBox(
             height: 36,
-            child: quantity == 0
-                ? SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        setState(() {
-                          _cartQuantities[product.id] = 1;
-                        });
-                        BulkaMotion.lightImpact();
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _bulkaYellow,
-                        foregroundColor: _textDark,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+            child: product.isStopListed
+                ? Container(
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF2ECE4),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Text(
+                      'Стоп-лист',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF9E958A),
                       ),
-                      child: const Icon(Icons.shopping_bag_outlined,
-                          size: 20, color: _textDark),
                     ),
                   )
+                : quantity == 0
+                    ? SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            setState(() {
+                              _cartQuantities[product.id] = 1;
+                            });
+                            BulkaMotion.lightImpact();
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _bulkaYellow,
+                            foregroundColor: _textDark,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Icon(Icons.shopping_bag_outlined,
+                              size: 20, color: _textDark),
+                        ),
+                      )
                 : Container(
                     decoration: BoxDecoration(
                       color: _bulkaYellow,

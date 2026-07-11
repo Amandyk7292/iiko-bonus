@@ -391,6 +391,9 @@ router.post('/api/guest/qr-token', publicApiRateLimit, customerAuthMiddleware, a
 router.get('/api/guest/menu', async (req, res) => {
   try {
     const rawMenu = await iikoApi.getMenu();
+    const stopIds = await iikoApi.getStopListProductIds(
+      req.query.organizationId || iikoApi.organizationId,
+    );
 
     // Categories
     let categories = (rawMenu.groups || [])
@@ -434,6 +437,8 @@ router.get('/api/guest/menu', async (req, res) => {
         imageUrl = p.imageLinks[0];
       }
 
+      const isStopped = stopIds.has(p.id);
+
       return {
         id: p.id,
         name: p.name,
@@ -441,6 +446,8 @@ router.get('/api/guest/menu', async (req, res) => {
         price: price,
         categoryId: p.parentGroup,
         imageUrl: imageUrl,
+        inStopList: isStopped,
+        isAvailable: !isStopped,
       };
     });
 

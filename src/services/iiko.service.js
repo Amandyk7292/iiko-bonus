@@ -256,6 +256,39 @@ class IikoAPI {
 
     return menuData;
   }
+
+  async getStopListProductIds(organizationId) {
+    try {
+      const token = await this.getToken();
+      const orgId = organizationId || await this.getOrganizationId();
+      const res = await fetch(`${this.baseUrl}/api/1/stop_lists`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ organizationIds: [orgId] }),
+      });
+      if (!res.ok) return new Set();
+      const data = await res.json();
+      const stopIds = new Set();
+      if (data.terminalGroupStopLists) {
+        for (const group of data.terminalGroupStopLists) {
+          if (group.items) {
+            for (const item of group.items) {
+              if (item.balance <= 0 && item.productId) {
+                stopIds.add(item.productId);
+              }
+            }
+          }
+        }
+      }
+      return stopIds;
+    } catch (err) {
+      console.error('Ошибка получения стоп-листа из iiko:', err.message);
+      return new Set();
+    }
+  }
 }
 
 module.exports = new IikoAPI();
