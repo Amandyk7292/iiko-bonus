@@ -1037,7 +1037,7 @@ class _CatalogAllCategoriesScreen extends StatelessWidget {
                   crossAxisCount: 3,
                   mainAxisSpacing: 16,
                   crossAxisSpacing: 12,
-                  childAspectRatio: 0.72,
+                  childAspectRatio: 0.68, // Немного увеличим место для текста
                 ),
                 itemCount: displayCategories.length,
                 itemBuilder: (context, i) {
@@ -1055,6 +1055,7 @@ class _CatalogAllCategoriesScreen extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Container(
+                            width: double.infinity,
                             decoration: BoxDecoration(
                               color: _milkyBackground,
                               borderRadius: BorderRadius.circular(18),
@@ -1076,15 +1077,20 @@ class _CatalogAllCategoriesScreen extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        Text(
-                          cat,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: _textDark,
-                            height: 1.2,
+                        // Фиксированная высота для текста гарантирует одинаковый размер картинок в GridView
+                        SizedBox(
+                          height: 32,
+                          child: Text(
+                            cat.toUpperCase(),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.2,
+                              color: Color(0xFF5A4036),
+                              height: 1.25,
+                            ),
                           ),
                         ),
                       ],
