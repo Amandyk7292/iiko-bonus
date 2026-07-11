@@ -287,6 +287,35 @@ export default function MenuPage() {
     }
   };
 
+  const handleAutoTranslate = async (targetLang: 'kk' | 'en') => {
+    try {
+      const texts = [editForm.name, editForm.description];
+      if (!texts[0] && !texts[1]) return toast('Нет текста для перевода', 'info');
+      
+      const translate = async (text: string) => {
+        if (!text) return '';
+        const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=ru&tl=${targetLang}&dt=t&q=${encodeURIComponent(text)}`);
+        const data = await res.json();
+        return data[0].map((item: any) => item[0]).join('');
+      };
+
+      toast('Переводим...', 'info');
+      const [transName, transDesc] = await Promise.all([
+        translate(editForm.name),
+        translate(editForm.description)
+      ]);
+
+      setEditForm(prev => ({
+        ...prev,
+        name_translations: { ...prev.name_translations, [targetLang]: transName },
+        description_translations: { ...prev.description_translations, [targetLang]: transDesc },
+      }));
+      toast(`Успешно переведено на ${targetLang.toUpperCase()}`, 'success');
+    } catch (error) {
+      toast('Ошибка автоматического перевода', 'error');
+    }
+  };
+
   // Удаление кастомного блюда
   const handleDeleteCustom = async (id: string) => {
     if (!await confirm({ title: 'Удалить блюдо?', body: 'Это блюдо исчезнет из мобильного приложения.', destructive: true })) return;
@@ -651,116 +680,125 @@ export default function MenuPage() {
         title={`Редактировать: ${editingProduct?.name || ''}`}
       >
         <form onSubmit={handleSaveProductEdit} className="space-y-4">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
-                Название и описание
-              </label>
-              <div className="flex items-center gap-3">
-                {editLang !== 'ru' && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+            <div className="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
+              <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Тексты</h4>
+              <div className="flex bg-gray-200 dark:bg-gray-900 p-1 rounded-lg text-xs font-medium">
+                {(['ru', 'kk', 'en'] as const).map(l => (
                   <button
+                    key={l}
                     type="button"
-                    onClick={() => {
-                      const textToTranslate = [editForm.name, editForm.description].filter(Boolean).join('\n\n');
-                      if (!textToTranslate) return toast('Нет текста для перевода', 'info');
-                      window.open(`https://translate.yandex.ru/?source_lang=ru&target_lang=${editLang}&text=${encodeURIComponent(textToTranslate)}`, '_blank');
-                    }}
-                    className="text-[10px] text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 flex items-center gap-1 font-medium transition"
+                    onClick={() => setEditLang(l)}
+                    className={`px-3 py-1.5 rounded-md transition-all ${editLang === l ? 'bg-white dark:bg-gray-800 shadow text-amber-600 dark:text-amber-400' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
                   >
-                    В Яндекс Переводчик ↗
+                    {l.toUpperCase()}
                   </button>
-                )}
-                <div className="flex bg-gray-100 dark:bg-gray-800 p-0.5 rounded-lg text-[10px] font-medium">
-                  {(['ru', 'kk', 'en'] as const).map(l => (
-                    <button
-                      key={l}
-                      type="button"
-                      onClick={() => setEditLang(l)}
-                      className={`px-3 py-1 rounded-md transition ${editLang === l ? 'bg-white dark:bg-gray-700 shadow-sm text-amber-600' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'}`}
-                    >
-                      {l.toUpperCase()}
-                    </button>
-                  ))}
-                </div>
+                ))}
               </div>
             </div>
             
-            <div className="space-y-3">
-              <input
-                type="text"
-                value={editLang === 'ru' ? editForm.name : editForm.name_translations[editLang] || ''}
-                onChange={e => {
-                  if (editLang === 'ru') {
-                    setEditForm({ ...editForm, name: e.target.value });
-                  } else {
-                    setEditForm({
-                      ...editForm,
-                      name_translations: { ...editForm.name_translations, [editLang]: e.target.value }
-                    });
-                  }
-                }}
-                className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 rounded-xl border text-sm"
-                placeholder={editLang === 'ru' ? 'Оставьте как в iiko или введите своё' : 'Перевод названия'}
-              />
+            <div className="p-4 space-y-4">
+              {editLang !== 'ru' && (
+                <button
+                  type="button"
+                  onClick={() => handleAutoTranslate(editLang as 'kk' | 'en')}
+                  className="w-full flex justify-center items-center gap-2 px-3 py-2 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 text-sm font-medium rounded-lg transition-colors border border-blue-100 dark:border-blue-800/50"
+                >
+                  Автоперевод с Русского (Google) 🌐
+                </button>
+              )}
               
-              <textarea
-                rows={3}
-                value={editLang === 'ru' ? editForm.description : editForm.description_translations[editLang] || ''}
-                onChange={e => {
-                  if (editLang === 'ru') {
-                    setEditForm({ ...editForm, description: e.target.value });
-                  } else {
-                    setEditForm({
-                      ...editForm,
-                      description_translations: { ...editForm.description_translations, [editLang]: e.target.value }
-                    });
-                  }
-                }}
-                className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 rounded-xl border text-sm"
-                placeholder={editLang === 'ru' ? 'Описание (необязательно)' : 'Перевод описания'}
-              />
+              <div>
+                <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+                  Название ({editLang.toUpperCase()})
+                </label>
+                <input
+                  type="text"
+                  value={editLang === 'ru' ? editForm.name : editForm.name_translations[editLang] || ''}
+                  onChange={e => {
+                    if (editLang === 'ru') {
+                      setEditForm({ ...editForm, name: e.target.value });
+                    } else {
+                      setEditForm({
+                        ...editForm,
+                        name_translations: { ...editForm.name_translations, [editLang]: e.target.value }
+                      });
+                    }
+                  }}
+                  className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all"
+                  placeholder={editLang === 'ru' ? 'Название товара' : 'Перевод названия'}
+                />
+              </div>
+              
+              <div>
+                <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+                  Описание ({editLang.toUpperCase()})
+                </label>
+                <textarea
+                  rows={3}
+                  value={editLang === 'ru' ? editForm.description : editForm.description_translations[editLang] || ''}
+                  onChange={e => {
+                    if (editLang === 'ru') {
+                      setEditForm({ ...editForm, description: e.target.value });
+                    } else {
+                      setEditForm({
+                        ...editForm,
+                        description_translations: { ...editForm.description_translations, [editLang]: e.target.value }
+                      });
+                    }
+                  }}
+                  className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all"
+                  placeholder={editLang === 'ru' ? 'Описание (необязательно)' : 'Перевод описания'}
+                />
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
                 Цена (₸)
               </label>
               <input
                 type="number"
                 value={editForm.price || ''}
                 onChange={e => setEditForm({ ...editForm, price: Number(e.target.value) })}
-                className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 rounded-xl border text-sm"
+                className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
                 Фото (URL)
               </label>
               <input
                 type="url"
                 value={editForm.imageUrl}
                 onChange={e => setEditForm({ ...editForm, imageUrl: e.target.value })}
-                className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 rounded-xl border text-sm"
+                className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all"
                 placeholder="https://..."
               />
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="flex justify-end gap-3 pt-3">
             <button
               type="button"
               onClick={() => setEditModalOpen(false)}
-              className="px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100"
+              className="px-5 py-2.5 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
             >
               Отмена
             </button>
             <button
               type="submit"
               disabled={editSaving}
-              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-medium transition"
+              className="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-semibold shadow-sm transition-all flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
             >
+              {editSaving && (
+                <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+              )}
               {editSaving ? 'Сохранение...' : 'Сохранить'}
             </button>
           </div>
@@ -775,7 +813,7 @@ export default function MenuPage() {
       >
         <form onSubmit={handleSaveCustom} className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
               Название блюда *
             </label>
             <input
@@ -783,14 +821,14 @@ export default function MenuPage() {
               required
               value={customForm.name}
               onChange={e => setCustomForm({ ...customForm, name: e.target.value })}
-              className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 rounded-xl border text-sm"
+              className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all"
               placeholder="Например: Спец-комбо Bulka"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
                 Цена (₸) *
               </label>
               <input
@@ -798,61 +836,67 @@ export default function MenuPage() {
                 required
                 value={customForm.price || ''}
                 onChange={e => setCustomForm({ ...customForm, price: Number(e.target.value) })}
-                className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 rounded-xl border text-sm"
+                className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
                 Категория
               </label>
               <input
                 type="text"
                 value={customForm.category_name}
                 onChange={e => setCustomForm({ ...customForm, category_name: e.target.value })}
-                className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 rounded-xl border text-sm"
+                className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
               Ссылка на фото (URL)
             </label>
             <input
               type="url"
               value={customForm.image_url}
               onChange={e => setCustomForm({ ...customForm, image_url: e.target.value })}
-              className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 rounded-xl border text-sm"
+              className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all"
               placeholder="https://..."
             />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
               Описание
             </label>
             <textarea
               rows={3}
               value={customForm.description}
               onChange={e => setCustomForm({ ...customForm, description: e.target.value })}
-              className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 rounded-xl border text-sm"
+              className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all"
             />
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="flex justify-end gap-3 pt-3">
             <button
               type="button"
               onClick={() => setModalOpen(false)}
-              className="px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100"
+              className="px-5 py-2.5 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
             >
               Отмена
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-medium transition"
+              className="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-semibold shadow-sm transition-all flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              Сохранить
+              {submitting && (
+                <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+              )}
+              {submitting ? 'Сохранение...' : 'Сохранить'}
             </button>
           </div>
         </form>
