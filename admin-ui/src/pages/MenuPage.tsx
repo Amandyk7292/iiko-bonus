@@ -656,17 +656,32 @@ export default function MenuPage() {
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
                 Название и описание
               </label>
-              <div className="flex bg-gray-100 dark:bg-gray-800 p-0.5 rounded-lg text-[10px] font-medium">
-                {(['ru', 'kk', 'en'] as const).map(l => (
+              <div className="flex items-center gap-3">
+                {editLang !== 'ru' && (
                   <button
-                    key={l}
                     type="button"
-                    onClick={() => setEditLang(l)}
-                    className={`px-3 py-1 rounded-md transition ${editLang === l ? 'bg-white dark:bg-gray-700 shadow-sm text-amber-600' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'}`}
+                    onClick={() => {
+                      const textToTranslate = [editForm.name, editForm.description].filter(Boolean).join('\n\n');
+                      if (!textToTranslate) return toast('Нет текста для перевода', 'info');
+                      window.open(`https://translate.yandex.ru/?source_lang=ru&target_lang=${editLang}&text=${encodeURIComponent(textToTranslate)}`, '_blank');
+                    }}
+                    className="text-[10px] text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 flex items-center gap-1 font-medium transition"
                   >
-                    {l.toUpperCase()}
+                    В Яндекс Переводчик ↗
                   </button>
-                ))}
+                )}
+                <div className="flex bg-gray-100 dark:bg-gray-800 p-0.5 rounded-lg text-[10px] font-medium">
+                  {(['ru', 'kk', 'en'] as const).map(l => (
+                    <button
+                      key={l}
+                      type="button"
+                      onClick={() => setEditLang(l)}
+                      className={`px-3 py-1 rounded-md transition ${editLang === l ? 'bg-white dark:bg-gray-700 shadow-sm text-amber-600' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'}`}
+                    >
+                      {l.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
             
