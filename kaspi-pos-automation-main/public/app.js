@@ -154,7 +154,7 @@ const setAuthStep = (n) => {
   const dot4 = $('dot4');
   if (dot4) dot4.style.display = hasDot4 ? 'inline-block' : 'none';
 
-  for (let i = 1; i <= 4; i++) {
+  for (let i = 1; i <= 5; i++) {
     const step = $(`authStep${i}`);
     if (step) step.classList.toggle('hidden', i !== n);
     const dot = $(`dot${i}`);
@@ -177,6 +177,8 @@ const resetAuth = () => {
   setAuthStep(1);
   $('otpInput').value = '';
   $('passwordInput').value = '';
+  const callInput = $('callInput');
+  if (callInput) callInput.value = '';
   showAuthMsg('', '');
 };
 
@@ -208,6 +210,9 @@ const sendPhone = async () => {
       setAuthStep(2);
     } else if (resp.view === 'KPEnterLoginPassword' || resp.body?.view?.code === 'KPEnterLoginPassword') {
       setAuthStep(4);
+    } else if (resp.view === 'KPMobileCall' || resp.body?.view?.code === 'KPMobileCall') {
+      $('callDesc').textContent = resp.desc || 'Вам поступит звонок. Введите последние 4 цифры номера.';
+      setAuthStep(5);
     } else {
       showAuthMsg(`Ошибка: ${resp.body?.data?.desc || JSON.stringify(resp.body)}`, 'err');
     }
@@ -238,6 +243,9 @@ const submitPassword = async () => {
       } else if (resp.step === 'otp') {
         $('otpDesc').textContent = resp.desc || 'Введите код из SMS для завершения';
         setAuthStep(2);
+      } else if (resp.step === 'call') {
+        $('callDesc').textContent = resp.desc || 'Вам поступит звонок. Введите последние 4 цифры номера.';
+        setAuthStep(5);
       } else {
         showAuthMsg(`Неизвестный статус: ${resp.step}`, 'err');
       }
@@ -263,6 +271,35 @@ const verifyOtp = async () => {
 
   try {
     const resp = await apiPost('/api/auth/verify-otp', { otp, processId: authProcessId });
+    if (resp.success && resp.step === 'finished') {
+      saveSession(resp);
+      authProcessId = null;
+      showMainScreen(resp);
+    } else if (resp.success && resp.step === 'call') {
+      $('callDesc').textContent = resp.desc || 'Вам поступит звонок. Введите последние 4 цифры номера.';
+      setAuthStep(5);
+    } else {
+      showAuthMsg(`Неверный код или ошибка: ${resp.body?.data?.desc || JSON.stringify(resp.body)}`, 'err');
+    }
+  } catch (e) {
+    showAuthMsg(`Ошибка: ${e.message}`, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Подтвердить';
+  }
+};
+
+const verifyCall = async () => {
+  const code = digitsOnly($('callInput').value);
+  if (!code) return showAuthMsg('Введите код звонка', 'err');
+
+  const btn = $('btnVerifyCall');
+  btn.disabled = true;
+  btn.innerHTML = 'Проверка...<span class="loader"></span>';
+  showAuthMsg('', '');
+
+  try {
+    const resp = await apiPost('/api/auth/verify-call', { code, processId: authProcessId });
     if (resp.success && resp.step === 'finished') {
       saveSession(resp);
       authProcessId = null;
@@ -782,6 +819,7 @@ const createRefund = async () => {
 Object.assign(window, {
   sendPhone,
   verifyOtp,
+  verifyCall,
   submitPassword,
   resetAuth,
   logout,

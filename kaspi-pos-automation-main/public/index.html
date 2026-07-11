@@ -333,6 +333,16 @@
             <button class="btn btn-secondary" onclick="resetAuth()">Назад</button>
           </div>
 
+          <!-- Step 5: Mobile Call -->
+          <div id="authStep5" class="hidden">
+            <h2>Подтверждение звонком</h2>
+            <p id="callDesc" style="font-size: 14px; color: #666; margin-bottom: 12px">Вам поступит звонок. Введите последние 4 цифры номера.</p>
+            <label>Последние 4 цифры</label>
+            <input type="tel" id="callInput" class="otp-input" placeholder="• • • •" maxlength="4" inputmode="numeric" />
+            <button class="btn btn-primary" id="btnVerifyCall" onclick="verifyCall()">Подтвердить</button>
+            <button class="btn btn-secondary" onclick="resetAuth()">Назад</button>
+          </div>
+
           <div id="authMsg" class="hidden" style="margin-top: 12px"></div>
         </div>
       </div>
