@@ -11,6 +11,7 @@ import {
   Settings2,
   Store,
   Users,
+  UtensilsCrossed,
   X,
 } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
@@ -33,6 +34,7 @@ const sections = [
   {
     title: 'nav.content',
     items: [
+      { to: '/menu', label: 'nav.menu', icon: UtensilsCrossed },
       { to: '/stories', label: 'nav.stories', icon: Images },
       { to: '/news', label: 'nav.news', icon: Newspaper },
       { to: '/bonus', label: 'nav.bonus', icon: Gift },

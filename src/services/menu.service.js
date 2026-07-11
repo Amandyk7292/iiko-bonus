@@ -23,7 +23,7 @@ class MenuService {
         ...overrides,
         updated_at: new Date(),
       },
-      { onConflict: 'iiko_product_id' }
+      { onConflict: 'iiko_product_id' },
     );
     if (error) throw new Error('Ошибка сохранения настроек товара: ' + error.message);
   }
@@ -50,7 +50,7 @@ class MenuService {
         ...overrides,
         updated_at: new Date(),
       },
-      { onConflict: 'iiko_category_id' }
+      { onConflict: 'iiko_category_id' },
     );
     if (error) throw new Error('Ошибка сохранения настроек категории: ' + error.message);
   }

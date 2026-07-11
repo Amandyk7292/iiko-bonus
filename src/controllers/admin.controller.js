@@ -122,9 +122,7 @@ const pushMassHandler = async (req, res) => {
     const { title, body } = req.body;
     if (!title || !body) return res.status(400).json({ error: 'title and body required' });
 
-    const { data: customers } = await supabase
-      .from('customers')
-      .select('id, fcm_token');
+    const { data: customers } = await supabase.from('customers').select('id, fcm_token');
     if (!customers || customers.length === 0) return res.json({ success: true, count: 0 });
 
     const { data: savedNotifications, error: notificationError } = await supabase
@@ -155,7 +153,9 @@ const pushMassHandler = async (req, res) => {
         if (delivered) count++;
       }
     }
-    console.log(`[PUSH MASS] Всего клиентов: ${customers.length}, с fcm_token: ${totalTokens}, успешно отправлено push: ${count}`);
+    console.log(
+      `[PUSH MASS] Всего клиентов: ${customers.length}, с fcm_token: ${totalTokens}, успешно отправлено push: ${count}`,
+    );
     res.json({ success: true, count, savedCount: customers.length, totalTokens });
   } catch (err) {
     res.status(500).json({ error: err.message });

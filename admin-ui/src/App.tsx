@@ -17,6 +17,7 @@ const NewsPage = lazy(() => import('./pages/NewsPage'));
 const LocationsPage = lazy(() => import('./pages/LocationsPage'));
 const BonusPage = lazy(() => import('./pages/BonusPage'));
 const LoyaltyTiersPage = lazy(() => import('./pages/LoyaltyTiersPage'));
+const MenuPage = lazy(() => import('./pages/MenuPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 
 function LoginScreen({ onLogin }: { onLogin: () => void }) {
@@ -116,6 +117,7 @@ export default function App() {
               <Route path="/iiko" element={<IikoPage />} />
               <Route path="/broadcast" element={<BroadcastPage />} />
               <Route path="/customers" element={<CustomersPage />} />
+              <Route path="/menu" element={<MenuPage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/stories" element={<StoriesPage />} />
               <Route path="/news" element={<NewsPage />} />

@@ -424,10 +424,7 @@ async function updateFcmTokenByCustomerId(customerId, fcmToken, language = null)
     const norm = String(language).toLowerCase() === 'kz' ? 'kk' : String(language).toLowerCase();
     updates.preferred_language = norm;
   }
-  const { error } = await supabase
-    .from('customers')
-    .update(updates)
-    .eq('id', customerId);
+  const { error } = await supabase.from('customers').update(updates).eq('id', customerId);
   if (error) {
     // If preferred_language column doesn't exist yet, fallback to updating only fcm_token
     const { error: fallbackErr } = await supabase

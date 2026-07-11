@@ -44,7 +44,7 @@ router.get('/admin/api/menu', adminAuthMiddleware, async (req, res) => {
         products: productOverrides,
         categories: categoryOverrides,
         customProducts: customProducts,
-      }
+      },
     });
   } catch (error) {
     console.error('Ошибка в /admin/api/menu:', error);
@@ -98,35 +98,38 @@ router.delete('/admin/api/menu/custom-product/:id', adminAuthMiddleware, async (
 });
 
 // Загрузка фото для товара
-router.post('/admin/api/menu/upload-image', adminAuthMiddleware, upload.single('image'), async (req, res) => {
-  try {
-    if (!req.file) throw new Error('Файл не загружен');
-    
-    // Генерируем уникальное имя
-    const ext = req.file.originalname.split('.').pop();
-    const fileName = `menu_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
-    
-    // Загружаем в Supabase Storage (бакет 'menu_images')
-    const { data, error } = await supabase.storage
-      .from('menu_images')
-      .upload(fileName, req.file.buffer, {
-        contentType: req.file.mimetype,
-        upsert: false
-      });
+router.post(
+  '/admin/api/menu/upload-image',
+  adminAuthMiddleware,
+  upload.single('image'),
+  async (req, res) => {
+    try {
+      if (!req.file) throw new Error('Файл не загружен');
 
-    if (error) throw new Error('Ошибка Supabase Storage: ' + error.message);
+      // Генерируем уникальное имя
+      const ext = req.file.originalname.split('.').pop();
+      const fileName = `menu_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
 
-    // Получаем публичный URL
-    const { data: publicUrlData } = supabase.storage
-      .from('menu_images')
-      .getPublicUrl(fileName);
+      // Загружаем в Supabase Storage (бакет 'menu_images')
+      const { data, error } = await supabase.storage
+        .from('menu_images')
+        .upload(fileName, req.file.buffer, {
+          contentType: req.file.mimetype,
+          upsert: false,
+        });
 
-    res.json({ success: true, imageUrl: publicUrlData.publicUrl });
-  } catch (error) {
-    console.error('Upload error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+      if (error) throw new Error('Ошибка Supabase Storage: ' + error.message);
+
+      // Получаем публичный URL
+      const { data: publicUrlData } = supabase.storage.from('menu_images').getPublicUrl(fileName);
+
+      res.json({ success: true, imageUrl: publicUrlData.publicUrl });
+    } catch (error) {
+      console.error('Upload error:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  },
+);
 router.patch(
   '/admin/api/loyalty-tiers/:id/active',
   adminAuthMiddleware,

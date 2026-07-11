@@ -281,7 +281,7 @@ class IikoAPI {
       this._apiCallCount++;
       console.log(`[iiko] Запрос стоп-листа #${this._apiCallCount}`);
       const token = await this.getToken();
-      const orgId = organizationId || await this.getOrganizationId();
+      const orgId = organizationId || (await this.getOrganizationId());
       const res = await fetch(`${this.baseUrl}/api/1/stop_lists`, {
         method: 'POST',
         headers: {

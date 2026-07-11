@@ -152,4 +152,29 @@ export const api = {
   deleteLoyaltyTier: (id: string) => request(`/loyalty-tiers/${encodeURIComponent(id)}`, json('DELETE')),
   setLoyaltyTierActive: (id: string, isActive: boolean) => request(`/loyalty-tiers/${encodeURIComponent(id)}/active`, json('PATCH', { isActive })),
   reorderLoyaltyTiers: (ids: string[]) => request('/loyalty-tiers/reorder', json('PUT', { ids })),
+
+  // --- Menu Management ---
+  getAdminMenu: () => request<{ success: boolean; rawMenu: any; overrides: any }>('/menu'),
+  setProductOverride: (iikoProductId: string, overrides: Record<string, any>) =>
+    request<{ success: boolean }>('/menu/product/override', json('POST', { iikoProductId, overrides })),
+  setCategoryOverride: (iikoCategoryId: string, overrides: Record<string, any>) =>
+    request<{ success: boolean }>('/menu/category/override', json('POST', { iikoCategoryId, overrides })),
+  upsertCustomProduct: (product: Record<string, any>) =>
+    request<{ success: boolean }>('/menu/custom-product', json('POST', product)),
+  deleteCustomProduct: (id: string) =>
+    request<{ success: boolean }>(`/menu/custom-product/${encodeURIComponent(id)}`, json('DELETE')),
+  uploadMenuPhoto: async (file: File): Promise<{ success: boolean; imageUrl?: string }> => {
+    const token = getToken();
+    const formData = new FormData();
+    formData.append('image', file);
+    const headers = new Headers();
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    const response = await fetch(`${BASE_URL}/menu/upload-image`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+    if (!response.ok) throw new ApiError('Ошибка загрузки фото', response.status);
+    return response.json();
+  },
 };

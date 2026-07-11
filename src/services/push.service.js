@@ -12,12 +12,16 @@ function initFirebase() {
     const rawAccount = process.env.FIREBASE_SERVICE_ACCOUNT || process.env.GOOGLE_CREDENTIALS_JSON;
     if (rawAccount) {
       try {
-        serviceAccount = typeof rawAccount === 'string' ? JSON.parse(rawAccount.trim()) : rawAccount;
+        serviceAccount =
+          typeof rawAccount === 'string' ? JSON.parse(rawAccount.trim()) : rawAccount;
         if (serviceAccount && typeof serviceAccount.private_key === 'string') {
           serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
         }
       } catch (e) {
-        console.error('Error parsing FIREBASE_SERVICE_ACCOUNT/GOOGLE_CREDENTIALS_JSON env:', e.message);
+        console.error(
+          'Error parsing FIREBASE_SERVICE_ACCOUNT/GOOGLE_CREDENTIALS_JSON env:',
+          e.message,
+        );
       }
     }
     if (serviceAccount) {

@@ -288,48 +288,63 @@ router.delete(
   },
 );
 
-router.get('/api/customer/notifications', publicApiRateLimit, customerAuthMiddleware, async (req, res) => {
-  try {
-    const { data, error } = await supabase
-      .from('customer_notifications')
-      .select('id,title,body,type,is_read,created_at')
-      .eq('customer_id', req.customerAuth.id)
-      .order('created_at', { ascending: false })
-      .limit(100);
-    if (error) throw error;
-    res.json({ success: true, notifications: data || [] });
-  } catch (err) {
-    sendApiError(res, err, { success: false });
-  }
-});
+router.get(
+  '/api/customer/notifications',
+  publicApiRateLimit,
+  customerAuthMiddleware,
+  async (req, res) => {
+    try {
+      const { data, error } = await supabase
+        .from('customer_notifications')
+        .select('id,title,body,type,is_read,created_at')
+        .eq('customer_id', req.customerAuth.id)
+        .order('created_at', { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      res.json({ success: true, notifications: data || [] });
+    } catch (err) {
+      sendApiError(res, err, { success: false });
+    }
+  },
+);
 
-router.post('/api/customer/notifications/read-all', publicApiRateLimit, customerAuthMiddleware, async (req, res) => {
-  try {
-    const { error } = await supabase
-      .from('customer_notifications')
-      .update({ is_read: true, read_at: new Date().toISOString() })
-      .eq('customer_id', req.customerAuth.id)
-      .eq('is_read', false);
-    if (error) throw error;
-    res.json({ success: true });
-  } catch (err) {
-    sendApiError(res, err, { success: false });
-  }
-});
+router.post(
+  '/api/customer/notifications/read-all',
+  publicApiRateLimit,
+  customerAuthMiddleware,
+  async (req, res) => {
+    try {
+      const { error } = await supabase
+        .from('customer_notifications')
+        .update({ is_read: true, read_at: new Date().toISOString() })
+        .eq('customer_id', req.customerAuth.id)
+        .eq('is_read', false);
+      if (error) throw error;
+      res.json({ success: true });
+    } catch (err) {
+      sendApiError(res, err, { success: false });
+    }
+  },
+);
 
-router.post('/api/customer/notifications/:id/read', publicApiRateLimit, customerAuthMiddleware, async (req, res) => {
-  try {
-    const { error } = await supabase
-      .from('customer_notifications')
-      .update({ is_read: true, read_at: new Date().toISOString() })
-      .eq('id', req.params.id)
-      .eq('customer_id', req.customerAuth.id);
-    if (error) throw error;
-    res.json({ success: true });
-  } catch (err) {
-    sendApiError(res, err, { success: false });
-  }
-});
+router.post(
+  '/api/customer/notifications/:id/read',
+  publicApiRateLimit,
+  customerAuthMiddleware,
+  async (req, res) => {
+    try {
+      const { error } = await supabase
+        .from('customer_notifications')
+        .update({ is_read: true, read_at: new Date().toISOString() })
+        .eq('id', req.params.id)
+        .eq('customer_id', req.customerAuth.id);
+      if (error) throw error;
+      res.json({ success: true });
+    } catch (err) {
+      sendApiError(res, err, { success: false });
+    }
+  },
+);
 
 router.post('/api/guest/profile', publicApiRateLimit, customerAuthMiddleware, async (req, res) => {
   try {
@@ -403,12 +418,16 @@ router.get('/api/guest/menu', async (req, res) => {
       menuService.getCustomProducts(),
     ]);
 
-    const prodOverridesMap = new Map(productOverrides.map(o => [o.iiko_product_id, o]));
-    const catOverridesMap = new Map(categoryOverrides.map(o => [o.iiko_category_id, o]));
+    const prodOverridesMap = new Map(productOverrides.map((o) => [o.iiko_product_id, o]));
+    const catOverridesMap = new Map(categoryOverrides.map((o) => [o.iiko_category_id, o]));
 
     // Categories
     let baseCategories = (rawMenu.groups || [])
-      .filter((g) => g.isIncludedInMenu || (rawMenu.groups.length > 0 && !rawMenu.groups.some(g2 => g2.isIncludedInMenu)))
+      .filter(
+        (g) =>
+          g.isIncludedInMenu ||
+          (rawMenu.groups.length > 0 && !rawMenu.groups.some((g2) => g2.isIncludedInMenu)),
+      )
       .map((g) => ({
         id: g.id,
         name: g.name,
@@ -420,7 +439,7 @@ router.get('/api/guest/menu', async (req, res) => {
     for (const cat of baseCategories) {
       const override = catOverridesMap.get(cat.id);
       if (override && override.is_hidden) continue;
-      
+
       categories.push({
         id: cat.id,
         name: override?.custom_name || cat.name,
@@ -433,14 +452,18 @@ router.get('/api/guest/menu', async (req, res) => {
 
     // Products
     let baseProducts = (rawMenu.products || []).filter(
-      (p) => p.type === 'Dish' || p.type === 'Good' || (rawMenu.products.length > 0 && !rawMenu.products.some(p2 => p2.type === 'Dish' || p2.type === 'Good'))
+      (p) =>
+        p.type === 'Dish' ||
+        p.type === 'Good' ||
+        (rawMenu.products.length > 0 &&
+          !rawMenu.products.some((p2) => p2.type === 'Dish' || p2.type === 'Good')),
     );
 
     let products = [];
     for (const p of baseProducts) {
       const override = prodOverridesMap.get(p.id);
       if (override && override.is_hidden) continue;
-      
+
       let price = 0;
       if (p.sizePrices && p.sizePrices.length > 0) {
         price = p.sizePrices[0].price.currentPrice;
@@ -469,7 +492,7 @@ router.get('/api/guest/menu', async (req, res) => {
     // Добавляем кастомные товары (добавленные админом вручную)
     for (const cp of customProducts) {
       // Ищем или создаём категорию для кастомного товара
-      let cat = categories.find(c => c.name === cp.category_name);
+      let cat = categories.find((c) => c.name === cp.category_name);
       let catId;
       if (cat) {
         catId = cat.id;
@@ -479,7 +502,7 @@ router.get('/api/guest/menu', async (req, res) => {
           id: catId,
           name: cp.category_name,
           order: 999, // в конец
-          imageUrl: null
+          imageUrl: null,
         });
       }
 
