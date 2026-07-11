@@ -361,6 +361,13 @@ const buildPayload = (event, entry, data) => ({
 });
 
 const getActiveSessionHeaders = () => {
+  if (process.env.KASPI_TOKEN_SN && process.env.KASPI_VTOKEN_SECRET) {
+    return {
+      tokenSN: process.env.KASPI_TOKEN_SN,
+      vtokenSecret: process.env.KASPI_VTOKEN_SECRET,
+      profileId: process.env.KASPI_PROFILE_ID || null
+    };
+  }
   try {
     if (fs.existsSync(CREDENTIALS_FILE)) {
       return JSON.parse(fs.readFileSync(CREDENTIALS_FILE, 'utf8'));

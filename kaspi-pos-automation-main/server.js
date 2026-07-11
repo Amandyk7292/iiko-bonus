@@ -39,12 +39,19 @@ import fs from 'fs';
 
 const CREDENTIALS_FILE = path.join(ROOT_DIR, 'session-credentials.json');
 
-// Load session from disk on startup
-let kaspiSession = { tokenSN: null, vtokenSecret: null, profileId: null };
+// Load session from disk or env on startup
+let kaspiSession = {
+  tokenSN: process.env.KASPI_TOKEN_SN || null,
+  vtokenSecret: process.env.KASPI_VTOKEN_SECRET || null,
+  profileId: process.env.KASPI_PROFILE_ID || null
+};
 try {
-  if (fs.existsSync(CREDENTIALS_FILE)) {
-    kaspiSession = JSON.parse(fs.readFileSync(CREDENTIALS_FILE, 'utf8'));
+  if (!kaspiSession.tokenSN && fs.existsSync(CREDENTIALS_FILE)) {
+    const saved = JSON.parse(fs.readFileSync(CREDENTIALS_FILE, 'utf8'));
+    kaspiSession = { ...kaspiSession, ...saved };
     console.log('[SESSION] Loaded credentials from file on startup');
+  } else if (kaspiSession.tokenSN) {
+    console.log('[SESSION] Loaded credentials from ENV variables');
   }
 } catch (e) {
   console.error('[SESSION] Failed to load credentials from file:', e.message);
