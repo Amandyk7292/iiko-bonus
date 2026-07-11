@@ -290,7 +290,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFFC66A25).withValues(alpha: 0.04),
+                  color: const Color(0xFF532814).withValues(alpha: 0.04),
                   blurRadius: 12,
                   offset: const Offset(0, 4),
                 ),
@@ -315,7 +315,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                       )
                     : const Icon(
                         Icons.keyboard_arrow_down_rounded,
-                        color: Color(0xFFC66A25),
+                        color: Color(0xFF532814),
                       ),
                 dropdownColor: Colors.white,
                 borderRadius: BorderRadius.circular(16),

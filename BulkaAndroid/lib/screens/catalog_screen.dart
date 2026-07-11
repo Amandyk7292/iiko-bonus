@@ -249,7 +249,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Row(
                       children: [
-                        const Icon(Icons.search_rounded, color: _caramel),
+                        const Icon(Icons.search_rounded, color: _textDark),
                         const SizedBox(width: 10),
                         Expanded(
                           child: TextField(
@@ -298,17 +298,17 @@ class _CatalogScreenState extends State<CatalogScreen> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
-                      color: active ? _caramel : _milkyBackground,
+                      color: active ? _bulkaYellow : _milkyBackground,
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: active ? _caramel : _almond.withValues(alpha: 0.5),
+                        color: active ? _bulkaYellow : _almond.withValues(alpha: 0.5),
                       ),
                     ),
                     child: Text(
                       cat,
                       style: TextStyle(
-                        color: active ? _milkyBackground : _textDark,
-                        fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                        color: _textDark,
+                        fontWeight: active ? FontWeight.w700 : FontWeight.w400,
                         fontSize: 13,
                       ),
                     ),
@@ -385,7 +385,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
                         Row(
                           children: [
                             const Icon(Icons.location_on_rounded,
-                                color: _caramel, size: 16),
+                                color: _textDark, size: 16),
                             const SizedBox(width: 4),
                             Expanded(
                               child: Text(
@@ -414,7 +414,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
                     ),
                     child: const Icon(
                       Icons.storefront_rounded,
-                      color: _caramel,
+                      color: _textDark,
                       size: 32,
                     ),
                   ),
@@ -809,10 +809,10 @@ class _CatalogFilterScreenState extends State<_CatalogFilterScreen> {
                                     height: 22,
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
-                                      color: isSelected ? _caramel : const Color(0xFFE8E4DD),
+                                      color: isSelected ? _bulkaYellow : const Color(0xFFE8E4DD),
                                     ),
                                     child: isSelected
-                                        ? const Icon(Icons.check, size: 14, color: Colors.white)
+                                        ? const Icon(Icons.check, size: 14, color: _textDark)
                                         : null,
                                   ),
                                 ],
@@ -838,8 +838,8 @@ class _CatalogFilterScreenState extends State<_CatalogFilterScreen> {
                       child: ElevatedButton(
                         onPressed: () => Navigator.of(context).pop(),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: _caramel,
-                          foregroundColor: Colors.white,
+                          backgroundColor: _bulkaYellow,
+                          foregroundColor: _textDark,
                           elevation: 0,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(25),
@@ -847,7 +847,7 @@ class _CatalogFilterScreenState extends State<_CatalogFilterScreen> {
                         ),
                         child: const Text(
                           'Применить',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _textDark),
                         ),
                       ),
                     ),
@@ -860,7 +860,7 @@ class _CatalogFilterScreenState extends State<_CatalogFilterScreen> {
                       child: OutlinedButton(
                         onPressed: () => setState(() => _selectedFilters.clear()),
                         style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: _caramel, width: 1.5),
+                          side: const BorderSide(color: _textDark, width: 1.5),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(25),
                           ),
@@ -870,7 +870,7 @@ class _CatalogFilterScreenState extends State<_CatalogFilterScreen> {
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
-                            color: _caramel,
+                            color: _textDark,
                           ),
                         ),
                       ),
@@ -1108,7 +1108,7 @@ class _ProductDetailsScreenState extends State<_ProductDetailsScreen> {
                           width: active ? 22 : 8,
                           height: 8,
                           decoration: BoxDecoration(
-                            color: active ? _caramel : const Color(0xFFE5E0DA),
+                            color: active ? _bulkaYellow : const Color(0xFFE5E0DA),
                             borderRadius: BorderRadius.circular(4),
                           ),
                         );

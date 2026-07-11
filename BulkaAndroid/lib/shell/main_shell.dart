@@ -369,7 +369,7 @@ class _NavButton extends StatelessWidget {
                         boxShadow: isCenter
                             ? const [
                                 BoxShadow(
-                                  color: Color(0x40C66A25),
+                                  color: Color(0x40FFB814),
                                   blurRadius: 20,
                                   offset: Offset(0, 9),
                                 ),
