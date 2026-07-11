@@ -545,7 +545,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
           Text(
             product.isStopListed == true
                 ? 'В стоп-листе'
-                : 'В наличии - ${product.inStockCount} шт',
+                : 'В наличии',
             style: TextStyle(
               fontSize: 11,
               color: product.isStopListed == true
