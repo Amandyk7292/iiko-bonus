@@ -33,112 +33,76 @@ class CatalogScreen extends StatefulWidget {
 
 class _CatalogScreenState extends State<CatalogScreen> {
   final _addressRepo = const AddressRepository();
+  final _api = BulkaApiClient();
   DeliveryAddress? _selectedAddress;
   String _searchQuery = '';
   String _selectedCategory = 'Все';
   final Map<String, int> _cartQuantities = {};
 
-  final List<String> _categories = const [
-    'Все',
-    'Пироги Четвертинки',
-    'Кофе',
-    'Найди свою половинку',
-    'Круглые торты',
-    'Пироги',
-    'Сладкая выпечка',
-    'Слоенная выпечка',
-    'Сытная выпечка',
-    'Чизкейки',
-  ];
-
-  final List<CatalogProduct> _allProducts = const [
-    CatalogProduct(
-      id: 'p1',
-      title: 'Вишнёво-яблочный пирог четвертинка',
-      price: 2500,
-      category: 'Пироги Четвертинки',
-      imageUrl: 'https://images.unsplash.com/photo-1519915028121-7d3463d20b13?w=600&auto=format&fit=crop&q=80',
-      inStockCount: 7,
-      description: 'Песочное тесто и нежная начинка из свежих яблок и спелой вишни.',
-    ),
-    CatalogProduct(
-      id: 'p2',
-      title: 'Творожно-ягодный пирог четвертинка',
-      price: 2600,
-      category: 'Пироги Четвертинки',
-      imageUrl: 'https://images.unsplash.com/photo-1535141192574-5d4897c13136?w=600&auto=format&fit=crop&q=80',
-      inStockCount: 5,
-    ),
-    CatalogProduct(
-      id: 'c1',
-      title: 'Капучино на фирменном зерне',
-      price: 1200,
-      category: 'Кофе',
-      imageUrl: 'https://images.unsplash.com/photo-1572442388796-11668a67e53d?w=600&auto=format&fit=crop&q=80',
-      inStockCount: 40,
-    ),
-    CatalogProduct(
-      id: 'c2',
-      title: 'Латте соленая карамель',
-      price: 1400,
-      category: 'Кофе',
-      imageUrl: 'https://images.unsplash.com/photo-1541167760496-1628856ab772?w=600&auto=format&fit=crop&q=80',
-      inStockCount: 35,
-    ),
-    CatalogProduct(
-      id: 'h1',
-      title: 'Наполеон торт прямоугольный половинка',
-      price: 6800,
-      category: 'Найди свою половинку',
-      imageUrl: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=600&auto=format&fit=crop&q=80',
-      inStockCount: 26,
-    ),
-    CatalogProduct(
-      id: 't1',
-      title: 'Торт Рафаэлло',
-      price: 5900,
-      category: 'Круглые торты',
-      imageUrl: 'https://images.unsplash.com/photo-1588195538326-c5b1e9f80a1b?w=600&auto=format&fit=crop&q=80',
-      inStockCount: 12,
-    ),
-    CatalogProduct(
-      id: 't2',
-      title: 'Торт Молочная девочка',
-      price: 5500,
-      category: 'Круглые торты',
-      imageUrl: 'https://images.unsplash.com/photo-1565958011703-44f9829ba187?w=600&auto=format&fit=crop&q=80',
-      inStockCount: 15,
-    ),
-    CatalogProduct(
-      id: 'b1',
-      title: 'Круассан миндальный',
-      price: 1100,
-      category: 'Слоенная выпечка',
-      imageUrl: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=600&auto=format&fit=crop&q=80',
-      inStockCount: 18,
-    ),
-    CatalogProduct(
-      id: 's1',
-      title: 'Самса с фирменной говядиной',
-      price: 650,
-      category: 'Сытная выпечка',
-      imageUrl: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?w=600&auto=format&fit=crop&q=80',
-      inStockCount: 30,
-    ),
-    CatalogProduct(
-      id: 'ch1',
-      title: 'Чизкейк Сан-Себастьян',
-      price: 1800,
-      category: 'Чизкейки',
-      imageUrl: 'https://images.unsplash.com/photo-1533134242443-d4fd215305ad?w=600&auto=format&fit=crop&q=80',
-      inStockCount: 10,
-    ),
-  ];
+  List<String> _categories = const ['Все'];
+  List<CatalogProduct> _allProducts = const [];
+  bool _isLoading = true;
+  String? _loadError;
 
   @override
   void initState() {
     super.initState();
     _loadCurrentAddress();
+    _loadMenu();
+  }
+
+  Future<void> _loadMenu() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _loadError = null;
+      });
+      final json = await _api._get('/api/guest/menu');
+      if (!mounted) return;
+
+      final categoriesRaw = json['categories'] as List? ?? [];
+      final productsRaw = json['products'] as List? ?? [];
+
+      final categoryNames = <String>['Все'];
+      final categoryMap = <String, String>{};
+      for (final c in categoriesRaw) {
+        final id = (c['id'] ?? '').toString();
+        final name = (c['name'] ?? '').toString();
+        if (name.isNotEmpty) {
+          categoryNames.add(name);
+          categoryMap[id] = name;
+        }
+      }
+
+      final products = <CatalogProduct>[];
+      for (final p in productsRaw) {
+        final catId = (p['categoryId'] ?? '').toString();
+        final catName = categoryMap[catId] ?? 'Другое';
+        final price = p['price'];
+        products.add(CatalogProduct(
+          id: (p['id'] ?? '').toString(),
+          title: (p['name'] ?? '').toString(),
+          price: (price is num ? price.toInt() : 0),
+          category: catName,
+          imageUrl: (p['imageUrl'] ?? '').toString(),
+          inStockCount: 99,
+          description: (p['description'] ?? '').toString(),
+          isStopListed: p['inStopList'] == true,
+        ));
+      }
+
+      setState(() {
+        _categories = categoryNames;
+        _allProducts = products;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _loadError = e.toString();
+      });
+    }
   }
 
   Future<void> _loadCurrentAddress() async {
@@ -468,29 +432,57 @@ class _CatalogScreenState extends State<CatalogScreen> {
 
           // Product List
           Expanded(
-            child: _filteredProducts.isEmpty
-                ? Center(
-                    child: Text(
-                      'В этой категории пока нет товаров',
-                      style: TextStyle(color: _textDark.withValues(alpha: 0.5)),
-                    ),
+            child: _isLoading
+                ? const Center(
+                    child: CircularProgressIndicator(color: _bulkaYellow),
                   )
-                : GridView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      mainAxisSpacing: 14,
-                      crossAxisSpacing: 14,
-                      childAspectRatio: 0.68,
-                    ),
-                    itemCount: _filteredProducts.length,
-                    itemBuilder: (context, index) {
-                      final p = _filteredProducts[index];
-                      final qty = _cartQuantities[p.id] ?? 0;
-                      return _buildProductCard(p, qty);
-                    },
-                  ),
+                : _loadError != null
+                    ? Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.cloud_off_rounded,
+                                color: _textDark.withValues(alpha: 0.3), size: 48),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Не удалось загрузить меню',
+                              style: TextStyle(
+                                color: _textDark.withValues(alpha: 0.5),
+                                fontSize: 15,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            TextButton(
+                              onPressed: _loadMenu,
+                              child: const Text('Повторить',
+                                  style: TextStyle(color: _bulkaYellow, fontWeight: FontWeight.w600)),
+                            ),
+                          ],
+                        ),
+                      )
+                    : _filteredProducts.isEmpty
+                        ? Center(
+                            child: Text(
+                              'В этой категории пока нет товаров',
+                              style: TextStyle(color: _textDark.withValues(alpha: 0.5)),
+                            ),
+                          )
+                        : GridView.builder(
+                            padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              mainAxisSpacing: 14,
+                              crossAxisSpacing: 14,
+                              childAspectRatio: 0.68,
+                            ),
+                            itemCount: _filteredProducts.length,
+                            itemBuilder: (context, index) {
+                              final p = _filteredProducts[index];
+                              final qty = _cartQuantities[p.id] ?? 0;
+                              return _buildProductCard(p, qty);
+                            },
+                          ),
           ),
         ],
       ),
