@@ -31,7 +31,7 @@ class CatalogScreen extends StatefulWidget {
   State<CatalogScreen> createState() => _CatalogScreenState();
 }
 
-class _CatalogScreenState extends State<CatalogScreen> {
+class _CatalogScreenState extends State<CatalogScreen> with WidgetsBindingObserver {
   final _addressRepo = const AddressRepository();
   final _api = BulkaApiClient();
   DeliveryAddress? _selectedAddress;
@@ -44,11 +44,80 @@ class _CatalogScreenState extends State<CatalogScreen> {
   bool _isLoading = true;
   String? _loadError;
 
+  // Авто-обновление меню каждые 30 сек
+  Timer? _autoRefreshTimer;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadCurrentAddress();
     _loadMenu();
+    // Тихое фоновое обновление каждые 30 секунд
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      _silentRefresh();
+    });
+  }
+
+  @override
+  void dispose() {
+    _autoRefreshTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Обновить меню когда приложение возвращается из фона
+    if (state == AppLifecycleState.resumed) {
+      _silentRefresh();
+    }
+  }
+
+  /// Тихое обновление — без спиннера, данные просто подменяются
+  Future<void> _silentRefresh() async {
+    try {
+      final json = await _api._get('/api/guest/menu');
+      if (!mounted) return;
+
+      final categoriesRaw = json['categories'] as List? ?? [];
+      final productsRaw = json['products'] as List? ?? [];
+
+      final categoryNames = <String>['Все'];
+      final categoryMap = <String, String>{};
+      for (final c in categoriesRaw) {
+        final id = (c['id'] ?? '').toString();
+        final name = (c['name'] ?? '').toString();
+        if (name.isNotEmpty) {
+          categoryNames.add(name);
+          categoryMap[id] = name;
+        }
+      }
+
+      final products = <CatalogProduct>[];
+      for (final p in productsRaw) {
+        final catId = (p['categoryId'] ?? '').toString();
+        final catName = categoryMap[catId] ?? 'Другое';
+        final price = p['price'];
+        products.add(CatalogProduct(
+          id: (p['id'] ?? '').toString(),
+          title: (p['name'] ?? '').toString(),
+          price: (price is num ? price.toInt() : 0),
+          category: catName,
+          imageUrl: (p['imageUrl'] ?? '').toString(),
+          inStockCount: 99,
+          description: (p['description'] ?? '').toString(),
+          isStopListed: p['inStopList'] == true,
+        ));
+      }
+
+      setState(() {
+        _categories = categoryNames;
+        _allProducts = products;
+      });
+    } catch (_) {
+      // Тихая ошибка — не показываем пользователю
+    }
   }
 
   Future<void> _loadMenu() async {
