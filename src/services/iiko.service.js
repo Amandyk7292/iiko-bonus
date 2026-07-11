@@ -138,6 +138,14 @@ class IikoAPI {
     try {
       const result = await this._menuFetchPromise;
       return result;
+    } catch (error) {
+      console.warn('[iiko] Ошибка загрузки меню из iikoCloud:', error.message);
+      if (this.cachedMenu) {
+        console.warn('[iiko] Возвращаем устаревший кэш меню из-за ошибки iiko');
+        return this.cachedMenu;
+      }
+      // Возвращаем пустую структуру вместо падения, чтобы работали кастомные блюда
+      return { groups: [], products: [] };
     } finally {
       this._menuFetchPromise = null;
     }
