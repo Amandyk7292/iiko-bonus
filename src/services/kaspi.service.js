@@ -1,7 +1,7 @@
 const fetch = require('node-fetch');
 const { supabase } = require('../config/supabase');
 
-const KASPI_URL = process.env.KASPI_MICROSERVICE_URL || 'http://localhost:3000';
+const KASPI_URL = process.env.KASPI_MICROSERVICE_URL || `http://127.0.0.1:${process.env.PORT || 3000}/kaspi-pos`;
 
 class KaspiService {
   /**

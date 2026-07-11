@@ -104,4 +104,17 @@ app.use((err, req, res, _next) => {
   res.status(err.statusCode || 500).json(response);
 });
 
+// Mount Kaspi POS Automation as a sub-app
+process.env.KASPI_MOUNTED = 'true';
+(async () => {
+  try {
+    const kaspiModule = await import('../kaspi-pos-automation-main/server.js');
+    app.use('/kaspi-pos', kaspiModule.kaspiApp);
+    kaspiModule.startPolling();
+    console.log('✅ Kaspi POS Automation mounted at /kaspi-pos');
+  } catch (err) {
+    console.error('❌ Failed to mount Kaspi POS Automation:', err);
+  }
+})();
+
 module.exports = app;

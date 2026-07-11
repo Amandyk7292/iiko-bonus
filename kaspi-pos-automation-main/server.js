@@ -103,8 +103,11 @@ app.use('/api/history', historyRoutes);
 app.use('/api/refund', refundRoutes);
 app.use('/api/session', sessionRoutes);
 
-app.listen(PORT, () => {
-  console.log(`\n  🟢 Kaspi Pay App running at http://localhost:${PORT}\n`);
-  startPolling();
-});
+if (!process.env.KASPI_MOUNTED) {
+  app.listen(PORT, () => {
+    console.log(`\n  🟢 Kaspi Pay App running at http://localhost:${PORT}\n`);
+    startPolling();
+  });
+}
 
+export { app as kaspiApp, startPolling };
