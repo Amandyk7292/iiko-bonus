@@ -313,48 +313,33 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        onPressed: widget.onBack,
-                        tooltip: 'back_tooltip'.tr,
-                        icon: const Icon(
-                          Icons.arrow_back_ios_new_rounded,
-                          color: Color(0xFF6D3317),
-                          size: 20,
-                        ),
+                  InkWell(
+                    onTap: _showLanguageBottomSheet,
+                    borderRadius: BorderRadius.circular(20),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 6,
                       ),
-                      const SizedBox(width: 4),
-                      InkWell(
-                        onTap: _showLanguageBottomSheet,
-                        borderRadius: BorderRadius.circular(20),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 6,
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.language_rounded,
+                            color: Color(0xFF6D3317),
+                            size: 22,
                           ),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.language_rounded,
-                                color: Color(0xFF6D3317),
-                                size: 22,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                _langCode,
-                                style: const TextStyle(
-                                  color: Color(0xFF6D3317),
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
+                          const SizedBox(width: 6),
+                          Text(
+                            _langCode,
+                            style: const TextStyle(
+                              color: Color(0xFF6D3317),
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                   Text(
                     'profile_title'.tr,
