@@ -22,14 +22,10 @@ class IikoAPI {
     let url = `${this.baseUrl}/api/1/access_token`;
     let body = { apiLogin: this.apiLogin };
 
-    // Если указаны appId и clientSecret для v2 OAuth
+    // Если указаны appId и clientSecret для новой OAuth авторизации (с 01.06.2026)
     if (this.appId && this.clientSecret) {
-      url = `${this.baseUrl}/api/v2/access_token`;
-      body = {
-        appId: this.appId,
-        clientSecret: this.clientSecret,
-        apiKey: this.apiLogin,
-      };
+      body.appId = this.appId;
+      body.clientSecret = this.clientSecret;
     }
 
     const response = await fetch(url, {
