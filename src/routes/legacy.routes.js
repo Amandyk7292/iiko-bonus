@@ -405,6 +405,19 @@ router.post('/api/guest/qr-token', publicApiRateLimit, customerAuthMiddleware, a
 
 router.get('/api/guest/menu', async (req, res) => {
   try {
+    const langHeader = req.headers['accept-language'] || 'ru';
+    const lang = langHeader.split(',')[0].split('-')[0].toLowerCase();
+
+    const getLocalized = (override, fieldName, fallbackName) => {
+      if (!override) return fallbackName;
+      const translations = override[`${fieldName}_translations`];
+      if (translations) {
+        if (translations[lang]) return translations[lang];
+        if (translations['ru']) return translations['ru'];
+      }
+      return override[`custom_${fieldName}`] || fallbackName;
+    };
+
     const rawMenu = await iikoApi.getMenu();
     let stopIds = new Set();
     try {
@@ -452,7 +465,7 @@ router.get('/api/guest/menu', async (req, res) => {
 
       categories.push({
         id: cat.id,
-        name: (override && override.custom_name) || cat.name,
+        name: getLocalized(override, 'name', cat.name),
         order: (override && override.sort_order) ? override.sort_order : cat.order,
         imageUrl: (override && override.custom_image_url) || null,
       });
@@ -502,8 +515,8 @@ router.get('/api/guest/menu', async (req, res) => {
 
       products.push({
         id: p.id,
-        name: (override && override.custom_name) || p.name,
-        description: (override && override.custom_description) || p.description || '',
+        name: getLocalized(override, 'name', p.name),
+        description: getLocalized(override, 'description', p.description || ''),
         price: (override && override.custom_price > 0) ? override.custom_price : price,
         categoryId: p.parentGroup,
         imageUrl: (override && override.custom_image_url) || imageUrl,

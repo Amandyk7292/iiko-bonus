@@ -52,6 +52,7 @@ class _CatalogScreenState extends State<CatalogScreen> with WidgetsBindingObserv
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    appLanguageNotifier.addListener(_onLanguageChanged);
     _loadCurrentAddress();
     _loadMenu();
     // Тихое фоновое обновление каждые 30 секунд
@@ -60,8 +61,13 @@ class _CatalogScreenState extends State<CatalogScreen> with WidgetsBindingObserv
     });
   }
 
+  void _onLanguageChanged() {
+    _loadMenu();
+  }
+
   @override
   void dispose() {
+    appLanguageNotifier.removeListener(_onLanguageChanged);
     _autoRefreshTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();

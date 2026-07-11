@@ -36,9 +36,11 @@ interface IikoGroup {
 interface ProductOverride {
   iiko_product_id: string;
   custom_name?: string;
+  name_translations?: Record<string, string>;
   custom_price?: number;
   custom_image_url?: string;
   custom_description?: string;
+  description_translations?: Record<string, string>;
   is_hidden?: boolean;
   is_stop_listed?: boolean;
 }
@@ -46,6 +48,7 @@ interface ProductOverride {
 interface CategoryOverride {
   iiko_category_id: string;
   custom_name?: string;
+  name_translations?: Record<string, string>;
   custom_image_url?: string;
   is_hidden?: boolean;
 }
@@ -82,7 +85,15 @@ export default function MenuPage() {
   // Модалка редактирования товара iiko
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<IikoProduct | null>(null);
-  const [editForm, setEditForm] = useState({ name: '', price: 0, description: '', imageUrl: '' });
+  const [editForm, setEditForm] = useState({ 
+    name: '', 
+    name_translations: { ru: '', kk: '', en: '' } as Record<string, string>,
+    price: 0, 
+    description: '', 
+    description_translations: { ru: '', kk: '', en: '' } as Record<string, string>,
+    imageUrl: '' 
+  });
+  const [editLang, setEditLang] = useState<'ru' | 'kk' | 'en'>('ru');
   const [editSaving, setEditSaving] = useState(false);
 
   // Модалка для кастомного блюда
@@ -234,13 +245,16 @@ export default function MenuPage() {
   };
 
   // Открытие модалки редактирования товара iiko
+  // Открытие модалки редактирования товара iiko
   const openEditModal = (product: IikoProduct) => {
     const override = productOverrides[product.id];
     setEditingProduct(product);
     setEditForm({
       name: (override?.custom_name) || product.name || '',
+      name_translations: override?.name_translations || { ru: '', kk: '', en: '' },
       price: (override?.custom_price) || product.price || 0,
       description: (override?.custom_description) || product.description || '',
+      description_translations: override?.description_translations || { ru: '', kk: '', en: '' },
       imageUrl: (override?.custom_image_url) || '',
     });
     setEditModalOpen(true);
@@ -256,8 +270,10 @@ export default function MenuPage() {
       const updated: ProductOverride = {
         ...cur,
         custom_name: editForm.name !== editingProduct.name ? editForm.name : undefined,
+        name_translations: editForm.name_translations,
         custom_price: editForm.price !== (editingProduct.price || 0) ? editForm.price : undefined,
         custom_description: editForm.description !== (editingProduct.description || '') ? editForm.description : undefined,
+        description_translations: editForm.description_translations,
         custom_image_url: editForm.imageUrl || cur.custom_image_url || undefined,
       };
       await api.setProductOverride(editingProduct.id, updated);
@@ -636,16 +652,59 @@ export default function MenuPage() {
       >
         <form onSubmit={handleSaveProductEdit} className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Название (видно клиентам)
-            </label>
-            <input
-              type="text"
-              value={editForm.name}
-              onChange={e => setEditForm({ ...editForm, name: e.target.value })}
-              className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 rounded-xl border text-sm"
-              placeholder="Оставьте как в iiko или введите своё"
-            />
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+                Название и описание
+              </label>
+              <div className="flex bg-gray-100 dark:bg-gray-800 p-0.5 rounded-lg text-[10px] font-medium">
+                {(['ru', 'kk', 'en'] as const).map(l => (
+                  <button
+                    key={l}
+                    type="button"
+                    onClick={() => setEditLang(l)}
+                    className={`px-3 py-1 rounded-md transition ${editLang === l ? 'bg-white dark:bg-gray-700 shadow-sm text-amber-600' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'}`}
+                  >
+                    {l.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            <div className="space-y-3">
+              <input
+                type="text"
+                value={editLang === 'ru' ? editForm.name : editForm.name_translations[editLang] || ''}
+                onChange={e => {
+                  if (editLang === 'ru') {
+                    setEditForm({ ...editForm, name: e.target.value });
+                  } else {
+                    setEditForm({
+                      ...editForm,
+                      name_translations: { ...editForm.name_translations, [editLang]: e.target.value }
+                    });
+                  }
+                }}
+                className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 rounded-xl border text-sm"
+                placeholder={editLang === 'ru' ? 'Оставьте как в iiko или введите своё' : 'Перевод названия'}
+              />
+              
+              <textarea
+                rows={3}
+                value={editLang === 'ru' ? editForm.description : editForm.description_translations[editLang] || ''}
+                onChange={e => {
+                  if (editLang === 'ru') {
+                    setEditForm({ ...editForm, description: e.target.value });
+                  } else {
+                    setEditForm({
+                      ...editForm,
+                      description_translations: { ...editForm.description_translations, [editLang]: e.target.value }
+                    });
+                  }
+                }}
+                className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 rounded-xl border text-sm"
+                placeholder={editLang === 'ru' ? 'Описание (необязательно)' : 'Перевод описания'}
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -672,19 +731,6 @@ export default function MenuPage() {
                 placeholder="https://..."
               />
             </div>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Описание
-            </label>
-            <textarea
-              rows={3}
-              value={editForm.description}
-              onChange={e => setEditForm({ ...editForm, description: e.target.value })}
-              className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 rounded-xl border text-sm"
-              placeholder="Описание блюда для клиентов"
-            />
           </div>
 
           <div className="flex justify-end gap-2 pt-2">

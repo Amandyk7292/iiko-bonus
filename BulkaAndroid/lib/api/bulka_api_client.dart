@@ -20,6 +20,7 @@ class BulkaApiClient {
     return {
       if (json) 'Content-Type': 'application/json',
       if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+      'Accept-Language': AppLang.current,
     };
   }
 
