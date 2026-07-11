@@ -67,7 +67,9 @@ class _MainShellState extends State<MainShell> {
       OrdersScreen(
         key: const PageStorageKey('orders-tab'),
         transactions: widget.transactions,
-        onExplore: () => _changeTab(0),
+        onExplore: () => Navigator.of(context).push<void>(
+          MaterialPageRoute(builder: (_) => const LocationsScreen()),
+        ),
       ),
       _HelpfulFeatureState(
         key: const PageStorageKey('promos-tab'),
