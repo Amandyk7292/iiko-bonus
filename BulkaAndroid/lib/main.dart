@@ -36,6 +36,7 @@ part 'screens/notifications_screen.dart';
 part 'screens/profile_screen.dart';
 part 'screens/personal_data_screen.dart';
 part 'screens/locations_screen.dart';
+part 'screens/catalog_screen.dart';
 part 'shell/main_shell.dart';
 part 'widgets/loyalty_panel.dart';
 part 'widgets/network_image.dart';

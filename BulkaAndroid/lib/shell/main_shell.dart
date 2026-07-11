@@ -54,15 +54,9 @@ class _MainShellState extends State<MainShell> {
         ),
         onProfileTap: () => _changeTab(4),
       ),
-      _HelpfulFeatureState(
+      CatalogScreen(
         key: const PageStorageKey('catalog-tab'),
-        title: 'nav_catalog'.tr,
-        icon: Icons.bakery_dining_rounded,
-        subtitle: 'catalog_sub'.tr,
-        actionLabel: 'catalog_action'.tr,
-        onAction: () => Navigator.of(context).push<void>(
-          MaterialPageRoute(builder: (_) => const LocationsScreen()),
-        ),
+        onOpenCart: () => _changeTab(2),
       ),
       OrdersScreen(
         key: const PageStorageKey('orders-tab'),
