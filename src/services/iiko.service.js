@@ -24,8 +24,12 @@ class IikoAPI {
 
     // Если указаны appId и clientSecret для новой OAuth авторизации (с 01.06.2026)
     if (this.appId && this.clientSecret) {
-      body.appId = this.appId;
-      body.clientSecret = this.clientSecret;
+      url = `${this.baseUrl}/api/v2/access_token`;
+      body = {
+        appId: this.appId,
+        clientSecret: this.clientSecret,
+        apiLogin: this.apiLogin,
+      };
     }
 
     const response = await fetch(url, {
@@ -137,54 +141,17 @@ class IikoAPI {
 
     let menuData = await response.json();
 
-    // Если в первой точке пусто (нет товаров или категорий), ищем точку, где меню есть!
-    if (
-      (!menuData.products || menuData.products.length === 0) &&
-      this.allOrganizations &&
-      this.allOrganizations.length > 1
-    ) {
-      console.log(
-        `В точке ${orgId} нет товаров. Ищем по остальным ${this.allOrganizations.length} точкам...`,
-      );
-      for (const org of this.allOrganizations) {
-        if (org.id === orgId) continue;
-        const res = await fetch(`${this.baseUrl}/api/1/nomenclature`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ organizationId: org.id }),
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.products && data.products.length > 0) {
-            console.log(
-              `Найдено меню с ${data.products.length} товарами в точке: ${org.name} (${org.id})`,
-            );
-            this.organizationId = org.id;
-            menuData = data;
-            menuData.orgName = org.name;
-            break;
-          }
-        }
-      }
-    }
-
     // Если по-прежнему пусто, проверяем внешние меню (External Menus v2 API)
     if (!menuData.products || menuData.products.length === 0) {
       console.log('Номенклатура v1 пуста. Проверяем External Menus (/api/2/menu)...');
       try {
-        const allOrgIds = this.allOrganizations
-          ? this.allOrganizations.map((o) => o.id)
-          : [this.organizationId || orgId];
         const extRes = await fetch(`${this.baseUrl}/api/2/menu`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ organizationIds: allOrgIds }),
+          body: JSON.stringify({ organizationIds: [orgId] }),
         });
         if (extRes.ok) {
           const extData = await extRes.json();
@@ -199,7 +166,7 @@ class IikoAPI {
               },
               body: JSON.stringify({
                 externalMenuId: extMenuId,
-                organizationIds: allOrgIds,
+                organizationIds: [orgId],
               }),
             });
             if (itemsRes.ok) {
@@ -245,9 +212,12 @@ class IikoAPI {
       }
     }
 
+    // Кешируем ЛЮБОЙ ответ (даже пустой), чтобы не получить бан от API при спаме запросами
+    this.cachedMenu = menuData;
     if (menuData && menuData.products && menuData.products.length > 0) {
-      this.cachedMenu = menuData;
-      this.cachedMenuExpiresAt = Date.now() + 30 * 60 * 1000; // Кешируем на 30 минут
+      this.cachedMenuExpiresAt = Date.now() + 30 * 60 * 1000; // Кешируем на 30 минут если есть данные
+    } else {
+      this.cachedMenuExpiresAt = Date.now() + 3 * 60 * 1000; // Кешируем пустоту на 3 минуты (защита от rate limit банa)
     }
 
     return menuData;
