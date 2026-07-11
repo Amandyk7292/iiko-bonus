@@ -271,6 +271,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
     return Scaffold(
       backgroundColor: _cream,
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         backgroundColor: _cream,
         elevation: 0,
         title: const Text(
