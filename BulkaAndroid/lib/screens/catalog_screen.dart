@@ -467,21 +467,25 @@ class _CatalogScreenState extends State<CatalogScreen> {
                               style: TextStyle(color: _textDark.withValues(alpha: 0.5)),
                             ),
                           )
-                        : GridView.builder(
-                            padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
-                            gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              mainAxisSpacing: 14,
-                              crossAxisSpacing: 14,
-                              childAspectRatio: 0.68,
+                        : RefreshIndicator(
+                            color: _bulkaYellow,
+                            onRefresh: _loadMenu,
+                            child: GridView.builder(
+                              padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
+                              gridDelegate:
+                                  const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                mainAxisSpacing: 14,
+                                crossAxisSpacing: 14,
+                                childAspectRatio: 0.68,
+                              ),
+                              itemCount: _filteredProducts.length,
+                              itemBuilder: (context, index) {
+                                final p = _filteredProducts[index];
+                                final qty = _cartQuantities[p.id] ?? 0;
+                                return _buildProductCard(p, qty);
+                              },
                             ),
-                            itemCount: _filteredProducts.length,
-                            itemBuilder: (context, index) {
-                              final p = _filteredProducts[index];
-                              final qty = _cartQuantities[p.id] ?? 0;
-                              return _buildProductCard(p, qty);
-                            },
                           ),
           ),
         ],

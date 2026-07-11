@@ -23,6 +23,8 @@ interface IikoProduct {
   description?: string;
   price?: number;
   parentGroup?: string;
+  sizePrices?: { price: { currentPrice: number } }[];
+  imageLinks?: string[];
 }
 
 interface IikoGroup {
@@ -95,13 +97,22 @@ export default function MenuPage() {
   });
   const [submitting, setSubmitting] = useState(false);
 
+  // Пагинация — показывать по 30 товаров
+  const [displayCount, setDisplayCount] = useState(30);
+
   const fetchMenu = useCallback(async () => {
     setLoading(true);
     setError('');
+    setDisplayCount(30);
     try {
       const data = await api.getAdminMenu();
       const raw = data.rawMenu || {};
-      setRawProducts(raw.products || []);
+      // Извлекаем цену из sizePrices
+      const prods = (raw.products || []).map((p: IikoProduct) => ({
+        ...p,
+        price: p.price || (p.sizePrices?.[0]?.price?.currentPrice ?? 0),
+      }));
+      setRawProducts(prods);
       setRawGroups(raw.groups || []);
 
       const pMap: Record<string, ProductOverride> = {};
@@ -342,109 +353,113 @@ export default function MenuPage() {
             </select>
           </div>
 
-          {/* Список товаров */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredProducts.map(p => {
+          {/* Список товаров — показываем по порциям */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {filteredProducts.slice(0, displayCount).map(p => {
               const override = productOverrides[p.id];
               const isHidden = Boolean(override?.is_hidden);
               const isStop = Boolean(override?.is_stop_listed);
-              const imgUrl = override?.custom_image_url;
+              const imgUrl = override?.custom_image_url || (p.imageLinks?.[0] ?? '');
+              const displayName = override?.custom_name || p.name;
+              const displayPrice = (override?.custom_price && override.custom_price > 0) ? override.custom_price : (p.price ?? 0);
+              const groupName = rawGroups.find(g => g.id === p.parentGroup)?.name || '';
 
               return (
                 <div
                   key={p.id}
-                  className={`bg-white dark:bg-gray-800 rounded-2xl p-4 border transition flex flex-col justify-between ${
+                  className={`bg-white dark:bg-gray-800 rounded-2xl border transition group ${
                     isHidden
-                      ? 'opacity-60 border-dashed border-gray-300 dark:border-gray-700'
-                      : 'border-gray-100 dark:border-gray-700/60 shadow-sm hover:shadow-md'
+                      ? 'opacity-50 border-dashed border-gray-300 dark:border-gray-600'
+                      : 'border-gray-100 dark:border-gray-700/60 shadow-sm hover:shadow-lg hover:border-amber-200'
                   }`}
                 >
-                  <div>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-16 h-16 rounded-xl bg-gray-100 dark:bg-gray-700 overflow-hidden flex items-center justify-center shrink-0 border border-gray-200/50">
-                          {imgUrl ? (
-                            <img src={imgUrl} alt={p.name} className="w-full h-full object-cover" />
-                          ) : (
-                            <ImageIcon className="text-gray-400" size={24} />
-                          )}
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-gray-900 dark:text-white text-sm line-clamp-1">
-                            {p.name}
-                          </h3>
-                          <p className="text-xs text-amber-600 dark:text-amber-400 font-medium mt-0.5">
-                            {(p.price ?? 0) > 0 ? `${p.price} ₸` : 'Цена по размеру'}
-                          </p>
-                        </div>
+                  {/* Фото */}
+                  <div className="relative h-32 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-gray-700 dark:to-gray-800 rounded-t-2xl overflow-hidden">
+                    {imgUrl ? (
+                      <img src={imgUrl} alt={displayName} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <ImageIcon className="text-amber-200 dark:text-gray-600" size={36} />
                       </div>
-
-                      {/* Загрузить фото кнопка */}
-                      <label className="cursor-pointer shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-xl text-xs font-medium hover:bg-amber-100 transition">
-                        {uploadingId === p.id ? (
-                          <LoaderCircle className="spin" size={14} />
-                        ) : (
-                          <Upload size={14} />
-                        )}
-                        <span>{imgUrl ? 'Сменить фото' : 'Фото'}</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={e => {
-                            const file = e.target.files?.[0];
-                            if (file) void handleUploadPhoto(p.id, file);
-                          }}
-                        />
-                      </label>
-
-                      {/* Кнопка редактирования */}
-                      <button
-                        type="button"
-                        onClick={() => openEditModal(p)}
-                        className="shrink-0 p-1.5 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300 rounded-lg hover:bg-gray-200 transition"
-                        title="Редактировать"
-                      >
-                        <Pencil size={14} />
-                      </button>
+                    )}
+                    {/* Цена — бейдж в углу */}
+                    <div className="absolute bottom-2 right-2 px-2.5 py-1 bg-white/90 dark:bg-gray-900/90 backdrop-blur rounded-lg shadow text-sm font-bold text-amber-700 dark:text-amber-400">
+                      {displayPrice > 0 ? `${displayPrice.toLocaleString()} ₸` : '—'}
                     </div>
-
-                    {p.description && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-3 line-clamp-2">
-                        {p.description}
-                      </p>
+                    {/* Загрузить фото */}
+                    <label className="absolute top-2 right-2 cursor-pointer p-1.5 bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-lg shadow-sm hover:bg-white transition opacity-0 group-hover:opacity-100">
+                      {uploadingId === p.id ? (
+                        <LoaderCircle className="spin text-amber-600" size={16} />
+                      ) : (
+                        <Upload className="text-gray-500" size={16} />
+                      )}
+                      <input type="file" accept="image/*" className="hidden" onChange={e => {
+                        const file = e.target.files?.[0];
+                        if (file) void handleUploadPhoto(p.id, file);
+                      }} />
+                    </label>
+                    {/* Статус badges */}
+                    {isHidden && (
+                      <span className="absolute top-2 left-2 px-2 py-0.5 bg-gray-800/70 text-white text-[10px] font-medium rounded-md">Скрыт</span>
+                    )}
+                    {isStop && !isHidden && (
+                      <span className="absolute top-2 left-2 px-2 py-0.5 bg-red-600/80 text-white text-[10px] font-medium rounded-md">Стоп</span>
                     )}
                   </div>
 
-                  {/* Действия (Переключатели) */}
-                  <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700/50 flex items-center justify-between text-xs">
-                    <button
-                      type="button"
-                      onClick={() => handleToggleProductHidden(p.id, isHidden)}
-                      className={`inline-flex items-center gap-1.5 font-medium ${
-                        isHidden ? 'text-gray-400' : 'text-green-600 dark:text-green-400'
-                      }`}
-                    >
-                      {isHidden ? <EyeOff size={15} /> : <Eye size={15} />}
-                      <span>{isHidden ? 'Скрыт в приложении' : 'Виден клиентам'}</span>
-                    </button>
+                  {/* Контент */}
+                  <div className="p-3">
+                    <h3 className="font-semibold text-gray-900 dark:text-white text-sm leading-tight" title={displayName}>
+                      {displayName}
+                    </h3>
+                    {groupName && (
+                      <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5 truncate">{groupName}</p>
+                    )}
 
-                    <button
-                      type="button"
-                      onClick={() => handleToggleStopList(p.id, isStop)}
-                      className={`px-2.5 py-1 rounded-lg font-medium transition ${
-                        isStop
-                          ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
-                          : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
-                      }`}
-                    >
-                      {isStop ? 'В стоп-листе' : 'В продаже'}
-                    </button>
+                    {/* Кнопки действий */}
+                    <div className="mt-3 flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(p)}
+                        className="flex-1 px-2 py-1.5 text-[11px] font-medium bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-100 transition"
+                      >
+                        <Pencil size={12} className="inline mr-1" />Изменить
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleProductHidden(p.id, isHidden)}
+                        className={`p-1.5 rounded-lg transition ${isHidden ? 'bg-gray-200 text-gray-500' : 'bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400'}`}
+                        title={isHidden ? 'Показать' : 'Скрыть'}
+                      >
+                        {isHidden ? <EyeOff size={14} /> : <Eye size={14} />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleStopList(p.id, isStop)}
+                        className={`p-1.5 rounded-lg transition ${isStop ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500'}`}
+                        title={isStop ? 'Убрать из стоп-листа' : 'В стоп-лист'}
+                      >
+                        <span className="text-[11px] font-bold">{isStop ? '⛔' : '🟢'}</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
             })}
           </div>
+
+          {/* Кнопка «Показать ещё» */}
+          {filteredProducts.length > displayCount && (
+            <div className="text-center pt-2">
+              <button
+                type="button"
+                onClick={() => setDisplayCount(prev => prev + 30)}
+                className="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-medium transition shadow-sm"
+              >
+                Показать ещё ({filteredProducts.length - displayCount} товаров)
+              </button>
+            </div>
+          )}
         </div>
       ) : activeTab === 'categories' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
