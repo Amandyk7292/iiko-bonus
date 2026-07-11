@@ -130,6 +130,25 @@ router.post(
     }
   },
 );
+
+// Автоперевод через Google Translate (Proxy)
+router.post('/admin/api/translate', adminAuthMiddleware, async (req, res) => {
+  try {
+    const { text, targetLang } = req.body;
+    if (!text) return res.json({ success: true, translated: '' });
+    
+    // Используем встроенный Node fetch или axios
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=ru&tl=${targetLang}&dt=t&q=${encodeURIComponent(text)}`;
+    const response = await fetch(url);
+    const data = await response.json();
+    const translatedText = data[0].map(item => item[0]).join('');
+    
+    res.json({ success: true, translated: translatedText });
+  } catch (error) {
+    console.error('Translation error:', error);
+    res.status(500).json({ success: false, error: 'Ошибка перевода' });
+  }
+});
 router.patch(
   '/admin/api/loyalty-tiers/:id/active',
   adminAuthMiddleware,

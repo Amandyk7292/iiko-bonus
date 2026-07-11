@@ -294,9 +294,8 @@ export default function MenuPage() {
       
       const translate = async (text: string) => {
         if (!text) return '';
-        const res = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=ru&tl=${targetLang}&dt=t&q=${encodeURIComponent(text)}`);
-        const data = await res.json();
-        return data[0].map((item: any) => item[0]).join('');
+        const res = await api.translate(text, targetLang);
+        return res.translated || '';
       };
 
       toast('Переводим...', 'info');
