@@ -158,6 +158,25 @@ export default function MenuPage() {
     }
   };
 
+  // Загрузка фото для категории
+  const handleUploadCategoryPhoto = async (categoryId: string, file: File) => {
+    setUploadingId(categoryId);
+    try {
+      const res = await api.uploadMenuPhoto(file);
+      if (res.success && res.imageUrl) {
+        const cur = categoryOverrides[categoryId] || { iiko_category_id: categoryId };
+        const updated = { ...cur, custom_image_url: res.imageUrl };
+        await api.setCategoryOverride(categoryId, updated);
+        setCategoryOverrides(prev => ({ ...prev, [categoryId]: updated }));
+        toast('Фотография категории загружена и сохранена', 'success');
+      }
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Ошибка загрузки фото', 'error');
+    } finally {
+      setUploadingId(null);
+    }
+  };
+
   // Переключение видимости товара
   const handleToggleProductHidden = async (productId: string, curHidden?: boolean) => {
     const cur = productOverrides[productId] || { iiko_product_id: productId };
@@ -481,23 +500,46 @@ export default function MenuPage() {
             return (
               <div
                 key={g.id}
-                className={`bg-white dark:bg-gray-800 rounded-2xl p-4 border flex items-center justify-between ${
+                className={`bg-white dark:bg-gray-800 rounded-2xl p-4 border flex items-center justify-between gap-4 ${
                   isHidden
                     ? 'opacity-60 border-dashed border-gray-300 dark:border-gray-700'
                     : 'border-gray-100 dark:border-gray-700/60 shadow-sm'
                 }`}
               >
-                <div>
-                  <h3 className="font-semibold text-gray-900 dark:text-white text-base">
-                    {override?.custom_name || g.name}
-                  </h3>
-                  <p className="text-xs text-gray-500 mt-0.5">Товаров в категории: {count}</p>
+                <div className="flex items-center gap-4 flex-1">
+                  <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 shrink-0">
+                    {override?.custom_image_url ? (
+                      <img src={override.custom_image_url} alt={g.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <ImageIcon className="text-gray-400" size={24} />
+                      </div>
+                    )}
+                    <label className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 cursor-pointer transition">
+                      {uploadingId === g.id ? (
+                        <LoaderCircle className="spin text-white" size={20} />
+                      ) : (
+                        <Upload className="text-white" size={20} />
+                      )}
+                      <input type="file" accept="image/*" className="hidden" onChange={e => {
+                        const file = e.target.files?.[0];
+                        if (file) void handleUploadCategoryPhoto(g.id, file);
+                      }} />
+                    </label>
+                  </div>
+                  
+                  <div>
+                    <h3 className="font-semibold text-gray-900 dark:text-white text-base">
+                      {override?.custom_name || g.name}
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-0.5">Товаров в категории: {count}</p>
+                  </div>
                 </div>
 
                 <button
                   type="button"
                   onClick={() => handleToggleCategoryHidden(g.id, isHidden)}
-                  className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium transition ${
+                  className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium transition shrink-0 ${
                     isHidden
                       ? 'bg-gray-100 text-gray-500 dark:bg-gray-700'
                       : 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300'

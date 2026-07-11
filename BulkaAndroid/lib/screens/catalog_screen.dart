@@ -38,6 +38,7 @@ class _CatalogScreenState extends State<CatalogScreen> with WidgetsBindingObserv
   String _searchQuery = '';
   String _selectedCategory = 'Все';
   final Map<String, int> _cartQuantities = {};
+  Map<String, String> _apiCategoryImages = {};
 
   List<String> _categories = const ['Все'];
   List<CatalogProduct> _allProducts = const [];
@@ -85,12 +86,15 @@ class _CatalogScreenState extends State<CatalogScreen> with WidgetsBindingObserv
 
       final categoryNames = <String>['Все'];
       final categoryMap = <String, String>{};
+      final categoryImages = <String, String>{};
       for (final c in categoriesRaw) {
         final id = (c['id'] ?? '').toString();
         final name = (c['name'] ?? '').toString();
+        final imageUrl = (c['imageUrl'] ?? '').toString();
         if (name.isNotEmpty) {
           categoryNames.add(name);
           categoryMap[id] = name;
+          if (imageUrl.isNotEmpty) categoryImages[name] = imageUrl;
         }
       }
 
@@ -113,6 +117,7 @@ class _CatalogScreenState extends State<CatalogScreen> with WidgetsBindingObserv
 
       setState(() {
         _categories = categoryNames;
+        _apiCategoryImages = categoryImages;
         _allProducts = products;
       });
     } catch (_) {
@@ -134,12 +139,15 @@ class _CatalogScreenState extends State<CatalogScreen> with WidgetsBindingObserv
 
       final categoryNames = <String>['Все'];
       final categoryMap = <String, String>{};
+      final categoryImages = <String, String>{};
       for (final c in categoriesRaw) {
         final id = (c['id'] ?? '').toString();
         final name = (c['name'] ?? '').toString();
+        final imageUrl = (c['imageUrl'] ?? '').toString();
         if (name.isNotEmpty) {
           categoryNames.add(name);
           categoryMap[id] = name;
+          if (imageUrl.isNotEmpty) categoryImages[name] = imageUrl;
         }
       }
 
@@ -162,6 +170,7 @@ class _CatalogScreenState extends State<CatalogScreen> with WidgetsBindingObserv
 
       setState(() {
         _categories = categoryNames;
+        _apiCategoryImages = categoryImages;
         _allProducts = products;
         _isLoading = false;
       });
@@ -1042,7 +1051,7 @@ class _CatalogAllCategoriesScreen extends StatelessWidget {
                 itemCount: displayCategories.length,
                 itemBuilder: (context, i) {
                   final cat = displayCategories[i];
-                  final imageUrl = _categoryImages[cat] ??
+                  final imageUrl = _apiCategoryImages[cat] ?? _categoryImages[cat] ??
                       'https://images.unsplash.com/photo-1519915028121-7d3463d20b13?w=400&auto=format&fit=crop&q=80';
 
                   return GestureDetector(
