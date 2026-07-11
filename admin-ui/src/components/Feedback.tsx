@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { AlertCircle, CheckCircle2, Info, X } from 'lucide-react';
 import { useI18n } from '../lib/i18n';
 
@@ -16,7 +16,11 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   const { t } = useI18n();
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const [dialog, setDialog] = useState<(ConfirmOptions & { resolve: (value: boolean) => void }) | null>(null);
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
+  const confirmTitleId = `${useId()}-confirm-title`;
+  const confirmBodyId = `${useId()}-confirm-body`;
 
   const toast = useCallback((message: string, tone: ToastTone = 'success') => {
     const id = Date.now() + Math.random();
@@ -38,9 +42,28 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!dialog) return;
     const previous = document.activeElement as HTMLElement | null;
-    const timer = window.setTimeout(() => confirmButtonRef.current?.focus(), 0);
+    const focusableSelector = 'a[href], button:not(:disabled), textarea:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex="-1"])';
+    const timer = window.setTimeout(() => {
+      (dialog.destructive ? cancelButtonRef.current : confirmButtonRef.current)?.focus();
+    }, 0);
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') settle(false);
+      if (event.key === 'Escape') {
+        settle(false);
+        return;
+      }
+      if (event.key !== 'Tab' || !panelRef.current) return;
+      const focusable = Array.from(panelRef.current.querySelectorAll<HTMLElement>(focusableSelector))
+        .filter(element => !element.hasAttribute('disabled') && element.tabIndex !== -1);
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     document.addEventListener('keydown', onKeyDown);
     document.body.classList.add('modal-open');
@@ -78,18 +101,18 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
 
       {dialog && (
         <div className="modal-backdrop" role="presentation" onMouseDown={event => event.target === event.currentTarget && settle(false)}>
-          <section className="modal-panel modal-panel-sm" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-body">
+          <section ref={panelRef} className="modal-panel modal-panel-sm" role="alertdialog" aria-modal="true" aria-labelledby={confirmTitleId} aria-describedby={confirmBodyId}>
             <div className="modal-header">
               <div>
-                <h2 id="confirm-title" className="modal-title">{dialog.title}</h2>
-                <p id="confirm-body" className="modal-description">{dialog.body}</p>
+                <h2 id={confirmTitleId} className="modal-title">{dialog.title}</h2>
+                <p id={confirmBodyId} className="modal-description">{dialog.body}</p>
               </div>
               <button type="button" className="icon-button" onClick={() => settle(false)} aria-label={t('common.close')}>
                 <X aria-hidden="true" size={20} />
               </button>
             </div>
             <div className="modal-actions">
-              <button type="button" className="btn-outline px-5" onClick={() => settle(false)}>{t('common.cancel')}</button>
+              <button ref={cancelButtonRef} type="button" className="btn-outline px-5" onClick={() => settle(false)}>{t('common.cancel')}</button>
               <button
                 ref={confirmButtonRef}
                 type="button"

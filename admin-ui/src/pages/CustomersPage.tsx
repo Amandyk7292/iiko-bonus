@@ -172,7 +172,7 @@ export default function CustomersPage() {
 
       {filtered.length === 0 ? <PageState type="empty" title={t('customers.empty')} description={t('customers.emptyHint')} /> : (
         <section className="card table-card"><div className="responsive-table-wrap"><table className="data-table customers-table">
-          <thead><tr><th>#</th><th>{t('common.name')}</th><th>{t('transactions.phone')}</th><th className="text-right">{t('customers.balance')}</th><th className="text-right">{t('customers.purchases')}</th><th className="text-right">{t('customers.manage')}</th></tr></thead>
+          <thead><tr><th scope="col">#</th><th scope="col">{t('common.name')}</th><th scope="col">{t('transactions.phone')}</th><th scope="col" className="text-right">{t('customers.balance')}</th><th scope="col" className="text-right">{t('customers.purchases')}</th><th scope="col" className="text-right">{t('customers.manage')}</th></tr></thead>
           <tbody>{filtered.map((customer, index) => <tr key={customer.id}>
             <td data-label="#" className="row-number">{index + 1}</td><td data-label={t('common.name')}><strong>{customer.name || t('customers.noName')}</strong></td>
             <td data-label={t('transactions.phone')}>{customer.phone || '—'}</td><td data-label={t('customers.balance')} className="text-right tabular value-info"><strong>{formatNumber(customer.balance ?? 0)}</strong></td>

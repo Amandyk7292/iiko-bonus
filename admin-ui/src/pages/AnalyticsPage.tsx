@@ -6,7 +6,7 @@ import { Doughnut, Pie } from 'react-chartjs-2';
 import PageState from '../components/PageState';
 import { api } from '../lib/api';
 import { useI18n } from '../lib/i18n';
-import { useReducedMotion } from '../lib/motion';
+import { chartMotion, useReducedMotion } from '../lib/motion';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
@@ -43,12 +43,12 @@ export default function AnalyticsPage() {
   };
   const revenueData = {
     labels: [t('analytics.cash'), t('analytics.bonusPaid')],
-    datasets: [{ data: [totalSales, totalBurned], backgroundColor: ['#4ade80', '#f87171'], borderWidth: 2, borderColor: '#ffffff', hoverOffset: 4 }],
+    datasets: [{ data: [totalSales, totalBurned], backgroundColor: ['#2563eb', '#d97706'], borderWidth: 2, borderColor: '#ffffff', hoverOffset: 4 }],
   };
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    animation: reduceMotion ? false as const : { duration: 260 },
+    animation: chartMotion(reduceMotion),
     plugins: { legend: { position: 'bottom' as const, labels: { padding: 16, font: { family: 'Inter', size: 12 } } } },
   };
 

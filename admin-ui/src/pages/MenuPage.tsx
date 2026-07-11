@@ -3,10 +3,12 @@ import {
   Eye,
   EyeOff,
   Image as ImageIcon,
+  Languages,
   LoaderCircle,
   Pencil,
   Plus,
   Search,
+  ShieldX,
   Trash2,
   Upload,
   UtensilsCrossed,
@@ -334,8 +336,8 @@ export default function MenuPage() {
   });
 
   return (
-    <div className="space-y-6">
-      <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="page-stack">
+      <header className="page-actions-row">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white flex items-center gap-2">
             <UtensilsCrossed className="text-amber-500" size={26} />
@@ -347,11 +349,15 @@ export default function MenuPage() {
         </div>
 
         {/* Табы */}
-        <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
+        <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl" role="tablist" aria-label="Разделы меню">
           <button
             type="button"
+            id="menu-tab-products"
+            role="tab"
+            aria-selected={activeTab === 'products'}
+            aria-controls="menu-panel-products"
             onClick={() => setActiveTab('products')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               activeTab === 'products'
                 ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
                 : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
@@ -361,8 +367,12 @@ export default function MenuPage() {
           </button>
           <button
             type="button"
+            id="menu-tab-categories"
+            role="tab"
+            aria-selected={activeTab === 'categories'}
+            aria-controls="menu-panel-categories"
             onClick={() => setActiveTab('categories')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               activeTab === 'categories'
                 ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
                 : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
@@ -372,8 +382,12 @@ export default function MenuPage() {
           </button>
           <button
             type="button"
+            id="menu-tab-custom"
+            role="tab"
+            aria-selected={activeTab === 'custom'}
+            aria-controls="menu-panel-custom"
             onClick={() => setActiveTab('custom')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               activeTab === 'custom'
                 ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
                 : 'text-gray-600 dark:text-gray-400 hover:text-gray-900'
@@ -389,7 +403,7 @@ export default function MenuPage() {
       ) : error ? (
         <PageState type="error" description={error} onRetry={fetchMenu} />
       ) : activeTab === 'products' ? (
-        <div className="space-y-4">
+        <div id="menu-panel-products" role="tabpanel" aria-labelledby="menu-tab-products" className="space-y-4">
           {/* Фильтры */}
           <div className="flex flex-col sm:flex-row gap-4 bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-100 dark:border-gray-700/60 shadow-sm">
             <div className="relative flex-1">
@@ -441,7 +455,7 @@ export default function MenuPage() {
                   {/* Фото */}
                   <div className="relative h-32 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-gray-700 dark:to-gray-800 rounded-t-2xl overflow-hidden">
                     {imgUrl ? (
-                      <img src={imgUrl} alt={displayName} className="w-full h-full object-cover" />
+                      <img src={imgUrl} alt={displayName} className="w-full h-full object-cover" loading="lazy" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         <ImageIcon className="text-amber-200 dark:text-gray-600" size={36} />
@@ -452,13 +466,13 @@ export default function MenuPage() {
                       {displayPrice > 0 ? `${displayPrice.toLocaleString()} ₸` : '—'}
                     </div>
                     {/* Загрузить фото */}
-                    <label className="absolute top-2 right-2 cursor-pointer p-1.5 bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-lg shadow-sm hover:bg-white transition opacity-0 group-hover:opacity-100">
+                    <label className="absolute top-2 right-2 inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-xl bg-white/90 text-gray-600 shadow-sm backdrop-blur transition-colors hover:bg-white focus-within:outline focus-within:outline-3 focus-within:outline-amber-300 dark:bg-gray-800/90" aria-label={`Загрузить фото для ${displayName}`} title="Загрузить фото">
                       {uploadingId === p.id ? (
-                        <LoaderCircle className="spin text-amber-600" size={16} />
+                        <LoaderCircle className="spin text-amber-600" size={17} />
                       ) : (
-                        <Upload className="text-gray-500" size={16} />
+                        <Upload aria-hidden="true" size={17} />
                       )}
-                      <input type="file" accept="image/*" className="hidden" onChange={e => {
+                      <input type="file" accept="image/*" className="sr-only" onChange={e => {
                         const file = e.target.files?.[0];
                         if (file) void handleUploadPhoto(p.id, file);
                       }} />
@@ -488,31 +502,33 @@ export default function MenuPage() {
                       <button
                         type="button"
                         onClick={() => openEditModal(p)}
-                        className="flex-1 px-2 py-1.5 text-[11px] font-medium bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-100 transition"
+                                className="btn-outline compact-button flex-1 gap-1 text-[12px] text-amber-700 dark:text-amber-300"
                       >
-                        <Pencil size={12} className="inline mr-1" />Изменить
+                        <Pencil aria-hidden="true" size={14} />Изменить
                       </button>
                       <button
                         type="button"
                         onClick={() => {
                           if (isCatHidden) {
-                            alert('Сначала включите категорию "' + groupName + '"');
+                            toast(`Сначала включите категорию "${groupName}"`, 'info');
                             return;
                           }
-                          handleToggleProductHidden(p.id, isHidden);
+                          void handleToggleProductHidden(p.id, isHidden);
                         }}
-                        className={`p-1.5 rounded-lg transition ${isCatHidden ? 'opacity-50 cursor-not-allowed bg-gray-200 text-gray-400' : isHidden ? 'bg-gray-200 text-gray-500' : 'bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400'}`}
+                        className={`icon-button ${isCatHidden ? 'opacity-50' : isHidden ? 'bg-gray-100 text-gray-500' : 'bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400'}`}
+                        aria-label={isCatHidden ? 'Скрыт вместе с категорией' : isHidden ? 'Показать блюдо' : 'Скрыть блюдо'}
                         title={isCatHidden ? 'Скрыт вместе с категорией' : isHidden ? 'Показать' : 'Скрыть'}
                       >
-                        {isHidden ? <EyeOff size={14} /> : <Eye size={14} />}
+                        {isHidden ? <EyeOff aria-hidden="true" size={17} /> : <Eye aria-hidden="true" size={17} />}
                       </button>
                       <button
                         type="button"
                         onClick={() => handleToggleStopList(p.id, isStop)}
-                        className={`p-1.5 rounded-lg transition ${isStop ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 'bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500'}`}
+                        className={`icon-button ${isStop ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'}`}
+                        aria-label={isStop ? 'Убрать из стоп-листа' : 'Добавить в стоп-лист'}
                         title={isStop ? 'Убрать из стоп-листа' : 'В стоп-лист'}
                       >
-                        <span className="text-[11px] font-bold">{isStop ? '⛔' : '🟢'}</span>
+                        <ShieldX aria-hidden="true" size={17} />
                       </button>
                     </div>
                   </div>
@@ -527,7 +543,7 @@ export default function MenuPage() {
               <button
                 type="button"
                 onClick={() => setDisplayCount(prev => prev + 30)}
-                className="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-medium transition shadow-sm"
+                    className="btn-classic px-6"
               >
                 Показать ещё ({filteredProducts.length - displayCount} товаров)
               </button>
@@ -535,7 +551,7 @@ export default function MenuPage() {
           )}
         </div>
       ) : activeTab === 'categories' ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div id="menu-panel-categories" role="tabpanel" aria-labelledby="menu-tab-categories" className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {rawGroups.map(g => {
             const override = categoryOverrides[g.id];
             const isHidden = Boolean(override?.is_hidden);
@@ -553,19 +569,19 @@ export default function MenuPage() {
                 <div className="flex items-center gap-4 flex-1">
                   <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 shrink-0">
                     {override?.custom_image_url ? (
-                      <img src={override.custom_image_url} alt={g.name} className="w-full h-full object-cover" />
+                      <img src={override.custom_image_url} alt={g.name} className="w-full h-full object-cover" loading="lazy" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         <ImageIcon className="text-gray-400" size={24} />
                       </div>
                     )}
-                    <label className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 cursor-pointer transition">
+                    <label className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/45 text-white transition-opacity focus-within:outline focus-within:outline-3 focus-within:outline-amber-300" aria-label={`Загрузить фото для категории ${g.name}`} title="Загрузить фото категории">
                       {uploadingId === g.id ? (
-                        <LoaderCircle className="spin text-white" size={20} />
+                        <LoaderCircle className="spin" size={20} />
                       ) : (
-                        <Upload className="text-white" size={20} />
+                        <Upload aria-hidden="true" size={20} />
                       )}
-                      <input type="file" accept="image/*" className="hidden" onChange={e => {
+                      <input type="file" accept="image/*" className="sr-only" onChange={e => {
                         const file = e.target.files?.[0];
                         if (file) void handleUploadCategoryPhoto(g.id, file);
                       }} />
@@ -583,13 +599,13 @@ export default function MenuPage() {
                 <button
                   type="button"
                   onClick={() => handleToggleCategoryHidden(g.id, isHidden)}
-                  className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium transition shrink-0 ${
+                  className={`btn-outline compact-button inline-flex items-center gap-2 shrink-0 ${
                     isHidden
-                      ? 'bg-gray-100 text-gray-500 dark:bg-gray-700'
-                      : 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                      ? 'text-gray-500 dark:bg-gray-700'
+                      : 'text-green-700 dark:bg-green-900/30 dark:text-green-300'
                   }`}
                 >
-                  {isHidden ? <EyeOff size={14} /> : <Eye size={14} />}
+                  {isHidden ? <EyeOff aria-hidden="true" size={16} /> : <Eye aria-hidden="true" size={16} />}
                   <span>{isHidden ? 'Категория скрыта' : 'Включена'}</span>
                 </button>
               </div>
@@ -598,7 +614,7 @@ export default function MenuPage() {
         </div>
       ) : (
         /* Вкладка: Свои блюда (кастомные) */
-        <div className="space-y-4">
+        <div id="menu-panel-custom" role="tabpanel" aria-labelledby="menu-tab-custom" className="space-y-4">
           <div className="flex justify-end">
             <button
               type="button"
@@ -613,7 +629,7 @@ export default function MenuPage() {
                 });
                 setModalOpen(true);
               }}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-medium text-sm rounded-xl transition shadow-sm"
+                className="btn-classic px-5 inline-flex items-center gap-2"
             >
               <Plus size={18} />
               <span>Добавить своё блюдо</span>
@@ -637,7 +653,7 @@ export default function MenuPage() {
                       <div className="flex items-center gap-3">
                         <div className="w-16 h-16 rounded-xl bg-gray-100 dark:bg-gray-700 overflow-hidden flex items-center justify-center shrink-0">
                           {cp.image_url ? (
-                            <img src={cp.image_url} alt={cp.name} className="w-full h-full object-cover" />
+                            <img src={cp.image_url} alt={cp.name} className="w-full h-full object-cover" loading="lazy" />
                           ) : (
                             <ImageIcon className="text-gray-400" size={24} />
                           )}
@@ -656,9 +672,11 @@ export default function MenuPage() {
                       <button
                         type="button"
                         onClick={() => cp.id && handleDeleteCustom(cp.id)}
-                        className="p-2 text-gray-400 hover:text-red-500 transition"
+                        className="icon-button icon-button-danger"
+                        aria-label={`Удалить ${cp.name}`}
+                        title="Удалить"
                       >
-                        <Trash2 size={16} />
+                        <Trash2 aria-hidden="true" size={17} />
                       </button>
                     </div>
                     {cp.description && (
@@ -678,7 +696,7 @@ export default function MenuPage() {
         onClose={() => setEditModalOpen(false)}
         title={`Редактировать: ${editingProduct?.name || ''}`}
       >
-        <form onSubmit={handleSaveProductEdit} className="space-y-4">
+        <form onSubmit={handleSaveProductEdit} className="modal-body form-stack">
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
             <div className="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
               <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Тексты</h4>
@@ -688,7 +706,7 @@ export default function MenuPage() {
                     key={l}
                     type="button"
                     onClick={() => setEditLang(l)}
-                    className={`px-3 py-1.5 rounded-md transition-all ${editLang === l ? 'bg-white dark:bg-gray-800 shadow text-amber-600 dark:text-amber-400' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
+                    className={`px-3 py-1.5 rounded-md transition-colors ${editLang === l ? 'bg-white dark:bg-gray-800 shadow text-amber-600 dark:text-amber-400' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
                   >
                     {l.toUpperCase()}
                   </button>
@@ -703,15 +721,17 @@ export default function MenuPage() {
                   onClick={() => handleAutoTranslate(editLang as 'kk' | 'en')}
                   className="w-full flex justify-center items-center gap-2 px-3 py-2 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 text-sm font-medium rounded-lg transition-colors border border-blue-100 dark:border-blue-800/50"
                 >
-                  Автоперевод с Русского (Google) 🌐
+                  <Languages aria-hidden="true" size={16} />
+                  Автоперевод с Русского (Google)
                 </button>
               )}
               
-              <div>
-                <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+              <div className="field-group">
+                <label className="field-label" htmlFor={`edit-name-${editLang}`}>
                   Название ({editLang.toUpperCase()})
                 </label>
                 <input
+                  id={`edit-name-${editLang}`}
                   type="text"
                   value={editLang === 'ru' ? editForm.name : editForm.name_translations[editLang] || ''}
                   onChange={e => {
@@ -724,16 +744,17 @@ export default function MenuPage() {
                       });
                     }
                   }}
-                  className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all"
+                  className="input-classic"
                   placeholder={editLang === 'ru' ? 'Название товара' : 'Перевод названия'}
                 />
               </div>
               
-              <div>
-                <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+              <div className="field-group">
+                <label className="field-label" htmlFor={`edit-description-${editLang}`}>
                   Описание ({editLang.toUpperCase()})
                 </label>
                 <textarea
+                  id={`edit-description-${editLang}`}
                   rows={3}
                   value={editLang === 'ru' ? editForm.description : editForm.description_translations[editLang] || ''}
                   onChange={e => {
@@ -746,7 +767,7 @@ export default function MenuPage() {
                       });
                     }
                   }}
-                  className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all"
+                  className="input-classic"
                   placeholder={editLang === 'ru' ? 'Описание (необязательно)' : 'Перевод описания'}
                 />
               </div>
@@ -754,50 +775,39 @@ export default function MenuPage() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+            <div className="field-group">
+              <label className="field-label" htmlFor="edit-price">
                 Цена (₸)
               </label>
               <input
+                id="edit-price"
                 type="number"
                 value={editForm.price || ''}
                 onChange={e => setEditForm({ ...editForm, price: Number(e.target.value) })}
-                className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all"
+                className="input-classic"
               />
             </div>
-            <div>
-              <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+            <div className="field-group">
+              <label className="field-label" htmlFor="edit-image-url">
                 Фото (URL)
               </label>
               <input
+                id="edit-image-url"
                 type="url"
                 value={editForm.imageUrl}
                 onChange={e => setEditForm({ ...editForm, imageUrl: e.target.value })}
-                className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all"
+                className="input-classic"
                 placeholder="https://..."
               />
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-3">
-            <button
-              type="button"
-              onClick={() => setEditModalOpen(false)}
-              className="px-5 py-2.5 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            >
+          <div className="modal-actions">
+            <button type="button" onClick={() => setEditModalOpen(false)} className="btn-outline px-5" disabled={editSaving}>
               Отмена
             </button>
-            <button
-              type="submit"
-              disabled={editSaving}
-              className="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-semibold shadow-sm transition-all flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-            >
-              {editSaving && (
-                <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-              )}
+            <button type="submit" disabled={editSaving} className="btn-classic px-5 inline-flex items-center gap-2">
+              {editSaving && <LoaderCircle className="spin" size={17} />}
               {editSaving ? 'Сохранение...' : 'Сохранить'}
             </button>
           </div>
@@ -810,91 +820,83 @@ export default function MenuPage() {
         onClose={() => setModalOpen(false)}
         title="Добавить своё блюдо"
       >
-        <form onSubmit={handleSaveCustom} className="space-y-4">
-          <div>
-            <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+        <form onSubmit={handleSaveCustom} className="modal-body form-stack">
+          <div className="field-group">
+            <label className="field-label" htmlFor="custom-name">
               Название блюда *
             </label>
             <input
+              id="custom-name"
               type="text"
               required
               value={customForm.name}
               onChange={e => setCustomForm({ ...customForm, name: e.target.value })}
-              className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all"
+              className="input-classic"
               placeholder="Например: Спец-комбо Bulka"
             />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+            <div className="field-group">
+              <label className="field-label" htmlFor="custom-price">
                 Цена (₸) *
               </label>
               <input
+                id="custom-price"
                 type="number"
                 required
                 value={customForm.price || ''}
                 onChange={e => setCustomForm({ ...customForm, price: Number(e.target.value) })}
-                className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all"
+                className="input-classic"
               />
             </div>
-            <div>
-              <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+            <div className="field-group">
+              <label className="field-label" htmlFor="custom-category">
                 Категория
               </label>
               <input
+                id="custom-category"
                 type="text"
                 value={customForm.category_name}
                 onChange={e => setCustomForm({ ...customForm, category_name: e.target.value })}
-                className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all"
+                className="input-classic"
               />
             </div>
           </div>
 
-          <div>
-            <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+          <div className="field-group">
+            <label className="field-label" htmlFor="custom-image-url">
               Ссылка на фото (URL)
             </label>
             <input
+              id="custom-image-url"
               type="url"
               value={customForm.image_url}
               onChange={e => setCustomForm({ ...customForm, image_url: e.target.value })}
-              className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all"
+              className="input-classic"
               placeholder="https://..."
             />
           </div>
 
-          <div>
-            <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wider">
+          <div className="field-group">
+            <label className="field-label" htmlFor="custom-description">
               Описание
             </label>
             <textarea
+              id="custom-description"
               rows={3}
               value={customForm.description}
               onChange={e => setCustomForm({ ...customForm, description: e.target.value })}
-              className="w-full px-4 py-2.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all"
+              className="input-classic"
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-3">
-            <button
-              type="button"
-              onClick={() => setModalOpen(false)}
-              className="px-5 py-2.5 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            >
+          <div className="modal-actions">
+            <button type="button" onClick={() => setModalOpen(false)} className="btn-outline px-5" disabled={submitting}>
               Отмена
             </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-semibold shadow-sm transition-all flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-            >
-              {submitting && (
-                <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-              )}
+            <button type="submit" disabled={submitting} className="btn-classic px-5 inline-flex items-center gap-2">
+              {submitting && <LoaderCircle className="spin" size={17} />}
               {submitting ? 'Сохранение...' : 'Сохранить'}
             </button>
           </div>
