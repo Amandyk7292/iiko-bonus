@@ -417,13 +417,25 @@ async function updateCustomerInfo(
   if (error) throw new Error(error.message);
 }
 
-async function updateFcmTokenByCustomerId(customerId, fcmToken) {
+async function updateFcmTokenByCustomerId(customerId, fcmToken, language = null) {
   if (!customerId || !fcmToken) return false;
+  const updates = { fcm_token: fcmToken };
+  if (language && ['ru', 'kk', 'kz', 'en'].includes(String(language).toLowerCase())) {
+    const norm = String(language).toLowerCase() === 'kz' ? 'kk' : String(language).toLowerCase();
+    updates.preferred_language = norm;
+  }
   const { error } = await supabase
     .from('customers')
-    .update({ fcm_token: fcmToken })
+    .update(updates)
     .eq('id', customerId);
-  if (error) throw new Error(error.message);
+  if (error) {
+    // If preferred_language column doesn't exist yet, fallback to updating only fcm_token
+    const { error: fallbackErr } = await supabase
+      .from('customers')
+      .update({ fcm_token: fcmToken })
+      .eq('id', customerId);
+    if (fallbackErr) throw new Error(fallbackErr.message);
+  }
   return true;
 }
 

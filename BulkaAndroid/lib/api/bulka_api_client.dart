@@ -166,7 +166,10 @@ class BulkaApiClient {
   }
 
   Future<void> registerFcmToken(String fcmToken) async {
-    final json = await _post('/api/customer/fcm-token', {'fcmToken': fcmToken});
+    final json = await _post('/api/customer/fcm-token', {
+      'fcmToken': fcmToken,
+      'language': AppLang.current,
+    });
     if (json['success'] != true) throw ApiException(_messageFrom(json, 'error_network'.tr));
   }
 

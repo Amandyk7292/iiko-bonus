@@ -1,5 +1,6 @@
 const { initializeApp, cert } = require('firebase-admin/app');
 const { getMessaging } = require('firebase-admin/messaging');
+const { supabase } = require('../config/supabase');
 
 let initialized = false;
 let messagingInstance = null;
@@ -85,7 +86,102 @@ async function sendPushNotification(fcmToken, title, body, data = {}) {
   }
 }
 
+async function notifyBonusChange({
+  customerId,
+  fcmToken,
+  language = 'ru',
+  amount = 0,
+  balance = 0,
+  reason = '',
+  isOrder = false,
+  total = 0,
+  discount = 0,
+  earnedBonus = 0,
+}) {
+  const lang = ['kk', 'kz'].includes(String(language).toLowerCase())
+    ? 'kk'
+    : String(language).toLowerCase() === 'en'
+      ? 'en'
+      : 'ru';
+
+  let title = '';
+  let body = '';
+
+  if (isOrder) {
+    if (lang === 'kk') {
+      title = 'Тапсырыс рәсімделді! ☕';
+      body = `Есепшот: ${total} ₸.`;
+      if (discount > 0) body += ` Жұмсалды: ${discount} б.`;
+      if (earnedBonus > 0) body += ` Қосылды: +${earnedBonus} б.`;
+      body += ` Баланс: ${balance} б.`;
+    } else if (lang === 'en') {
+      title = 'Order completed! ☕';
+      body = `Bill: ${total} ₸.`;
+      if (discount > 0) body += ` Spent: ${discount} b.`;
+      if (earnedBonus > 0) body += ` Earned: +${earnedBonus} b.`;
+      body += ` Balance: ${balance} b.`;
+    } else {
+      title = 'Ваш заказ оформлен! ☕';
+      body = `Счет: ${total} ₸.`;
+      if (discount > 0) body += ` Списано: ${discount} б.`;
+      if (earnedBonus > 0) body += ` Начислено: +${earnedBonus} б.`;
+      body += ` Баланс: ${balance} б.`;
+    }
+  } else {
+    const isPositive = Number(amount) >= 0;
+    const absAmount = Math.abs(Number(amount));
+    if (lang === 'kk') {
+      title = isPositive ? 'Бонустар қосылды ✨' : 'Бонустар жұмсалды 💳';
+      body = isPositive
+        ? `Сізге +${absAmount} бонус қосылды! Ағымдағы баланс: ${balance} бон.`
+        : `${absAmount} бонус есептен шығарылды. Ағымдағы баланс: ${balance} бон.`;
+      if (reason) body += ` (Себебі: ${reason})`;
+    } else if (lang === 'en') {
+      title = isPositive ? 'Bonuses earned ✨' : 'Bonuses spent 💳';
+      body = isPositive
+        ? `You received +${absAmount} bonuses! Current balance: ${balance} bon.`
+        : `${absAmount} bonuses redeemed. Current balance: ${balance} bon.`;
+      if (reason) body += ` (Reason: ${reason})`;
+    } else {
+      title = isPositive ? 'Начисление бонусов ✨' : 'Списание бонусов 💳';
+      body = isPositive
+        ? `Вам начислено +${absAmount} бонусов! Текущий баланс: ${balance} бон.`
+        : `Списано ${absAmount} бонусов. Текущий баланс: ${balance} бон.`;
+      if (reason) body += ` (Причина: ${reason})`;
+    }
+  }
+
+  let savedNotificationId = '';
+  if (customerId) {
+    try {
+      const { data: saved } = await supabase
+        .from('customer_notifications')
+        .insert({
+          customer_id: customerId,
+          title: String(title).slice(0, 160),
+          body: String(body).slice(0, 2000),
+          type: 'bonus',
+        })
+        .select('id')
+        .single();
+      if (saved) savedNotificationId = saved.id;
+    } catch (dbErr) {
+      console.error('Failed to insert customer_notification for bonus:', dbErr.message);
+    }
+  }
+
+  if (fcmToken) {
+    await sendPushNotification(fcmToken, title, body, {
+      notificationId: String(savedNotificationId || ''),
+      type: 'bonus',
+    });
+  }
+
+  return { title, body, savedNotificationId };
+}
+
 module.exports = {
   sendPushNotification,
+  notifyBonusChange,
   initFirebase,
 };

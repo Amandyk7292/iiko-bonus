@@ -264,9 +264,9 @@ router.post(
   customerAuthMiddleware,
   async (req, res) => {
     try {
-      const { fcmToken } = req.body;
+      const { fcmToken, language } = req.body;
       if (!fcmToken) return res.status(400).json({ error: 'fcmToken required' });
-      await updateFcmTokenByCustomerId(req.customerAuth.id, fcmToken);
+      await updateFcmTokenByCustomerId(req.customerAuth.id, fcmToken, language);
       res.json({ success: true });
     } catch (err) {
       sendApiError(res, err);

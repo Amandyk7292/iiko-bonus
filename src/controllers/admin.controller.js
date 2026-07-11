@@ -4,7 +4,7 @@ const { getSettings, updateSettings } = require('../services/settings.service');
 const { getActiveLoyaltyTiers } = require('../services/tier.service');
 const { parseMoney } = require('../utils/money.util');
 const { getTierInfo } = require('../utils/tier.util');
-const { sendPushNotification } = require('../services/push.service');
+const { sendPushNotification, notifyBonusChange } = require('../services/push.service');
 const { sendMessage } = require('../services/telegram.service');
 const { sendAppleWalletPush } = require('../services/wallet.service');
 const {
@@ -181,12 +181,15 @@ const addBonusHandler = async (req, res) => {
           amount >= 0 ? `Начислено: +${amount} бонусов` : `Списано: ${amount} бонусов`;
         const msg = `<b>Изменение баланса баллов!</b>\n\n${actionTxt}\n<b>Причина:</b> ${reason || 'Корректировка администратором'}\n<b>Текущий баланс:</b> ${c.balance} бон.`;
         if (c.telegram_id) sendMessage(c.telegram_id, msg).catch(() => {});
-        if (c.fcm_token)
-          sendPushNotification(
-            c.fcm_token,
-            'Bulka Bonus: Баланс обновлен',
-            `${actionTxt}. Баланс: ${c.balance} бон.`,
-          ).catch(() => {});
+        await notifyBonusChange({
+          customerId: c.id,
+          fcmToken: c.fcm_token,
+          language: c.preferred_language || c.language || 'ru',
+          amount: Number(amount),
+          balance: Number(c.balance),
+          reason: reason || '',
+          isOrder: false,
+        });
       }
     } catch (e) {
       console.error('Notify bonus error:', e);

@@ -9,7 +9,7 @@ const {
   activatePendingBonusesSafe,
   applyLoyaltyTransaction,
 } = require('../services/customer.service');
-const { sendPushNotification } = require('../services/push.service');
+const { sendPushNotification, notifyBonusChange } = require('../services/push.service');
 const { sendAppleWalletPush } = require('../services/wallet.service');
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -273,18 +273,21 @@ async function applyBonus(req, res) {
       try {
         const { data: cData } = await supabase
           .from('customers')
-          .select('fcm_token')
+          .select('fcm_token, preferred_language, language')
           .eq('id', customerId)
           .single();
-        if (cData && cData.fcm_token) {
-          let pushBody = `Счет: ${total} ₸. `;
-          if (discount > 0) pushBody += `Списано: ${discount} б. `;
-          if (earnedBonus > 0 && activationDelayDays > 0)
-            pushBody += `Будет зачислен через ${activationDelayDays} д.: ${earnedBonus} б. `;
-          else if (earnedBonus > 0) pushBody += `Начислено: ${earnedBonus} б. `;
-          pushBody += `Текущий баланс: ${result.balance} б.`;
-
-          await sendPushNotification(cData.fcm_token, 'Ваш заказ оформлен!', pushBody);
+        if (cData) {
+          await notifyBonusChange({
+            customerId,
+            fcmToken: cData.fcm_token,
+            language: cData.preferred_language || cData.language || 'ru',
+            amount: earnedBonus - discount,
+            balance: result.balance,
+            isOrder: true,
+            total,
+            discount,
+            earnedBonus,
+          });
         }
         sendAppleWalletPush(customerId).catch((err) => console.error(err));
       } catch (pushErr) {
