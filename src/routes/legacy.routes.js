@@ -1,7 +1,10 @@
 const express = require('express');
 const crypto = require('crypto');
 const router = express.Router();
-const { getSettings, getTierInfo } = require('../services/settings.service');
+const { getSettings } = require('../services/settings.service');
+const { getActiveLoyaltyTiers } = require('../services/tier.service');
+const { getTierInfo } = require('../utils/tier.util');
+const { buildWhatsAppContact } = require('../utils/whatsapp.util');
 const { getOrCreateCustomerByPhone, getCustomerByPhone } = require('../services/customer.service');
 const otpStore = require('../services/otpStore.service');
 const { supabase } = require('../config/supabase');
@@ -45,6 +48,19 @@ function buildDynamicQrToken(phone, timeWindow = Math.floor(Date.now() / 300000)
   };
 }
 
+async function getCustomerTierSnapshot(customer) {
+  const settings = await getSettings();
+  const tiers = await getActiveLoyaltyTiers(settings);
+  const tier = getTierInfo(customer.total_spent, tiers, settings);
+  const highestTier = tier.allTiers[tier.allTiers.length - 1];
+  return {
+    tier,
+    isVip: Boolean(highestTier && tier.code === highestTier.code),
+    cashbackPercent: tier.percent,
+    vipThreshold: highestTier?.minSpend ?? highestTier?.threshold ?? 0,
+  };
+}
+
 router.post('/api/auth/request-otp', authRateLimit, async (req, res) => {
   try {
     const { token } = req.body;
@@ -68,7 +84,11 @@ router.post('/api/auth/request-otp', authRateLimit, async (req, res) => {
       if (error) throw error;
     }
 
-    res.json({ success: true, viaTelegram: false });
+    res.json({
+      success: true,
+      viaTelegram: false,
+      ...buildWhatsAppContact(token),
+    });
   } catch (err) {
     sendApiError(res, err, { success: false });
   }
@@ -126,11 +146,7 @@ router.post('/api/auth/verify-otp', authRateLimit, async (req, res) => {
     }
 
     const customer = existingCustomer;
-    const settings = await getSettings();
-    const tier = getTierInfo(customer.total_spent, settings);
-    const vipThreshold = settings.vip_threshold || 300000;
-    const isVip = tier.name === 'Платина';
-    const cashbackPercent = tier.percent;
+    const { tier, vipThreshold, isVip, cashbackPercent } = await getCustomerTierSnapshot(customer);
 
     const { data: transactions } = await supabase
       .from('transactions')
@@ -205,11 +221,7 @@ router.post('/api/auth/register', authRateLimit, registrationAuthMiddleware, asy
     if (updateError) throw updateError;
     Object.assign(customer, updateData);
 
-    const settings = await getSettings();
-    const tier = getTierInfo(customer.total_spent, settings);
-    const vipThreshold = settings.vip_threshold || 300000;
-    const isVip = tier.name === 'Платина';
-    const cashbackPercent = tier.percent;
+    const { tier, vipThreshold, isVip, cashbackPercent } = await getCustomerTierSnapshot(customer);
 
     const { data: transactions } = await supabase
       .from('transactions')
@@ -273,11 +285,7 @@ router.post('/api/guest/profile', publicApiRateLimit, customerAuthMiddleware, as
       customer.fcm_token = fcmToken;
     }
 
-    const settings = await getSettings();
-    const tier = getTierInfo(customer.total_spent, settings);
-    const vipThreshold = settings.vip_threshold || 300000;
-    const isVip = tier.name === 'Платина';
-    const cashbackPercent = tier.percent;
+    const { tier, vipThreshold, isVip, cashbackPercent } = await getCustomerTierSnapshot(customer);
 
     // Получаем последние транзакции клиента.
     const { data: transactions } = await supabase

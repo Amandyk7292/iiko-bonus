@@ -7,6 +7,7 @@ const {
 } = require('../services/wallet.service');
 const { supabase } = require('../config/supabase');
 const { getSettings } = require('../services/settings.service');
+const { getActiveLoyaltyTiers } = require('../services/tier.service');
 const { getTierInfo } = require('../utils/tier.util');
 
 async function createToken(req, res) {
@@ -121,7 +122,8 @@ async function downloadGooglePass(req, res) {
     if (!customer) return res.status(404).send('Customer not found');
 
     const settings = await getSettings();
-    const tier = getTierInfo(customer.total_spent, settings);
+    const tiers = await getActiveLoyaltyTiers(settings);
+    const tier = getTierInfo(customer.total_spent, tiers, settings);
     const saveUrl = await generateGoogleWalletUrl(customer, settings, tier);
 
     res.redirect(saveUrl);

@@ -1,9 +1,10 @@
 part of '../main.dart';
 
 class OrdersScreen extends StatelessWidget {
-  const OrdersScreen({required this.transactions, super.key});
+  const OrdersScreen({required this.transactions, this.onExplore, super.key});
 
   final List<BonusTransaction> transactions;
+  final VoidCallback? onExplore;
 
   @override
   Widget build(BuildContext context) {
@@ -54,6 +55,16 @@ class OrdersScreen extends StatelessWidget {
                         fontSize: 14,
                       ),
                     ),
+                    if (onExplore != null) ...[
+                      const SizedBox(height: 18),
+                      SizedBox(
+                        width: double.infinity,
+                        child: GradientButton(
+                          onPressed: onExplore,
+                          child: Text('orders_empty_action'.tr),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -106,14 +117,25 @@ class TransactionCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 24),
-              const Text(
-                'Детали заказа',
-                style: TextStyle(
-                  color: _textDark,
-                  fontFamily: _headingFont,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'order_details'.tr,
+                      style: const TextStyle(
+                        color: _textDark,
+                        fontFamily: _headingFont,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    tooltip: 'close_tooltip'.tr,
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
               ),
               const SizedBox(height: 16),
               Expanded(
@@ -122,10 +144,13 @@ class TransactionCard extends StatelessWidget {
                   separatorBuilder: (_, _) =>
                       Divider(color: _almond.withValues(alpha: 0.3)),
                   itemBuilder: (context, index) {
-                    final item = transaction.items![index];
-                    final name = item['name'] ?? 'Товар';
-                    final qty = item['amount'] ?? 1;
-                    final price = item['sum'] ?? 0;
+                    final item = _asMap(transaction.items![index]);
+                    final name = _asString(
+                      item['name'],
+                      fallback: 'product_fallback'.tr,
+                    );
+                    final qty = item['amount'] ?? item['quantity'] ?? 1;
+                    final price = item['sum'] ?? item['price'] ?? 0;
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 8),
                       child: Row(
@@ -208,7 +233,10 @@ class TransactionCard extends StatelessWidget {
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            localizeTransactionLabel(transaction.label),
+                            localizeTransactionType(
+                              transaction.type,
+                              isEarning: transaction.isEarning,
+                            ),
                             style: const TextStyle(
                               color: _textDark,
                               fontFamily: _headingFont,

@@ -1,230 +1,213 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { Download, Gift, LoaderCircle, Pencil, RefreshCw, Search, Trash2 } from 'lucide-react';
+import Modal from '../components/Modal';
+import PageState from '../components/PageState';
+import { useFeedback } from '../components/Feedback';
 import { api } from '../lib/api';
+import { useI18n } from '../lib/i18n';
+
+interface Customer {
+  id: string;
+  name?: string;
+  phone?: string;
+  balance?: number;
+  total_spent?: number;
+}
 
 export default function CustomersPage() {
-  const [customers, setCustomers] = useState<any[]>([]);
+  const { t, formatNumber } = useI18n();
+  const { toast, confirm } = useFeedback();
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [search, setSearch] = useState('');
-  const [editingCustomer, setEditingCustomer] = useState<any | null>(null);
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [bonusCustomer, setBonusCustomer] = useState<Customer | null>(null);
+  const [bonusAmount, setBonusAmount] = useState('');
+  const [bonusReason, setBonusReason] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [formError, setFormError] = useState('');
 
-  const fetchCustomers = async () => {
+  const fetchCustomers = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
       const data = await api.getCustomers();
-      setCustomers(Array.isArray(data) ? data : (data.customers || []));
-    } catch (e) {
-      console.error(e);
+      setCustomers(Array.isArray(data) ? data : data.customers ?? []);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : t('common.loadError'));
     } finally {
       setLoading(false);
     }
-  };
+  }, [t]);
 
-  useEffect(() => {
-    fetchCustomers();
-  }, []);
+  useEffect(() => { void fetchCustomers(); }, [fetchCustomers]);
+
+  const filtered = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase();
+    return customers.filter(customer => `${customer.name ?? ''} ${customer.phone ?? ''}`.toLocaleLowerCase().includes(query));
+  }, [customers, search]);
 
   const handleExport = () => {
-    const rows = [['Имя', 'Телефон', 'Баланс', 'Сумма покупок']];
-    customers.forEach(c => rows.push([
-      c.name || '',
-      c.phone || '',
-      c.balance || 0,
-      c.total_spent || 0
-    ]));
+    const rows: Array<Array<string | number>> = [[t('common.name'), t('transactions.phone'), t('customers.balance'), t('customers.purchases')]];
+    filtered.forEach(customer => rows.push([customer.name || '', customer.phone || '', customer.balance || 0, customer.total_spent || 0]));
     const csv = rows.map(row => row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(new Blob([`\ufeff${csv}`], { type: 'text/csv;charset=utf-8' }));
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'bulka-customers.csv';
+    link.download = `bulka-customers-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
     link.click();
+    link.remove();
     URL.revokeObjectURL(url);
   };
 
-  const triggerExpireBonuses = async () => {
-    if (!window.confirm('Запустить проверку неактивных клиентов?\nУ всех гостей, которые не совершали покупки более 90 дней, баллы будут автоматически списаны.')) return;
-    try {
-      const data = await api.expireInactive();
-      alert(`Проверка завершена!\nСгорели неактивные бонусы у клиентов: ${data.expiredCount}\nОбщая сумма списанных бонусов: ${data.totalExpiredAmount} бон.`);
-      fetchCustomers();
-    } catch (e: any) {
-      alert('Ошибка: ' + e.message);
-    }
-  };
-
-  const triggerNotifyInactive = async () => {
-    if (!window.confirm('Запустить проверку и отправку напоминаний?\nУведомления в Telegram будут отправлены всем гостям, которые не приходили более 30 дней и у которых есть положительный баланс бонусов.')) return;
+  const notifyInactive = async () => {
+    if (!await confirm({ title: t('customers.notifyTitle'), body: t('customers.notifyBody'), confirmLabel: t('customers.notify') })) return;
+    setBusyAction('notify');
     try {
       const data = await api.notifyInactive();
-      alert(`Напоминания отправлены!\nГостей, получивших уведомление: ${data.notifiedCount}\nОбщая сумма их баллов под угрозой сгорания: ${data.totalNotifiedBalance} бон.`);
-    } catch (e: any) {
-      alert('Ошибка: ' + e.message);
+      toast(t('customers.notified', { count: data.notifiedCount ?? 0 }));
+    } catch (caught) {
+      toast(caught instanceof Error ? caught.message : t('common.error'), 'error');
+    } finally {
+      setBusyAction(null);
     }
   };
 
-  const deleteCustomer = async (id: string) => {
-    if (!window.confirm('Вы уверены, что хотите безвозвратно удалить этого клиента и всю историю его транзакций?')) return;
+  const expireInactive = async () => {
+    if (!await confirm({ title: t('customers.expireTitle'), body: t('customers.expireBody'), confirmLabel: t('customers.expire'), destructive: true })) return;
+    setBusyAction('expire');
     try {
-      await api.deleteCustomer(id);
-      alert('Клиент удален.');
-      fetchCustomers();
-    } catch (e: any) {
-      alert('Ошибка: ' + e.message);
+      const data = await api.expireInactive();
+      toast(t('customers.expired', { count: data.expiredCount ?? 0, amount: formatNumber(data.totalExpiredAmount ?? 0) }));
+      await fetchCustomers();
+    } catch (caught) {
+      toast(caught instanceof Error ? caught.message : t('common.error'), 'error');
+    } finally {
+      setBusyAction(null);
     }
   };
 
-  const manualBonus = async (id: string) => {
-    const amount = window.prompt("Введите сумму бонусов (с минусом для списания):");
-    if (!amount || isNaN(Number(amount))) return;
-    const reason = window.prompt("Причина (необязательно):") || "Ручное начисление";
+  const deleteCustomer = async (customer: Customer) => {
+    if (!await confirm({ title: t('customers.deleteTitle'), body: t('customers.deleteBody'), confirmLabel: t('common.delete'), destructive: true })) return;
+    setBusyAction(customer.id);
     try {
-      const response = await fetch('/admin/api/customers/bonus', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('adminToken')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ customerId: id, amount: Number(amount), reason })
+      await api.deleteCustomer(customer.id);
+      setCustomers(current => current.filter(item => item.id !== customer.id));
+      toast(t('customers.deleted'));
+    } catch (caught) {
+      toast(caught instanceof Error ? caught.message : t('common.error'), 'error');
+    } finally {
+      setBusyAction(null);
+    }
+  };
+
+  const openBonus = (customer: Customer) => {
+    setBonusCustomer(customer);
+    setBonusAmount('');
+    setBonusReason('');
+    setFormError('');
+  };
+
+  const saveBonus = async (event: FormEvent) => {
+    event.preventDefault();
+    const amount = Number(bonusAmount);
+    if (!bonusCustomer || !Number.isFinite(amount) || amount === 0) {
+      setFormError(t('customers.bonusAmountHint'));
+      return;
+    }
+    setSubmitting(true);
+    setFormError('');
+    try {
+      await api.addCustomerBonus(bonusCustomer.id, amount, bonusReason.trim() || t('customers.reasonPlaceholder'));
+      setBonusCustomer(null);
+      toast(t('customers.bonusSaved'));
+      await fetchCustomers();
+    } catch (caught) {
+      setFormError(caught instanceof Error ? caught.message : t('common.error'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const saveEdit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!editingCustomer) return;
+    setSubmitting(true);
+    setFormError('');
+    try {
+      await api.updateCustomer(editingCustomer.id, {
+        name: editingCustomer.name ?? '', phone: editingCustomer.phone ?? '',
+        balance: Number(editingCustomer.balance ?? 0), total_spent: Number(editingCustomer.total_spent ?? 0),
       });
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP Error ${response.status}`);
-      }
-      alert('Успешно');
-      fetchCustomers();
-    } catch (e: any) {
-      alert('Ошибка: ' + e.message);
-    }
-  };
-
-  const saveEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await api.updateCustomer(editingCustomer.id, editingCustomer);
       setEditingCustomer(null);
-      fetchCustomers();
-    } catch (err: any) {
-      alert(err.message);
+      toast(t('common.saved'));
+      await fetchCustomers();
+    } catch (caught) {
+      setFormError(caught instanceof Error ? caught.message : t('common.error'));
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    return customers.filter(c => {
-      const nameMatch = (c.name || '').toLowerCase().includes(q);
-      const phoneMatch = String(c.phone || '').toLowerCase().includes(q);
-      return nameMatch || phoneMatch;
-    });
-  }, [search, customers]);
+  if (loading && customers.length === 0) return <PageState type="loading" />;
+  if (error && customers.length === 0) return <PageState type="error" description={error} onRetry={fetchCustomers} />;
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-end">
-        <button onClick={handleExport} className="btn-outline px-5 py-2">Экспорт</button>
-      </div>
-      <div className="sagi-filter">
-        <div className="sagi-field flex-1 min-w-[280px]">
-          <label>Поиск</label>
-          <input 
-            type="text" 
-            value={search} 
-            onChange={e => setSearch(e.target.value)} 
-            placeholder="Поиск по имени или по номеру телефона 7077087778" 
-            className="input-classic w-full"
-          />
+    <div className="page-stack">
+      <div className="page-actions-row">
+        <div className="action-cluster">
+          <button type="button" className="btn-outline px-4 inline-flex items-center gap-2" onClick={notifyInactive} disabled={Boolean(busyAction)}>{busyAction === 'notify' ? <LoaderCircle className="spin" size={17} /> : <RefreshCw aria-hidden="true" size={17} />}{t('customers.notify')}</button>
+          <button type="button" className="btn-outline danger-outline px-4" onClick={expireInactive} disabled={Boolean(busyAction)}>{t('customers.expire')}</button>
         </div>
-        <button onClick={triggerNotifyInactive} className="btn-outline px-4 py-2 text-sm">Напомнить гостям</button>
-        <button onClick={triggerExpireBonuses} className="btn-outline px-4 py-2 text-sm text-red-600">Списать неактивные</button>
+        <button type="button" onClick={handleExport} disabled={filtered.length === 0} className="btn-outline px-4 inline-flex items-center gap-2"><Download aria-hidden="true" size={17} />{t('customers.export')}</button>
       </div>
+      {error && <div className="inline-alert inline-alert-error" role="alert">{error}</div>}
 
-      <div className="card overflow-x-auto">
-        <table className="w-full text-left border-collapse">
-          <thead className="bg-beige-50">
-            <tr>
-              <th className="py-4 px-4">#</th>
-              <th className="py-4 px-6">Имя</th>
-              <th className="py-4 px-6">Телефон</th>
-              <th className="py-4 px-6 text-right">Баланс</th>
-              <th className="py-4 px-6 text-right">Покупки</th>
-              <th className="py-4 px-6 text-center">Управление</th>
-            </tr>
-          </thead>
-          <tbody className="text-sm text-gray-700">
-            {loading ? (
-              <tr><td colSpan={6} className="py-8 text-center text-gray-400">Загрузка...</td></tr>
-            ) : filtered.length === 0 ? (
-              <tr><td colSpan={6} className="py-8 text-center text-gray-400">Клиентов не найдено.</td></tr>
-            ) : (
-              filtered.map((c, i) => (
-                <tr key={c.id}>
-                  <td className="py-4 px-4 text-gray-400">{i + 1}</td>
-                  <td className="py-4 px-6 font-medium">{c.name || 'Без имени'}</td>
-                  <td className="py-4 px-6 text-gray-500">{c.phone}</td>
-                  <td className="py-4 px-6 text-right font-bold text-blue-600">{c.balance || 0}</td>
-                  <td className="py-4 px-6 text-right text-gray-600">{(c.total_spent || 0).toLocaleString()}</td>
-                  <td className="py-4 px-6 text-center space-x-2 whitespace-nowrap">
-                    <button onClick={() => manualBonus(c.id)} className="btn-outline px-3 py-1 text-xs">+/- Бонусы</button>
-                    <button onClick={() => setEditingCustomer(c)} className="btn-outline px-3 py-1 text-xs">Редакт.</button>
-                    <button onClick={() => deleteCustomer(c.id)} className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-3 py-1 rounded text-xs font-medium">Удалить</button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <section className="sagi-filter">
+        <div className="field-group filter-search"><label className="field-label" htmlFor="customer-search">{t('common.search')}</label><div className="input-with-icon"><Search aria-hidden="true" size={18} /><input id="customer-search" type="search" className="input-classic" value={search} onChange={event => setSearch(event.target.value)} placeholder={t('customers.searchPlaceholder')} /></div></div>
+      </section>
 
-      {editingCustomer && (
-        <div className="fixed inset-0 bg-[#333333] bg-opacity-40 flex items-center justify-center z-50 backdrop-blur-sm transition-opacity duration-300">
-          <form onSubmit={saveEdit} className="card p-8 w-full max-w-md text-left">
-            <h3 className="text-2xl font-serif text-beige-800 mb-6">Редактирование клиента</h3>
-            <div className="space-y-4 mb-6">
-              <div>
-                <label className="block text-xs font-semibold text-beige-800 uppercase mb-1">Имя</label>
-                <input 
-                  type="text" 
-                  value={editingCustomer.name || ''} 
-                  onChange={e => setEditingCustomer({ ...editingCustomer, name: e.target.value })}
-                  className="input-classic w-full"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-beige-800 uppercase mb-1">Телефон</label>
-                <input 
-                  type="text" 
-                  value={editingCustomer.phone || ''} 
-                  onChange={e => setEditingCustomer({ ...editingCustomer, phone: e.target.value })}
-                  className="input-classic w-full"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-beige-800 uppercase mb-1">Баланс бонусов</label>
-                  <input 
-                    type="number" 
-                    value={editingCustomer.balance || 0} 
-                    onChange={e => setEditingCustomer({ ...editingCustomer, balance: Number(e.target.value) })}
-                    className="input-classic w-full text-blue-600 font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-beige-800 uppercase mb-1">Общие покупки (тнг)</label>
-                  <input 
-                    type="number" 
-                    value={editingCustomer.total_spent || 0} 
-                    onChange={e => setEditingCustomer({ ...editingCustomer, total_spent: Number(e.target.value) })}
-                    className="input-classic w-full text-gray-700 font-semibold"
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="flex gap-3">
-              <button type="submit" className="btn-classic flex-1 py-3 font-medium shadow-sm">Сохранить</button>
-              <button type="button" onClick={() => setEditingCustomer(null)} className="btn-outline flex-1 py-3 font-medium">Отмена</button>
-            </div>
-          </form>
-        </div>
+      {filtered.length === 0 ? <PageState type="empty" title={t('customers.empty')} description={t('customers.emptyHint')} /> : (
+        <section className="card table-card"><div className="responsive-table-wrap"><table className="data-table customers-table">
+          <thead><tr><th>#</th><th>{t('common.name')}</th><th>{t('transactions.phone')}</th><th className="text-right">{t('customers.balance')}</th><th className="text-right">{t('customers.purchases')}</th><th className="text-right">{t('customers.manage')}</th></tr></thead>
+          <tbody>{filtered.map((customer, index) => <tr key={customer.id}>
+            <td data-label="#" className="row-number">{index + 1}</td><td data-label={t('common.name')}><strong>{customer.name || t('customers.noName')}</strong></td>
+            <td data-label={t('transactions.phone')}>{customer.phone || '—'}</td><td data-label={t('customers.balance')} className="text-right tabular value-info"><strong>{formatNumber(customer.balance ?? 0)}</strong></td>
+            <td data-label={t('customers.purchases')} className="text-right tabular">{formatNumber(customer.total_spent ?? 0)}</td>
+            <td data-label={t('customers.manage')}><div className="row-actions justify-end">
+              <button type="button" className="icon-button" onClick={() => openBonus(customer)} aria-label={t('customers.bonus')} title={t('customers.bonus')}><Gift aria-hidden="true" size={17} /></button>
+              <button type="button" className="icon-button" onClick={() => { setEditingCustomer({ ...customer }); setFormError(''); }} aria-label={t('common.edit')} title={t('common.edit')}><Pencil aria-hidden="true" size={17} /></button>
+              <button type="button" className="icon-button icon-button-danger" onClick={() => deleteCustomer(customer)} disabled={Boolean(busyAction)} aria-label={t('common.delete')} title={t('common.delete')}>{busyAction === customer.id ? <LoaderCircle className="spin" size={17} /> : <Trash2 aria-hidden="true" size={17} />}</button>
+            </div></td>
+          </tr>)}</tbody>
+        </table></div></section>
       )}
+
+      <Modal open={Boolean(editingCustomer)} onClose={() => !submitting && setEditingCustomer(null)} title={t('customers.editTitle')} size="md">
+        {editingCustomer && <form className="modal-body form-stack" onSubmit={saveEdit}>
+          {formError && <div className="inline-alert inline-alert-error" role="alert">{formError}</div>}
+          <div className="field-group"><label className="field-label" htmlFor="customer-name">{t('common.name')}</label><input id="customer-name" className="input-classic" value={editingCustomer.name ?? ''} onChange={event => setEditingCustomer(current => current && ({ ...current, name: event.target.value }))} autoComplete="name" /></div>
+          <div className="field-group"><label className="field-label" htmlFor="customer-phone">{t('transactions.phone')}</label><input id="customer-phone" type="tel" className="input-classic" value={editingCustomer.phone ?? ''} onChange={event => setEditingCustomer(current => current && ({ ...current, phone: event.target.value }))} autoComplete="tel" /></div>
+          <div className="form-grid form-grid-2">
+            <div className="field-group"><label className="field-label" htmlFor="customer-balance">{t('customers.balance')}</label><input id="customer-balance" type="number" step="0.01" className="input-classic" value={editingCustomer.balance ?? 0} onChange={event => setEditingCustomer(current => current && ({ ...current, balance: Number(event.target.value) }))} /></div>
+            <div className="field-group"><label className="field-label" htmlFor="customer-spent">{t('customers.totalPurchases')}</label><input id="customer-spent" type="number" min="0" step="0.01" className="input-classic" value={editingCustomer.total_spent ?? 0} onChange={event => setEditingCustomer(current => current && ({ ...current, total_spent: Number(event.target.value) }))} /></div>
+          </div>
+          <div className="modal-actions"><button type="button" className="btn-outline px-5" onClick={() => setEditingCustomer(null)} disabled={submitting}>{t('common.cancel')}</button><button type="submit" className="btn-classic px-5 inline-flex items-center gap-2" disabled={submitting}>{submitting && <LoaderCircle className="spin" size={17} />}{submitting ? t('common.saving') : t('common.save')}</button></div>
+        </form>}
+      </Modal>
+
+      <Modal open={Boolean(bonusCustomer)} onClose={() => !submitting && setBonusCustomer(null)} title={t('customers.bonusTitle')} size="sm">
+        <form className="modal-body form-stack" onSubmit={saveBonus}>
+          <p className="modal-context"><strong>{bonusCustomer?.name || t('customers.noName')}</strong><span>{bonusCustomer?.phone}</span></p>
+          {formError && <div className="inline-alert inline-alert-error" role="alert">{formError}</div>}
+          <div className="field-group"><label className="field-label" htmlFor="bonus-amount">{t('customers.bonusAmount')} *</label><input id="bonus-amount" type="number" step="0.01" className="input-classic" value={bonusAmount} onChange={event => setBonusAmount(event.target.value)} required autoFocus /><p className="field-hint">{t('customers.bonusAmountHint')}</p></div>
+          <div className="field-group"><label className="field-label" htmlFor="bonus-reason">{t('customers.reason')}</label><textarea id="bonus-reason" rows={3} className="input-classic" value={bonusReason} onChange={event => setBonusReason(event.target.value)} placeholder={t('customers.reasonPlaceholder')} maxLength={240} /></div>
+          <div className="modal-actions"><button type="button" className="btn-outline px-5" onClick={() => setBonusCustomer(null)} disabled={submitting}>{t('common.cancel')}</button><button type="submit" className="btn-classic px-5 inline-flex items-center gap-2" disabled={submitting}>{submitting && <LoaderCircle className="spin" size={17} />}{submitting ? t('common.saving') : t('common.save')}</button></div>
+        </form>
+      </Modal>
     </div>
   );
 }

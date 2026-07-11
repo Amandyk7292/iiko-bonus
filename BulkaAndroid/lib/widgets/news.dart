@@ -75,7 +75,11 @@ class NewsCard extends StatelessWidget {
               fit: StackFit.expand,
               children: [
                 if (hasImage)
-                  _NetworkImage(url: item.imageUrl, fit: BoxFit.cover)
+                  _NetworkImage(
+                    url: item.imageUrl,
+                    fit: BoxFit.cover,
+                    semanticLabel: item.title,
+                  )
                 else
                   const _NewsFallbackBanner(),
                 if (hasImage)
@@ -192,21 +196,16 @@ class NewsCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 10),
-                    const Expanded(
+                    Expanded(
                       child: Text(
-                        'Bulka Bakery',
-                        style: TextStyle(
+                        'app_title'.tr,
+                        style: const TextStyle(
                           color: _cocoa,
                           fontFamily: _headingFont,
                           fontSize: 13,
                           fontWeight: FontWeight.w400,
                         ),
                       ),
-                    ),
-                    const Icon(
-                      Icons.arrow_forward_rounded,
-                      color: _caramel,
-                      size: 22,
                     ),
                   ],
                 ),
@@ -272,13 +271,13 @@ class _NewsFallbackBanner extends StatelessWidget {
               ),
             ),
           ),
-          const Positioned(
+          Positioned(
             left: 18,
             right: 18,
             bottom: 54,
             child: Text(
-              'Свежая новость',
-              style: TextStyle(
+              'fresh_news_fallback'.tr,
+              style: const TextStyle(
                 color: _cocoa,
                 fontFamily: _headingFont,
                 fontSize: 28,

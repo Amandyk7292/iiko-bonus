@@ -1,10 +1,16 @@
 part of '../main.dart';
 
 class QrDialog extends StatefulWidget {
-  const QrDialog({required this.api, required this.customer, super.key});
+  const QrDialog({
+    required this.api,
+    required this.customer,
+    required this.heroTag,
+    super.key,
+  });
 
   final BulkaApiClient api;
   final Customer customer;
+  final Object heroTag;
 
   @override
   State<QrDialog> createState() => _QrDialogState();
@@ -15,7 +21,7 @@ class _QrDialogState extends State<QrDialog> {
   int _timeRemaining = 300;
   int? _loadedWindow;
   String? _token;
-  String? _error;
+  bool _failed = false;
 
   @override
   void initState() {
@@ -31,6 +37,7 @@ class _QrDialogState extends State<QrDialog> {
   }
 
   Future<void> _tick() async {
+    if (!mounted) return;
     final now = DateTime.now().millisecondsSinceEpoch;
     final window = now ~/ 300000;
     setState(() => _timeRemaining = 300 - ((now % 300000) ~/ 1000));
@@ -41,11 +48,11 @@ class _QrDialogState extends State<QrDialog> {
       setState(() {
         _token = token;
         _loadedWindow = window;
-        _error = null;
+        _failed = false;
       });
     } catch (_) {
       if (!mounted) return;
-      setState(() => _error = 'qr_unavailable'.tr);
+      setState(() => _failed = true);
     }
   }
 
@@ -75,77 +82,101 @@ class _QrDialogState extends State<QrDialog> {
                   ),
                 ),
                 IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: () {
+                    BulkaMotion.lightImpact();
+                    Navigator.of(context).pop();
+                  },
                   style: IconButton.styleFrom(
                     backgroundColor: _almond.withValues(alpha: 0.35),
                     foregroundColor: _cocoa,
                   ),
+                  tooltip: 'close_tooltip'.tr,
                   icon: const Icon(Icons.close_rounded),
                 ),
               ],
             ),
             const SizedBox(height: 16),
-            Container(
-              width: 216,
-              height: 216,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: _almond.withValues(alpha: 0.45)),
-                boxShadow: [
-                  BoxShadow(
-                    color: _cocoa.withValues(alpha: 0.12),
-                    blurRadius: 22,
-                    offset: const Offset(0, 12),
-                  ),
-                ],
-              ),
-              alignment: Alignment.center,
-              child: _token == null
-                  ? const CircularProgressIndicator(color: _bulkaYellow)
-                  : Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        QrImageView(
-                          data: _token!,
-                          size: 200,
-                          backgroundColor: Colors.white,
-                          errorCorrectionLevel: QrErrorCorrectLevel.H,
-                          eyeStyle: const QrEyeStyle(
-                            eyeShape: QrEyeShape.square,
-                            color: Color(0xFF4E2C1E),
+            BulkaHero(
+              tag: widget.heroTag,
+              child: Container(
+                width: 216,
+                height: 216,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(color: _almond.withValues(alpha: 0.45)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _cocoa.withValues(alpha: 0.12),
+                      blurRadius: 22,
+                      offset: const Offset(0, 12),
+                    ),
+                  ],
+                ),
+                alignment: Alignment.center,
+                child: _token == null && !_failed
+                    ? const CircularProgressIndicator(color: _bulkaYellow)
+                    : _failed
+                    ? Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.qr_code_2_rounded,
+                            color: _caramel,
+                            size: 64,
                           ),
-                          dataModuleStyle: const QrDataModuleStyle(
-                            dataModuleShape: QrDataModuleShape.circle,
-                            color: Color(0xFF4E2C1E),
-                          ),
-                        ),
-                        Container(
-                          width: 38,
-                          height: 38,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 3),
-                          ),
-                          child: ClipOval(
-                            child: Image.asset(
-                              'assets/brand/qr_logo.png',
-                              fit: BoxFit.cover,
+                          const SizedBox(height: 8),
+                          Text(
+                            'qr_unavailable'.tr,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: _errorRed,
+                              fontSize: 12,
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                _error!,
-                style: const TextStyle(color: Color(0xFFE53935), fontSize: 12),
+                          TextButton(
+                            onPressed: _tick,
+                            child: Text('retry_btn'.tr),
+                          ),
+                        ],
+                      )
+                    : Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          QrImageView(
+                            data: _token!,
+                            size: 200,
+                            backgroundColor: Colors.white,
+                            errorCorrectionLevel: QrErrorCorrectLevel.H,
+                            eyeStyle: const QrEyeStyle(
+                              eyeShape: QrEyeShape.square,
+                              color: Color(0xFF4E2C1E),
+                            ),
+                            dataModuleStyle: const QrDataModuleStyle(
+                              dataModuleShape: QrDataModuleShape.circle,
+                              color: Color(0xFF4E2C1E),
+                            ),
+                          ),
+                          Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 3),
+                            ),
+                            child: ClipOval(
+                              child: Image.asset(
+                                'assets/brand/qr_logo.png',
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
               ),
-            ],
+            ),
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -195,12 +226,12 @@ class _QrDialogState extends State<QrDialog> {
         await widget.api.createWalletUrl(widget.customer.phone),
       );
       if (!mounted) return;
-      await _openExternalUrl(context, uri, 'Не удалось открыть Wallet');
+      await _openExternalUrl(context, uri, 'error_open_wallet'.tr);
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Wallet временно недоступен')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('wallet_unavailable'.tr)));
     }
   }
 }

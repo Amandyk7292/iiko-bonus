@@ -125,6 +125,15 @@ ThemeData buildBulkaTheme() {
         fontWeight: FontWeight.w400,
       ),
     ),
+    pageTransitionsTheme: const PageTransitionsTheme(
+      builders: {
+        TargetPlatform.android: BulkaPageTransitionsBuilder(),
+        TargetPlatform.iOS: BulkaPageTransitionsBuilder(),
+        TargetPlatform.macOS: BulkaPageTransitionsBuilder(),
+        TargetPlatform.windows: BulkaPageTransitionsBuilder(),
+        TargetPlatform.linux: BulkaPageTransitionsBuilder(),
+      },
+    ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         minimumSize: const Size(0, 56),

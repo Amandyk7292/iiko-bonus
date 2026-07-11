@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/admin.controller');
+const tierController = require('../controllers/tier.controller');
 const { adminAuthMiddleware, adminLoginHandler } = require('../middlewares/auth.middleware');
 const { adminRateLimit, adminLoginRateLimit } = require('../middlewares/rate-limit.middleware');
 
@@ -9,6 +10,21 @@ router.post('/admin/api/login', adminLoginRateLimit, adminLoginHandler);
 
 router.get('/admin/api/settings', adminAuthMiddleware, adminController.getSettingsHandler);
 router.post('/admin/api/settings', adminAuthMiddleware, adminController.updateSettingsHandler);
+
+router.get('/admin/api/loyalty-tiers', adminAuthMiddleware, tierController.listAdminTiers);
+router.post('/admin/api/loyalty-tiers', adminAuthMiddleware, tierController.createAdminTier);
+router.put(
+  '/admin/api/loyalty-tiers/reorder',
+  adminAuthMiddleware,
+  tierController.reorderAdminTiers,
+);
+router.patch(
+  '/admin/api/loyalty-tiers/:id/active',
+  adminAuthMiddleware,
+  tierController.setAdminTierActive,
+);
+router.put('/admin/api/loyalty-tiers/:id', adminAuthMiddleware, tierController.updateAdminTier);
+router.delete('/admin/api/loyalty-tiers/:id', adminAuthMiddleware, tierController.deleteAdminTier);
 
 router.get('/admin/api/customers', adminAuthMiddleware, adminController.getCustomersHandler);
 router.get('/admin/api/transactions', adminAuthMiddleware, adminController.getTransactionsHandler);

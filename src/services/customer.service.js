@@ -5,7 +5,9 @@ const crypto = require('crypto');
  * Генерирует секретный идентификатор карты для Google/Apple Wallet
  */
 function getSecretWalletCardNumber(customer) {
-  if (!customer || !customer.id) return 'CARD-UNKNOWN';
+  if (!customer?.id || !customer?.phone) {
+    throw new Error('A valid customer is required to generate a wallet card number');
+  }
   const secret = process.env.BULKA_SECRET;
   if (!secret) throw new Error('BULKA_SECRET is required');
   const hash = crypto
@@ -127,7 +129,11 @@ async function applyLoyaltyTransaction({
   activationDelayDays = 0,
   items = null,
 }) {
-  if (!customerId || !orderId) throw new Error('customerId and orderId are required');
+  if (!customerId || !orderId) {
+    const validationError = new Error('customerId and orderId are required');
+    validationError.statusCode = 400;
+    throw validationError;
+  }
   const { data, error } = await supabase.rpc('apply_loyalty_transaction', {
     p_customer_id: customerId,
     p_order_id: String(orderId),
@@ -139,7 +145,24 @@ async function applyLoyaltyTransaction({
     p_items: items ? items : null,
   });
 
-  if (error) throw new Error('Error applying loyalty transaction: ' + error.message);
+  if (error) {
+    const message = String(error.message || '');
+    const transactionError = new Error('Could not apply loyalty transaction');
+    if (message.includes('insufficient balance')) {
+      transactionError.message = 'Insufficient bonus balance';
+      transactionError.statusCode = 409;
+    } else if (message.includes('already belongs to another customer')) {
+      transactionError.message = 'orderId is already assigned to another customer';
+      transactionError.statusCode = 409;
+    } else if (message.includes('invalid loyalty transaction values')) {
+      transactionError.message = 'Invalid loyalty transaction values';
+      transactionError.statusCode = 400;
+    } else if (message.includes('order_id is required')) {
+      transactionError.message = 'orderId is required';
+      transactionError.statusCode = 400;
+    }
+    throw transactionError;
+  }
   if (!data) throw new Error('Empty loyalty transaction result');
   return Array.isArray(data) ? data[0] : data;
 }

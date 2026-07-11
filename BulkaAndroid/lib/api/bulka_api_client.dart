@@ -35,17 +35,33 @@ class BulkaApiClient {
     return ProfileResponse.fromJson(json);
   }
 
+  Future<Tier?> getCustomerLoyalty() async {
+    final json = await _get('/api/customer/loyalty');
+    if (json['success'] == false) {
+      throw ApiException(_messageFrom(json, 'error_network'.tr));
+    }
+    final nested = json['loyalty'] ?? json['tier'] ?? json['data'];
+    final source = _asMap(nested);
+    if (source.isNotEmpty) return Tier.fromJson(source);
+    if (json.containsKey('name') ||
+        json.containsKey('level') ||
+        json.containsKey('progress')) {
+      return Tier.fromJson(json);
+    }
+    return null;
+  }
+
   Future<List<City>> getCities() async {
     final json = await _get('/api/public/cities');
     if (json['success'] != true) {
-      throw ApiException(_messageFrom(json, 'Не удалось загрузить города'));
+      throw ApiException(_messageFrom(json, 'error_load_cities'.tr));
     }
     final list = json['cities'] as List?;
     if (list == null) return [];
     return list.map((item) => City.fromJson(_asMap(item))).toList();
   }
 
-  Future<void> requestOtp({
+  Future<OtpRequestResult> requestOtp({
     required String phone,
     required String token,
   }) async {
@@ -54,8 +70,14 @@ class BulkaApiClient {
       'token': token,
     });
     if (json['success'] != true) {
-      throw ApiException(_messageFrom(json, 'Ошибка при отправке кода'));
+      throw ApiException(_messageFrom(json, 'error_send_code'.tr));
     }
+    return OtpRequestResult(
+      whatsappUrl: _nullableString(json['whatsappUrl'] ?? json['whatsapp_url']),
+      whatsappPhone: _nullableString(
+        json['whatsappPhone'] ?? json['whatsapp_phone'],
+      ),
+    );
   }
 
   Future<ProfileResponse> verifyOtp({
@@ -68,7 +90,9 @@ class BulkaApiClient {
     });
     final response = ProfileResponse.fromJson(json);
     if (!response.success) {
-      throw ApiException(response.message ?? response.error ?? 'Неверный код');
+      throw ApiException(
+        response.message ?? response.error ?? 'error_invalid_code'.tr,
+      );
     }
     return response;
   }
@@ -93,7 +117,7 @@ class BulkaApiClient {
     final response = ProfileResponse.fromJson(json);
     if (!response.success) {
       throw ApiException(
-        response.message ?? response.error ?? 'Ошибка при регистрации',
+        response.message ?? response.error ?? 'error_register'.tr,
       );
     }
     return response;
@@ -108,32 +132,36 @@ class BulkaApiClient {
     String? email,
     String? region,
   }) async {
-    final response = await _client.put(
-      _uri('/api/customer/profile'),
-      headers: {..._headers()},
-      body: jsonEncode({
-        'name': ?name,
-        'last_name': ?lastName,
-        'gender': ?gender,
-        'birth_date': ?birthDate,
-        'email': ?email,
-        'region': ?region,
-      }),
-    );
+    final response = await _client
+        .put(
+          _uri('/api/customer/profile'),
+          headers: {..._headers()},
+          body: jsonEncode({
+            'name': ?name,
+            'last_name': ?lastName,
+            'gender': ?gender,
+            'birth_date': ?birthDate,
+            'email': ?email,
+            'region': ?region,
+          }),
+        )
+        .timeout(const Duration(seconds: 15));
     final json = _decode(response);
     if (json['success'] != true) {
-      throw ApiException(_messageFrom(json, 'Ошибка при сохранении'));
+      throw ApiException(_messageFrom(json, 'error_save'.tr));
     }
   }
 
   Future<void> deleteAccount(String phone) async {
-    final response = await _client.delete(
-      _uri('/api/customer/profile'),
-      headers: {..._headers(json: false)},
-    );
+    final response = await _client
+        .delete(
+          _uri('/api/customer/profile'),
+          headers: {..._headers(json: false)},
+        )
+        .timeout(const Duration(seconds: 15));
     final json = _decode(response);
     if (json['success'] != true) {
-      throw ApiException(_messageFrom(json, 'Ошибка при удалении аккаунта'));
+      throw ApiException(_messageFrom(json, 'error_delete_account'.tr));
     }
   }
 
@@ -141,7 +169,7 @@ class BulkaApiClient {
     final json = await _post('/api/guest/qr-token', {});
     final token = _asString(json['token']);
     if (json['success'] == true && token.isNotEmpty) return token;
-    throw ApiException(_messageFrom(json, 'QR временно недоступен'));
+    throw ApiException(_messageFrom(json, 'qr_unavailable'.tr));
   }
 
   Future<String> createWalletUrl(String phone) async {
@@ -153,7 +181,7 @@ class BulkaApiClient {
     if (path.isNotEmpty) {
       return path.startsWith('http') ? path : _uri(path).toString();
     }
-    throw ApiException(_messageFrom(json, 'Wallet временно недоступен'));
+    throw ApiException(_messageFrom(json, 'wallet_unavailable'.tr));
   }
 
   Future<List<PromoStory>> getStories() async {
@@ -192,7 +220,9 @@ class BulkaApiClient {
   }
 
   Future<Map<String, dynamic>> _get(String path) async {
-    final response = await _client.get(_uri(path));
+    final response = await _client
+        .get(_uri(path), headers: _headers(json: false))
+        .timeout(const Duration(seconds: 15));
     return _decode(response);
   }
 
@@ -201,11 +231,13 @@ class BulkaApiClient {
     Map<String, dynamic> body, {
     String? bearerToken,
   }) async {
-    final response = await _client.post(
-      _uri(path),
-      headers: _headers(bearerToken: bearerToken),
-      body: jsonEncode(body),
-    );
+    final response = await _client
+        .post(
+          _uri(path),
+          headers: _headers(bearerToken: bearerToken),
+          body: jsonEncode(body),
+        )
+        .timeout(const Duration(seconds: 15));
     return _decode(response);
   }
 
@@ -215,7 +247,7 @@ class BulkaApiClient {
     final json = _asMap(decoded);
     if (response.statusCode >= 400) {
       throw ApiException(
-        _messageFrom(json, 'Ошибка сети'),
+        _messageFrom(json, 'error_network'.tr),
         statusCode: response.statusCode,
       );
     }

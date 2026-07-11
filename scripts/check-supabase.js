@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { supabase } = require('./supabase');
+const { supabase } = require('../src/config/supabase');
 
 async function main() {
   const missing = [];
@@ -20,19 +20,23 @@ async function main() {
   if (settingsReadError) throw new Error(`settings read failed: ${settingsReadError.message}`);
   checks.push(`settings read ok (${settings.length})`);
 
-  const testValue = String(Date.now());
-  const { error: settingsWriteError } = await supabase
-    .from('settings')
-    .upsert({ key: 'admin_db_healthcheck', value: testValue }, { onConflict: 'key' });
-  if (settingsWriteError) throw new Error(`settings write failed: ${settingsWriteError.message}`);
-  checks.push('settings write ok');
-
   const { data: customers, error: customersReadError } = await supabase
     .from('customers')
     .select('id')
     .limit(1);
   if (customersReadError) throw new Error(`customers read failed: ${customersReadError.message}`);
   checks.push(`customers read ok (${customers.length})`);
+
+  const { data: tiers, error: tiersReadError } = await supabase
+    .from('loyalty_tiers')
+    .select('id')
+    .limit(1);
+  if (tiersReadError) {
+    throw new Error(
+      `loyalty_tiers read failed (apply npm run db:migrate first): ${tiersReadError.message}`,
+    );
+  }
+  checks.push(`loyalty tiers read ok (${tiers.length})`);
 
   const { data: buckets, error: bucketError } = await supabase.storage.listBuckets();
   if (bucketError) throw new Error(`storage bucket check failed: ${bucketError.message}`);
@@ -42,7 +46,7 @@ async function main() {
   for (const check of checks) console.log(`- ${check}`);
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.error('Supabase check failed');
   console.error(err.message);
   process.exit(1);

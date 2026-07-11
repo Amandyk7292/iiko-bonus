@@ -36,7 +36,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadViewedStoryGroups();
     _loadFeed();
     _feedRefreshTimer = Timer.periodic(
-      const Duration(seconds: 5),
+      const Duration(minutes: 1),
       (_) => _loadFeed(),
     );
   }
@@ -57,7 +57,7 @@ class _HomeScreenState extends State<HomeScreen> {
         final decoded = jsonDecode(cachedStories) as List<dynamic>;
         setState(() {
           _stories = decoded
-              .map((e) => PromoStory.fromJson(e as Map<String, dynamic>))
+              .map((e) => PromoStory.fromJson(_asMap(e)))
               .toList();
           _initialLoading = false;
         });
@@ -67,9 +67,7 @@ class _HomeScreenState extends State<HomeScreen> {
       try {
         final decoded = jsonDecode(cachedNews) as List<dynamic>;
         setState(() {
-          _news = decoded
-              .map((e) => NewsItem.fromJson(e as Map<String, dynamic>))
-              .toList();
+          _news = decoded.map((e) => NewsItem.fromJson(_asMap(e))).toList();
         });
       } catch (_) {}
     }
@@ -138,6 +136,38 @@ class _HomeScreenState extends State<HomeScreen> {
     ).push(MaterialPageRoute(builder: (_) => const AddressSelectionScreen()));
   }
 
+  Future<void> _openBakeryLocations(String orderType) async {
+    final location = await Navigator.of(
+      context,
+    ).push<String>(MaterialPageRoute(builder: (_) => const LocationsScreen()));
+    if (!mounted || location == null || location.trim().isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('selected_bakery_location', location);
+    await prefs.setString('selected_order_type', orderType);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('bakery_selected'.trArgs({'name': location}))),
+    );
+  }
+
+  Future<void> _openQr() async {
+    BulkaMotion.lightImpact();
+    // A dialog route keeps the current home screen beneath the QR card.  The
+    // former opaque page route painted a black Scaffold over it, so the app
+    // background disappeared completely instead of being softly dimmed.
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'close_tooltip'.tr,
+      barrierColor: _cocoa.withValues(alpha: 0.18),
+      builder: (_) => QrDialog(
+        api: widget.api,
+        customer: widget.customer,
+        heroTag: 'qr-${widget.customer.phone}',
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final customer = widget.customer;
@@ -171,6 +201,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               offset: const Offset(-12, 0),
                               child: Image.asset(
                                 'assets/brand/bulka_logo.png',
+                                semanticLabel: 'app_title'.tr,
                                 width: 165,
                                 height: 64,
                                 fit: BoxFit.contain,
@@ -181,7 +212,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             Row(
                               children: [
                                 _IconCircleButton(
-                                  tooltip: 'Локации',
+                                  tooltip: 'locations_tooltip'.tr,
                                   icon: Icons.location_on_outlined,
                                   onTap: () {
                                     Navigator.of(context).push(
@@ -193,7 +224,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                                 const SizedBox(width: 8),
                                 _IconCircleButton(
-                                  tooltip: 'Уведомления',
+                                  tooltip: 'notifications_tooltip'.tr,
                                   icon: Icons.notifications_none_rounded,
                                   onTap: _loadFeed,
                                 ),
@@ -227,6 +258,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 24),
                         child: _OrderTypeSection(
                           onDeliveryTap: _openDeliveryAddresses,
+                          onPickupTap: () => _openBakeryLocations('pickup'),
+                          onPreorderTap: () => _openBakeryLocations('preorder'),
                         ),
                       ),
                       const SizedBox(height: 28),
@@ -246,11 +279,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             () => _loyaltyExpanded = !_loyaltyExpanded,
                           ),
                           onHistoryTap: widget.onHistoryTap,
-                          onQrTap: () => showDialog<void>(
-                            context: context,
-                            builder: (_) =>
-                                QrDialog(api: widget.api, customer: customer),
-                          ),
+                          onQrTap: _openQr,
                         ),
                       ),
                       if (_news.isNotEmpty) ...[
@@ -307,13 +336,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openStoryGroup(StoryGroup group) async {
-    await showGeneralDialog<void>(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: 'Story',
-      barrierColor: Colors.black,
-      pageBuilder: (_, _, _) =>
-          StoryViewer(stories: group.stories, initialIndex: 0),
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => StoryViewer(
+          stories: group.stories,
+          initialIndex: 0,
+          heroTag: 'promo-${group.id}',
+        ),
+      ),
     );
     await _markStoryGroupViewed(group.id);
   }
@@ -362,7 +392,10 @@ class _IconCircleButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return IconButton(
-      onPressed: onTap,
+      onPressed: () {
+        BulkaMotion.lightImpact();
+        onTap();
+      },
       tooltip: tooltip,
       style: IconButton.styleFrom(
         foregroundColor: const Color(0xFF6D3317),
@@ -375,9 +408,15 @@ class _IconCircleButton extends StatelessWidget {
 }
 
 class _OrderTypeSection extends StatelessWidget {
-  const _OrderTypeSection({required this.onDeliveryTap});
+  const _OrderTypeSection({
+    required this.onDeliveryTap,
+    required this.onPickupTap,
+    required this.onPreorderTap,
+  });
 
   final VoidCallback onDeliveryTap;
+  final VoidCallback onPickupTap;
+  final VoidCallback onPreorderTap;
 
   @override
   Widget build(BuildContext context) {
@@ -390,11 +429,13 @@ class _OrderTypeSection extends StatelessWidget {
               _OrderTypeCard(
                 title: 'order_pickup'.tr,
                 illustration: _OrderIllustrationKind.pickup,
+                onTap: onPickupTap,
               ),
               const SizedBox(height: 14),
               _OrderTypeCard(
                 title: 'order_preorder'.tr,
                 illustration: _OrderIllustrationKind.preorder,
+                onTap: onPreorderTap,
               ),
             ],
           ),
@@ -428,71 +469,79 @@ class _OrderTypeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: tall ? 208 : 100,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(24),
-          child: Ink(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24),
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFFFFD54F), Color(0xFFFFB300)],
+    return BulkaPressScale(
+      enabled: onTap != null,
+      child: SizedBox(
+        height: tall ? 208 : 100,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap == null
+                ? null
+                : () {
+                    BulkaMotion.lightImpact();
+                    onTap!();
+                  },
+            borderRadius: BorderRadius.circular(24),
+            child: Ink(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFFFFD54F), Color(0xFFFFB300)],
+                ),
               ),
-            ),
-            child: Stack(
-              clipBehavior: Clip.hardEdge,
-              children: [
-                Positioned(
-                  right: tall ? -18 : -10,
-                  bottom: tall ? 10 : -14,
-                  child: SizedBox(
-                    width: tall ? 175 : 105,
-                    height: tall ? 175 : 105,
-                    child: const CustomPaint(painter: _OrderSplashPainter()),
-                  ),
-                ),
-                Positioned(
-                  right: tall ? -34 : 0,
-                  bottom: tall ? -8 : -12,
-                  child: SizedBox(
-                    width: tall ? 178 : 88,
-                    height: tall ? 172 : 84,
-                    child: Image.asset(
-                      illustration.assetPath,
-                      fit: BoxFit.contain,
-                      filterQuality: FilterQuality.high,
+              child: Stack(
+                clipBehavior: Clip.hardEdge,
+                children: [
+                  Positioned(
+                    right: tall ? -18 : -10,
+                    bottom: tall ? 10 : -14,
+                    child: SizedBox(
+                      width: tall ? 175 : 105,
+                      height: tall ? 175 : 105,
+                      child: const CustomPaint(painter: _OrderSplashPainter()),
                     ),
                   ),
-                ),
-                Positioned(
-                  left: 14,
-                  top: 16,
-                  right: 12,
-                  child: _OrderCardTitle(title: title, tall: tall),
-                ),
-                Positioned(
-                  left: 14,
-                  bottom: 16,
-                  child: Container(
-                    width: 38,
-                    height: 38,
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.chevron_right_rounded,
-                      color: Color(0xFF6D3317),
-                      size: 28,
+                  Positioned(
+                    right: tall ? -34 : 0,
+                    bottom: tall ? -8 : -12,
+                    child: SizedBox(
+                      width: tall ? 178 : 88,
+                      height: tall ? 172 : 84,
+                      child: Image.asset(
+                        illustration.assetPath,
+                        fit: BoxFit.contain,
+                        filterQuality: FilterQuality.high,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                  Positioned(
+                    left: 14,
+                    top: 16,
+                    right: 12,
+                    child: _OrderCardTitle(title: title, tall: tall),
+                  ),
+                  Positioned(
+                    left: 14,
+                    bottom: 16,
+                    child: Container(
+                      width: 38,
+                      height: 38,
+                      decoration: const BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.chevron_right_rounded,
+                        color: Color(0xFF6D3317),
+                        size: 28,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

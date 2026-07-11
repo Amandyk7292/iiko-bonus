@@ -8,7 +8,8 @@ class LoginScreen extends StatefulWidget {
     super.key,
   });
 
-  final Future<String?> Function(String phone, String token) onRequestOtp;
+  final Future<OtpRequestResult> Function(String phone, String token)
+  onRequestOtp;
   final Future<String?> Function(String phone, String code) onVerifyOtp;
   final Future<String?> Function({
     required String phone,
@@ -29,15 +30,18 @@ class _LoginScreenState extends State<LoginScreen> {
   final _otpController = TextEditingController();
   final _nameController = TextEditingController();
   final _surnameController = TextEditingController();
+  final _emailController = TextEditingController();
 
   bool _otpStep = false;
   bool _registerStep = false;
   bool _loading = false;
   String? _error;
-  String _selectedLang = 'Русский';
+  String _selectedLang = AppLang.languageName('ru');
   String? _selectedGender;
   String? _birthdate;
   bool _termsAccepted = false;
+  String? _otpDeliveryPhone;
+  bool _otpDeliveryHasLink = false;
 
   @override
   void initState() {
@@ -59,7 +63,11 @@ class _LoginScreenState extends State<LoginScreen> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            final languages = ['Русский', 'Қазақша', 'English'];
+            final languages = [
+              AppLang.languageName('ru'),
+              AppLang.languageName('kk'),
+              AppLang.languageName('en'),
+            ];
 
             return Container(
               decoration: const BoxDecoration(
@@ -83,22 +91,14 @@ class _LoginScreenState extends State<LoginScreen> {
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      InkWell(
-                        onTap: () => Navigator.pop(context),
-                        borderRadius: BorderRadius.circular(20),
-                        child: Container(
-                          width: 32,
-                          height: 32,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFEADBBE),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.close_rounded,
-                            color: Colors.white,
-                            size: 18,
-                          ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        tooltip: 'close_tooltip'.tr,
+                        style: IconButton.styleFrom(
+                          backgroundColor: const Color(0xFFEADBBE),
+                          foregroundColor: Colors.white,
                         ),
+                        icon: const Icon(Icons.close_rounded, size: 18),
                       ),
                     ],
                   ),
@@ -170,6 +170,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         if (!context.mounted) return;
                         setState(() {
                           _selectedLang = tempLang;
+                          _error = null;
                         });
                         Navigator.pop(context);
                       },
@@ -205,6 +206,7 @@ class _LoginScreenState extends State<LoginScreen> {
     _otpController.dispose();
     _nameController.dispose();
     _surnameController.dispose();
+    _emailController.dispose();
     super.dispose();
   }
 
@@ -221,23 +223,27 @@ class _LoginScreenState extends State<LoginScreen> {
       12,
       (_) => chars[rng.nextInt(chars.length)],
     ).join();
-    final error = await widget.onRequestOtp(phone, token);
+    final result = await widget.onRequestOtp(phone, token);
     if (!mounted) return;
     setState(() => _loading = false);
-    if (error == null) {
+    if (result.isSuccess) {
+      final phoneHint = result.whatsappPhone?.trim();
       setState(() {
         _otpStep = true;
         _otpController.clear();
+        _otpDeliveryPhone = phoneHint;
+        _otpDeliveryHasLink = false;
       });
-      await _openExternalUrl(
-        context,
-        Uri.parse(
-          'https://wa.me/77008317499?text=${Uri.encodeComponent('Код $token')}',
-        ),
-        'Не удалось открыть WhatsApp',
-      );
+      final rawUrl = result.whatsappUrl?.trim();
+      final uri = rawUrl == null || rawUrl.isEmpty
+          ? null
+          : Uri.tryParse(rawUrl);
+      if (uri != null && uri.hasScheme && mounted) {
+        setState(() => _otpDeliveryHasLink = true);
+        await _openExternalUrl(context, uri, 'error_open_whatsapp'.tr);
+      }
     } else {
-      setState(() => _error = error);
+      setState(() => _error = result.error ?? 'error_send_code'.tr);
     }
   }
 
@@ -276,6 +282,12 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _error = 'reg_err_terms'.tr);
       return;
     }
+    final email = _emailController.text.trim();
+    if (email.isNotEmpty &&
+        !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
+      setState(() => _error = 'invalid_email'.tr);
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
@@ -290,7 +302,10 @@ class _LoginScreenState extends State<LoginScreen> {
         surname: _surnameController.text.trim(),
         gender: _selectedGender,
         birthdate: _birthdate,
+        email: email.isEmpty ? null : email,
       );
+    } else {
+      error = 'registration_unavailable'.tr;
     }
 
     if (!mounted) return;
@@ -372,6 +387,7 @@ class _LoginScreenState extends State<LoginScreen> {
               _error = null;
             });
           },
+          tooltip: 'back_tooltip'.tr,
         ),
         title: Text(
           'reg_title'.tr,
@@ -446,6 +462,12 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 12),
                 _buildDateField(context),
+                const SizedBox(height: 12),
+                _buildRegTextField(
+                  controller: _emailController,
+                  hint: 'reg_email_hint'.tr,
+                  keyboardType: TextInputType.emailAddress,
+                ),
                 const SizedBox(height: 12),
                 _buildReadOnlyPhoneField(),
                 const SizedBox(height: 20),
@@ -612,6 +634,10 @@ class _LoginScreenState extends State<LoginScreen> {
       child: TextField(
         controller: controller,
         keyboardType: keyboardType,
+        autofillHints: keyboardType == TextInputType.emailAddress
+            ? const [AutofillHints.email]
+            : null,
+        autocorrect: keyboardType != TextInputType.emailAddress,
         style: const TextStyle(color: Color(0xFF6D3317), fontSize: 15),
         decoration: InputDecoration(
           border: InputBorder.none,
@@ -698,43 +724,46 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildLanguageBadge() {
-    return InkWell(
-      onTap: _showLanguageBottomSheet,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: const Color(0xFF6D3317).withValues(alpha: 0.25),
-          ),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x0A000000),
-              blurRadius: 8,
-              offset: Offset(0, 2),
+    return Tooltip(
+      message: 'language_tooltip'.tr,
+      child: InkWell(
+        onTap: _showLanguageBottomSheet,
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: const Color(0xFF6D3317).withValues(alpha: 0.25),
             ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.language_rounded,
-              color: Color(0xFF6D3317),
-              size: 18,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              _langCode,
-              style: const TextStyle(
-                color: Color(0xFF6D3317),
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x0A000000),
+                blurRadius: 8,
+                offset: Offset(0, 2),
               ),
-            ),
-          ],
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.language_rounded,
+                color: Color(0xFF6D3317),
+                size: 18,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                _langCode,
+                style: const TextStyle(
+                  color: Color(0xFF6D3317),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -751,6 +780,7 @@ class _LoginScreenState extends State<LoginScreen> {
       TextField(
         controller: _phoneController,
         keyboardType: TextInputType.phone,
+        autofillHints: const [AutofillHints.telephoneNumberNational],
         maxLength: 10,
         textInputAction: TextInputAction.done,
         style: const TextStyle(
@@ -807,7 +837,11 @@ class _LoginScreenState extends State<LoginScreen> {
       _AuthStepHeader(
         step: 'login_step_2'.tr,
         title: 'confirm_phone_title'.tr,
-        subtitle: 'code_sent_whatsapp'.tr,
+        subtitle: _otpDeliveryHasLink
+            ? 'code_sent_whatsapp'.tr
+            : (_otpDeliveryPhone ?? '').isNotEmpty
+            ? 'whatsapp_phone_instruction'.trArgs({'phone': _otpDeliveryPhone})
+            : 'whatsapp_fallback_instruction'.tr,
       ),
       const SizedBox(height: 18),
       Container(
@@ -1077,30 +1111,36 @@ class _InlineAlert extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: _errorRed.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _errorRed.withValues(alpha: 0.22)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: _errorRed, size: 20),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              message,
-              style: const TextStyle(
-                color: _errorRed,
-                fontSize: 13,
-                height: 1.35,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+    return Semantics(
+      liveRegion: true,
+      label: message,
+      child: ExcludeSemantics(
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: _errorRed.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _errorRed.withValues(alpha: 0.22)),
           ),
-        ],
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, color: _errorRed, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  message,
+                  style: const TextStyle(
+                    color: _errorRed,
+                    fontSize: 13,
+                    height: 1.35,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

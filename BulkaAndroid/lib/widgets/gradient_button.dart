@@ -20,61 +20,70 @@ class GradientButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: height,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(borderRadius),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: onPressed == null || loading
-                ? [const Color(0xFFE0E0E0), const Color(0xFFBDBDBD)]
+    final effectiveOnPressed = loading || onPressed == null
+        ? null
+        : () {
+            BulkaMotion.lightImpact();
+            onPressed!();
+          };
+    return BulkaPressScale(
+      enabled: effectiveOnPressed != null,
+      child: SizedBox(
+        width: double.infinity,
+        height: height,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(borderRadius),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: onPressed == null || loading
+                  ? [const Color(0xFFE0E0E0), const Color(0xFFBDBDBD)]
+                  : [
+                      const Color(0xFFFFD54F),
+                      const Color(0xFFFFB300),
+                      const Color(0xFFFFA000),
+                    ],
+            ),
+            boxShadow: onPressed == null || loading
+                ? null
                 : [
-                    const Color(0xFFFFD54F),
-                    const Color(0xFFFFB300),
-                    const Color(0xFFFFA000),
+                    const BoxShadow(
+                      color: Color(0x33FFA000),
+                      blurRadius: 8,
+                      offset: Offset(0, 4),
+                    ),
                   ],
           ),
-          boxShadow: onPressed == null || loading
-              ? null
-              : [
-                  const BoxShadow(
-                    color: Color(0x33FFA000),
-                    blurRadius: 8,
-                    offset: Offset(0, 4),
-                  ),
-                ],
-        ),
-        child: FilledButton(
-          onPressed: loading ? null : onPressed,
-          style: FilledButton.styleFrom(
-            backgroundColor: Colors.transparent,
-            shadowColor: Colors.transparent,
-            foregroundColor: Colors.white,
-            padding: padding,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(borderRadius),
+          child: FilledButton(
+            onPressed: effectiveOnPressed,
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.transparent,
+              shadowColor: Colors.transparent,
+              foregroundColor: Colors.white,
+              padding: padding,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(borderRadius),
+              ),
             ),
+            child: loading
+                ? const SizedBox(
+                    height: 24,
+                    width: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: Colors.white,
+                    ),
+                  )
+                : DefaultTextStyle(
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    child: child,
+                  ),
           ),
-          child: loading
-              ? const SizedBox(
-                  height: 24,
-                  width: 24,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    color: Colors.white,
-                  ),
-                )
-              : DefaultTextStyle(
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  child: child,
-                ),
         ),
       ),
     );

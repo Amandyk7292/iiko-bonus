@@ -4,6 +4,8 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
@@ -17,6 +19,7 @@ part 'api/bulka_api_client.dart';
 part 'app/app.dart';
 part 'core/helpers.dart';
 part 'core/localization.dart';
+part 'core/motion.dart';
 part 'core/theme.dart';
 part 'models/models.dart';
 part 'repositories/address_repository.dart';

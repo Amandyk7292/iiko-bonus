@@ -26,6 +26,7 @@ class PromoBannerShimmer extends StatefulWidget {
 class _PromoBannerShimmerState extends State<PromoBannerShimmer>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
+  bool _reduceMotion = false;
 
   @override
   void initState() {
@@ -33,7 +34,21 @@ class _PromoBannerShimmerState extends State<PromoBannerShimmer>
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1400),
-    )..repeat();
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reduceMotion = BulkaMotion.reduced(context);
+    if (reduceMotion == _reduceMotion && _controller.isAnimating) return;
+    _reduceMotion = reduceMotion;
+    if (_reduceMotion) {
+      _controller.stop();
+      _controller.value = 0.5;
+    } else if (!_controller.isAnimating) {
+      _controller.repeat();
+    }
   }
 
   @override
@@ -47,79 +62,82 @@ class _PromoBannerShimmerState extends State<PromoBannerShimmer>
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
-        final v = _controller.value;
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Container(
-            height: 146,
-            clipBehavior: Clip.antiAlias,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(
-                color: const Color(0xFF6D3317).withValues(alpha: 0.10),
-              ),
-              gradient: LinearGradient(
-                begin: Alignment(-2.0 + 4.0 * v, -0.5),
-                end: Alignment(-1.0 + 4.0 * v, 0.5),
-                colors: const [
-                  Color(0xFFFFFFFF),
-                  Color(0xFFFAFAF7),
-                  Color(0xFFFFE8C2),
-                  Color(0xFFFAFAF7),
-                  Color(0xFFFFFFFF),
-                ],
-                stops: const [0.0, 0.35, 0.5, 0.65, 1.0],
-              ),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x0C000000),
-                  blurRadius: 16,
-                  offset: Offset(0, 4),
-                ),
-              ],
-            ),
-            padding: const EdgeInsets.all(22),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
+        final v = _reduceMotion ? 0.5 : _controller.value;
+        return LayoutBuilder(
+          builder: (context, constraints) => Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: constraints.maxWidth >= 720
+                ? Row(
                     children: [
-                      Container(
-                        width: 180,
-                        height: 22,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE8E3DA),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Container(
-                        width: 240,
-                        height: 14,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF0EBE3),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        width: 140,
-                        height: 14,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF0EBE3),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                      ),
+                      Expanded(child: _buildCard(v)),
+                      const SizedBox(width: 18),
+                      Expanded(child: _buildCard(v)),
                     ],
-                  ),
-                ),
-              ],
-            ),
+                  )
+                : _buildCard(v),
           ),
         );
       },
+    );
+  }
+
+  Widget _buildCard(double value) {
+    return Container(
+      height: 146,
+      clipBehavior: Clip.antiAlias,
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+          color: const Color(0xFF6D3317).withValues(alpha: 0.10),
+        ),
+        gradient: LinearGradient(
+          begin: Alignment(-2.0 + 4.0 * value, -0.5),
+          end: Alignment(-1.0 + 4.0 * value, 0.5),
+          colors: const [
+            Color(0xFFFFFFFF),
+            Color(0xFFFAFAF7),
+            Color(0xFFFFE8C2),
+            Color(0xFFFAFAF7),
+            Color(0xFFFFFFFF),
+          ],
+          stops: const [0.0, 0.35, 0.5, 0.65, 1.0],
+        ),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0C000000),
+            blurRadius: 16,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _skeletonLine(180, 22, 8, const Color(0xFFE8E3DA)),
+          const SizedBox(height: 12),
+          _skeletonLine(240, 14, 6, const Color(0xFFF0EBE3)),
+          const SizedBox(height: 8),
+          _skeletonLine(140, 14, 6, const Color(0xFFF0EBE3)),
+        ],
+      ),
+    );
+  }
+
+  Widget _skeletonLine(
+    double width,
+    double height,
+    double radius,
+    Color color,
+  ) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(radius),
+      ),
     );
   }
 }
@@ -144,24 +162,36 @@ class _PromoBannerSliderState extends State<PromoBannerSlider> {
   late final PageController _pageController;
   int _currentIndex = 0;
   Timer? _timer;
+  bool _reduceMotion = false;
+  bool _dependenciesReady = false;
 
   @override
   void initState() {
     super.initState();
     _pageController = PageController();
-    _startTimer();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reduceMotion = BulkaMotion.reduced(context);
+    if (!_dependenciesReady || reduceMotion != _reduceMotion) {
+      _dependenciesReady = true;
+      _reduceMotion = reduceMotion;
+      _startTimer();
+    }
   }
 
   void _startTimer() {
     _timer?.cancel();
-    if (widget.groups.length > 1) {
+    if (!_reduceMotion && widget.groups.length > 1) {
       _timer = Timer.periodic(const Duration(seconds: 5), (_) {
         if (!mounted || !_pageController.hasClients) return;
         final next = (_currentIndex + 1) % widget.groups.length;
         _pageController.animateToPage(
           next,
-          duration: const Duration(milliseconds: 500),
-          curve: Curves.easeInOutCubic,
+          duration: BulkaMotion.emphasized,
+          curve: Curves.easeOutCubic,
         );
       });
     }
@@ -186,74 +216,132 @@ class _PromoBannerSliderState extends State<PromoBannerSlider> {
   Widget build(BuildContext context) {
     if (widget.groups.isEmpty) return const SizedBox.shrink();
 
-    return Column(
-      children: [
-        SizedBox(
-          height: 136,
-          child: PageView.builder(
-            controller: _pageController,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth >= 720) {
+          return GridView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 18,
+              mainAxisSpacing: 18,
+              mainAxisExtent: 146,
+            ),
             itemCount: widget.groups.length,
-            onPageChanged: (idx) => setState(() => _currentIndex = idx),
-            itemBuilder: (context, idx) {
-              final group = widget.groups[idx];
+            itemBuilder: (context, index) => _PromoBannerCard(
+              group: widget.groups[index],
+              viewed: widget.viewedGroups.contains(widget.groups[index].id),
+              onTap: () => widget.onGroupTap(widget.groups[index]),
+            ),
+          );
+        }
 
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: InkWell(
-                  onTap: () => widget.onGroupTap(group),
-                  borderRadius: BorderRadius.circular(22),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(22),
-                      border: Border.all(
-                        color: const Color(0xFFEADBBE),
-                        width: 1.2,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(
-                            0xFF6D3317,
-                          ).withValues(alpha: 0.10),
-                          blurRadius: 16,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(20.8),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [_BannerFullCoverWidget(group: group)],
-                      ),
-                    ),
+        return Column(
+          children: [
+            SizedBox(
+              height: 136,
+              child: PageView.builder(
+                controller: _pageController,
+                itemCount: widget.groups.length,
+                onPageChanged: (idx) => setState(() => _currentIndex = idx),
+                itemBuilder: (context, idx) => Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: _PromoBannerCard(
+                    group: widget.groups[idx],
+                    viewed: widget.viewedGroups.contains(widget.groups[idx].id),
+                    onTap: () => widget.onGroupTap(widget.groups[idx]),
                   ),
                 ),
-              );
-            },
+              ),
+            ),
+            if (widget.groups.length > 1) ...[
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(widget.groups.length, (idx) {
+                  final active = idx == _currentIndex;
+                  return AnimatedContainer(
+                    duration: BulkaMotion.duration(
+                      context,
+                      BulkaMotion.standard,
+                    ),
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    width: active ? 20 : 6,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: active
+                          ? const Color(0xFFFFB300)
+                          : const Color(0xFFE4D3BA),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  );
+                }),
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _PromoBannerCard extends StatelessWidget {
+  const _PromoBannerCard({
+    required this.group,
+    required this.viewed,
+    required this.onTap,
+  });
+
+  final StoryGroup group;
+  final bool viewed;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'story_open'.trArgs({'title': group.title}),
+      child: BulkaHero(
+        tag: 'promo-${group.id}',
+        child: BulkaPressScale(
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              key: ValueKey('promo-card-${group.id}'),
+              onTap: () {
+                BulkaMotion.lightImpact();
+                onTap();
+              },
+              borderRadius: BorderRadius.circular(22),
+              child: AnimatedContainer(
+                duration: BulkaMotion.duration(context, BulkaMotion.fast),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(22),
+                  border: Border.all(
+                    color: viewed
+                        ? const Color(0xFFEADBBE).withValues(alpha: 0.62)
+                        : const Color(0xFFE0B858),
+                    width: viewed ? 1.2 : 1.8,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF6D3317).withValues(alpha: 0.10),
+                      blurRadius: 16,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20.8),
+                  child: _BannerFullCoverWidget(group: group),
+                ),
+              ),
+            ),
           ),
         ),
-        if (widget.groups.length > 1) ...[
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(widget.groups.length, (idx) {
-              final active = idx == _currentIndex;
-              return AnimatedContainer(
-                duration: const Duration(milliseconds: 280),
-                margin: const EdgeInsets.symmetric(horizontal: 3),
-                width: active ? 20 : 6,
-                height: 5,
-                decoration: BoxDecoration(
-                  color: active
-                      ? const Color(0xFFFFB300)
-                      : const Color(0xFFE4D3BA),
-                  borderRadius: BorderRadius.circular(3),
-                ),
-              );
-            }),
-          ),
-        ],
-      ],
+      ),
     );
   }
 }
@@ -297,7 +385,7 @@ class _BannerFullCoverWidget extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  group.subtitle ?? 'Специальное предложение от Bulka Cafe',
+                  group.subtitle ?? 'story_offer_fallback'.tr,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -328,11 +416,8 @@ class PromoModalViewer extends StatelessWidget {
         group.subtitle ??
         story?.description ??
         story?.title ??
-        'Специальное предложение для гостей Bulka Cafe!';
-    final isHappy =
-        group.id == 'happy_hours' ||
-        title.contains('ЧАСЫ') ||
-        title.contains('2+1');
+        'story_offer_fallback'.tr;
+    final isHappy = group.id == 'happy_hours' || title.contains('2+1');
 
     return Scaffold(
       backgroundColor: const Color(0xFFFDF8F0),
@@ -377,6 +462,7 @@ class PromoModalViewer extends StatelessWidget {
                     alignment: Alignment.centerRight,
                     child: IconButton(
                       onPressed: () => Navigator.of(context).maybePop(),
+                      tooltip: 'close_tooltip'.tr,
                       icon: const Icon(
                         Icons.close,
                         color: Color(0xFF5A2A18),
@@ -444,7 +530,7 @@ class PromoModalViewer extends StatelessWidget {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Text(
-                                  isHappy ? '2 + 1' : 'Подарок',
+                                  isHappy ? '2 + 1' : 'story_gift'.tr,
                                   style: TextStyle(
                                     fontFamily: _headingFont,
                                     fontSize: isHappy ? 64 : 68,
@@ -454,9 +540,7 @@ class PromoModalViewer extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  isHappy
-                                      ? '3 булочки по цене 2-х после 21:00'
-                                      : 'Бонус за каждого друга',
+                                  subtitle,
                                   style: const TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w700,
@@ -474,16 +558,14 @@ class PromoModalViewer extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(28, 0, 28, 20),
               child: Column(
                 children: [
-                  const Text(
-                    'Только для участников программы лояльности!',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 12.5, color: Color(0xFF9A714A)),
-                  ),
-                  const SizedBox(height: 14),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: () => Navigator.of(context).maybePop(),
+                      onPressed: () => Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => const LocationsScreen(),
+                        ),
+                      ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFDCAE68),
                         foregroundColor: Colors.white,
@@ -493,9 +575,9 @@ class PromoModalViewer extends StatelessWidget {
                         ),
                         elevation: 0,
                       ),
-                      child: const Text(
-                        'Заказать',
-                        style: TextStyle(
+                      child: Text(
+                        'catalog_action'.tr,
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
                         ),
@@ -516,11 +598,13 @@ class StoryViewer extends StatefulWidget {
   const StoryViewer({
     required this.stories,
     required this.initialIndex,
+    required this.heroTag,
     super.key,
   });
 
   final List<PromoStory> stories;
   final int initialIndex;
+  final Object heroTag;
 
   @override
   State<StoryViewer> createState() => _StoryViewerState();
@@ -544,7 +628,7 @@ class _StoryViewerState extends State<StoryViewer>
       });
     _cubeController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 460),
+      duration: BulkaMotion.emphasized,
     );
     _play();
   }
@@ -587,6 +671,15 @@ class _StoryViewerState extends State<StoryViewer>
 
   Future<void> _goTo(int nextIndex, {required bool forward}) async {
     _controller.stop();
+    BulkaMotion.selection();
+    if (BulkaMotion.reduced(context)) {
+      setState(() {
+        _index = nextIndex;
+        _targetIndex = null;
+      });
+      _play();
+      return;
+    }
     setState(() {
       _targetIndex = nextIndex;
       _forward = forward;
@@ -616,13 +709,16 @@ class _StoryViewerState extends State<StoryViewer>
         child: Stack(
           fit: StackFit.expand,
           children: [
-            AnimatedBuilder(
-              animation: _cubeController,
-              builder: (context, _) => _StoryCubeStage(
-                current: story,
-                target: targetStory,
-                progress: _cubeController.value,
-                forward: _forward,
+            BulkaHero(
+              tag: widget.heroTag,
+              child: AnimatedBuilder(
+                animation: _cubeController,
+                builder: (context, _) => _StoryCubeStage(
+                  current: story,
+                  target: targetStory,
+                  progress: _cubeController.value,
+                  forward: _forward,
+                ),
               ),
             ),
             DecoratedBox(
@@ -713,6 +809,7 @@ class _StoryViewerState extends State<StoryViewer>
                         ),
                         IconButton(
                           onPressed: () => Navigator.of(context).maybePop(),
+                          tooltip: 'close_tooltip'.tr,
                           icon: const Icon(
                             Icons.close,
                             color: Colors.white,
@@ -746,9 +843,7 @@ class _StoryFullImage extends StatelessWidget {
       return _NetworkImage(url: url, fit: BoxFit.cover);
     }
     final isHappy =
-        story.groupId == 'happy_hours' ||
-        story.title.contains('ЧАСЫ') ||
-        story.title.contains('2+1');
+        story.groupId == 'happy_hours' || story.title.contains('2+1');
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
@@ -762,7 +857,7 @@ class _StoryFullImage extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(
-            isHappy ? '2 + 1' : 'Подарок',
+            isHappy ? '2 + 1' : 'story_gift'.tr,
             style: TextStyle(
               fontFamily: _headingFont,
               fontSize: isHappy ? 80 : 86,

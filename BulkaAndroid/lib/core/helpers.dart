@@ -59,7 +59,7 @@ Future<void> _openTelegram(BuildContext context) async {
     await _openExternalUrl(
       context,
       Uri.parse('https://t.me/bulkawallet_bot'),
-      'Не удалось открыть Telegram',
+      'error_open_telegram'.tr,
     );
   }
 }
@@ -75,9 +75,8 @@ Future<void> _openExternalUrl(
   }
 }
 
-String _userError(Object error, String fallback) {
-  if (error is ApiException && error.message.isNotEmpty) return error.message;
-  return fallback;
+String _userError(Object error, String fallbackKey) {
+  return localizeErrorMessage(error, fallbackKey: fallbackKey);
 }
 
 String _messageFrom(Map<String, dynamic> json, String fallback) {
@@ -109,6 +108,19 @@ List<BonusTransaction> _readTransactions(String? raw) {
 String formatMoney(double value) {
   if (value % 1 == 0) return value.toInt().toString();
   return value.toStringAsFixed(2);
+}
+
+String formatGroupedNumber(double value) {
+  final rounded = value.round().abs().toString();
+  final separator = AppLang.current == 'en' ? ',' : ' ';
+  final buffer = StringBuffer(value < 0 ? '-' : '');
+  for (var index = 0; index < rounded.length; index++) {
+    if (index > 0 && (rounded.length - index) % 3 == 0) {
+      buffer.write(separator);
+    }
+    buffer.write(rounded[index]);
+  }
+  return buffer.toString();
 }
 
 List<String> _getLocalizedMonths() {

@@ -9,19 +9,20 @@ class AddressMapScreen extends StatefulWidget {
 
 class _AddressMapScreenState extends State<AddressMapScreen> {
   static const _defaultPoint = LatLng(43.6532, 51.1975);
-  static const _defaultAddress = 'Выберите точку на карте';
 
   final _mapController = MapController();
   final _searchController = TextEditingController();
   LatLng _point = _defaultPoint;
   double _zoom = 14.5;
-  String _address = _defaultAddress;
+  String _address = '';
+  bool _addressResolved = false;
   bool _resolving = false;
   bool _locating = false;
 
   @override
   void initState() {
     super.initState();
+    _address = 'map_select_point'.tr;
     unawaited(_reverseGeocode(_point));
   }
 
@@ -39,24 +40,40 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
       final uri = Uri.https('nominatim.openstreetmap.org', '/search', {
         'format': 'jsonv2',
         'limit': '1',
-        'q': '$query, Актау, Казахстан',
+        'q': '$query, Aktau, Kazakhstan',
+        'accept-language': AppLang.current,
       });
-      final response = await http.get(uri, headers: _osmHeaders);
-      if (response.statusCode != 200) return;
+      final response = await http
+          .get(uri, headers: _osmHeaders)
+          .timeout(const Duration(seconds: 12));
+      if (!mounted) return;
+      if (response.statusCode != 200) {
+        _showLocationError('map_search_failed'.tr);
+        return;
+      }
       final items = jsonDecode(response.body);
-      if (items is! List || items.isEmpty) return;
+      if (items is! List || items.isEmpty) {
+        _showLocationError('map_search_not_found'.tr);
+        return;
+      }
       final item = _asMap(items.first);
       final lat = _asDouble(item['lat']);
       final lon = _asDouble(item['lon']);
-      if (lat == 0 || lon == 0) return;
+      if (lat == 0 || lon == 0) {
+        _showLocationError('map_search_not_found'.tr);
+        return;
+      }
       final nextPoint = LatLng(lat, lon);
       setState(() {
         _point = nextPoint;
         _address = _cleanAddress(
           _asString(item['display_name'], fallback: query),
         );
+        _addressResolved = true;
       });
       _moveMap(nextPoint, 16);
+    } catch (_) {
+      if (mounted) _showLocationError('map_search_failed'.tr);
     } finally {
       if (mounted) setState(() => _resolving = false);
     }
@@ -69,7 +86,7 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled()
           .timeout(const Duration(seconds: 3), onTimeout: () => false);
       if (!serviceEnabled) {
-        _useAktauFallback('Геолокация выключена. Оставил центр Актау');
+        _useAktauFallback('geo_disabled'.tr);
         return;
       }
 
@@ -85,7 +102,7 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
       }
       if (permission == LocationPermission.denied ||
           permission == LocationPermission.deniedForever) {
-        _showLocationError('Разрешите доступ к геолокации');
+        _showLocationError('geo_permission'.tr);
         return;
       }
 
@@ -94,6 +111,7 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
         onTimeout: () => null,
       );
       if (lastKnown != null) {
+        if (!mounted) return;
         _applyPosition(lastKnown);
         return;
       }
@@ -104,13 +122,12 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
           timeLimit: Duration(seconds: 4),
         ),
       ).timeout(const Duration(seconds: 5));
+      if (!mounted) return;
       _applyPosition(position);
     } on TimeoutException {
-      _useAktauFallback(
-        'Эмулятор не дал координаты. Задайте Location в Extended controls',
-      );
+      _useAktauFallback('geo_timeout'.tr);
     } catch (_) {
-      _useAktauFallback('Не удалось получить местоположение');
+      _useAktauFallback('geo_failed'.tr);
     } finally {
       if (mounted) setState(() => _locating = false);
     }
@@ -123,18 +140,21 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
   }
 
   void _useAktauFallback(String message) {
+    if (!mounted) return;
     _moveMap(_defaultPoint, 14.5);
     _setPoint(_defaultPoint);
     _showLocationError(message);
   }
 
   void _showLocationError(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _moveMap(LatLng point, double zoom) {
+    if (!mounted) return;
     setState(() => _zoom = zoom);
     _mapController.move(point, zoom);
   }
@@ -152,15 +172,27 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
         'lat': point.latitude.toString(),
         'lon': point.longitude.toString(),
         'addressdetails': '1',
+        'accept-language': AppLang.current,
       });
-      final response = await http.get(uri, headers: _osmHeaders);
+      final response = await http
+          .get(uri, headers: _osmHeaders)
+          .timeout(const Duration(seconds: 12));
       if (response.statusCode != 200) return;
       final json = _asMap(jsonDecode(response.body));
       final nextAddress = _cleanAddress(
-        _asString(json['display_name'], fallback: _defaultAddress),
+        _asString(json['display_name'], fallback: 'map_selected_point'.tr),
       );
       if (!mounted) return;
-      setState(() => _address = nextAddress);
+      setState(() {
+        _address = nextAddress;
+        _addressResolved = true;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _address = 'map_selected_point'.tr;
+        _addressResolved = false;
+      });
     } finally {
       if (mounted) setState(() => _resolving = false);
     }
@@ -169,15 +201,16 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
   void _setPoint(LatLng point) {
     setState(() {
       _point = point;
-      _address = 'Определяем адрес...';
+      _address = 'map_resolving'.tr;
+      _addressResolved = false;
     });
     unawaited(_reverseGeocode(point));
   }
 
   DeliveryLocation _selectedLocation() {
     return DeliveryLocation(
-      city: 'Актау',
-      address: _address == _defaultAddress ? 'Выбранная точка' : _address,
+      city: 'Aktau',
+      address: _addressResolved ? _address : 'map_selected_point'.tr,
       latitude: _point.latitude,
       longitude: _point.longitude,
     );
@@ -194,11 +227,11 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
           onPressed: () => Navigator.of(context).pop(),
           icon: const Icon(Icons.chevron_left_rounded, size: 34),
           color: _cocoa.withValues(alpha: 0.56),
-          tooltip: 'Назад',
+          tooltip: 'back_tooltip'.tr,
         ),
-        title: const Text(
-          'Локации',
-          style: TextStyle(
+        title: Text(
+          'locations_title'.tr,
+          style: const TextStyle(
             fontFamily: _headingFont,
             fontSize: 30,
             fontWeight: FontWeight.w400,
@@ -239,19 +272,19 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
                       children: [
                         _MapRoundButton(
                           icon: Icons.add_rounded,
-                          tooltip: 'Приблизить',
+                          tooltip: 'map_zoom_in'.tr,
                           onTap: () => _zoomBy(1),
                         ),
                         const SizedBox(height: 10),
                         _MapRoundButton(
                           icon: Icons.remove_rounded,
-                          tooltip: 'Отдалить',
+                          tooltip: 'map_zoom_out'.tr,
                           onTap: () => _zoomBy(-1),
                         ),
                         const SizedBox(height: 14),
                         _MapRoundButton(
                           icon: Icons.near_me_rounded,
-                          tooltip: 'Мое местоположение',
+                          tooltip: 'map_my_location'.tr,
                           filled: true,
                           loading: _locating,
                           onTap: _goToMyLocation,
@@ -301,9 +334,9 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
                     child: GradientButton(
                       onPressed: () =>
                           Navigator.of(context).pop(_selectedLocation()),
-                      child: const Text(
-                        'Подтвердить',
-                        style: TextStyle(
+                      child: Text(
+                        'confirm_btn'.tr,
+                        style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w400,
                         ),
@@ -415,9 +448,68 @@ class _DeliveryMap extends StatelessWidget {
               point: point,
               width: 116,
               height: 86,
-              child: const _MapPointLabel(
-                label: 'Вы здесь',
-                accent: Color(0xFF7B2FF2),
+              child: _MapPointLabel(
+                label: 'map_you_are_here'.tr,
+                accent: const Color(0xFF7B2FF2),
+              ),
+            ),
+          ],
+        ),
+        RichAttributionWidget(
+          alignment: AttributionAlignment.bottomLeft,
+          showFlutterMapAttribution: false,
+          permanentHeight: 22,
+          popupBackgroundColor: Colors.white.withValues(alpha: 0.94),
+          popupBorderRadius: BorderRadius.circular(12),
+          openButton: (context, open) => IconButton(
+            onPressed: open,
+            tooltip: 'map_data_attribution'.tr,
+            icon: const Icon(Icons.info_outline_rounded, size: 22),
+          ),
+          closeButton: (context, close) => IconButton(
+            onPressed: close,
+            tooltip: 'close_tooltip'.tr,
+            icon: const Icon(Icons.cancel_outlined, size: 22),
+          ),
+          attributions: [
+            LogoSourceAttribution(
+              Container(
+                height: 22,
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.9),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '${'map_data_attribution'.tr} © OSM · CARTO · Esri',
+                  style: const TextStyle(fontSize: 10, color: _textDark),
+                ),
+              ),
+              height: 22,
+              tooltip: 'map_data_attribution'.tr,
+              onTap: () => unawaited(
+                launchUrl(Uri.parse('https://www.openstreetmap.org/copyright')),
+              ),
+            ),
+            TextSourceAttribution(
+              'OpenStreetMap contributors',
+              onTap: () => unawaited(
+                launchUrl(Uri.parse('https://www.openstreetmap.org/copyright')),
+              ),
+            ),
+            TextSourceAttribution(
+              'CARTO',
+              onTap: () => unawaited(
+                launchUrl(Uri.parse('https://carto.com/attributions')),
+              ),
+            ),
+            TextSourceAttribution(
+              'Esri',
+              onTap: () => unawaited(
+                launchUrl(
+                  Uri.parse('https://www.esri.com/legal/copyright-trademarks'),
+                ),
               ),
             ),
           ],
@@ -446,7 +538,7 @@ class _MapSearchField extends StatelessWidget {
         onSubmitted: onSubmitted,
         style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
         decoration: InputDecoration(
-          hintText: 'Поиск',
+          hintText: 'search_hint'.tr,
           hintStyle: TextStyle(
             color: _textDark.withValues(alpha: 0.42),
             fontSize: 20,
@@ -493,11 +585,16 @@ class _MapRoundButton extends StatelessWidget {
         elevation: 8,
         shadowColor: Colors.black.withValues(alpha: 0.16),
         child: InkWell(
-          onTap: loading ? null : onTap,
+          onTap: loading
+              ? null
+              : () {
+                  BulkaMotion.selection();
+                  onTap();
+                },
           customBorder: const CircleBorder(),
           child: SizedBox(
-            width: filled ? 56 : 44,
-            height: filled ? 56 : 44,
+            width: filled ? 56 : 48,
+            height: filled ? 56 : 48,
             child: loading
                 ? Padding(
                     padding: const EdgeInsets.all(16),

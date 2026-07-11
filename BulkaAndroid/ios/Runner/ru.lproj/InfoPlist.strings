@@ -1,0 +1,3 @@
+"CFBundleDisplayName" = "Пекарня Bulka";
+"CFBundleName" = "Пекарня Bulka";
+"NSLocationWhenInUseUsageDescription" = "Геолокация нужна, чтобы показать ближайшие пекарни Bulka и помочь выбрать точку самовывоза.";

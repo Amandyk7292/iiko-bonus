@@ -9,6 +9,7 @@ const { readSecretBuffer } = require('../utils/cert.util');
 const { getSecretWalletCardNumber } = require('./customer.service');
 const { getTierInfo } = require('../utils/tier.util');
 const { getSettings } = require('./settings.service');
+const { getActiveLoyaltyTiers } = require('./tier.service');
 const { safeEqual, signWalletToken, verifyToken } = require('./auth.service');
 
 function createWalletToken(phone) {
@@ -77,7 +78,8 @@ function getPublicBaseUrl() {
 
 async function buildApplePassBuffer(customer) {
   const settings = await getSettings();
-  const tier = getTierInfo(customer.total_spent, settings);
+  const tiers = await getActiveLoyaltyTiers(settings);
+  const tier = getTierInfo(customer.total_spent, tiers, settings);
 
   const signerCert = readSecretBuffer('WALLET_CERT', 'wallet_cert.pem');
   const signerKey = readSecretBuffer('WALLET_KEY', 'wallet_private_key.pem');

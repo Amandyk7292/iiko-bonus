@@ -81,6 +81,10 @@ app.use('/api', globalApiRateLimit);
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
+app.get('/healthz', (_req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
 app.use(adminRoutes);
 app.use(loyaltyRoutes);
 app.use(walletRoutes);

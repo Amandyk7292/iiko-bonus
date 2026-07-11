@@ -370,15 +370,17 @@ async function initWhatsApp(otpStore, getOrCreateCustomerByPhone) {
 /** Отправка сообщения через активную QR-сессию Baileys. */
 async function sendWhatsAppMessage(phone, text) {
   if (!sock) {
-    console.log(`[WHATSAPP MOCK] Отправка недоступна (не инициализировано). Сообщение: ${text}`);
-    return;
+    console.warn('[WHATSAPP] Message was not sent because the client is not initialized.');
+    return false;
   }
   const cleanPhone = phone.replace(/[^0-9]/g, '');
   const remoteJid = `${cleanPhone}@s.whatsapp.net`;
   try {
     await sock.sendMessage(remoteJid, { text });
+    return true;
   } catch (err) {
     console.error('[WHATSAPP ERROR] Не удалось отправить сообщение', err);
+    return false;
   }
 }
 

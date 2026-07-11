@@ -7,6 +7,6 @@ function parseMoney(value, fieldName, { min = 0, max = 100000000 } = {}) {
     error.statusCode = 400;
     throw error;
   }
-  return parsed;
+  return Number(parsed.toFixed(2));
 }
 module.exports = { parseMoney };

@@ -1,0 +1,5 @@
+# Copy this file to key.properties and keep the real values out of version control.
+storeFile=../keystore/bulka-upload.jks
+storePassword=replace-with-a-strong-password
+keyAlias=bulka-upload
+keyPassword=replace-with-a-strong-password

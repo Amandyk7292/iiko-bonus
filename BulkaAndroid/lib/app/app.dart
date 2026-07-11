@@ -8,6 +8,8 @@ class BulkaBonusApp extends StatefulWidget {
 }
 
 class _BulkaBonusAppState extends State<BulkaBonusApp> {
+  static const _minimumSplashDuration = Duration(milliseconds: 2200);
+
   final _api = BulkaApiClient();
   SharedPreferences? _prefs;
   Timer? _refreshTimer;
@@ -31,6 +33,10 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
   }
 
   Future<void> _bootstrap() async {
+    // Keep the branded Flutter splash on screen long enough to be perceived.
+    // Without this guard a warm start can resolve SharedPreferences in a single
+    // frame and jump straight to LoginScreen, which looks as if splash vanished.
+    final minimumSplashDelay = Future<void>.delayed(_minimumSplashDuration);
     final prefs = await SharedPreferences.getInstance();
     final phone = prefs.getString('phone');
     final accessToken = prefs.getString('accessToken');
@@ -39,10 +45,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
       prefs.getString('transactions'),
     );
 
-    final minSplashDelay = Future.delayed(const Duration(milliseconds: 2200));
-
-    if (!mounted) return;
-    await minSplashDelay;
+    await minimumSplashDelay;
     if (!mounted) return;
     setState(() {
       _prefs = prefs;
@@ -68,14 +71,10 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
         await _logout();
         return;
       }
-      await _saveSession(
-        phone,
-        profile.customer!,
-        profile.transactions,
-        _accessToken!,
-      );
+      final customer = await _withLatestLoyalty(profile.customer!);
+      await _saveSession(phone, customer, profile.transactions, _accessToken!);
       setState(() {
-        _customer = profile.customer;
+        _customer = customer;
         _transactions = profile.transactions;
       });
     } catch (error) {
@@ -91,12 +90,11 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
     );
   }
 
-  Future<String?> _requestOtp(String phone, String token) async {
+  Future<OtpRequestResult> _requestOtp(String phone, String token) async {
     try {
-      await _api.requestOtp(phone: phone, token: token);
-      return null;
+      return await _api.requestOtp(phone: phone, token: token);
     } catch (error) {
-      return _userError(error, 'Ошибка при отправке кода');
+      return OtpRequestResult(error: _userError(error, 'error_send_code'));
     }
   }
 
@@ -105,24 +103,25 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
       final profile = await _api.verifyOtp(phone: phone, code: code);
       if (!profile.exists || profile.customer == null) {
         _registrationToken = profile.registrationToken;
-        if (_registrationToken == null) return 'Сервер не выдал регистрацию';
+        if (_registrationToken == null) return 'error_registration_missing'.tr;
         return 'NEW_USER';
       }
       final token = profile.accessToken;
-      if (token == null) return 'Сервер не выдал сессию';
+      if (token == null) return 'error_session_missing'.tr;
       _accessToken = token;
       _api.setAccessToken(token);
-      await _saveSession(phone, profile.customer!, profile.transactions, token);
+      final customer = await _withLatestLoyalty(profile.customer!);
+      await _saveSession(phone, customer, profile.transactions, token);
       if (!mounted) return null;
       setState(() {
         _savedPhone = phone;
-        _customer = profile.customer;
+        _customer = customer;
         _transactions = profile.transactions;
       });
       _startProfileRefresh(phone);
       return null;
     } catch (error) {
-      return _userError(error, 'Неверный код');
+      return _userError(error, 'error_invalid_code');
     }
   }
 
@@ -145,24 +144,25 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
         registrationToken: _registrationToken ?? '',
       );
       if (!profile.exists || profile.customer == null) {
-        return 'Ошибка при регистрации';
+        return 'error_register'.tr;
       }
       final token = profile.accessToken;
-      if (token == null) return 'Сервер не выдал сессию';
+      if (token == null) return 'error_session_missing'.tr;
       _accessToken = token;
       _registrationToken = null;
       _api.setAccessToken(token);
-      await _saveSession(phone, profile.customer!, profile.transactions, token);
+      final customer = await _withLatestLoyalty(profile.customer!);
+      await _saveSession(phone, customer, profile.transactions, token);
       if (!mounted) return null;
       setState(() {
         _savedPhone = phone;
-        _customer = profile.customer;
+        _customer = customer;
         _transactions = profile.transactions;
       });
       _startProfileRefresh(phone);
       return null;
     } catch (error) {
-      return _userError(error, 'Ошибка при регистрации');
+      return _userError(error, 'error_register');
     }
   }
 
@@ -180,6 +180,18 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
       'transactions',
       jsonEncode(transactions.map((tx) => tx.toJson()).toList()),
     );
+  }
+
+  Future<Customer> _withLatestLoyalty(Customer customer) async {
+    if (customer.tier != null && customer.tier!.allTiers.isNotEmpty) {
+      return customer;
+    }
+    try {
+      final tier = await _api.getCustomerLoyalty();
+      return tier == null ? customer : customer.copyWith(tier: tier);
+    } catch (_) {
+      return customer;
+    }
   }
 
   Future<void> _logout() async {
@@ -207,7 +219,14 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
       builder: (context, lang, child) {
         return MaterialApp(
           debugShowCheckedModeBanner: false,
-          title: 'Bulka пекарня',
+          title: 'app_title'.tr,
+          locale: Locale(lang),
+          supportedLocales: const [Locale('ru'), Locale('kk'), Locale('en')],
+          localizationsDelegates: const [
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
           theme: buildBulkaTheme(),
           home: _buildHome(),
         );
@@ -253,6 +272,7 @@ class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
+  bool _reduceMotion = false;
 
   @override
   void initState() {
@@ -260,12 +280,26 @@ class _SplashScreenState extends State<SplashScreen>
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
-    )..repeat(reverse: true);
+    );
 
     _scaleAnimation = Tween<double>(
       begin: 0.92,
       end: 1.08,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reduceMotion = BulkaMotion.reduced(context);
+    if (reduceMotion == _reduceMotion && _controller.isAnimating) return;
+    _reduceMotion = reduceMotion;
+    if (_reduceMotion) {
+      _controller.stop();
+      _controller.value = 0.5;
+    } else if (!_controller.isAnimating) {
+      _controller.repeat(reverse: true);
+    }
   }
 
   @override
@@ -276,16 +310,20 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
+    final logo = Image.asset(
+      'assets/brand/bulka_logo.png',
+      width: 330,
+      fit: BoxFit.contain,
+    );
     return Scaffold(
       backgroundColor: const Color(0xFFFFB300),
-      body: Center(
-        child: ScaleTransition(
-          scale: _scaleAnimation,
-          child: Image.asset(
-            'assets/brand/bulka_logo.png',
-            width: 330,
-            fit: BoxFit.contain,
-          ),
+      body: Semantics(
+        image: true,
+        label: widget.text,
+        child: Center(
+          child: _reduceMotion
+              ? logo
+              : ScaleTransition(scale: _scaleAnimation, child: logo),
         ),
       ),
     );

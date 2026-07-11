@@ -1,100 +1,130 @@
-import { useEffect, useState } from 'react';
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import { api } from './lib/api';
+import { lazy, Suspense, useEffect, useState, type FormEvent } from 'react';
+import { Eye, EyeOff, LoaderCircle, LockKeyhole } from 'lucide-react';
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { ApiError, api } from './lib/api';
+import { useI18n } from './lib/i18n';
+import PageState from './components/PageState';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 
-// Pages
-import AnalyticsPage from './pages/AnalyticsPage';
-import CustomersPage from './pages/CustomersPage';
-import TransactionsPage from './pages/TransactionsPage';
-import IikoPage from './pages/IikoPage';
-import BroadcastPage from './pages/BroadcastPage';
-import StoriesPage from './pages/StoriesPage';
-import NewsPage from './pages/NewsPage';
-import LocationsPage from './pages/LocationsPage';
-import BonusPage from './pages/BonusPage';
-import SettingsPage from './pages/SettingsPage';
+const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
+const CustomersPage = lazy(() => import('./pages/CustomersPage'));
+const TransactionsPage = lazy(() => import('./pages/TransactionsPage'));
+const IikoPage = lazy(() => import('./pages/IikoPage'));
+const BroadcastPage = lazy(() => import('./pages/BroadcastPage'));
+const StoriesPage = lazy(() => import('./pages/StoriesPage'));
+const NewsPage = lazy(() => import('./pages/NewsPage'));
+const LocationsPage = lazy(() => import('./pages/LocationsPage'));
+const BonusPage = lazy(() => import('./pages/BonusPage'));
+const LoyaltyTiersPage = lazy(() => import('./pages/LoyaltyTiersPage'));
+const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 
 function LoginScreen({ onLogin }: { onLogin: () => void }) {
-  const [pwd, setPwd] = useState('');
+  const { t } = useI18n();
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async () => {
+  const handleLogin = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!password || loading) return;
     setLoading(true);
     setError('');
     try {
-      await api.login(pwd);
+      await api.login(password);
       onLogin();
-    } catch (e: any) {
-      setError(e.message);
+    } catch (caught) {
+      if (caught instanceof ApiError && caught.code === 'AUTH_INVALID') setError(t('auth.invalidPassword'));
+      else if (caught instanceof ApiError && caught.code === 'AUTH_NO_SESSION') setError(t('auth.noSession'));
+      else setError(caught instanceof Error ? caught.message : t('common.loadError'));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-[#333333] bg-opacity-40 flex items-center justify-center z-50 backdrop-blur-sm">
-      <div className="card p-10 w-full max-w-sm text-center">
-        <h2 className="text-3xl font-serif text-beige-800 mb-2">Управление</h2>
-        <p className="text-gray-500 text-sm mb-8">Введите пароль для доступа к системе</p>
-        <input 
-          type="password" 
-          value={pwd} 
-          onChange={e => setPwd(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && handleLogin()}
-          placeholder="Пароль" 
-          className="input-classic w-full mb-6 text-center text-lg tracking-widest" 
-        />
-        <button onClick={handleLogin} disabled={loading} className="btn-classic w-full py-3 font-medium shadow-sm">
-          {loading ? 'Вход...' : 'Войти в систему'}
+    <main className="login-screen">
+      <form className="card login-card" onSubmit={handleLogin} aria-describedby={error ? 'login-error' : undefined}>
+        <div className="login-mark" aria-hidden="true"><LockKeyhole size={25} /></div>
+        <img src="/admin/bulka_logo.png" alt="Bulka" className="login-logo" width="160" height="58" />
+        <h1>{t('auth.title')}</h1>
+        <p>{t('auth.subtitle')}</p>
+        <label className="field-label" htmlFor="admin-password">{t('auth.password')}</label>
+        <div className="password-field">
+          <input
+            id="admin-password"
+            type={showPassword ? 'text' : 'password'}
+            value={password}
+            onChange={event => setPassword(event.target.value)}
+            autoComplete="current-password"
+            required
+            autoFocus
+            className="input-classic w-full"
+            aria-invalid={Boolean(error)}
+          />
+          <button
+            type="button"
+            className="icon-button password-toggle"
+            onClick={() => setShowPassword(value => !value)}
+            aria-label={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
+          >
+            {showPassword ? <EyeOff aria-hidden="true" size={19} /> : <Eye aria-hidden="true" size={19} />}
+          </button>
+        </div>
+        {error && <p id="login-error" className="field-error" role="alert">{error}</p>}
+        <button type="submit" disabled={loading || !password} className="btn-classic login-submit">
+          {loading && <LoaderCircle aria-hidden="true" className="spin" size={18} />}
+          {loading ? t('auth.signingIn') : t('auth.signIn')}
         </button>
-        {error && <p className="text-red-500 mt-4 text-sm">{error}</p>}
-      </div>
-    </div>
+      </form>
+    </main>
   );
 }
-
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('adminToken'));
+  const { t } = useI18n();
+  const [isAuthenticated, setIsAuthenticated] = useState(Boolean(localStorage.getItem('adminToken')));
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     const handleAuthError = () => {
       setIsAuthenticated(false);
-      navigate('/');
+      navigate('/', { replace: true });
     };
     window.addEventListener('unauthorized', handleAuthError);
     return () => window.removeEventListener('unauthorized', handleAuthError);
   }, [navigate]);
 
-  if (!isAuthenticated) {
-    return <LoginScreen onLogin={() => setIsAuthenticated(true)} />;
-  }
+  useEffect(() => setSidebarOpen(false), [location.pathname]);
+
+  if (!isAuthenticated) return <LoginScreen onLogin={() => setIsAuthenticated(true)} />;
 
   return (
     <div className="sagi-shell">
+      <a className="skip-link" href="#main-content">{t('nav.main')}</a>
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <main className="sagi-main">
+      <main id="main-content" className="sagi-main" tabIndex={-1}>
         <Topbar onMenuClick={() => setSidebarOpen(true)} />
         <div className="sagi-page">
-          <Routes>
-            <Route path="/" element={<Navigate to="/analytics" replace />} />
-            <Route path="/analytics" element={<AnalyticsPage />} />
-            <Route path="/transactions" element={<TransactionsPage />} />
-            <Route path="/iiko" element={<IikoPage />} />
-            <Route path="/broadcast" element={<BroadcastPage />} />
-            
-            <Route path="/customers" element={<CustomersPage />} />
-            
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/stories" element={<StoriesPage />} />
-            <Route path="/news" element={<NewsPage />} />
-            <Route path="/bonus" element={<BonusPage />} />
-            <Route path="/locations" element={<LocationsPage />} />
-          </Routes>
+          <Suspense fallback={<PageState type="loading" />}>
+            <Routes>
+              <Route path="/" element={<Navigate to="/analytics" replace />} />
+              <Route path="/analytics" element={<AnalyticsPage />} />
+              <Route path="/transactions" element={<TransactionsPage />} />
+              <Route path="/iiko" element={<IikoPage />} />
+              <Route path="/broadcast" element={<BroadcastPage />} />
+              <Route path="/customers" element={<CustomersPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/stories" element={<StoriesPage />} />
+              <Route path="/news" element={<NewsPage />} />
+              <Route path="/bonus" element={<BonusPage />} />
+              <Route path="/tiers" element={<LoyaltyTiersPage />} />
+              <Route path="/locations" element={<LocationsPage />} />
+              <Route path="*" element={<Navigate to="/analytics" replace />} />
+            </Routes>
+          </Suspense>
         </div>
       </main>
     </div>

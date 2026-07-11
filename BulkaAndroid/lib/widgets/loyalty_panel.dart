@@ -24,10 +24,16 @@ class _LoyaltyPanel extends StatelessWidget {
     final purchaseCount = _recentPurchaseCount(transactions);
     final firstReward = _RewardState.fromPurchases(purchaseCount, 6);
     final secondReward = _RewardState.fromPurchases(purchaseCount, 12);
+    final tier = customer.tier;
     final balance = formatMoney(customer.balance);
+    final standardDuration = BulkaMotion.duration(
+      context,
+      BulkaMotion.standard,
+    );
+    final fastDuration = BulkaMotion.duration(context, BulkaMotion.fast);
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 220),
+      duration: standardDuration,
       curve: Curves.easeOutCubic,
       padding: EdgeInsets.zero,
       child: Column(
@@ -110,9 +116,16 @@ class _LoyaltyPanel extends StatelessWidget {
                         ),
                         const SizedBox(width: 16),
                         InkWell(
+                          key: const ValueKey('qr-preview-button'),
                           onTap: onQrTap,
                           borderRadius: BorderRadius.circular(24),
-                          child: _InlineQrPreview(api: api, customer: customer),
+                          child: BulkaHero(
+                            tag: 'qr-${customer.phone}',
+                            child: _InlineQrPreview(
+                              api: api,
+                              customer: customer,
+                            ),
+                          ),
                         ),
                       ],
                     ),
@@ -134,7 +147,7 @@ class _LoyaltyPanel extends StatelessWidget {
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                '${'cashback_gift_1'.tr}${customer.cashbackPercent}${'cashback_gift_2'.tr}',
+                                '${'cashback_gift_1'.tr}${tier?.percent ?? customer.cashbackPercent}${'cashback_gift_2'.tr}',
                                 style: const TextStyle(
                                   color: Color(0xFF6D3317),
                                   fontSize: 16,
@@ -150,14 +163,17 @@ class _LoyaltyPanel extends StatelessWidget {
                               : 'expand_tooltip'.tr,
                           child: GestureDetector(
                             behavior: HitTestBehavior.opaque,
-                            onTap: onToggle,
+                            onTap: () {
+                              BulkaMotion.selection();
+                              onToggle();
+                            },
                             child: SizedBox(
                               width: 44,
                               height: 44,
                               child: Center(
                                 child: AnimatedRotation(
                                   turns: expanded ? 0.5 : 0,
-                                  duration: const Duration(milliseconds: 180),
+                                  duration: fastDuration,
                                   child: const Icon(
                                     Icons.keyboard_arrow_down_rounded,
                                     color: Color(0xFF6D3317),
@@ -182,24 +198,29 @@ class _LoyaltyPanel extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _RewardProgress(
-                    title: 'reward_6_desc'.tr,
-                    remaining: firstReward.remaining,
-                    progress: firstReward.progress,
-                  ),
-                  const SizedBox(height: 22),
-                  _RewardProgress(
-                    title: 'reward_12_desc'.tr,
-                    remaining: secondReward.remaining,
-                    progress: secondReward.progress,
-                  ),
-                  const SizedBox(height: 24),
-                  _StampRow(completed: purchaseCount, total: 12),
+                  if (tier != null)
+                    _TierProgressSection(tier: tier)
+                  else ...[
+                    _RewardProgress(
+                      title: 'reward_6_desc'.tr,
+                      remaining: firstReward.remaining,
+                      progress: firstReward.progress,
+                    ),
+                    const SizedBox(height: 22),
+                    _RewardProgress(
+                      title: 'reward_12_desc'.tr,
+                      remaining: secondReward.remaining,
+                      progress: secondReward.progress,
+                    ),
+                    const SizedBox(height: 24),
+                    _StampRow(completed: purchaseCount, total: 12),
+                  ],
                   const SizedBox(height: 28),
                   SizedBox(
                     width: double.infinity,
                     height: 58,
                     child: GradientButton(
+                      key: const ValueKey('balance-history-button'),
                       onPressed: onHistoryTap,
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -227,10 +248,155 @@ class _LoyaltyPanel extends StatelessWidget {
             crossFadeState: expanded
                 ? CrossFadeState.showSecond
                 : CrossFadeState.showFirst,
-            duration: const Duration(milliseconds: 220),
+            duration: standardDuration,
           ),
         ],
       ),
+    );
+  }
+}
+
+class _TierProgressSection extends StatelessWidget {
+  const _TierProgressSection({required this.tier});
+
+  final Tier tier;
+
+  @override
+  Widget build(BuildContext context) {
+    final tiers = tier.allTiers;
+    final currentName = tier.localizedName;
+    final nextName = tier.localizedNextTier;
+    var nextPercent = tier.nextPercent ?? tier.percent;
+    if (nextName != null) {
+      for (final item in tiers) {
+        if (item.name == tier.nextTier || item.localizedName == nextName) {
+          nextPercent = item.percent;
+          break;
+        }
+      }
+      if (nextPercent == tier.percent && tier.level < tiers.length) {
+        nextPercent = tiers[tier.level].percent;
+      }
+    }
+    final totalLevels = max(tiers.length, tier.level).clamp(1, 999);
+    final description = nextName == null
+        ? 'tier_max'.trArgs({'name': currentName, 'percent': tier.percent})
+        : 'tier_next'.trArgs({
+            'name': nextName,
+            'percent': nextPercent,
+            'remaining': formatGroupedNumber(tier.remaining),
+          });
+    final progress = tier.progressFraction;
+
+    return Semantics(
+      container: true,
+      label: description,
+      value: '${(progress * 100).round()}%',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(
+                Icons.workspace_premium_rounded,
+                color: Color(0xFFFFB300),
+                size: 26,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'tier_status'.trArgs({
+                    'name': currentName,
+                    'percent': tier.percent,
+                  }),
+                  style: const TextStyle(
+                    color: _textDark,
+                    fontFamily: _headingFont,
+                    fontSize: 19,
+                    fontWeight: FontWeight.w400,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'tier_level'.trArgs({
+                  'level': tier.level.clamp(1, totalLevels),
+                  'total': totalLevels,
+                }),
+                style: TextStyle(
+                  color: _textDark.withValues(alpha: 0.58),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            description,
+            style: TextStyle(
+              color: _textDark.withValues(alpha: 0.72),
+              fontSize: 14,
+              height: 1.4,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 14),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(99),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 10,
+              backgroundColor: const Color(0xFFF1F0EE),
+              valueColor: const AlwaysStoppedAnimation<Color>(
+                Color(0xFFFFB300),
+              ),
+            ),
+          ),
+          if (tiers.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 10,
+              runSpacing: 8,
+              children: [
+                for (var index = 0; index < tiers.length; index++)
+                  _TierChip(item: tiers[index], achieved: index < tier.level),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _TierChip extends StatelessWidget {
+  const _TierChip({required this.item, required this.achieved});
+
+  final TierItem item;
+  final bool achieved;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          achieved ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+          size: 15,
+          color: achieved ? const Color(0xFFFF9800) : const Color(0xFFAFA28D),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          '${item.localizedName} ${item.percent}%',
+          style: TextStyle(
+            color: achieved ? _textDark : const Color(0xFFAFA28D),
+            fontSize: 12,
+            fontWeight: achieved ? FontWeight.w800 : FontWeight.w600,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -250,6 +416,7 @@ class _InlineQrPreviewState extends State<_InlineQrPreview> {
   int? _loadedWindow;
   String? _token;
   bool _loading = true;
+  bool _failed = false;
 
   @override
   void initState() {
@@ -288,6 +455,7 @@ class _InlineQrPreviewState extends State<_InlineQrPreview> {
         _token = token;
         _loadedWindow = window;
         _loading = false;
+        _failed = false;
       });
       _scheduleNextWindowRefresh();
     } catch (_) {
@@ -295,6 +463,7 @@ class _InlineQrPreviewState extends State<_InlineQrPreview> {
       setState(() {
         _token = null;
         _loading = false;
+        _failed = true;
       });
       _timer?.cancel();
       _timer = Timer(const Duration(seconds: 20), _refreshForCurrentWindow);
@@ -313,60 +482,72 @@ class _InlineQrPreviewState extends State<_InlineQrPreview> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 116,
-      height: 116,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: _loading
-          ? const Center(
-              child: SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  color: _bulkaYellow,
-                  strokeWidth: 3,
-                ),
-              ),
-            )
-          : _token == null
-          ? const Icon(Icons.qr_code_2_rounded, color: _caramel, size: 58)
-          : Stack(
-              alignment: Alignment.center,
-              children: [
-                QrImageView(
-                  data: _token!,
-                  backgroundColor: Colors.white,
-                  errorCorrectionLevel: QrErrorCorrectLevel.H,
-                  eyeStyle: const QrEyeStyle(
-                    eyeShape: QrEyeShape.square,
-                    color: Color(0xFF4E2C1E),
-                  ),
-                  dataModuleStyle: const QrDataModuleStyle(
-                    dataModuleShape: QrDataModuleShape.circle,
-                    color: Color(0xFF4E2C1E),
+    return Semantics(
+      button: _failed,
+      label: _failed ? 'qr_retry'.tr : 'my_qr'.tr,
+      child: Container(
+        width: 116,
+        height: 116,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: _loading
+            ? const Center(
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    color: _bulkaYellow,
+                    strokeWidth: 3,
                   ),
                 ),
-                Container(
-                  width: 22,
-                  height: 22,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 2),
-                  ),
-                  child: ClipOval(
-                    child: Image.asset(
-                      'assets/brand/qr_logo.png',
-                      fit: BoxFit.cover,
+              )
+            : _token == null
+            ? IconButton(
+                onPressed: _refreshForCurrentWindow,
+                tooltip: 'qr_retry'.tr,
+                icon: const Icon(
+                  Icons.refresh_rounded,
+                  color: _caramel,
+                  size: 42,
+                ),
+              )
+            : Stack(
+                alignment: Alignment.center,
+                children: [
+                  QrImageView(
+                    data: _token!,
+                    backgroundColor: Colors.white,
+                    errorCorrectionLevel: QrErrorCorrectLevel.H,
+                    eyeStyle: const QrEyeStyle(
+                      eyeShape: QrEyeShape.square,
+                      color: Color(0xFF4E2C1E),
+                    ),
+                    dataModuleStyle: const QrDataModuleStyle(
+                      dataModuleShape: QrDataModuleShape.circle,
+                      color: Color(0xFF4E2C1E),
                     ),
                   ),
-                ),
-              ],
-            ),
+                  Container(
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                    child: ClipOval(
+                      child: Image.asset(
+                        'assets/brand/qr_logo.png',
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+      ),
     );
   }
 }

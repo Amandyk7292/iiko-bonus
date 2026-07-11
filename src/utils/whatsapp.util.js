@@ -35,4 +35,25 @@ async function resolveWhatsAppSenderDigits(key = {}, lidMapping = null) {
   }
 }
 
-module.exports = { phoneDigitsFromJid, resolveWhatsAppSenderDigits };
+function normalizeWhatsAppBusinessPhone(value) {
+  const digits = String(value || '').replace(/[^0-9]/g, '');
+  return digits.length >= 10 && digits.length <= 15 ? digits : null;
+}
+
+function buildWhatsAppContact(requestToken, env = process.env) {
+  const whatsappPhone = normalizeWhatsAppBusinessPhone(env.WHATSAPP_BUSINESS_PHONE);
+  if (!whatsappPhone) return { whatsappPhone: null, whatsappUrl: null };
+  const token = String(requestToken || '').trim();
+  const query = token ? `?text=${encodeURIComponent(`код ${token}`)}` : '';
+  return {
+    whatsappPhone,
+    whatsappUrl: `https://wa.me/${whatsappPhone}${query}`,
+  };
+}
+
+module.exports = {
+  buildWhatsAppContact,
+  normalizeWhatsAppBusinessPhone,
+  phoneDigitsFromJid,
+  resolveWhatsAppSenderDigits,
+};

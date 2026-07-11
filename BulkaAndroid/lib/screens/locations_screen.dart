@@ -12,6 +12,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
   String _selectedCity = '';
   String _searchQuery = '';
   bool _loading = true;
+  bool _loadFailed = false;
 
   Map<String, List<String>> _cityLocations = {};
 
@@ -22,9 +23,16 @@ class _LocationsScreenState extends State<LocationsScreen> {
   }
 
   Future<void> _loadLocations() async {
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _loadFailed = false;
+      });
+    }
     try {
       final api = BulkaApiClient();
       final locs = await api.getLocations();
+      if (!mounted) return;
       setState(() {
         _cityLocations = locs;
         if (_cityLocations.isNotEmpty &&
@@ -34,8 +42,10 @@ class _LocationsScreenState extends State<LocationsScreen> {
         _loading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _loading = false;
+        _loadFailed = true;
         _cityLocations = {};
       });
     }
@@ -75,11 +85,11 @@ class _LocationsScreenState extends State<LocationsScreen> {
           },
           icon: const Icon(Icons.chevron_left_rounded, size: 34),
           color: _cocoa.withValues(alpha: 0.56),
-          tooltip: 'Назад',
+          tooltip: 'back_tooltip'.tr,
         ),
-        title: const Text(
-          'Локации',
-          style: TextStyle(
+        title: Text(
+          'locations_title'.tr,
+          style: const TextStyle(
             color: Colors.black,
             fontSize: 20,
             fontWeight: FontWeight.w700,
@@ -93,6 +103,13 @@ class _LocationsScreenState extends State<LocationsScreen> {
             ? const Center(
                 child: CircularProgressIndicator(color: Colors.orange),
               )
+            : _loadFailed
+            ? _LocationsState(
+                icon: Icons.cloud_off_rounded,
+                title: 'locations_error'.tr,
+                actionLabel: 'retry_btn'.tr,
+                onAction: _loadLocations,
+              )
             : (_showCities
                   ? _buildCitiesList()
                   : _buildLocationsList(filteredLocations)),
@@ -102,6 +119,14 @@ class _LocationsScreenState extends State<LocationsScreen> {
 
   Widget _buildCitiesList() {
     final cities = _cityLocations.keys.toList();
+    if (cities.isEmpty) {
+      return _LocationsState(
+        icon: Icons.location_off_outlined,
+        title: 'locations_empty'.tr,
+        actionLabel: 'retry_btn'.tr,
+        onAction: _loadLocations,
+      );
+    }
     return ListView.separated(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       itemCount: cities.length,
@@ -130,32 +155,30 @@ class _LocationsScreenState extends State<LocationsScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              GestureDetector(
-                onTap: () => setState(() => _showCities = true),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.chevron_left_rounded,
-                      color: _almond,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 4),
-                    const Text(
-                      'Все Локации',
-                      style: TextStyle(fontSize: 16, color: _textDark),
-                    ),
-                  ],
+              TextButton.icon(
+                onPressed: () => setState(() => _showCities = true),
+                icon: const Icon(
+                  Icons.chevron_left_rounded,
+                  color: _almond,
+                  size: 20,
+                ),
+                label: Text(
+                  'all_locations'.tr,
+                  style: const TextStyle(fontSize: 16, color: _textDark),
                 ),
               ),
-              GestureDetector(
-                onTap: () {
+              TextButton(
+                onPressed: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const AddressMapScreen()),
                   );
                 },
-                child: const Text(
-                  'Посмотреть на карте',
-                  style: TextStyle(fontSize: 16, color: Color(0xFFD3AD72)),
+                child: Text(
+                  'view_on_map'.tr,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: Color(0xFFD3AD72),
+                  ),
                 ),
               ),
             ],
@@ -170,12 +193,13 @@ class _LocationsScreenState extends State<LocationsScreen> {
             ),
             child: TextField(
               onChanged: (val) => setState(() => _searchQuery = val),
-              decoration: const InputDecoration(
-                hintText: 'Поиск',
-                hintStyle: TextStyle(color: Colors.black38, fontSize: 16),
-                suffixIcon: Icon(Icons.search, color: Color(0xFFD3AD72)),
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                hintText: 'search_hint'.tr,
+                hintStyle: const TextStyle(color: Colors.black38, fontSize: 16),
+                suffixIcon: const Icon(Icons.search, color: Color(0xFFD3AD72)),
                 border: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(
+                contentPadding: const EdgeInsets.symmetric(
                   horizontal: 20,
                   vertical: 16,
                 ),
@@ -184,29 +208,83 @@ class _LocationsScreenState extends State<LocationsScreen> {
           ),
         ),
         Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            itemCount: locations.length,
-            separatorBuilder: (context, index) =>
-                Divider(height: 1, color: _textDark.withValues(alpha: 0.08)),
-            itemBuilder: (context, index) {
-              final location = locations[index];
-              return ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text(
-                  location,
-                  style: const TextStyle(fontSize: 18, color: _textDark),
+          child: locations.isEmpty
+              ? _LocationsState(
+                  icon: Icons.search_off_rounded,
+                  title: _searchQuery.isEmpty
+                      ? 'locations_empty'.tr
+                      : 'locations_search_empty'.tr,
+                  actionLabel: 'refresh_btn'.tr,
+                  onAction: _searchQuery.isEmpty
+                      ? _loadLocations
+                      : () => setState(() => _searchQuery = ''),
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  itemCount: locations.length,
+                  separatorBuilder: (context, index) => Divider(
+                    height: 1,
+                    color: _textDark.withValues(alpha: 0.08),
+                  ),
+                  itemBuilder: (context, index) {
+                    final location = locations[index];
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        location,
+                        style: const TextStyle(fontSize: 18, color: _textDark),
+                      ),
+                      trailing: const Icon(
+                        Icons.chevron_right_rounded,
+                        color: _almond,
+                      ),
+                      onTap: () => _onLocationTapped(location),
+                    );
+                  },
                 ),
-                trailing: const Icon(
-                  Icons.chevron_right_rounded,
-                  color: _almond,
-                ),
-                onTap: () => _onLocationTapped(location),
-              );
-            },
-          ),
         ),
       ],
+    );
+  }
+}
+
+class _LocationsState extends StatelessWidget {
+  const _LocationsState({
+    required this.icon,
+    required this.title,
+    required this.actionLabel,
+    required this.onAction,
+  });
+
+  final IconData icon;
+  final String title;
+  final String actionLabel;
+  final VoidCallback onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 44, color: _caramel),
+            const SizedBox(height: 14),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: _textDark,
+                fontFamily: _headingFont,
+                fontSize: 21,
+              ),
+            ),
+            const SizedBox(height: 18),
+            OutlinedButton(onPressed: onAction, child: Text(actionLabel)),
+          ],
+        ),
+      ),
     );
   }
 }

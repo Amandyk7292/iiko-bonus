@@ -24,23 +24,27 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
   late TextEditingController _nameController;
   late TextEditingController _lastNameController;
   late TextEditingController _birthDateController;
+  late TextEditingController _emailController;
 
   String? _selectedGender;
   String? _selectedCity;
   String? _birthDate;
   bool _isLoading = false;
+  bool _citiesLoading = true;
+  bool _citiesFailed = false;
   List<City> _cities = [];
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(
-      text: widget.customer.name == 'Гость' ? '' : widget.customer.name,
+      text: isGuestName(widget.customer.name) ? '' : widget.customer.name,
     );
     _lastNameController = TextEditingController(
       text: widget.customer.lastName ?? '',
     );
     _selectedCity = widget.customer.region;
+    _emailController = TextEditingController(text: widget.customer.email ?? '');
 
     _selectedGender = widget.customer.gender;
     _birthDate = widget.customer.birthDate;
@@ -54,11 +58,18 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
   }
 
   Future<void> _loadCities() async {
+    if (mounted) {
+      setState(() {
+        _citiesLoading = true;
+        _citiesFailed = false;
+      });
+    }
     try {
       final cities = await widget.api.getCities();
       if (mounted) {
         setState(() {
           _cities = cities;
+          _citiesLoading = false;
           // Validate selected city
           if (_selectedCity != null &&
               _selectedCity!.isNotEmpty &&
@@ -68,6 +79,12 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
         });
       }
     } catch (e) {
+      if (mounted) {
+        setState(() {
+          _citiesLoading = false;
+          _citiesFailed = true;
+        });
+      }
       debugPrint('Failed to load cities: $e');
     }
   }
@@ -77,6 +94,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
     _nameController.dispose();
     _lastNameController.dispose();
     _birthDateController.dispose();
+    _emailController.dispose();
     super.dispose();
   }
 
@@ -93,22 +111,42 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
   }
 
   Future<void> _saveProfile() async {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) {
+      _showInfoMessage('reg_err_name'.tr, isError: true);
+      return;
+    }
+    final dateInput = _birthDateController.text.trim();
+    if (dateInput.isNotEmpty && _parseDateForApi(dateInput) == null) {
+      _showInfoMessage('invalid_date'.tr, isError: true);
+      return;
+    }
+    final email = _emailController.text.trim();
+    if (email.isNotEmpty &&
+        !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
+      _showInfoMessage('invalid_email'.tr, isError: true);
+      return;
+    }
     setState(() => _isLoading = true);
     try {
       await widget.api.updateProfile(
         phone: widget.customer.phone,
-        name: _nameController.text.trim(),
+        name: name,
         lastName: _lastNameController.text.trim(),
         gender: _selectedGender,
         birthDate: _birthDate,
+        email: email.isEmpty ? null : email,
         region: _selectedCity ?? widget.customer.region ?? '',
       );
 
       await widget.onProfileUpdated();
-      _showInfoMessage('Профиль успешно сохранен!');
+      _showInfoMessage('profile_saved'.tr);
       widget.onBack();
     } catch (e) {
-      _showInfoMessage('Ошибка: ${e.toString()}', isError: true);
+      _showInfoMessage(
+        localizeErrorMessage(e, fallbackKey: 'error_save'),
+        isError: true,
+      );
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -120,24 +158,28 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text(
-          'Удаление аккаунта',
-          style: TextStyle(fontFamily: _headingFont),
+        title: Text(
+          'delete_account_title'.tr,
+          style: const TextStyle(fontFamily: _headingFont),
         ),
-        content: const Text(
-          'Вы уверены, что хотите удалить свой аккаунт? Это действие необратимо, и все ваши накопленные баллы сгорят.',
-        ),
+        content: Text('delete_account_message'.tr),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Отмена', style: TextStyle(color: Colors.grey)),
+            child: Text(
+              'cancel_btn'.tr,
+              style: const TextStyle(color: Colors.grey),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text(
-              'Удалить',
-              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+            child: Text(
+              'delete_btn'.tr,
+              style: const TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],
@@ -153,7 +195,10 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
           await widget.onLogout();
         }
       } catch (e) {
-        _showInfoMessage('Ошибка: ${e.toString()}', isError: true);
+        _showInfoMessage(
+          localizeErrorMessage(e, fallbackKey: 'error_delete_account'),
+          isError: true,
+        );
         if (mounted) setState(() => _isLoading = false);
       }
     }
@@ -179,6 +224,18 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
         parts[0].length == 2 &&
         parts[1].length == 2 &&
         parts[2].length == 4) {
+      final day = int.tryParse(parts[0]);
+      final month = int.tryParse(parts[1]);
+      final year = int.tryParse(parts[2]);
+      if (day == null || month == null || year == null) return null;
+      final date = DateTime.tryParse('${parts[2]}-${parts[1]}-${parts[0]}');
+      if (date == null ||
+          date.day != day ||
+          date.month != month ||
+          date.year != year ||
+          date.isAfter(DateTime.now())) {
+        return null;
+      }
       return '${parts[2]}-${parts[1]}-${parts[0]}';
     }
     return null;
@@ -213,9 +270,9 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Город',
-            style: TextStyle(
+          Text(
+            'city_label'.tr,
+            style: const TextStyle(
               color: Color(0xFF231007),
               fontSize: 15,
               fontWeight: FontWeight.w600,
@@ -243,14 +300,23 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
               child: DropdownButton<String>(
                 isExpanded: true,
                 value: _selectedCity?.isNotEmpty == true ? _selectedCity : null,
-                hint: const Text(
-                  'Выберите город',
-                  style: TextStyle(color: Color(0x66231007), fontSize: 16),
+                hint: Text(
+                  'select_city'.tr,
+                  style: const TextStyle(
+                    color: Color(0x66231007),
+                    fontSize: 16,
+                  ),
                 ),
-                icon: const Icon(
-                  Icons.keyboard_arrow_down_rounded,
-                  color: Color(0xFFC66A25),
-                ),
+                icon: _citiesLoading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        color: Color(0xFFC66A25),
+                      ),
                 dropdownColor: Colors.white,
                 borderRadius: BorderRadius.circular(16),
                 items: [
@@ -280,14 +346,30 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                     );
                   }),
                 ],
-                onChanged: (value) {
-                  setState(() {
-                    _selectedCity = value;
-                  });
-                },
+                onChanged: _citiesLoading || _cities.isEmpty
+                    ? null
+                    : (value) {
+                        setState(() {
+                          _selectedCity = value;
+                        });
+                      },
               ),
             ),
           ),
+          if (_citiesFailed) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'error_load_cities'.tr,
+                    style: const TextStyle(color: _errorRed, fontSize: 13),
+                  ),
+                ),
+                TextButton(onPressed: _loadCities, child: Text('retry_btn'.tr)),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -297,9 +379,9 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Дата рождения',
-          style: TextStyle(
+        Text(
+          'birthdate_label'.tr,
+          style: const TextStyle(
             color: Color(0xFF231007),
             fontSize: 15,
             fontWeight: FontWeight.w600,
@@ -318,7 +400,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
             onChanged: _onBirthDateChanged,
             style: const TextStyle(fontSize: 16, color: Color(0xFF6D3317)),
             decoration: InputDecoration(
-              hintText: 'ДД.ММ.ГГГГ',
+              hintText: 'date_hint'.tr,
               hintStyle: TextStyle(
                 color: const Color(0xFF6D3317).withValues(alpha: 0.3),
               ),
@@ -341,6 +423,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
     bool readOnly = false,
     VoidCallback? onTap,
     Widget? badge,
+    TextInputType? keyboardType,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -370,6 +453,11 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
             controller: controller,
             readOnly: readOnly,
             onTap: onTap,
+            keyboardType: keyboardType,
+            autofillHints: keyboardType == TextInputType.emailAddress
+                ? const [AutofillHints.email]
+                : null,
+            autocorrect: keyboardType != TextInputType.emailAddress,
             style: const TextStyle(fontSize: 16, color: Color(0xFF6D3317)),
             decoration: InputDecoration(
               hintText: label,
@@ -397,43 +485,54 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
 
   Widget _buildGenderOption(String title, String value) {
     final isSelected = _selectedGender == value;
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedGender = value;
-        });
-      },
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 20,
-            height: 20,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: isSelected
-                  ? const Color(0xFFFFC107)
-                  : const Color(0xFFEEEEEE),
-            ),
-            child: isSelected
-                ? Center(
-                    child: Container(
-                      width: 8,
-                      height: 8,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  )
-                : null,
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      inMutuallyExclusiveGroup: true,
+      label: title,
+      child: InkWell(
+        onTap: () => setState(() => _selectedGender = value),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isSelected
+                      ? const Color(0xFFFFC107)
+                      : const Color(0xFFEEEEEE),
+                ),
+                child: isSelected
+                    ? Center(
+                        child: Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      )
+                    : null,
+              ),
+              const SizedBox(width: 8),
+              ExcludeSemantics(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    color: Color(0xFF6D3317),
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          Text(
-            title,
-            style: const TextStyle(fontSize: 15, color: Color(0xFF6D3317)),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -457,12 +556,13 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                       size: 20,
                     ),
                     onPressed: widget.onBack,
+                    tooltip: 'back_tooltip'.tr,
                   ),
-                  const Expanded(
+                  Expanded(
                     child: Center(
                       child: Text(
-                        'Личные данные',
-                        style: TextStyle(
+                        'personal_title'.tr,
+                        style: const TextStyle(
                           color: Color(0xFF231007),
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
@@ -511,9 +611,9 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                     const SizedBox(height: 32),
 
                     // Gender Selection
-                    const Text(
-                      'Выберите пол',
-                      style: TextStyle(
+                    Text(
+                      'gender_label'.tr,
+                      style: const TextStyle(
                         color: Color(0xFF231007),
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
@@ -522,9 +622,9 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                     const SizedBox(height: 12),
                     Row(
                       children: [
-                        _buildGenderOption('Мужской', 'male'),
+                        _buildGenderOption('gender_male'.tr, 'male'),
                         const SizedBox(width: 32),
-                        _buildGenderOption('Женский', 'female'),
+                        _buildGenderOption('gender_female'.tr, 'female'),
                       ],
                     ),
                     const SizedBox(height: 24),
@@ -533,12 +633,15 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                     Row(
                       children: [
                         Expanded(
-                          child: _buildTextField('Имя', _nameController),
+                          child: _buildTextField(
+                            'name_label'.tr,
+                            _nameController,
+                          ),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
                           child: _buildTextField(
-                            'Фамилия',
+                            'surname_label'.tr,
                             _lastNameController,
                           ),
                         ),
@@ -548,8 +651,34 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                     // Date of Birth
                     _buildDateField(),
 
+                    _buildTextField(
+                      'email_label'.tr,
+                      _emailController,
+                      keyboardType: TextInputType.emailAddress,
+                      badge: widget.customer.emailVerified
+                          ? Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _successGreen.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                'email_verified'.tr,
+                                style: const TextStyle(
+                                  color: _successGreen,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            )
+                          : null,
+                    ),
+
                     // City Dropdown
-                    if (_cities.isNotEmpty) _buildCityDropdown(),
+                    _buildCityDropdown(),
 
                     const SizedBox(height: 12),
 
@@ -559,9 +688,9 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                       child: GradientButton(
                         onPressed: _saveProfile,
                         loading: _isLoading,
-                        child: const Text(
-                          'Сохранить',
-                          style: TextStyle(
+                        child: Text(
+                          'save_btn'.tr,
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
                           ),
@@ -575,9 +704,9 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                     Center(
                       child: TextButton(
                         onPressed: _isLoading ? null : _deleteAccount,
-                        child: const Text(
-                          'Удалить аккаунт',
-                          style: TextStyle(
+                        child: Text(
+                          'delete_account'.tr,
+                          style: const TextStyle(
                             color: Color(0xFFD32F2F),
                             fontSize: 15,
                             fontWeight: FontWeight.w600,

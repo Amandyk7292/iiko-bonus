@@ -7,7 +7,16 @@ const { signCustomerToken, verifyToken } = require('../src/services/auth.service
 const { validateRuntimeConfig, shouldRunBots } = require('../src/config/env');
 const { parseMoney } = require('../src/utils/money.util');
 const { getTierInfo } = require('../src/utils/tier.util');
-const { resolveWhatsAppSenderDigits } = require('../src/utils/whatsapp.util');
+const {
+  buildWhatsAppContact,
+  normalizeWhatsAppBusinessPhone,
+  resolveWhatsAppSenderDigits,
+} = require('../src/utils/whatsapp.util');
+const {
+  assertTierSet,
+  normalizeLanguage,
+  validateTierPayload,
+} = require('../src/services/tier.service');
 
 test('customer token is signed, scoped and verifiable', () => {
   const previous = process.env.CUSTOMER_JWT_SECRET;
@@ -48,8 +57,19 @@ test('WhatsApp sender resolves from PN alternative and LID mapping', async () =>
 });
 
 test('production configuration fails closed when secrets are missing', () => {
-  const keys = ['NODE_ENV', 'RENDER', 'VERCEL', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'ADMIN_PASSWORD', 'BULKA_SECRET', 'CUSTOMER_JWT_SECRET', 'API_SECRET', 'API_TOKEN'];
-  const previous = Object.fromEntries(keys.map(key => [key, process.env[key]]));
+  const keys = [
+    'NODE_ENV',
+    'RENDER',
+    'VERCEL',
+    'SUPABASE_URL',
+    'SUPABASE_SERVICE_ROLE_KEY',
+    'ADMIN_PASSWORD',
+    'BULKA_SECRET',
+    'CUSTOMER_JWT_SECRET',
+    'API_SECRET',
+    'API_TOKEN',
+  ];
+  const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
   try {
     for (const key of keys) delete process.env[key];
     process.env.NODE_ENV = 'production';
@@ -66,6 +86,7 @@ test('money parser rejects non-finite and out-of-range values', () => {
   assert.throws(() => parseMoney('Infinity', 'amount'));
   assert.throws(() => parseMoney(-1, 'amount'));
   assert.equal(parseMoney('12.50', 'amount'), 12.5);
+  assert.equal(parseMoney('12.345', 'amount'), 12.35);
 });
 
 test('tier calculation honors zero cashback and platinum tier', () => {
@@ -80,6 +101,93 @@ test('tier calculation honors zero cashback and platinum tier', () => {
   };
   assert.equal(getTierInfo(0, settings).percent, 0);
   assert.equal(getTierInfo(300000, settings).name, 'Платина');
+});
+
+test('dynamic tier calculation keeps legacy fields and reports range progress', () => {
+  const tiers = [
+    {
+      id: '1',
+      code: 'starter',
+      names: { ru: 'Старт', kk: 'Бастау', en: 'Starter' },
+      descriptions: { ru: 'Старт', kk: 'Бастау', en: 'Starter' },
+      minSpend: 0,
+      cashbackPercent: 2.5,
+      sortOrder: 0,
+      isActive: true,
+    },
+    {
+      id: '2',
+      code: 'pro',
+      names: { ru: 'Про', kk: 'Кәсіби', en: 'Pro' },
+      descriptions: { ru: 'Про', kk: 'Кәсіби', en: 'Pro' },
+      minSpend: 1000,
+      cashbackPercent: 7.5,
+      sortOrder: 1,
+      isActive: true,
+    },
+    {
+      id: '3',
+      code: 'elite',
+      names: { ru: 'Элита', kk: 'Элита', en: 'Elite' },
+      descriptions: { ru: 'Элита', kk: 'Элита', en: 'Elite' },
+      minSpend: 3000,
+      cashbackPercent: 12,
+      sortOrder: 2,
+      isActive: true,
+    },
+  ];
+  const result = getTierInfo(2000, tiers);
+  assert.equal(result.code, 'pro');
+  assert.equal(result.name, 'Про');
+  assert.equal(result.percent, 7.5);
+  assert.equal(result.nextTier, 'Элита');
+  assert.equal(result.remaining, 1000);
+  assert.equal(result.progress, 50);
+  assert.equal(result.allTiers.length, 3);
+});
+
+test('tier payload requires three languages and detects threshold conflicts', () => {
+  const valid = validateTierPayload({
+    code: 'diamond',
+    names: { ru: 'Бриллиант', kk: 'Гауһар', en: 'Diamond' },
+    descriptions: {
+      ru: 'Максимальный уровень',
+      kk: 'Ең жоғары деңгей',
+      en: 'Highest level',
+    },
+    minSpend: 500000,
+    cashbackPercent: 15,
+    sortOrder: 4,
+    isActive: true,
+  });
+  assert.equal(valid.names.kk, 'Гауһар');
+  assert.equal(normalizeLanguage('kz-KZ'), 'kk');
+  assert.throws(() => validateTierPayload({ ...valid, names: { ru: 'Только RU' } }), /names\.kk/);
+  assert.throws(
+    () =>
+      assertTierSet([
+        { ...valid, id: 'a', minSpend: 0 },
+        { ...valid, id: 'b', code: 'second', minSpend: 0 },
+      ]),
+    (error) => error.code === 'TIER_RANGE_CONFLICT' && error.statusCode === 409,
+  );
+});
+
+test('WhatsApp OTP contact uses only validated environment number', () => {
+  assert.equal(normalizeWhatsAppBusinessPhone('+7 (776) 200-35-90'), '77762003590');
+  assert.equal(normalizeWhatsAppBusinessPhone('123'), null);
+  assert.deepEqual(buildWhatsAppContact('REQUEST123456', {}), {
+    whatsappPhone: null,
+    whatsappUrl: null,
+  });
+  assert.deepEqual(
+    buildWhatsAppContact('REQUEST123456', { WHATSAPP_BUSINESS_PHONE: '+7 776 200 35 90' }),
+    {
+      whatsappPhone: '77762003590',
+      whatsappUrl:
+        'https://wa.me/77762003590?text=%D0%BA%D0%BE%D0%B4%20REQUEST123456',
+    },
+  );
 });
 
 test('loyalty service sends named RPC arguments', async () => {
@@ -138,8 +246,10 @@ test('tracked source contains no known fallback secrets', () => {
     'src/middlewares/auth.middleware.js',
     'src/middlewares/webhook.middleware.js',
     'src/services/telegram.service.js',
+    'src/services/whatsapp-baileys.service.js',
   ];
-  const source = files.map(file => fs.readFileSync(path.join(root, file), 'utf8')).join('\n');
+  const source = files.map((file) => fs.readFileSync(path.join(root, file), 'utf8')).join('\n');
   assert.doesNotMatch(source, /225588|bulka_secret_123|8786019464:/);
+  assert.doesNotMatch(source, /WHATSAPP MOCK/);
   assert.equal(fs.existsSync(path.join(root, 'AuthKey_5UG437FF37 (2).p8')), false);
 });

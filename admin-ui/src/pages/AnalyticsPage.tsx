@@ -1,152 +1,98 @@
-import React, { useEffect, useState } from 'react';
-import { api } from '../lib/api';
-import {
-  Chart as ChartJS,
-  ArcElement,
-  Tooltip,
-  Legend,
-} from 'chart.js';
+import { useCallback, useEffect, useState } from 'react';
+import { ArrowRight, RefreshCw, Users } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ArcElement, Chart as ChartJS, Legend, Tooltip } from 'chart.js';
 import { Doughnut, Pie } from 'react-chartjs-2';
+import PageState from '../components/PageState';
+import { api } from '../lib/api';
+import { useI18n } from '../lib/i18n';
+import { useReducedMotion } from '../lib/motion';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
 export default function AnalyticsPage() {
-  const [stats, setStats] = useState<any>(null);
+  const { t, formatNumber } = useI18n();
+  const reduceMotion = useReducedMotion();
+  const [stats, setStats] = useState<Record<string, number> | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     setLoading(true);
+    setError('');
     try {
-      const data = await api.getStats();
-      setStats(data);
-    } catch (e) {
-      console.error(e);
+      setStats(await api.getStats());
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : t('common.loadError'));
     } finally {
       setLoading(false);
     }
-  };
+  }, [t]);
 
-  useEffect(() => {
-    fetchStats();
-  }, []);
+  useEffect(() => { void fetchStats(); }, [fetchStats]);
 
-  if (loading || !stats) {
-    return <div className="p-8 text-center text-gray-500">Загрузка аналитики...</div>;
-  }
+  if (loading && !stats) return <PageState type="loading" title={t('analytics.load')} />;
+  if (!stats) return <PageState type="error" description={error} onRetry={fetchStats} />;
 
+  const totalEarned = stats.totalEarned || 0;
+  const totalBurned = stats.totalBurned || 0;
+  const totalSales = stats.totalSales || 0;
   const bonusData = {
-    labels: ['Выдано бонусов', 'Потрачено бонусов'],
-    datasets: [
-      {
-        data: [stats.totalEarned || 0, stats.totalBurned || 0],
-        backgroundColor: ['#b88c5a', '#7e5d40'],
-        borderWidth: 2,
-        borderColor: '#ffffff',
-        hoverOffset: 4,
-      },
-    ],
+    labels: [t('analytics.issued'), t('analytics.redeemed')],
+    datasets: [{ data: [totalEarned, totalBurned], backgroundColor: ['#b88c5a', '#7e5d40'], borderWidth: 2, borderColor: '#ffffff', hoverOffset: 4 }],
   };
-
   const revenueData = {
-    labels: ['Живые деньги (тнг)', 'Оплачено бонусами'],
-    datasets: [
-      {
-        data: [stats.totalSales || 0, stats.totalBurned || 0],
-        backgroundColor: ['#4ade80', '#f87171'],
-        borderWidth: 2,
-        borderColor: '#ffffff',
-        hoverOffset: 4,
-      },
-    ],
+    labels: [t('analytics.cash'), t('analytics.bonusPaid')],
+    datasets: [{ data: [totalSales, totalBurned], backgroundColor: ['#4ade80', '#f87171'], borderWidth: 2, borderColor: '#ffffff', hoverOffset: 4 }],
   };
-
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: 'bottom' as const,
-        labels: {
-          padding: 15,
-          font: { family: 'Inter', size: 12 },
-        },
-      },
-    },
+    animation: reduceMotion ? false as const : { duration: 260 },
+    plugins: { legend: { position: 'bottom' as const, labels: { padding: 16, font: { family: 'Inter', size: 12 } } } },
   };
 
   return (
-    <div className="space-y-8">
-      <div className="sagi-filter">
-        <div className="sagi-field">
-          <label>Период с</label>
-          <input type="date" className="input-classic" />
-        </div>
-        <div className="sagi-field">
-          <label>Период до</label>
-          <input type="date" className="input-classic" />
-        </div>
-        <button onClick={fetchStats} className="btn-classic px-5 py-2">Фильтр</button>
+    <div className="page-stack">
+      <div className="page-actions-row justify-end">
+        <button type="button" onClick={fetchStats} disabled={loading} className="btn-outline px-4 inline-flex items-center gap-2">
+          <RefreshCw aria-hidden="true" className={loading ? 'spin' : ''} size={17} /> {t('common.refresh')}
+        </button>
       </div>
+      {error && <div className="inline-alert inline-alert-error" role="alert">{error}</div>}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="card p-6 border-l-4 border-l-beige-500">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-gray-500 text-sm font-medium mb-1">Всего клиентов</p>
-              <p className="text-3xl font-serif text-beige-900">{stats.totalCustomers || 0}</p>
-            </div>
-            <span className="bg-green-100 text-green-700 text-xs px-2.5 py-1 rounded-full font-semibold">
-              +{stats.newCustomersLast30Days || 0} за 30 дн.
-            </span>
-          </div>
-        </div>
-        <div className="card p-6 border-l-4 border-l-green-500">
-          <p className="text-gray-500 text-sm font-medium mb-1">Общий оборот (тнг)</p>
-          <p className="text-3xl font-serif text-gray-800">{(stats.totalSales || 0).toLocaleString()}</p>
-        </div>
-        <div className="card p-6 border-l-4 border-l-purple-500">
-          <p className="text-gray-500 text-sm font-medium mb-1">Оплачено бонусами (%)</p>
-          <p className="text-3xl font-serif text-purple-700">{stats.bonusPaymentPercent || 0}%</p>
-        </div>
-      </div>
+      <section className="stats-grid stats-grid-primary" aria-label={t('page.analytics.title')}>
+        <article className="card stat-card stat-card-featured">
+          <div className="stat-icon"><Users aria-hidden="true" size={21} /></div>
+          <div><p>{t('analytics.totalCustomers')}</p><strong>{formatNumber(stats.totalCustomers || 0)}</strong></div>
+          <span className="trend-pill">{t('analytics.new30', { count: formatNumber(stats.newCustomersLast30Days || 0) })}</span>
+        </article>
+        <article className="card stat-card"><p>{t('analytics.revenue')}</p><strong>{formatNumber(totalSales)}</strong></article>
+        <article className="card stat-card"><p>{t('analytics.bonusPaid')}</p><strong>{formatNumber(stats.bonusPaymentPercent || 0, { maximumFractionDigits: 2 })}%</strong></article>
+      </section>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="card p-6">
-          <p className="text-gray-500 text-xs font-semibold uppercase tracking-wider mb-2">Начислено бонусов</p>
-          <p className="text-2xl font-bold text-gray-800">{(stats.totalEarned || 0).toLocaleString()}</p>
-          <p className="text-xs text-green-600 mt-2 font-medium">+{stats.earnedLast30Days || 0} за 30 дн.</p>
-        </div>
-        <div className="card p-6">
-          <p className="text-gray-500 text-xs font-semibold uppercase tracking-wider mb-2">Списано бонусов</p>
-          <p className="text-2xl font-bold text-gray-800">{(stats.totalBurned || 0).toLocaleString()}</p>
-          <p className="text-xs text-red-600 mt-2 font-medium">+{stats.burnedLast30Days || 0} за 30 дн.</p>
-        </div>
-        <div className="card p-6">
-          <p className="text-gray-500 text-xs font-semibold uppercase tracking-wider mb-2">Текущие обязательства</p>
-          <p className="text-2xl font-bold text-blue-600">{(stats.currentLiabilities || 0).toLocaleString()}</p>
-          <p className="text-xs text-gray-400 mt-2">бонусы на счетах клиентов</p>
-        </div>
-        <div className="card p-6 bg-gradient-to-br from-beige-800 to-beige-900 text-white border-0">
-          <p className="text-beige-200 text-xs font-semibold uppercase tracking-wider mb-2">Отчет iiko</p>
-          <p className="text-lg font-medium leading-tight mb-4">Детальный отчет по продажам доступен в iikoOffice</p>
-          <button className="text-xs bg-white text-beige-900 px-3 py-1.5 rounded font-bold hover:bg-beige-100 transition">Открыть iiko</button>
-        </div>
-      </div>
+      <section className="stats-grid stats-grid-secondary">
+        <article className="card metric-card"><p>{t('analytics.earned')}</p><strong>{formatNumber(totalEarned)}</strong><small>{t('analytics.new30', { count: formatNumber(stats.earnedLast30Days || 0) })}</small></article>
+        <article className="card metric-card"><p>{t('analytics.spent')}</p><strong>{formatNumber(totalBurned)}</strong><small>{t('analytics.new30', { count: formatNumber(stats.burnedLast30Days || 0) })}</small></article>
+        <article className="card metric-card"><p>{t('analytics.liabilities')}</p><strong>{formatNumber(stats.currentLiabilities || 0)}</strong><small>{t('analytics.liabilitiesHint')}</small></article>
+        <article className="card metric-card metric-card-dark">
+          <p>{t('analytics.iikoReport')}</p><small>{t('analytics.iikoHint')}</small>
+          <Link to="/iiko" className="metric-link">{t('analytics.openIiko')} <ArrowRight aria-hidden="true" size={15} /></Link>
+        </article>
+      </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="card p-6">
-          <h3 className="text-lg font-serif text-gray-800 mb-6">Оборот бонусов</h3>
-          <div className="relative h-64">
-            <Doughnut data={bonusData} options={{ ...chartOptions, cutout: '65%' }} />
-          </div>
-        </div>
-        <div className="card p-6">
-          <h3 className="text-lg font-serif text-gray-800 mb-6">Оплата счетов</h3>
-          <div className="relative h-64">
-            <Pie data={revenueData} options={chartOptions} />
-          </div>
-        </div>
-      </div>
+      <section className="charts-grid">
+        <article className="card chart-card">
+          <h2>{t('analytics.bonusTurnover')}</h2>
+          <p className="sr-only">{t('analytics.chartSummary', { first: `${t('analytics.issued')}: ${formatNumber(totalEarned)}`, second: `${t('analytics.redeemed')}: ${formatNumber(totalBurned)}` })}</p>
+          <div className="chart-box" aria-hidden="true"><Doughnut data={bonusData} options={{ ...chartOptions, cutout: '65%' }} /></div>
+        </article>
+        <article className="card chart-card">
+          <h2>{t('analytics.billPayments')}</h2>
+          <p className="sr-only">{t('analytics.chartSummary', { first: `${t('analytics.cash')}: ${formatNumber(totalSales)}`, second: `${t('analytics.bonusPaid')}: ${formatNumber(totalBurned)}` })}</p>
+          <div className="chart-box" aria-hidden="true"><Pie data={revenueData} options={chartOptions} /></div>
+        </article>
+      </section>
     </div>
   );
 }

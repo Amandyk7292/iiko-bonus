@@ -12,6 +12,10 @@ node_modules
 dist-ssr
 *.local
 
+# The repository root ignores generic JSON files. TypeScript configuration is
+# source code for this Vite app and must remain versioned.
+!tsconfig.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

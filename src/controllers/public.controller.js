@@ -7,6 +7,9 @@ const {
   deleteCustomer,
 } = require('../services/customer.service');
 const { getCitiesWithPoints } = require('../services/location.service');
+const { getSettings } = require('../services/settings.service');
+const { getActiveLoyaltyTiers } = require('../services/tier.service');
+const { getTierInfo } = require('../utils/tier.util');
 const { sendApiError } = require('../utils/http.util');
 
 const renderApp = (req, res) => {
@@ -53,7 +56,21 @@ const getProfile = async (req, res) => {
     const safeCustomer = { ...customer };
     delete safeCustomer.fcm_token;
     delete safeCustomer.telegram_id;
-    res.json({ success: true, customer: safeCustomer });
+    const settings = await getSettings();
+    const tiers = await getActiveLoyaltyTiers(settings);
+    const tier = getTierInfo(customer.total_spent, tiers, settings);
+    safeCustomer.cashbackPercent = tier.percent;
+    safeCustomer.tier = tier;
+    res.json({
+      success: true,
+      customer: safeCustomer,
+      loyalty: {
+        tier,
+        cashbackPercent: tier.percent,
+        remaining: tier.remaining,
+        progress: tier.progress,
+      },
+    });
   } catch (err) {
     sendApiError(res, err);
   }

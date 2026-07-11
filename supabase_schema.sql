@@ -191,6 +191,114 @@ insert into public.settings (key, value) values
 on conflict (key) do nothing;
 
 -- --------------------------------------------------------------------
+-- Configurable cashback / loyalty tiers
+-- A tier owns a lower spending boundary. Its effective upper boundary
+-- is the next active tier's min_spend, so ranges can never overlap.
+-- --------------------------------------------------------------------
+create table if not exists public.loyalty_tiers (
+  id uuid primary key default gen_random_uuid(),
+  code varchar(32) not null,
+  name_ru varchar(80) not null,
+  name_kk varchar(80) not null,
+  name_en varchar(80) not null,
+  description_ru varchar(240) not null,
+  description_kk varchar(240) not null,
+  description_en varchar(240) not null,
+  min_spend numeric(14, 2) not null,
+  cashback_percent numeric(5, 2) not null,
+  sort_order integer not null default 0,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint loyalty_tiers_code_format check (code ~ '^[a-z][a-z0-9_-]{1,31}$'),
+  constraint loyalty_tiers_min_spend_range check (min_spend >= 0 and min_spend <= 1000000000000),
+  constraint loyalty_tiers_cashback_range check (cashback_percent >= 0 and cashback_percent <= 100),
+  constraint loyalty_tiers_sort_order_range check (sort_order >= 0 and sort_order <= 1000000),
+  constraint loyalty_tiers_name_ru_not_blank check (btrim(name_ru) <> ''),
+  constraint loyalty_tiers_name_kk_not_blank check (btrim(name_kk) <> ''),
+  constraint loyalty_tiers_name_en_not_blank check (btrim(name_en) <> ''),
+  constraint loyalty_tiers_description_ru_not_blank check (btrim(description_ru) <> ''),
+  constraint loyalty_tiers_description_kk_not_blank check (btrim(description_kk) <> ''),
+  constraint loyalty_tiers_description_en_not_blank check (btrim(description_en) <> '')
+);
+
+alter table public.loyalty_tiers add column if not exists code varchar(32);
+alter table public.loyalty_tiers add column if not exists name_ru varchar(80);
+alter table public.loyalty_tiers add column if not exists name_kk varchar(80);
+alter table public.loyalty_tiers add column if not exists name_en varchar(80);
+alter table public.loyalty_tiers add column if not exists description_ru varchar(240);
+alter table public.loyalty_tiers add column if not exists description_kk varchar(240);
+alter table public.loyalty_tiers add column if not exists description_en varchar(240);
+alter table public.loyalty_tiers add column if not exists min_spend numeric(14, 2);
+alter table public.loyalty_tiers add column if not exists cashback_percent numeric(5, 2);
+alter table public.loyalty_tiers add column if not exists sort_order integer default 0;
+alter table public.loyalty_tiers add column if not exists is_active boolean default true;
+alter table public.loyalty_tiers add column if not exists created_at timestamptz default now();
+alter table public.loyalty_tiers add column if not exists updated_at timestamptz default now();
+
+create unique index if not exists loyalty_tiers_code_unique
+  on public.loyalty_tiers (code);
+create unique index if not exists loyalty_tiers_min_spend_unique
+  on public.loyalty_tiers (min_spend);
+create index if not exists loyalty_tiers_active_threshold_idx
+  on public.loyalty_tiers (is_active, min_spend);
+create index if not exists loyalty_tiers_sort_order_idx
+  on public.loyalty_tiers (sort_order, min_spend);
+
+-- Seed from legacy settings so applying this migration preserves the
+-- cashback percentages and thresholds already configured by an operator.
+insert into public.loyalty_tiers (
+  code,
+  name_ru,
+  name_kk,
+  name_en,
+  description_ru,
+  description_kk,
+  description_en,
+  min_spend,
+  cashback_percent,
+  sort_order,
+  is_active
+) values
+  (
+    'bronze', 'Бронза', 'Қола', 'Bronze',
+    'Стартовый уровень программы лояльности',
+    'Адалдық бағдарламасының бастапқы деңгейі',
+    'Starting loyalty level',
+    0,
+    least(100, greatest(0, coalesce((select case when value ~ '^[0-9]+([.][0-9]+)?$' then value::numeric end from public.settings where key = 'base_cashback_percent'), 3))),
+    0, true
+  ),
+  (
+    'silver', 'Серебро', 'Күміс', 'Silver',
+    'Повышенный кэшбэк для постоянных гостей',
+    'Тұрақты қонақтарға арналған жоғары кэшбэк',
+    'Increased cashback for returning guests',
+    least(999999999999.99, greatest(0, coalesce((select case when value ~ '^[0-9]+([.][0-9]+)?$' then value::numeric end from public.settings where key = 'tier_silver_th'), 50000))),
+    least(100, greatest(0, coalesce((select case when value ~ '^[0-9]+([.][0-9]+)?$' then value::numeric end from public.settings where key = 'tier_silver_cb'), 5))),
+    1, true
+  ),
+  (
+    'gold', 'Золото', 'Алтын', 'Gold',
+    'Высокий кэшбэк для лояльных гостей',
+    'Адал қонақтарға арналған жоғары кэшбэк',
+    'High cashback for loyal guests',
+    least(999999999999.99, greatest(0, coalesce((select case when value ~ '^[0-9]+([.][0-9]+)?$' then value::numeric end from public.settings where key = 'tier_gold_th'), 150000))),
+    least(100, greatest(0, coalesce((select case when value ~ '^[0-9]+([.][0-9]+)?$' then value::numeric end from public.settings where key = 'tier_gold_cb'), 7))),
+    2, true
+  ),
+  (
+    'platinum', 'Платина', 'Платина', 'Platinum',
+    'Максимальный кэшбэк для самых преданных гостей',
+    'Ең адал қонақтарға арналған ең жоғары кэшбэк',
+    'Maximum cashback for the most loyal guests',
+    least(999999999999.99, greatest(0, coalesce((select case when value ~ '^[0-9]+([.][0-9]+)?$' then value::numeric end from public.settings where key = 'tier_platinum_th'), 300000))),
+    least(100, greatest(0, coalesce((select case when value ~ '^[0-9]+([.][0-9]+)?$' then value::numeric end from public.settings where key = 'tier_platinum_cb'), 10))),
+    3, true
+  )
+on conflict do nothing;
+
+-- --------------------------------------------------------------------
 -- Stories / ads in mobile app
 -- Code uses lowercase coverurl/contenturl.
 -- --------------------------------------------------------------------
@@ -545,16 +653,60 @@ begin
 end;
 $$;
 
+create or replace function public.reorder_loyalty_tiers(p_ids uuid[])
+returns setof public.loyalty_tiers
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_expected_count integer;
+begin
+  if p_ids is null or cardinality(p_ids) = 0 then
+    raise exception 'tier ids are required';
+  end if;
+
+  select count(*) into v_expected_count from public.loyalty_tiers;
+  if cardinality(p_ids) <> v_expected_count
+    or (select count(distinct value) from unnest(p_ids) as supplied(value)) <> v_expected_count
+    or exists (
+      select 1
+      from unnest(p_ids) as supplied(value)
+      left join public.loyalty_tiers tiers on tiers.id = supplied.value
+      where tiers.id is null
+    ) then
+    raise exception 'ids must contain every loyalty tier exactly once';
+  end if;
+
+  with requested_order as (
+    select value as id, (ordinality - 1)::integer as sort_order
+    from unnest(p_ids) with ordinality as supplied(value, ordinality)
+  )
+  update public.loyalty_tiers tiers
+  set sort_order = requested_order.sort_order,
+      updated_at = now()
+  from requested_order
+  where tiers.id = requested_order.id;
+
+  return query
+    select *
+    from public.loyalty_tiers
+    order by sort_order asc, min_spend asc;
+end;
+$$;
+
 revoke all on function public.increment_customer_balance(uuid, numeric) from public, anon, authenticated;
 revoke all on function public.apply_loyalty_transaction(uuid, text, numeric, numeric, numeric, numeric, integer, jsonb) from public, anon, authenticated;
 revoke all on function public.activate_pending_bonus_transactions() from public, anon, authenticated;
 revoke all on function public.expire_customer_bonus(uuid, numeric, text) from public, anon, authenticated;
 revoke all on function public.apply_manual_bonus(uuid, numeric, text) from public, anon, authenticated;
+revoke all on function public.reorder_loyalty_tiers(uuid[]) from public, anon, authenticated;
 grant execute on function public.increment_customer_balance(uuid, numeric) to service_role;
 grant execute on function public.apply_loyalty_transaction(uuid, text, numeric, numeric, numeric, numeric, integer, jsonb) to service_role;
 grant execute on function public.activate_pending_bonus_transactions() to service_role;
 grant execute on function public.expire_customer_bonus(uuid, numeric, text) to service_role;
 grant execute on function public.apply_manual_bonus(uuid, numeric, text) to service_role;
+grant execute on function public.reorder_loyalty_tiers(uuid[]) to service_role;
 
 -- --------------------------------------------------------------------
 -- WhatsApp / OTP session storage
@@ -581,12 +733,14 @@ on conflict (id) do update set
 -- --------------------------------------------------------------------
 -- RLS
 -- Backend must use SUPABASE_SERVICE_ROLE_KEY. service_role bypasses RLS.
--- No public anon access to database tables.
--- Public read is enabled only for storage objects in the public stories bucket.
+-- Public database access is limited to active loyalty tiers; all sensitive
+-- customer, transaction and configuration tables stay service-role only.
+-- The stories storage bucket remains publicly readable for app media.
 -- --------------------------------------------------------------------
 alter table public.customers enable row level security;
 alter table public.transactions enable row level security;
 alter table public.settings enable row level security;
+alter table public.loyalty_tiers enable row level security;
 alter table public.stories enable row level security;
 alter table public.news enable row level security;
 alter table public.wallet_registrations enable row level security;
@@ -598,12 +752,15 @@ alter table public.points enable row level security;
 drop policy if exists "Allow all access for Service Role" on public.customers;
 drop policy if exists "Allow all access for Service Role" on public.transactions;
 drop policy if exists "Allow all access for Service Role" on public.settings;
+drop policy if exists "Allow all access for Service Role" on public.loyalty_tiers;
 drop policy if exists "Allow all access for Service Role" on public.stories;
 drop policy if exists "Allow all access for Service Role" on public.news;
 drop policy if exists "Allow all access for Service Role" on public.wallet_registrations;
 drop policy if exists "service_role_all_customers" on public.customers;
 drop policy if exists "service_role_all_transactions" on public.transactions;
 drop policy if exists "service_role_all_settings" on public.settings;
+drop policy if exists "service_role_all_loyalty_tiers" on public.loyalty_tiers;
+drop policy if exists "public_read_active_loyalty_tiers" on public.loyalty_tiers;
 drop policy if exists "service_role_all_stories" on public.stories;
 drop policy if exists "service_role_all_news" on public.news;
 drop policy if exists "service_role_all_wallet" on public.wallet_registrations;
@@ -615,6 +772,8 @@ drop policy if exists "service_role_all_points" on public.points;
 create policy "service_role_all_customers" on public.customers for all to service_role using (true) with check (true);
 create policy "service_role_all_transactions" on public.transactions for all to service_role using (true) with check (true);
 create policy "service_role_all_settings" on public.settings for all to service_role using (true) with check (true);
+create policy "service_role_all_loyalty_tiers" on public.loyalty_tiers for all to service_role using (true) with check (true);
+create policy "public_read_active_loyalty_tiers" on public.loyalty_tiers for select to anon, authenticated using (is_active = true);
 create policy "service_role_all_stories" on public.stories for all to service_role using (true) with check (true);
 create policy "service_role_all_news" on public.news for all to service_role using (true) with check (true);
 create policy "service_role_all_wallet" on public.wallet_registrations for all to service_role using (true) with check (true);
@@ -622,6 +781,10 @@ create policy "service_role_all_whatsapp" on public.whatsapp_sessions for all to
 create policy "service_role_all_iiko_logs" on public.iiko_operation_logs for all to service_role using (true) with check (true);
 create policy "service_role_all_cities" on public.cities for all to service_role using (true) with check (true);
 create policy "service_role_all_points" on public.points for all to service_role using (true) with check (true);
+
+revoke all on table public.loyalty_tiers from public, anon, authenticated;
+grant select on table public.loyalty_tiers to anon, authenticated;
+grant all on table public.loyalty_tiers to service_role;
 
 drop policy if exists "Public read stories bucket" on storage.objects;
 create policy "Public read stories bucket"
@@ -657,11 +820,17 @@ create trigger settings_set_updated_at
 before update on public.settings
 for each row execute function public.set_updated_at();
 
+drop trigger if exists loyalty_tiers_set_updated_at on public.loyalty_tiers;
+create trigger loyalty_tiers_set_updated_at
+before update on public.loyalty_tiers
+for each row execute function public.set_updated_at();
+
 -- --------------------------------------------------------------------
 -- Smoke-check
 -- --------------------------------------------------------------------
 select
   'Bulka Supabase setup complete' as status,
   (select count(*) from public.settings) as settings_count,
+  (select count(*) from public.loyalty_tiers) as loyalty_tiers_count,
   (select count(*) from public.stories) as stories_count,
   (select count(*) from public.news) as news_count;

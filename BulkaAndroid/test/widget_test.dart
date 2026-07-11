@@ -4,12 +4,21 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  setUp(() {
+    appLanguageNotifier.value = 'ru';
+    SharedPreferences.setMockInitialValues({});
+  });
+
+  test('all translations contain ru, kk and en values', () {
+    expect(translationValidationErrors(), isEmpty);
+  });
+
   testWidgets('shows login screen', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         theme: buildBulkaTheme(),
         home: LoginScreen(
-          onRequestOtp: (_, _) async => null,
+          onRequestOtp: (_, _) async => const OtpRequestResult(),
           onVerifyOtp: (_, _) async => null,
         ),
       ),
@@ -22,7 +31,28 @@ void main() {
     expect(find.text('Получить код в WhatsApp'), findsOneWidget);
   });
 
+  testWidgets('keeps the branded splash during minimum boot time', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const BulkaBonusApp());
+    await tester.pump();
+
+    expect(find.byType(SplashScreen), findsOneWidget);
+    expect(
+      find.image(const AssetImage('assets/brand/bulka_logo.png')),
+      findsOneWidget,
+    );
+
+    await tester.pump(const Duration(milliseconds: 2199));
+    expect(find.byType(SplashScreen), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 1));
+    await tester.pump();
+    expect(find.byType(LoginScreen), findsOneWidget);
+  });
+
   testWidgets('profile back returns to populated home', (tester) async {
+    SharedPreferences.setMockInitialValues({});
     await tester.pumpWidget(
       MaterialApp(
         theme: buildBulkaTheme(),
@@ -46,33 +76,122 @@ void main() {
     expect(find.text('НОВИНКА'), findsWidgets);
     expect(find.text('Выберите тип заказа'), findsOneWidget);
     expect(find.text('Накопительная'), findsOneWidget);
-    expect(find.text('Осталось покупок: 4'), findsOneWidget);
-    expect(find.text('Осталось покупок: 10'), findsOneWidget);
+    expect(find.text('Статус: Бронза (5%)'), findsWidgets);
+    expect(find.byType(Hero), findsAtLeastNWidgets(2));
 
-    await tester.tap(find.text('НОВИНКА').last);
-    await tester.pump(const Duration(milliseconds: 100));
+    final promoTapTarget = find.byKey(const ValueKey('promo-card-new'));
+    expect(promoTapTarget, findsOneWidget);
+    await tester.tap(promoTapTarget);
+    await tester.pump();
+    expect(
+      tester.state<NavigatorState>(find.byType(Navigator)).canPop(),
+      isTrue,
+    );
+    await tester.pump(const Duration(milliseconds: 400));
     expect(find.byType(StoryViewer), findsOneWidget);
 
     await tester.tap(find.byIcon(Icons.close));
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.text('История баланса'));
-    await tester.tap(find.text('История баланса'));
+    final qrButton = find.byKey(const ValueKey('qr-preview-button'));
+    await tester.ensureVisible(qrButton);
+    await tester.tap(qrButton);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byType(QrDialog), findsOneWidget);
+    final modalBarriers = tester.widgetList<ModalBarrier>(
+      find.byType(ModalBarrier),
+    );
+    expect(
+      modalBarriers.any((barrier) => (barrier.color?.a ?? 1) < 0.25),
+      isTrue,
+    );
+    await tester.tap(find.byIcon(Icons.close_rounded));
     await tester.pumpAndSettle();
-    expect(find.text('Начисление кэшбэка'), findsWidgets);
 
-    await tester.tap(find.text('Профиль'));
+    await tester.ensureVisible(find.byTooltip('Свернуть'));
+    await tester.tap(find.byTooltip('Свернуть'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byTooltip('Развернуть'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('nav-4')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('nav-0')));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Развернуть'), findsOneWidget);
+
+    await tester.ensureVisible(find.byTooltip('Развернуть'));
+    await tester.tap(find.byTooltip('Развернуть'));
+    await tester.pump(const Duration(milliseconds: 300));
+    final historyButton = find.byKey(const ValueKey('balance-history-button'));
+    await tester.drag(
+      find.byKey(const PageStorageKey('home-scroll')),
+      const Offset(0, -520),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.ensureVisible(historyButton);
+    await tester.tap(historyButton);
+    await tester.pumpAndSettle();
+    final ordersSemantics = find.byWidgetPredicate(
+      (widget) =>
+          widget is Semantics && widget.properties.label == 'Мои заказы',
+    );
+    expect(
+      tester.widget<Semantics>(ordersSemantics).properties.selected,
+      isTrue,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('nav-4')));
     await tester.pumpAndSettle();
     expect(find.text('Профиль'), findsWidgets);
+    expect(find.byType(ProfileScreen).hitTestable(), findsOneWidget);
+    expect(tester.widget<IndexedStack>(find.byType(IndexedStack)).index, 4);
 
-    await tester.tap(find.text('Главная'));
+    await tester.tap(find.byKey(const ValueKey('nav-0')));
     await tester.pumpAndSettle();
 
+    expect(tester.widget<IndexedStack>(find.byType(IndexedStack)).index, 0);
+    expect(find.byType(ProfileScreen).hitTestable(), findsNothing);
+    expect(find.byType(HomeScreen).hitTestable(), findsOneWidget);
     expect(
       find.image(const AssetImage('assets/brand/bulka_logo.png')),
       findsOneWidget,
     );
     expect(find.text('Накопительная'), findsOneWidget);
+  });
+
+  testWidgets('tablet uses promo grid and honors reduced motion', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    tester.view.physicalSize = const Size(1024, 1366);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildBulkaTheme(),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(disableAnimations: true),
+          child: child!,
+        ),
+        home: MainShell(
+          api: _FakeBulkaApiClient(),
+          customer: _testCustomer,
+          transactions: _testTransactions,
+          onLogout: () async {},
+          onRefreshProfile: () async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final grid = tester.widget<GridView>(find.byType(GridView));
+    final delegate =
+        grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
+    expect(delegate.crossAxisCount, 2);
+    expect(BulkaMotion.reduced(tester.element(find.byType(MainShell))), isTrue);
   });
 
   testWidgets('delivery address flow saves selected address', (tester) async {

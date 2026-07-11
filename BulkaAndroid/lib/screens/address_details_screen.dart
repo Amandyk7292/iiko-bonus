@@ -42,7 +42,7 @@ class _AddressDetailsScreenState extends State<AddressDetailsScreen> {
   }
 
   String? _required(String? value) {
-    if ((value ?? '').trim().isEmpty) return 'Заполните поле';
+    if ((value ?? '').trim().isEmpty) return 'required_field'.tr;
     return null;
   }
 
@@ -62,7 +62,7 @@ class _AddressDetailsScreenState extends State<AddressDetailsScreen> {
           onPressed: () => Navigator.of(context).pop(),
           icon: const Icon(Icons.chevron_left_rounded, size: 34),
           color: _cocoa.withValues(alpha: 0.56),
-          tooltip: 'Назад',
+          tooltip: 'back_tooltip'.tr,
         ),
         title: Text(
           widget.location.address,
@@ -100,7 +100,7 @@ class _AddressDetailsScreenState extends State<AddressDetailsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _BulkaTextField(
-                      label: 'Название адреса',
+                      label: 'address_title_label'.tr,
                       controller: _titleController,
                       validator: _required,
                     ),
@@ -109,7 +109,7 @@ class _AddressDetailsScreenState extends State<AddressDetailsScreen> {
                       children: [
                         Expanded(
                           child: _BulkaTextField(
-                            label: 'Дом',
+                            label: 'house_label'.tr,
                             controller: _houseController,
                             validator: _required,
                           ),
@@ -117,7 +117,7 @@ class _AddressDetailsScreenState extends State<AddressDetailsScreen> {
                         const SizedBox(width: 16),
                         Expanded(
                           child: _BulkaTextField(
-                            label: 'Этаж',
+                            label: 'floor_label'.tr,
                             controller: _floorController,
                             keyboardType: TextInputType.number,
                           ),
@@ -125,7 +125,7 @@ class _AddressDetailsScreenState extends State<AddressDetailsScreen> {
                         const SizedBox(width: 16),
                         Expanded(
                           child: _BulkaTextField(
-                            label: 'Квартира',
+                            label: 'apartment_label'.tr,
                             controller: _apartmentController,
                             keyboardType: TextInputType.text,
                           ),
@@ -134,7 +134,7 @@ class _AddressDetailsScreenState extends State<AddressDetailsScreen> {
                     ),
                     const SizedBox(height: 18),
                     _BulkaTextField(
-                      label: 'Комментарий для курьера',
+                      label: 'courier_comment_label'.tr,
                       controller: _commentController,
                       minLines: 2,
                       maxLines: 3,
@@ -148,9 +148,9 @@ class _AddressDetailsScreenState extends State<AddressDetailsScreen> {
                       child: GradientButton(
                         onPressed: _save,
                         height: 72,
-                        child: const Text(
-                          'Продолжить',
-                          style: TextStyle(
+                        child: Text(
+                          'continue_btn'.tr,
+                          style: const TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.w400,
                           ),
@@ -210,7 +210,7 @@ class _BulkaTextField extends StatelessWidget {
           maxLines: maxLines,
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
           decoration: InputDecoration(
-            hintText: 'Введите',
+            hintText: 'input_hint'.tr,
             hintStyle: TextStyle(
               color: _textDark.withValues(alpha: 0.36),
               fontSize: 18,

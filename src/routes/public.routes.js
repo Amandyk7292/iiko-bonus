@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const publicController = require('../controllers/public.controller');
+const tierController = require('../controllers/tier.controller');
 const {
   customerAuthMiddleware,
   registrationAuthMiddleware,
@@ -22,7 +23,9 @@ router.post(
 router.get('/api/customer/profile', publicController.getProfile);
 router.put('/api/customer/profile', publicController.updateProfile);
 router.delete('/api/customer/profile', publicController.deleteProfile);
+router.get('/api/customer/loyalty', tierController.getCustomerLoyalty);
 
 router.get('/api/public/cities', publicController.getCities);
+router.get('/api/public/loyalty-tiers', tierController.listPublicTiers);
 
 module.exports = router;

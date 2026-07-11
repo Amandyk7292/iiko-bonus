@@ -40,26 +40,34 @@ class _MainShellState extends State<MainShell> {
         onHistoryTap: () => _changeTab(2),
         onProfileTap: () => _changeTab(4),
       ),
-      _ComingSoonScreen(
+      _HelpfulFeatureState(
         key: const PageStorageKey('catalog-tab'),
         title: 'nav_catalog'.tr,
         icon: Icons.bakery_dining_rounded,
         subtitle: 'catalog_sub'.tr,
+        actionLabel: 'catalog_action'.tr,
+        onAction: () => Navigator.of(context).push<void>(
+          MaterialPageRoute(builder: (_) => const LocationsScreen()),
+        ),
       ),
       OrdersScreen(
         key: const PageStorageKey('orders-tab'),
         transactions: widget.transactions,
+        onExplore: () => _changeTab(0),
       ),
-      _ComingSoonScreen(
+      _HelpfulFeatureState(
         key: const PageStorageKey('promos-tab'),
         title: 'nav_promos'.tr,
         icon: Icons.card_giftcard_rounded,
         subtitle: 'promos_sub'.tr,
+        actionLabel: 'promos_action'.tr,
+        onAction: () => _changeTab(0),
       ),
       ProfileScreen(
         key: const PageStorageKey('profile-tab'),
         api: widget.api,
         customer: widget.customer,
+        transactions: widget.transactions,
         onBack: () => _changeTab(0),
         onLogout: widget.onLogout,
         onRefreshProfile: widget.onRefreshProfile,
@@ -94,38 +102,16 @@ class _PersistentTabSwitcher extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final duration = BulkaMotion.duration(context, BulkaMotion.standard);
-    return Stack(
-      fit: StackFit.expand,
+    // Do not fade five full-screen Scaffolds in a Stack. When a tab above the
+    // new one (notably Profile) is put into TickerMode(false), its exit
+    // animation stops before opacity reaches zero and it stays painted on top.
+    // IndexedStack preserves every tab's state while making exactly one screen
+    // visible and interactive.
+    return IndexedStack(
+      index: index,
       children: [
         for (var i = 0; i < children.length; i++)
-          ExcludeSemantics(
-            excluding: i != index,
-            child: IgnorePointer(
-              ignoring: i != index,
-              child: TickerMode(
-                enabled: i == index,
-                child: AnimatedOpacity(
-                  opacity: i == index ? 1 : 0,
-                  duration: duration,
-                  curve: Curves.easeOutCubic,
-                  child: AnimatedSlide(
-                    offset: i == index
-                        ? Offset.zero
-                        : Offset(i < index ? -0.025 : 0.025, 0),
-                    duration: duration,
-                    curve: Curves.easeOutCubic,
-                    child: AnimatedScale(
-                      scale: i == index ? 1 : 0.992,
-                      duration: duration,
-                      curve: Curves.easeOutCubic,
-                      child: children[i],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
+          TickerMode(enabled: i == index, child: children[i]),
       ],
     );
   }
@@ -150,7 +136,12 @@ class FloatingNavBar extends StatelessWidget {
         Icons.bakery_dining,
         Icons.bakery_dining_outlined,
       ),
-      _NavItem('', Icons.shopping_bag, Icons.shopping_bag_outlined),
+      _NavItem(
+        'orders_title'.tr,
+        Icons.shopping_bag,
+        Icons.shopping_bag_outlined,
+        prominent: true,
+      ),
       _NavItem(
         'nav_promos'.tr,
         Icons.card_giftcard,
@@ -214,11 +205,11 @@ class _NavButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final duration = BulkaMotion.duration(context, BulkaMotion.fast);
     final color = selected ? _cocoa : _textDark.withValues(alpha: 0.44);
-    final isCenter = item.title.isEmpty;
+    final isCenter = item.prominent;
     return Semantics(
       button: true,
       selected: selected,
-      label: isCenter ? 'Заказы' : item.title,
+      label: item.title,
       child: BulkaPressScale(
         pressedScale: 0.94,
         child: InkWell(
@@ -303,17 +294,21 @@ class _NavButton extends StatelessWidget {
   }
 }
 
-class _ComingSoonScreen extends StatelessWidget {
-  const _ComingSoonScreen({
+class _HelpfulFeatureState extends StatelessWidget {
+  const _HelpfulFeatureState({
     required this.title,
     required this.icon,
     required this.subtitle,
+    required this.actionLabel,
+    required this.onAction,
     super.key,
   });
 
   final String title;
   final IconData icon;
   final String subtitle;
+  final String actionLabel;
+  final VoidCallback onAction;
 
   @override
   Widget build(BuildContext context) {
@@ -359,6 +354,14 @@ class _ComingSoonScreen extends StatelessWidget {
                   height: 1.4,
                 ),
               ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: GradientButton(
+                  onPressed: onAction,
+                  child: Text(actionLabel),
+                ),
+              ),
             ],
           ),
         ),
@@ -368,9 +371,15 @@ class _ComingSoonScreen extends StatelessWidget {
 }
 
 class _NavItem {
-  const _NavItem(this.title, this.selectedIcon, this.icon);
+  const _NavItem(
+    this.title,
+    this.selectedIcon,
+    this.icon, {
+    this.prominent = false,
+  });
 
   final String title;
   final IconData selectedIcon;
   final IconData icon;
+  final bool prominent;
 }

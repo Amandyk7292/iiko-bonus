@@ -19,6 +19,7 @@ IikoBonusPlugin/obj/
 !package.json
 !package-lock.json
 !vercel.json
+!admin-ui/tsconfig.json
 render_env.txt
 generate-csr.js
 setup-pass.js

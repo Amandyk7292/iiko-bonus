@@ -4,6 +4,7 @@ class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
     required this.api,
     required this.customer,
+    required this.transactions,
     required this.onBack,
     required this.onLogout,
     required this.onRefreshProfile,
@@ -12,6 +13,7 @@ class ProfileScreen extends StatefulWidget {
 
   final BulkaApiClient api;
   final Customer customer;
+  final List<BonusTransaction> transactions;
   final VoidCallback onBack;
   final Future<void> Function() onLogout;
   final Future<void> Function() onRefreshProfile;
@@ -21,7 +23,7 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  String _selectedLang = 'Русский';
+  String _selectedLang = AppLang.languageName('ru');
 
   @override
   void initState() {
@@ -164,7 +166,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
-            final languages = ['Русский', 'Қазақша', 'English'];
+            final languages = [
+              AppLang.languageName('ru'),
+              AppLang.languageName('kk'),
+              AppLang.languageName('en'),
+            ];
 
             return Container(
               decoration: const BoxDecoration(
@@ -188,22 +194,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      InkWell(
-                        onTap: () => Navigator.pop(context),
-                        borderRadius: BorderRadius.circular(20),
-                        child: Container(
-                          width: 32,
-                          height: 32,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFEADBBE),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.close_rounded,
-                            color: Colors.white,
-                            size: 18,
-                          ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        tooltip: 'close_tooltip'.tr,
+                        style: IconButton.styleFrom(
+                          backgroundColor: const Color(0xFFEADBBE),
+                          foregroundColor: Colors.white,
                         ),
+                        icon: const Icon(Icons.close_rounded, size: 18),
                       ),
                     ],
                   ),
@@ -301,16 +299,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _showInfoMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -328,16 +316,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      InkWell(
-                        onTap: widget.onBack,
-                        borderRadius: BorderRadius.circular(20),
-                        child: const Padding(
-                          padding: EdgeInsets.all(8),
-                          child: Icon(
-                            Icons.arrow_back_ios_new_rounded,
-                            color: Color(0xFF6D3317),
-                            size: 20,
-                          ),
+                      IconButton(
+                        onPressed: widget.onBack,
+                        tooltip: 'back_tooltip'.tr,
+                        icon: const Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          color: Color(0xFF6D3317),
+                          size: 20,
                         ),
                       ),
                       const SizedBox(width: 4),
@@ -462,7 +447,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              widget.customer.name,
+                              isGuestName(widget.customer.name)
+                                  ? 'guest_name'.tr
+                                  : widget.customer.name,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
@@ -532,7 +519,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     _ProfileMenuItem(
                       icon: Icons.receipt_long_outlined,
                       title: 'menu_orders'.tr,
-                      onTap: () => _showInfoMessage('Список заказов пуст'),
+                      onTap: () => Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => OrdersScreen(
+                            transactions: widget.transactions,
+                            onExplore: () {
+                              Navigator.of(context).pop();
+                              widget.onBack();
+                            },
+                          ),
+                        ),
+                      ),
                     ),
                     const Divider(
                       height: 1,
@@ -567,7 +564,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     _ProfileMenuItem(
                       icon: Icons.location_on_outlined,
                       title: 'menu_addresses'.tr,
-                      onTap: () => _showInfoMessage('Ваши сохранённые адреса'),
+                      onTap: () => Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => const AddressSelectionScreen(),
+                        ),
+                      ),
                     ),
                     const Divider(
                       height: 1,
@@ -578,7 +579,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     _ProfileMenuItem(
                       icon: Icons.mail_outline_rounded,
                       title: 'menu_contact'.tr,
-                      onTap: () => _showInfoMessage('Служба поддержки Bulka'),
+                      onTap: () => _openTelegram(context),
                     ),
                     const Divider(
                       height: 1,
@@ -589,18 +590,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     _ProfileMenuItem(
                       icon: Icons.menu_book_rounded,
                       title: 'menu_info'.tr,
-                      onTap: () => _showInfoMessage('Bulka App v1.0'),
-                    ),
-                    const Divider(
-                      height: 1,
-                      indent: 60,
-                      endIndent: 20,
-                      color: Color(0xFFF3F3F3),
-                    ),
-                    _ProfileMenuItem(
-                      icon: Icons.lock_outline_rounded,
-                      title: 'menu_pin'.tr,
-                      onTap: () => _showInfoMessage('Настройка PIN-кода'),
+                      onTap: () => showAboutDialog(
+                        context: context,
+                        applicationName: 'app_title'.tr,
+                        applicationVersion: '1.0.0',
+                        applicationIcon: Image.asset(
+                          'assets/brand/bulka_logo.png',
+                          width: 72,
+                          height: 72,
+                        ),
+                        children: [Text('about_app_body'.tr)],
+                      ),
                     ),
                   ],
                 ),
@@ -612,53 +612,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  String _formatCurrency(double val) {
-    final int v = val.round();
-    final String s = v.toString();
-    final buffer = StringBuffer();
-    for (int i = 0; i < s.length; i++) {
-      if (i > 0 && (s.length - i) % 3 == 0) {
-        buffer.write(' ');
-      }
-      buffer.write(s[i]);
-    }
-    return buffer.toString();
-  }
-
   Widget _buildLoyaltyProgressCard() {
     final customer = widget.customer;
-    final tierObj = customer.tier;
-
-    String currentName = tierObj?.name ?? 'Бронза';
-    int percent =
-        tierObj?.percent ??
-        (customer.cashbackPercent > 0 ? customer.cashbackPercent : 5);
-    int level = tierObj?.level ?? 1;
-    String? nextName = tierObj?.nextTier;
-    double remaining = tierObj?.remaining ?? 15000;
-    double progress = tierObj != null ? (tierObj.progress / 100.0) : 0.25;
-
-    final t1Name = tierObj != null && tierObj.allTiers.isNotEmpty
-        ? '${tierObj.allTiers[0].name} ${tierObj.allTiers[0].percent}%'
-        : 'Бронза 5%';
-    final t2Name = tierObj != null && tierObj.allTiers.length > 1
-        ? '${tierObj.allTiers[1].name} ${tierObj.allTiers[1].percent}%'
-        : 'Серебро 7%';
-    final t3Name = tierObj != null && tierObj.allTiers.length > 2
-        ? '${tierObj.allTiers[2].name} ${tierObj.allTiers[2].percent}%'
-        : 'Золото 10%';
-
-    int nextPercent = 7;
-    if (tierObj != null && tierObj.allTiers.isNotEmpty) {
-      for (final t in tierObj.allTiers) {
-        if (t.name == nextName) {
-          nextPercent = t.percent;
+    final tier = customer.tier;
+    final currentName = tier?.localizedName ?? 'tier_base'.tr;
+    final percent = tier?.percent ?? customer.cashbackPercent;
+    final tiers = tier?.allTiers ?? const <TierItem>[];
+    final level = max(tier?.level ?? 1, 1);
+    final totalLevels = max(tiers.length, level);
+    final nextName = tier?.localizedNextTier;
+    var nextPercent = tier?.nextPercent ?? percent;
+    if (tier != null && nextName != null) {
+      for (final item in tiers) {
+        if (item.name == tier.nextTier || item.localizedName == nextName) {
+          nextPercent = item.percent;
           break;
         }
       }
+      if (nextPercent == percent && level < tiers.length) {
+        nextPercent = tiers[level].percent;
+      }
     }
-
-    progress = progress.clamp(0.05, 1.0);
+    final progress = tier != null
+        ? tier.progressFraction
+        : customer.vipThreshold > 0
+        ? (customer.totalSpent / customer.vipThreshold).clamp(0.0, 1.0)
+        : 0.0;
+    final description = tier == null
+        ? 'tier_current'.trArgs({'percent': percent})
+        : nextName == null
+        ? 'tier_max'.trArgs({'name': currentName, 'percent': percent})
+        : 'tier_next'.trArgs({
+            'name': nextName,
+            'percent': nextPercent,
+            'remaining': formatGroupedNumber(tier.remaining),
+          });
 
     return Container(
       decoration: BoxDecoration(
@@ -684,34 +672,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFFFB300),
-                      shape: BoxShape.circle,
+              Expanded(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFFFB300),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.workspace_premium_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
                     ),
-                    child: const Icon(
-                      Icons.workspace_premium_rounded,
-                      color: Colors.white,
-                      size: 20,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'tier_status'.trArgs({
+                          'name': currentName,
+                          'percent': percent,
+                        }),
+                        style: const TextStyle(
+                          color: Color(0xFF4E2C1E),
+                          fontFamily: _headingFont,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Статус: $currentName ($percent%)',
-                    style: const TextStyle(
-                      color: Color(0xFF4E2C1E),
-                      fontFamily: _headingFont,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
@@ -722,7 +719,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  'Уровень $level из 3',
+                  'tier_level'.trArgs({
+                    'level': level.clamp(1, totalLevels),
+                    'total': totalLevels,
+                  }),
                   style: const TextStyle(
                     color: Color(0xFF6D3317),
                     fontSize: 12,
@@ -734,9 +734,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 14),
           Text(
-            nextName == null || nextName.isEmpty
-                ? 'Поздравляем! У вас максимальный статус $currentName (кешбэк $percent%)'
-                : 'До статуса $nextName (кешбэк $nextPercent%) осталось совершить покупки на ${_formatCurrency(remaining)} ₸',
+            description,
             style: const TextStyle(
               color: Color(0xFF6D3317),
               fontSize: 13.5,
@@ -757,14 +755,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _buildTierLabel(t1Name, level >= 1),
-              _buildTierLabel(t2Name, level >= 2),
-              _buildTierLabel(t3Name, level >= 3),
-            ],
-          ),
+          if (tiers.isNotEmpty)
+            Wrap(
+              spacing: 10,
+              runSpacing: 8,
+              children: [
+                for (var index = 0; index < tiers.length; index++)
+                  _buildTierLabel(
+                    '${tiers[index].localizedName} ${tiers[index].percent}%',
+                    index < level,
+                  ),
+              ],
+            ),
         ],
       ),
     );
@@ -843,20 +845,15 @@ class _LogoutSplitButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onLogout,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        width: 38,
-        height: 38,
-        alignment: Alignment.center,
-        child: Image.asset(
-          'assets/brand/entrance.png',
-          width: 26,
-          height: 26,
-          color: const Color(0xFF6D3317),
-          errorBuilder: (_, _, _) => const _EntranceVectorIcon(size: 26),
-        ),
+    return IconButton(
+      onPressed: onLogout,
+      tooltip: 'logout_confirm_yes'.tr,
+      icon: Image.asset(
+        'assets/brand/entrance.png',
+        width: 26,
+        height: 26,
+        color: const Color(0xFF6D3317),
+        errorBuilder: (_, _, _) => const _EntranceVectorIcon(size: 26),
       ),
     );
   }

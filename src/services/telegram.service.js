@@ -91,8 +91,10 @@ async function handleUpdate(update) {
       await supabase.from('customers').update({ telegram_id: chatId }).eq('id', customer.id);
 
       const settings = await getSettings();
+      const { getActiveLoyaltyTiers } = require('./tier.service');
       const { getTierInfo } = require('../utils/tier.util');
-      const tier = getTierInfo(customer.total_spent, settings);
+      const tiers = await getActiveLoyaltyTiers(settings);
+      const tier = getTierInfo(customer.total_spent, tiers, settings);
 
       let statusStr = `<b>${tier.name} (${tier.percent}%)</b>`;
       let nextStr = tier.nextTier

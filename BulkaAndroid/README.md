@@ -1,16 +1,34 @@
-# bulka_bonus
+# Bulka customer app
 
-A new Flutter project.
+Flutter application for the Bulka loyalty program on Android and iOS.
 
-## Getting Started
+## Run locally
 
-This project is a starting point for a Flutter application.
+```powershell
+flutter pub get
+flutter run --dart-define=BULKA_API_BASE_URL=https://your-api.example
+```
 
-A few resources to get you started if this is your first Flutter project:
+The fallback API URL is configured for the existing production service; pass `BULKA_API_BASE_URL` for staging or a different production domain.
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+## Quality checks
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```powershell
+flutter analyze
+flutter test
+```
+
+The app supports Russian, Kazakh, and English. Changing the language in Profile updates the running interface and is retained locally.
+
+## Android release signing
+
+1. Create a protected upload keystore.
+2. Copy `android/key.properties.example` to `android/key.properties`.
+3. Set `storeFile`, `storePassword`, `keyAlias`, and `keyPassword`.
+4. Run `flutter build appbundle --release`.
+
+`key.properties` and keystores are ignored by Git. A release build fails clearly if they are not configured, preventing accidental debug-key publication.
+
+## iOS
+
+Archive on macOS using the intended Apple team and provisioning profile. The app requests only foreground location for nearby-bakery and pickup-point selection; its system permission messages are localized for RU/KZ/EN.

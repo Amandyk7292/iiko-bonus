@@ -1,7 +1,9 @@
 const { supabase } = require('../config/supabase');
 const crypto = require('crypto');
 const { getSettings, updateSettings } = require('../services/settings.service');
+const { getActiveLoyaltyTiers } = require('../services/tier.service');
 const { parseMoney } = require('../utils/money.util');
+const { getTierInfo } = require('../utils/tier.util');
 const { sendPushNotification } = require('../services/push.service');
 const { sendMessage } = require('../services/telegram.service');
 const { sendAppleWalletPush } = require('../services/wallet.service');
@@ -52,7 +54,14 @@ const getCustomersHandler = async (req, res) => {
   try {
     await activatePendingBonusesSafe();
     const data = await getAllCustomers();
-    res.json(data);
+    const settings = await getSettings();
+    const tiers = await getActiveLoyaltyTiers(settings);
+    res.json(
+      data.map((customer) => {
+        const tier = getTierInfo(customer.total_spent, tiers, settings);
+        return { ...customer, cashbackPercent: tier.percent, tier };
+      }),
+    );
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

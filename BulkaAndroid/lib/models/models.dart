@@ -1,5 +1,15 @@
 part of '../main.dart';
 
+class OtpRequestResult {
+  const OtpRequestResult({this.error, this.whatsappUrl, this.whatsappPhone});
+
+  final String? error;
+  final String? whatsappUrl;
+  final String? whatsappPhone;
+
+  bool get isSuccess => error == null;
+}
+
 class ProfileResponse {
   const ProfileResponse({
     required this.success,
@@ -80,19 +90,41 @@ class Customer {
   final bool emailVerified;
 
   factory Customer.fromJson(Map<String, dynamic> json) {
+    final rawTier =
+        json['tier'] ??
+        json['loyaltyTier'] ??
+        json['loyalty_tier'] ??
+        json['loyalty'];
+    var tierJson = _asMap(rawTier);
+    if (tierJson.isEmpty && rawTier is String && rawTier.trim().isNotEmpty) {
+      tierJson = {
+        'name': rawTier,
+        'percent': json['cashbackPercent'] ?? json['cashback_percent'],
+        'progress': json['tierProgress'] ?? json['tier_progress'],
+        'level': json['tierLevel'] ?? json['tier_level'],
+        'nextTier': json['nextTier'] ?? json['next_tier'],
+        'remaining': json['tierRemaining'] ?? json['tier_remaining'],
+        'allTiers': json['allTiers'] ?? json['all_tiers'] ?? json['tiers'],
+      };
+    }
+    final parsedTier = tierJson.isEmpty ? null : Tier.fromJson(tierJson);
     return Customer(
       id: _asString(json['id']),
-      name: _asString(json['name'], fallback: 'Гость'),
+      name: _asString(json['name']),
       phone: _asString(json['phone']),
       balance: _asDouble(json['balance']),
-      totalSpent: _asDouble(json['total_spent'] ?? json['totalSpent']),
+      totalSpent: _asDouble(
+        json['total_spent'] ?? json['totalSpent'] ?? json['lifetimeSpent'],
+      ),
       createdAt: _asString(json['created_at'] ?? json['createdAt']),
       isVip: json['isVip'] == true || json['is_vip'] == true,
       cashbackPercent: _asInt(
-        json['cashbackPercent'] ?? json['cashback_percent'],
+        json['cashbackPercent'] ??
+            json['cashback_percent'] ??
+            parsedTier?.percent,
       ),
       vipThreshold: _asInt(json['vipThreshold'] ?? json['vip_threshold']),
-      tier: json['tier'] is Map ? Tier.fromJson(_asMap(json['tier'])) : null,
+      tier: parsedTier,
       lastName: _nullableString(json['last_name'] ?? json['lastName']),
       gender: _nullableString(json['gender']),
       birthDate: _nullableString(json['birth_date'] ?? json['birthdate']),
@@ -120,21 +152,69 @@ class Customer {
     'email': email,
     'region': region,
   };
+
+  Customer copyWith({Tier? tier}) {
+    return Customer(
+      id: id,
+      name: name,
+      phone: phone,
+      balance: balance,
+      totalSpent: totalSpent,
+      createdAt: createdAt,
+      isVip: isVip,
+      cashbackPercent: tier?.percent ?? cashbackPercent,
+      vipThreshold: vipThreshold,
+      tier: tier ?? this.tier,
+      lastName: lastName,
+      gender: gender,
+      birthDate: birthDate,
+      email: email,
+      region: region,
+      emailVerified: emailVerified,
+    );
+  }
 }
 
 class TierItem {
-  const TierItem({required this.name, required this.percent});
+  const TierItem({
+    required this.name,
+    required this.percent,
+    this.threshold = 0,
+    this.localizedNames = const {},
+  });
   final String name;
   final int percent;
+  final double threshold;
+  final Map<String, String> localizedNames;
+
+  String get localizedName =>
+      localizedNames[AppLang.current] ?? localizeTierName(name);
 
   factory TierItem.fromJson(Map<String, dynamic> json) {
+    final names = _localizedLabels(json, 'name');
     return TierItem(
-      name: _asString(json['name']),
-      percent: _asInt(json['percent']),
+      name: _localizedFallback(json['name'], names),
+      percent: _asInt(
+        json['percent'] ?? json['cashbackPercent'] ?? json['cashback_percent'],
+      ),
+      threshold: _asDouble(
+        json['threshold'] ??
+            json['minSpend'] ??
+            json['min_spend'] ??
+            json['minSpent'] ??
+            json['min_spent'],
+      ),
+      localizedNames: names,
     );
   }
 
-  Map<String, dynamic> toJson() => {'name': name, 'percent': percent};
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'percent': percent,
+    'threshold': threshold,
+    for (final entry in localizedNames.entries)
+      'name_${entry.key}': entry.value,
+  };
 }
 
 class Tier {
@@ -147,20 +227,48 @@ class Tier {
     this.allTiers = const [],
     this.nextTier,
     this.nextTh,
+    this.nextPercent,
+    this.localizedNames = const {},
+    this.localizedNextTierNames = const {},
   });
 
   final String name;
   final int percent;
   final String? nextTier;
   final int? nextTh;
+  final int? nextPercent;
   final double remaining;
   final double progress;
   final int level;
   final List<TierItem> allTiers;
+  final Map<String, String> localizedNames;
+  final Map<String, String> localizedNextTierNames;
+
+  String get localizedName =>
+      localizedNames[AppLang.current] ?? localizeTierName(name);
+
+  String? get localizedNextTier {
+    final translated = localizedNextTierNames[AppLang.current];
+    if (translated != null && translated.trim().isNotEmpty) return translated;
+    final value = nextTier?.trim();
+    return value == null || value.isEmpty ? null : localizeTierName(value);
+  }
+
+  double get progressFraction {
+    if (!progress.isFinite) return 0;
+    return (progress > 1 ? progress / 100 : progress).clamp(0, 1);
+  }
 
   factory Tier.fromJson(Map<String, dynamic> json) {
-    final list = json['allTiers'] is List
-        ? (json['allTiers'] as List)
+    final currentTier = _asMap(json['currentTier'] ?? json['current_tier']);
+    final source = currentTier.isEmpty ? json : {...json, ...currentTier};
+    final rawList =
+        json['allTiers'] ??
+        json['all_tiers'] ??
+        json['tiers'] ??
+        json['levels'];
+    final list = rawList is List
+        ? rawList
               .map(
                 (e) => e is Map
                     ? TierItem.fromJson(_asMap(e))
@@ -169,16 +277,59 @@ class Tier {
               .where((e) => e.name.isNotEmpty)
               .toList()
         : const <TierItem>[];
+    final names = _localizedLabels(source, 'name');
+    final rawNext =
+        source['nextTierInfo'] ??
+        source['next_tier_info'] ??
+        source['nextTier'] ??
+        source['next_tier'];
+    final nextJson = _asMap(rawNext);
+    final nextNames = nextJson.isNotEmpty
+        ? _localizedLabels(nextJson, 'name')
+        : _localizedLabels(source, 'nextTier', snakeName: 'next_tier');
+    final rawProgress = source['progress'];
+    final progressJson = _asMap(rawProgress);
 
     return Tier(
-      name: _asString(json['name']),
-      percent: _asInt(json['percent']),
-      nextTier: _nullableString(json['nextTier'] ?? json['next_tier']),
-      nextTh: _nullableInt(json['nextTh'] ?? json['next_th']),
-      remaining: _asDouble(json['remaining']),
-      progress: _asDouble(json['progress']),
-      level: _asInt(json['level'], fallback: 1),
+      name: _localizedFallback(source['name'], names),
+      percent: _asInt(
+        source['percent'] ??
+            source['cashbackPercent'] ??
+            source['cashback_percent'],
+      ),
+      nextTier: nextJson.isNotEmpty
+          ? _localizedFallback(nextJson['name'], nextNames)
+          : _nullableString(rawNext),
+      nextTh: _nullableInt(
+        source['nextTh'] ?? source['next_th'] ?? source['nextThreshold'],
+      ),
+      nextPercent: nextJson.isEmpty
+          ? null
+          : _nullableInt(
+              nextJson['percent'] ??
+                  nextJson['cashbackPercent'] ??
+                  nextJson['cashback_percent'],
+            ),
+      remaining: _asDouble(
+        source['remaining'] ??
+            source['amountToNext'] ??
+            source['amount_to_next'] ??
+            source['spendRemaining'],
+      ),
+      progress: _asDouble(
+        progressJson['percent'] ??
+            progressJson['value'] ??
+            rawProgress ??
+            source['progressPercent'] ??
+            source['progress_percent'],
+      ),
+      level: _asInt(
+        source['level'] ?? source['currentLevel'] ?? source['current_level'],
+        fallback: 1,
+      ),
       allTiers: list,
+      localizedNames: names,
+      localizedNextTierNames: nextNames,
     );
   }
 
@@ -187,10 +338,15 @@ class Tier {
     'percent': percent,
     'nextTier': nextTier,
     'nextTh': nextTh,
+    'nextPercent': nextPercent,
     'remaining': remaining,
     'progress': progress,
     'level': level,
     'allTiers': allTiers.map((e) => e.toJson()).toList(),
+    for (final entry in localizedNames.entries)
+      'name_${entry.key}': entry.value,
+    for (final entry in localizedNextTierNames.entries)
+      'next_tier_${entry.key}': entry.value,
   };
 }
 
@@ -219,20 +375,7 @@ class BonusTransaction {
       type.toLowerCase().contains('deposit') || type.toLowerCase() == 'earning';
 
   String get label {
-    switch (type) {
-      case 'deposit':
-        return 'Начисление кэшбэка';
-      case 'manual_deposit':
-        return 'Подарок / Начисление';
-      case 'withdrawal':
-        return 'Оплата бонусами';
-      case 'manual_withdrawal':
-        return 'Ручное списание';
-      case 'expiration':
-        return 'Сгорание бонусов';
-      default:
-        return isEarning ? 'Начисление бонусов' : 'Списание бонусов';
-    }
+    return localizeTransactionType(type, isEarning: isEarning);
   }
 
   factory BonusTransaction.fromJson(Map<String, dynamic> json) {
@@ -380,7 +523,15 @@ class DeliveryLocation {
   final double latitude;
   final double longitude;
 
-  String get fullAddress => '$city, $address';
+  String get localizedCity {
+    final normalized = city.trim().toLowerCase();
+    if ({'aktau', 'актау', 'ақтау'}.contains(normalized)) {
+      return 'city_aktau'.tr;
+    }
+    return city;
+  }
+
+  String get fullAddress => '$localizedCity, $address';
 }
 
 class DeliveryAddress {
@@ -422,7 +573,7 @@ class DeliveryAddress {
       id: _asString(json['id']),
       title: _asString(json['title']),
       location: DeliveryLocation(
-        city: _asString(json['city'], fallback: 'Актау'),
+        city: _asString(json['city'], fallback: 'Aktau'),
         address: _asString(json['address']),
         latitude: _asDouble(json['latitude'], fallback: 43.6532),
         longitude: _asDouble(json['longitude'], fallback: 51.1975),
@@ -468,4 +619,56 @@ class Point {
       address: _asString(json['address']),
     );
   }
+}
+
+Map<String, String> _localizedLabels(
+  Map<String, dynamic> json,
+  String camelName, {
+  String? snakeName,
+}) {
+  final snake = snakeName ?? camelName;
+  final result = <String, String>{};
+
+  void add(String code, Object? value) {
+    final text = value is String ? value.trim() : '';
+    if (text.isNotEmpty) result[code] = text;
+  }
+
+  void addMap(Object? raw) {
+    final map = _asMap(raw);
+    for (final code in AppLang.supportedCodes) {
+      add(code, map[code]);
+    }
+  }
+
+  addMap(json[camelName]);
+  addMap(json[snake]);
+  addMap(json['localized_$snake']);
+  addMap(json['${camelName}Localized']);
+  addMap(json['${camelName}Translations']);
+  if (camelName == 'name') addMap(json['names']);
+
+  for (final code in AppLang.supportedCodes) {
+    add(code, json['${camelName}_$code']);
+    add(code, json['${snake}_$code']);
+    final suffix = code[0].toUpperCase() + code.substring(1);
+    add(code, json['$camelName$suffix']);
+  }
+
+  final translations = _asMap(json['translations']);
+  for (final code in AppLang.supportedCodes) {
+    final localized = translations[code];
+    if (localized is Map) {
+      final map = _asMap(localized);
+      add(code, map[camelName] ?? map[snake]);
+    } else if (camelName == 'name') {
+      add(code, localized);
+    }
+  }
+  return Map<String, String>.unmodifiable(result);
+}
+
+String _localizedFallback(Object? raw, Map<String, String> names) {
+  if (raw is String && raw.trim().isNotEmpty) return raw.trim();
+  return names['ru'] ?? names['kk'] ?? names['en'] ?? '';
 }
