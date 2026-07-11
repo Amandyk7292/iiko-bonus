@@ -479,6 +479,9 @@ router.get('/api/guest/menu', async (req, res) => {
         price = p.sizePrices[0].price.currentPrice;
       }
 
+      // Скрываем товары с ценой 0 (служебные позиции iiko)
+      if (!price || price <= 0) continue;
+
       let imageUrl = null;
       if (p.imageLinks && p.imageLinks.length > 0) {
         imageUrl = p.imageLinks[0];
