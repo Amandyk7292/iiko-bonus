@@ -357,7 +357,9 @@ export default function MenuPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
             {filteredProducts.slice(0, displayCount).map(p => {
               const override = productOverrides[p.id];
-              const isHidden = Boolean(override?.is_hidden);
+              const catOverride = categoryOverrides[p.parentGroup || ''];
+              const isCatHidden = Boolean(catOverride?.is_hidden);
+              const isHidden = Boolean(override?.is_hidden) || isCatHidden;
               const isStop = Boolean(override?.is_stop_listed);
               const imgUrl = override?.custom_image_url || (p.imageLinks?.[0] ?? '');
               const displayName = override?.custom_name || p.name;
@@ -400,7 +402,9 @@ export default function MenuPage() {
                     </label>
                     {/* Статус badges */}
                     {isHidden && (
-                      <span className="absolute top-2 left-2 px-2 py-0.5 bg-gray-800/70 text-white text-[10px] font-medium rounded-md">Скрыт</span>
+                      <span className="absolute top-2 left-2 px-2 py-0.5 bg-gray-800/70 text-white text-[10px] font-medium rounded-md">
+                        {isCatHidden ? 'Скрыт (Категория)' : 'Скрыт'}
+                      </span>
                     )}
                     {isStop && !isHidden && (
                       <span className="absolute top-2 left-2 px-2 py-0.5 bg-red-600/80 text-white text-[10px] font-medium rounded-md">Стоп</span>
@@ -427,9 +431,15 @@ export default function MenuPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleToggleProductHidden(p.id, isHidden)}
-                        className={`p-1.5 rounded-lg transition ${isHidden ? 'bg-gray-200 text-gray-500' : 'bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400'}`}
-                        title={isHidden ? 'Показать' : 'Скрыть'}
+                        onClick={() => {
+                          if (isCatHidden) {
+                            alert('Сначала включите категорию "' + groupName + '"');
+                            return;
+                          }
+                          handleToggleProductHidden(p.id, isHidden);
+                        }}
+                        className={`p-1.5 rounded-lg transition ${isCatHidden ? 'opacity-50 cursor-not-allowed bg-gray-200 text-gray-400' : isHidden ? 'bg-gray-200 text-gray-500' : 'bg-green-50 text-green-600 dark:bg-green-900/30 dark:text-green-400'}`}
+                        title={isCatHidden ? 'Скрыт вместе с категорией' : isHidden ? 'Показать' : 'Скрыть'}
                       >
                         {isHidden ? <EyeOff size={14} /> : <Eye size={14} />}
                       </button>

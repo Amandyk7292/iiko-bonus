@@ -460,6 +460,15 @@ router.get('/api/guest/menu', async (req, res) => {
 
     categories.sort((a, b) => a.order - b.order);
 
+    // Собираем ID скрытых категорий — продукты из них тоже не показываем
+    const hiddenCategoryIds = new Set();
+    for (const cat of baseCategories) {
+      const override = catOverridesMap.get(cat.id);
+      if (override && override.is_hidden) {
+        hiddenCategoryIds.add(cat.id);
+      }
+    }
+
     // Products
     let baseProducts = (rawMenu.products || []).filter(
       (p) =>
@@ -473,6 +482,8 @@ router.get('/api/guest/menu', async (req, res) => {
     for (const p of baseProducts) {
       const override = prodOverridesMap.get(p.id);
       if (override && override.is_hidden) continue;
+      // Пропускаем продукты из скрытых категорий
+      if (hiddenCategoryIds.has(p.parentGroup)) continue;
 
       let price = 0;
       if (p.sizePrices && p.sizePrices.length > 0) {
