@@ -223,6 +223,7 @@ class _CatalogScreenState extends State<CatalogScreen> with WidgetsBindingObserv
         builder: (_) => _CatalogAllCategoriesScreen(
           categories: _categories,
           selectedCategory: _selectedCategory,
+          apiCategoryImages: _apiCategoryImages,
           onSelectCategory: (cat) {
             setState(() => _selectedCategory = cat);
           },
@@ -1003,11 +1004,13 @@ class _CatalogAllCategoriesScreen extends StatelessWidget {
     required this.categories,
     required this.selectedCategory,
     required this.onSelectCategory,
+    required this.apiCategoryImages,
   });
 
   final List<String> categories;
   final String selectedCategory;
   final ValueChanged<String> onSelectCategory;
+  final Map<String, String> apiCategoryImages;
 
   @override
   Widget build(BuildContext context) {
@@ -1057,7 +1060,7 @@ class _CatalogAllCategoriesScreen extends StatelessWidget {
                 itemCount: displayCategories.length,
                 itemBuilder: (context, i) {
                   final cat = displayCategories[i];
-                  final imageUrl = _apiCategoryImages[cat] ?? _categoryImages[cat] ??
+                  final imageUrl = apiCategoryImages[cat] ?? _categoryImages[cat] ??
                       'https://images.unsplash.com/photo-1519915028121-7d3463d20b13?w=400&auto=format&fit=crop&q=80';
 
                   return GestureDetector(
