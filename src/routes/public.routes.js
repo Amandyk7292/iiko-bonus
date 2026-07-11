@@ -25,6 +25,14 @@ router.put('/api/customer/profile', publicController.updateProfile);
 router.delete('/api/customer/profile', publicController.deleteProfile);
 router.get('/api/customer/loyalty', tierController.getCustomerLoyalty);
 
+// Kaspi Pay endpoints
+const kaspiController = require('../controllers/kaspi.controller');
+router.post('/api/customer/kaspi-pay/create', kaspiController.createPayment);
+router.get('/api/customer/kaspi-pay/status/:operationId', kaspiController.checkStatus);
+
+// Kaspi Webhook (должен быть открытым)
+router.post('/webhooks/kaspi', kaspiController.handleWebhook);
+
 router.get('/api/public/cities', publicController.getCities);
 router.get('/api/public/loyalty-tiers', tierController.listPublicTiers);
 

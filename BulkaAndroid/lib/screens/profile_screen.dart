@@ -23,20 +23,6 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  String _selectedLang = AppLang.languageName('ru');
-
-  @override
-  void initState() {
-    super.initState();
-    _loadLang();
-  }
-
-  void _loadLang() {
-    setState(() {
-      _selectedLang = AppLang.nameFromCode(AppLang.current);
-    });
-  }
-
   String get _langCode {
     return AppLang.shortLabel(AppLang.current);
   }
@@ -156,147 +142,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  void _showLanguageBottomSheet() {
-    String tempLang = _selectedLang;
-
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            final languages = [
-              AppLang.languageName('ru'),
-              AppLang.languageName('kk'),
-              AppLang.languageName('en'),
-            ];
-
-            return Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-              ),
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const SizedBox(width: 36),
-                      Text(
-                        'select_lang_title'.tr,
-                        style: const TextStyle(
-                          color: Color(0xFF231007),
-                          fontFamily: _headingFont,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => Navigator.pop(context),
-                        tooltip: 'close_tooltip'.tr,
-                        style: IconButton.styleFrom(
-                          backgroundColor: const Color(0xFFEADBBE),
-                          foregroundColor: Colors.white,
-                        ),
-                        icon: const Icon(Icons.close_rounded, size: 18),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  ...languages.map((lang) {
-                    final isSelected = tempLang == lang;
-                    return InkWell(
-                      onTap: () {
-                        setModalState(() {
-                          tempLang = lang;
-                        });
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              lang,
-                              style: TextStyle(
-                                fontSize: 17,
-                                color: isSelected
-                                    ? const Color(0xFFC5A059)
-                                    : const Color(0xFF6D3317),
-                                fontWeight: isSelected
-                                    ? FontWeight.w600
-                                    : FontWeight.w400,
-                              ),
-                            ),
-                            Container(
-                              width: 22,
-                              height: 22,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: isSelected
-                                    ? const Color(0xFFDEC588)
-                                    : const Color(0xFFEEEEEE),
-                              ),
-                              child: isSelected
-                                  ? Center(
-                                      child: Container(
-                                        width: 8,
-                                        height: 8,
-                                        decoration: const BoxDecoration(
-                                          color: Colors.white,
-                                          shape: BoxShape.circle,
-                                        ),
-                                      ),
-                                    )
-                                  : null,
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        await AppLang.setLanguage(
-                          AppLang.codeFromName(tempLang),
-                        );
-                        if (!context.mounted) return;
-                        setState(() {
-                          _selectedLang = tempLang;
-                        });
-                        Navigator.pop(context);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFDEC588),
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(22),
-                        ),
-                      ),
-                      child: Text(
-                        'apply_btn'.tr,
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
+  Future<void> _showLanguageBottomSheet() async {
+    final code = await showLanguageBottomSheet(
+      context,
+      initialCode: AppLang.current,
     );
+    if (code == null) return;
+    await AppLang.setLanguage(code);
+    if (!mounted) return;
+    setState(() {});
   }
 
   @override
@@ -305,7 +159,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       backgroundColor: Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 110),
+          padding: EdgeInsets.fromLTRB(
+            20,
+            12,
+            20,
+            BulkaLayout.bottomNavContentInset(context),
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

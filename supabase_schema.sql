@@ -849,6 +849,34 @@ create policy "service role manages customer notifications"
   on public.customer_notifications for all to service_role using (true) with check (true);
 
 -- --------------------------------------------------------------------
+-- Kaspi Orders
+-- --------------------------------------------------------------------
+create table if not exists public.kaspi_orders (
+  id uuid primary key default gen_random_uuid(),
+  customer_id uuid references public.customers(id) on delete set null,
+  operation_id varchar(100) not null,
+  amount numeric(12, 2) not null,
+  phone varchar(32) not null,
+  status varchar(50) default 'pending' not null,
+  cart_items jsonb default '[]'::jsonb,
+  created_at timestamptz default now() not null,
+  updated_at timestamptz default now() not null
+);
+
+create index if not exists kaspi_orders_customer_id_idx on public.kaspi_orders(customer_id);
+create index if not exists kaspi_orders_operation_id_idx on public.kaspi_orders(operation_id);
+
+alter table public.kaspi_orders enable row level security;
+drop policy if exists "service role manages kaspi orders" on public.kaspi_orders;
+create policy "service role manages kaspi orders"
+  on public.kaspi_orders for all to service_role using (true) with check (true);
+
+drop trigger if exists kaspi_orders_set_updated_at on public.kaspi_orders;
+create trigger kaspi_orders_set_updated_at
+before update on public.kaspi_orders
+for each row execute function public.set_updated_at();
+
+-- --------------------------------------------------------------------
 -- Smoke-check
 -- --------------------------------------------------------------------
 select

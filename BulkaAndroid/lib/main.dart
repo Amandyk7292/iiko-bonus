@@ -44,6 +44,7 @@ part 'widgets/news.dart';
 part 'widgets/qr_dialog.dart';
 part 'widgets/stories.dart';
 part 'widgets/gradient_button.dart';
+part 'widgets/language_bottom_sheet.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

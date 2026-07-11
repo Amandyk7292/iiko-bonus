@@ -47,9 +47,8 @@ class _MainShellState extends State<MainShell> {
         transactions: widget.transactions,
         onHistoryTap: () => Navigator.of(context).push<void>(
           MaterialPageRoute(
-            builder: (_) => BalanceHistoryScreen(
-              transactions: widget.transactions,
-            ),
+            builder: (_) =>
+                BalanceHistoryScreen(transactions: widget.transactions),
           ),
         ),
         onProfileTap: () => _changeTab(4),
@@ -90,6 +89,7 @@ class _MainShellState extends State<MainShell> {
         }
       },
       child: Scaffold(
+        extendBody: true,
         body: BulkaAdaptiveFrame(
           child: _PersistentTabSwitcher(index: _tab, children: pages),
         ),
@@ -274,7 +274,7 @@ class FloatingNavBar extends StatelessWidget {
     return SafeArea(
       minimum: const EdgeInsets.fromLTRB(0, 0, 0, 0),
       child: Container(
-        height: 98,
+        height: BulkaLayout.floatingNavBarHeight,
         decoration: BoxDecoration(
           color: Colors.white.withValues(alpha: 0.98),
           boxShadow: [
@@ -287,21 +287,28 @@ class FloatingNavBar extends StatelessWidget {
         ),
         child: Material(
           color: Colors.transparent,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (var i = 0; i < items.length; i++)
-                  Expanded(
-                    child: _NavButton(
-                      key: ValueKey('nav-$i'),
-                      item: items[i],
-                      selected: i == selectedIndex,
-                      onTap: () => onChanged(i),
+          child: BulkaAdaptiveFrame(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                BulkaLayout.floatingNavBarHorizontalPadding,
+                BulkaLayout.floatingNavBarTopPadding,
+                BulkaLayout.floatingNavBarHorizontalPadding,
+                BulkaLayout.floatingNavBarBottomPadding,
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (var i = 0; i < items.length; i++)
+                    Expanded(
+                      child: _NavButton(
+                        key: ValueKey('nav-$i'),
+                        item: items[i],
+                        selected: i == selectedIndex,
+                        onTap: () => onChanged(i),
+                      ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -327,6 +334,8 @@ class _NavButton extends StatelessWidget {
     final duration = BulkaMotion.duration(context, BulkaMotion.fast);
     final color = selected ? _textDark : _textDark.withValues(alpha: 0.44);
     final isCenter = item.prominent;
+    final textScale = MediaQuery.textScalerOf(context).scale(1);
+    final labelFontSize = textScale > 1.2 ? 9.0 : 10.0;
     return Semantics(
       button: true,
       selected: selected,
@@ -337,7 +346,7 @@ class _NavButton extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(32),
           child: SizedBox(
-            height: isCenter ? 72 : 66,
+            height: BulkaLayout.navItemHeight,
             child: Padding(
               padding: EdgeInsets.only(top: isCenter ? 0 : 7, bottom: 4),
               child: Column(
@@ -350,8 +359,12 @@ class _NavButton extends StatelessWidget {
                     child: AnimatedContainer(
                       duration: duration,
                       curve: BulkaMotion.standardCurve,
-                      width: isCenter ? 64 : 33,
-                      height: isCenter ? 64 : 33,
+                      width: isCenter
+                          ? BulkaLayout.centerNavIconSize
+                          : BulkaLayout.navIconSize,
+                      height: isCenter
+                          ? BulkaLayout.centerNavIconSize
+                          : BulkaLayout.navIconSize,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: isCenter
@@ -394,30 +407,27 @@ class _NavButton extends StatelessWidget {
                           selected ? item.selectedIcon : item.icon,
                           key: ValueKey(selected),
                           color: isCenter ? Colors.white : color,
-                          size: isCenter ? 30 : 23,
+                          size: isCenter ? 26 : 23,
                         ),
                       ),
                     ),
                   ),
-                  if (!isCenter) ...[
-                    const SizedBox(height: 1),
-                    AnimatedDefaultTextStyle(
-                      duration: duration,
-                      curve: BulkaMotion.standardCurve,
-                      style: TextStyle(
-                        color: color,
-                        fontSize: 10,
-                        fontWeight: selected
-                            ? FontWeight.w900
-                            : FontWeight.w500,
-                      ),
-                      child: Text(
-                        item.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                  const SizedBox(height: 1),
+                  AnimatedDefaultTextStyle(
+                    duration: duration,
+                    curve: BulkaMotion.standardCurve,
+                    style: TextStyle(
+                      color: color,
+                      fontSize: labelFontSize,
+                      height: 1.05,
+                      fontWeight: selected ? FontWeight.w900 : FontWeight.w500,
                     ),
-                  ],
+                    child: Text(
+                      item.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ],
               ),
             ),

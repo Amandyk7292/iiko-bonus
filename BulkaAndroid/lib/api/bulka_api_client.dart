@@ -252,6 +252,30 @@ class BulkaApiClient {
     return const {};
   }
 
+  Future<Map<String, dynamic>> createKaspiPayment({
+    required String phone,
+    required double amount,
+    required List<Map<String, dynamic>> cartItems,
+  }) async {
+    final json = await _post('/api/customer/kaspi-pay/create', {
+      'phone': phone,
+      'amount': amount,
+      'items': cartItems,
+    });
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'error_kaspi_payment'.tr));
+    }
+    return json;
+  }
+
+  Future<Map<String, dynamic>> checkKaspiPaymentStatus(String operationId) async {
+    final json = await _get('/api/customer/kaspi-pay/status/$operationId');
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'error_kaspi_status'.tr));
+    }
+    return json;
+  }
+
   Future<Map<String, dynamic>> _get(String path) async {
     final response = await _client
         .get(_uri(path), headers: _headers(json: false))

@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: kaspi-pos-automation
+    env: node
+    rootDir: kaspi-pos-automation-main
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 20.6.0
+      - key: PORT
+        value: 10000
+      - key: TOKEN_SECRET_KEY
+        generateValue: true
+      - key: KEYPAIR_JSON_B64
+        sync: false
+      - key: DEVICE_JSON_B64
+        sync: false
+      - key: ECDH_KEYPAIR_JSON_B64
+        sync: false

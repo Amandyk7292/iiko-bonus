@@ -36,7 +36,6 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _registerStep = false;
   bool _loading = false;
   String? _error;
-  String _selectedLang = AppLang.languageName('ru');
   String? _selectedGender;
   String? _birthdate;
   bool _termsAccepted = false;
@@ -44,161 +43,19 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _otpDeliveryHasLink = false;
   Uri? _otpWhatsappUri;
 
-  @override
-  void initState() {
-    super.initState();
-    _selectedLang = AppLang.nameFromCode(AppLang.current);
-  }
-
   String get _langCode {
     return AppLang.shortLabel(AppLang.current);
   }
 
-  void _showLanguageBottomSheet() {
-    String tempLang = _selectedLang;
-
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            final languages = [
-              AppLang.languageName('ru'),
-              AppLang.languageName('kk'),
-              AppLang.languageName('en'),
-            ];
-
-            return Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-              ),
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const SizedBox(width: 36),
-                      Text(
-                        'select_lang_title'.tr,
-                        style: const TextStyle(
-                          color: Color(0xFF231007),
-                          fontFamily: _headingFont,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => Navigator.pop(context),
-                        tooltip: 'close_tooltip'.tr,
-                        style: IconButton.styleFrom(
-                          backgroundColor: const Color(0xFFEADBBE),
-                          foregroundColor: Colors.white,
-                        ),
-                        icon: const Icon(Icons.close_rounded, size: 18),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  ...languages.map((lang) {
-                    final isSelected = tempLang == lang;
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: InkWell(
-                        onTap: () {
-                          setModalState(() {
-                            tempLang = lang;
-                          });
-                        },
-                        borderRadius: BorderRadius.circular(16),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 16,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? const Color(0xFFFAFAF7)
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: isSelected
-                                  ? const Color(0xFF6D3317)
-                                  : const Color(0xFFEADBBE),
-                              width: isSelected ? 1.5 : 1,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                lang,
-                                style: TextStyle(
-                                  color: isSelected
-                                      ? const Color(0xFF6D3317)
-                                      : const Color(0xFF231007),
-                                  fontSize: 16,
-                                  fontWeight: isSelected
-                                      ? FontWeight.w700
-                                      : FontWeight.w500,
-                                ),
-                              ),
-                              if (isSelected)
-                                const Icon(
-                                  Icons.check_circle_rounded,
-                                  color: Color(0xFF6D3317),
-                                  size: 22,
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  }),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        await AppLang.setLanguage(
-                          AppLang.codeFromName(tempLang),
-                        );
-                        if (!context.mounted) return;
-                        setState(() {
-                          _selectedLang = tempLang;
-                          _error = null;
-                        });
-                        Navigator.pop(context);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFDEC588),
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(22),
-                        ),
-                      ),
-                      child: Text(
-                        'apply_btn'.tr,
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
+  Future<void> _showLanguageBottomSheet() async {
+    final code = await showLanguageBottomSheet(
+      context,
+      initialCode: AppLang.current,
     );
+    if (code == null) return;
+    await AppLang.setLanguage(code);
+    if (!mounted) return;
+    setState(() => _error = null);
   }
 
   @override
@@ -448,74 +305,75 @@ class _LoginScreenState extends State<LoginScreen> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildRegTextField(
-                        controller: _nameController,
-                        hint: 'reg_name_hint'.tr,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildRegTextField(
-                        controller: _surnameController,
-                        hint: 'reg_surname_hint'.tr,
-                      ),
-                    ),
-                  ],
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final textScale = MediaQuery.textScalerOf(context).scale(1);
+                    final stackFields =
+                        constraints.maxWidth < 360 || textScale > 1.2;
+                    final nameField = _buildRegTextField(
+                      controller: _nameController,
+                      label: 'reg_name_hint'.tr,
+                      errorText: _error == 'reg_err_name'.tr ? _error : null,
+                      autofillHints: const [AutofillHints.givenName],
+                      textInputAction: TextInputAction.next,
+                    );
+                    final surnameField = _buildRegTextField(
+                      controller: _surnameController,
+                      label: 'reg_surname_hint'.tr,
+                      autofillHints: const [AutofillHints.familyName],
+                      textInputAction: TextInputAction.next,
+                    );
+                    if (stackFields) {
+                      return Column(
+                        children: [
+                          nameField,
+                          const SizedBox(height: 12),
+                          surnameField,
+                        ],
+                      );
+                    }
+                    return Row(
+                      children: [
+                        Expanded(child: nameField),
+                        const SizedBox(width: 12),
+                        Expanded(child: surnameField),
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 12),
                 _buildDateField(context),
                 const SizedBox(height: 12),
                 _buildRegTextField(
                   controller: _emailController,
-                  hint: 'reg_email_hint'.tr,
+                  label: 'reg_email_hint'.tr,
+                  helperText: 'reg_email_helper'.tr,
+                  errorText: _error == 'invalid_email'.tr ? _error : null,
                   keyboardType: TextInputType.emailAddress,
+                  autofillHints: const [AutofillHints.email],
+                  textInputAction: TextInputAction.next,
                 ),
                 const SizedBox(height: 12),
                 _buildReadOnlyPhoneField(),
                 const SizedBox(height: 20),
-                GestureDetector(
-                  onTap: () {
-                    setState(() => _termsAccepted = !_termsAccepted);
+                CheckboxListTile(
+                  value: _termsAccepted,
+                  onChanged: (value) {
+                    setState(() => _termsAccepted = value ?? false);
                   },
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 24,
-                        height: 24,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: _termsAccepted
-                              ? const Color(0xFF6D3317)
-                              : const Color(0xFFFAF6F2),
-                          border: Border.all(
-                            color: const Color(0xFF6D3317),
-                            width: 1.5,
-                          ),
-                        ),
-                        child: _termsAccepted
-                            ? const Icon(
-                                Icons.check,
-                                size: 16,
-                                color: Colors.white,
-                              )
-                            : null,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'reg_terms_checkbox'.tr,
-                          style: const TextStyle(
-                            color: Color(0xFF6D3317),
-                            fontSize: 13.5,
-                            height: 1.3,
-                          ),
-                        ),
-                      ),
-                    ],
+                  title: Text(
+                    'reg_terms_checkbox'.tr,
+                    style: const TextStyle(
+                      color: Color(0xFF6D3317),
+                      fontSize: 13.5,
+                      height: 1.3,
+                    ),
+                  ),
+                  controlAffinity: ListTileControlAffinity.leading,
+                  contentPadding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
                 ),
                 if (_error != null) ...[
@@ -582,124 +440,122 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Widget _buildGenderOption(String value, String label) {
     final selected = _selectedGender == value;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedGender = value),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 22,
-            height: 22,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: selected
-                  ? const Color(0xFF6D3317)
-                  : const Color(0xFFFAF6F2),
-              border: Border.all(color: const Color(0xFF6D3317), width: 1.5),
-            ),
-            child: selected
-                ? Center(
-                    child: Container(
-                      width: 10,
-                      height: 10,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white,
-                      ),
+    final colors = context.bulkaColors;
+    return Semantics(
+      button: true,
+      selected: selected,
+      inMutuallyExclusiveGroup: true,
+      label: label,
+      child: Material(
+        color: selected ? colors.surfaceCream : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: () => setState(() => _selectedGender = value),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 48),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              children: [
+                Icon(
+                  selected
+                      ? Icons.radio_button_checked_rounded
+                      : Icons.radio_button_unchecked_rounded,
+                  color: colors.brandBrown,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: const TextStyle(
+                      color: Color(0xFF6D3317),
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w600,
                     ),
-                  )
-                : null,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Color(0xFF6D3317),
-              fontSize: 14.5,
-              fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
 
   Widget _buildRegTextField({
     required TextEditingController controller,
-    required String hint,
+    required String label,
+    String? helperText,
+    String? errorText,
     TextInputType? keyboardType,
+    Iterable<String>? autofillHints,
+    TextInputAction? textInputAction,
   }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFFFAF6F2),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFEADBBE)),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: TextField(
-        controller: controller,
-        keyboardType: keyboardType,
-        autofillHints: keyboardType == TextInputType.emailAddress
-            ? const [AutofillHints.email]
-            : null,
-        autocorrect: keyboardType != TextInputType.emailAddress,
-        style: const TextStyle(color: Color(0xFF6D3317), fontSize: 15),
-        decoration: InputDecoration(
-          border: InputBorder.none,
-          hintText: hint,
-          hintStyle: TextStyle(
-            color: const Color(0xFF6D3317).withValues(alpha: 0.45),
-            fontSize: 14.5,
-          ),
-        ),
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      autofillHints: autofillHints,
+      textInputAction: textInputAction,
+      autocorrect: keyboardType != TextInputType.emailAddress,
+      style: const TextStyle(color: Color(0xFF6D3317), fontSize: 15),
+      decoration: InputDecoration(
+        labelText: label,
+        helperText: helperText,
+        errorText: errorText,
       ),
     );
   }
 
   Widget _buildDateField(BuildContext context) {
-    return GestureDetector(
-      onTap: () async {
-        final picked = await showDatePicker(
-          context: context,
-          initialDate: DateTime(2000, 1, 1),
-          firstDate: DateTime(1930),
-          lastDate: DateTime.now(),
-          builder: (context, child) {
-            return Theme(
-              data: Theme.of(context).copyWith(
-                colorScheme: const ColorScheme.light(
-                  primary: Color(0xFF6D3317),
-                  onPrimary: Colors.white,
-                  onSurface: Color(0xFF6D3317),
+    final value = _birthdate ?? 'reg_dob_hint'.tr;
+    return Semantics(
+      button: true,
+      label: 'reg_dob_hint'.tr,
+      value: value,
+      child: InkWell(
+        onTap: () async {
+          final picked = await showDatePicker(
+            context: context,
+            initialDate: DateTime(2000, 1, 1),
+            firstDate: DateTime(1930),
+            lastDate: DateTime.now(),
+            builder: (context, child) {
+              return Theme(
+                data: Theme.of(context).copyWith(
+                  colorScheme: const ColorScheme.light(
+                    primary: Color(0xFF6D3317),
+                    onPrimary: Colors.white,
+                    onSurface: Color(0xFF6D3317),
+                  ),
                 ),
-              ),
-              child: child!,
-            );
-          },
-        );
-        if (picked != null) {
-          final day = picked.day.toString().padLeft(2, '0');
-          final month = picked.month.toString().padLeft(2, '0');
-          final year = picked.year;
-          setState(() {
-            _birthdate = '$day.$month.$year';
-          });
-        }
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFFFAF6F2),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFEADBBE)),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        child: Text(
-          _birthdate ?? 'reg_dob_hint'.tr,
-          style: TextStyle(
-            color: _birthdate != null
-                ? const Color(0xFF6D3317)
-                : const Color(0xFF6D3317).withValues(alpha: 0.45),
-            fontSize: 15,
+                child: child!,
+              );
+            },
+          );
+          if (picked != null) {
+            final day = picked.day.toString().padLeft(2, '0');
+            final month = picked.month.toString().padLeft(2, '0');
+            final year = picked.year;
+            setState(() {
+              _birthdate = '$day.$month.$year';
+            });
+          }
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: InputDecorator(
+          decoration: InputDecoration(
+            labelText: 'reg_dob_hint'.tr,
+            helperText: 'reg_dob_helper'.tr,
+            suffixIcon: const Icon(Icons.calendar_today_rounded, size: 20),
+          ),
+          child: Text(
+            value,
+            style: TextStyle(
+              color: _birthdate != null
+                  ? const Color(0xFF6D3317)
+                  : const Color(0xFF6D3317).withValues(alpha: 0.55),
+              fontSize: 15,
+            ),
           ),
         ),
       ),
@@ -710,19 +566,24 @@ class _LoginScreenState extends State<LoginScreen> {
     final phoneText = _phoneController.text.startsWith('7')
         ? _phoneController.text
         : '7${_phoneController.text}';
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFFFAF6F2),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFEADBBE)),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      child: Text(
-        phoneText,
-        style: const TextStyle(
-          color: Color(0xFF6D3317),
-          fontSize: 15,
-          fontWeight: FontWeight.w600,
+    return Semantics(
+      readOnly: true,
+      textField: true,
+      label: 'reg_phone_label'.tr,
+      value: phoneText,
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: 'reg_phone_label'.tr,
+          helperText: 'reg_phone_helper'.tr,
+          suffixIcon: const Icon(Icons.lock_outline_rounded, size: 20),
+        ),
+        child: Text(
+          phoneText,
+          style: const TextStyle(
+            color: Color(0xFF6D3317),
+            fontSize: 15,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     );

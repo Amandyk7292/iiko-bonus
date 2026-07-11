@@ -198,11 +198,7 @@ const Map<String, Map<String, String>> _appTranslations = {
     'kk': 'Баланс тарихы',
     'en': 'Balance history',
   },
-  'cart_empty_title': {
-    'ru': 'Ой!',
-    'kk': 'Ой!',
-    'en': 'Oops!',
-  },
+  'cart_empty_title': {'ru': 'Ой!', 'kk': 'Ой!', 'en': 'Oops!'},
   'cart_empty_sub': {
     'ru': 'Ничего не найдено!',
     'kk': 'Ештеңе табылмады!',
@@ -340,6 +336,22 @@ const Map<String, Map<String, String>> _appTranslations = {
     'en': 'Date of birth',
   },
   'reg_email_hint': {'ru': 'E-mail', 'kk': 'E-mail', 'en': 'E-mail'},
+  'reg_phone_label': {'ru': 'Телефон', 'kk': 'Телефон', 'en': 'Phone'},
+  'reg_phone_helper': {
+    'ru': 'Используется для входа и уведомлений по заказам.',
+    'kk': 'Кіру және тапсырыс хабарламалары үшін қолданылады.',
+    'en': 'Used for sign-in and order notifications.',
+  },
+  'reg_email_helper': {
+    'ru': 'Необязательно. Пришлём чеки и новости.',
+    'kk': 'Міндетті емес. Чектер мен жаңалықтарды жібереміз.',
+    'en': 'Optional. We will send receipts and news.',
+  },
+  'reg_dob_helper': {
+    'ru': 'Необязательно. Поможет персонализировать предложения.',
+    'kk': 'Міндетті емес. Ұсыныстарды жекелеуге көмектеседі.',
+    'en': 'Optional. Helps personalize offers.',
+  },
   'reg_terms_checkbox': {
     'ru': 'Ознакомился (-лась) и подтверждаю принятие условий',
     'kk': 'Шарттармен таныстым және қабылдаймын',

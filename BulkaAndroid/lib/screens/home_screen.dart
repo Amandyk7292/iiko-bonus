@@ -186,7 +186,9 @@ class _HomeScreenState extends State<HomeScreen> {
               child: SingleChildScrollView(
                 key: const PageStorageKey('home-scroll'),
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.only(bottom: 132),
+                padding: EdgeInsets.only(
+                  bottom: BulkaLayout.bottomNavContentInset(context),
+                ),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(minHeight: constraints.maxHeight),
                   child: Column(

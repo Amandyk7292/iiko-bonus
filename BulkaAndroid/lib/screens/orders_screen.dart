@@ -64,7 +64,8 @@ class OrdersScreen extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 36),
                 child: GradientButton(
-                  onPressed: onExplore ??
+                  onPressed:
+                      onExplore ??
                       () {
                         Navigator.of(context).push<void>(
                           MaterialPageRoute(
@@ -74,7 +75,10 @@ class OrdersScreen extends StatelessWidget {
                       },
                   child: Text(
                     'cart_action'.tr,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
@@ -87,7 +91,11 @@ class OrdersScreen extends StatelessWidget {
 }
 
 class BalanceHistoryScreen extends StatelessWidget {
-  const BalanceHistoryScreen({required this.transactions, this.onExplore, super.key});
+  const BalanceHistoryScreen({
+    required this.transactions,
+    this.onExplore,
+    super.key,
+  });
 
   final List<BonusTransaction> transactions;
   final VoidCallback? onExplore;
@@ -156,7 +164,12 @@ class BalanceHistoryScreen extends StatelessWidget {
               ),
             )
           : ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 132),
+              padding: EdgeInsets.fromLTRB(
+                16,
+                8,
+                16,
+                BulkaLayout.bottomNavContentInset(context),
+              ),
               itemBuilder: (_, index) =>
                   TransactionCard(transaction: transactions[index]),
               separatorBuilder: (_, _) => const SizedBox(height: 12),
