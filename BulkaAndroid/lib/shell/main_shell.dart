@@ -325,7 +325,7 @@ class _NavButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final duration = BulkaMotion.duration(context, BulkaMotion.fast);
-    final color = selected ? _cocoa : _textDark.withValues(alpha: 0.44);
+    final color = selected ? _textDark : _textDark.withValues(alpha: 0.44);
     final isCenter = item.prominent;
     return Semantics(
       button: true,

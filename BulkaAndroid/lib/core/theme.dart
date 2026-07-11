@@ -1,15 +1,15 @@
 part of '../main.dart';
 
-const _bulkaYellow = Color(0xFFE8A11A);
-const _bulkaBrown = Color(0xFF6D3317);
+const _bulkaYellow = Color(0xFFFFB814);
+const _bulkaBrown = Color(0xFF532814);
 const _milkyBackground = Color(0xFFFFFFFF);
 const _lightCard = Color(0xFFFFFFFF);
 const _lightCardHighlight = Color(0xFFFFE8C2);
-const _textDark = Color(0xFF6D3317);
+const _textDark = Color(0xFF532814);
 const _cocoa = Color(0xFF3B2117);
-const _caramel = Color(0xFFC66A25);
-const _cream = Color(0xFFFFFBF4);
-const _almond = Color(0xFFF7D9A8);
+const _caramel = Color(0xFFC85A1C);
+const _cream = Color(0xFFFFFBF5);
+const _almond = Color(0xFFF2DAA9);
 const _sage = Color(0xFF6E7F57);
 const _errorRed = Color(0xFFD14343);
 const _successGreen = Color(0xFF2F8A55);

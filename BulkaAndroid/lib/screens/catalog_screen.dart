@@ -272,7 +272,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
                     width: 48,
                     height: 48,
                     decoration: BoxDecoration(
-                      color: _bulkaYellow.withValues(alpha: 0.4),
+                      color: _almond,
                       borderRadius: BorderRadius.circular(18),
                     ),
                     child: const Icon(Icons.tune_rounded, color: _textDark),
@@ -570,7 +570,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
                         BulkaMotion.lightImpact();
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _bulkaYellow.withValues(alpha: 0.4),
+                        backgroundColor: _almond,
                         foregroundColor: _textDark,
                         elevation: 0,
                         shape: RoundedRectangleBorder(
@@ -583,7 +583,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
                   )
                 : Container(
                     decoration: BoxDecoration(
-                      color: _bulkaYellow.withValues(alpha: 0.4),
+                      color: _almond,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
@@ -1172,8 +1172,8 @@ class _ProductDetailsScreenState extends State<_ProductDetailsScreen> {
                     ? ElevatedButton(
                         onPressed: () => _updateQuantity(1),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: _caramel,
-                          foregroundColor: Colors.white,
+                          backgroundColor: _bulkaYellow,
+                          foregroundColor: _textDark,
                           elevation: 0,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(26),
@@ -1181,12 +1181,12 @@ class _ProductDetailsScreenState extends State<_ProductDetailsScreen> {
                         ),
                         child: const Text(
                           'в корзину',
-                          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: _textDark),
                         ),
                       )
                     : Container(
                         decoration: BoxDecoration(
-                          color: _caramel,
+                          color: _bulkaYellow,
                           borderRadius: BorderRadius.circular(26),
                         ),
                         child: Row(
@@ -1194,19 +1194,19 @@ class _ProductDetailsScreenState extends State<_ProductDetailsScreen> {
                           children: [
                             IconButton(
                               onPressed: () => _updateQuantity(_quantity - 1),
-                              icon: const Icon(Icons.remove, color: Colors.white, size: 22),
+                              icon: const Icon(Icons.remove, color: _textDark, size: 22),
                             ),
                             Text(
                               '$_quantity',
                               style: const TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w700,
-                                color: Colors.white,
+                                color: _textDark,
                               ),
                             ),
                             IconButton(
                               onPressed: () => _updateQuantity(_quantity + 1),
-                              icon: const Icon(Icons.add, color: Colors.white, size: 22),
+                              icon: const Icon(Icons.add, color: _textDark, size: 22),
                             ),
                           ],
                         ),
