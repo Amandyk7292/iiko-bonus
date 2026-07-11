@@ -144,8 +144,10 @@ const pushMassHandler = async (req, res) => {
     );
 
     let count = 0;
+    let totalTokens = 0;
     for (const c of customers) {
-      if (c.fcm_token) {
+      if (c.fcm_token && c.fcm_token.trim()) {
+        totalTokens++;
         const delivered = await sendPushNotification(c.fcm_token, title, body, {
           notificationId: String(notificationByCustomer.get(c.id) || ''),
           type: 'broadcast',
@@ -153,7 +155,8 @@ const pushMassHandler = async (req, res) => {
         if (delivered) count++;
       }
     }
-    res.json({ success: true, count, savedCount: customers.length });
+    console.log(`[PUSH MASS] Всего клиентов: ${customers.length}, с fcm_token: ${totalTokens}, успешно отправлено push: ${count}`);
+    res.json({ success: true, count, savedCount: customers.length, totalTokens });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -31,6 +31,7 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
+    PushNotifications.listenForeground(context);
     final pages = [
       HomeScreen(
         key: const PageStorageKey('home-tab'),

@@ -8,11 +8,15 @@ function initFirebase() {
   if (initialized) return;
   try {
     let serviceAccount = null;
-    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    const rawAccount = process.env.FIREBASE_SERVICE_ACCOUNT || process.env.GOOGLE_CREDENTIALS_JSON;
+    if (rawAccount) {
       try {
-        serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+        serviceAccount = typeof rawAccount === 'string' ? JSON.parse(rawAccount.trim()) : rawAccount;
+        if (serviceAccount && typeof serviceAccount.private_key === 'string') {
+          serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+        }
       } catch (e) {
-        console.error('Error parsing FIREBASE_SERVICE_ACCOUNT env:', e.message);
+        console.error('Error parsing FIREBASE_SERVICE_ACCOUNT/GOOGLE_CREDENTIALS_JSON env:', e.message);
       }
     }
     if (serviceAccount) {
@@ -24,7 +28,7 @@ function initFirebase() {
       console.log('Firebase Admin SDK initialized successfully for Push Notifications!');
     } else {
       console.warn(
-        'No Firebase Service Account found. Push notifications will be logged to console.',
+        'No Firebase Service Account found. Push notifications will not be sent via FCM.',
       );
     }
   } catch (e) {
@@ -37,7 +41,10 @@ initFirebase();
 async function sendPushNotification(fcmToken, title, body, data = {}) {
   if (!fcmToken) return false;
   if (!initialized || !messagingInstance) {
-    console.log('[PUSH PREVIEW] Уведомление не отправлено: Firebase не настроен.');
+    initFirebase();
+  }
+  if (!initialized || !messagingInstance) {
+    console.log('[PUSH PREVIEW] Уведомление не отправлено: Firebase не настроен. Токен:', fcmToken);
     return false;
   }
   try {
