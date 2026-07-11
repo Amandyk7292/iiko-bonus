@@ -491,9 +491,9 @@ router.get('/api/guest/menu', async (req, res) => {
 
       products.push({
         id: p.id,
-        name: p.name,
+        name: (override && override.custom_name) || p.name,
         description: (override && override.custom_description) || p.description || '',
-        price: price,
+        price: (override && override.custom_price > 0) ? override.custom_price : price,
         categoryId: p.parentGroup,
         imageUrl: (override && override.custom_image_url) || imageUrl,
         inStopList: isStopped,

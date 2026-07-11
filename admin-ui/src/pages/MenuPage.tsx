@@ -33,6 +33,8 @@ interface IikoGroup {
 
 interface ProductOverride {
   iiko_product_id: string;
+  custom_name?: string;
+  custom_price?: number;
   custom_image_url?: string;
   custom_description?: string;
   is_hidden?: boolean;
@@ -74,6 +76,12 @@ export default function MenuPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [uploadingId, setUploadingId] = useState<string | null>(null);
+
+  // Модалка редактирования товара iiko
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<IikoProduct | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', price: 0, description: '', imageUrl: '' });
+  const [editSaving, setEditSaving] = useState(false);
 
   // Модалка для кастомного блюда
   const [modalOpen, setModalOpen] = useState(false);
@@ -192,6 +200,44 @@ export default function MenuPage() {
       toast(err instanceof Error ? err.message : 'Ошибка сохранения', 'error');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // Открытие модалки редактирования товара iiko
+  const openEditModal = (product: IikoProduct) => {
+    const override = productOverrides[product.id];
+    setEditingProduct(product);
+    setEditForm({
+      name: (override?.custom_name) || product.name || '',
+      price: (override?.custom_price) || product.price || 0,
+      description: (override?.custom_description) || product.description || '',
+      imageUrl: (override?.custom_image_url) || '',
+    });
+    setEditModalOpen(true);
+  };
+
+  // Сохранение изменений товара iiko
+  const handleSaveProductEdit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!editingProduct) return;
+    setEditSaving(true);
+    try {
+      const cur = productOverrides[editingProduct.id] || { iiko_product_id: editingProduct.id };
+      const updated: ProductOverride = {
+        ...cur,
+        custom_name: editForm.name !== editingProduct.name ? editForm.name : undefined,
+        custom_price: editForm.price !== (editingProduct.price || 0) ? editForm.price : undefined,
+        custom_description: editForm.description !== (editingProduct.description || '') ? editForm.description : undefined,
+        custom_image_url: editForm.imageUrl || cur.custom_image_url || undefined,
+      };
+      await api.setProductOverride(editingProduct.id, updated);
+      setProductOverrides(prev => ({ ...prev, [editingProduct.id]: updated }));
+      toast('Изменения сохранены', 'success');
+      setEditModalOpen(false);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Ошибка сохранения', 'error');
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -351,6 +397,16 @@ export default function MenuPage() {
                           }}
                         />
                       </label>
+
+                      {/* Кнопка редактирования */}
+                      <button
+                        type="button"
+                        onClick={() => openEditModal(p)}
+                        className="shrink-0 p-1.5 bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300 rounded-lg hover:bg-gray-200 transition"
+                        title="Редактировать"
+                      >
+                        <Pencil size={14} />
+                      </button>
                     </div>
 
                     {p.description && (
@@ -504,6 +560,84 @@ export default function MenuPage() {
           )}
         </div>
       )}
+
+      {/* Модальное окно РЕДАКТИРОВАНИЯ товара iiko */}
+      <Modal
+        open={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        title={`Редактировать: ${editingProduct?.name || ''}`}
+      >
+        <form onSubmit={handleSaveProductEdit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Название (видно клиентам)
+            </label>
+            <input
+              type="text"
+              value={editForm.name}
+              onChange={e => setEditForm({ ...editForm, name: e.target.value })}
+              className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 rounded-xl border text-sm"
+              placeholder="Оставьте как в iiko или введите своё"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Цена (₸)
+              </label>
+              <input
+                type="number"
+                value={editForm.price || ''}
+                onChange={e => setEditForm({ ...editForm, price: Number(e.target.value) })}
+                className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 rounded-xl border text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Фото (URL)
+              </label>
+              <input
+                type="url"
+                value={editForm.imageUrl}
+                onChange={e => setEditForm({ ...editForm, imageUrl: e.target.value })}
+                className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 rounded-xl border text-sm"
+                placeholder="https://..."
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Описание
+            </label>
+            <textarea
+              rows={3}
+              value={editForm.description}
+              onChange={e => setEditForm({ ...editForm, description: e.target.value })}
+              className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-900 rounded-xl border text-sm"
+              placeholder="Описание блюда для клиентов"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setEditModalOpen(false)}
+              className="px-4 py-2 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-100"
+            >
+              Отмена
+            </button>
+            <button
+              type="submit"
+              disabled={editSaving}
+              className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-medium transition"
+            >
+              {editSaving ? 'Сохранение...' : 'Сохранить'}
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Модальное окно добавления кастомного блюда */}
       <Modal
