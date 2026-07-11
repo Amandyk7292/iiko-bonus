@@ -24,25 +24,20 @@ class OrdersScreen extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 170,
-                height: 170,
-                decoration: BoxDecoration(
-                  color: _almond.withValues(alpha: 0.35),
-                  shape: BoxShape.circle,
-                ),
-                padding: const EdgeInsets.all(20),
+              SizedBox(
+                width: 220,
+                height: 140,
                 child: Image.asset(
                   'assets/brand/bulka_logo.png',
                   fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const Icon(
+                  errorBuilder: (context, error, stackTrace) => const Icon(
                     Icons.shopping_bag_rounded,
-                    size: 64,
+                    size: 80,
                     color: _caramel,
                   ),
                 ),
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
               Text(
                 'cart_empty_title'.tr,
                 textAlign: TextAlign.center,

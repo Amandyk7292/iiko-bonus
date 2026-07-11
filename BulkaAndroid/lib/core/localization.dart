@@ -209,9 +209,9 @@ const Map<String, Map<String, String>> _appTranslations = {
     'en': 'Nothing found!',
   },
   'cart_action': {
-    'ru': 'Перейти в меню',
-    'kk': 'Мәзірге өту',
-    'en': 'Go to menu',
+    'ru': 'Перейти в каталог',
+    'kk': 'Каталогқа өту',
+    'en': 'Go to catalog',
   },
   'orders_title': {
     'ru': 'Мои заказы',
