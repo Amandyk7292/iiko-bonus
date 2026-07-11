@@ -7,13 +7,19 @@ class AddressMapScreen extends StatefulWidget {
   State<AddressMapScreen> createState() => _AddressMapScreenState();
 }
 
-class _AddressMapScreenState extends State<AddressMapScreen> {
+class _AddressMapScreenState extends State<AddressMapScreen>
+    with SingleTickerProviderStateMixin {
   static const _defaultPoint = LatLng(43.6532, 51.1975);
 
   final _mapController = MapController();
   final _searchController = TextEditingController();
+  late final AnimationController _cameraController;
   LatLng _point = _defaultPoint;
   double _zoom = 14.5;
+  LatLng _cameraStart = _defaultPoint;
+  LatLng _cameraTarget = _defaultPoint;
+  double _cameraStartZoom = 14.5;
+  double _cameraTargetZoom = 14.5;
   String _address = '';
   bool _addressResolved = false;
   bool _resolving = false;
@@ -23,11 +29,16 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
   void initState() {
     super.initState();
     _address = 'map_select_point'.tr;
+    _cameraController = AnimationController(
+      vsync: this,
+      duration: BulkaMotion.standard,
+    )..addListener(_animateCamera);
     unawaited(_reverseGeocode(_point));
   }
 
   @override
   void dispose() {
+    _cameraController.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -65,7 +76,6 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
       }
       final nextPoint = LatLng(lat, lon);
       setState(() {
-        _point = nextPoint;
         _address = _cleanAddress(
           _asString(item['display_name'], fallback: query),
         );
@@ -155,7 +165,33 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
 
   void _moveMap(LatLng point, double zoom) {
     if (!mounted) return;
-    setState(() => _zoom = zoom);
+    if (BulkaMotion.reduced(context)) {
+      _cameraController.stop();
+      _point = point;
+      _zoom = zoom;
+      _mapController.move(point, zoom);
+      return;
+    }
+    _cameraStart = _point;
+    _cameraTarget = point;
+    _cameraStartZoom = _zoom;
+    _cameraTargetZoom = zoom;
+    _cameraController.forward(from: 0);
+  }
+
+  void _animateCamera() {
+    if (!mounted) return;
+    final t = BulkaMotion.enterCurve.transform(_cameraController.value);
+    final point = LatLng(
+      _cameraStart.latitude +
+          ((_cameraTarget.latitude - _cameraStart.latitude) * t),
+      _cameraStart.longitude +
+          ((_cameraTarget.longitude - _cameraStart.longitude) * t),
+    );
+    final zoom =
+        _cameraStartZoom + ((_cameraTargetZoom - _cameraStartZoom) * t);
+    _point = point;
+    _zoom = zoom;
     _mapController.move(point, zoom);
   }
 
@@ -249,7 +285,10 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
                     controller: _mapController,
                     point: _point,
                     zoom: _zoom,
-                    onPositionChanged: (point, zoom) {
+                    onPositionChanged: (point, zoom, hasGesture) {
+                      if (hasGesture && _cameraController.isAnimating) {
+                        _cameraController.stop();
+                      }
                       _point = point;
                       _zoom = zoom;
                     },
@@ -301,8 +340,10 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
               color: Colors.white,
               child: Column(
                 children: [
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 160),
+                  BulkaMotionSwitcher(
+                    duration: BulkaMotion.fast,
+                    offset: const Offset(0, 0.12),
+                    scale: 0.98,
                     child: _resolving
                         ? const SizedBox(
                             key: ValueKey('loading-address'),
@@ -366,7 +407,8 @@ class _DeliveryMap extends StatelessWidget {
   final MapController? controller;
   final LatLng point;
   final double zoom;
-  final void Function(LatLng point, double zoom)? onPositionChanged;
+  final void Function(LatLng point, double zoom, bool hasGesture)?
+  onPositionChanged;
   final ValueChanged<LatLng>? onTap;
   final bool interactive;
 
@@ -387,7 +429,8 @@ class _DeliveryMap extends StatelessWidget {
             : null,
         onPositionChanged: onPositionChanged == null
             ? null
-            : (camera, _) => onPositionChanged!(camera.center, camera.zoom),
+            : (camera, hasGesture) =>
+                  onPositionChanged!(camera.center, camera.zoom, hasGesture),
       ),
       children: [
         TileLayer(

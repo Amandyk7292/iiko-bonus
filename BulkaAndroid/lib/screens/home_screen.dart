@@ -228,7 +228,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                   icon: Icons.notifications_none_rounded,
                                   onTap: () => Navigator.of(context).push<void>(
                                     MaterialPageRoute(
-                                      builder: (_) => NotificationsScreen(api: widget.api),
+                                      builder: (_) =>
+                                          NotificationsScreen(api: widget.api),
                                     ),
                                   ),
                                 ),
@@ -473,6 +474,9 @@ class _OrderTypeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final illustrationWidth = tall ? 178.0 : 88.0;
+    final cacheWidth =
+        (illustrationWidth * MediaQuery.devicePixelRatioOf(context)).ceil();
     return BulkaPressScale(
       enabled: onTap != null,
       child: SizedBox(
@@ -512,12 +516,13 @@ class _OrderTypeCard extends StatelessWidget {
                     right: tall ? -34 : 0,
                     bottom: tall ? -8 : -12,
                     child: SizedBox(
-                      width: tall ? 178 : 88,
+                      width: illustrationWidth,
                       height: tall ? 172 : 84,
                       child: Image.asset(
                         illustration.assetPath,
                         fit: BoxFit.contain,
-                        filterQuality: FilterQuality.high,
+                        cacheWidth: cacheWidth,
+                        filterQuality: FilterQuality.medium,
                       ),
                     ),
                   ),

@@ -43,12 +43,111 @@ void main() {
       findsOneWidget,
     );
 
-    await tester.pump(const Duration(milliseconds: 2199));
+    await tester.pump(const Duration(milliseconds: 699));
     expect(find.byType(SplashScreen), findsOneWidget);
 
     await tester.pump(const Duration(milliseconds: 1));
     await tester.pump();
     expect(find.byType(LoginScreen), findsOneWidget);
+  });
+
+  testWidgets('motion primitives honor the system reduced-motion setting', (
+    tester,
+  ) async {
+    var second = false;
+    late StateSetter update;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(disableAnimations: true),
+          child: child!,
+        ),
+        home: StatefulBuilder(
+          builder: (context, setState) {
+            update = setState;
+            return Scaffold(
+              body: Column(
+                children: [
+                  BulkaMotionSwitcher(
+                    key: const ValueKey('motion-switcher'),
+                    child: SizedBox(
+                      key: ValueKey(second ? 'second' : 'first'),
+                      width: 40,
+                      height: 40,
+                    ),
+                  ),
+                  const BulkaPressScale(
+                    key: ValueKey('press-scale'),
+                    child: SizedBox(width: 40, height: 40),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+
+    final switcher = find.descendant(
+      of: find.byKey(const ValueKey('motion-switcher')),
+      matching: find.byType(AnimatedSwitcher),
+    );
+    final pressScale = find.descendant(
+      of: find.byKey(const ValueKey('press-scale')),
+      matching: find.byType(AnimatedScale),
+    );
+    expect(tester.widget<AnimatedSwitcher>(switcher).duration, Duration.zero);
+    expect(tester.widget<AnimatedScale>(pressScale).duration, Duration.zero);
+
+    update(() => second = true);
+    await tester.pump();
+    expect(find.byKey(const ValueKey('first')), findsNothing);
+    expect(find.byKey(const ValueKey('second')), findsOneWidget);
+  });
+
+  testWidgets('reduced motion pauses automatic story progress', (tester) async {
+    const stories = [
+      PromoStory(
+        id: 1,
+        title: 'FIRST',
+        imageUrl: '',
+        contentUrl: '',
+        groupId: 'test',
+        groupTitle: 'Test',
+        groupCoverUrl: '',
+        duration: 1,
+      ),
+      PromoStory(
+        id: 2,
+        title: 'SECOND',
+        imageUrl: '',
+        contentUrl: '',
+        groupId: 'test',
+        groupTitle: 'Test',
+        groupCoverUrl: '',
+        duration: 1,
+      ),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(disableAnimations: true),
+          child: child!,
+        ),
+        home: const StoryViewer(
+          stories: stories,
+          initialIndex: 0,
+          heroTag: 'reduced-motion-story',
+        ),
+      ),
+    );
+
+    await tester.pump(const Duration(seconds: 3));
+    expect(find.byType(StoryViewer), findsOneWidget);
+    expect(find.text('FIRST'), findsWidgets);
+    expect(find.text('SECOND'), findsNothing);
   });
 
   testWidgets('profile back returns to populated home', (tester) async {
@@ -142,15 +241,44 @@ void main() {
     );
 
     await tester.tap(find.byKey(const ValueKey('nav-4')));
+    await tester.pump();
+    expect(
+      tester
+          .widget<Offstage>(find.byKey(const ValueKey('tab-slot-2')))
+          .offstage,
+      isFalse,
+    );
+    expect(
+      tester
+          .widget<Offstage>(find.byKey(const ValueKey('tab-slot-4')))
+          .offstage,
+      isFalse,
+    );
     await tester.pumpAndSettle();
     expect(find.text('Профиль'), findsWidgets);
     expect(find.byType(ProfileScreen).hitTestable(), findsOneWidget);
-    expect(tester.widget<IndexedStack>(find.byType(IndexedStack)).index, 4);
+    expect(
+      tester
+          .widget<Offstage>(find.byKey(const ValueKey('tab-slot-4')))
+          .offstage,
+      isFalse,
+    );
 
     await tester.tap(find.byKey(const ValueKey('nav-0')));
     await tester.pumpAndSettle();
 
-    expect(tester.widget<IndexedStack>(find.byType(IndexedStack)).index, 0);
+    expect(
+      tester
+          .widget<Offstage>(find.byKey(const ValueKey('tab-slot-0')))
+          .offstage,
+      isFalse,
+    );
+    expect(
+      tester
+          .widget<Offstage>(find.byKey(const ValueKey('tab-slot-4')))
+          .offstage,
+      isTrue,
+    );
     expect(find.byType(ProfileScreen).hitTestable(), findsNothing);
     expect(find.byType(HomeScreen).hitTestable(), findsOneWidget);
     expect(
@@ -192,6 +320,21 @@ void main() {
         grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
     expect(delegate.crossAxisCount, 2);
     expect(BulkaMotion.reduced(tester.element(find.byType(MainShell))), isTrue);
+
+    await tester.tap(find.byKey(const ValueKey('nav-4')));
+    await tester.pump();
+    expect(
+      tester
+          .widget<Offstage>(find.byKey(const ValueKey('tab-slot-0')))
+          .offstage,
+      isTrue,
+    );
+    expect(
+      tester
+          .widget<Offstage>(find.byKey(const ValueKey('tab-slot-4')))
+          .offstage,
+      isFalse,
+    );
   });
 
   testWidgets('delivery address flow saves selected address', (tester) async {

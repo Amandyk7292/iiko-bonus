@@ -25,119 +25,111 @@ class _LoyaltyPanel extends StatelessWidget {
     final firstReward = _RewardState.fromPurchases(purchaseCount, 6);
     final secondReward = _RewardState.fromPurchases(purchaseCount, 12);
     final tier = customer.tier;
-    final balance = formatMoney(customer.balance);
     final standardDuration = BulkaMotion.duration(
       context,
       BulkaMotion.standard,
     );
     final fastDuration = BulkaMotion.duration(context, BulkaMotion.fast);
 
-    return AnimatedContainer(
-      duration: standardDuration,
-      curve: Curves.easeOutCubic,
-      padding: EdgeInsets.zero,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            clipBehavior: Clip.antiAlias,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(26),
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Color(0xFFFFE082),
-                  Color(0xFFFFD54F),
-                  Color(0xFFFFB300),
-                ],
-                stops: [0, 0.52, 1],
-              ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          clipBehavior: Clip.antiAlias,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(26),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFFFFE082), Color(0xFFFFD54F), Color(0xFFFFB300)],
+              stops: [0, 0.52, 1],
             ),
-            child: Stack(
-              children: [
-                Positioned(
-                  right: -34,
-                  top: -28,
-                  child: Container(
-                    width: 118,
-                    height: 118,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(34),
-                    ),
+          ),
+          child: Stack(
+            children: [
+              Positioned(
+                right: -34,
+                top: -28,
+                child: Container(
+                  width: 118,
+                  height: 118,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(34),
                   ),
                 ),
-                Column(
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'show_qr_cashier'.tr,
-                                style: const TextStyle(
-                                  color: Color(0xFF6D3317),
-                                  fontFamily: _headingFont,
-                                  fontSize: 22,
-                                  height: 1.08,
-                                  fontWeight: FontWeight.w400,
-                                ),
+              ),
+              Column(
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'show_qr_cashier'.tr,
+                              style: const TextStyle(
+                                color: Color(0xFF6D3317),
+                                fontFamily: _headingFont,
+                                fontSize: 22,
+                                height: 1.08,
+                                fontWeight: FontWeight.w400,
                               ),
-                              const SizedBox(height: 20),
-                              SizedBox(
-                                width: 184,
-                                height: 54,
-                                child: FilledButton(
-                                  onPressed: onQrTap,
-                                  style: FilledButton.styleFrom(
-                                    backgroundColor: Colors.white,
-                                    foregroundColor: const Color(0xFF6D3317),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(18),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    'open_qr_btn'.tr,
-                                    style: const TextStyle(
-                                      color: Color(0xFF6D3317),
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        InkWell(
-                          key: const ValueKey('qr-preview-button'),
-                          onTap: onQrTap,
-                          borderRadius: BorderRadius.circular(24),
-                          child: BulkaHero(
-                            tag: 'qr-${customer.phone}',
-                            child: _InlineQrPreview(
-                              api: api,
-                              customer: customer,
                             ),
-                          ),
+                            const SizedBox(height: 20),
+                            SizedBox(
+                              width: 184,
+                              height: 54,
+                              child: FilledButton(
+                                onPressed: onQrTap,
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: Colors.white,
+                                  foregroundColor: const Color(0xFF6D3317),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(18),
+                                  ),
+                                ),
+                                child: Text(
+                                  'open_qr_btn'.tr,
+                                  style: const TextStyle(
+                                    color: Color(0xFF6D3317),
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 18),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '${'balance_prefix'.tr}$balance${'points_suffix'.tr}',
+                      ),
+                      const SizedBox(width: 16),
+                      InkWell(
+                        key: const ValueKey('qr-preview-button'),
+                        onTap: onQrTap,
+                        borderRadius: BorderRadius.circular(24),
+                        child: BulkaHero(
+                          tag: 'qr-${customer.phone}',
+                          child: _InlineQrPreview(api: api, customer: customer),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            TweenAnimationBuilder<double>(
+                              tween: Tween<double>(end: customer.balance),
+                              duration: standardDuration,
+                              curve: BulkaMotion.standardCurve,
+                              builder: (context, value, _) => Text(
+                                '${'balance_prefix'.tr}${formatMoney(value)}${'points_suffix'.tr}',
                                 style: const TextStyle(
                                   color: Color(0xFF6D3317),
                                   fontFamily: _headingFont,
@@ -145,113 +137,110 @@ class _LoyaltyPanel extends StatelessWidget {
                                   fontWeight: FontWeight.w400,
                                 ),
                               ),
-                              const SizedBox(height: 8),
-                              Text(
-                                '${'cashback_gift_1'.tr}${tier?.percent ?? customer.cashbackPercent}${'cashback_gift_2'.tr}',
-                                style: const TextStyle(
-                                  color: Color(0xFF6D3317),
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              '${'cashback_gift_1'.tr}${tier?.percent ?? customer.cashbackPercent}${'cashback_gift_2'.tr}',
+                              style: const TextStyle(
+                                color: Color(0xFF6D3317),
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                        Tooltip(
-                          message: expanded
-                              ? 'collapse_tooltip'.tr
-                              : 'expand_tooltip'.tr,
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: () {
-                              BulkaMotion.selection();
-                              onToggle();
-                            },
-                            child: SizedBox(
-                              width: 44,
-                              height: 44,
-                              child: Center(
-                                child: AnimatedRotation(
-                                  turns: expanded ? 0.5 : 0,
-                                  duration: fastDuration,
-                                  child: const Icon(
-                                    Icons.keyboard_arrow_down_rounded,
-                                    color: Color(0xFF6D3317),
-                                    size: 22,
-                                  ),
+                      ),
+                      Tooltip(
+                        message: expanded
+                            ? 'collapse_tooltip'.tr
+                            : 'expand_tooltip'.tr,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () {
+                            BulkaMotion.selection();
+                            onToggle();
+                          },
+                          child: SizedBox(
+                            width: 44,
+                            height: 44,
+                            child: Center(
+                              child: AnimatedRotation(
+                                turns: expanded ? 0.5 : 0,
+                                duration: fastDuration,
+                                child: const Icon(
+                                  Icons.keyboard_arrow_down_rounded,
+                                  color: Color(0xFF6D3317),
+                                  size: 22,
                                 ),
                               ),
                             ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        BulkaExpandable(
+          expanded: expanded,
+          duration: BulkaMotion.standard,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(0, 22, 0, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (tier != null)
+                  _TierProgressSection(tier: tier)
+                else ...[
+                  _RewardProgress(
+                    title: 'reward_6_desc'.tr,
+                    remaining: firstReward.remaining,
+                    progress: firstReward.progress,
+                  ),
+                  const SizedBox(height: 22),
+                  _RewardProgress(
+                    title: 'reward_12_desc'.tr,
+                    remaining: secondReward.remaining,
+                    progress: secondReward.progress,
+                  ),
+                  const SizedBox(height: 24),
+                  _StampRow(completed: purchaseCount, total: 12),
+                ],
+                const SizedBox(height: 28),
+                SizedBox(
+                  width: double.infinity,
+                  height: 58,
+                  child: GradientButton(
+                    key: const ValueKey('balance-history-button'),
+                    onPressed: onHistoryTap,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(
+                          Icons.history,
+                          size: 20,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'balance_history_btn'.tr,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w400,
                           ),
                         ),
                       ],
                     ),
-                  ],
+                  ),
                 ),
               ],
             ),
           ),
-          AnimatedCrossFade(
-            firstChild: const SizedBox.shrink(),
-            secondChild: Padding(
-              padding: const EdgeInsets.fromLTRB(0, 22, 0, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (tier != null)
-                    _TierProgressSection(tier: tier)
-                  else ...[
-                    _RewardProgress(
-                      title: 'reward_6_desc'.tr,
-                      remaining: firstReward.remaining,
-                      progress: firstReward.progress,
-                    ),
-                    const SizedBox(height: 22),
-                    _RewardProgress(
-                      title: 'reward_12_desc'.tr,
-                      remaining: secondReward.remaining,
-                      progress: secondReward.progress,
-                    ),
-                    const SizedBox(height: 24),
-                    _StampRow(completed: purchaseCount, total: 12),
-                  ],
-                  const SizedBox(height: 28),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 58,
-                    child: GradientButton(
-                      key: const ValueKey('balance-history-button'),
-                      onPressed: onHistoryTap,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.history,
-                            size: 20,
-                            color: Colors.white,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'balance_history_btn'.tr,
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w400,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            crossFadeState: expanded
-                ? CrossFadeState.showSecond
-                : CrossFadeState.showFirst,
-            duration: standardDuration,
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -579,51 +568,56 @@ class _RewardProgress extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 14),
-        Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Container(
-              height: 8,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF1F0EE),
-                borderRadius: BorderRadius.circular(99),
-              ),
-            ),
-            FractionallySizedBox(
-              widthFactor: progress.clamp(0, 1),
-              child: Container(
+        TweenAnimationBuilder<double>(
+          tween: Tween<double>(end: progress.clamp(0, 1)),
+          duration: BulkaMotion.duration(context, BulkaMotion.emphasized),
+          curve: BulkaMotion.enterCurve,
+          builder: (context, animatedProgress, _) => Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
                 height: 8,
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFFFFD54F), Color(0xFFFFB300)],
-                  ),
+                  color: const Color(0xFFF1F0EE),
                   borderRadius: BorderRadius.circular(99),
                 ),
               ),
-            ),
-            Positioned(
-              left: 0,
-              right: 0,
-              top: -12,
-              child: Align(
-                alignment: FractionalOffset(progress.clamp(0.0, 1.0), 0.5),
+              FractionallySizedBox(
+                widthFactor: animatedProgress,
                 child: Container(
-                  width: 34,
-                  height: 34,
+                  height: 8,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF8D7DD),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 3),
-                  ),
-                  child: const Icon(
-                    Icons.person_rounded,
-                    color: Color(0xFFB86A7B),
-                    size: 22,
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFFFD54F), Color(0xFFFFB300)],
+                    ),
+                    borderRadius: BorderRadius.circular(99),
                   ),
                 ),
               ),
-            ),
-          ],
+              Positioned(
+                left: 0,
+                right: 0,
+                top: -12,
+                child: Align(
+                  alignment: FractionalOffset(animatedProgress, 0.5),
+                  child: Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8D7DD),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 3),
+                    ),
+                    child: const Icon(
+                      Icons.person_rounded,
+                      color: Color(0xFFB86A7B),
+                      size: 22,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 20),
         Text(
@@ -676,7 +670,9 @@ class _StampDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return AnimatedContainer(
+      duration: BulkaMotion.duration(context, BulkaMotion.fast),
+      curve: BulkaMotion.standardCurve,
       width: 42,
       height: 42,
       decoration: BoxDecoration(

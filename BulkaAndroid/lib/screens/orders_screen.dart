@@ -1,7 +1,7 @@
 part of '../main.dart';
 
 class OrdersScreen extends StatelessWidget {
-  const OrdersScreen({required this.transactions, this.onExplore, super.key});
+  const OrdersScreen({this.transactions = const [], this.onExplore, super.key});
 
   final List<BonusTransaction> transactions;
   final VoidCallback? onExplore;
@@ -11,7 +11,94 @@ class OrdersScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          'orders_title'.tr,
+          'nav_cart'.tr,
+          style: const TextStyle(
+            fontFamily: _headingFont,
+            fontWeight: FontWeight.w400,
+          ),
+        ),
+      ),
+      body: Center(
+        child: Container(
+          margin: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(28),
+          decoration: BoxDecoration(
+            color: _cream,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: _softShadow,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 76,
+                height: 76,
+                decoration: BoxDecoration(
+                  color: _bulkaYellow.withValues(alpha: 0.18),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.shopping_bag_rounded,
+                  color: _caramel,
+                  size: 40,
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                'cart_empty_title'.tr,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: _textDark,
+                  fontFamily: _headingFont,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'cart_empty_sub'.tr,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: _textDark.withValues(alpha: 0.65),
+                  fontSize: 14,
+                  height: 1.4,
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: GradientButton(
+                  onPressed: onExplore ??
+                      () {
+                        Navigator.of(context).push<void>(
+                          MaterialPageRoute(
+                            builder: (_) => const LocationsScreen(),
+                          ),
+                        );
+                      },
+                  child: Text('cart_action'.tr),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class BalanceHistoryScreen extends StatelessWidget {
+  const BalanceHistoryScreen({required this.transactions, this.onExplore, super.key});
+
+  final List<BonusTransaction> transactions;
+  final VoidCallback? onExplore;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          'balance_history_title'.tr,
           style: const TextStyle(
             fontFamily: _headingFont,
             fontWeight: FontWeight.w400,

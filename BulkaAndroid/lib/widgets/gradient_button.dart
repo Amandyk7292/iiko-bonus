@@ -20,6 +20,7 @@ class GradientButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final disabled = loading || onPressed == null;
     final effectiveOnPressed = loading || onPressed == null
         ? null
         : () {
@@ -31,13 +32,15 @@ class GradientButton extends StatelessWidget {
       child: SizedBox(
         width: double.infinity,
         height: height,
-        child: DecoratedBox(
+        child: AnimatedContainer(
+          duration: BulkaMotion.duration(context, BulkaMotion.fast),
+          curve: BulkaMotion.standardCurve,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(borderRadius),
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: onPressed == null || loading
+              colors: disabled
                   ? [const Color(0xFFE0E0E0), const Color(0xFFBDBDBD)]
                   : [
                       const Color(0xFFFFD54F),
@@ -45,7 +48,7 @@ class GradientButton extends StatelessWidget {
                       const Color(0xFFFFA000),
                     ],
             ),
-            boxShadow: onPressed == null || loading
+            boxShadow: disabled
                 ? null
                 : [
                     const BoxShadow(
@@ -66,23 +69,32 @@ class GradientButton extends StatelessWidget {
                 borderRadius: BorderRadius.circular(borderRadius),
               ),
             ),
-            child: loading
-                ? const SizedBox(
-                    height: 24,
-                    width: 24,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2.5,
-                      color: Colors.white,
+            child: BulkaMotionSwitcher(
+              duration: BulkaMotion.fast,
+              offset: Offset.zero,
+              scale: 0.88,
+              child: loading
+                  ? const SizedBox(
+                      key: ValueKey('gradient-button-loading'),
+                      height: 24,
+                      width: 24,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: Colors.white,
+                      ),
+                    )
+                  : KeyedSubtree(
+                      key: const ValueKey('gradient-button-content'),
+                      child: DefaultTextStyle(
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        child: child,
+                      ),
                     ),
-                  )
-                : DefaultTextStyle(
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    child: child,
-                  ),
+            ),
           ),
         ),
       ),

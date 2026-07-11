@@ -7,12 +7,14 @@ class BulkaBonusApp extends StatefulWidget {
   State<BulkaBonusApp> createState() => _BulkaBonusAppState();
 }
 
-class _BulkaBonusAppState extends State<BulkaBonusApp> {
-  static const _minimumSplashDuration = Duration(milliseconds: 2200);
+class _BulkaBonusAppState extends State<BulkaBonusApp>
+    with WidgetsBindingObserver {
+  static const _minimumSplashDuration = Durations.extralong1;
 
   final _api = BulkaApiClient();
   SharedPreferences? _prefs;
   Timer? _refreshTimer;
+  bool _profileRefreshInFlight = false;
   bool _booting = true;
   String? _savedPhone;
   String? _accessToken;
@@ -23,19 +25,31 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _bootstrap();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _refreshTimer?.cancel();
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final phone = _savedPhone;
+    if (state == AppLifecycleState.resumed && phone != null) {
+      unawaited(_refreshProfile(phone));
+      _startProfileRefresh(phone);
+    } else if (state != AppLifecycleState.resumed) {
+      _refreshTimer?.cancel();
+    }
+  }
+
   Future<void> _bootstrap() async {
-    // Keep the branded Flutter splash on screen long enough to be perceived.
-    // Without this guard a warm start can resolve SharedPreferences in a single
-    // frame and jump straight to LoginScreen, which looks as if splash vanished.
+    // Keep the brand transition stable on warm starts without introducing a
+    // multi-second artificial wait that feels like startup lag.
     final minimumSplashDelay = Future<void>.delayed(_minimumSplashDuration);
     final prefs = await SharedPreferences.getInstance();
     final phone = prefs.getString('phone');
@@ -65,6 +79,8 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
   }
 
   Future<void> _refreshProfile(String phone) async {
+    if (_profileRefreshInFlight) return;
+    _profileRefreshInFlight = true;
     try {
       final profile = await _api.getProfile(phone);
       if (!mounted) return;
@@ -73,20 +89,28 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
         return;
       }
       final customer = await _withLatestLoyalty(profile.customer!);
-      await _saveSession(phone, customer, profile.transactions, _accessToken!);
+      final changed = await _saveSession(
+        phone,
+        customer,
+        profile.transactions,
+        _accessToken!,
+      );
+      if (!changed || !mounted) return;
       setState(() {
         _customer = customer;
         _transactions = profile.transactions;
       });
     } catch (error) {
       if (error is ApiException && error.statusCode == 401) await _logout();
+    } finally {
+      _profileRefreshInFlight = false;
     }
   }
 
   void _startProfileRefresh(String phone) {
     _refreshTimer?.cancel();
     _refreshTimer = Timer.periodic(
-      const Duration(seconds: 5),
+      const Duration(seconds: 30),
       (_) => _refreshProfile(phone),
     );
   }
@@ -169,20 +193,34 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
     }
   }
 
-  Future<void> _saveSession(
+  Future<bool> _saveSession(
     String phone,
     Customer customer,
     List<BonusTransaction> transactions,
     String accessToken,
   ) async {
     final prefs = _prefs ?? await SharedPreferences.getInstance();
-    await prefs.setString('phone', phone);
-    await prefs.setString('accessToken', accessToken);
-    await prefs.setString('customer', jsonEncode(customer.toJson()));
-    await prefs.setString(
-      'transactions',
-      jsonEncode(transactions.map((tx) => tx.toJson()).toList()),
+    final customerJson = jsonEncode(customer.toJson());
+    final transactionsJson = jsonEncode(
+      transactions.map((tx) => tx.toJson()).toList(),
     );
+    final profileChanged =
+        prefs.getString('customer') != customerJson ||
+        prefs.getString('transactions') != transactionsJson;
+
+    if (prefs.getString('phone') != phone) {
+      await prefs.setString('phone', phone);
+    }
+    if (prefs.getString('accessToken') != accessToken) {
+      await prefs.setString('accessToken', accessToken);
+    }
+    if (prefs.getString('customer') != customerJson) {
+      await prefs.setString('customer', customerJson);
+    }
+    if (prefs.getString('transactions') != transactionsJson) {
+      await prefs.setString('transactions', transactionsJson);
+    }
+    return profileChanged;
   }
 
   Future<Customer> _withLatestLoyalty(Customer customer) async {
@@ -232,7 +270,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
             GlobalCupertinoLocalizations.delegate,
           ],
           theme: buildBulkaTheme(),
-          home: _buildHome(),
+          home: _AppStage(child: _buildHome()),
         );
       },
     );
@@ -240,10 +278,14 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
 
   Widget _buildHome() {
     if (_booting) {
-      return SplashScreen(text: 'splash_loading'.tr);
+      return SplashScreen(
+        key: const ValueKey('app-stage-boot'),
+        text: 'splash_loading'.tr,
+      );
     }
     if (_savedPhone == null) {
       return LoginScreen(
+        key: const ValueKey('app-stage-login'),
         onRequestOtp: _requestOtp,
         onVerifyOtp: _verifyOtp,
         onRegister: _registerCustomer,
@@ -251,14 +293,37 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
     }
     final customer = _customer;
     if (customer == null) {
-      return SplashScreen(text: 'splash_loading_profile'.tr);
+      return SplashScreen(
+        key: const ValueKey('app-stage-profile-loading'),
+        text: 'splash_loading_profile'.tr,
+      );
     }
     return MainShell(
+      key: const ValueKey('app-stage-main'),
       api: _api,
       customer: customer,
       transactions: _transactions,
       onLogout: _logout,
       onRefreshProfile: () => _refreshProfile(_savedPhone!),
+    );
+  }
+}
+
+class _AppStage extends StatelessWidget {
+  const _AppStage({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: Colors.white,
+      child: BulkaMotionSwitcher(
+        duration: BulkaMotion.standard,
+        offset: const Offset(0.025, 0),
+        scale: 0.995,
+        child: child,
+      ),
     );
   }
 }
@@ -283,13 +348,12 @@ class _SplashScreenState extends State<SplashScreen>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 1800),
     );
 
-    _scaleAnimation = Tween<double>(
-      begin: 0.92,
-      end: 1.08,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+    _scaleAnimation = Tween<double>(begin: 0.985, end: 1.015).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOutSine),
+    );
   }
 
   @override
@@ -327,7 +391,9 @@ class _SplashScreenState extends State<SplashScreen>
         child: Center(
           child: _reduceMotion
               ? logo
-              : ScaleTransition(scale: _scaleAnimation, child: logo),
+              : RepaintBoundary(
+                  child: ScaleTransition(scale: _scaleAnimation, child: logo),
+                ),
         ),
       ),
     );

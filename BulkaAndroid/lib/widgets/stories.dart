@@ -163,6 +163,7 @@ class _PromoBannerSliderState extends State<PromoBannerSlider> {
   int _currentIndex = 0;
   Timer? _timer;
   bool _reduceMotion = false;
+  bool _tickerEnabled = true;
   bool _dependenciesReady = false;
 
   @override
@@ -175,23 +176,27 @@ class _PromoBannerSliderState extends State<PromoBannerSlider> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     final reduceMotion = BulkaMotion.reduced(context);
-    if (!_dependenciesReady || reduceMotion != _reduceMotion) {
+    final tickerEnabled = TickerMode.of(context);
+    if (!_dependenciesReady ||
+        reduceMotion != _reduceMotion ||
+        tickerEnabled != _tickerEnabled) {
       _dependenciesReady = true;
       _reduceMotion = reduceMotion;
+      _tickerEnabled = tickerEnabled;
       _startTimer();
     }
   }
 
   void _startTimer() {
     _timer?.cancel();
-    if (!_reduceMotion && widget.groups.length > 1) {
+    if (!_reduceMotion && _tickerEnabled && widget.groups.length > 1) {
       _timer = Timer.periodic(const Duration(seconds: 5), (_) {
         if (!mounted || !_pageController.hasClients) return;
         final next = (_currentIndex + 1) % widget.groups.length;
         _pageController.animateToPage(
           next,
           duration: BulkaMotion.emphasized,
-          curve: Curves.easeOutCubic,
+          curve: BulkaMotion.enterCurve,
         );
       });
     }
@@ -613,46 +618,98 @@ class StoryViewer extends StatefulWidget {
 class _StoryViewerState extends State<StoryViewer>
     with TickerProviderStateMixin {
   late int _index;
-  late AnimationController _controller;
-  late AnimationController _cubeController;
+  late AnimationController _progressController;
+  late AnimationController _transitionController;
   int? _targetIndex;
   bool _forward = true;
+  bool _reduceMotion = false;
+  bool _dependenciesReady = false;
 
   @override
   void initState() {
     super.initState();
     _index = widget.initialIndex;
-    _controller = AnimationController(vsync: this)
+    _progressController = AnimationController(vsync: this)
       ..addStatusListener((status) {
         if (status == AnimationStatus.completed) _next();
       });
-    _cubeController = AnimationController(
+    _transitionController = AnimationController(
       vsync: this,
       duration: BulkaMotion.emphasized,
     );
-    _play();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reduceMotion = BulkaMotion.reduced(context);
+    if (!_dependenciesReady || reduceMotion != _reduceMotion) {
+      _dependenciesReady = true;
+      _reduceMotion = reduceMotion;
+      if (_reduceMotion) {
+        _progressController
+          ..stop()
+          ..value = 0;
+        _transitionController
+          ..stop()
+          ..value = 1;
+      } else {
+        _transitionController.value = 0;
+        _play();
+      }
+      _precacheNeighbors();
+    }
   }
 
   @override
   void dispose() {
-    _controller.dispose();
-    _cubeController.dispose();
+    _progressController.dispose();
+    _transitionController.dispose();
     super.dispose();
   }
 
   void _play() {
+    if (_reduceMotion) {
+      _progressController
+        ..stop()
+        ..value = 0;
+      return;
+    }
     final durationSec = widget.stories[_index].duration > 0
         ? widget.stories[_index].duration
         : 15;
     final duration = Duration(seconds: durationSec);
-    _controller
+    _progressController
       ..duration = duration
       ..reset()
       ..forward();
   }
 
+  void _precacheNeighbors() {
+    final logicalWidth = MediaQuery.sizeOf(context).width;
+    final cacheWidth = min(
+      2048,
+      max(1, (logicalWidth * MediaQuery.devicePixelRatioOf(context)).ceil()),
+    );
+    final indexes = <int>{
+      _index,
+      if (_index > 0) _index - 1,
+      if (_index < widget.stories.length - 1) _index + 1,
+    };
+    for (final index in indexes) {
+      final url = _storyImageUrl(widget.stories[index]);
+      if (!url.startsWith('http')) continue;
+      final provider = ResizeImage.resizeIfNeeded(
+        cacheWidth,
+        null,
+        NetworkImage(url),
+      );
+      unawaited(precacheImage(provider, context, onError: (_, _) {}));
+    }
+  }
+
   void _next() {
-    if (_cubeController.isAnimating) return;
+    if (_transitionController.isAnimating) return;
     if (_index < widget.stories.length - 1) {
       _goTo(_index + 1, forward: true);
     } else {
@@ -661,7 +718,7 @@ class _StoryViewerState extends State<StoryViewer>
   }
 
   void _previous() {
-    if (_cubeController.isAnimating) return;
+    if (_transitionController.isAnimating) return;
     if (_index > 0) {
       _goTo(_index - 1, forward: false);
     } else {
@@ -670,7 +727,7 @@ class _StoryViewerState extends State<StoryViewer>
   }
 
   Future<void> _goTo(int nextIndex, {required bool forward}) async {
-    _controller.stop();
+    _progressController.stop();
     BulkaMotion.selection();
     if (BulkaMotion.reduced(context)) {
       setState(() {
@@ -678,20 +735,22 @@ class _StoryViewerState extends State<StoryViewer>
         _targetIndex = null;
       });
       _play();
+      _precacheNeighbors();
       return;
     }
     setState(() {
       _targetIndex = nextIndex;
       _forward = forward;
     });
-    await _cubeController.forward(from: 0);
+    await _transitionController.forward(from: 0);
     if (!mounted) return;
     setState(() {
       _index = nextIndex;
       _targetIndex = null;
     });
-    _cubeController.reset();
+    _transitionController.reset();
     _play();
+    _precacheNeighbors();
   }
 
   @override
@@ -712,11 +771,11 @@ class _StoryViewerState extends State<StoryViewer>
             BulkaHero(
               tag: widget.heroTag,
               child: AnimatedBuilder(
-                animation: _cubeController,
-                builder: (context, _) => _StoryCubeStage(
+                animation: _transitionController,
+                builder: (context, _) => _StorySharedAxisStage(
                   current: story,
                   target: targetStory,
-                  progress: _cubeController.value,
+                  progress: _transitionController.value,
                   forward: _forward,
                 ),
               ),
@@ -759,7 +818,7 @@ class _StoryViewerState extends State<StoryViewer>
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     AnimatedBuilder(
-                      animation: _controller,
+                      animation: _progressController,
                       builder: (_, _) => Row(
                         children: [
                           for (var i = 0; i < widget.stories.length; i++)
@@ -769,10 +828,12 @@ class _StoryViewerState extends State<StoryViewer>
                                   right: i == widget.stories.length - 1 ? 0 : 4,
                                 ),
                                 child: LinearProgressIndicator(
-                                  value: i < _index
+                                  value: _reduceMotion
+                                      ? (i <= _index ? 1 : 0)
+                                      : i < _index
                                       ? 1
                                       : i == _index
-                                      ? _controller.value
+                                      ? _progressController.value
                                       : 0,
                                   minHeight: 2.5,
                                   color: Colors.white,
@@ -829,6 +890,12 @@ class _StoryViewerState extends State<StoryViewer>
   }
 }
 
+String _storyImageUrl(PromoStory story) {
+  return story.contentUrl.isNotEmpty
+      ? story.contentUrl
+      : (story.imageUrl.isNotEmpty ? story.imageUrl : story.groupCoverUrl);
+}
+
 class _StoryFullImage extends StatelessWidget {
   const _StoryFullImage({required this.story});
 
@@ -836,72 +903,81 @@ class _StoryFullImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final url = story.contentUrl.isNotEmpty
-        ? story.contentUrl
-        : (story.imageUrl.isNotEmpty ? story.imageUrl : story.groupCoverUrl);
+    final url = _storyImageUrl(story);
     if (url.startsWith('http')) {
       return _NetworkImage(url: url, fit: BoxFit.cover);
     }
     final isHappy =
         story.groupId == 'happy_hours' || story.title.contains('2+1');
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFF381B10), Color(0xFF140804)],
-        ),
-      ),
-      alignment: Alignment.center,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            isHappy ? '2 + 1' : 'story_gift'.tr,
-            style: TextStyle(
-              fontFamily: _headingFont,
-              fontSize: isHappy ? 80 : 86,
-              fontWeight: FontWeight.w900,
-              color: const Color(0xFFDCAE68),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // During the Hero flight this widget briefly inherits the compact
+        // banner size. Keep that intermediate frame responsive instead of
+        // overflowing while it expands to full screen.
+        final compact = constraints.maxHeight < 360;
+        return Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFF381B10), Color(0xFF140804)],
             ),
           ),
-          const SizedBox(height: 16),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 28),
-            child: Text(
-              story.title.toUpperCase(),
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontFamily: _headingFont,
-                fontSize: 24,
-                fontWeight: FontWeight.w900,
-                color: Colors.white,
-              ),
-            ),
-          ),
-          if ((story.description ?? '').isNotEmpty) ...[
-            const SizedBox(height: 14),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 36),
-              child: Text(
-                story.description!,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 16,
-                  color: Color(0xFFEADBBE),
-                  height: 1.4,
+          alignment: Alignment.center,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                isHappy ? '2 + 1' : 'story_gift'.tr,
+                style: TextStyle(
+                  fontFamily: _headingFont,
+                  fontSize: compact ? 42 : (isHappy ? 80 : 86),
+                  fontWeight: FontWeight.w900,
+                  color: const Color(0xFFDCAE68),
                 ),
               ),
-            ),
-          ],
-        ],
-      ),
+              SizedBox(height: compact ? 6 : 16),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: compact ? 18 : 28),
+                child: Text(
+                  story.title.toUpperCase(),
+                  maxLines: compact ? 1 : 3,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: _headingFont,
+                    fontSize: compact ? 18 : 24,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              if (!compact && (story.description ?? '').isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 36),
+                  child: Text(
+                    story.description!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      color: Color(0xFFEADBBE),
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 }
 
-class _StoryCubeStage extends StatelessWidget {
-  const _StoryCubeStage({
+class _StorySharedAxisStage extends StatelessWidget {
+  const _StorySharedAxisStage({
     required this.current,
     required this.target,
     required this.progress,
@@ -917,154 +993,49 @@ class _StoryCubeStage extends StatelessWidget {
   Widget build(BuildContext context) {
     final next = target;
     if (next == null) {
-      return _StoryFullImage(story: current);
+      return RepaintBoundary(child: _StoryFullImage(story: current));
     }
 
-    final eased = Curves.easeInOutCubic.transform(progress.clamp(0, 1));
+    final eased = Curves.easeInOutCubicEmphasized.transform(
+      progress.clamp(0, 1),
+    );
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final height = constraints.maxHeight;
-        final half = width / 2;
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            _StoryFullImage(story: current),
-            if (forward) ...[
-              Positioned(
-                right: 0,
-                top: 0,
-                bottom: 0,
-                width: half,
-                child: ColoredBox(
-                  color: Colors.black.withValues(alpha: 0.42 * eased),
+        final direction = forward ? 1.0 : -1.0;
+        return ClipRect(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Transform.translate(
+                offset: Offset(-direction * width * 0.12 * eased, 0),
+                child: Transform.scale(
+                  scale: 1 - (0.015 * eased),
+                  child: RepaintBoundary(
+                    child: _StoryFullImage(story: current),
+                  ),
                 ),
               ),
-              _CubeHalfFace(
-                story: current,
-                side: _StoryHalf.left,
-                width: width,
-                height: height,
-                angle: -eased * pi / 2,
-                transformAlignment: Alignment.centerRight,
-              ),
-              _CubeHalfFace(
-                story: next,
-                side: _StoryHalf.right,
-                width: width,
-                height: height,
-                angle: (1 - eased) * pi / 2,
-                transformAlignment: Alignment.centerLeft,
-              ),
-            ] else ...[
-              Positioned(
-                left: 0,
-                top: 0,
-                bottom: 0,
-                width: half,
-                child: ColoredBox(
-                  color: Colors.black.withValues(alpha: 0.42 * eased),
+              Transform.translate(
+                offset: Offset(direction * width * (1 - eased), 0),
+                child: RepaintBoundary(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      _StoryFullImage(story: next),
+                      ColoredBox(
+                        color: Colors.black.withValues(
+                          alpha: 0.12 * (1 - eased),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              _CubeHalfFace(
-                story: current,
-                side: _StoryHalf.right,
-                width: width,
-                height: height,
-                angle: eased * pi / 2,
-                transformAlignment: Alignment.centerLeft,
-              ),
-              _CubeHalfFace(
-                story: next,
-                side: _StoryHalf.left,
-                width: width,
-                height: height,
-                angle: -(1 - eased) * pi / 2,
-                transformAlignment: Alignment.centerRight,
               ),
             ],
-            Center(
-              child: Container(
-                width: 1.5,
-                height: height,
-                color: Colors.black.withValues(
-                  alpha: 0.35 * sin(progress * pi),
-                ),
-              ),
-            ),
-          ],
+          ),
         );
       },
-    );
-  }
-}
-
-enum _StoryHalf { left, right }
-
-class _CubeHalfFace extends StatelessWidget {
-  const _CubeHalfFace({
-    required this.story,
-    required this.side,
-    required this.width,
-    required this.height,
-    required this.angle,
-    required this.transformAlignment,
-  });
-
-  final PromoStory story;
-  final _StoryHalf side;
-  final double width;
-  final double height;
-  final double angle;
-  final Alignment transformAlignment;
-
-  @override
-  Widget build(BuildContext context) {
-    final isLeft = side == _StoryHalf.left;
-    final matrix = Matrix4.identity()
-      ..setEntry(3, 2, 0.0012)
-      ..rotateY(angle);
-
-    return Positioned(
-      left: isLeft ? 0 : width / 2,
-      top: 0,
-      width: width / 2,
-      height: height,
-      child: ClipRect(
-        child: Transform(
-          alignment: transformAlignment,
-          transform: matrix,
-          child: Align(
-            alignment: isLeft ? Alignment.centerLeft : Alignment.centerRight,
-            child: SizedBox(
-              width: width,
-              height: height,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  _StoryFullImage(story: story),
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: isLeft
-                            ? Alignment.centerRight
-                            : Alignment.centerLeft,
-                        end: isLeft
-                            ? Alignment.centerLeft
-                            : Alignment.centerRight,
-                        colors: [
-                          Colors.black.withValues(alpha: 0.16),
-                          Colors.transparent,
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

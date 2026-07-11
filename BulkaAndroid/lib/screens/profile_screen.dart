@@ -503,10 +503,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   children: [
                     _ProfileMenuItem(
                       icon: Icons.receipt_long_outlined,
-                      title: 'menu_orders'.tr,
+                      title: 'balance_history_title'.tr,
                       onTap: () => Navigator.of(context).push<void>(
                         MaterialPageRoute(
-                          builder: (_) => OrdersScreen(
+                          builder: (_) => BalanceHistoryScreen(
                             transactions: widget.transactions,
                             onExplore: () {
                               Navigator.of(context).pop();

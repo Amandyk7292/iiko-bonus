@@ -192,7 +192,27 @@ const Map<String, Map<String, String>> _appTranslations = {
     'kk': '% кэшбэк сыйлаймыз!',
     'en': '% cashback on every purchase!',
   },
-  // Orders screen
+  // Orders & Cart screen
+  'balance_history_title': {
+    'ru': 'История баланса',
+    'kk': 'Баланс тарихы',
+    'en': 'Balance history',
+  },
+  'cart_empty_title': {
+    'ru': 'Корзина для будущих заказов',
+    'kk': 'Болашақ тапсырыстарға арналған себет',
+    'en': 'Cart for future orders',
+  },
+  'cart_empty_sub': {
+    'ru': 'Здесь вы сможете собирать любимую выпечку, кофе и оформлять заказ онлайн с самовывозом или доставкой.',
+    'kk': 'Мұнда сіз сүйікті нан өнімдерін, кофені жинап, алып кету немесе жеткізу арқылы онлайн тапсырыс бере аласыз.',
+    'en': 'Here you can collect your favorite pastries and coffee to order online for pickup or delivery.',
+  },
+  'cart_action': {
+    'ru': 'Выбрать пекарню',
+    'kk': 'Наубайхананы таңдау',
+    'en': 'Select bakery',
+  },
   'orders_title': {
     'ru': 'Мои заказы',
     'kk': 'Менің тапсырыстарым',

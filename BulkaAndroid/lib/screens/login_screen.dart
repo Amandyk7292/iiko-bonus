@@ -343,10 +343,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         const _BrandHeader(),
                         const SizedBox(height: 28),
                         _AuthCard(
-                          child: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 240),
-                            switchInCurve: Curves.easeOutCubic,
-                            switchOutCurve: Curves.easeInCubic,
+                          child: BulkaMotionSwitcher(
+                            duration: BulkaMotion.standard,
+                            offset: const Offset(0.035, 0),
+                            scale: 0.995,
                             child: _otpStep
                                 ? Column(
                                     key: const ValueKey('otp'),

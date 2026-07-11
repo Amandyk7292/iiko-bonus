@@ -127,11 +127,16 @@ ThemeData buildBulkaTheme() {
     ),
     pageTransitionsTheme: const PageTransitionsTheme(
       builders: {
-        TargetPlatform.android: BulkaPageTransitionsBuilder(),
-        TargetPlatform.iOS: BulkaPageTransitionsBuilder(),
-        TargetPlatform.macOS: BulkaPageTransitionsBuilder(),
-        TargetPlatform.windows: BulkaPageTransitionsBuilder(),
-        TargetPlatform.linux: BulkaPageTransitionsBuilder(),
+        // Android 16-style fade-forwards with an interactive predictive back
+        // gesture where the platform supports it.
+        TargetPlatform.android: PredictiveBackPageTransitionsBuilder(),
+        TargetPlatform.fuchsia: FadeForwardsPageTransitionsBuilder(),
+        // Preserve the native, interruptible swipe-back gesture on Apple
+        // platforms instead of forcing an Android-like transition everywhere.
+        TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+        TargetPlatform.windows: FadeForwardsPageTransitionsBuilder(),
+        TargetPlatform.linux: FadeForwardsPageTransitionsBuilder(),
       },
     ),
     filledButtonTheme: FilledButtonThemeData(
