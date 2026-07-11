@@ -167,35 +167,44 @@ class IikoAPI {
               body: JSON.stringify({
                 externalMenuId: extMenuId,
                 organizationIds: [orgId],
+                priceCategoryId: null,
               }),
             });
             if (itemsRes.ok) {
               const itemsData = await itemsRes.json();
-              // Преобразуем формат v2 в v1
-              const groups = (itemsData.itemCategories || []).map((c) => ({
-                id: c.id,
+              // В API v2 блюда вложены внутрь itemCategories[].items[]
+              const categories = itemsData.itemCategories || [];
+              const groups = categories.map((c, idx) => ({
+                id: c.id || c.iikoGroupId,
                 name: c.name,
-                order: c.order || 0,
+                order: idx,
+                imageLinks: c.buttonImageUrl ? [c.buttonImageUrl] : [],
               }));
-              const products = (itemsData.items || []).map((i) => {
-                let price = 0;
-                let imageUrl = i.buttonImageUrl;
-                if (i.itemSizes && i.itemSizes.length > 0) {
-                  if (i.itemSizes[0].prices && i.itemSizes[0].prices.length > 0) {
-                    price = i.itemSizes[0].prices[0].price;
+              const products = [];
+              for (const cat of categories) {
+                if (!cat.items) continue;
+                for (const i of cat.items) {
+                  let price = 0;
+                  let imageUrl = i.buttonImageUrl;
+                  if (i.itemSizes && i.itemSizes.length > 0) {
+                    if (i.itemSizes[0].prices && i.itemSizes[0].prices.length > 0) {
+                      price = i.itemSizes[0].prices[0].price;
+                    }
+                    if (!imageUrl) imageUrl = i.itemSizes[0].buttonImageUrl;
                   }
-                  if (!imageUrl) imageUrl = i.itemSizes[0].buttonImageUrl;
+                  products.push({
+                    id: i.itemId || i.id,
+                    name: i.name,
+                    description: i.description || '',
+                    parentGroup: cat.id || cat.iikoGroupId,
+                    type: i.orderItemType === 'Product' ? 'Good' : 'Dish',
+                    sizePrices: [{ price: { currentPrice: price } }],
+                    imageLinks: imageUrl ? [imageUrl] : [],
+                    weight: i.itemSizes?.[0]?.portionWeightGrams || 0,
+                    sku: i.sku || '',
+                  });
                 }
-                return {
-                  id: i.itemId || i.id,
-                  name: i.name,
-                  description: i.description,
-                  parentGroup: i.itemCategoryId,
-                  type: 'Dish',
-                  sizePrices: [{ price: { currentPrice: price } }],
-                  imageLinks: imageUrl ? [imageUrl] : [],
-                };
-              });
+              }
               console.log(
                 `Загружено из Внешнего Меню v2: ${groups.length} категорий, ${products.length} товаров`,
               );
