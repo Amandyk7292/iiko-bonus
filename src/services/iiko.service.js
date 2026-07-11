@@ -21,6 +21,16 @@ class IikoAPI {
     this._apiCallCount = 0;
   }
 
+  /**
+   * Сбрасывает кэш меню — изменения админа сразу видны клиентам.
+   * НЕ делает новый запрос к iiko, просто помечает кэш как устаревший.
+   * При следующем запросе клиента сервер загрузит свежие данные.
+   */
+  invalidateMenuCache() {
+    this.cachedMenuExpiresAt = 0;
+    console.log('[iiko] Кэш меню сброшен (админ внёс изменения)');
+  }
+
   async getToken() {
     // Если токен жив, возвращаем его (с запасом 5 минут)
     if (this.token && Date.now() < this.tokenExpiresAt - 5 * 60 * 1000) {

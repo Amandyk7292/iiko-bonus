@@ -489,6 +489,17 @@ class _CatalogScreenState extends State<CatalogScreen> {
     );
   }
 
+  /// Формат цены: 1500 -> "1 500"
+  static String _formatPrice(int price) {
+    final s = price.toString();
+    final buf = StringBuffer();
+    for (var i = 0; i < s.length; i++) {
+      if (i > 0 && (s.length - i) % 3 == 0) buf.write(' ');
+      buf.write(s[i]);
+    }
+    return buf.toString();
+  }
+
   Widget _buildProductCard(CatalogProduct product, int quantity) {
     return GestureDetector(
       onTap: () => _openProductDetails(product),
@@ -527,35 +538,31 @@ class _CatalogScreenState extends State<CatalogScreen> {
               fontWeight: FontWeight.w600,
               fontSize: 13,
               color: _textDark,
-              height: 1.2,
+              height: 1.25,
+              letterSpacing: -0.2,
             ),
           ),
           const SizedBox(height: 4),
           // Price
           Text(
-            '${product.price} тенге',
+            '${_formatPrice(product.price)} ₸',
             style: const TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 14,
-              color: _textDark,
+              fontWeight: FontWeight.w800,
+              fontSize: 15,
+              color: Color(0xFFC8902E),
             ),
           ),
-          const SizedBox(height: 2),
-          // In stock subtext
-          Text(
-            product.isStopListed == true
-                ? 'В стоп-листе'
-                : 'В наличии',
-            style: TextStyle(
-              fontSize: 11,
-              color: product.isStopListed == true
-                  ? _errorRed
-                  : _sage.withValues(alpha: 0.9),
-              fontWeight: product.isStopListed == true
-                  ? FontWeight.w600
-                  : FontWeight.w400,
+          if (product.isStopListed == true) ...[
+            const SizedBox(height: 2),
+            const Text(
+              'В стоп-листе',
+              style: TextStyle(
+                fontSize: 11,
+                color: _errorRed,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-          ),
+          ],
           const SizedBox(height: 8),
           // Cart Button / Controls
           SizedBox(
@@ -1154,11 +1161,11 @@ class _ProductDetailsScreenState extends State<_ProductDetailsScreen> {
                           ),
                           const SizedBox(height: 12),
                           Text(
-                            '${widget.product.price} тенге',
+                            '${_CatalogScreenState._formatPrice(widget.product.price)} ₸',
                             style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                              color: _textDark,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFFC8902E),
                             ),
                           ),
                           const SizedBox(height: 20),
