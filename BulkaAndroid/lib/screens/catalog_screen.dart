@@ -216,10 +216,10 @@ class _CatalogScreenState extends State<CatalogScreen> {
         : 'Аскарова, 21';
 
     return Scaffold(
-      backgroundColor: _cream,
+      backgroundColor: Colors.white,
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        backgroundColor: _cream,
+        backgroundColor: Colors.white,
         elevation: 0,
         title: const Text(
           'Каталог',
@@ -272,7 +272,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
                     width: 48,
                     height: 48,
                     decoration: BoxDecoration(
-                      color: _almond,
+                      color: _bulkaYellow,
                       borderRadius: BorderRadius.circular(18),
                     ),
                     child: const Icon(Icons.tune_rounded, color: _textDark),
@@ -359,7 +359,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
               padding: const EdgeInsets.fromLTRB(18, 16, 16, 16),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [Color(0xFFFBF0DB), Color(0xFFE9C587)],
+                  colors: [Color(0xFFFFDF6C), Color(0xFFFFB814)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -408,8 +408,8 @@ class _CatalogScreenState extends State<CatalogScreen> {
                   Container(
                     width: 58,
                     height: 58,
-                    decoration: BoxDecoration(
-                      color: _cream.withValues(alpha: 0.8),
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
@@ -570,7 +570,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
                         BulkaMotion.lightImpact();
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _almond,
+                        backgroundColor: _bulkaYellow,
                         foregroundColor: _textDark,
                         elevation: 0,
                         shape: RoundedRectangleBorder(
@@ -583,7 +583,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
                   )
                 : Container(
                     decoration: BoxDecoration(
-                      color: _almond,
+                      color: _bulkaYellow,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
@@ -717,7 +717,7 @@ class _CatalogFilterScreenState extends State<_CatalogFilterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _cream,
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Column(
           children: [
@@ -902,7 +902,7 @@ class _CatalogAllCategoriesScreen extends StatelessWidget {
     final displayCategories = categories.where((c) => c != 'Все').toList();
 
     return Scaffold(
-      backgroundColor: _cream,
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Column(
           children: [
