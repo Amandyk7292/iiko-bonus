@@ -1,9 +1,15 @@
 const express = require('express');
 const router = express.Router();
+const multer = require('multer');
 const adminController = require('../controllers/admin.controller');
 const tierController = require('../controllers/tier.controller');
 const { adminAuthMiddleware, adminLoginHandler } = require('../middlewares/auth.middleware');
 const { adminRateLimit, adminLoginRateLimit } = require('../middlewares/rate-limit.middleware');
+const menuService = require('../services/menu.service');
+const iikoApi = require('../services/iiko.service');
+const { supabase } = require('../config/supabase');
+
+const upload = multer({ storage: multer.memoryStorage() });
 
 router.use('/admin/api', adminRateLimit);
 router.post('/admin/api/login', adminLoginRateLimit, adminLoginHandler);
@@ -18,6 +24,109 @@ router.put(
   adminAuthMiddleware,
   tierController.reorderAdminTiers,
 );
+
+// --- MENU ADMIN ROUTES ---
+
+// Получить сырое меню + оверрайды (для админки)
+router.get('/admin/api/menu', adminAuthMiddleware, async (req, res) => {
+  try {
+    const rawMenu = await iikoApi.getMenu();
+    const [productOverrides, categoryOverrides, customProducts] = await Promise.all([
+      menuService.getProductOverrides(),
+      menuService.getCategoryOverrides(),
+      menuService.getCustomProducts(),
+    ]);
+
+    res.json({
+      success: true,
+      rawMenu,
+      overrides: {
+        products: productOverrides,
+        categories: categoryOverrides,
+        customProducts: customProducts,
+      }
+    });
+  } catch (error) {
+    console.error('Ошибка в /admin/api/menu:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Сохранить оверрайд товара
+router.post('/admin/api/menu/product/override', adminAuthMiddleware, async (req, res) => {
+  try {
+    const { iikoProductId, overrides } = req.body;
+    await menuService.setProductOverride(iikoProductId, overrides);
+    iikoApi.invalidateMenuCache(); // Сбрасываем кэш, чтобы изменения применились
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Сохранить оверрайд категории
+router.post('/admin/api/menu/category/override', adminAuthMiddleware, async (req, res) => {
+  try {
+    const { iikoCategoryId, overrides } = req.body;
+    await menuService.setCategoryOverride(iikoCategoryId, overrides);
+    iikoApi.invalidateMenuCache();
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Кастомные товары
+router.post('/admin/api/menu/custom-product', adminAuthMiddleware, async (req, res) => {
+  try {
+    await menuService.upsertCustomProduct(req.body);
+    iikoApi.invalidateMenuCache();
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.delete('/admin/api/menu/custom-product/:id', adminAuthMiddleware, async (req, res) => {
+  try {
+    await menuService.deleteCustomProduct(req.params.id);
+    iikoApi.invalidateMenuCache();
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Загрузка фото для товара
+router.post('/admin/api/menu/upload-image', adminAuthMiddleware, upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) throw new Error('Файл не загружен');
+    
+    // Генерируем уникальное имя
+    const ext = req.file.originalname.split('.').pop();
+    const fileName = `menu_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
+    
+    // Загружаем в Supabase Storage (бакет 'menu_images')
+    const { data, error } = await supabase.storage
+      .from('menu_images')
+      .upload(fileName, req.file.buffer, {
+        contentType: req.file.mimetype,
+        upsert: false
+      });
+
+    if (error) throw new Error('Ошибка Supabase Storage: ' + error.message);
+
+    // Получаем публичный URL
+    const { data: publicUrlData } = supabase.storage
+      .from('menu_images')
+      .getPublicUrl(fileName);
+
+    res.json({ success: true, imageUrl: publicUrlData.publicUrl });
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 router.patch(
   '/admin/api/loyalty-tiers/:id/active',
   adminAuthMiddleware,

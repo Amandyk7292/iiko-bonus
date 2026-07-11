@@ -395,38 +395,52 @@ router.get('/api/guest/menu', async (req, res) => {
       req.query.organizationId || iikoApi.organizationId,
     );
 
+    // Подгружаем оверрайды из базы данных
+    const menuService = require('../services/menu.service');
+    const [productOverrides, categoryOverrides, customProducts] = await Promise.all([
+      menuService.getProductOverrides(),
+      menuService.getCategoryOverrides(),
+      menuService.getCustomProducts(),
+    ]);
+
+    const prodOverridesMap = new Map(productOverrides.map(o => [o.iiko_product_id, o]));
+    const catOverridesMap = new Map(categoryOverrides.map(o => [o.iiko_category_id, o]));
+
     // Categories
-    let categories = (rawMenu.groups || [])
-      .filter((g) => g.isIncludedInMenu)
+    let baseCategories = (rawMenu.groups || [])
+      .filter((g) => g.isIncludedInMenu || (rawMenu.groups.length > 0 && !rawMenu.groups.some(g2 => g2.isIncludedInMenu)))
       .map((g) => ({
         id: g.id,
         name: g.name,
         order: g.order || 0,
-      }))
-      .sort((a, b) => a.order - b.order);
+      }));
 
-    // Если iiko не выставил isIncludedInMenu, используем все группы.
-    if (categories.length === 0 && rawMenu.groups) {
-      categories = rawMenu.groups
-        .map((g) => ({
-          id: g.id,
-          name: g.name,
-          order: g.order || 0,
-        }))
-        .sort((a, b) => a.order - b.order);
+    // Применяем оверрайды к категориям
+    let categories = [];
+    for (const cat of baseCategories) {
+      const override = catOverridesMap.get(cat.id);
+      if (override && override.is_hidden) continue;
+      
+      categories.push({
+        id: cat.id,
+        name: override?.custom_name || cat.name,
+        order: override?.sort_order !== 0 ? override.sort_order : cat.order,
+        imageUrl: override?.custom_image_url || null,
+      });
     }
+
+    categories.sort((a, b) => a.order - b.order);
 
     // Products
-    let productsList = (rawMenu.products || []).filter(
-      (p) => p.type === 'Dish' || p.type === 'Good',
+    let baseProducts = (rawMenu.products || []).filter(
+      (p) => p.type === 'Dish' || p.type === 'Good' || (rawMenu.products.length > 0 && !rawMenu.products.some(p2 => p2.type === 'Dish' || p2.type === 'Good'))
     );
 
-    // Если тип блюда отличается, используем все товары.
-    if (productsList.length === 0 && rawMenu.products) {
-      productsList = rawMenu.products;
-    }
-
-    const products = productsList.map((p) => {
+    let products = [];
+    for (const p of baseProducts) {
+      const override = prodOverridesMap.get(p.id);
+      if (override && override.is_hidden) continue;
+      
       let price = 0;
       if (p.sizePrices && p.sizePrices.length > 0) {
         price = p.sizePrices[0].price.currentPrice;
@@ -437,19 +451,53 @@ router.get('/api/guest/menu', async (req, res) => {
         imageUrl = p.imageLinks[0];
       }
 
-      const isStopped = stopIds.has(p.id);
+      const isStopped = stopIds.has(p.id) || (override && override.is_stop_listed);
 
-      return {
+      products.push({
         id: p.id,
         name: p.name,
-        description: p.description || '',
+        description: override?.custom_description || p.description || '',
         price: price,
         categoryId: p.parentGroup,
-        imageUrl: imageUrl,
+        imageUrl: override?.custom_image_url || imageUrl,
         inStopList: isStopped,
         isAvailable: !isStopped,
-      };
-    });
+        sortOrder: override?.sort_order || 0,
+      });
+    }
+
+    // Добавляем кастомные товары (добавленные админом вручную)
+    for (const cp of customProducts) {
+      // Ищем или создаём категорию для кастомного товара
+      let cat = categories.find(c => c.name === cp.category_name);
+      let catId;
+      if (cat) {
+        catId = cat.id;
+      } else {
+        catId = 'custom-cat-' + cp.category_name.toLowerCase().replace(/\s+/g, '-');
+        categories.push({
+          id: catId,
+          name: cp.category_name,
+          order: 999, // в конец
+          imageUrl: null
+        });
+      }
+
+      products.push({
+        id: cp.id,
+        name: cp.name,
+        description: cp.description || '',
+        price: cp.price,
+        categoryId: catId,
+        imageUrl: cp.image_url,
+        inStopList: !cp.is_available,
+        isAvailable: cp.is_available,
+        sortOrder: cp.sort_order || 0,
+      });
+    }
+
+    // Сортировка товаров (если нужен кастомный порядок)
+    products.sort((a, b) => a.sortOrder - b.sortOrder);
 
     res.json({
       success: true,
@@ -459,6 +507,8 @@ router.get('/api/guest/menu', async (req, res) => {
         totalGroupsRaw: rawMenu.groups?.length || 0,
         totalProductsRaw: rawMenu.products?.length || 0,
         selectedOrgName: rawMenu.orgName || iikoApi.organizationId,
+        overridesCount: productOverrides.length,
+        customProductsCount: customProducts.length,
       },
     });
   } catch (error) {

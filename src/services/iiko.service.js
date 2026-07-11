@@ -1,4 +1,4 @@
-const fetch = require('node-fetch'); // Используем node-fetch для надежности, если версия Node старая
+const fetch = require('node-fetch');
 
 class IikoAPI {
   constructor() {
@@ -9,8 +9,16 @@ class IikoAPI {
     this.baseUrl = 'https://api-ru.iiko.services';
     this.token = null;
     this.tokenExpiresAt = 0;
+    // Кэш меню: 2 часа для данных, 5 минут для пустоты
     this.cachedMenu = null;
     this.cachedMenuExpiresAt = 0;
+    this._menuFetchPromise = null; // Мьютекс: одновременно только 1 запрос меню
+    // Кэш стоп-листа: 5 минут
+    this._cachedStopIds = null;
+    this._stopListExpiresAt = 0;
+    this._stopListPromise = null;
+    // Счётчик запросов для мониторинга
+    this._apiCallCount = 0;
   }
 
   async getToken() {
@@ -118,9 +126,26 @@ class IikoAPI {
   }
 
   async getMenu() {
+    // 1. Отдаём из кэша если он живой
     if (this.cachedMenu && Date.now() < this.cachedMenuExpiresAt) {
       return this.cachedMenu;
     }
+    // 2. Мьютекс: если уже идёт запрос — ждём его, а не делаем параллельный
+    if (this._menuFetchPromise) {
+      return this._menuFetchPromise;
+    }
+    this._menuFetchPromise = this._fetchMenuFromIiko();
+    try {
+      const result = await this._menuFetchPromise;
+      return result;
+    } finally {
+      this._menuFetchPromise = null;
+    }
+  }
+
+  async _fetchMenuFromIiko() {
+    this._apiCallCount++;
+    console.log(`[iiko] Запрос меню #${this._apiCallCount} в ${new Date().toISOString()}`);
 
     const token = await this.getToken();
     let orgId = await this.getOrganizationId();
@@ -221,19 +246,40 @@ class IikoAPI {
       }
     }
 
-    // Кешируем ЛЮБОЙ ответ (даже пустой), чтобы не получить бан от API при спаме запросами
+    // Кешируем ЛЮБОЙ ответ (даже пустой), чтобы не получить бан от API
     this.cachedMenu = menuData;
     if (menuData && menuData.products && menuData.products.length > 0) {
-      this.cachedMenuExpiresAt = Date.now() + 30 * 60 * 1000; // Кешируем на 30 минут если есть данные
+      this.cachedMenuExpiresAt = Date.now() + 2 * 60 * 60 * 1000; // 2 часа для валидного меню
+      console.log(`[iiko] Меню закэшировано: ${menuData.products.length} товаров на 2 часа`);
     } else {
-      this.cachedMenuExpiresAt = Date.now() + 3 * 60 * 1000; // Кешируем пустоту на 3 минуты (защита от rate limit банa)
+      this.cachedMenuExpiresAt = Date.now() + 5 * 60 * 1000; // 5 минут для пустоты
+      console.log('[iiko] Меню пустое, кэшировано на 5 минут');
     }
 
     return menuData;
   }
 
   async getStopListProductIds(organizationId) {
+    // Кэш стоп-листа на 5 минут
+    if (this._cachedStopIds && Date.now() < this._stopListExpiresAt) {
+      return this._cachedStopIds;
+    }
+    // Мьютекс для стоп-листа
+    if (this._stopListPromise) {
+      return this._stopListPromise;
+    }
+    this._stopListPromise = this._fetchStopList(organizationId);
     try {
+      return await this._stopListPromise;
+    } finally {
+      this._stopListPromise = null;
+    }
+  }
+
+  async _fetchStopList(organizationId) {
+    try {
+      this._apiCallCount++;
+      console.log(`[iiko] Запрос стоп-листа #${this._apiCallCount}`);
       const token = await this.getToken();
       const orgId = organizationId || await this.getOrganizationId();
       const res = await fetch(`${this.baseUrl}/api/1/stop_lists`, {
@@ -244,7 +290,11 @@ class IikoAPI {
         },
         body: JSON.stringify({ organizationIds: [orgId] }),
       });
-      if (!res.ok) return new Set();
+      if (!res.ok) {
+        this._cachedStopIds = new Set();
+        this._stopListExpiresAt = Date.now() + 2 * 60 * 1000;
+        return this._cachedStopIds;
+      }
       const data = await res.json();
       const stopIds = new Set();
       if (data.terminalGroupStopLists) {
@@ -258,11 +308,23 @@ class IikoAPI {
           }
         }
       }
+      this._cachedStopIds = stopIds;
+      this._stopListExpiresAt = Date.now() + 5 * 60 * 1000; // 5 минут кэш
+      console.log(`[iiko] Стоп-лист: ${stopIds.size} позиций, кэш 5 мин`);
       return stopIds;
     } catch (err) {
       console.error('Ошибка получения стоп-листа из iiko:', err.message);
-      return new Set();
+      return this._cachedStopIds || new Set();
     }
+  }
+
+  // Принудительный сброс кэша (для админа)
+  invalidateMenuCache() {
+    this.cachedMenu = null;
+    this.cachedMenuExpiresAt = 0;
+    this._cachedStopIds = null;
+    this._stopListExpiresAt = 0;
+    console.log('[iiko] Кэш меню и стоп-листа сброшен');
   }
 }
 
