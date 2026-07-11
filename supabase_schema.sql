@@ -826,11 +826,35 @@ before update on public.loyalty_tiers
 for each row execute function public.set_updated_at();
 
 -- --------------------------------------------------------------------
+-- Customer notification centre
+-- --------------------------------------------------------------------
+create table if not exists public.customer_notifications (
+  id uuid primary key default gen_random_uuid(),
+  customer_id uuid not null references public.customers(id) on delete cascade,
+  title varchar(160) not null,
+  body text not null,
+  type varchar(40) not null default 'broadcast',
+  payload jsonb not null default '{}'::jsonb,
+  is_read boolean not null default false,
+  created_at timestamptz not null default now(),
+  read_at timestamptz
+);
+
+create index if not exists customer_notifications_customer_created_idx
+  on public.customer_notifications (customer_id, created_at desc);
+
+alter table public.customer_notifications enable row level security;
+drop policy if exists "service role manages customer notifications" on public.customer_notifications;
+create policy "service role manages customer notifications"
+  on public.customer_notifications for all to service_role using (true) with check (true);
+
+-- --------------------------------------------------------------------
 -- Smoke-check
 -- --------------------------------------------------------------------
 select
   'Bulka Supabase setup complete' as status,
   (select count(*) from public.settings) as settings_count,
   (select count(*) from public.loyalty_tiers) as loyalty_tiers_count,
+  (select count(*) from public.customer_notifications) as notifications_count,
   (select count(*) from public.stories) as stories_count,
   (select count(*) from public.news) as news_count;

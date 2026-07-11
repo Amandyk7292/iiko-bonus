@@ -510,6 +510,33 @@ class NewsItem {
   };
 }
 
+class AppNotification {
+  const AppNotification({
+    required this.id,
+    required this.title,
+    required this.body,
+    required this.createdAt,
+    required this.isRead,
+    this.type = 'broadcast',
+  });
+
+  final String id;
+  final String title;
+  final String body;
+  final String createdAt;
+  final bool isRead;
+  final String type;
+
+  factory AppNotification.fromJson(Map<String, dynamic> json) => AppNotification(
+    id: _asString(json['id']),
+    title: _asString(json['title']),
+    body: _asString(json['body']),
+    type: _asString(json['type'], fallback: 'broadcast'),
+    createdAt: _asString(json['created_at'] ?? json['createdAt']),
+    isRead: json['is_read'] == true || json['isRead'] == true,
+  );
+}
+
 class DeliveryLocation {
   const DeliveryLocation({
     required this.city,

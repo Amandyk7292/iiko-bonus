@@ -226,7 +226,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                 _IconCircleButton(
                                   tooltip: 'notifications_tooltip'.tr,
                                   icon: Icons.notifications_none_rounded,
-                                  onTap: _loadFeed,
+                                  onTap: () => Navigator.of(context).push<void>(
+                                    MaterialPageRoute(
+                                      builder: (_) => NotificationsScreen(api: widget.api),
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),

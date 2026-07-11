@@ -274,6 +274,63 @@ router.post(
   },
 );
 
+router.delete(
+  '/api/customer/fcm-token',
+  publicApiRateLimit,
+  customerAuthMiddleware,
+  async (req, res) => {
+    try {
+      await supabase.from('customers').update({ fcm_token: null }).eq('id', req.customerAuth.id);
+      res.status(204).send();
+    } catch (err) {
+      sendApiError(res, err);
+    }
+  },
+);
+
+router.get('/api/customer/notifications', publicApiRateLimit, customerAuthMiddleware, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('customer_notifications')
+      .select('id,title,body,type,is_read,created_at')
+      .eq('customer_id', req.customerAuth.id)
+      .order('created_at', { ascending: false })
+      .limit(100);
+    if (error) throw error;
+    res.json({ success: true, notifications: data || [] });
+  } catch (err) {
+    sendApiError(res, err, { success: false });
+  }
+});
+
+router.post('/api/customer/notifications/read-all', publicApiRateLimit, customerAuthMiddleware, async (req, res) => {
+  try {
+    const { error } = await supabase
+      .from('customer_notifications')
+      .update({ is_read: true, read_at: new Date().toISOString() })
+      .eq('customer_id', req.customerAuth.id)
+      .eq('is_read', false);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    sendApiError(res, err, { success: false });
+  }
+});
+
+router.post('/api/customer/notifications/:id/read', publicApiRateLimit, customerAuthMiddleware, async (req, res) => {
+  try {
+    const { error } = await supabase
+      .from('customer_notifications')
+      .update({ is_read: true, read_at: new Date().toISOString() })
+      .eq('id', req.params.id)
+      .eq('customer_id', req.customerAuth.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    sendApiError(res, err, { success: false });
+  }
+});
+
 router.post('/api/guest/profile', publicApiRateLimit, customerAuthMiddleware, async (req, res) => {
   try {
     const { fcmToken } = req.body;

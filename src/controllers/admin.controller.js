@@ -124,18 +124,36 @@ const pushMassHandler = async (req, res) => {
 
     const { data: customers } = await supabase
       .from('customers')
-      .select('fcm_token')
-      .not('fcm_token', 'is', null);
+      .select('id, fcm_token');
     if (!customers || customers.length === 0) return res.json({ success: true, count: 0 });
+
+    const { data: savedNotifications, error: notificationError } = await supabase
+      .from('customer_notifications')
+      .insert(
+        customers.map((customer) => ({
+          customer_id: customer.id,
+          title: String(title).slice(0, 160),
+          body: String(body).slice(0, 2000),
+          type: 'broadcast',
+        })),
+      )
+      .select('id, customer_id');
+    if (notificationError) throw notificationError;
+    const notificationByCustomer = new Map(
+      (savedNotifications || []).map((notification) => [notification.customer_id, notification.id]),
+    );
 
     let count = 0;
     for (const c of customers) {
       if (c.fcm_token) {
-        await sendPushNotification(c.fcm_token, title, body);
-        count++;
+        const delivered = await sendPushNotification(c.fcm_token, title, body, {
+          notificationId: String(notificationByCustomer.get(c.id) || ''),
+          type: 'broadcast',
+        });
+        if (delivered) count++;
       }
     }
-    res.json({ success: true, count });
+    res.json({ success: true, count, savedCount: customers.length });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

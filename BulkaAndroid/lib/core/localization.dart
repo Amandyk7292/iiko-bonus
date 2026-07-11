@@ -555,9 +555,24 @@ const Map<String, Map<String, String>> _appTranslations = {
     'en': 'Open locations',
   },
   'notifications_tooltip': {
-    'ru': 'Обновить акции и новости',
-    'kk': 'Акциялар мен жаңалықтарды жаңарту',
-    'en': 'Refresh promotions and news',
+    'ru': 'Уведомления',
+    'kk': 'Хабарламалар',
+    'en': 'Notifications',
+  },
+  'notification_center_title': {
+    'ru': 'Уведомления',
+    'kk': 'Хабарламалар',
+    'en': 'Notifications',
+  },
+  'notifications_empty': {
+    'ru': 'Пока нет новых уведомлений',
+    'kk': 'Жаңа хабарламалар әзірге жоқ',
+    'en': 'No notifications yet',
+  },
+  'notifications_read_all': {
+    'ru': 'Прочитать все',
+    'kk': 'Барлығын оқу',
+    'en': 'Mark all read',
   },
   'bakery_selected': {
     'ru': 'Выбрана локация: {name}',

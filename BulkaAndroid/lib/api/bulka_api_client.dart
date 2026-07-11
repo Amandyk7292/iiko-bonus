@@ -165,6 +165,18 @@ class BulkaApiClient {
     }
   }
 
+  Future<void> registerFcmToken(String fcmToken) async {
+    final json = await _post('/api/customer/fcm-token', {'fcmToken': fcmToken});
+    if (json['success'] != true) throw ApiException(_messageFrom(json, 'error_network'.tr));
+  }
+
+  Future<void> clearFcmToken() async {
+    final response = await _client
+        .delete(_uri('/api/customer/fcm-token'), headers: _headers(json: false))
+        .timeout(const Duration(seconds: 15));
+    if (response.statusCode >= 400) throw ApiException('error_network'.tr);
+  }
+
   Future<String> getQrToken(String phone) async {
     final json = await _post('/api/guest/qr-token', {});
     final token = _asString(json['token']);
@@ -200,6 +212,23 @@ class BulkaApiClient {
       return news.map((item) => NewsItem.fromJson(_asMap(item))).toList();
     }
     return const [];
+  }
+
+  Future<List<AppNotification>> getNotifications() async {
+    final json = await _get('/api/customer/notifications');
+    final items = json['notifications'];
+    if (json['success'] != true || items is! List) return const [];
+    return items.map((item) => AppNotification.fromJson(_asMap(item))).toList();
+  }
+
+  Future<void> markNotificationRead(String id) async {
+    final json = await _post('/api/customer/notifications/$id/read', {});
+    if (json['success'] != true) throw ApiException(_messageFrom(json, 'error_network'.tr));
+  }
+
+  Future<void> markAllNotificationsRead() async {
+    final json = await _post('/api/customer/notifications/read-all', {});
+    if (json['success'] != true) throw ApiException(_messageFrom(json, 'error_network'.tr));
   }
 
   Future<Map<String, List<String>>> getLocations() async {

@@ -58,6 +58,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
 
     _api.setAccessToken(accessToken);
     if (phone != null && accessToken != null) {
+      unawaited(PushNotifications.register(_api));
       await _refreshProfile(phone);
       _startProfileRefresh(phone);
     }
@@ -110,6 +111,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
       if (token == null) return 'error_session_missing'.tr;
       _accessToken = token;
       _api.setAccessToken(token);
+      unawaited(PushNotifications.register(_api));
       final customer = await _withLatestLoyalty(profile.customer!);
       await _saveSession(phone, customer, profile.transactions, token);
       if (!mounted) return null;
@@ -151,6 +153,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
       _accessToken = token;
       _registrationToken = null;
       _api.setAccessToken(token);
+      unawaited(PushNotifications.register(_api));
       final customer = await _withLatestLoyalty(profile.customer!);
       await _saveSession(phone, customer, profile.transactions, token);
       if (!mounted) return null;
@@ -196,6 +199,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp> {
 
   Future<void> _logout() async {
     _refreshTimer?.cancel();
+    await PushNotifications.unregister(_api);
     final prefs = _prefs ?? await SharedPreferences.getInstance();
     await prefs.remove('phone');
     await prefs.remove('customer');

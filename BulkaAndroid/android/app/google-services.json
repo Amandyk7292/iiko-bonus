@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "609090307246",
+    "project_id": "bulka-bonus",
+    "storage_bucket": "bulka-bonus.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:609090307246:android:0db77005ca1ff473bad93f",
+        "android_client_info": {
+          "package_name": "com.bulka.bonus"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAJqvIWCtwDBLtRyEPQ2gFv0uN0r8dWcdw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
