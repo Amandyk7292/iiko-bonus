@@ -166,8 +166,8 @@ const resetAuth = () => {
 let authProcessId = null;
 
 const sendPhone = async () => {
-  const phone = normalizeKaspiPhoneNumber($('phoneInput').value);
-  if (!phone) return showAuthMsg('Введите корректный номер телефона', 'err');
+  const phone = localKaspiPhoneDigits($('phoneInput').value);
+  if (phone.length !== 10) return showAuthMsg('Введите 10 цифр номера', 'err');
 
   const btn = $('btnSendPhone');
   btn.disabled = true;
