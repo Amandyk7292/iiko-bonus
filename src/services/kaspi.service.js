@@ -44,7 +44,7 @@ class KaspiService {
     const data = await response.json();
     
     if (!data.Data || !data.Data.Id) {
-      throw new Error('Не удалось получить operationId от Kaspi');
+      throw new Error('Не удалось получить operationId от Kaspi: ' + JSON.stringify(data));
     }
 
     const operationId = data.Data.Id;
