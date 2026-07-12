@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import { KASPI_QRPAY_URL } from '../config.js';
-import { loggedFetch, signedQrPayHeaders } from '../helpers.js';
+import { kaspiProxyJson, loggedFetch, signedQrPayHeaders } from '../helpers.js';
 import { decryptSecret } from '../crypto.js';
 import { trackPayment } from '../polling.js';
 import { inactiveSessionResponse, isActiveSession } from '../activeSession.js';
+import { getKaspiErrorMessage, isKaspiSessionExpired } from '../kaspiResponse.js';
 
 const router = Router();
 
@@ -50,6 +51,9 @@ router.post('/create', async (req, res) => {
       }),
     });
     const kaspiResponse = await resp.json();
+    if (isKaspiSessionExpired(kaspiResponse)) {
+      return res.status(401).json(inactiveSessionResponse(getKaspiErrorMessage(kaspiResponse)));
+    }
     const d = kaspiResponse.Data;
     if (d && d.QrOperationId) {
       const opts = d.QrPaymentBehaviorOptions || {};
@@ -93,7 +97,7 @@ router.get('/status', async (req, res) => {
   try {
     const url = `${KASPI_QRPAY_URL}/v02/kaspi-qr/status?qrOperationId=${qrOperationId}`;
     const resp = await loggedFetch(url, { headers: signedQrPayHeaders(url, req.session) });
-    res.json(await resp.json());
+    return kaspiProxyJson(res, resp);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

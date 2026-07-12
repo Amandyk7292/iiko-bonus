@@ -3,6 +3,7 @@ import { KASPI_QRPAY_URL } from '../config.js';
 import { loggedFetch, signedQrPayHeaders } from '../helpers.js';
 import { decryptSecret } from '../crypto.js';
 import { inactiveSessionResponse, isActiveSession } from '../activeSession.js';
+import { getKaspiErrorMessage, isKaspiSessionExpired, isKaspiSuccess } from '../kaspiResponse.js';
 
 const router = Router();
 
@@ -48,15 +49,18 @@ router.get('/check', async (req, res) => {
 
     const body = await resp.json().catch(() => ({}));
 
-    // Kaspi may return HTTP 200 but with error StatusCode in body
-    if (resp.ok && (!body.StatusCode || body.StatusCode === 0)) {
+    if (isKaspiSessionExpired(body)) {
+      return res.status(401).json({ active: false, ...inactiveSessionResponse(getKaspiErrorMessage(body)) });
+    }
+
+    if (resp.ok && isKaspiSuccess(body)) {
       return res.json({ active: true });
     }
 
     return res.status(resp.ok ? 401 : resp.status).json({
       active: false,
-      error: body.Message || body.message || 'Session rejected by Kaspi API.',
-      code: body.StatusCode || body.Code,
+      error: getKaspiErrorMessage(body, 'Session rejected by Kaspi API.'),
+      code: body.StatusCode || body.Code || body.ResultCode,
       details: body,
     });
   } catch (err) {

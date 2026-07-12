@@ -10,7 +10,7 @@ export const clearActiveSession = (tokenSN) => {
 
 export const isActiveSession = (tokenSN) => !!tokenSN && activeTokenSN === tokenSN;
 
-export const inactiveSessionResponse = () => ({
-  error: 'Эта сессия больше не активна. Был выполнен новый вход — войдите заново в этом профиле.',
+export const inactiveSessionResponse = (error = 'Эта сессия больше не активна. Был выполнен новый вход — войдите заново в этом профиле.') => ({
+  error,
   code: 'KASPI_SESSION_REPLACED',
 });

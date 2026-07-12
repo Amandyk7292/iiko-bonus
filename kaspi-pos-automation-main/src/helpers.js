@@ -2,6 +2,8 @@ import crypto from 'crypto';
 import fetch from 'node-fetch';
 import { DEVICE, APP, UA_NATIVE } from './config.js';
 import { computeTokenSnMac, computeXSign } from './crypto.js';
+import { inactiveSessionResponse } from './activeSession.js';
+import { getKaspiErrorMessage, isKaspiSessionExpired } from './kaspiResponse.js';
 
 // ─── Utilities ───
 
@@ -72,6 +74,14 @@ export const loggedFetch = async (url, options = {}) => {
   console.log(`<<< ${resp.status} ${resp.statusText}`);
   console.log('<<< Response:', typeof body === 'object' ? JSON.stringify(body, null, 2) : body);
   return resp;
+};
+
+export const kaspiProxyJson = async (res, resp, fallback = 'Kaspi отклонил запрос.') => {
+  const body = await resp.json().catch(() => ({}));
+  if (isKaspiSessionExpired(body)) {
+    return res.status(401).json(inactiveSessionResponse(getKaspiErrorMessage(body, fallback)));
+  }
+  return res.status(resp.ok ? 200 : resp.status).json(body);
 };
 
 // ─── Signed QR-pay headers (session passed as parameter) ───

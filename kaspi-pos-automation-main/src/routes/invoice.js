@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import { KASPI_QRPAY_URL } from '../config.js';
-import { loggedFetch, signedQrPayHeaders } from '../helpers.js';
+import { kaspiProxyJson, loggedFetch, signedQrPayHeaders } from '../helpers.js';
 import { decryptSecret } from '../crypto.js';
 import { trackPayment } from '../polling.js';
 import { normalizeKaspiPhoneNumber } from '../phone.js';
 import { inactiveSessionResponse, isActiveSession } from '../activeSession.js';
+import { getKaspiErrorMessage, isKaspiSessionExpired } from '../kaspiResponse.js';
 
 const router = Router();
 
@@ -42,7 +43,7 @@ router.get('/client-info', async (req, res) => {
   try {
     const url = `${KASPI_QRPAY_URL}/v01/remote/client-info?phoneNumber=${encodeURIComponent(normalizedPhone)}`;
     const resp = await loggedFetch(url, { headers: signedQrPayHeaders(url, req.session) });
-    res.json(await resp.json());
+    return kaspiProxyJson(res, resp);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -65,6 +66,9 @@ router.post('/create', async (req, res) => {
       body: JSON.stringify({ PhoneNumber: normalizedPhone, Amount: Number(amount), Comment: comment || '' }),
     });
     const kaspiResponse = await resp.json();
+    if (isKaspiSessionExpired(kaspiResponse)) {
+      return res.status(401).json(inactiveSessionResponse(getKaspiErrorMessage(kaspiResponse)));
+    }
     const d = kaspiResponse.Data;
     if (d && d.Id && d.Status === 'RemotePaymentCreated') {
       trackPayment(
@@ -98,7 +102,7 @@ router.get('/details', async (req, res) => {
   try {
     const url = `${KASPI_QRPAY_URL}/v02/remote/details?operationId=${operationId}`;
     const resp = await loggedFetch(url, { headers: signedQrPayHeaders(url, req.session) });
-    res.json(await resp.json());
+    return kaspiProxyJson(res, resp);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -118,7 +122,7 @@ router.post('/cancel', async (req, res) => {
       headers,
       body: JSON.stringify({ qrOperationId: Number(operationId) }),
     });
-    res.json(await resp.json());
+    return kaspiProxyJson(res, resp);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -135,7 +139,7 @@ router.post('/history', async (req, res) => {
       headers,
       body: JSON.stringify({ MaxResult: 20 }),
     });
-    res.json(await resp.json());
+    return kaspiProxyJson(res, resp);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -10,6 +10,7 @@ let historyOpId = null;
 let qrPollingTimer = null;
 let qrCountdownTimer = null;
 let qrOperationId = null;
+let restoringSession = false;
 
 // ─── Helpers ───
 
@@ -46,19 +47,44 @@ const sessionHeaders = () => {
   return h;
 };
 
+const forceKaspiLogin = (message) => {
+  stopInvoicePolling();
+  stopQrPolling();
+  currentOpId = null;
+  qrOperationId = null;
+  historyOpId = null;
+  salesOpId = null;
+  clearSession();
+  $('mainScreen')?.classList.add('hidden');
+  $('authScreen')?.classList.remove('hidden');
+  $('invoiceResult')?.classList.add('hidden');
+  $('qrResult')?.classList.add('hidden');
+  $('clientInfo')?.classList.add('hidden');
+  setAuthStep(1);
+  showAuthMsg(message || 'Kaspi завершил эту сессию. Войдите заново по SMS.', 'err');
+};
+
+const isKaspiLoginRequired = (resp, data) =>
+  resp.status === 401 ||
+  data?.code === 'KASPI_SESSION_REPLACED' ||
+  [12, -101001, 401].includes(Number(data?.StatusCode)) ||
+  [12, -101001, 401].includes(Number(data?.ResultCode)) ||
+  [12, -101001, 401].includes(Number(data?.Code)) ||
+  /вход с другого устройства|введите логин\/пароль|сессия истекла|сессия неактивна|session expired|re-authenticate/i.test(
+    data?.error || data?.Message || data?.Description || data?.message || '',
+  );
+
 const apiFetch = async (path, opts = {}) => {
   opts.headers = { ...sessionHeaders(), ...(opts.headers || {}) };
   const resp = await fetch(API + path, opts);
-  const data = await resp.json();
-  if (!resp.ok) {
-    if (resp.status === 401 && data.code === 'KASPI_SESSION_REPLACED') {
-      clearSession();
-      $('mainScreen')?.classList.add('hidden');
-      $('authScreen')?.classList.remove('hidden');
-      setAuthStep(1);
-      showAuthMsg(data.error || 'Сессия заменена новым входом. Войдите заново.', 'err');
-    }
-    throw new Error(data.error || JSON.stringify(data));
+  const data = await resp.json().catch(() => ({}));
+  const loginRequired = isKaspiLoginRequired(resp, data);
+  if (!resp.ok || loginRequired) {
+    const message = data.error || data.Message || data.Description || 'Kaspi завершил эту сессию. Войдите заново по SMS.';
+    if (loginRequired) forceKaspiLogin(message);
+    const error = new Error(message || JSON.stringify(data));
+    error.kaspiLoginRequired = loginRequired;
+    throw error;
   }
   return data;
 };
@@ -91,29 +117,30 @@ const checkSession = async () => {
     const resp = await apiFetch('/api/session/check');
     if (resp.active === true) return { active: true };
     return { active: false, error: resp.error || 'Сессия неактивна' };
-  } catch {
-    return { active: false, error: 'Ошибка проверки сессии' };
+  } catch (e) {
+    return { active: false, error: e.message || 'Ошибка проверки сессии', loginRequired: e.kaspiLoginRequired };
   }
 };
 
 const tryRestoreSession = async () => {
+  if (restoringSession) return false;
+  restoringSession = true;
   const session = getSession();
-  if (session.tokenSN && session.vtokenSecret) {
-    showMainScreen(session);
-    // Verify session is still active on the server
-    const result = await checkSession();
-    if (!result.active) {
-      clearSession();
-      $('mainScreen').classList.add('hidden');
-      $('authScreen').classList.remove('hidden');
-      setAuthStep(1);
-      showAuthMsg(result.error || 'Сессия истекла. Войдите заново.', 'err');
-      return false;
+  try {
+    if (session.tokenSN && session.vtokenSecret) {
+      const result = await checkSession();
+      if (!result.active) {
+        if (!result.loginRequired) forceKaspiLogin(result.error || 'Сессия истекла. Войдите заново.');
+        return false;
+      }
+      showMainScreen(session);
+      return true;
     }
-    return true;
+    clearSession();
+    return false;
+  } finally {
+    restoringSession = false;
   }
-  clearSession();
-  return false;
 };
 
 const updateRefreshAuthBtn = () => {
@@ -141,7 +168,6 @@ const attachPhoneFormatter = (el) => {
 
 window.addEventListener('DOMContentLoaded', () => {
   updateRefreshAuthBtn();
-  tryRestoreSession();
   attachPhoneFormatter($('phoneInput'));
   attachPhoneFormatter($('clientPhone'));
 });

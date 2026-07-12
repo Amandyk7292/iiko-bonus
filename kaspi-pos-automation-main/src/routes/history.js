@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { KASPI_QRPAY_URL } from '../config.js';
-import { loggedFetch, signedQrPayHeaders } from '../helpers.js';
+import { kaspiProxyJson, loggedFetch, signedQrPayHeaders } from '../helpers.js';
 import { decryptSecret } from '../crypto.js';
 import { inactiveSessionResponse, isActiveSession } from '../activeSession.js';
 
@@ -46,7 +46,7 @@ router.post('/operations', async (req, res) => {
         StatementPeriodCode: statementPeriodCode ?? 0,
       }),
     });
-    res.json(await resp.json());
+    return kaspiProxyJson(res, resp);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -68,7 +68,7 @@ router.post('/details', async (req, res) => {
         OperationMethod: operationMethod ?? 0,
       }),
     });
-    res.json(await resp.json());
+    return kaspiProxyJson(res, resp);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
