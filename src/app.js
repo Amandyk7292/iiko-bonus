@@ -97,6 +97,12 @@ app.get('/admin/*', (req, res) => {
   res.sendFile(path.join(process.cwd(), 'admin-ui/dist', 'index.html'));
 });
 
+// Serve Flutter Web App
+app.use('/app', express.static(path.join(process.cwd(), 'public/app')));
+app.get('/app/*', (req, res) => {
+  res.sendFile(path.join(process.cwd(), 'public/app', 'index.html'));
+});
+
 // Error handling middleware
 app.use((err, req, res, _next) => {
   console.error(err.stack);
