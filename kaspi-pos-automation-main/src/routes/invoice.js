@@ -41,8 +41,10 @@ router.get('/client-info', async (req, res) => {
   if (!normalizedPhone) return res.status(400).json({ error: 'Invalid phoneNumber format' });
 
   try {
-    // MOCK RESPONSE: Bypass Kaspi to see if POST /create works.
-    return res.json({ clientName: 'Клиент (Mock)', isRegistered: true });
+    const url = `${KASPI_QRPAY_URL}/v02/remote/client-info?phoneNumber=${encodeURIComponent(normalizedPhone)}`;
+    const headers = signedQrPayHeaders(url, req.session);
+    const resp = await loggedFetch(url, { headers });
+    return kaspiProxyJson(res, resp);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -51,6 +53,7 @@ router.get('/client-info', async (req, res) => {
 // ─── Create invoice ───
 
 router.post('/create', async (req, res) => {
+  console.log('>>> RECEIVED POST /api/invoice/create', req.body);
   const { phoneNumber, amount, comment } = req.body;
   const normalizedPhone = normalizeKaspiPhoneNumber(phoneNumber);
   if (!phoneNumber || !amount) return res.status(400).json({ error: 'phoneNumber and amount required' });

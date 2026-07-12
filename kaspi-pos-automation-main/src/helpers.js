@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import fetch from 'node-fetch';
 import { DEVICE, APP, UA_NATIVE } from './config.js';
-import { computeTokenSnMac, computeXSign } from './crypto.js';
+import { computeTokenSnMac, computeXSign, computeXSU } from './crypto.js';
 import { inactiveSessionResponse } from './activeSession.js';
 import { getKaspiErrorMessage, isKaspiSessionExpired } from './kaspiResponse.js';
 
@@ -90,24 +90,24 @@ export const kaspiProxyJson = async (res, resp, fallback = 'Kaspi отклони
 
 export const signedQrPayHeaders = (url, session) => {
   const xsh =
-    'url,X-Request-ID,X-Device-ID,X-Platform-Ver,X-App-Bld,X-Time,X-Kb-TokenSn,X-App-Ver,X-Kb-TokenSnMac,X-Call,X-PI,X-Install-ID,X-Platform-Type,X-Locale,X-SV';
+    'url,X-Kb-Client-Ip,X-Time,X-App-Ver,X-SV,X-Locale,X-App-Bld,X-Install-ID,X-Kb-TokenSn,X-S,X-Kb-TokenSnMac,X-Call';
   const headers = {
     'X-Kb-TokenSn': session.tokenSN,
     'X-Kb-TokenSnMac': computeTokenSnMac(session.tokenSN, session.decryptedSecret),
-    'X-PI': session.profileId != null ? String(session.profileId) : '',
     'X-Install-ID': DEVICE.installId,
-    'X-Device-ID': DEVICE.deviceId,
     'X-App-Ver': APP.version,
     'X-App-Bld': APP.build,
-    'X-Platform-Type': APP.platform,
-    'X-Platform-Ver': APP.platformVer,
     'X-Locale': APP.locale,
     'X-Time': nowISO(),
     'X-Request-ID': generateUUID(),
     'X-Call': 'notConnected',
     'X-SV': '2',
     'X-SH': xsh,
+    'X-SU': computeXSU(url),
+    'X-Kb-Client-Ip': '192.168.1.96',
     'User-Agent': UA_NATIVE,
+    'X-PkTag': DEVICE.pkTag,
+    Cookie: entranceCookie(),
     Accept: '*/*',
     'Accept-Language': 'ru',
     'Accept-Encoding': 'gzip, deflate, br',
