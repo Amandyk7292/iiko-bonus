@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'path';
-import { PORT, ROOT_DIR } from './src/config.js';
+import fetch from 'node-fetch';
+import { PORT, ROOT_DIR, KASPI_QRPAY_URL } from './src/config.js';
 import authRoutes from './src/routes/auth.js';
 import invoiceRoutes from './src/routes/invoice.js';
 import qrRoutes from './src/routes/qr.js';
@@ -8,6 +9,9 @@ import historyRoutes from './src/routes/history.js';
 import refundRoutes from './src/routes/refund.js';
 import sessionRoutes from './src/routes/session.js';
 import { startPolling } from './src/polling.js';
+import { getGlobalSession } from './src/sessionStorage.js';
+import { decryptSecret } from './src/crypto.js';
+import { signedQrPayHeaders } from './src/helpers.js';
 import 'dotenv/config';
 
 const app = express();
@@ -24,16 +28,46 @@ app.use('/api/history', historyRoutes);
 app.use('/api/refund', refundRoutes);
 app.use('/api/session', sessionRoutes);
 
-// Public endpoint — no Kaspi auth required. Returns payment status from in-memory tracker.
-import { getTrackedPayments } from './src/polling.js';
-app.get('/api/payment/status/:id', (req, res) => {
-  const allTracked = getTrackedPayments();
-  const entry = allTracked[req.params.id];
-  if (!entry) {
-    // Payment not tracked (already resolved or never existed)
-    return res.json({ found: false, status: 'unknown' });
+// ─── Public endpoint: direct Kaspi API status check (no auth from caller) ───
+app.get('/api/payment/check/:id', async (req, res) => {
+  try {
+    const globalSession = getGlobalSession();
+    if (!globalSession) {
+      return res.json({ success: false, error: 'no_session', kaspiStatus: null });
+    }
+
+    let decrypted;
+    try {
+      decrypted = decryptSecret(globalSession.vtokenSecret);
+    } catch {
+      return res.json({ success: false, error: 'decrypt_failed', kaspiStatus: null });
+    }
+
+    const session = {
+      tokenSN: globalSession.tokenSN,
+      decryptedSecret: decrypted,
+      profileId: globalSession.profileId,
+    };
+
+    // Try invoice status (v01/remote/details)
+    const url = `${KASPI_QRPAY_URL}/v01/remote/details?qrOperationId=${req.params.id}`;
+    const headers = signedQrPayHeaders(url, session);
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10000);
+    const resp = await fetch(url, { headers, signal: controller.signal });
+    clearTimeout(timer);
+
+    const json = await resp.json();
+    const status = json?.Data?.Status || null;
+
+    console.log(`[payment/check] ${req.params.id} → Kaspi status: ${status}`);
+
+    res.json({ success: true, kaspiStatus: status, raw: json });
+  } catch (err) {
+    console.error(`[payment/check] Error for ${req.params.id}:`, err.message);
+    res.json({ success: false, error: err.message, kaspiStatus: null });
   }
-  res.json({ found: true, status: entry.status, type: entry.type });
 });
 
 if (!process.env.KASPI_MOUNTED) {
