@@ -68,9 +68,10 @@ class KaspiService {
       }
 
       const qrData = await qrResponse.json();
-      operationId = qrData?.Data?.Id;
+      operationId = qrData?.Data?.Id || qrData?.Data?.QrOperationId;
+      const qrToken = qrData?.Data?.QrToken;
 
-      if (!qrData.Data || !operationId || !qrData.Data.Image) {
+      if (!qrData.Data || !operationId || !qrToken) {
         throw new Error('Не удалось получить QR-код от Kaspi: ' + JSON.stringify(qrData));
       }
 
@@ -92,7 +93,7 @@ class KaspiService {
         success: true,
         method: 'qr',
         operationId: operationId,
-        qrImage: qrData.Data.Image,
+        qrToken: qrToken,
         kaspiResponse: qrData,
       };
     }
