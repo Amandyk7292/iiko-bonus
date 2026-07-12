@@ -52,8 +52,34 @@ export const generateECDH = () => {
   return spki.toString('base64');
 };
 
+const p256SpkiPrefix = Buffer.from('3059301306072a8648ce3d020106082a8648ce3d030107034200', 'hex');
+
+const publicKeyFromRawP256Point = (point) => crypto.createPublicKey({
+  key: Buffer.concat([p256SpkiPrefix, point]),
+  format: 'der',
+  type: 'spki',
+});
+
 const decodeKaspiPublicKey = (serverX509B64) => {
-  const normalized = String(serverX509B64).replace(/-/g, '+').replace(/_/g, '/');
+  const value = String(serverX509B64).trim();
+
+  if (value.startsWith('-----BEGIN')) {
+    const attempts = [
+      () => crypto.createPublicKey(value),
+      () => new crypto.X509Certificate(value).publicKey,
+    ];
+    const errors = [];
+    for (const attempt of attempts) {
+      try {
+        return attempt();
+      } catch (err) {
+        errors.push(err.message);
+      }
+    }
+    throw new Error(`Unsupported Kaspi ECDH PEM public key format: ${errors.join('; ')}`);
+  }
+
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
   const der = Buffer.from(normalized, 'base64');
 
   const attempts = [
@@ -61,16 +87,12 @@ const decodeKaspiPublicKey = (serverX509B64) => {
     () => new crypto.X509Certificate(der).publicKey,
   ];
 
-  // Some Kaspi responses use the raw uncompressed P-256 point instead of a full SPKI wrapper.
+  // Some Kaspi responses use a raw P-256 point instead of a full SPKI wrapper.
   if (der.length === 65 && der[0] === 0x04) {
-    attempts.push(() => crypto.createPublicKey({
-      key: Buffer.concat([
-        Buffer.from('3059301306072a8648ce3d020106082a8648ce3d030107034200', 'hex'),
-        der,
-      ]),
-      format: 'der',
-      type: 'spki',
-    }));
+    attempts.push(() => publicKeyFromRawP256Point(der));
+  }
+  if ((der.length === 33) && (der[0] === 0x02 || der[0] === 0x03)) {
+    attempts.push(() => publicKeyFromRawP256Point(crypto.ECDH.convertKey(der, 'prime256v1', undefined, undefined, 'uncompressed')));
   }
 
   const errors = [];
@@ -82,7 +104,7 @@ const decodeKaspiPublicKey = (serverX509B64) => {
     }
   }
 
-  throw new Error(`Unsupported Kaspi ECDH public key format (${der.length} bytes): ${errors.join('; ')}`);
+  throw new Error(`Unsupported Kaspi ECDH public key format (${der.length} bytes, first byte 0x${der[0]?.toString(16) || '??'}): ${errors.join('; ')}`);
 };
 
 export const completeECDH = (serverX509B64) => {
