@@ -31,6 +31,8 @@ app.use(
         connectSrc: ["'self'", 'https:', 'http:', 'ws:', 'wss:'],
         fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com', 'https://fonts.googleapis.com'],
         objectSrc: ["'none'"],
+        workerSrc: ["'self'", 'blob:'],
+        childSrc: ["'self'", 'blob:'],
         baseUri: ["'self'"],
         frameAncestors: ["'self'"],
         scriptSrcAttr: ["'unsafe-inline'"],
