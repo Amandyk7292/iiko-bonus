@@ -50,7 +50,16 @@ const apiFetch = async (path, opts = {}) => {
   opts.headers = { ...sessionHeaders(), ...(opts.headers || {}) };
   const resp = await fetch(API + path, opts);
   const data = await resp.json();
-  if (!resp.ok) throw new Error(data.error || JSON.stringify(data));
+  if (!resp.ok) {
+    if (resp.status === 401 && data.code === 'KASPI_SESSION_REPLACED') {
+      clearSession();
+      $('mainScreen')?.classList.add('hidden');
+      $('authScreen')?.classList.remove('hidden');
+      setAuthStep(1);
+      showAuthMsg(data.error || 'Сессия заменена новым входом. Войдите заново.', 'err');
+    }
+    throw new Error(data.error || JSON.stringify(data));
+  }
   return data;
 };
 
@@ -749,8 +758,5 @@ Object.assign(window, {
 
 (() => {
   setAuthStep(1);
-  const session = getSession();
-  if (session.tokenSN && session.vtokenSecret) {
-    showMainScreen(session);
-  }
+  tryRestoreSession();
 })();

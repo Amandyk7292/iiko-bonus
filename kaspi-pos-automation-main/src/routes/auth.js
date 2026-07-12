@@ -13,6 +13,7 @@ import {
   decryptSecret,
 } from '../crypto.js';
 import { loggedFetch, extractUserToken, entranceCookie, generateUUID, nowISO } from '../helpers.js';
+import { activateSession, clearActiveSession } from '../activeSession.js';
 
 const router = Router();
 
@@ -293,6 +294,8 @@ async function doFinish(session) {
       applyOrgContext(session, orgBody.Data);
     }
 
+    if (vtokenSecret) activateSession(session.tokenSN);
+
     return {
       tokenSN: session.tokenSN,
       vtokenSecret,
@@ -472,6 +475,8 @@ router.post('/refresh', async (req, res) => {
         console.error('Refresh org-context-otp error:', e.message);
       }
 
+      activateSession(newTokenSN);
+
       res.json({
         success: true,
         tokenSN: newTokenSN,
@@ -508,6 +513,7 @@ router.post('/session', (req, res) => {
 // ─── Logout ───
 
 router.post('/logout', (req, res) => {
+  clearActiveSession(req.body?.tokenSN);
   res.json({ success: true });
 });
 

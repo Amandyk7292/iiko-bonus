@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { KASPI_QRPAY_URL } from '../config.js';
 import { loggedFetch, signedQrPayHeaders } from '../helpers.js';
 import { decryptSecret } from '../crypto.js';
+import { inactiveSessionResponse, isActiveSession } from '../activeSession.js';
 
 const router = Router();
 
@@ -20,6 +21,9 @@ router.get('/check', async (req, res) => {
   // 1. Check required headers
   if (!session.tokenSN) return res.status(401).json({ active: false, error: 'Missing X-Token-SN header.' });
   if (!session.vtokenSecret) return res.status(401).json({ active: false, error: 'Missing X-Vtoken-Secret header.' });
+  if (!isActiveSession(session.tokenSN)) {
+    return res.status(401).json({ active: false, ...inactiveSessionResponse() });
+  }
 
   // 2. Try to decrypt vtokenSecret
   try {
