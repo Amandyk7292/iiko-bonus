@@ -91,15 +91,20 @@ app.delete('/api/session/credentials', (req, res) => {
 });
 
 
-// ─── Auto-inject stored session headers for invoice routes ───
-app.use('/api/invoice', (req, res, next) => {
+// ─── Auto-inject stored session headers for API routes ───
+const injectSession = (req, res, next) => {
   if (!req.headers['x-token-sn'] && kaspiSession.tokenSN) {
     req.headers['x-token-sn'] = kaspiSession.tokenSN;
+  }
+  if (!req.headers['x-vtoken-secret'] && kaspiSession.vtokenSecret) {
     req.headers['x-vtoken-secret'] = kaspiSession.vtokenSecret;
-    req.headers['x-profile-id'] = kaspiSession.profileId || '';
+  }
+  if (!req.headers['x-profile-id'] && kaspiSession.profileId) {
+    req.headers['x-profile-id'] = kaspiSession.profileId;
   }
   next();
-});
+};
+app.use('/api', injectSession);
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 

@@ -36,7 +36,12 @@ const sessionHeaders = () => {
 const apiFetch = async (path, opts = {}) => {
   opts.headers = { ...sessionHeaders(), ...(opts.headers || {}) };
   const resp = await fetch(API + path, opts);
-  return resp.json();
+  const data = await resp.json();
+  if (resp.status === 401 || data.error?.includes('Missing X-Vtoken-Secret')) {
+    localStorage.removeItem('kaspi_session');
+    window.location.reload();
+  }
+  return data;
 };
 
 const apiPost = (path, body) =>
