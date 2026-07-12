@@ -86,12 +86,6 @@ app.get('/healthz', (_req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
-app.use(adminRoutes);
-app.use(loyaltyRoutes);
-app.use(walletRoutes);
-app.use(publicRoutes);
-app.use(legacyRoutes);
-
 app.use('/admin', express.static(path.join(process.cwd(), 'admin-ui/dist')));
 app.get('/admin/*', (req, res) => {
   res.sendFile(path.join(process.cwd(), 'admin-ui/dist', 'index.html'));
@@ -102,6 +96,12 @@ app.use('/app', express.static(path.join(process.cwd(), 'public/app')));
 app.get('/app/*', (req, res) => {
   res.sendFile(path.join(process.cwd(), 'public/app', 'index.html'));
 });
+
+app.use(adminRoutes);
+app.use(loyaltyRoutes);
+app.use(walletRoutes);
+app.use(publicRoutes);
+app.use(legacyRoutes);
 
 // Error handling middleware
 app.use((err, req, res, _next) => {

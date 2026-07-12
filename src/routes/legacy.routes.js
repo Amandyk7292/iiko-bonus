@@ -617,7 +617,7 @@ router.get('/api/guest/locations', async (req, res) => {
   }
 });
 
-router.get(['/app', '/wallet', '/guest'], (req, res) => {
+router.get(['/wallet', '/guest'], (req, res) => {
   res.sendFile(path.join(process.cwd(), 'public', 'app.html'));
 });
 
