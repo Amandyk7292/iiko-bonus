@@ -302,12 +302,12 @@
             <button class="btn btn-primary" id="btnSendPhone" onclick="sendPhone()">Получить SMS код</button>
           </div>
 
-          <!-- Step 2: OTP -->
+          <!-- Step 2: OTP / Call Code -->
           <div id="authStep2" class="hidden">
-            <h2>Введите код из SMS</h2>
-            <p id="otpDesc" style="font-size: 14px; color: #666; margin-bottom: 12px"></p>
-            <label>Код подтверждения</label>
-            <input type="tel" id="otpInput" class="otp-input" placeholder="• • • •" maxlength="6" inputmode="numeric" />
+            <h2>Введите код подтверждения</h2>
+            <p id="otpDesc" style="font-size: 14px; color: #666; margin-bottom: 12px">Код из SMS (6 цифр) или последние 4 цифры звонка</p>
+            <label>Код</label>
+            <input type="tel" id="otpInput" class="otp-input" placeholder="• • • • • •" maxlength="6" inputmode="numeric" />
             <button class="btn btn-primary" id="btnVerifyOtp" onclick="verifyOtp()">Подтвердить</button>
             <button class="btn btn-secondary" onclick="resetAuth()">Назад</button>
           </div>
@@ -330,16 +330,6 @@
             <label>Пароль</label>
             <input type="password" id="passwordInput" placeholder="Введите пароль" style="margin-bottom: 12px;" />
             <button class="btn btn-primary" id="btnSubmitPassword" onclick="submitPassword()">Войти</button>
-            <button class="btn btn-secondary" onclick="resetAuth()">Назад</button>
-          </div>
-
-          <!-- Step 5: Mobile Call -->
-          <div id="authStep5" class="hidden">
-            <h2>Подтверждение звонком</h2>
-            <p id="callDesc" style="font-size: 14px; color: #666; margin-bottom: 12px">Вам поступит звонок. Введите последние 4 цифры номера.</p>
-            <label>Последние 4 цифры</label>
-            <input type="tel" id="callInput" class="otp-input" placeholder="• • • •" maxlength="4" inputmode="numeric" />
-            <button class="btn btn-primary" id="btnVerifyCall" onclick="verifyCall()">Подтвердить</button>
             <button class="btn btn-secondary" onclick="resetAuth()">Назад</button>
           </div>
 
