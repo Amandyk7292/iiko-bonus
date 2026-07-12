@@ -36,16 +36,7 @@ const sessionHeaders = () => {
 const apiFetch = async (path, opts = {}) => {
   opts.headers = { ...sessionHeaders(), ...(opts.headers || {}) };
   const resp = await fetch(API + path, opts);
-  const data = await resp.json();
-  // Auto-logout only for non-auth routes (invoice, qr, history, refund, sales)
-  if (!path.startsWith('/api/auth')) {
-    if (resp.status === 401 || data.error?.includes('Missing X-Vtoken-Secret')) {
-      localStorage.removeItem('kaspi_session');
-      window.location.reload();
-      return data;
-    }
-  }
-  return data;
+  return resp.json();
 };
 
 const apiPost = (path, body) =>
@@ -70,7 +61,7 @@ const saveSession = (data) => {
 
   // Sync session credentials to Express backend in-memory store
   if (merged.tokenSN && merged.vtokenSecret) {
-    fetch('/api/session/credentials', {
+    fetch(API + '/api/session/credentials', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -100,7 +91,7 @@ const tryRestoreSession = async () => {
     showMainScreen(session);
 
     // Sync restored session credentials to Express backend in-memory store
-    fetch('/api/session/credentials', {
+    fetch(API + '/api/session/credentials', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -304,7 +295,7 @@ const logout = async () => {
   clearSession();
 
   // Clear backend session store
-  fetch('/api/session/credentials', { method: 'DELETE' }).catch(() => {});
+  fetch(API + '/api/session/credentials', { method: 'DELETE' }).catch(() => {});
 
   await apiPost('/api/auth/logout', { tokenSN });
   $('mainScreen').classList.add('hidden');
