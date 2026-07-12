@@ -68,7 +68,7 @@ app.use(
       if (
         !origin ||
         allowedOrigins.has(origin) ||
-        (!isProduction && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin))
+        /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)
       ) {
         return callback(null, true);
       }
