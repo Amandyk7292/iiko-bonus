@@ -49,7 +49,9 @@ const sessionHeaders = () => {
 const apiFetch = async (path, opts = {}) => {
   opts.headers = { ...sessionHeaders(), ...(opts.headers || {}) };
   const resp = await fetch(API + path, opts);
-  return resp.json();
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data.error || JSON.stringify(data));
+  return data;
 };
 
 const apiPost = (path, body) =>
@@ -209,12 +211,14 @@ const verifyOtp = async () => {
 
   try {
     const resp = await apiPost('/api/auth/verify-otp', { otp, processId: authProcessId });
-    if (resp.success && resp.step === 'finished') {
+    if (resp.success && resp.step === 'finished' && resp.tokenSN && resp.vtokenSecret) {
       saveSession(resp);
       authProcessId = null;
       showMainScreen(resp);
+    } else if (resp.success && resp.step === 'finished') {
+      showAuthMsg('Вход выполнен, но Kaspi не вернул vtokenSecret. Нажмите «Выйти» и войдите заново.', 'err');
     } else {
-      showAuthMsg(`Неверный код или ошибка: ${resp.body?.data?.desc || JSON.stringify(resp.body)}`, 'err');
+      showAuthMsg(`Неверный код или ошибка: ${resp.body?.data?.desc || resp.body?.error?.desc || resp.error || JSON.stringify(resp.body)}`, 'err');
     }
   } catch (e) {
     showAuthMsg(`Ошибка: ${e.message}`, 'err');
