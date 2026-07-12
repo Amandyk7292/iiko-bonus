@@ -142,7 +142,7 @@ const fetchStatus = async (entry) => {
   if (type === 'qr') {
     url = `${KASPI_QRPAY_URL}/v02/kaspi-qr/status?qrOperationId=${paymentId}`;
   } else {
-    url = `${KASPI_QRPAY_URL}/v02/remote/details?operationId=${paymentId}`;
+    url = `${KASPI_QRPAY_URL}/v01/remote/details?qrOperationId=${paymentId}`;
   }
 
   try {

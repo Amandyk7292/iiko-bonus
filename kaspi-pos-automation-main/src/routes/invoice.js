@@ -111,7 +111,7 @@ router.get('/details', async (req, res) => {
   if (!operationId) return res.status(400).json({ error: 'operationId required' });
 
   try {
-    const url = `${KASPI_QRPAY_URL}/v02/remote/details?operationId=${operationId}`;
+    const url = `${KASPI_QRPAY_URL}/v01/remote/details?qrOperationId=${operationId}`;
     const resp = await loggedFetch(url, { headers: signedQrPayHeaders(url, req.session) });
     return kaspiProxyJson(res, resp);
   } catch (err) {
