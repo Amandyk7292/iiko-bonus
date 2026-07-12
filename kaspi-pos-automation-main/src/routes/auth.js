@@ -218,9 +218,10 @@ async function doFinish(session) {
 
     let vtokenSecret = null;
     let rawSecret = null;
-    if (body.data.x509) {
+    const serverX509 = body.data.x509 || body.data.X509;
+    if (serverX509) {
       try {
-        rawSecret = completeECDH(body.data.x509);
+        rawSecret = completeECDH(serverX509);
         vtokenSecret = encryptSecret(rawSecret);
         console.log('vtoken activated successfully');
       } catch (e) {
@@ -293,6 +294,7 @@ async function doFinish(session) {
     return {
       tokenSN: session.tokenSN,
       vtokenSecret,
+      hasServerX509: !!serverX509,
       profileId: session.profileId,
       organizationId: session.organizationId,
       orgName: session.orgName,
