@@ -287,11 +287,19 @@ const sendPhone = async () => {
     authProcessId = init.processId;
 
     const resp = await apiPost('/api/auth/send-phone', { phoneNumber: phone, processId: authProcessId });
+    const descLower = String(resp.body?.data?.desc || resp.desc || '').toLowerCase();
+    
     if (resp.success) {
       $('otpDesc').textContent = resp.desc || `SMS отправлен на +7${phone}`;
       setAuthStep(2);
-    } else if (resp.view === 'KPEnterLoginPassword' || resp.body?.view?.code === 'KPEnterLoginPassword') {
+    } else if (
+      resp.view === 'KPEnterLoginPassword' || 
+      resp.body?.view?.code === 'KPEnterLoginPassword' ||
+      descLower.includes('введите логин/пароль') ||
+      descLower.includes('password')
+    ) {
       setAuthStep(4);
+      showAuthMsg('Kaspi требует ввод пароля из-за смены устройства', 'warn');
     } else {
       showAuthMsg(`Ошибка: ${resp.body?.data?.desc || JSON.stringify(resp.body)}`, 'err');
     }
