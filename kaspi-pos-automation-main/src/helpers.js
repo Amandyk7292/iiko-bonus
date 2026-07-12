@@ -71,12 +71,6 @@ export const loggedFetch = async (url, options = {}) => {
   }
   console.log(`<<< ${resp.status} ${resp.statusText}`);
   console.log('<<< Response:', typeof body === 'object' ? JSON.stringify(body, null, 2) : body);
-  
-  if (!resp.ok) {
-    const errorMsg = typeof body === 'object' ? JSON.stringify(body) : String(body);
-    throw new Error(`Kaspi API Error ${resp.status}: ${errorMsg}`);
-  }
-  
   return resp;
 };
 

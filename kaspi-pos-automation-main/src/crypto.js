@@ -69,15 +69,8 @@ export const completeECDH = (serverX509B64) => {
 };
 
 export const completeECDHWithSaved = (serverX509B64) => {
-  let saved;
-  if (process.env.ECDH_KEYPAIR_JSON_B64) {
-    saved = JSON.parse(Buffer.from(process.env.ECDH_KEYPAIR_JSON_B64, 'base64').toString('utf8'));
-  } else if (fs.existsSync(ECDH_FILE)) {
-    saved = JSON.parse(fs.readFileSync(ECDH_FILE, 'utf8'));
-  } else {
-    throw new Error('No saved ECDH keypair (ecdh-keypair.json missing and ENV not set)');
-  }
-  
+  if (!fs.existsSync(ECDH_FILE)) throw new Error('No saved ECDH keypair (ecdh-keypair.json missing)');
+  const saved = JSON.parse(fs.readFileSync(ECDH_FILE, 'utf8'));
   const privateKey = crypto.createPrivateKey({
     key: Buffer.from(saved.privateKey, 'base64'),
     format: 'der',

@@ -8,25 +8,9 @@ import { signedQrPayHeaders } from './helpers.js';
 import { decryptSecret } from './crypto.js';
 import { getWebhooksByEvent } from './webhookStore.js';
 import { logger } from './logger.js';
-import admin from 'firebase-admin';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TRACKED_FILE = path.join(__dirname, '..', 'tracked-payments.json');
-const CREDENTIALS_FILE = path.join(__dirname, '..', 'session-credentials.json');
-
-// Initialize Firebase Admin for syncing refunds
-try {
-  const keyPath = path.resolve(__dirname, '..', 'bulka-site-firebase-adminsdk-fbsvc-10fb5f6ecb.json');
-  if (fs.existsSync(keyPath) && admin.apps.length === 0) {
-    const serviceAccount = JSON.parse(fs.readFileSync(keyPath, 'utf8'));
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount)
-    });
-    logger.info('POLLING', 'Firebase Admin initialized for refund sync');
-  }
-} catch (e) {
-  logger.error('POLLING', 'Failed to initialize Firebase Admin in polling:', e.message);
-}
 
 // ─── Tracked payments ───
 
@@ -360,73 +344,6 @@ const buildPayload = (event, entry, data) => ({
   timestamp: new Date().toISOString(),
 });
 
-const getActiveSessionHeaders = () => {
-  if (process.env.KASPI_TOKEN_SN && process.env.KASPI_VTOKEN_SECRET) {
-    return {
-      tokenSN: process.env.KASPI_TOKEN_SN,
-      vtokenSecret: process.env.KASPI_VTOKEN_SECRET,
-      profileId: process.env.KASPI_PROFILE_ID || null
-    };
-  }
-  try {
-    if (fs.existsSync(CREDENTIALS_FILE)) {
-      return JSON.parse(fs.readFileSync(CREDENTIALS_FILE, 'utf8'));
-    }
-  } catch (e) {
-    logger.error('POLLING', 'Failed to read session credentials:', e.message);
-  }
-  return null;
-};
-
-let lastRefundSyncTime = 0;
-const REFUND_SYNC_INTERVAL_MS = 20000; // 20 seconds
-
-const syncRefunds = async () => {
-  if (admin.apps.length === 0) return;
-  const session = getActiveSessionHeaders();
-  if (!session || !session.tokenSN || !session.vtokenSecret) return;
-
-  try {
-    const db = admin.firestore();
-    const activeOrdersSnapshot = await db.collection('orders')
-      .where('paymentMethod', '==', 'kaspi_pay')
-      .where('status', 'in', ['new', 'accepted', 'preparing', 'ready'])
-      .get();
-
-    if (activeOrdersSnapshot.empty) return;
-
-    for (const doc of activeOrdersSnapshot.docs) {
-      const orderData = doc.data();
-      const opId = orderData.kaspiOperationId;
-      if (!opId) continue;
-
-      const entry = {
-        paymentId: String(opId),
-        type: 'remote',
-        sessionHeaders: session
-      };
-
-      const statusResult = await fetchStatus(entry);
-      if (statusResult && statusResult.Data) {
-        const returns = statusResult.Data.Returns || [];
-        const isRefunded = returns.length > 0;
-        
-        if (isRefunded && orderData.status !== 'rejected') {
-          logger.info('POLLING', `[REFUND SYNC] Order ${doc.id} (Kaspi: ${opId}) was refunded. Updating status to rejected.`);
-          await doc.ref.update({
-            status: 'rejected',
-            paymentStatus: 'refunded',
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-            rejectedAt: admin.firestore.FieldValue.serverTimestamp()
-          });
-        }
-      }
-    }
-  } catch (err) {
-    logger.error('POLLING', 'Error syncing refunds:', err.message);
-  }
-};
-
 // ─── Polling loop (setTimeout-based, no overlap) ───
 
 let pollActive = false;
@@ -443,11 +360,6 @@ const scheduleNext = () => {
       // Process pending webhook retries
       if (pendingRetries.length > 0) {
         await processRetries();
-      }
-      // Sync refunds from Kaspi to Firestore
-      if (Date.now() - lastRefundSyncTime > REFUND_SYNC_INTERVAL_MS) {
-        lastRefundSyncTime = Date.now();
-        await syncRefunds();
       }
     } catch (err) {
       logger.error('POLLING', 'Unexpected error:', err.message);

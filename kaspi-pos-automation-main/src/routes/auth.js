@@ -112,61 +112,6 @@ router.post('/send-phone', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════
-//  Step 2.5 — Submit password (if KPEnterLoginPassword)
-// ═══════════════════════════════════════════════════
-
-router.post('/submit-password', async (req, res) => {
-  const { password, processId } = req.body;
-  if (!password) return res.status(400).json({ error: 'password required' });
-  if (!processId) return res.status(400).json({ error: 'processId required' });
-
-  const session = authSessions.get(processId);
-  if (!session) return res.status(400).json({ error: 'Unknown processId' });
-
-  try {
-    const resp = await loggedFetch(`${KASPI_ENTRANCE_URL}/api/v1/entrance/step`, {
-      method: 'POST',
-      headers: {
-        ...ENTRANCE_HEADERS_BASE,
-        Referer: `${KASPI_ENTRANCE_URL}/process/universal-enter-phone-number?pId=${session.processId}&firstPage=KPUniversalEnterPhoneNumber`,
-        Cookie: entranceCookie(session.userToken),
-      },
-      body: JSON.stringify({
-        meta: { pId: session.processId, sn: 'ViewEnterLoginPassword' },
-        data: { password },
-        actType: 'Success',
-      }),
-    });
-
-    const ut = extractUserToken(resp);
-    if (ut) session.userToken = ut;
-
-    const body = await resp.json();
-
-    if (body.view?.code === 'EnterOtp') {
-      // Password accepted, now expecting OTP
-      res.json({ success: true, step: 'otp', processId: session.processId, desc: body.data?.desc, body });
-    } else if (body.data?.type === 'kpDeviceRegistration' || body.view?.code === 'KPMobileCall') {
-      // Password accepted and no OTP needed — automatically call finish
-      const finishResult = await doFinish(session);
-      authSessions.delete(processId);
-      res.json({
-        success: true,
-        processId: session.processId,
-        step: 'finished',
-        message: 'Password verified and finish completed',
-        otpBody: body,
-        ...finishResult,
-      });
-    } else {
-      res.json({ success: false, step: 'password_response', processId: session.processId, body });
-    }
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ═══════════════════════════════════════════════════
 //  Step 3 — Submit SMS OTP code
 // ═══════════════════════════════════════════════════
 
