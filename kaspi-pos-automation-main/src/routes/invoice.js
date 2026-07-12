@@ -80,9 +80,10 @@ router.post('/create', async (req, res) => {
       return res.status(401).json(inactiveSessionResponse(getKaspiErrorMessage(kaspiResponse)));
     }
     const d = kaspiResponse.Data;
-    if (d && d.Id && d.Status === 'RemotePaymentCreated') {
+    const opId = d ? (d.Id || d.QrOperationId) : null;
+    if (d && opId && (d.Status === 'RemotePaymentCreated' || d.Status === 'null' || !d.Status)) {
       trackPayment(
-        d.Id,
+        opId,
         'invoice',
         {
           tokenSN: req.session.tokenSN,

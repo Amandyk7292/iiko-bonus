@@ -43,11 +43,11 @@ class KaspiService {
 
     const data = await response.json();
     
-    if (!data.Data || !data.Data.Id) {
+    const operationId = data.Data.Id || data.Data.QrOperationId;
+
+    if (!data.Data || !operationId) {
       throw new Error('Не удалось получить operationId от Kaspi: ' + JSON.stringify(data));
     }
-
-    const operationId = data.Data.Id;
 
     // 2. Сохраняем заказ в БД
     const { error } = await supabase.from('kaspi_orders').insert([
