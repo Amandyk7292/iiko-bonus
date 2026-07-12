@@ -59,6 +59,8 @@ class _MainShellState extends State<MainShell> {
       ),
       OrdersScreen(
         key: const PageStorageKey('orders-tab'),
+        api: widget.api,
+        customer: widget.customer,
         transactions: widget.transactions,
         onExplore: () => _changeTab(1),
       ),

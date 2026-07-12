@@ -40,7 +40,6 @@ class _CatalogScreenState extends State<CatalogScreen>
   DeliveryAddress? _selectedAddress;
   String _searchQuery = '';
   String _selectedCategory = 'Все';
-  final Map<String, int> _cartQuantities = {};
   Map<String, String> _apiCategoryImages = {};
 
   List<String> _categories = const ['Все'];
@@ -285,13 +284,21 @@ class _CatalogScreenState extends State<CatalogScreen>
   void _setProductQuantity(CatalogProduct product, int quantity) {
     if (product.isStopListed) return;
     final next = quantity.clamp(0, product.inStockCount);
-    setState(() {
-      if (next <= 0) {
-        _cartQuantities.remove(product.id);
-      } else {
-        _cartQuantities[product.id] = next;
+    final cart = context.read<CartProvider>();
+    if (next <= 0) {
+      cart.removeItem(product.id);
+    } else {
+      if (cart.getQuantity(product.id) == 0) {
+        cart.addItem(
+          productId: product.id,
+          name: product.title,
+          price: product.price,
+          imageUrl: product.imageUrl,
+          isStopListed: product.isStopListed,
+        );
       }
-    });
+      cart.setQuantity(product.id, next);
+    }
     BulkaMotion.lightImpact();
   }
 
@@ -300,7 +307,7 @@ class _CatalogScreenState extends State<CatalogScreen>
       MaterialPageRoute(
         builder: (_) => _ProductDetailsScreen(
           product: product,
-          initialQuantity: _cartQuantities[product.id] ?? 0,
+          initialQuantity: context.read<CartProvider>().getQuantity(product.id),
           onQuantityChanged: (q) => _setProductQuantity(product, q),
         ),
       ),
@@ -309,6 +316,7 @@ class _CatalogScreenState extends State<CatalogScreen>
 
   @override
   Widget build(BuildContext context) {
+    final cart = context.watch<CartProvider>();
     final addressText = _selectedAddress != null
         ? _selectedAddress!.displayAddress
         : 'Аскарова, 21';
@@ -632,7 +640,7 @@ class _CatalogScreenState extends State<CatalogScreen>
                           itemCount: _filteredProducts.length,
                           itemBuilder: (context, index) {
                             final p = _filteredProducts[index];
-                            final qty = _cartQuantities[p.id] ?? 0;
+                            final qty = cart.getQuantity(p.id);
                             return _buildProductCard(p, qty);
                           },
                         );

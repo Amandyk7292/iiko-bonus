@@ -1,13 +1,78 @@
 part of '../main.dart';
 
-class OrdersScreen extends StatelessWidget {
-  const OrdersScreen({this.transactions = const [], this.onExplore, super.key});
+class OrdersScreen extends StatefulWidget {
+  const OrdersScreen({
+    required this.api,
+    required this.customer,
+    this.transactions = const [],
+    this.onExplore,
+    super.key,
+  });
 
+  final BulkaApiClient api;
+  final Customer customer;
   final List<BonusTransaction> transactions;
   final VoidCallback? onExplore;
 
   @override
+  State<OrdersScreen> createState() => _OrdersScreenState();
+}
+
+class _OrdersScreenState extends State<OrdersScreen> {
+  bool _isCheckingOut = false;
+
+  void _showSuccessDialog(BuildContext context) {
+    context.read<CartProvider>().clear();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('success'.tr, style: const TextStyle(fontFamily: _headingFont)),
+        content: Text('Ваш заказ успешно оформлен!', style: const TextStyle(fontSize: 16)),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              if (widget.onExplore != null) widget.onExplore!();
+            },
+            child: const Text('OK', style: TextStyle(color: _bulkaYellow, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleCheckout(BuildContext context, CartProvider cart) async {
+    if (_isCheckingOut || cart.items.isEmpty) return;
+    setState(() => _isCheckingOut = true);
+    try {
+      await widget.api.createKaspiPayment(
+        phone: widget.customer.phone,
+        amount: cart.totalAmount.toDouble(),
+        cartItems: cart.items.values.map((i) => {
+          'id': i.id,
+          'name': i.name,
+          'price': i.price,
+          'quantity': i.quantity,
+        }).toList(),
+      );
+      if (!mounted) return;
+      _showSuccessDialog(context);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.toString(), style: const TextStyle(fontFamily: _headingFont))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isCheckingOut = false);
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final cart = context.watch<CartProvider>();
+    
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
@@ -19,71 +84,202 @@ class OrdersScreen extends StatelessWidget {
           ),
         ),
       ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                width: 220,
-                height: 140,
-                child: Image.asset(
-                  'assets/brand/bulka_logo.png',
-                  fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) => const Icon(
-                    Icons.shopping_bag_rounded,
-                    size: 80,
-                    color: _caramel,
+      body: cart.items.isEmpty ? _buildEmptyState(context) : _buildCartItems(context, cart),
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context) {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: 220,
+              height: 140,
+              child: Image.asset(
+                'assets/brand/bulka_logo.png',
+                fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) => const Icon(
+                  Icons.shopping_bag_rounded,
+                  size: 80,
+                  color: _caramel,
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'cart_empty_title'.tr,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: _textDark,
+                fontFamily: _headingFont,
+                fontSize: 28,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'cart_empty_sub'.tr,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: _textDark,
+                fontFamily: _headingFont,
+                fontSize: 22,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+            const SizedBox(height: 32),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 36),
+              child: GradientButton(
+                onPressed:
+                    widget.onExplore ??
+                    () {
+                      Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => const LocationsScreen(),
+                        ),
+                      );
+                    },
+                child: Text(
+                  'cart_action'.tr,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
-              Text(
-                'cart_empty_title'.tr,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: _textDark,
-                  fontFamily: _headingFont,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w400,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCartItems(BuildContext context, CartProvider cart) {
+    final colors = context.bulkaColors;
+    final itemsList = cart.items.values.toList();
+    
+    return Column(
+      children: [
+        Expanded(
+          child: ListView.separated(
+            padding: EdgeInsets.fromLTRB(16, 16, 16, BulkaLayout.bottomNavContentInset(context) + 16),
+            itemCount: itemsList.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              final item = itemsList[index];
+              return Card(
+                color: _cream,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: _almond.withValues(alpha: 0.45)),
                 ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'cart_empty_sub'.tr,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: _textDark,
-                  fontFamily: _headingFont,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
-              const SizedBox(height: 32),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 36),
-                child: GradientButton(
-                  onPressed:
-                      onExplore ??
-                      () {
-                        Navigator.of(context).push<void>(
-                          MaterialPageRoute(
-                            builder: (_) => const LocationsScreen(),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: SizedBox(
+                          width: 70,
+                          height: 70,
+                          child: _NetworkImage(
+                            url: item.imageUrl,
+                            fit: BoxFit.cover,
                           ),
-                        );
-                      },
-                  child: Text(
-                    'cart_action'.tr,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.name,
+                              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _textDark),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              '${item.price} ₸',
+                              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: colors.priceGold),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          IconButton(
+                            onPressed: () => cart.setQuantity(item.id, item.quantity - 1),
+                            icon: const Icon(Icons.remove_circle_outline, color: _caramel),
+                          ),
+                          Text('${item.quantity}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                          IconButton(
+                            onPressed: () => cart.setQuantity(item.id, item.quantity + 1),
+                            icon: const Icon(Icons.add_circle_outline, color: _caramel),
+                          ),
+                        ],
+                      )
+                    ],
                   ),
                 ),
-              ),
-            ],
+              );
+            },
           ),
+        ),
+        _CartCheckoutBar(
+          total: cart.totalAmount,
+          isCheckingOut: _isCheckingOut,
+          onCheckout: () => _handleCheckout(context, cart),
+        ),
+        SizedBox(height: BulkaLayout.floatingNavBarHeight),
+      ],
+    );
+  }
+}
+
+class _CartCheckoutBar extends StatelessWidget {
+  const _CartCheckoutBar({required this.total, required this.isCheckingOut, required this.onCheckout});
+  final int total;
+  final bool isCheckingOut;
+  final VoidCallback onCheckout;
+  
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -5))],
+      ),
+      child: SafeArea(
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Итого к оплате:', style: TextStyle(fontSize: 14, color: _textDark)),
+                  Text('$total ₸', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: _textDark)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: GradientButton(
+                onPressed: isCheckingOut ? () {} : onCheckout,
+                child: isCheckingOut
+                    ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                    : const Text('Оформить', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              ),
+            ),
+          ],
         ),
       ),
     );

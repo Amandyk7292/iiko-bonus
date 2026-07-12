@@ -185,10 +185,11 @@ const resetAuth = () => {
 // ─── Auth Flow ───
 
 let authProcessId = null;
+let currentAuthAction = 'otp';
 
 const sendPhone = async () => {
   const phone = digitsOnly($('phoneInput').value);
-  if (phone.length < 10) return showAuthMsg('Введите 10 цифр номера', 'err');
+  if (!phone) return showAuthMsg('Введите номер', 'err');
 
   const btn = $('btnSendPhone');
   btn.disabled = true;
@@ -206,11 +207,13 @@ const sendPhone = async () => {
 
     const resp = await apiPost('/api/auth/send-phone', { phoneNumber: phone, processId: authProcessId });
     if (resp.success) {
+      currentAuthAction = 'otp';
       $('otpDesc').textContent = resp.desc || `SMS отправлен на +7${phone}`;
       setAuthStep(2);
     } else if (resp.view === 'KPEnterLoginPassword' || resp.body?.view?.code === 'KPEnterLoginPassword') {
       setAuthStep(4);
     } else if (resp.view === 'KPMobileCall' || resp.body?.view?.code === 'KPMobileCall') {
+      currentAuthAction = 'call';
       $('otpDesc').textContent = resp.desc || 'Вам поступит звонок. Введите последние 4 цифры номера.';
       setAuthStep(2);
     } else {
@@ -241,9 +244,11 @@ const submitPassword = async () => {
         authProcessId = null;
         showMainScreen(resp);
       } else if (resp.step === 'otp') {
+        currentAuthAction = 'otp';
         $('otpDesc').textContent = resp.desc || 'Введите код из SMS для завершения';
         setAuthStep(2);
       } else if (resp.step === 'call') {
+        currentAuthAction = 'call';
         $('otpDesc').textContent = resp.desc || 'Вам поступит звонок. Введите последние 4 цифры номера.';
         setAuthStep(2);
       } else {
@@ -270,7 +275,7 @@ const verifyOtp = async () => {
   showAuthMsg('', '');
 
   try {
-    const isCall = otp.length === 4;
+    const isCall = currentAuthAction === 'call';
     const endpoint = isCall ? '/api/auth/verify-call' : '/api/auth/verify-otp';
     const payload = isCall ? { code: otp, processId: authProcessId } : { otp, processId: authProcessId };
 
@@ -280,6 +285,7 @@ const verifyOtp = async () => {
       authProcessId = null;
       showMainScreen(resp);
     } else if (resp.success && resp.step === 'call') {
+      currentAuthAction = 'call';
       $('otpDesc').textContent = resp.desc || 'Вам поступит звонок. Введите последние 4 цифры номера.';
       setAuthStep(2);
     } else {

@@ -382,6 +382,7 @@ class _SplashScreenState extends State<SplashScreen>
       'assets/brand/bulka_logo.png',
       width: 330,
       fit: BoxFit.contain,
+      filterQuality: FilterQuality.high,
     );
     return Scaffold(
       backgroundColor: const Color(0xFFFFB300),
