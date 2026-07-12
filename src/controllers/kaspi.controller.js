@@ -12,11 +12,7 @@ const createPayment = async (req, res) => {
     }
 
     const result = await kaspiService.createInvoice(phone, amount, customerId, items);
-    
-    res.json({
-      success: true,
-      operationId: result.operationId,
-    });
+    res.json(result);
   } catch (error) {
     console.error('Ошибка createPayment:', error);
     res.status(500).json({ error: error.message });
