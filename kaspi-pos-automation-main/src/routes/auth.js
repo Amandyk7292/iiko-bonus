@@ -218,6 +218,7 @@ async function doFinish(session) {
 
     let vtokenSecret = null;
     let rawSecret = null;
+    let ecdhError = null;
     const serverX509 = body.data.x509 || body.data.X509;
     if (serverX509) {
       try {
@@ -225,6 +226,7 @@ async function doFinish(session) {
         vtokenSecret = encryptSecret(rawSecret);
         console.log('vtoken activated successfully');
       } catch (e) {
+        ecdhError = e.message;
         console.error('ECDH key agreement failed:', e.message);
       }
     }
@@ -295,6 +297,9 @@ async function doFinish(session) {
       tokenSN: session.tokenSN,
       vtokenSecret,
       hasServerX509: !!serverX509,
+      serverX509Length: serverX509 ? Buffer.from(String(serverX509).replace(/-/g, '+').replace(/_/g, '/'), 'base64').length : 0,
+      serverX509Prefix: serverX509 ? String(serverX509).slice(0, 24) : null,
+      ecdhError,
       profileId: session.profileId,
       organizationId: session.organizationId,
       orgName: session.orgName,
