@@ -41,9 +41,8 @@ router.get('/client-info', async (req, res) => {
   if (!normalizedPhone) return res.status(400).json({ error: 'Invalid phoneNumber format' });
 
   try {
-    const url = `${KASPI_QRPAY_URL}/v02/remote/client-info?phoneNumber=${encodeURIComponent(normalizedPhone)}`;
-    const resp = await loggedFetch(url, { headers: signedQrPayHeaders(url, req.session) });
-    return kaspiProxyJson(res, resp);
+    // MOCK RESPONSE: Bypass Kaspi to see if POST /create works.
+    return res.json({ clientName: 'Клиент (Mock)', isRegistered: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
