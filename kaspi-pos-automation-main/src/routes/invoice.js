@@ -3,6 +3,7 @@ import { KASPI_QRPAY_URL } from '../config.js';
 import { loggedFetch, signedQrPayHeaders } from '../helpers.js';
 import { decryptSecret } from '../crypto.js';
 import { trackPayment } from '../polling.js';
+import { normalizeKaspiPhoneNumber } from '../phone.js';
 
 const router = Router();
 
@@ -32,10 +33,12 @@ router.use(requireAuth);
 
 router.get('/client-info', async (req, res) => {
   const { phoneNumber } = req.query;
+  const normalizedPhone = normalizeKaspiPhoneNumber(phoneNumber);
   if (!phoneNumber) return res.status(400).json({ error: 'phoneNumber required' });
+  if (!normalizedPhone) return res.status(400).json({ error: 'Invalid phoneNumber format' });
 
   try {
-    const url = `${KASPI_QRPAY_URL}/v01/remote/client-info?phoneNumber=${phoneNumber}`;
+    const url = `${KASPI_QRPAY_URL}/v01/remote/client-info?phoneNumber=${encodeURIComponent(normalizedPhone)}`;
     const resp = await loggedFetch(url, { headers: signedQrPayHeaders(url, req.session) });
     res.json(await resp.json());
   } catch (err) {
@@ -47,7 +50,9 @@ router.get('/client-info', async (req, res) => {
 
 router.post('/create', async (req, res) => {
   const { phoneNumber, amount, comment } = req.body;
+  const normalizedPhone = normalizeKaspiPhoneNumber(phoneNumber);
   if (!phoneNumber || !amount) return res.status(400).json({ error: 'phoneNumber and amount required' });
+  if (!normalizedPhone) return res.status(400).json({ error: 'Invalid phoneNumber format' });
 
   try {
     const url = `${KASPI_QRPAY_URL}/v01/remote/create`;
@@ -55,7 +60,7 @@ router.post('/create', async (req, res) => {
     const resp = await loggedFetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ PhoneNumber: phoneNumber, Amount: Number(amount), Comment: comment || '' }),
+      body: JSON.stringify({ PhoneNumber: normalizedPhone, Amount: Number(amount), Comment: comment || '' }),
     });
     const kaspiResponse = await resp.json();
     const d = kaspiResponse.Data;

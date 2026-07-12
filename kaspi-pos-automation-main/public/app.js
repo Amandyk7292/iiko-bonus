@@ -15,6 +15,19 @@ let qrOperationId = null;
 
 const $ = (id) => document.getElementById(id);
 const digitsOnly = (str) => str.replace(/\D/g, '');
+const normalizeKaspiPhoneNumber = (value) => {
+  const digits = digitsOnly(String(value || ''));
+  if (digits.length === 10) return `7${digits}`;
+  if (digits.length === 11 && digits.startsWith('7')) return digits;
+  if (digits.length === 11 && digits.startsWith('8')) return `7${digits.slice(1)}`;
+  return null;
+};
+const localKaspiPhoneDigits = (value) => {
+  const normalized = normalizeKaspiPhoneNumber(value);
+  if (normalized) return normalized.slice(1);
+  const digits = digitsOnly(String(value || ''));
+  return digits.length > 10 && (digits.startsWith('7') || digits.startsWith('8')) ? digits.slice(1, 11) : digits.slice(0, 10);
+};
 
 const getSession = () => {
   try {
@@ -109,7 +122,7 @@ const formatPhone = (digits) => {
 
 const attachPhoneFormatter = (el) => {
   el.addEventListener('input', () => {
-    const digits = digitsOnly(el.value);
+    const digits = localKaspiPhoneDigits(el.value);
     const formatted = formatPhone(digits);
     if (el.value !== formatted) el.value = formatted;
   });
@@ -153,8 +166,8 @@ const resetAuth = () => {
 let authProcessId = null;
 
 const sendPhone = async () => {
-  const phone = digitsOnly($('phoneInput').value);
-  if (phone.length < 10) return showAuthMsg('Введите 10 цифр номера', 'err');
+  const phone = normalizeKaspiPhoneNumber($('phoneInput').value);
+  if (!phone) return showAuthMsg('Введите корректный номер телефона', 'err');
 
   const btn = $('btnSendPhone');
   btn.disabled = true;
@@ -307,10 +320,10 @@ const startInvoicePolling = () => {
 };
 
 const createInvoice = async () => {
-  const phone = digitsOnly($('clientPhone').value);
+  const phone = normalizeKaspiPhoneNumber($('clientPhone').value);
   const amount = $('invoiceAmount').value;
   const comment = $('invoiceComment').value || 'Оплата';
-  if (!phone || !amount) return alert('Заполните телефон и сумму');
+  if (!phone || !amount) return alert('Заполните корректный телефон и сумму');
 
   const btn = $('btnCreate');
   btn.disabled = true;
@@ -323,8 +336,9 @@ const createInvoice = async () => {
       comment,
     });
 
-    if (resp.Data?.QrOperationId) {
-      currentOpId = resp.Data.QrOperationId;
+    const operationId = resp.Data?.QrOperationId || resp.Data?.Id;
+    if (operationId) {
+      currentOpId = operationId;
       $('invoiceOpId').textContent = `#${currentOpId}`;
       $('invoiceResult').classList.remove('hidden');
       $('clientPhone').value = '';
@@ -484,21 +498,21 @@ const resetQr = () => {
 // ─── Client Phone Lookup ───
 
 $('clientPhone').addEventListener('blur', async function () {
-  const phone = digitsOnly(this.value);
+  const phone = normalizeKaspiPhoneNumber(this.value);
   const info = $('clientInfo');
-  if (phone.length < 10) {
+  if (!phone) {
     info.classList.add('hidden');
     return;
   }
   try {
-    const resp = await apiFetch(`/api/invoice/client-info?phoneNumber=${phone}`);
+    const resp = await apiFetch(`/api/invoice/client-info?phoneNumber=${encodeURIComponent(phone)}`);
     if (resp.Data?.ClientName) {
       info.textContent = `✓ ${resp.Data.ClientName} (${resp.Data.ClientStatus})`;
       info.style.background = '#e8f5e9';
       info.style.color = '#2e7d32';
       info.classList.remove('hidden');
     } else {
-      info.textContent = '✗ Клиент не найден';
+      info.textContent = `✗ ${resp.Message || resp.Description || resp.error || 'Клиент не найден'}`;
       info.style.background = '#ffebee';
       info.style.color = '#c62828';
       info.classList.remove('hidden');

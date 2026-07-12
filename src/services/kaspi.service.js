@@ -3,11 +3,26 @@ const { supabase } = require('../config/supabase');
 
 const KASPI_URL = process.env.KASPI_MICROSERVICE_URL || `http://127.0.0.1:${process.env.PORT || 3000}/kaspi-pos`;
 
+const digitsOnly = (value) => String(value ?? '').replace(/\D/g, '');
+
+const normalizeKaspiPhoneNumber = (value) => {
+  const digits = digitsOnly(value);
+
+  if (digits.length === 10) return `7${digits}`;
+  if (digits.length === 11 && digits.startsWith('7')) return digits;
+  if (digits.length === 11 && digits.startsWith('8')) return `7${digits.slice(1)}`;
+
+  return null;
+};
+
 class KaspiService {
   /**
    * Отправляет запрос на микросервис Kaspi для создания счета
    */
   async createInvoice(phone, amount, customerId, cartItems = []) {
+    const normalizedPhone = normalizeKaspiPhoneNumber(phone);
+    if (!normalizedPhone) throw new Error('Invalid phoneNumber format');
+
     // 1. Создаем счет через микросервис Kaspi
     const response = await fetch(`${KASPI_URL}/api/invoice/create`, {
       method: 'POST',
@@ -22,7 +37,7 @@ class KaspiService {
         'x-vtoken-secret': process.env.KASPI_VTOKEN_SECRET || '',
       },
       body: JSON.stringify({
-        phoneNumber: phone,
+        phoneNumber: normalizedPhone,
         amount: amount,
         comment: 'Оплата заказа Bulka',
       }),
@@ -46,7 +61,7 @@ class KaspiService {
       {
         customer_id: customerId,
         operation_id: String(operationId),
-        phone: phone,
+        phone: normalizedPhone,
         amount: amount,
         status: 'pending',
         cart_items: cartItems,
