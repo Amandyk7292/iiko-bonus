@@ -52,13 +52,42 @@ export const generateECDH = () => {
   return spki.toString('base64');
 };
 
+const decodeKaspiPublicKey = (serverX509B64) => {
+  const normalized = String(serverX509B64).replace(/-/g, '+').replace(/_/g, '/');
+  const der = Buffer.from(normalized, 'base64');
+
+  const attempts = [
+    () => crypto.createPublicKey({key: der, format: 'der', type: 'spki'}),
+    () => new crypto.X509Certificate(der).publicKey,
+  ];
+
+  // Some Kaspi responses use the raw uncompressed P-256 point instead of a full SPKI wrapper.
+  if (der.length === 65 && der[0] === 0x04) {
+    attempts.push(() => crypto.createPublicKey({
+      key: Buffer.concat([
+        Buffer.from('3059301306072a8648ce3d020106082a8648ce3d030107034200', 'hex'),
+        der,
+      ]),
+      format: 'der',
+      type: 'spki',
+    }));
+  }
+
+  const errors = [];
+  for (const attempt of attempts) {
+    try {
+      return attempt();
+    } catch (err) {
+      errors.push(err.message);
+    }
+  }
+
+  throw new Error(`Unsupported Kaspi ECDH public key format (${der.length} bytes): ${errors.join('; ')}`);
+};
+
 export const completeECDH = (serverX509B64) => {
   if (!lastEcdhKeyPair) throw new Error('No ECDH keypair generated');
-  const serverPubKey = crypto.createPublicKey({
-    key: Buffer.from(serverX509B64, 'base64'),
-    format: 'der',
-    type: 'spki',
-  });
+  const serverPubKey = decodeKaspiPublicKey(serverX509B64);
   const secret = crypto.diffieHellman({
     privateKey: lastEcdhKeyPair.privateKey,
     publicKey: serverPubKey,
@@ -76,11 +105,7 @@ export const completeECDHWithSaved = (serverX509B64) => {
     format: 'der',
     type: 'pkcs8',
   });
-  const serverPubKey = crypto.createPublicKey({
-    key: Buffer.from(serverX509B64, 'base64'),
-    format: 'der',
-    type: 'spki',
-  });
+  const serverPubKey = decodeKaspiPublicKey(serverX509B64);
   const secret = crypto.diffieHellman({privateKey, publicKey: serverPubKey});
   console.log('ECDH (saved key) shared secret derived, length:', secret.length);
   return secret;
