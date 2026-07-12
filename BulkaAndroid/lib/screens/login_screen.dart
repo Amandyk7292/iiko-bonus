@@ -81,6 +81,14 @@ class _LoginScreenState extends State<LoginScreen> {
       12,
       (_) => chars[rng.nextInt(chars.length)],
     ).join();
+
+    // Bypass popup blockers on Web by opening the URL synchronously
+    // before the async API request. The backend uses the same token.
+    if (kIsWeb) {
+      final waUri = Uri.parse('https://wa.me/77008317499?text=%D0%BA%D0%BE%D0%B4%20$token');
+      launchUrl(waUri, mode: LaunchMode.externalApplication).ignore();
+    }
+
     final result = await widget.onRequestOtp(phone, token);
     if (!mounted) return;
     setState(() => _loading = false);
@@ -102,7 +110,9 @@ class _LoginScreenState extends State<LoginScreen> {
           _otpDeliveryHasLink = true;
           _otpWhatsappUri = uri;
         });
-        await _openExternalUrl(context, uri, 'error_open_whatsapp'.tr);
+        if (!kIsWeb) {
+          _openExternalUrl(context, uri, 'error_open_whatsapp'.tr).ignore();
+        }
       }
     } else {
       setState(() => _error = result.error ?? 'error_send_code'.tr);
@@ -507,57 +517,30 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildDateField(BuildContext context) {
-    final value = _birthdate ?? 'reg_dob_hint'.tr;
-    return Semantics(
-      button: true,
-      label: 'reg_dob_hint'.tr,
-      value: value,
-      child: InkWell(
-        onTap: () async {
-          final picked = await showDatePicker(
-            context: context,
-            initialDate: DateTime(2000, 1, 1),
-            firstDate: DateTime(1930),
-            lastDate: DateTime.now(),
-            builder: (context, child) {
-              return Theme(
-                data: Theme.of(context).copyWith(
-                  colorScheme: const ColorScheme.light(
-                    primary: Color(0xFF6D3317),
-                    onPrimary: Colors.white,
-                    onSurface: Color(0xFF6D3317),
-                  ),
-                ),
-                child: child!,
-              );
-            },
-          );
-          if (picked != null) {
-            final day = picked.day.toString().padLeft(2, '0');
-            final month = picked.month.toString().padLeft(2, '0');
-            final year = picked.year;
-            setState(() {
-              _birthdate = '$day.$month.$year';
-            });
+    return TextFormField(
+      initialValue: _birthdate,
+      keyboardType: TextInputType.number,
+      inputFormatters: [
+        TextInputFormatter.withFunction((oldValue, newValue) {
+          var text = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+          if (text.length > 8) text = text.substring(0, 8);
+          var formatted = '';
+          for (int i = 0; i < text.length; i++) {
+            if (i == 2 || i == 4) formatted += '.';
+            formatted += text[i];
           }
-        },
-        borderRadius: BorderRadius.circular(16),
-        child: InputDecorator(
-          decoration: InputDecoration(
-            labelText: 'reg_dob_hint'.tr,
-            helperText: 'reg_dob_helper'.tr,
-            suffixIcon: const Icon(Icons.calendar_today_rounded, size: 20),
-          ),
-          child: Text(
-            value,
-            style: TextStyle(
-              color: _birthdate != null
-                  ? const Color(0xFF6D3317)
-                  : const Color(0xFF6D3317).withValues(alpha: 0.55),
-              fontSize: 15,
-            ),
-          ),
-        ),
+          return TextEditingValue(
+            text: formatted,
+            selection: TextSelection.collapsed(offset: formatted.length),
+          );
+        }),
+      ],
+      onChanged: (val) => setState(() => _birthdate = val),
+      style: const TextStyle(color: Color(0xFF6D3317), fontSize: 15),
+      decoration: InputDecoration(
+        labelText: 'reg_dob_hint'.tr,
+        helperText: 'Например: 09.10.2003',
+        suffixIcon: const Icon(Icons.calendar_today_rounded, size: 20),
       ),
     );
   }

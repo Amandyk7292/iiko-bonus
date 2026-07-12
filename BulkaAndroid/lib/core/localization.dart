@@ -436,9 +436,9 @@ const Map<String, Map<String, String>> _appTranslations = {
     'en': 'Change phone number',
   },
   'get_code_whatsapp': {
-    'ru': 'Получить код в WhatsApp',
-    'kk': 'WhatsApp арқылы код алу',
-    'en': 'Get code via WhatsApp',
+    'ru': 'Получить код',
+    'kk': 'Код алу',
+    'en': 'Get code',
   },
   'open_whatsapp': {
     'ru': 'Открыть WhatsApp ещё раз',
