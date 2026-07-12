@@ -18,7 +18,18 @@ if (!process.env.TOKEN_SECRET_KEY) {
   console.error('Generate one with: echo "TOKEN_SECRET_KEY=$(openssl rand -hex 32)" > .env');
   process.exit(1);
 }
-const ENCRYPTION_KEY = Buffer.from(process.env.TOKEN_SECRET_KEY, 'hex');
+
+const loadEncryptionKey = () => {
+  const value = process.env.TOKEN_SECRET_KEY.trim();
+  if (/^[0-9a-fA-F]{64}$/.test(value)) {
+    return Buffer.from(value, 'hex');
+  }
+
+  console.warn('TOKEN_SECRET_KEY is not a 64-character hex string; deriving a 32-byte key from the provided value.');
+  return crypto.createHash('sha256').update(value).digest();
+};
+
+const ENCRYPTION_KEY = loadEncryptionKey();
 
 export const encryptSecret = (secretBuffer) => {
   const iv = crypto.randomBytes(12);
