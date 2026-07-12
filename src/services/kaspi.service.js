@@ -23,6 +23,12 @@ class KaspiService {
     const normalizedPhone = normalizeKaspiPhoneNumber(phone);
     if (!normalizedPhone) throw new Error('Invalid phoneNumber format');
 
+    let comment = 'Оплата заказа Bulka';
+    if (cartItems && cartItems.length > 0) {
+      const itemsList = cartItems.map(item => `${item.name} x${item.quantity}`).join(', ');
+      comment += `\n${itemsList}`;
+    }
+
     // 1. Создаем счет через микросервис Kaspi
     const response = await fetch(`${KASPI_URL}/api/invoice/create`, {
       method: 'POST',
@@ -32,24 +38,66 @@ class KaspiService {
       body: JSON.stringify({
         phoneNumber: normalizedPhone,
         amount: amount,
-        comment: 'Оплата заказа Bulka',
+        comment: comment,
       }),
     });
 
-    if (!response.ok) {
+    let data;
+    if (response.ok) {
+      data = await response.json();
+    } else {
       const err = await response.text();
-      throw new Error(`Kaspi Service Error: ${err}`);
+      data = { ErrorMessage: err };
     }
-
-    const data = await response.json();
     
-    const operationId = data.Data.Id || data.Data.QrOperationId;
+    let operationId = data?.Data?.Id || data?.Data?.QrOperationId;
 
-    if (!data.Data || !operationId) {
-      throw new Error('Не удалось получить operationId от Kaspi: ' + JSON.stringify(data));
+    // Если нет operationId, это значит счет выставить не удалось (например, нет Kaspi у клиента).
+    // FALLBACK: Пробуем сгенерировать QR-код!
+    if (!operationId) {
+      console.log('Invoice creation failed, falling back to QR code...', data);
+      const qrResponse = await fetch(`${KASPI_URL}/api/qr/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: amount, comment: comment }),
+      });
+
+      if (!qrResponse.ok) {
+        const qrErr = await qrResponse.text();
+        throw new Error(`Kaspi QR Service Error: ${qrErr}`);
+      }
+
+      const qrData = await qrResponse.json();
+      operationId = qrData?.Data?.Id;
+
+      if (!qrData.Data || !operationId || !qrData.Data.Image) {
+        throw new Error('Не удалось получить QR-код от Kaspi: ' + JSON.stringify(qrData));
+      }
+
+      // Сохраняем QR-заказ в БД
+      const { error } = await supabase.from('kaspi_orders').insert([
+        {
+          customer_id: customerId,
+          operation_id: String(operationId),
+          phone: normalizedPhone,
+          amount: amount,
+          status: 'pending',
+          cart_items: cartItems,
+        },
+      ]);
+
+      if (error) console.error('Ошибка сохранения kaspi_orders в БД:', error);
+
+      return {
+        success: true,
+        method: 'qr',
+        operationId: operationId,
+        qrImage: qrData.Data.Image,
+        kaspiResponse: qrData,
+      };
     }
 
-    // 2. Сохраняем заказ в БД
+    // Если счет (invoice) успешно выставлен:
     const { error } = await supabase.from('kaspi_orders').insert([
       {
         customer_id: customerId,
@@ -61,13 +109,11 @@ class KaspiService {
       },
     ]);
 
-    if (error) {
-      console.error('Ошибка сохранения kaspi_orders в БД:', error);
-      // Мы не прерываем выполнение, так как счет уже отправлен клиенту
-    }
+    if (error) console.error('Ошибка сохранения kaspi_orders в БД:', error);
 
     return {
       success: true,
+      method: 'invoice',
       operationId: operationId,
       kaspiResponse: data,
     };
