@@ -15,8 +15,10 @@ export const nowISO = () => {
   const sign = off >= 0 ? '+' : '-';
   const hh = String(Math.floor(Math.abs(off) / 60)).padStart(2, '0');
   const mm = String(Math.abs(off) % 60).padStart(2, '0');
+  
+  const localD = new Date(d.getTime() + off * 60000);
   return (
-    d
+    localD
       .toISOString()
       .replace('Z', '')
       .replace(/\.\d{3}/, `.${String(d.getMilliseconds()).padStart(3, '0')}`) +
