@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
-import { ChevronDown, Gift, RefreshCw, Search } from 'lucide-react';
+import { ChevronDown, Gift, RefreshCw, Search, Smartphone } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import PageState from '../components/PageState';
 import { api } from '../lib/api';
@@ -15,6 +15,7 @@ export default function TransactionsPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [showKaspi, setShowKaspi] = useState(false);
 
   const fetchTransactions = useCallback(async () => {
     setLoading(true);
@@ -48,6 +49,9 @@ export default function TransactionsPage() {
   return (
     <div className="page-stack">
       <div className="page-actions-row">
+        <button type="button" className="btn-outline px-4 inline-flex items-center gap-2" onClick={() => setShowKaspi(!showKaspi)}>
+          <Smartphone aria-hidden="true" size={17} /> Kaspi Pay
+        </button>
         <button type="button" className="btn-outline px-4 inline-flex items-center gap-2" onClick={() => navigate('/customers')}>
           <Gift aria-hidden="true" size={17} /> {t('transactions.manualBonus')}
         </button>
@@ -56,6 +60,12 @@ export default function TransactionsPage() {
         </button>
       </div>
       {error && <div className="inline-alert inline-alert-error" role="alert">{error}</div>}
+
+      {showKaspi && (
+        <section className="card mb-6 p-0 overflow-hidden" style={{ height: '700px', background: '#f5f6f8' }}>
+          <iframe src="/kaspi-pos/" title="Kaspi Pay Automation" style={{ width: '100%', height: '100%', border: 'none' }} />
+        </section>
+      )}
 
       <section className="sagi-filter" aria-label={t('common.search')}>
         <div className="field-group filter-search">

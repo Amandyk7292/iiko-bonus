@@ -1,6 +1,6 @@
 // ─── Kaspi Pay — Frontend App ───
 
-const API = '';
+const API = window.location.pathname.startsWith('/kaspi-pos') ? '/kaspi-pos' : '';
 
 // ─── State ───
 
