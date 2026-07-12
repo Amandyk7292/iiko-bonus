@@ -38,7 +38,7 @@ router.post('/create', async (req, res) => {
   if (!amount) return res.status(400).json({ error: 'amount required' });
 
   try {
-    const url = `${KASPI_QRPAY_URL}/v02/qr-token/create`;
+    const url = `${KASPI_QRPAY_URL}/v01/qr-token/create`;
     const headers = { ...signedQrPayHeaders(url, req.session), 'Content-Type': 'application/json' };
     const resp = await loggedFetch(url, {
       method: 'POST',

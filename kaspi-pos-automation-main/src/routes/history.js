@@ -35,7 +35,7 @@ router.post('/operations', async (req, res) => {
   const { endDate, lastTransactionDate, statementPeriodCode } = req.body;
   if (!endDate) return res.status(400).json({ error: 'endDate required' });
   try {
-    const url = `${KASPI_QRPAY_URL}/v02/history/operations`;
+    const url = `${KASPI_QRPAY_URL}/v01/remote/history`;
     const headers = { ...signedQrPayHeaders(url, req.session), 'Content-Type': 'application/json' };
     const resp = await loggedFetch(url, {
       method: 'POST',

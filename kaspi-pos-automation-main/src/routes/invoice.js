@@ -41,7 +41,7 @@ router.get('/client-info', async (req, res) => {
   if (!normalizedPhone) return res.status(400).json({ error: 'Invalid phoneNumber format' });
 
   try {
-    const url = `${KASPI_QRPAY_URL}/v02/remote/client-info?phoneNumber=${encodeURIComponent(normalizedPhone)}`;
+    const url = `${KASPI_QRPAY_URL}/v01/remote/client-info?phoneNumber=${encodeURIComponent(normalizedPhone)}`;
     const headers = signedQrPayHeaders(url, req.session);
     const resp = await loggedFetch(url, { headers });
     return kaspiProxyJson(res, resp);
@@ -60,7 +60,7 @@ router.post('/create', async (req, res) => {
   if (!normalizedPhone) return res.status(400).json({ error: 'Invalid phoneNumber format' });
 
   try {
-    const url = `${KASPI_QRPAY_URL}/v02/remote/create`;
+    const url = `${KASPI_QRPAY_URL}/v01/remote/create`;
     const headers = { ...signedQrPayHeaders(url, req.session), 'Content-Type': 'application/json' };
     const resp = await loggedFetch(url, {
       method: 'POST',
