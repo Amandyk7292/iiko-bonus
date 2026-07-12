@@ -32,7 +32,7 @@ app.use(
         fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
         objectSrc: ["'none'"],
         baseUri: ["'self'"],
-        frameAncestors: ["'none'"],
+        frameAncestors: ["'self'"],
         scriptSrcAttr: ["'unsafe-inline'"],
       },
     },
