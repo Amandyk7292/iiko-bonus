@@ -37,9 +37,13 @@ const apiFetch = async (path, opts = {}) => {
   opts.headers = { ...sessionHeaders(), ...(opts.headers || {}) };
   const resp = await fetch(API + path, opts);
   const data = await resp.json();
-  if (resp.status === 401 || data.error?.includes('Missing X-Vtoken-Secret')) {
-    localStorage.removeItem('kaspi_session');
-    window.location.reload();
+  // Auto-logout only for non-auth routes (invoice, qr, history, refund, sales)
+  if (!path.startsWith('/api/auth')) {
+    if (resp.status === 401 || data.error?.includes('Missing X-Vtoken-Secret')) {
+      localStorage.removeItem('kaspi_session');
+      window.location.reload();
+      return data;
+    }
   }
   return data;
 };
