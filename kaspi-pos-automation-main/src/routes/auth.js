@@ -146,9 +146,7 @@ router.post('/submit-password', async (req, res) => {
     if (body.view?.code === 'EnterOtp') {
       // Password accepted, now expecting OTP
       res.json({ success: true, step: 'otp', processId: session.processId, desc: body.data?.desc, body });
-    } else if (body.view?.code === 'KPMobileCall') {
-      res.json({ success: true, step: 'call', processId: session.processId, desc: body.data?.desc, body });
-    } else if (body.data?.type === 'kpDeviceRegistration') {
+    } else if (body.data?.type === 'kpDeviceRegistration' || body.view?.code === 'KPMobileCall') {
       // Password accepted and no OTP needed — automatically call finish
       const finishResult = await doFinish(session);
       authSessions.delete(processId);
@@ -200,9 +198,7 @@ router.post('/verify-otp', async (req, res) => {
 
     const body = await resp.json();
 
-    if (body.view?.code === 'KPMobileCall') {
-      res.json({ success: true, step: 'call', processId: session.processId, desc: body.data?.desc, body });
-    } else if (body.data?.type === 'kpDeviceRegistration') {
+    if (body.data?.type === 'kpDeviceRegistration' || body.view?.code === 'KPMobileCall') {
       // OTP verified — automatically call finish
       const finishResult = await doFinish(session);
       authSessions.delete(processId);
@@ -216,57 +212,6 @@ router.post('/verify-otp', async (req, res) => {
       });
     } else {
       res.json({ success: false, processId: session.processId, step: 'otp_response', body });
-    }
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ═══════════════════════════════════════════════════
-//  Step 4 — Submit Mobile Call Code
-// ═══════════════════════════════════════════════════
-
-router.post('/verify-call', async (req, res) => {
-  const { code, processId } = req.body;
-  if (!code) return res.status(400).json({ error: 'code required' });
-  if (!processId) return res.status(400).json({ error: 'processId required' });
-
-  const session = authSessions.get(processId);
-  if (!session) return res.status(400).json({ error: 'Unknown processId' });
-
-  try {
-    const resp = await loggedFetch(`${KASPI_ENTRANCE_URL}/api/v1/entrance/step`, {
-      method: 'POST',
-      headers: {
-        ...ENTRANCE_HEADERS_BASE,
-        Referer: `${KASPI_ENTRANCE_URL}/process/universal-enter-phone-number?pId=${session.processId}&firstPage=KPUniversalEnterPhoneNumber`,
-        Cookie: entranceCookie(session.userToken),
-      },
-      body: JSON.stringify({
-        meta: { pId: session.processId, sn: 'ViewKPMobileCall' },
-        data: { userOtp: code, inputType: 'auto' },
-        actType: 'Success',
-      }),
-    });
-
-    const ut = extractUserToken(resp);
-    if (ut) session.userToken = ut;
-
-    const body = await resp.json();
-
-    if (body.data?.type === 'kpDeviceRegistration' || body.success === true) {
-      const finishResult = await doFinish(session);
-      authSessions.delete(processId);
-      res.json({
-        success: true,
-        processId: session.processId,
-        step: 'finished',
-        message: 'Call verified and finish completed',
-        otpBody: body,
-        ...finishResult,
-      });
-    } else {
-      res.json({ success: false, processId: session.processId, step: 'call_response', body });
     }
   } catch (err) {
     res.status(500).json({ error: err.message });

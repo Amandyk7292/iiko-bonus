@@ -302,12 +302,12 @@
             <button class="btn btn-primary" id="btnSendPhone" onclick="sendPhone()">Получить SMS код</button>
           </div>
 
-          <!-- Step 2: OTP / Call Code -->
+          <!-- Step 2: OTP -->
           <div id="authStep2" class="hidden">
-            <h2>Введите код подтверждения</h2>
-            <p id="otpDesc" style="font-size: 14px; color: #666; margin-bottom: 12px">Код из SMS (6 цифр) или последние 4 цифры звонка</p>
-            <label>Код</label>
-            <input type="tel" id="otpInput" class="otp-input" placeholder="• • • • • •" maxlength="6" inputmode="numeric" />
+            <h2>Введите код из SMS</h2>
+            <p id="otpDesc" style="font-size: 14px; color: #666; margin-bottom: 12px"></p>
+            <label>Код подтверждения</label>
+            <input type="tel" id="otpInput" class="otp-input" placeholder="• • • •" maxlength="6" inputmode="numeric" />
             <button class="btn btn-primary" id="btnVerifyOtp" onclick="verifyOtp()">Подтвердить</button>
             <button class="btn btn-secondary" onclick="resetAuth()">Назад</button>
           </div>

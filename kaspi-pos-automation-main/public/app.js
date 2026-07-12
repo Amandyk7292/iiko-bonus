@@ -1,6 +1,6 @@
 // ─── Kaspi Pay — Frontend App ───
 
-const API = '/kaspi-pos';
+const API = '';
 
 // ─── State ───
 
@@ -61,7 +61,7 @@ const saveSession = (data) => {
 
   // Sync session credentials to Express backend in-memory store
   if (merged.tokenSN && merged.vtokenSecret) {
-    fetch(API + '/api/session/credentials', {
+    fetch('/api/session/credentials', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -91,7 +91,7 @@ const tryRestoreSession = async () => {
     showMainScreen(session);
 
     // Sync restored session credentials to Express backend in-memory store
-    fetch(API + '/api/session/credentials', {
+    fetch('/api/session/credentials', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -154,7 +154,7 @@ const setAuthStep = (n) => {
   const dot4 = $('dot4');
   if (dot4) dot4.style.display = hasDot4 ? 'inline-block' : 'none';
 
-  for (let i = 1; i <= 5; i++) {
+  for (let i = 1; i <= 4; i++) {
     const step = $(`authStep${i}`);
     if (step) step.classList.toggle('hidden', i !== n);
     const dot = $(`dot${i}`);
@@ -177,19 +177,16 @@ const resetAuth = () => {
   setAuthStep(1);
   $('otpInput').value = '';
   $('passwordInput').value = '';
-  const callInput = $('callInput');
-  if (callInput) callInput.value = '';
   showAuthMsg('', '');
 };
 
 // ─── Auth Flow ───
 
 let authProcessId = null;
-let currentAuthAction = 'otp';
 
 const sendPhone = async () => {
   const phone = digitsOnly($('phoneInput').value);
-  if (!phone) return showAuthMsg('Введите номер', 'err');
+  if (phone.length < 10) return showAuthMsg('Введите 10 цифр номера', 'err');
 
   const btn = $('btnSendPhone');
   btn.disabled = true;
@@ -207,15 +204,10 @@ const sendPhone = async () => {
 
     const resp = await apiPost('/api/auth/send-phone', { phoneNumber: phone, processId: authProcessId });
     if (resp.success) {
-      currentAuthAction = 'otp';
       $('otpDesc').textContent = resp.desc || `SMS отправлен на +7${phone}`;
       setAuthStep(2);
     } else if (resp.view === 'KPEnterLoginPassword' || resp.body?.view?.code === 'KPEnterLoginPassword') {
       setAuthStep(4);
-    } else if (resp.view === 'KPMobileCall' || resp.body?.view?.code === 'KPMobileCall') {
-      currentAuthAction = 'call';
-      $('otpDesc').textContent = resp.desc || 'Вам поступит звонок. Введите последние 4 цифры номера.';
-      setAuthStep(2);
     } else {
       showAuthMsg(`Ошибка: ${resp.body?.data?.desc || JSON.stringify(resp.body)}`, 'err');
     }
@@ -244,12 +236,7 @@ const submitPassword = async () => {
         authProcessId = null;
         showMainScreen(resp);
       } else if (resp.step === 'otp') {
-        currentAuthAction = 'otp';
         $('otpDesc').textContent = resp.desc || 'Введите код из SMS для завершения';
-        setAuthStep(2);
-      } else if (resp.step === 'call') {
-        currentAuthAction = 'call';
-        $('otpDesc').textContent = resp.desc || 'Вам поступит звонок. Введите последние 4 цифры номера.';
         setAuthStep(2);
       } else {
         showAuthMsg(`Неизвестный статус: ${resp.step}`, 'err');
@@ -275,19 +262,11 @@ const verifyOtp = async () => {
   showAuthMsg('', '');
 
   try {
-    const isCall = currentAuthAction === 'call';
-    const endpoint = isCall ? '/api/auth/verify-call' : '/api/auth/verify-otp';
-    const payload = isCall ? { code: otp, processId: authProcessId } : { otp, processId: authProcessId };
-
-    const resp = await apiPost(endpoint, payload);
+    const resp = await apiPost('/api/auth/verify-otp', { otp, processId: authProcessId });
     if (resp.success && resp.step === 'finished') {
       saveSession(resp);
       authProcessId = null;
       showMainScreen(resp);
-    } else if (resp.success && resp.step === 'call') {
-      currentAuthAction = 'call';
-      $('otpDesc').textContent = resp.desc || 'Вам поступит звонок. Введите последние 4 цифры номера.';
-      setAuthStep(2);
     } else {
       showAuthMsg(`Неверный код или ошибка: ${resp.body?.data?.desc || JSON.stringify(resp.body)}`, 'err');
     }
@@ -316,7 +295,7 @@ const logout = async () => {
   clearSession();
 
   // Clear backend session store
-  fetch(API + '/api/session/credentials', { method: 'DELETE' }).catch(() => {});
+  fetch('/api/session/credentials', { method: 'DELETE' }).catch(() => {});
 
   await apiPost('/api/auth/logout', { tokenSN });
   $('mainScreen').classList.add('hidden');
@@ -803,7 +782,6 @@ const createRefund = async () => {
 Object.assign(window, {
   sendPhone,
   verifyOtp,
-  verifyCall,
   submitPassword,
   resetAuth,
   logout,
