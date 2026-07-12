@@ -4,6 +4,7 @@ import { loggedFetch, signedQrPayHeaders } from '../helpers.js';
 import { decryptSecret } from '../crypto.js';
 import { inactiveSessionResponse, isActiveSession } from '../activeSession.js';
 import { getKaspiErrorMessage, isKaspiSessionExpired, isKaspiSuccess } from '../kaspiResponse.js';
+import { getGlobalSession, saveGlobalSession } from '../sessionStorage.js';
 
 const router = Router();
 
@@ -54,6 +55,7 @@ router.get('/check', async (req, res) => {
     }
 
     if (resp.ok && isKaspiSuccess(body)) {
+      saveGlobalSession(session.tokenSN, session.vtokenSecret, session.profileId);
       return res.json({ active: true });
     }
 

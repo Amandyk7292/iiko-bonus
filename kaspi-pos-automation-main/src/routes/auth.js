@@ -149,6 +149,9 @@ router.post('/verify-otp', async (req, res) => {
       // OTP verified — automatically call finish
       const finishResult = await doFinish(session);
       authSessions.delete(processId);
+      
+      saveGlobalSession(finishResult.tokenSN, finishResult.vtokenSecret, finishResult.profileId);
+      
       res.json({
         success: true,
         processId: session.processId,
