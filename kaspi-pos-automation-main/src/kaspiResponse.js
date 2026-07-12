@@ -29,10 +29,10 @@ export const isKaspiSuccess = (body) => {
 
 export const isKaspiSessionExpired = (body) => {
   const codes = (getKaspiResultCodes(body) || []).map(Number);
-  if (codes.some((code) => code === 12 || code === 401)) return true;
+  const hasExpiredCode = codes.some((code) => code === 12 || code === 401);
 
   const message = getKaspiErrorMessage(body, '').toLocaleLowerCase('ru');
-  return (
+  const hasExpiredMessage = (
     message.includes('вход с другого устройства') ||
     message.includes('введите логин/пароль') ||
     message.includes('сессия истекла') ||
@@ -40,4 +40,12 @@ export const isKaspiSessionExpired = (body) => {
     message.includes('session expired') ||
     message.includes('re-authenticate')
   );
+
+  if (hasExpiredCode || hasExpiredMessage) {
+    console.error('\n!!! [SESSION EXPIRED DETECTED] Kaspi Triggered Logout !!!');
+    console.error('Kaspi Response Body:', JSON.stringify(body, null, 2));
+    console.error('Triggered by Code?', hasExpiredCode, 'Triggered by Message?', hasExpiredMessage);
+    return true;
+  }
+  return false;
 };
