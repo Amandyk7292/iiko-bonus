@@ -29,7 +29,7 @@ export const isKaspiSuccess = (body) => {
 
 export const isKaspiSessionExpired = (body) => {
   const codes = (getKaspiResultCodes(body) || []).map(Number);
-  if (codes.some((code) => code === 12 || code === -101001 || code === 401)) return true;
+  if (codes.some((code) => code === 12 || code === 401)) return true;
 
   const message = getKaspiErrorMessage(body, '').toLocaleLowerCase('ru');
   return (
