@@ -4,6 +4,7 @@ import { kaspiProxyJson, loggedFetch, signedQrPayHeaders } from '../helpers.js';
 import { decryptSecret } from '../crypto.js';
 import { trackPayment } from '../polling.js';
 import { normalizeKaspiPhoneNumber } from '../phone.js';
+import { getGlobalSession } from '../sessionStorage.js';
 import { inactiveSessionResponse, isActiveSession } from '../activeSession.js';
 import { getKaspiErrorMessage, isKaspiSessionExpired } from '../kaspiResponse.js';
 
@@ -17,9 +18,16 @@ const extractSession = (req) => ({
 });
 
 const requireAuth = (req, res, next) => {
-  const session = extractSession(req);
-  if (!session.tokenSN) return res.status(401).json({ error: 'Missing X-Token-SN header.' });
-  if (!session.vtokenSecret) return res.status(401).json({ error: 'Missing X-Vtoken-Secret header.' });
+  let session = extractSession(req);
+  if (!session.tokenSN || !session.vtokenSecret) {
+    const globalSession = getGlobalSession();
+    if (globalSession) {
+      session = globalSession;
+    }
+  }
+
+  if (!session.tokenSN) return res.status(401).json({ error: 'Missing X-Token-SN header or global session.' });
+  if (!session.vtokenSecret) return res.status(401).json({ error: 'Missing X-Vtoken-Secret header or global session.' });
   if (!isActiveSession(session.tokenSN)) return res.status(401).json(inactiveSessionResponse());
   try {
     session.decryptedSecret = decryptSecret(session.vtokenSecret);

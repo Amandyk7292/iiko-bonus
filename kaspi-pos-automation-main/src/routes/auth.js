@@ -12,6 +12,7 @@ import {
   encryptSecret,
   decryptSecret,
 } from '../crypto.js';
+import { saveGlobalSession } from '../sessionStorage.js';
 import { loggedFetch, extractUserToken, entranceCookie, generateUUID, nowISO } from '../helpers.js';
 import { activateSession, clearActiveSession } from '../activeSession.js';
 
@@ -476,6 +477,7 @@ router.post('/refresh', async (req, res) => {
       }
 
       activateSession(newTokenSN);
+      saveGlobalSession(newTokenSN, newVtokenSecret, session.profileId);
 
       res.json({
         success: true,

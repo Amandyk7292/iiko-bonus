@@ -28,13 +28,6 @@ class KaspiService {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        // Заголовки сессии (если они хранятся централизованно на бэкенде, 
-        // их нужно передавать сюда. Для простоты предполагается, 
-        // что микросервис сам может хранить сессию, если его так настроить, 
-        // либо мы передаем заглушку, которую нужно заменить на реальные данные)
-        'x-token-sn': process.env.KASPI_TOKEN_SN || '',
-        'x-profile-id': process.env.KASPI_PROFILE_ID || '',
-        'x-vtoken-secret': process.env.KASPI_VTOKEN_SECRET || '',
       },
       body: JSON.stringify({
         phoneNumber: normalizedPhone,
