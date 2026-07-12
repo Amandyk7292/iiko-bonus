@@ -24,6 +24,18 @@ app.use('/api/history', historyRoutes);
 app.use('/api/refund', refundRoutes);
 app.use('/api/session', sessionRoutes);
 
+// Public endpoint — no Kaspi auth required. Returns payment status from in-memory tracker.
+import { getTrackedPayments } from './src/polling.js';
+app.get('/api/payment/status/:id', (req, res) => {
+  const allTracked = getTrackedPayments();
+  const entry = allTracked[req.params.id];
+  if (!entry) {
+    // Payment not tracked (already resolved or never existed)
+    return res.json({ found: false, status: 'unknown' });
+  }
+  res.json({ found: true, status: entry.status, type: entry.type });
+});
+
 if (!process.env.KASPI_MOUNTED) {
   app.listen(PORT, () => {
     console.log(`\n  🟢 Kaspi Pay App running at http://localhost:${PORT}\n`);

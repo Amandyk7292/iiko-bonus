@@ -35,27 +35,35 @@ const checkStatus = async (req, res) => {
       return res.json({ success: true, status: order.status });
     }
 
-    // 2. Если в БД все еще pending — спрашиваем Kaspi напрямую через микросервис
+    // 2. Если в БД все еще pending — спрашиваем публичный эндпоинт трекера Kaspi
     try {
-      const response = await fetch(`${KASPI_URL}/api/invoice/details?operationId=${operationId}`);
+      const response = await fetch(`${KASPI_URL}/api/payment/status/${operationId}`);
       if (response.ok) {
-        const kaspiData = await response.json();
-        const kaspiStatus = kaspiData?.Data?.Status;
+        const tracker = await response.json();
+        console.log(`[checkStatus] Tracker response for ${operationId}:`, JSON.stringify(tracker));
 
-        if (kaspiStatus === 'Processed') {
-          // Обновляем статус в БД
-          await kaspiService.updateOrderStatus(operationId, 'paid');
-          return res.json({ success: true, status: 'paid' });
-        } else if (kaspiStatus === 'RemotePaymentCanceled' || kaspiStatus === 'RemotePaymentRejected') {
-          await kaspiService.updateOrderStatus(operationId, 'failed');
-          return res.json({ success: true, status: 'failed' });
-        } else if (kaspiStatus === 'Expired') {
-          await kaspiService.updateOrderStatus(operationId, 'expired');
-          return res.json({ success: true, status: 'expired' });
+        if (tracker.found) {
+          const s = tracker.status;
+          // Kaspi final statuses
+          if (s === 'Processed') {
+            await kaspiService.updateOrderStatus(operationId, 'paid');
+            return res.json({ success: true, status: 'paid' });
+          } else if (['RemotePaymentCanceled', 'RemotePaymentRejected', 'CancelledByUser', 'ProcessingFailed', 'Rejected', 'Error'].includes(s)) {
+            await kaspiService.updateOrderStatus(operationId, 'failed');
+            return res.json({ success: true, status: 'failed' });
+          } else if (['Expired', 'QrTokenDiscarded'].includes(s)) {
+            await kaspiService.updateOrderStatus(operationId, 'expired');
+            return res.json({ success: true, status: 'expired' });
+          }
+          // Intermediate status — still pending
+        } else {
+          // Payment not in tracker (already resolved and removed from tracker)
+          // It might have been resolved between polls. Let's return pending for now.
+          console.log(`[checkStatus] Payment ${operationId} not found in tracker (may already be resolved)`);
         }
       }
     } catch (kaspiErr) {
-      console.error('Ошибка запроса статуса у Kaspi:', kaspiErr.message);
+      console.error('Ошибка запроса статуса у Kaspi трекера:', kaspiErr.message);
     }
 
     // 3. Если ничего не помогло — возвращаем текущий статус из БД
