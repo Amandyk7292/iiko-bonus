@@ -15,6 +15,40 @@ let qrOperationId = null;
 
 const $ = (id) => document.getElementById(id);
 const digitsOnly = (str) => str.replace(/\D/g, '');
+const SESSION_KEY = 'kaspi_session';
+
+const getKaspiResultCodes = (data) => {
+  if (!data || typeof data !== 'object') return [];
+  const codes = [];
+  for (const field of ['StatusCode', 'ResultCode', 'Code', 'code']) {
+    const value = data[field];
+    if (value !== undefined && value !== null && value !== '') codes.push(value);
+  }
+  return codes;
+};
+
+const getKaspiResultCode = (data) => {
+  const codes = getKaspiResultCodes(data);
+  return codes.find((value) => Number(value) !== 0) ?? codes[0] ?? null;
+};
+
+const getKaspiErrorMessage = (data, fallback = 'Ошибка Kaspi') =>
+  data?.error || data?.Message || data?.Description || data?.message || fallback;
+
+const isKaspiSessionExpired = (data) => {
+  const codes = getKaspiResultCodes(data).map(Number);
+  if (codes.some((code) => [12, -101001, 401].includes(code))) return true;
+
+  const message = getKaspiErrorMessage(data, '').toLocaleLowerCase('ru');
+  return (
+    message.includes('вход с другого устройства') ||
+    message.includes('введите логин/пароль') ||
+    message.includes('сессия истекла') ||
+    message.includes('сессия неактивна') ||
+    message.includes('session expired') ||
+    message.includes('re-authenticate')
+  );
+};
 
 const getSession = () => {
   try {
@@ -24,19 +58,69 @@ const getSession = () => {
   }
 };
 
-const sessionHeaders = () => {
-  const s = getSession();
+const sameKaspiSession = (left, right) =>
+  String(left?.tokenSN || '') === String(right?.tokenSN || '') &&
+  String(left?.vtokenSecret || '') === String(right?.vtokenSecret || '');
+
+const sessionHeaders = (session = getSession()) => {
   const h = {};
-  if (s.tokenSN) h['X-Token-SN'] = s.tokenSN;
-  if (s.profileId) h['X-Profile-ID'] = String(s.profileId);
-  if (s.vtokenSecret) h['X-Vtoken-Secret'] = s.vtokenSecret;
+  if (session.tokenSN) h['X-Token-SN'] = session.tokenSN;
+  if (session.profileId) h['X-Profile-ID'] = String(session.profileId);
+  if (session.vtokenSecret) h['X-Vtoken-Secret'] = session.vtokenSecret;
   return h;
 };
 
+const expireKaspiSession = async (message, expiredSession) => {
+  if (!sameKaspiSession(expiredSession, getSession())) return false;
+
+  localStorage.removeItem(SESSION_KEY);
+  stopInvoicePolling();
+  stopQrPolling();
+
+  await fetch(API + '/api/session/credentials', {
+    method: 'DELETE',
+    headers: expiredSession?.tokenSN ? { 'X-Token-SN': expiredSession.tokenSN } : {},
+  }).catch(() => {});
+
+  const currentSession = getSession();
+  if (currentSession.tokenSN && !sameKaspiSession(expiredSession, currentSession)) {
+    showMainScreen(currentSession);
+    return false;
+  }
+
+  $('mainScreen')?.classList.add('hidden');
+  $('authScreen')?.classList.remove('hidden');
+  const clientInfo = $('clientInfo');
+  if (clientInfo) {
+    clientInfo.textContent = '';
+    clientInfo.classList.add('hidden');
+  }
+  setAuthStep(1);
+  showAuthMsg(message || 'Сессия Kaspi истекла. Войдите заново.', 'err');
+  updateRefreshAuthBtn();
+  return true;
+};
+
 const apiFetch = async (path, opts = {}) => {
-  opts.headers = { ...sessionHeaders(), ...(opts.headers || {}) };
+  const requestSession = getSession();
+  opts.headers = { ...sessionHeaders(requestSession), ...(opts.headers || {}) };
   const resp = await fetch(API + path, opts);
-  return resp.json();
+  const data = await resp.json().catch(() => ({}));
+  const isAuthRoute = path.startsWith('/api/auth');
+
+  if (!isAuthRoute && (resp.status === 401 || isKaspiSessionExpired(data))) {
+    const message = getKaspiErrorMessage(data, 'Сессия Kaspi истекла. Войдите заново.');
+    await expireKaspiSession(message, requestSession);
+    const error = new Error(message);
+    error.code = 'KASPI_SESSION_EXPIRED';
+    throw error;
+  }
+
+  if (!resp.ok && !isAuthRoute) {
+    throw new Error(getKaspiErrorMessage(data, `Ошибка запроса (${resp.status})`));
+  }
+
+  return data;
 };
 
 const apiPost = (path, body) =>
@@ -47,8 +131,6 @@ const apiPost = (path, body) =>
   });
 
 // ─── Session Persistence (localStorage) ───
-
-const SESSION_KEY = 'kaspi_session';
 
 const saveSession = (data) => {
   let prev = {};
@@ -67,9 +149,9 @@ const saveSession = (data) => {
       body: JSON.stringify({
         tokenSN: merged.tokenSN,
         vtokenSecret: merged.vtokenSecret,
-        profileId: merged.profileId || null
-      })
-    }).catch(err => console.error('Failed to sync session to server:', err));
+        profileId: merged.profileId || null,
+      }),
+    }).catch((err) => console.error('Failed to sync session to server:', err));
   }
 };
 
@@ -80,29 +162,18 @@ const checkSession = async () => {
     const resp = await apiFetch('/api/session/check');
     if (resp.active === true) return { active: true };
     return { active: false, error: resp.error || 'Сессия неактивна' };
-  } catch {
-    return { active: false, error: 'Ошибка проверки сессии' };
+  } catch (err) {
+    return { active: false, error: err.message || 'Ошибка проверки сессии' };
   }
 };
 
 const tryRestoreSession = async () => {
   const session = getSession();
   if (session.tokenSN && session.vtokenSecret) {
-    showMainScreen(session);
-
-    // Sync restored session credentials to Express backend in-memory store
-    fetch(API + '/api/session/credentials', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        tokenSN: session.tokenSN,
-        vtokenSecret: session.vtokenSecret,
-        profileId: session.profileId || null
-      })
-    }).catch(err => console.error('Failed to sync restored session to server:', err));
-
-    // Verify session is still active on the server
+    // Verify the browser session before copying it into the backend store.
     const result = await checkSession();
+    if (!sameKaspiSession(session, getSession())) return false;
+
     if (!result.active) {
       clearSession();
       $('mainScreen').classList.add('hidden');
@@ -111,6 +182,19 @@ const tryRestoreSession = async () => {
       showAuthMsg(result.error || 'Сессия истекла. Войдите заново.', 'err');
       return false;
     }
+
+    // Only an active session may be used by server-side polling and API calls.
+    fetch(API + '/api/session/credentials', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tokenSN: session.tokenSN,
+        vtokenSecret: session.vtokenSecret,
+        profileId: session.profileId || null,
+      }),
+    }).catch((err) => console.error('Failed to sync restored session to server:', err));
+
+    showMainScreen(session);
     return true;
   }
   clearSession();
@@ -150,7 +234,7 @@ window.addEventListener('DOMContentLoaded', () => {
 // ─── Auth UI Helpers ───
 
 const setAuthStep = (n) => {
-  const hasDot4 = (n === 4);
+  const hasDot4 = n === 4;
   const dot4 = $('dot4');
   if (dot4) dot4.style.display = hasDot4 ? 'inline-block' : 'none';
 
@@ -242,7 +326,10 @@ const submitPassword = async () => {
         showAuthMsg(`Неизвестный статус: ${resp.step}`, 'err');
       }
     } else {
-      showAuthMsg(`Ошибка входа: ${resp.body?.data?.desc || resp.body?.view?.code || JSON.stringify(resp.body)}`, 'err');
+      showAuthMsg(
+        `Ошибка входа: ${resp.body?.data?.desc || resp.body?.view?.code || JSON.stringify(resp.body)}`,
+        'err',
+      );
     }
   } catch (e) {
     showAuthMsg(`Ошибка: ${e.message}`, 'err');
@@ -305,7 +392,6 @@ const logout = async () => {
   setAuthStep(1);
   showAuthMsg('', '');
 };
-
 
 const switchTab = (tab) => {
   $('invoiceTab').classList.toggle('hidden', tab !== 'invoice');
@@ -407,7 +493,7 @@ const createInvoice = async () => {
       alert(`Ошибка: ${resp.Message || JSON.stringify(resp)}`);
     }
   } catch (e) {
-    alert(`Ошибка: ${e.message}`);
+    if (e.code !== 'KASPI_SESSION_EXPIRED') alert(`Ошибка: ${e.message}`);
   } finally {
     btn.disabled = false;
     btn.textContent = 'Выставить счёт';
@@ -563,19 +649,34 @@ $('clientPhone').addEventListener('blur', async function () {
   }
   try {
     const resp = await apiFetch(`/api/invoice/client-info?phoneNumber=${phone}`);
-    if (resp.Data?.ClientName) {
+    const code = getKaspiResultCode(resp);
+    if (resp.error || (code !== null && Number(code) !== 0)) {
+      info.textContent = '✗ ' + getKaspiErrorMessage(resp);
+      info.style.background = '#ffebee';
+      info.style.color = '#c62828';
+      info.classList.remove('hidden');
+    } else if (resp.Data?.ClientName) {
       info.textContent = `✓ ${resp.Data.ClientName} (${resp.Data.ClientStatus})`;
       info.style.background = '#e8f5e9';
       info.style.color = '#2e7d32';
       info.classList.remove('hidden');
+    } else if (code === null) {
+      info.textContent = '✗ Kaspi вернул некорректный ответ. Повторите попытку';
+      info.style.background = '#ffebee';
+      info.style.color = '#c62828';
+      info.classList.remove('hidden');
     } else {
-      info.textContent = '✗ Клиент не найден';
+      info.textContent = '✗ Клиент не найден в Kaspi';
       info.style.background = '#ffebee';
       info.style.color = '#c62828';
       info.classList.remove('hidden');
     }
-  } catch {
-    info.classList.add('hidden');
+  } catch (err) {
+    if (err.code === 'KASPI_SESSION_EXPIRED') return;
+    info.textContent = '✗ ' + (err.message || 'Ошибка сети');
+    info.style.background = '#ffebee';
+    info.style.color = '#c62828';
+    info.classList.remove('hidden');
   }
 });
 
@@ -803,8 +904,4 @@ Object.assign(window, {
 
 (() => {
   setAuthStep(1);
-  const session = getSession();
-  if (session.tokenSN && session.vtokenSecret) {
-    showMainScreen(session);
-  }
 })();
