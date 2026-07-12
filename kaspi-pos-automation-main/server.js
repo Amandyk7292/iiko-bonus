@@ -83,6 +83,7 @@ app.get('/api/payment/check/:id', async (req, res) => {
     }
 
     console.log(`[payment/check] ${req.params.id} → all endpoints failed`);
+    res.json({ success: true, kaspiStatus: null, error: 'not_found_in_any_endpoint' });
   } catch (err) {
     console.error(`[payment/check] Error for ${req.params.id}:`, err.message);
     res.json({ success: false, error: err.message, kaspiStatus: null });
