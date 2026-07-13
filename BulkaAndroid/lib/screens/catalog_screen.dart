@@ -337,318 +337,329 @@ class _CatalogScreenState extends State<CatalogScreen>
         ),
         centerTitle: true,
       ),
-      body: Column(
-        children: [
-          // Search & Filter
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: SizedBox(
-                    height: 48,
-                    child: TextField(
-                      onChanged: (val) => setState(() => _searchQuery = val),
-                      decoration: InputDecoration(
-                        hintText: 'Поиск товаров',
-                        prefixIcon: const Icon(Icons.search_rounded, color: _textDark),
-                        filled: true,
-                        fillColor: _milkyBackground,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: BorderSide(color: _almond.withValues(alpha: 0.6)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: BorderSide(color: _almond.withValues(alpha: 0.6)),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: const BorderSide(color: _bulkaYellow, width: 2),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                IconButton(
-                  onPressed: _openFilterModal,
-                  tooltip: 'Фильтр',
-                  style: IconButton.styleFrom(
-                    backgroundColor: _bulkaYellow,
-                    foregroundColor: _textDark,
-                    minimumSize: const Size(48, 48),
-                    tapTargetSize: MaterialTapTargetSize.padded,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                  ),
-                  icon: const Icon(Icons.tune_rounded),
-                ),
-              ],
-            ),
-          ),
-
-          // Horizontal Categories Bar
-          SizedBox(
-            height: 38,
-            child: ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              scrollDirection: Axis.horizontal,
-              itemCount: _categories.length,
-              separatorBuilder: (context, index) => const SizedBox(width: 8),
-              itemBuilder: (context, i) {
-                final cat = _categories[i];
-                final active = _selectedCategory == cat;
-                return ChoiceChip(
-                  label: Text(cat),
-                  selected: active,
-                  onSelected: (_) => setState(() => _selectedCategory = cat),
-                  labelStyle: TextStyle(
-                    color: _textDark,
-                    fontWeight: active ? FontWeight.w700 : FontWeight.w400,
-                    fontSize: 13,
-                  ),
-                  selectedColor: _bulkaYellow,
-                  backgroundColor: _milkyBackground,
-                  side: BorderSide(
-                    color: active
-                        ? _bulkaYellow
-                        : _almond.withValues(alpha: 0.5),
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  materialTapTargetSize: MaterialTapTargetSize.padded,
-                );
-              },
-            ),
-          ),
-
-          const SizedBox(height: 6),
-          Center(
-            child: IconButton(
-              onPressed: _openCategoriesModal,
-              tooltip: 'Открыть категории',
-              style: IconButton.styleFrom(
-                backgroundColor: _milkyBackground,
-                foregroundColor: _textDark,
-                minimumSize: const Size(48, 48),
-                tapTargetSize: MaterialTapTargetSize.padded,
-              ),
-              icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 20),
-            ),
-          ),
-          const SizedBox(height: 10),
-
-          // Location Banner (Самовывоз/Адрес)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Semantics(
-              button: true,
-              label: 'Адрес: $addressText',
-              child: BulkaPressScale(
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () async {
-                      await Navigator.of(context).push<void>(
-                        MaterialPageRoute(
-                          builder: (_) => const AddressSelectionScreen(),
-                        ),
-                      );
-                      _loadCurrentAddress();
-                    },
-                    borderRadius: BorderRadius.circular(20),
-                    child: Ink(
-                      padding: const EdgeInsets.fromLTRB(18, 16, 16, 16),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFFFFDF6C), Color(0xFFFFB814)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: _softShadow,
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Данное меню доступно\nдля САМОВЫВОЗА!',
-                                  style: TextStyle(
-                                    fontFamily: _headingFont,
-                                    fontSize: 18,
-                                    height: 1.2,
-                                    color: _textDark,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Row(
-                                  children: [
-                                    const Icon(
-                                      Icons.location_on_rounded,
-                                      color: _textDark,
-                                      size: 16,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Expanded(
-                                      child: Text(
-                                        'Адрес: $addressText',
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
-                                          color: _textDark,
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 13,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Container(
-                            width: 58,
-                            height: 58,
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(
-                              Icons.storefront_rounded,
-                              color: _textDark,
-                              size: 32,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // Section Header
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  _selectedCategory,
-                  style: const TextStyle(
-                    fontFamily: _headingFont,
-                    fontSize: 20,
-                    color: _textDark,
-                  ),
-                ),
-                TextButton.icon(
-                  onPressed: _openCategoriesModal,
-                  style: TextButton.styleFrom(
-                    foregroundColor: _textDark.withValues(alpha: 0.7),
-                    minimumSize: const Size(48, 48),
-                    tapTargetSize: MaterialTapTargetSize.padded,
-                  ),
-                  label: const Text('Все'),
-                  icon: const Icon(Icons.chevron_right_rounded, size: 20),
-                  iconAlignment: IconAlignment.end,
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 10),
-
-          // Product List
-          Expanded(
-            child: _isLoading
-                ? const _CatalogSkeletonGrid()
-                : _loadError != null
-                ? Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
+      body: RefreshIndicator(
+        color: _bulkaYellow,
+        onRefresh: _loadMenu,
+        child: CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: Column(
+                children: [
+                  // Search & Filter
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                    child: Row(
                       children: [
-                        Icon(
-                          Icons.cloud_off_rounded,
-                          color: _textDark.withValues(alpha: 0.3),
-                          size: 48,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Не удалось загрузить меню',
-                          style: TextStyle(
-                            color: _textDark.withValues(alpha: 0.5),
-                            fontSize: 15,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        TextButton(
-                          onPressed: _loadMenu,
-                          child: const Text(
-                            'Повторить',
-                            style: TextStyle(
-                              color: _bulkaYellow,
-                              fontWeight: FontWeight.w600,
+                        Expanded(
+                          child: SizedBox(
+                            height: 48,
+                            child: TextField(
+                              onChanged: (val) => setState(() => _searchQuery = val),
+                              decoration: InputDecoration(
+                                hintText: 'Поиск товаров',
+                                prefixIcon: const Icon(Icons.search_rounded, color: _textDark),
+                                filled: true,
+                                fillColor: _milkyBackground,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(24),
+                                  borderSide: BorderSide(color: _almond.withValues(alpha: 0.6)),
+                                ),
+                                enabledBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(24),
+                                  borderSide: BorderSide(color: _almond.withValues(alpha: 0.6)),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(24),
+                                  borderSide: const BorderSide(color: _bulkaYellow, width: 2),
+                                ),
+                              ),
                             ),
                           ),
+                        ),
+                        const SizedBox(width: 10),
+                        IconButton(
+                          onPressed: _openFilterModal,
+                          tooltip: 'Фильтр',
+                          style: IconButton.styleFrom(
+                            backgroundColor: _bulkaYellow,
+                            foregroundColor: _textDark,
+                            minimumSize: const Size(48, 48),
+                            tapTargetSize: MaterialTapTargetSize.padded,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                          ),
+                          icon: const Icon(Icons.tune_rounded),
                         ),
                       ],
                     ),
-                  )
-                : _filteredProducts.isEmpty
-                ? Center(
-                    child: Text(
-                      'В этой категории пока нет товаров',
-                      style: TextStyle(color: _textDark.withValues(alpha: 0.5)),
-                    ),
-                  )
-                : RefreshIndicator(
-                    color: _bulkaYellow,
-                    onRefresh: _loadMenu,
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        final textScale = MediaQuery.textScalerOf(
-                          context,
-                        ).scale(1);
-                        final mainAxisExtent = textScale > 1.2 ? 305.0 : 275.0;
-                        return GridView.builder(
-                          padding: EdgeInsets.fromLTRB(
-                            16,
-                            4,
-                            16,
-                            BulkaLayout.bottomNavContentInset(context),
+                  ),
+
+                  // Horizontal Categories Bar
+                  SizedBox(
+                    height: 38,
+                    child: ListView.separated(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _categories.length,
+                      separatorBuilder: (context, index) => const SizedBox(width: 8),
+                      itemBuilder: (context, i) {
+                        final cat = _categories[i];
+                        final active = _selectedCategory == cat;
+                        return ChoiceChip(
+                          label: Text(cat),
+                          selected: active,
+                          onSelected: (_) => setState(() => _selectedCategory = cat),
+                          labelStyle: TextStyle(
+                            color: _textDark,
+                            fontWeight: active ? FontWeight.w700 : FontWeight.w400,
+                            fontSize: 13,
                           ),
-                          gridDelegate:
-                              SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: constraints.maxWidth >= 700
-                                    ? 3
-                                    : 2,
-                                mainAxisSpacing: 14,
-                                crossAxisSpacing: 14,
-                                mainAxisExtent: mainAxisExtent,
-                              ),
-                          itemCount: _filteredProducts.length,
-                          itemBuilder: (context, index) {
-                            final p = _filteredProducts[index];
-                            final qty = cart.getQuantity(p.id);
-                            return _buildProductCard(p, qty);
-                          },
+                          selectedColor: _bulkaYellow,
+                          backgroundColor: _milkyBackground,
+                          side: BorderSide(
+                            color: active
+                                ? _bulkaYellow
+                                : _almond.withValues(alpha: 0.5),
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          materialTapTargetSize: MaterialTapTargetSize.padded,
                         );
                       },
                     ),
                   ),
-          ),
-        ],
+
+                  const SizedBox(height: 6),
+                  Center(
+                    child: IconButton(
+                      onPressed: _openCategoriesModal,
+                      tooltip: 'Открыть категории',
+                      style: IconButton.styleFrom(
+                        backgroundColor: _milkyBackground,
+                        foregroundColor: _textDark,
+                        minimumSize: const Size(48, 48),
+                        tapTargetSize: MaterialTapTargetSize.padded,
+                      ),
+                      icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 20),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Location Banner (Самовывоз/Адрес)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Semantics(
+                      button: true,
+                      label: 'Адрес: $addressText',
+                      child: BulkaPressScale(
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            onTap: () async {
+                              await Navigator.of(context).push<void>(
+                                MaterialPageRoute(
+                                  builder: (_) => const AddressSelectionScreen(),
+                                ),
+                              );
+                              _loadCurrentAddress();
+                            },
+                            borderRadius: BorderRadius.circular(20),
+                            child: Ink(
+                              padding: const EdgeInsets.fromLTRB(18, 16, 16, 16),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [Color(0xFFFFDF6C), Color(0xFFFFB814)],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: _softShadow,
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        const Text(
+                                          'Данное меню доступно\nдля САМОВЫВОЗА!',
+                                          style: TextStyle(
+                                            fontFamily: _headingFont,
+                                            fontSize: 18,
+                                            height: 1.2,
+                                            color: _textDark,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Row(
+                                          children: [
+                                            const Icon(
+                                              Icons.location_on_rounded,
+                                              color: _textDark,
+                                              size: 16,
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Expanded(
+                                              child: Text(
+                                                'Адрес: $addressText',
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: const TextStyle(
+                                                  color: _textDark,
+                                                  fontWeight: FontWeight.w600,
+                                                  fontSize: 13,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Container(
+                                    width: 58,
+                                    height: 58,
+                                    decoration: const BoxDecoration(
+                                      color: Colors.white,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.storefront_rounded,
+                                      color: _textDark,
+                                      size: 32,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Section Header
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          _selectedCategory,
+                          style: const TextStyle(
+                            fontFamily: _headingFont,
+                            fontSize: 20,
+                            color: _textDark,
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: _openCategoriesModal,
+                          style: TextButton.styleFrom(
+                            foregroundColor: _textDark.withValues(alpha: 0.7),
+                            minimumSize: const Size(48, 48),
+                            tapTargetSize: MaterialTapTargetSize.padded,
+                          ),
+                          label: const Text('Все'),
+                          icon: const Icon(Icons.chevron_right_rounded, size: 20),
+                          iconAlignment: IconAlignment.end,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+              ),
+            ),
+
+            // Product List
+            if (_isLoading)
+              const SliverToBoxAdapter(child: _CatalogSkeletonGrid())
+            else if (_loadError != null)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 40),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.cloud_off_rounded,
+                        color: _textDark.withValues(alpha: 0.3),
+                        size: 48,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Не удалось загрузить меню',
+                        style: TextStyle(
+                          color: _textDark.withValues(alpha: 0.5),
+                          fontSize: 15,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextButton(
+                        onPressed: _loadMenu,
+                        child: const Text(
+                          'Повторить',
+                          style: TextStyle(
+                            color: _bulkaYellow,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else if (_filteredProducts.isEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 40),
+                  child: Center(
+                    child: Text(
+                      'В этой категории пока нет товаров',
+                      style: TextStyle(color: _textDark.withValues(alpha: 0.5)),
+                    ),
+                  ),
+                ),
+              )
+            else
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  4,
+                  16,
+                  BulkaLayout.bottomNavContentInset(context),
+                ),
+                sliver: SliverLayoutBuilder(
+                  builder: (context, constraints) {
+                    final textScale = MediaQuery.textScalerOf(context).scale(1);
+                    final mainAxisExtent = textScale > 1.2 ? 305.0 : 275.0;
+                    return SliverGrid(
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: constraints.crossAxisExtent >= 700 ? 3 : 2,
+                        mainAxisSpacing: 14,
+                        crossAxisSpacing: 14,
+                        mainAxisExtent: mainAxisExtent,
+                      ),
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final p = _filteredProducts[index];
+                          final qty = cart.getQuantity(p.id);
+                          return _buildProductCard(p, qty);
+                        },
+                        childCount: _filteredProducts.length,
+                      ),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -860,6 +871,7 @@ class _CatalogSkeletonGrid extends StatelessWidget {
     return GridView.builder(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
       physics: const NeverScrollableScrollPhysics(),
+      shrinkWrap: true,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
         mainAxisSpacing: 14,

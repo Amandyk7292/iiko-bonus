@@ -25,28 +25,37 @@ class _NetworkImage extends StatelessWidget {
         ),
       );
     }
-    // A screen-sized decode is sharp enough for the fullscreen story viewer
-    // while remaining stable during Hero flights (whose constraints change on
-    // every frame). This avoids both oversized source decodes and cache churn.
-    final cacheWidth = min(
-      2048,
-      (MediaQuery.sizeOf(context).width *
-              MediaQuery.devicePixelRatioOf(context))
-          .ceil(),
-    );
-    return Image.network(
-      url,
-      fit: fit,
-      cacheWidth: cacheWidth,
-      gaplessPlayback: true,
-      filterQuality: FilterQuality.medium,
-      semanticLabel: semanticLabel,
-      errorBuilder: (_, _, _) => const ColoredBox(color: _lightCardHighlight),
-      loadingBuilder: (context, child, progress) {
-        if (progress == null) return child;
-        return const ColoredBox(
-          color: _lightCardHighlight,
-          child: Center(child: CircularProgressIndicator(color: _bulkaYellow)),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Decode list thumbnails near their painted size instead of decoding
+        // every catalog image at full-screen width. This sharply reduces GPU
+        // uploads and memory pressure while scrolling on high-DPI iPhones.
+        final viewportWidth = MediaQuery.sizeOf(context).width;
+        final logicalWidth = constraints.hasBoundedWidth
+            ? constraints.maxWidth
+            : viewportWidth;
+        final cacheWidth = min(
+          2048,
+          (logicalWidth * MediaQuery.devicePixelRatioOf(context)).ceil(),
+        );
+        return Image.network(
+          url,
+          fit: fit,
+          cacheWidth: cacheWidth,
+          gaplessPlayback: true,
+          filterQuality: FilterQuality.medium,
+          semanticLabel: semanticLabel,
+          errorBuilder: (_, _, _) =>
+              const ColoredBox(color: _lightCardHighlight),
+          loadingBuilder: (context, child, progress) {
+            if (progress == null) return child;
+            return const ColoredBox(
+              color: _lightCardHighlight,
+              child: Center(
+                child: CircularProgressIndicator(color: _bulkaYellow),
+              ),
+            );
+          },
         );
       },
     );

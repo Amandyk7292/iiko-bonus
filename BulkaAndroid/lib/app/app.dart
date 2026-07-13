@@ -9,7 +9,9 @@ class BulkaBonusApp extends StatefulWidget {
 
 class _BulkaBonusAppState extends State<BulkaBonusApp>
     with WidgetsBindingObserver {
-  static const _minimumSplashDuration = Durations.extralong1;
+  static final _minimumSplashDuration = kIsWeb
+      ? Duration.zero
+      : Durations.extralong1;
 
   final _api = BulkaApiClient();
   SharedPreferences? _prefs;
@@ -278,6 +280,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
 
   Widget _buildHome() {
     if (_booting) {
+      if (kIsWeb) return const _WebLoadingSurface();
       return SplashScreen(
         key: const ValueKey('app-stage-boot'),
         text: 'splash_loading'.tr,
@@ -293,6 +296,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     }
     final customer = _customer;
     if (customer == null) {
+      if (kIsWeb) return const _WebLoadingSurface();
       return SplashScreen(
         key: const ValueKey('app-stage-profile-loading'),
         text: 'splash_loading_profile'.tr,
@@ -306,6 +310,15 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       onLogout: _logout,
       onRefreshProfile: () => _refreshProfile(_savedPhone!),
     );
+  }
+}
+
+class _WebLoadingSurface extends StatelessWidget {
+  const _WebLoadingSurface();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(backgroundColor: Colors.white);
   }
 }
 

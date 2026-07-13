@@ -114,124 +114,43 @@ class _PersistentTabSwitcher extends StatefulWidget {
   State<_PersistentTabSwitcher> createState() => _PersistentTabSwitcherState();
 }
 
-class _PersistentTabSwitcherState extends State<_PersistentTabSwitcher>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late int _fromIndex;
-  int _direction = 1;
-  bool _reduceMotion = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _fromIndex = widget.index;
-    _controller = AnimationController(
-      vsync: this,
-      duration: BulkaMotion.emphasized,
-      value: 1,
-    );
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final reduceMotion = BulkaMotion.reduced(context);
-    if (_reduceMotion == reduceMotion) return;
-    _reduceMotion = reduceMotion;
-    _controller.duration = reduceMotion
-        ? Duration.zero
-        : BulkaMotion.emphasized;
-    if (reduceMotion) {
-      _controller
-        ..stop()
-        ..value = 1;
-    }
-  }
+class _PersistentTabSwitcherState extends State<_PersistentTabSwitcher> {
+  late final Set<int> _visited = {widget.index};
 
   @override
   void didUpdateWidget(covariant _PersistentTabSwitcher oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.index == oldWidget.index) return;
-    _fromIndex = oldWidget.index;
-    _direction = widget.index > oldWidget.index ? 1 : -1;
-    if (_reduceMotion) {
-      _controller.value = 1;
-    } else {
-      _controller.forward(from: 0);
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
+    _visited.add(widget.index);
   }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) {
-        final rawProgress = _reduceMotion ? 1.0 : _controller.value;
-        final progress = BulkaMotion.enterCurve.transform(rawProgress);
-        final transitioning = rawProgress < 1 && _fromIndex != widget.index;
-        final paintOrder = [
-          for (var i = 0; i < widget.children.length; i++)
-            if (i != widget.index) i,
-          widget.index,
-        ];
-
-        return Stack(
-          fit: StackFit.expand,
-          children: [
-            // Paint the incoming page last. This keeps the outgoing page as a
-            // stable backdrop and avoids animating opacity on two full screens.
-            for (final i in paintOrder)
-              _buildTabSlot(i, progress, transitioning),
-          ],
-        );
-      },
+    // iOS tabs switch immediately. Keeping the transition on the small nav
+    // controls avoids compositing two full-screen CanvasKit/SkWasm surfaces on
+    // every frame, which is a common source of scroll and tap jank on Safari.
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        for (var i = 0; i < widget.children.length; i++)
+          if (_visited.contains(i)) _buildTabSlot(i),
+      ],
     );
   }
 
-  Widget _buildTabSlot(int index, double progress, bool transitioning) {
-    final incoming = index == widget.index;
-    final outgoing = transitioning && index == _fromIndex;
-    final visible = incoming || outgoing;
-
-    var opacity = 1.0;
-    var dx = 0.0;
-    var scale = 1.0;
-    if (transitioning && incoming) {
-      opacity = 0.88 + (0.12 * progress);
-      dx = _direction * 12 * (1 - progress);
-      scale = 0.992 + (0.008 * progress);
-    } else if (outgoing) {
-      dx = -_direction * 6 * progress;
-      scale = 1 - (0.004 * progress);
-    }
-
+  Widget _buildTabSlot(int slotIndex) {
+    final visible = slotIndex == widget.index;
     return Offstage(
-      key: ValueKey('tab-slot-$index'),
+      key: ValueKey('tab-slot-$slotIndex'),
       offstage: !visible,
       child: TickerMode(
         enabled: visible,
         child: ExcludeSemantics(
-          excluding: !incoming,
+          excluding: !visible,
           child: ExcludeFocus(
-            excluding: !incoming,
+            excluding: !visible,
             child: IgnorePointer(
-              ignoring: !incoming,
-              child: Opacity(
-                opacity: opacity.clamp(0, 1),
-                child: Transform.translate(
-                  offset: Offset(dx, 0),
-                  child: Transform.scale(
-                    scale: scale,
-                    child: RepaintBoundary(child: widget.children[index]),
-                  ),
-                ),
-              ),
+              ignoring: !visible,
+              child: RepaintBoundary(child: widget.children[slotIndex]),
             ),
           ),
         ),
@@ -252,6 +171,9 @@ class FloatingNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cartCount = context.select<CartProvider, int>(
+      (cart) => cart.itemCount,
+    );
     final items = [
       _NavItem('nav_home'.tr, Icons.home, Icons.home_outlined),
       _NavItem(
@@ -273,44 +195,44 @@ class FloatingNavBar extends StatelessWidget {
       _NavItem('nav_profile'.tr, Icons.person, Icons.person_outline),
     ];
 
-    return SafeArea(
-      minimum: const EdgeInsets.fromLTRB(0, 0, 0, 0),
-      child: Container(
-        height: BulkaLayout.floatingNavBarHeight,
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.98),
-          boxShadow: [
-            BoxShadow(
-              color: _cocoa.withValues(alpha: 0.08),
-              blurRadius: 24,
-              offset: const Offset(0, -10),
+    final safeBottom = BulkaLayout.safeBottomInset(context);
+    return Container(
+      height: BulkaLayout.floatingNavBarHeight + safeBottom,
+      padding: EdgeInsets.only(bottom: safeBottom),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.98),
+        boxShadow: [
+          BoxShadow(
+            color: _cocoa.withValues(alpha: 0.08),
+            blurRadius: 24,
+            offset: const Offset(0, -10),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: BulkaAdaptiveFrame(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              BulkaLayout.floatingNavBarHorizontalPadding,
+              BulkaLayout.floatingNavBarTopPadding,
+              BulkaLayout.floatingNavBarHorizontalPadding,
+              BulkaLayout.floatingNavBarBottomPadding,
             ),
-          ],
-        ),
-        child: Material(
-          color: Colors.transparent,
-          child: BulkaAdaptiveFrame(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                BulkaLayout.floatingNavBarHorizontalPadding,
-                BulkaLayout.floatingNavBarTopPadding,
-                BulkaLayout.floatingNavBarHorizontalPadding,
-                BulkaLayout.floatingNavBarBottomPadding,
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  for (var i = 0; i < items.length; i++)
-                    Expanded(
-                      child: _NavButton(
-                        key: ValueKey('nav-$i'),
-                        item: items[i],
-                        selected: i == selectedIndex,
-                        onTap: () => onChanged(i),
-                      ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (var i = 0; i < items.length; i++)
+                  Expanded(
+                    child: _NavButton(
+                      key: ValueKey('nav-$i'),
+                      item: items[i],
+                      selected: i == selectedIndex,
+                      badgeCount: i == 2 ? cartCount : 0,
+                      onTap: () => onChanged(i),
                     ),
-                ],
-              ),
+                  ),
+              ],
             ),
           ),
         ),
@@ -323,12 +245,14 @@ class _NavButton extends StatelessWidget {
   const _NavButton({
     required this.item,
     required this.selected,
+    required this.badgeCount,
     required this.onTap,
     super.key,
   });
 
   final _NavItem item;
   final bool selected;
+  final int badgeCount;
   final VoidCallback onTap;
 
   @override
@@ -391,26 +315,65 @@ class _NavButton extends StatelessWidget {
                               ]
                             : null,
                       ),
-                      child: AnimatedSwitcher(
-                        duration: duration,
-                        switchInCurve: BulkaMotion.enterCurve,
-                        switchOutCurve: BulkaMotion.exitCurve,
-                        transitionBuilder: (child, animation) => FadeTransition(
-                          opacity: animation,
-                          child: ScaleTransition(
-                            scale: Tween<double>(
-                              begin: 0.88,
-                              end: 1,
-                            ).animate(animation),
-                            child: child,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        alignment: Alignment.center,
+                        children: [
+                          AnimatedSwitcher(
+                            duration: duration,
+                            switchInCurve: BulkaMotion.enterCurve,
+                            switchOutCurve: BulkaMotion.exitCurve,
+                            transitionBuilder: (child, animation) =>
+                                FadeTransition(
+                                  opacity: animation,
+                                  child: ScaleTransition(
+                                    scale: Tween<double>(
+                                      begin: 0.88,
+                                      end: 1,
+                                    ).animate(animation),
+                                    child: child,
+                                  ),
+                                ),
+                            child: Icon(
+                              selected ? item.selectedIcon : item.icon,
+                              key: ValueKey(selected),
+                              color: isCenter ? Colors.white : color,
+                              size: isCenter ? 26 : 23,
+                            ),
                           ),
-                        ),
-                        child: Icon(
-                          selected ? item.selectedIcon : item.icon,
-                          key: ValueKey(selected),
-                          color: isCenter ? Colors.white : color,
-                          size: isCenter ? 26 : 23,
-                        ),
+                          if (badgeCount > 0)
+                            Positioned(
+                              top: -5,
+                              right: -5,
+                              child: Container(
+                                constraints: const BoxConstraints(
+                                  minWidth: 19,
+                                  minHeight: 19,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 5,
+                                ),
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: _errorRed,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: Text(
+                                  badgeCount > 99 ? '99+' : '$badgeCount',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    height: 1,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                   ),
