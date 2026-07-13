@@ -124,6 +124,14 @@ const appStaticHeaders = (res, filePath) => {
   }
 };
 
+// API routes must be registered before the SPA fallbacks below. Otherwise
+// GET /admin/api/* is swallowed by /admin/* and returns index.html with 200.
+app.use(adminRoutes);
+app.use(loyaltyRoutes);
+app.use(walletRoutes);
+app.use(publicRoutes);
+app.use(legacyRoutes);
+
 app.use(
   '/admin',
   express.static(path.join(process.cwd(), 'admin-ui/dist'), { setHeaders: adminStaticHeaders }),
@@ -140,12 +148,6 @@ app.use(
 app.get('/app/*', (req, res) => {
   res.sendFile(path.join(process.cwd(), 'public/app', 'index.html'));
 });
-
-app.use(adminRoutes);
-app.use(loyaltyRoutes);
-app.use(walletRoutes);
-app.use(publicRoutes);
-app.use(legacyRoutes);
 
 // Error handling middleware
 app.use((err, req, res, _next) => {
