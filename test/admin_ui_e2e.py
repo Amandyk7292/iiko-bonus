@@ -142,6 +142,12 @@ with sync_playwright() as playwright:
     assert cashback_input.input_value() == ""
     cashback_input.fill("5")
     assert cashback_input.input_value() == "5"
+
+    spend_input = page.locator("#tier-spend")
+    spend_input.fill("")
+    spend_input.type("55", delay=75)
+    assert spend_input.input_value() == "55"
+    assert page.evaluate("document.activeElement?.id") == "tier-spend"
     page.get_by_role("button", name="Закрыть").click()
 
     page.set_viewport_size({"width": 375, "height": 812})

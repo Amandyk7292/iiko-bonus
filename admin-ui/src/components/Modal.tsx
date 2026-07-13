@@ -14,9 +14,12 @@ export default function Modal({ open, title, description, onClose, children, siz
   const { t } = useI18n();
   const closeRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLElement>(null);
+  const onCloseRef = useRef(onClose);
   const reactId = useId();
   const titleId = `${reactId}-title`;
   const descriptionId = `${reactId}-description`;
+
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
@@ -29,7 +32,7 @@ export default function Modal({ open, title, description, onClose, children, siz
     }, 0);
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (event.key !== 'Tab' || !panelRef.current) return;
@@ -58,7 +61,7 @@ export default function Modal({ open, title, description, onClose, children, siz
       document.body.classList.remove('modal-open');
       previous?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
   return (
