@@ -135,6 +135,15 @@ with sync_playwright() as playwright:
     assert page.get_by_role("heading", name="Бронза", exact=True).is_visible()
     assert page.get_by_role("heading", name="Золото", exact=True).is_visible()
 
+    page.get_by_role("button", name="Создать уровень").click()
+    cashback_input = page.locator("#tier-cashback")
+    assert cashback_input.input_value() == "0"
+    cashback_input.fill("")
+    assert cashback_input.input_value() == ""
+    cashback_input.fill("5")
+    assert cashback_input.input_value() == "5"
+    page.get_by_role("button", name="Закрыть").click()
+
     page.set_viewport_size({"width": 375, "height": 812})
     page.wait_for_timeout(400)
     sidebar_box = page.locator(".sagi-sidebar").bounding_box()

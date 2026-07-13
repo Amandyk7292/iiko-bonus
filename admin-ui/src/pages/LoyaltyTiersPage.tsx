@@ -8,8 +8,14 @@ import { useI18n, type Locale } from '../lib/i18n';
 
 const emptyLocalized = (): LocalizedText => ({ ru: '', kk: '', en: '' });
 const contentLocales: Locale[] = ['ru', 'kk', 'en'];
+type NumericDraftValue = number | '';
+type TierDraft = Omit<LoyaltyTierInput, 'minSpend' | 'cashbackPercent' | 'sortOrder'> & {
+  minSpend: NumericDraftValue;
+  cashbackPercent: NumericDraftValue;
+  sortOrder: NumericDraftValue;
+};
 
-function createDraft(sortOrder: number): LoyaltyTierInput {
+function createDraft(sortOrder: number): TierDraft {
   return {
     code: '',
     names: emptyLocalized(),
@@ -29,7 +35,7 @@ export default function LoyaltyTiersPage() {
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState<LoyaltyTierInput>(() => createDraft(0));
+  const [draft, setDraft] = useState<TierDraft>(() => createDraft(0));
   const [activeLanguage, setActiveLanguage] = useState<Locale>('ru');
   const [submitting, setSubmitting] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -82,7 +88,13 @@ export default function LoyaltyTiersPage() {
   const validate = () => {
     if (!draft.code.trim() || !/^[a-z0-9_-]+$/i.test(draft.code.trim())) return t('tiers.validationCode');
     if (contentLocales.some(language => !draft.names[language].trim())) return t('tiers.validationNames');
-    if (draft.minSpend < 0 || draft.cashbackPercent < 0 || draft.cashbackPercent > 100) return t('tiers.validationNumbers');
+    if (
+      draft.minSpend === '' ||
+      draft.cashbackPercent === '' ||
+      draft.minSpend < 0 ||
+      draft.cashbackPercent < 0 ||
+      draft.cashbackPercent > 100
+    ) return t('tiers.validationNumbers');
     return '';
   };
 
@@ -102,7 +114,7 @@ export default function LoyaltyTiersPage() {
       descriptions: Object.fromEntries(contentLocales.map(language => [language, (draft.descriptions[language] || draft.names[language]).trim()])) as unknown as LocalizedText,
       minSpend: Number(draft.minSpend),
       cashbackPercent: Number(draft.cashbackPercent),
-      sortOrder: Number(draft.sortOrder),
+      sortOrder: draft.sortOrder === '' ? 0 : draft.sortOrder,
     };
     try {
       if (editingId) await api.updateLoyaltyTier(editingId, payload);
@@ -263,15 +275,15 @@ export default function LoyaltyTiersPage() {
             </div>
             <div className="field-group">
               <label className="field-label" htmlFor="tier-order">{t('common.order')}</label>
-              <input id="tier-order" type="number" min="0" className="input-classic" value={draft.sortOrder} onChange={event => setDraft(current => ({ ...current, sortOrder: Number(event.target.value) }))} />
+              <input id="tier-order" type="number" min="0" className="input-classic" value={draft.sortOrder} onChange={event => setDraft(current => ({ ...current, sortOrder: event.target.value === '' ? '' : event.target.valueAsNumber }))} />
             </div>
             <div className="field-group">
               <label className="field-label" htmlFor="tier-spend">{t('tiers.minSpend')} *</label>
-              <input id="tier-spend" type="number" min="0" step="1" className="input-classic" value={draft.minSpend} onChange={event => setDraft(current => ({ ...current, minSpend: Number(event.target.value) }))} required />
+              <input id="tier-spend" type="number" min="0" step="1" className="input-classic" value={draft.minSpend} onChange={event => setDraft(current => ({ ...current, minSpend: event.target.value === '' ? '' : event.target.valueAsNumber }))} required />
             </div>
             <div className="field-group">
               <label className="field-label" htmlFor="tier-cashback">{t('tiers.cashback')} *</label>
-              <input id="tier-cashback" type="number" min="0" max="100" step="0.01" className="input-classic" value={draft.cashbackPercent} onChange={event => setDraft(current => ({ ...current, cashbackPercent: Number(event.target.value) }))} required />
+              <input id="tier-cashback" type="number" min="0" max="100" step="0.01" className="input-classic" value={draft.cashbackPercent} onChange={event => setDraft(current => ({ ...current, cashbackPercent: event.target.value === '' ? '' : event.target.valueAsNumber }))} required />
             </div>
           </div>
 
@@ -305,7 +317,7 @@ export default function LoyaltyTiersPage() {
           <div className="tier-form-preview">
             <span className="section-eyebrow">{t('common.preview')}</span>
             <strong>{draft.names[activeLanguage] || t('tiers.name')}</strong>
-            <span>{t('tiers.previewSpend', { amount: formatNumber(draft.minSpend) })} · {t('tiers.previewCashback', { percent: formatNumber(draft.cashbackPercent, { maximumFractionDigits: 2 }) })}</span>
+            <span>{t('tiers.previewSpend', { amount: formatNumber(draft.minSpend === '' ? 0 : draft.minSpend) })} · {t('tiers.previewCashback', { percent: formatNumber(draft.cashbackPercent === '' ? 0 : draft.cashbackPercent, { maximumFractionDigits: 2 }) })}</span>
           </div>
 
           <div className="modal-actions">
