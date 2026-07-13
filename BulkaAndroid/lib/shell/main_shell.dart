@@ -7,6 +7,9 @@ class MainShell extends StatefulWidget {
     required this.transactions,
     required this.onLogout,
     required this.onRefreshProfile,
+    this.initialTab = 0,
+    this.onTabChanged,
+    this.onOpenOrders,
     super.key,
   });
 
@@ -15,17 +18,21 @@ class MainShell extends StatefulWidget {
   final List<BonusTransaction> transactions;
   final Future<void> Function() onLogout;
   final Future<void> Function() onRefreshProfile;
+  final int initialTab;
+  final ValueChanged<int>? onTabChanged;
+  final Future<void> Function()? onOpenOrders;
 
   @override
   State<MainShell> createState() => _MainShellState();
 }
 
 class _MainShellState extends State<MainShell> {
-  int _tab = 0;
+  late int _tab;
 
   @override
   void initState() {
     super.initState();
+    _tab = widget.initialTab.clamp(0, 4).toInt();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) PushNotifications.listenForeground(context);
     });
@@ -35,6 +42,7 @@ class _MainShellState extends State<MainShell> {
     if (index == _tab) return;
     BulkaMotion.selection();
     setState(() => _tab = index);
+    widget.onTabChanged?.call(index);
   }
 
   @override
@@ -64,14 +72,7 @@ class _MainShellState extends State<MainShell> {
         transactions: widget.transactions,
         onExplore: () => _changeTab(1),
       ),
-      _HelpfulFeatureState(
-        key: const PageStorageKey('promos-tab'),
-        title: 'nav_promos'.tr,
-        icon: Icons.card_giftcard_rounded,
-        subtitle: 'promos_sub'.tr,
-        actionLabel: 'promos_action'.tr,
-        onAction: () => _changeTab(0),
-      ),
+      PromosScreen(key: const PageStorageKey('promos-tab'), api: widget.api),
       ProfileScreen(
         key: const PageStorageKey('profile-tab'),
         api: widget.api,
@@ -80,6 +81,7 @@ class _MainShellState extends State<MainShell> {
         onBack: () => _changeTab(0),
         onLogout: widget.onLogout,
         onRefreshProfile: widget.onRefreshProfile,
+        onOpenOrders: widget.onOpenOrders ?? () async {},
       ),
     ];
 
@@ -196,8 +198,9 @@ class FloatingNavBar extends StatelessWidget {
     ];
 
     final safeBottom = BulkaLayout.safeBottomInset(context);
+    final compact = BulkaLayout.compactNavigation(context);
     return Container(
-      height: BulkaLayout.floatingNavBarHeight + safeBottom,
+      height: BulkaLayout.navigationBarHeight(context) + safeBottom,
       padding: EdgeInsets.only(bottom: safeBottom),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.98),
@@ -213,11 +216,11 @@ class FloatingNavBar extends StatelessWidget {
         color: Colors.transparent,
         child: BulkaAdaptiveFrame(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(
+            padding: EdgeInsets.fromLTRB(
               BulkaLayout.floatingNavBarHorizontalPadding,
-              BulkaLayout.floatingNavBarTopPadding,
+              compact ? 3 : BulkaLayout.floatingNavBarTopPadding,
               BulkaLayout.floatingNavBarHorizontalPadding,
-              BulkaLayout.floatingNavBarBottomPadding,
+              compact ? 3 : BulkaLayout.floatingNavBarBottomPadding,
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -229,6 +232,7 @@ class FloatingNavBar extends StatelessWidget {
                       item: items[i],
                       selected: i == selectedIndex,
                       badgeCount: i == 2 ? cartCount : 0,
+                      compact: compact,
                       onTap: () => onChanged(i),
                     ),
                   ),
@@ -246,6 +250,7 @@ class _NavButton extends StatelessWidget {
     required this.item,
     required this.selected,
     required this.badgeCount,
+    required this.compact,
     required this.onTap,
     super.key,
   });
@@ -253,6 +258,7 @@ class _NavButton extends StatelessWidget {
   final _NavItem item;
   final bool selected;
   final int badgeCount;
+  final bool compact;
   final VoidCallback onTap;
 
   @override
@@ -260,7 +266,7 @@ class _NavButton extends StatelessWidget {
     final duration = BulkaMotion.duration(context, BulkaMotion.fast);
     final color = selected ? _textDark : _textDark.withValues(alpha: 0.44);
     final isCenter = item.prominent;
-    const labelFontSize = 11.0;
+    final labelFontSize = compact ? 10.0 : 11.0;
     return Semantics(
       button: true,
       selected: selected,
@@ -271,9 +277,12 @@ class _NavButton extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(32),
           child: SizedBox(
-            height: BulkaLayout.navItemHeight,
+            height: compact ? 60 : BulkaLayout.navItemHeight,
             child: Padding(
-              padding: EdgeInsets.only(top: isCenter ? 0 : 7, bottom: 4),
+              padding: EdgeInsets.only(
+                top: isCenter ? 0 : (compact ? 3 : 7),
+                bottom: compact ? 2 : 4,
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -285,11 +294,11 @@ class _NavButton extends StatelessWidget {
                       duration: duration,
                       curve: BulkaMotion.standardCurve,
                       width: isCenter
-                          ? BulkaLayout.centerNavIconSize
-                          : BulkaLayout.navIconSize,
+                          ? (compact ? 40 : BulkaLayout.centerNavIconSize)
+                          : (compact ? 27 : BulkaLayout.navIconSize),
                       height: isCenter
-                          ? BulkaLayout.centerNavIconSize
-                          : BulkaLayout.navIconSize,
+                          ? (compact ? 40 : BulkaLayout.centerNavIconSize)
+                          : (compact ? 27 : BulkaLayout.navIconSize),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: isCenter
@@ -337,7 +346,9 @@ class _NavButton extends StatelessWidget {
                               selected ? item.selectedIcon : item.icon,
                               key: ValueKey(selected),
                               color: isCenter ? Colors.white : color,
-                              size: isCenter ? 26 : 23,
+                              size: isCenter
+                                  ? (compact ? 23 : 26)
+                                  : (compact ? 20 : 23),
                             ),
                           ),
                           if (badgeCount > 0)
@@ -395,82 +406,6 @@ class _NavButton extends StatelessWidget {
                 ],
               ),
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _HelpfulFeatureState extends StatelessWidget {
-  const _HelpfulFeatureState({
-    required this.title,
-    required this.icon,
-    required this.subtitle,
-    required this.actionLabel,
-    required this.onAction,
-    super.key,
-  });
-
-  final String title;
-  final IconData icon;
-  final String subtitle;
-  final String actionLabel;
-  final VoidCallback onAction;
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(title: Text(title)),
-      body: Center(
-        child: Container(
-          margin: const EdgeInsets.all(24),
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(28),
-            boxShadow: [
-              BoxShadow(
-                color: _cocoa.withValues(alpha: 0.07),
-                blurRadius: 28,
-                offset: const Offset(0, 14),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: _caramel, size: 42),
-              const SizedBox(height: 14),
-              Text(
-                title,
-                style: const TextStyle(
-                  color: _textDark,
-                  fontFamily: _headingFont,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                subtitle,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: _textDark.withValues(alpha: 0.62),
-                  fontSize: 15,
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: GradientButton(
-                  onPressed: onAction,
-                  child: Text(actionLabel),
-                ),
-              ),
-            ],
           ),
         ),
       ),

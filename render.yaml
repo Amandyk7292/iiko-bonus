@@ -11,15 +11,15 @@ services:
       - key: NODE_ENV
         value: production
       - key: PUBLIC_BASE_URL
-        value: https://iiko-bonus.onrender.com
+        value: https://bulka.com.kz
       - key: ALLOWED_ORIGINS
-        value: https://iiko-bonus.onrender.com
+        value: https://bulka.com.kz
       - key: KASPI_POS_ENABLED
-        value: "true"
+        value: "false"
       - key: RUN_BACKGROUND_WORKERS
-        value: "true"
+        value: "false"
       - key: RUN_BOTS
-        sync: false
+        value: "false"
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY

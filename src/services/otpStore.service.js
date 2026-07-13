@@ -1,25 +1,20 @@
 const { supabase } = require('../config/supabase');
 
-// In-memory Map as PRIMARY store (fast, always works within same process)
+// Memory is only a local read-through cache. Supabase remains authoritative so
+// OTP verification is consistent across restarts and multiple processes.
 const memoryStore = new Map();
 
 const otpStore = {
   async set(phone, data) {
-    // 1. Always save to memory (instant, reliable)
     memoryStore.set(phone, data);
-
-    // 2. Also save to Supabase as backup
-    try {
-      const { error } = await supabase.from('whatsapp_sessions').upsert({
-        id: `otp_${phone}`,
-        data: JSON.stringify(data),
-        expires_at: new Date(data.expires).toISOString(),
-      });
-      if (error) {
-        console.error('[OTP] Supabase save failed:', error.message);
-      }
-    } catch (err) {
-      console.error('[OTP] Supabase save exception:', err.message);
+    const { error } = await supabase.from('whatsapp_sessions').upsert({
+      id: `otp_${phone}`,
+      data,
+      expires_at: new Date(data.expires).toISOString(),
+    });
+    if (error) {
+      memoryStore.delete(phone);
+      throw new Error(`OTP storage unavailable: ${error.message}`);
     }
   },
 
@@ -33,19 +28,16 @@ const otpStore = {
         .eq('id', `otp_${phone}`)
         .single();
 
-      if (error) {
-        console.log('[OTP] Supabase get failed:', error.message);
-        return null;
-      }
+      if (error && error.code !== 'PGRST116') throw error;
 
       if (data && data.data) {
-        const parsed = JSON.parse(data.data);
+        const parsed = typeof data.data === 'string' ? JSON.parse(data.data) : data.data;
         // Cache in memory for faster next access
         memoryStore.set(phone, parsed);
         return parsed;
       }
-    } catch (err) {
-      console.error('[OTP] Supabase get exception:', err.message);
+    } catch (error) {
+      throw new Error(`OTP storage unavailable: ${error.message}`, { cause: error });
     }
 
     return null;
@@ -53,11 +45,18 @@ const otpStore = {
 
   async delete(phone) {
     memoryStore.delete(phone);
-    try {
-      await supabase.from('whatsapp_sessions').delete().eq('id', `otp_${phone}`);
-    } catch (_err) {
-      // ignore delete errors
-    }
+    const { error } = await supabase.from('whatsapp_sessions').delete().eq('id', `otp_${phone}`);
+    if (error) throw new Error(`OTP storage unavailable: ${error.message}`);
+  },
+
+  async consume(phone, code) {
+    const { data, error } = await supabase.rpc('consume_whatsapp_otp', {
+      p_phone: String(phone || ''),
+      p_code: String(code || ''),
+    });
+    if (error) throw new Error(`OTP storage unavailable: ${error.message}`);
+    if (data?.status === 'success' || data?.status === 'expired') memoryStore.delete(phone);
+    return data || { status: 'expired' };
   },
 };
 

@@ -10,5 +10,8 @@ router.post('/api/loyalty/customer', loyaltyController.getCustomerInfo);
 router.post('/api/loyalty/search', loyaltyController.searchCustomersHandler);
 router.post('/api/loyalty/calculate', loyaltyController.calculateBonus);
 router.post('/api/loyalty/apply', loyaltyController.applyBonus);
+router.post('/api/loyalty/reserve', loyaltyController.reserveBonus);
+router.post('/api/loyalty/commit', loyaltyController.commitReservedBonus);
+router.post('/api/loyalty/cancel', loyaltyController.cancelReservedBonus);
 
 module.exports = router;

@@ -1,40 +1,91 @@
 part of '../main.dart';
 
 class CustomerOrdersScreen extends StatefulWidget {
-  const CustomerOrdersScreen({required this.api, super.key});
+  const CustomerOrdersScreen({
+    required this.api,
+    this.initialCompleted = false,
+    this.onScopeChanged,
+    super.key,
+  });
 
   final BulkaApiClient api;
+  final bool initialCompleted;
+  final ValueChanged<bool>? onScopeChanged;
 
   @override
   State<CustomerOrdersScreen> createState() => _CustomerOrdersScreenState();
 }
 
-class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
-  bool _completed = false;
+class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
+    with WidgetsBindingObserver {
+  Timer? _refreshTimer;
+  StreamSubscription<Map<String, dynamic>>? _orderEventSubscription;
+  late bool _completed;
   bool _loading = true;
+  bool _refreshInFlight = false;
   String? _error;
   List<CustomerOrder> _orders = const [];
 
   @override
   void initState() {
     super.initState();
+    _completed = widget.initialCompleted;
+    WidgetsBinding.instance.addObserver(this);
+    _startRefreshTimer();
+    _orderEventSubscription = PushNotifications.orderEvents.listen(
+      (_) => unawaited(_load(silent: true)),
+    );
     unawaited(_load());
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _refreshTimer?.cancel();
+    _orderEventSubscription?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _startRefreshTimer();
+      unawaited(_load(silent: true));
+    } else {
+      _refreshTimer?.cancel();
+    }
+  }
+
+  void _startRefreshTimer() {
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => unawaited(_load(silent: true)),
+    );
+  }
+
+  Future<void> _load({bool silent = false}) async {
+    if (_refreshInFlight) return;
+    _refreshInFlight = true;
+    if (!silent) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final orders = await widget.api.getCustomerOrders(completed: _completed);
       if (!mounted) return;
-      setState(() => _orders = orders);
+      setState(() {
+        _orders = orders;
+        _error = null;
+      });
     } catch (_) {
       if (!mounted) return;
-      setState(() => _error = 'orders_load_error'.tr);
+      if (!silent) setState(() => _error = 'orders_load_error'.tr);
     } finally {
-      if (mounted) setState(() => _loading = false);
+      _refreshInFlight = false;
+      if (!silent && mounted) setState(() => _loading = false);
     }
   }
 
@@ -44,6 +95,7 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
       _completed = completed;
       _orders = const [];
     });
+    widget.onScopeChanged?.call(completed);
     unawaited(_load());
   }
 
@@ -93,7 +145,9 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
 
   Widget _buildContent() {
     if (_loading) {
-      return const Center(child: CircularProgressIndicator(color: _bulkaYellow));
+      return const Center(
+        child: CircularProgressIndicator(color: _bulkaYellow),
+      );
     }
     if (_error != null) {
       return Center(
@@ -128,7 +182,11 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen> {
 }
 
 class _OrderTab extends StatelessWidget {
-  const _OrderTab({required this.label, required this.selected, required this.onTap});
+  const _OrderTab({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
   final String label;
   final bool selected;
   final VoidCallback onTap;
@@ -178,8 +236,15 @@ class _OrdersEmptyState extends StatelessWidget {
             Container(
               width: 142,
               height: 142,
-              decoration: const BoxDecoration(color: _lightCardHighlight, shape: BoxShape.circle),
-              child: const Icon(Icons.bakery_dining_outlined, size: 68, color: _almond),
+              decoration: const BoxDecoration(
+                color: _lightCardHighlight,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.bakery_dining_outlined,
+                size: 68,
+                color: _almond,
+              ),
             ),
             const SizedBox(height: 22),
             Text(
@@ -191,7 +256,10 @@ class _OrdersEmptyState extends StatelessWidget {
             Text(
               'orders_empty_sub'.tr,
               textAlign: TextAlign.center,
-              style: TextStyle(color: _textDark.withValues(alpha: .62), fontSize: 16),
+              style: TextStyle(
+                color: _textDark.withValues(alpha: .62),
+                fontSize: 16,
+              ),
             ),
           ],
         ),
@@ -223,7 +291,13 @@ class _CustomerOrderCard extends StatelessWidget {
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: context.bulkaColors.cardBorder),
-        boxShadow: const [BoxShadow(color: Color(0x0C000000), blurRadius: 18, offset: Offset(0, 6))],
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0C000000),
+            blurRadius: 18,
+            offset: Offset(0, 6),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -233,7 +307,10 @@ class _CustomerOrderCard extends StatelessWidget {
               Container(
                 width: 46,
                 height: 46,
-                decoration: const BoxDecoration(color: _lightCardHighlight, shape: BoxShape.circle),
+                decoration: const BoxDecoration(
+                  color: _lightCardHighlight,
+                  shape: BoxShape.circle,
+                ),
                 child: const Icon(Icons.receipt_long_rounded, color: _textDark),
               ),
               const SizedBox(width: 12),
@@ -243,24 +320,46 @@ class _CustomerOrderCard extends StatelessWidget {
                   children: [
                     Text(
                       '${'orders_number'.tr} ${order.number}',
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                     const SizedBox(height: 3),
-                    Text(_date(order.createdAt), style: TextStyle(color: _textDark.withValues(alpha: .58))),
+                    Text(
+                      _date(order.createdAt),
+                      style: TextStyle(color: _textDark.withValues(alpha: .58)),
+                    ),
                   ],
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-                decoration: BoxDecoration(color: _statusColor.withValues(alpha: .1), borderRadius: BorderRadius.circular(20)),
-                child: Text(_status, style: TextStyle(color: _statusColor, fontSize: 12, fontWeight: FontWeight.w800)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 7,
+                ),
+                decoration: BoxDecoration(
+                  color: _statusColor.withValues(alpha: .1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  _status,
+                  style: TextStyle(
+                    color: _statusColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 16),
           _OrderInfoRow(label: 'orders_branch'.tr, value: order.branch),
           if (order.pickupTime != null)
-            _OrderInfoRow(label: 'orders_pickup'.tr, value: _date(order.pickupTime!)),
+            _OrderInfoRow(
+              label: 'orders_pickup'.tr,
+              value: _date(order.pickupTime!),
+            ),
           const Divider(height: 24),
           ...order.items.take(3).map((item) {
             final name = _asString(item['name']);
@@ -269,14 +368,26 @@ class _CustomerOrderCard extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 7),
               child: Row(
                 children: [
-                  Expanded(child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis)),
-                  Text('× $quantity', style: const TextStyle(fontWeight: FontWeight.w700)),
+                  Expanded(
+                    child: Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Text(
+                    '× $quantity',
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
                 ],
               ),
             );
           }),
           if (order.items.length > 3)
-            Text('+ ${order.items.length - 3}', style: TextStyle(color: _textDark.withValues(alpha: .55))),
+            Text(
+              '+ ${order.items.length - 3}',
+              style: TextStyle(color: _textDark.withValues(alpha: .55)),
+            ),
           const Divider(height: 24),
           _OrderInfoRow(
             label: 'orders_bonus'.tr,
@@ -288,6 +399,14 @@ class _CustomerOrderCard extends StatelessWidget {
             value: '${_formatCartMoney(order.amount)} ₸',
             strong: true,
           ),
+          if (order.paymentStatus == 'refunded')
+            _OrderInfoRow(
+              label: 'orders_refund'.tr,
+              value:
+                  '${_formatCartMoney(order.refundAmount ?? order.amount)} ₸',
+              valueColor: _successGreen,
+              strong: true,
+            ),
           if (order.cancellationReason?.isNotEmpty == true) ...[
             const SizedBox(height: 10),
             Text(
@@ -302,7 +421,12 @@ class _CustomerOrderCard extends StatelessWidget {
 }
 
 class _OrderInfoRow extends StatelessWidget {
-  const _OrderInfoRow({required this.label, required this.value, this.strong = false, this.valueColor});
+  const _OrderInfoRow({
+    required this.label,
+    required this.value,
+    this.strong = false,
+    this.valueColor,
+  });
   final String label;
   final String value;
   final bool strong;
@@ -315,13 +439,23 @@ class _OrderInfoRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(child: Text(label, style: TextStyle(fontWeight: strong ? FontWeight.w800 : FontWeight.w500))),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontWeight: strong ? FontWeight.w800 : FontWeight.w500,
+              ),
+            ),
+          ),
           const SizedBox(width: 12),
           Flexible(
             child: Text(
               value,
               textAlign: TextAlign.right,
-              style: TextStyle(color: valueColor, fontWeight: strong ? FontWeight.w900 : FontWeight.w600),
+              style: TextStyle(
+                color: valueColor,
+                fontWeight: strong ? FontWeight.w900 : FontWeight.w600,
+              ),
             ),
           ),
         ],

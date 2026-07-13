@@ -1,6 +1,18 @@
 const { supabase } = require('../config/supabase');
 const crypto = require('crypto');
 
+const customerError = (message, statusCode = 400) =>
+  Object.assign(new Error(message), { statusCode });
+
+const safeHashEquals = (actual, expected) => {
+  const actualBuffer = Buffer.from(String(actual).toLowerCase());
+  const expectedBuffer = Buffer.from(String(expected).toLowerCase());
+  return (
+    actualBuffer.length === expectedBuffer.length &&
+    crypto.timingSafeEqual(actualBuffer, expectedBuffer)
+  );
+};
+
 /**
  * Генерирует секретный идентификатор карты для Google/Apple Wallet
  */
@@ -281,6 +293,10 @@ async function getStats() {
         totalEarned += amt;
         if (isRecent) earnedLast30Days += amt;
       }
+      if (t.type === 'refund_reversal') {
+        totalEarned = Math.max(0, totalEarned - amt);
+        if (isRecent) earnedLast30Days = Math.max(0, earnedLast30Days - amt);
+      }
     });
   }
 
@@ -319,14 +335,17 @@ async function searchCustomers(query) {
   if (trimQuery.startsWith('BULKA-OTP-')) {
     const parts = trimQuery.split('-');
     // BULKA, OTP, phone, timeWindow, hash
-    if (parts.length >= 5) {
+    if (parts.length === 5) {
       const phone = parts[2];
       const timeWindow = parseInt(parts[3], 10);
       const hash = parts[4];
       const currentWindow = Math.floor(Date.now() / 300000); // 300000 ms = 5 minutes
 
-      if (isNaN(timeWindow) || Math.abs(currentWindow - timeWindow) > 1) {
-        throw new Error(
+      if (!/^\d{10,15}$/.test(phone) || !/^\d+$/.test(parts[3]) || !/^[0-9a-f]{16}$/i.test(hash)) {
+        throw customerError('Некорректный QR-код клиента');
+      }
+      if (Number.isNaN(timeWindow) || Math.abs(currentWindow - timeWindow) > 1) {
+        throw customerError(
           'Срок действия QR-кода истек. Попросите гостя обновить QR-код в приложении.',
         );
       }
@@ -338,8 +357,8 @@ async function searchCustomers(query) {
         .update(`${phone}:${timeWindow}`)
         .digest('hex')
         .slice(0, 16);
-      if (hash !== expectedHash) {
-        throw new Error('Недействительный или поддельный QR-код.');
+      if (!safeHashEquals(hash, expectedHash)) {
+        throw customerError('Недействительный или поддельный QR-код.', 401);
       }
 
       const { data, error } = await supabase
@@ -347,10 +366,12 @@ async function searchCustomers(query) {
         .select('*')
         .in('phone', [phone, `+${phone}`])
         .limit(1);
-      if (error || !data || data.length === 0)
-        throw new Error('Клиент по динамическому коду не найден');
+      if (error) throw error;
+      if (!data || data.length === 0)
+        throw customerError('Клиент по динамическому коду не найден', 404);
       return data;
     }
+    throw customerError('Некорректный QR-код клиента');
   }
 
   // 2. Проверка зашифрованной карты Wallet (CARD-UUID-HASH)
@@ -359,6 +380,14 @@ async function searchCustomers(query) {
     if (lastDash > 5) {
       const customerId = trimQuery.slice(5, lastDash);
       const hashSuffix = trimQuery.slice(lastDash + 1);
+      if (
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+          customerId,
+        ) ||
+        !/^[0-9a-f]{16}$/i.test(hashSuffix)
+      ) {
+        throw customerError('Некорректный код карты Wallet');
+      }
 
       const { data: customer, error } = await supabase
         .from('customers')
@@ -375,12 +404,14 @@ async function searchCustomers(query) {
           .digest('hex')
           .slice(0, 16)
           .toUpperCase();
-        if (hashSuffix === expectedSuffix) {
+        if (safeHashEquals(hashSuffix, expectedSuffix)) {
           return [customer];
         }
       }
-      throw new Error('Недействительная карта лояльности Wallet.');
+      if (error) throw error;
+      throw customerError('Недействительная карта лояльности Wallet.', 401);
     }
+    throw customerError('Некорректный код карты Wallet');
   }
 
   // 3. Обычный поиск по имени или телефону
@@ -433,14 +464,7 @@ async function updateFcmTokenByCustomerId(customerId, fcmToken, language = null)
     updates.preferred_language = norm;
   }
   const { error } = await supabase.from('customers').update(updates).eq('id', customerId);
-  if (error) {
-    // If preferred_language column doesn't exist yet, fallback to updating only fcm_token
-    const { error: fallbackErr } = await supabase
-      .from('customers')
-      .update({ fcm_token: fcmToken })
-      .eq('id', customerId);
-    if (fallbackErr) throw new Error(fallbackErr.message);
-  }
+  if (error) throw new Error(error.message);
   return true;
 }
 

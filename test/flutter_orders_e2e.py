@@ -6,7 +6,7 @@ import sys
 from playwright.sync_api import sync_playwright
 
 
-BASE_URL = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:3000/app/"
+BASE_URL = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:3000/"
 ROOT = Path(__file__).resolve().parents[1]
 CUSTOMER = {
     "id": "11111111-1111-4111-8111-111111111111",
@@ -35,7 +35,7 @@ ORDERS = [
         "updatedAt": "2026-07-13T08:44:00Z",
     }
 ]
-orders_requested = {"value": False}
+orders_requested = {"count": 0}
 
 
 def fulfill(route, payload):
@@ -49,7 +49,7 @@ def api_route(route):
     elif path.endswith("/api/customer/loyalty"):
         fulfill(route, {"success": True, "loyalty": CUSTOMER["tier"]})
     elif path.endswith("/api/customer/orders"):
-        orders_requested["value"] = True
+        orders_requested["count"] += 1
         fulfill(route, {"success": True, "orders": ORDERS, "total": 1, "page": 1, "pageSize": 50})
     elif path.endswith("/api/guest/stories"):
         fulfill(route, {"success": True, "stories": []})
@@ -63,7 +63,7 @@ with sync_playwright() as playwright:
     browser = playwright.chromium.launch(headless=True)
     context = browser.new_context(viewport={"width": 393, "height": 852}, locale="ru-RU", reduced_motion="reduce")
     page = context.new_page()
-    page.route("https://iiko-bonus.onrender.com/**", api_route)
+    page.route("**/api/**", api_route)
     page.add_init_script(
         f"""
         (() => {{
@@ -87,11 +87,23 @@ with sync_playwright() as playwright:
     page.wait_for_timeout(700)
     page.mouse.click(190, 391)
     page.wait_for_timeout(1500)
-    assert orders_requested["value"]
+    assert orders_requested["count"] >= 1
     assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
     screenshot = ROOT / "scratch" / "flutter-orders-mobile.png"
     page.screenshot(path=str(screenshot), full_page=True)
-    print(f"Flutter orders E2E passed; screenshot: {screenshot}")
+
+    requests_before_poll = orders_requested["count"]
+    page.wait_for_timeout(5500)
+    assert orders_requested["count"] > requests_before_poll
+
+    requests_before_reload = orders_requested["count"]
+    page.reload(wait_until="domcontentloaded", timeout=120_000)
+    page.locator("flt-glass-pane").wait_for(state="attached", timeout=120_000)
+    page.wait_for_timeout(5500)
+    assert orders_requested["count"] > requests_before_reload
+    restored_screenshot = ROOT / "scratch" / "flutter-orders-restored-mobile.png"
+    page.screenshot(path=str(restored_screenshot), full_page=True)
+    print(f"Flutter orders polling and restore E2E passed; screenshots: {screenshot}, {restored_screenshot}")
 
     context.close()
     browser.close()

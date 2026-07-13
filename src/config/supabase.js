@@ -14,9 +14,16 @@ if (!supabaseUrl || !supabaseKey) {
   console.warn('ВНИМАНИЕ: ' + message);
 }
 
-const supabase = createClient(
-  supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseKey || 'placeholder-key',
-);
+const supabase =
+  supabaseUrl && supabaseKey
+    ? createClient(supabaseUrl, supabaseKey)
+    : new Proxy(
+        {},
+        {
+          get() {
+            throw new Error('Supabase client is not configured');
+          },
+        },
+      );
 
 module.exports = { supabase };

@@ -8,6 +8,7 @@ class ProfileScreen extends StatefulWidget {
     required this.onBack,
     required this.onLogout,
     required this.onRefreshProfile,
+    required this.onOpenOrders,
     super.key,
   });
 
@@ -17,6 +18,7 @@ class ProfileScreen extends StatefulWidget {
   final VoidCallback onBack;
   final Future<void> Function() onLogout;
   final Future<void> Function() onRefreshProfile;
+  final Future<void> Function() onOpenOrders;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -200,13 +202,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                   ),
-                  Text(
-                    'profile_title'.tr,
-                    style: const TextStyle(
-                      color: Color(0xFF6D3317),
-                      fontFamily: _headingFont,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: Text(
+                        'profile_title'.tr,
+                        maxLines: 1,
+                        overflow: TextOverflow.fade,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: Color(0xFF6D3317),
+                          fontFamily: _headingFont,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
                   ),
                   _LogoutSplitButton(onLogout: _confirmLogout),
@@ -363,11 +373,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     _ProfileMenuItem(
                       icon: Icons.shopping_bag_outlined,
                       title: 'menu_orders'.tr,
-                      onTap: () => Navigator.of(context).push<void>(
-                        MaterialPageRoute(
-                          builder: (_) => CustomerOrdersScreen(api: widget.api),
-                        ),
-                      ),
+                      onTap: () => unawaited(widget.onOpenOrders()),
                     ),
                     const Divider(
                       height: 1,
@@ -425,7 +431,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       title: 'menu_addresses'.tr,
                       onTap: () => Navigator.of(context).push<void>(
                         MaterialPageRoute(
-                          builder: (_) => const AddressSelectionScreen(),
+                          builder: (_) =>
+                              AddressSelectionScreen(api: widget.api),
                         ),
                       ),
                     ),
@@ -533,63 +540,57 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFFFB300),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.workspace_premium_rounded,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'tier_status'.trArgs({
-                          'name': currentName,
-                          'percent': percent,
-                        }),
-                        style: const TextStyle(
-                          color: Color(0xFF4E2C1E),
-                          fontFamily: _headingFont,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                  ],
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFFB300),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.workspace_premium_rounded,
+                  color: Colors.white,
+                  size: 20,
                 ),
               ),
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFB300).withValues(alpha: 0.25),
-                  borderRadius: BorderRadius.circular(12),
-                ),
+              const SizedBox(width: 12),
+              Expanded(
                 child: Text(
-                  'tier_level'.trArgs({
-                    'level': level.clamp(1, totalLevels),
-                    'total': totalLevels,
+                  'tier_status'.trArgs({
+                    'name': currentName,
+                    'percent': percent,
                   }),
                   style: const TextStyle(
-                    color: Color(0xFF6D3317),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF4E2C1E),
+                    fontFamily: _headingFont,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFB300).withValues(alpha: 0.25),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                'tier_level'.trArgs({
+                  'level': level.clamp(1, totalLevels),
+                  'total': totalLevels,
+                }),
+                maxLines: 1,
+                style: const TextStyle(
+                  color: Color(0xFF6D3317),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
           ),
           const SizedBox(height: 14),
           Text(

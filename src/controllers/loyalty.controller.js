@@ -7,10 +7,14 @@ const {
   getOrCreateCustomerByPhone,
   searchCustomers,
   activatePendingBonusesSafe,
-  applyLoyaltyTransaction,
 } = require('../services/customer.service');
 const { notifyBonusChange } = require('../services/push.service');
 const { sendAppleWalletPush } = require('../services/wallet.service');
+const {
+  cancelLoyalty,
+  commitLoyalty,
+  reserveLoyalty,
+} = require('../services/loyalty-reservation.service');
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -61,6 +65,58 @@ async function logIikoOperation(payload, result, errorMsg) {
   } catch (err) {
     console.error('Failed to log iiko operation:', err.message);
   }
+}
+
+const commitLogPayload = (payload, result) => {
+  const orderTotal = Number(payload?.orderTotal || 0);
+  const discountAmount = Number(result?.discountApplied || 0);
+  const earnedBonus = Number(result?.earnedBonus || 0);
+  const paidAmount = Math.max(0, orderTotal - discountAmount);
+  return {
+    customerId: payload?.customerId,
+    orderId: payload?.orderId,
+    orderTotal,
+    discountAmount,
+    earnedBonus,
+    cashbackPercent: paidAmount > 0 ? Number(((earnedBonus / paidAmount) * 100).toFixed(4)) : 0,
+    items: payload?.items || null,
+  };
+};
+
+async function notifyCommittedLoyalty(payload, result) {
+  if (result.duplicate) return;
+  try {
+    const { data: customer, error } = await supabase
+      .from('customers')
+      .select('fcm_token,preferred_language,language')
+      .eq('id', payload.customerId)
+      .maybeSingle();
+    if (error) throw error;
+    if (customer) {
+      await notifyBonusChange({
+        customerId: payload.customerId,
+        fcmToken: customer.fcm_token,
+        language: customer.preferred_language || customer.language || 'ru',
+        amount: result.earnedBonus - result.discountApplied,
+        balance: result.newBalance,
+        isOrder: true,
+        total: Number(payload.orderTotal || 0),
+        discount: result.discountApplied,
+        earnedBonus: result.earnedBonus,
+      });
+    }
+  } catch (error) {
+    console.error('Push notification failed:', error.message);
+  }
+  await sendAppleWalletPush(payload.customerId).catch((error) =>
+    console.error('Apple Wallet push failed:', error.message),
+  );
+}
+
+async function recordCommittedLoyalty(payload, result) {
+  const logPayload = commitLogPayload(payload, result);
+  await logIikoOperation(logPayload, { ...result, balance: result.newBalance }, null);
+  return logPayload;
 }
 
 async function configCheck(req, res) {
@@ -158,8 +214,10 @@ async function searchCustomersHandler(req, res) {
 
     res.json({ customers: formattedCustomers });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Internal server error' });
+    if (!error.statusCode) console.error(error);
+    res
+      .status(error.statusCode || 500)
+      .json({ error: error.statusCode ? error.message : 'Internal server error' });
   }
 }
 
@@ -182,12 +240,27 @@ async function calculateBonus(req, res) {
       if (!customer.data) throw requestError('Customer not found', 404);
     }
     const balance = Number(customer.data?.balance || 0);
+    let reservedBalance = 0;
+    if (customerId) {
+      const { data: reservations, error: reservationError } = await supabase
+        .from('loyalty_reservations')
+        .select('discount_amount')
+        .eq('customer_id', customerId)
+        .eq('status', 'active')
+        .gt('expires_at', new Date().toISOString());
+      if (reservationError) throw new Error('Could not load loyalty reservations');
+      reservedBalance = (reservations || []).reduce(
+        (sum, reservation) => sum + Number(reservation.discount_amount || 0),
+        0,
+      );
+    }
+    const availableBalance = Math.max(0, balance - reservedBalance);
     const maxByPercent = total * (Number(settings.max_discount_percent || 0) / 100);
-    const discountAmount = Math.min(requested, balance, maxByPercent, total);
+    const discountAmount = Math.min(requested, availableBalance, maxByPercent, total);
     res.json({
       discountAmount: Number(discountAmount.toFixed(2)),
       maxDiscountPercent: settings.max_discount_percent,
-      availableBalance: balance,
+      availableBalance: Number(availableBalance.toFixed(2)),
       message: 'Расчет успешен',
     });
   } catch (error) {
@@ -199,6 +272,7 @@ async function calculateBonus(req, res) {
 
 async function applyBonus(req, res) {
   let logPayload = null;
+  let reservation = null;
   try {
     const { customerId, orderId, discountAmount, orderTotal, items } = req.body;
     await activatePendingBonusesSafe();
@@ -213,34 +287,6 @@ async function applyBonus(req, res) {
       throw requestError('items must not contain more than 500 entries');
     }
     const settings = await getSettings();
-
-    const customerBefore = await supabase
-      .from('customers')
-      .select('balance,total_spent')
-      .eq('id', customerId)
-      .maybeSingle();
-    if (customerBefore.error) throw new Error('Could not load customer');
-    if (!customerBefore.data) throw requestError('Customer not found', 404);
-    const loyaltyTiers = await getActiveLoyaltyTiers(settings);
-    const tier = getTierInfo(customerBefore.data.total_spent, loyaltyTiers, settings);
-    const currentCashbackPercent = tier.percent;
-    const balance = Number(customerBefore.data.balance || 0);
-    const maxByPercent = total * (Number(settings.max_discount_percent || 0) / 100);
-    const maxAllowedDiscount = Math.min(balance, maxByPercent, total);
-    if (discount > maxAllowedDiscount + 0.001) {
-      const error = new Error(
-        `discountAmount exceeds allowed maximum ${maxAllowedDiscount.toFixed(2)}`,
-      );
-      error.statusCode = 400;
-      throw error;
-    }
-
-    const realMoneyPaid = total - discount;
-    let earnedBonus = 0;
-    if (realMoneyPaid > 0) {
-      earnedBonus = Number((realMoneyPaid * (currentCashbackPercent / 100)).toFixed(2));
-    }
-
     const activationDelayDays =
       settings.bonus_activation?.enabled === false
         ? 0
@@ -249,56 +295,35 @@ async function applyBonus(req, res) {
       customerId,
       orderId: normalizedOrderId,
       discountAmount: discount,
-      earnedBonus,
+      earnedBonus: 0,
       orderTotal: total,
-      cashbackPercent: currentCashbackPercent,
+      cashbackPercent: null,
       items,
     };
 
-    const result = await applyLoyaltyTransaction({
+    reservation = await reserveLoyalty({
       customerId,
       orderId: normalizedOrderId,
       discountAmount: discount,
-      earnedBonus,
       orderTotal: total,
-      realMoneyPaid,
-      activationDelayDays,
+    });
+    const result = await commitLoyalty({
+      customerId,
+      orderId: normalizedOrderId,
+      reservationId: reservation.reservationId,
+      orderTotal: total,
       items,
     });
-
-    await logIikoOperation(logPayload, result, null);
-
-    // Push notification logic
-    if (!result.duplicate)
-      try {
-        const { data: cData } = await supabase
-          .from('customers')
-          .select('fcm_token, preferred_language, language')
-          .eq('id', customerId)
-          .single();
-        if (cData) {
-          await notifyBonusChange({
-            customerId,
-            fcmToken: cData.fcm_token,
-            language: cData.preferred_language || cData.language || 'ru',
-            amount: earnedBonus - discount,
-            balance: result.balance,
-            isOrder: true,
-            total,
-            discount,
-            earnedBonus,
-          });
-        }
-        sendAppleWalletPush(customerId).catch((err) => console.error(err));
-      } catch (pushErr) {
-        console.error('Push notification failed:', pushErr);
-      }
+    logPayload = await recordCommittedLoyalty(logPayload, result);
+    notifyCommittedLoyalty(logPayload, result).catch((error) =>
+      console.error('Loyalty notification failed:', error.message),
+    );
 
     res.json({
       success: true,
-      newBalance: result.balance,
-      discountApplied: result.duplicate ? 0 : discount,
-      earnedBonus: result.duplicate ? 0 : earnedBonus,
+      newBalance: result.newBalance,
+      discountApplied: result.discountApplied,
+      earnedBonus: result.earnedBonus,
       duplicate: Boolean(result.duplicate),
       activationDelayDays: activationDelayDays,
       message: result.duplicate
@@ -306,7 +331,50 @@ async function applyBonus(req, res) {
         : 'Transaction recorded successfully.',
     });
   } catch (error) {
+    if (reservation?.reservationId) {
+      await cancelLoyalty({
+        customerId: req.body?.customerId,
+        orderId: req.body?.orderId,
+        reservationId: reservation.reservationId,
+      }).catch(() => {});
+    }
     if (logPayload) await logIikoOperation(logPayload, null, error.message);
+    res
+      .status(error.statusCode || 500)
+      .json({ error: error.statusCode ? error.message : 'Internal server error' });
+  }
+}
+
+async function reserveBonus(req, res) {
+  try {
+    res.json(await reserveLoyalty(req.body));
+  } catch (error) {
+    res
+      .status(error.statusCode || 500)
+      .json({ error: error.statusCode ? error.message : 'Internal server error' });
+  }
+}
+
+async function commitReservedBonus(req, res) {
+  try {
+    const result = await commitLoyalty(req.body);
+    const logPayload = await recordCommittedLoyalty(req.body, result);
+    res.json(result);
+    notifyCommittedLoyalty(logPayload, result).catch((error) =>
+      console.error('Loyalty notification failed:', error.message),
+    );
+  } catch (error) {
+    await logIikoOperation(req.body, null, error.message);
+    res
+      .status(error.statusCode || 500)
+      .json({ error: error.statusCode ? error.message : 'Internal server error' });
+  }
+}
+
+async function cancelReservedBonus(req, res) {
+  try {
+    res.json(await cancelLoyalty(req.body));
+  } catch (error) {
     res
       .status(error.statusCode || 500)
       .json({ error: error.statusCode ? error.message : 'Internal server error' });
@@ -319,4 +387,7 @@ module.exports = {
   searchCustomersHandler,
   calculateBonus,
   applyBonus,
+  reserveBonus,
+  commitReservedBonus,
+  cancelReservedBonus,
 };

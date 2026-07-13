@@ -3,6 +3,8 @@ const router = express.Router();
 const publicController = require('../controllers/public.controller');
 const tierController = require('../controllers/tier.controller');
 const orderController = require('../controllers/order.controller');
+const addressController = require('../controllers/address.controller');
+const geocodeController = require('../controllers/geocode.controller');
 const {
   customerAuthMiddleware,
   registrationAuthMiddleware,
@@ -27,6 +29,11 @@ router.put('/api/customer/profile', publicController.updateProfile);
 router.delete('/api/customer/profile', publicController.deleteProfile);
 router.get('/api/customer/loyalty', tierController.getCustomerLoyalty);
 router.get('/api/customer/orders', orderController.listCustomer);
+router.get('/api/customer/addresses', addressController.list);
+router.post('/api/customer/addresses', addressController.create);
+router.put('/api/customer/addresses/:id', addressController.update);
+router.delete('/api/customer/addresses/:id', addressController.remove);
+router.patch('/api/customer/addresses/:id/default', addressController.setDefault);
 
 // Kaspi Pay endpoints
 const kaspiController = require('../controllers/kaspi.controller');
@@ -38,6 +45,8 @@ router.get('/api/customer/kaspi-pay/status/:operationId', kaspiController.checkS
 router.post('/webhooks/kaspi', webhookRateLimit, kaspiController.handleWebhook);
 
 router.get('/api/public/cities', publicController.getCities);
+router.get('/api/public/geocode/search', geocodeController.search);
+router.get('/api/public/geocode/reverse', geocodeController.reverse);
 router.get('/api/public/loyalty-tiers', tierController.listPublicTiers);
 
 module.exports = router;

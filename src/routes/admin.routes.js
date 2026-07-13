@@ -16,6 +16,7 @@ const {
 const { adminRateLimit, adminLoginRateLimit } = require('../middlewares/rate-limit.middleware');
 const menuService = require('../services/menu.service');
 const iikoApi = require('../services/iiko.service');
+const { getBulkaLocations, updateBulkaLocation } = require('../services/location.service');
 const { supabase } = require('../config/supabase');
 
 const allowedImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
@@ -112,7 +113,7 @@ router.post('/admin/api/menu/product/override', adminAuthMiddleware, async (req,
     iikoApi.invalidateMenuCache(); // Сбрасываем кэш, чтобы изменения применились
     res.json({ success: true });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(error.statusCode || 500).json({ success: false, error: error.message });
   }
 });
 
@@ -124,7 +125,7 @@ router.post('/admin/api/menu/category/override', adminAuthMiddleware, async (req
     iikoApi.invalidateMenuCache();
     res.json({ success: true });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(error.statusCode || 500).json({ success: false, error: error.message });
   }
 });
 
@@ -135,7 +136,7 @@ router.post('/admin/api/menu/custom-product', adminAuthMiddleware, async (req, r
     iikoApi.invalidateMenuCache();
     res.json({ success: true });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(error.statusCode || 500).json({ success: false, error: error.message });
   }
 });
 
@@ -145,7 +146,7 @@ router.delete('/admin/api/menu/custom-product/:id', adminAuthMiddleware, async (
     iikoApi.invalidateMenuCache();
     res.json({ success: true });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(error.statusCode || 500).json({ success: false, error: error.message });
   }
 });
 
@@ -217,6 +218,23 @@ router.patch(
   adminAuthMiddleware,
   orderController.updateAdminStatus,
 );
+router.get('/admin/api/locations', adminAuthMiddleware, async (_req, res) => {
+  try {
+    const locations = await getBulkaLocations({ includeInactive: true });
+    res.set('Cache-Control', 'private, no-store');
+    res.json({ success: true, locations });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ success: false, error: error.message });
+  }
+});
+router.patch('/admin/api/locations/:id', adminAuthMiddleware, async (req, res) => {
+  try {
+    const location = await updateBulkaLocation(req.params.id, req.body);
+    res.json({ success: true, location });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ success: false, error: error.message });
+  }
+});
 router.get('/admin/api/transactions', adminAuthMiddleware, adminController.getTransactionsHandler);
 router.get('/admin/api/stats', adminAuthMiddleware, adminController.getStatsHandler);
 router.get(

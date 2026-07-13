@@ -30,6 +30,12 @@ abstract final class BulkaLayout {
   static const navIconSize = 31.0;
   static const navContentGap = 10.0;
 
+  static bool compactNavigation(BuildContext context) =>
+      MediaQuery.sizeOf(context).height < 500;
+
+  static double navigationBarHeight(BuildContext context) =>
+      compactNavigation(context) ? 66 : floatingNavBarHeight;
+
   static double safeBottomInset(BuildContext context) {
     // Safari already removes its browser toolbar from the visual viewport.
     // Applying the same inset again inside Flutter creates a blank strip.
@@ -37,7 +43,7 @@ abstract final class BulkaLayout {
   }
 
   static double bottomNavigationExtent(BuildContext context) {
-    return floatingNavBarHeight + safeBottomInset(context);
+    return navigationBarHeight(context) + safeBottomInset(context);
   }
 
   static double bottomNavContentInset(BuildContext context) {

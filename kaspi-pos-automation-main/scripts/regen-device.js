@@ -19,7 +19,7 @@ const device = {
 };
 fs.writeFileSync(FILE, JSON.stringify(device, null, 2));
 console.log('Generated new device identity → device.json');
-console.log(`  deviceId:  ${device.deviceId}`);
-console.log(`  installId: ${device.installId}`);
-console.log(`  pinHash:   ${device.pinHash}`);
-console.log('⚠️  Re-authentication (SMS) required after device change.');
+console.log(` deviceId: ${device.deviceId}`);
+console.log(` installId: ${device.installId}`);
+console.log(` pinHash: ${device.pinHash}`);
+console.log('Важно: Re-authentication (SMS) required after device change.');

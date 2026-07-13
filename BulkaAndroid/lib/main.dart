@@ -38,6 +38,7 @@ part 'screens/customer_orders_screen.dart';
 part 'screens/kaspi_payment_screen.dart';
 part 'screens/notifications_screen.dart';
 part 'screens/profile_screen.dart';
+part 'screens/promos_screen.dart';
 part 'screens/personal_data_screen.dart';
 part 'screens/locations_screen.dart';
 part 'screens/catalog_screen.dart';

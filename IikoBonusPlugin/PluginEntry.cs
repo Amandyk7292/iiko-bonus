@@ -1,8 +1,5 @@
 using System;
 using System.Collections.Concurrent;
-using System.Net.Http;
-using System.Text;
-using System.Threading.Tasks;
 using System.Xml.Linq;
 using Resto.Front.Api;
 using Resto.Front.Api.Attributes;
@@ -23,6 +20,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private IDisposable _billPrintSubscription;
         private IDisposable _cashPrintSubscription;
         private IDisposable _barcodeSubscription;
+        private IDisposable _beforePaymentSubscription;
 
         public class OrderLoyaltyData
         {
@@ -34,6 +32,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
             public decimal MaxDiscountPercent { get; set; }
             public decimal DiscountAmount { get; set; }
             public decimal OrderFullSum { get; set; }
+            public decimal PayableAmount { get; set; }
+            public string ReservationId { get; set; }
         }
 
         public static ConcurrentDictionary<Guid, OrderLoyaltyData> ActiveOrders =
@@ -66,7 +66,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 );
 
                 _statusButtonSubscription = PluginContext.Operations.AddButtonToOrderEditScreen(
-                    "Бонусы статус",
+                    "Статус бонусов",
                     (ValueTuple<IOrder, IOperationService, IViewManager> args) =>
                     {
                         try
@@ -83,11 +83,13 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 _orderSubscription = PluginContext.Notifications.OrderChanged.Subscribe(
                     new OrderChangedObserver(LoyaltyFlow.OnOrderChanged)
                 );
+                LoyaltyFlow.ReconcileRestoredOrders(PluginContext.Operations);
 
                 _billPrintSubscription = PluginContext.Notifications.BillChequePrinting.Subscribe(OnBillChequePrinting);
                 _cashPrintSubscription = PluginContext.Notifications.CashChequePrinting.Subscribe(OnCashChequePrinting);
 
                 _barcodeSubscription = PluginContext.Notifications.OrderEditBarcodeScanned.Subscribe(LoyaltyFlow.OnBarcodeScanned);
+                _beforePaymentSubscription = PluginContext.Notifications.BeforeProceedOrderPayment.Subscribe(LoyaltyFlow.BeforeProceedOrderPayment);
                 LoyaltyFlow.StartBackgroundRetry();
 
                 PluginContext.Log.Info("IikoBonusPlugin: Initialized successfully.");
@@ -95,7 +97,27 @@ namespace Resto.Front.Api.IikoBonusPlugin
             catch (Exception ex)
             {
                 PluginContext.Log.Error("IikoBonusPlugin: FATAL init error: " + ex);
+                DisposeSubscriptions();
+                throw;
             }
+        }
+
+        private static void TryDispose(IDisposable subscription)
+        {
+            try { subscription?.Dispose(); }
+            catch (Exception ex) { PluginContext.Log.Error("IikoBonusPlugin: Subscription dispose failed: " + ex.Message); }
+        }
+
+        private void DisposeSubscriptions()
+        {
+            TryDispose(_buttonSubscription);
+            TryDispose(_statusButtonSubscription);
+            TryDispose(_orderSubscription);
+            TryDispose(_billPrintSubscription);
+            TryDispose(_cashPrintSubscription);
+            TryDispose(_barcodeSubscription);
+            TryDispose(_beforePaymentSubscription);
+            LoyaltyFlow.StopBackgroundRetry();
         }
 
         private static ChequeExtensions OnBillChequePrinting(Guid orderId)
@@ -105,14 +127,16 @@ namespace Resto.Front.Api.IikoBonusPlugin
             {
                 if (!ActiveOrders.TryGetValue(orderId, out var data)) return extensions;
 
-                decimal realMoneyPaid = Math.Max(0, data.OrderFullSum - data.DiscountAmount);
+                decimal realMoneyPaid = data.PayableAmount > 0
+                    ? data.PayableAmount
+                    : Math.Max(0, data.OrderFullSum - data.DiscountAmount);
                 decimal earnedBonus = Math.Round(realMoneyPaid * (data.CashbackPercent / 100m), 2);
                 decimal displayBalance = Math.Max(0, data.CurrentBalance - data.DiscountAmount);
                 string nameStr = string.IsNullOrWhiteSpace(data.CustomerName) ? "Гость" : data.CustomerName;
 
                 string xml = "<doc>" +
                              "<line />" +
-                             "<center>Система лояльности Bonus CRM</center>" +
+                             "<center>Система лояльности Bulka Bonus</center>" +
                              "<pair left=\"Гость:\" right=\"" + nameStr.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace("\"", "&quot;") + "\" />";
 
                 if (data.DiscountAmount > 0)
@@ -121,7 +145,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 }
 
                 xml += "<pair left=\"Текущий баланс:\" right=\"" + displayBalance.ToString("0.##") + " бон.\" />" +
-                       "<pair left=\"За этот заказ начислено:\" right=\"+" + earnedBonus.ToString("0.##") + " бон.\" />" +
+                       "<pair left=\"Ожидается к начислению:\" right=\"+" + earnedBonus.ToString("0.##") + " бон.\" />" +
                        "<line />" +
                        "</doc>";
 
@@ -142,14 +166,16 @@ namespace Resto.Front.Api.IikoBonusPlugin
             {
                 if (!ActiveOrders.TryGetValue(orderId, out var data)) return extensions;
 
-                decimal realMoneyPaid = Math.Max(0, data.OrderFullSum - data.DiscountAmount);
+                decimal realMoneyPaid = data.PayableAmount > 0
+                    ? data.PayableAmount
+                    : Math.Max(0, data.OrderFullSum - data.DiscountAmount);
                 decimal earnedBonus = Math.Round(realMoneyPaid * (data.CashbackPercent / 100m), 2);
                 decimal displayBalance = Math.Max(0, data.CurrentBalance - data.DiscountAmount);
                 string nameStr = string.IsNullOrWhiteSpace(data.CustomerName) ? "Гость" : data.CustomerName;
 
                 string xml = "<doc>" +
                              "<line />" +
-                             "<center>Система лояльности Bonus CRM</center>" +
+                             "<center>Система лояльности Bulka Bonus</center>" +
                              "<pair left=\"Гость:\" right=\"" + nameStr.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace("\"", "&quot;") + "\" />";
 
                 if (data.DiscountAmount > 0)
@@ -158,7 +184,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 }
 
                 xml += "<pair left=\"Текущий баланс:\" right=\"" + displayBalance.ToString("0.##") + " бон.\" />" +
-                       "<pair left=\"За этот заказ начислено:\" right=\"+" + earnedBonus.ToString("0.##") + " бон.\" />" +
+                       "<pair left=\"Ожидается к начислению:\" right=\"+" + earnedBonus.ToString("0.##") + " бон.\" />" +
                        "<line />" +
                        "</doc>";
 
@@ -174,17 +200,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
 
         public void Dispose()
         {
-            try
-            {
-                _buttonSubscription?.Dispose();
-                _statusButtonSubscription?.Dispose();
-                _orderSubscription?.Dispose();
-                _billPrintSubscription?.Dispose();
-                _cashPrintSubscription?.Dispose();
-                _barcodeSubscription?.Dispose();
-                LoyaltyFlow.StopBackgroundRetry();
-            }
-            catch { }
+            DisposeSubscriptions();
             PluginContext.Log.Info("IikoBonusPlugin: Disposed.");
         }
     }

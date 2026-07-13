@@ -22,6 +22,18 @@ class CatalogProduct {
   final bool isStopListed;
 }
 
+enum _CatalogSort { menu, priceLow, priceHigh }
+
+@immutable
+class _CatalogFilterResult {
+  const _CatalogFilterResult({required this.sort, required this.onlyAvailable});
+
+  final _CatalogSort sort;
+  final bool onlyAvailable;
+
+  bool get isActive => sort != _CatalogSort.menu || onlyAvailable;
+}
+
 class CatalogScreen extends StatefulWidget {
   const CatalogScreen({this.onOpenCart, super.key});
 
@@ -33,12 +45,17 @@ class CatalogScreen extends StatefulWidget {
 
 class _CatalogScreenState extends State<CatalogScreen>
     with WidgetsBindingObserver {
-  static const _menuRefreshInterval = Duration(minutes: 10);
+  static const _menuRefreshInterval = Duration(seconds: 30);
 
   final _api = BulkaApiClient();
+  final _searchController = TextEditingController();
+  final ValueNotifier<Map<String, CatalogProduct>> _liveProducts =
+      ValueNotifier(const {});
   String _selectedBakery = '';
   String _searchQuery = '';
   String _selectedCategory = 'Все';
+  _CatalogSort _sort = _CatalogSort.menu;
+  bool _onlyAvailable = false;
   Map<String, String> _apiCategoryImages = {};
 
   List<String> _categories = const ['Все'];
@@ -70,6 +87,8 @@ class _CatalogScreenState extends State<CatalogScreen>
   void dispose() {
     appLanguageNotifier.removeListener(_onLanguageChanged);
     _autoRefreshTimer?.cancel();
+    _searchController.dispose();
+    _liveProducts.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -124,6 +143,12 @@ class _CatalogScreenState extends State<CatalogScreen>
           ),
         );
       }
+      for (final product in products) {
+        if (product.imageUrl.trim().isNotEmpty) {
+          categoryImages.putIfAbsent(product.category, () => product.imageUrl);
+          categoryImages.putIfAbsent('Все', () => product.imageUrl);
+        }
+      }
 
       final changed =
           jsonEncode(
@@ -154,6 +179,8 @@ class _CatalogScreenState extends State<CatalogScreen>
                 )
                 .toList(),
           );
+
+      _syncCartWithMenu(products);
 
       setState(() {
         _categories = categoryNames;
@@ -216,6 +243,14 @@ class _CatalogScreenState extends State<CatalogScreen>
           ),
         );
       }
+      for (final product in products) {
+        if (product.imageUrl.trim().isNotEmpty) {
+          categoryImages.putIfAbsent(product.category, () => product.imageUrl);
+          categoryImages.putIfAbsent('Все', () => product.imageUrl);
+        }
+      }
+
+      _syncCartWithMenu(products);
 
       setState(() {
         _categories = categoryNames;
@@ -230,6 +265,35 @@ class _CatalogScreenState extends State<CatalogScreen>
         _loadError = e.toString();
       });
     }
+  }
+
+  void _syncCartWithMenu(List<CatalogProduct> products) {
+    final liveProducts = {for (final product in products) product.id: product};
+    for (final previous in _liveProducts.value.values) {
+      if (liveProducts.containsKey(previous.id)) continue;
+      liveProducts[previous.id] = CatalogProduct(
+        id: previous.id,
+        title: previous.title,
+        price: previous.price,
+        category: previous.category,
+        imageUrl: previous.imageUrl,
+        inStockCount: previous.inStockCount,
+        description: previous.description,
+        isStopListed: true,
+      );
+    }
+    _liveProducts.value = liveProducts;
+    context.read<CartProvider>().reconcileMenu(
+      products.map(
+        (product) => CartProductSnapshot(
+          id: product.id,
+          name: product.title,
+          price: product.price,
+          imageUrl: product.imageUrl,
+          isStopListed: product.isStopListed,
+        ),
+      ),
+    );
   }
 
   Future<void> _loadSelectedBakery() async {
@@ -251,14 +315,29 @@ class _CatalogScreenState extends State<CatalogScreen>
   }
 
   List<CatalogProduct> get _filteredProducts {
-    return _allProducts.where((p) {
+    final products = _allProducts.where((p) {
       final matchesQuery =
           _searchQuery.isEmpty ||
-          p.title.toLowerCase().contains(_searchQuery.toLowerCase());
+          p.title.toLowerCase().contains(_searchQuery.trim().toLowerCase()) ||
+          p.description.toLowerCase().contains(
+            _searchQuery.trim().toLowerCase(),
+          );
       final matchesCategory =
           _selectedCategory == 'Все' || p.category == _selectedCategory;
-      return matchesQuery && matchesCategory;
+      final matchesAvailability = !_onlyAvailable || !p.isStopListed;
+      return matchesQuery && matchesCategory && matchesAvailability;
     }).toList();
+    switch (_sort) {
+      case _CatalogSort.priceLow:
+        products.sort((a, b) => a.price.compareTo(b.price));
+        break;
+      case _CatalogSort.priceHigh:
+        products.sort((a, b) => b.price.compareTo(a.price));
+        break;
+      case _CatalogSort.menu:
+        break;
+    }
+    return products;
   }
 
   void _openCategoriesModal() {
@@ -276,10 +355,25 @@ class _CatalogScreenState extends State<CatalogScreen>
     );
   }
 
-  void _openFilterModal() {
-    Navigator.of(context).push<void>(
-      MaterialPageRoute(builder: (_) => const _CatalogFilterScreen()),
+  Future<void> _openFilterModal() async {
+    final result = await Navigator.of(context).push<_CatalogFilterResult>(
+      MaterialPageRoute(
+        builder: (_) => _CatalogFilterScreen(
+          initialSort: _sort,
+          initialOnlyAvailable: _onlyAvailable,
+        ),
+      ),
     );
+    if (!mounted || result == null) return;
+    setState(() {
+      _sort = result.sort;
+      _onlyAvailable = result.onlyAvailable;
+    });
+  }
+
+  void _clearSearch() {
+    _searchController.clear();
+    setState(() => _searchQuery = '');
   }
 
   void _setProductQuantity(CatalogProduct product, int quantity) {
@@ -308,8 +402,9 @@ class _CatalogScreenState extends State<CatalogScreen>
       MaterialPageRoute(
         builder: (_) => _ProductDetailsScreen(
           product: product,
+          liveProducts: _liveProducts,
           initialQuantity: context.read<CartProvider>().getQuantity(product.id),
-          onQuantityChanged: (q) => _setProductQuantity(product, q),
+          onQuantityChanged: _setProductQuantity,
         ),
       ),
     );
@@ -318,21 +413,30 @@ class _CatalogScreenState extends State<CatalogScreen>
   @override
   Widget build(BuildContext context) {
     final cart = context.watch<CartProvider>();
+    final colors = context.bulkaColors;
+    final visibleProducts = _filteredProducts;
+    final filterActive = _CatalogFilterResult(
+      sort: _sort,
+      onlyAvailable: _onlyAvailable,
+    ).isActive;
     final bakeryText = _selectedBakery.isEmpty
         ? 'catalog_action'.tr
         : _selectedBakery;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: colors.surfaceCream,
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        backgroundColor: Colors.white,
+        backgroundColor: colors.surfaceCream,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
         title: Text(
           'nav_catalog'.tr,
           style: const TextStyle(
-            fontFamily: _headingFont,
-            fontWeight: FontWeight.w400,
+            fontFamily: _brandFont,
+            fontSize: 27,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.5,
             color: _textDark,
           ),
         ),
@@ -346,46 +450,64 @@ class _CatalogScreenState extends State<CatalogScreen>
             SliverToBoxAdapter(
               child: Column(
                 children: [
-                  // Search & Filter
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                    padding: const EdgeInsets.fromLTRB(16, 6, 16, 14),
                     child: Row(
                       children: [
                         Expanded(
                           child: SizedBox(
-                            height: 48,
+                            height: 56,
                             child: TextField(
+                              controller: _searchController,
                               onChanged: (val) =>
                                   setState(() => _searchQuery = val),
+                              textInputAction: TextInputAction.search,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                                color: _textDark,
+                              ),
                               decoration: InputDecoration(
-                                hintText: 'Поиск товаров',
+                                hintText: 'catalog_search'.tr,
+                                hintStyle: TextStyle(
+                                  color: colors.mutedText,
+                                  fontWeight: FontWeight.w400,
+                                ),
                                 prefixIcon: const Icon(
                                   Icons.search_rounded,
-                                  color: _textDark,
+                                  color: _bulkaBrown,
                                 ),
+                                suffixIcon: _searchQuery.isEmpty
+                                    ? null
+                                    : IconButton(
+                                        onPressed: _clearSearch,
+                                        tooltip: 'catalog_clear_search'.tr,
+                                        icon: const Icon(
+                                          Icons.close_rounded,
+                                          size: 20,
+                                        ),
+                                      ),
                                 filled: true,
-                                fillColor: _milkyBackground,
+                                fillColor: Colors.white,
                                 contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 20,
+                                  horizontal: 18,
                                   vertical: 0,
                                 ),
                                 border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(24),
-                                  borderSide: BorderSide(
-                                    color: _almond.withValues(alpha: 0.6),
-                                  ),
+                                  borderRadius: BorderRadius.circular(20),
+                                  borderSide: BorderSide.none,
                                 ),
                                 enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(24),
+                                  borderRadius: BorderRadius.circular(20),
                                   borderSide: BorderSide(
-                                    color: _almond.withValues(alpha: 0.6),
+                                    color: colors.cardBorder,
                                   ),
                                 ),
                                 focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(24),
+                                  borderRadius: BorderRadius.circular(20),
                                   borderSide: const BorderSide(
-                                    color: _bulkaYellow,
-                                    width: 2,
+                                    color: _bulkaBrown,
+                                    width: 1.5,
                                   ),
                                 ),
                               ),
@@ -395,80 +517,73 @@ class _CatalogScreenState extends State<CatalogScreen>
                         const SizedBox(width: 10),
                         IconButton(
                           onPressed: _openFilterModal,
-                          tooltip: 'Фильтр',
+                          tooltip: 'catalog_filter'.tr,
                           style: IconButton.styleFrom(
                             backgroundColor: _bulkaYellow,
                             foregroundColor: _textDark,
-                            minimumSize: const Size(48, 48),
+                            minimumSize: const Size(56, 56),
                             tapTargetSize: MaterialTapTargetSize.padded,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(18),
+                              borderRadius: BorderRadius.circular(20),
                             ),
                           ),
-                          icon: const Icon(Icons.tune_rounded),
+                          icon: Badge(
+                            isLabelVisible: filterActive,
+                            backgroundColor: _bulkaBrown,
+                            smallSize: 8,
+                            child: const Icon(Icons.tune_rounded, size: 24),
+                          ),
                         ),
                       ],
                     ),
                   ),
 
-                  // Horizontal Categories Bar
-                  SizedBox(
-                    height: 38,
-                    child: ListView.separated(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _categories.length,
-                      separatorBuilder: (context, index) =>
-                          const SizedBox(width: 8),
-                      itemBuilder: (context, i) {
-                        final cat = _categories[i];
-                        final active = _selectedCategory == cat;
-                        return ChoiceChip(
-                          label: Text(cat),
-                          selected: active,
-                          onSelected: (_) =>
-                              setState(() => _selectedCategory = cat),
-                          labelStyle: TextStyle(
-                            color: _textDark,
-                            fontWeight: active
-                                ? FontWeight.w700
-                                : FontWeight.w400,
-                            fontSize: 13,
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: SizedBox(
+                            height: 48,
+                            child: ListView.separated(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: _categories.length,
+                              separatorBuilder: (context, index) =>
+                                  const SizedBox(width: 8),
+                              itemBuilder: (context, i) {
+                                final cat = _categories[i];
+                                return _CatalogCategoryChip(
+                                  label: cat,
+                                  imageUrl: _apiCategoryImages[cat],
+                                  selected: _selectedCategory == cat,
+                                  onTap: () =>
+                                      setState(() => _selectedCategory = cat),
+                                );
+                              },
+                            ),
                           ),
-                          selectedColor: _bulkaYellow,
-                          backgroundColor: _milkyBackground,
-                          side: BorderSide(
-                            color: active
-                                ? _bulkaYellow
-                                : _almond.withValues(alpha: 0.5),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          onPressed: _openCategoriesModal,
+                          tooltip: 'catalog_all_categories'.tr,
+                          style: IconButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: _textDark,
+                            minimumSize: const Size(48, 48),
+                            tapTargetSize: MaterialTapTargetSize.padded,
+                            side: BorderSide(color: colors.cardBorder),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
                           ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          materialTapTargetSize: MaterialTapTargetSize.padded,
-                        );
-                      },
+                          icon: const Icon(Icons.grid_view_rounded, size: 20),
+                        ),
+                      ],
                     ),
                   ),
 
-                  const SizedBox(height: 6),
-                  Center(
-                    child: IconButton(
-                      onPressed: _openCategoriesModal,
-                      tooltip: 'Открыть категории',
-                      style: IconButton.styleFrom(
-                        backgroundColor: _milkyBackground,
-                        foregroundColor: _textDark,
-                        minimumSize: const Size(48, 48),
-                        tapTargetSize: MaterialTapTargetSize.padded,
-                      ),
-                      icon: const Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        size: 20,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 14),
 
                   // Location Banner (Самовывоз/Адрес)
                   Padding(
@@ -485,21 +600,27 @@ class _CatalogScreenState extends State<CatalogScreen>
                             child: Ink(
                               padding: const EdgeInsets.fromLTRB(
                                 18,
-                                16,
-                                16,
-                                16,
+                                14,
+                                14,
+                                14,
                               ),
                               decoration: BoxDecoration(
                                 gradient: const LinearGradient(
                                   colors: [
-                                    Color(0xFFFFDF6C),
+                                    Color(0xFFFFD760),
                                     Color(0xFFFFB814),
                                   ],
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
                                 ),
                                 borderRadius: BorderRadius.circular(20),
-                                boxShadow: _softShadow,
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Color(0x1F9D6210),
+                                    blurRadius: 18,
+                                    offset: Offset(0, 8),
+                                  ),
+                                ],
                               ),
                               child: Row(
                                 children: [
@@ -511,8 +632,9 @@ class _CatalogScreenState extends State<CatalogScreen>
                                         Text(
                                           'catalog_pickup_menu'.tr,
                                           style: const TextStyle(
-                                            fontFamily: _headingFont,
-                                            fontSize: 18,
+                                            fontFamily: _brandFont,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w700,
                                             height: 1.2,
                                             color: _textDark,
                                           ),
@@ -534,7 +656,7 @@ class _CatalogScreenState extends State<CatalogScreen>
                                                 style: const TextStyle(
                                                   color: _textDark,
                                                   fontWeight: FontWeight.w600,
-                                                  fontSize: 13,
+                                                  fontSize: 12.5,
                                                 ),
                                               ),
                                             ),
@@ -545,8 +667,8 @@ class _CatalogScreenState extends State<CatalogScreen>
                                   ),
                                   const SizedBox(width: 12),
                                   Container(
-                                    width: 58,
-                                    height: 58,
+                                    width: 50,
+                                    height: 50,
                                     decoration: const BoxDecoration(
                                       color: Colors.white,
                                       shape: BoxShape.circle,
@@ -554,8 +676,14 @@ class _CatalogScreenState extends State<CatalogScreen>
                                     child: const Icon(
                                       Icons.storefront_rounded,
                                       color: _textDark,
-                                      size: 32,
+                                      size: 27,
                                     ),
+                                  ),
+                                  const SizedBox(width: 2),
+                                  const Icon(
+                                    Icons.chevron_right_rounded,
+                                    color: _textDark,
+                                    size: 22,
                                   ),
                                 ],
                               ),
@@ -566,20 +694,38 @@ class _CatalogScreenState extends State<CatalogScreen>
                     ),
                   ),
 
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 22),
 
-                  // Section Header
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          _selectedCategory,
-                          style: const TextStyle(
-                            fontFamily: _headingFont,
-                            fontSize: 20,
-                            color: _textDark,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _selectedCategory,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontFamily: _brandFont,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: -0.35,
+                                  color: _textDark,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${visibleProducts.length} ${'catalog_products'.tr}',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: colors.mutedText,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         TextButton.icon(
@@ -589,7 +735,7 @@ class _CatalogScreenState extends State<CatalogScreen>
                             minimumSize: const Size(48, 48),
                             tapTargetSize: MaterialTapTargetSize.padded,
                           ),
-                          label: const Text('Все'),
+                          label: Text('catalog_all_categories'.tr),
                           icon: const Icon(
                             Icons.chevron_right_rounded,
                             size: 20,
@@ -599,7 +745,7 @@ class _CatalogScreenState extends State<CatalogScreen>
                       ],
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 12),
                 ],
               ),
             ),
@@ -621,7 +767,7 @@ class _CatalogScreenState extends State<CatalogScreen>
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'Не удалось загрузить меню',
+                        'catalog_load_failed'.tr,
                         style: TextStyle(
                           color: _textDark.withValues(alpha: 0.5),
                           fontSize: 15,
@@ -630,9 +776,9 @@ class _CatalogScreenState extends State<CatalogScreen>
                       const SizedBox(height: 12),
                       TextButton(
                         onPressed: _loadMenu,
-                        child: const Text(
-                          'Повторить',
-                          style: TextStyle(
+                        child: Text(
+                          'catalog_retry'.tr,
+                          style: const TextStyle(
                             color: _bulkaYellow,
                             fontWeight: FontWeight.w600,
                           ),
@@ -642,13 +788,13 @@ class _CatalogScreenState extends State<CatalogScreen>
                   ),
                 ),
               )
-            else if (_filteredProducts.isEmpty)
+            else if (visibleProducts.isEmpty)
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.only(top: 40),
                   child: Center(
                     child: Text(
-                      'В этой категории пока нет товаров',
+                      'catalog_empty'.tr,
                       style: TextStyle(color: _textDark.withValues(alpha: 0.5)),
                     ),
                   ),
@@ -665,21 +811,19 @@ class _CatalogScreenState extends State<CatalogScreen>
                 sliver: SliverLayoutBuilder(
                   builder: (context, constraints) {
                     final textScale = MediaQuery.textScalerOf(context).scale(1);
-                    final mainAxisExtent = textScale > 1.2 ? 305.0 : 275.0;
+                    final mainAxisExtent = textScale > 1.2 ? 352.0 : 326.0;
                     return SliverGrid(
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: constraints.crossAxisExtent >= 700
-                            ? 3
-                            : 2,
-                        mainAxisSpacing: 14,
-                        crossAxisSpacing: 14,
+                      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                        maxCrossAxisExtent: 235,
+                        mainAxisSpacing: 16,
+                        crossAxisSpacing: 12,
                         mainAxisExtent: mainAxisExtent,
                       ),
                       delegate: SliverChildBuilderDelegate((context, index) {
-                        final p = _filteredProducts[index];
+                        final p = visibleProducts[index];
                         final qty = cart.getQuantity(p.id);
                         return _buildProductCard(p, qty);
-                      }, childCount: _filteredProducts.length),
+                      }, childCount: visibleProducts.length),
                     );
                   },
                 ),
@@ -708,64 +852,114 @@ class _CatalogScreenState extends State<CatalogScreen>
       label: product.title,
       value: '${_formatPrice(product.price)} ₸',
       child: BulkaPressScale(
+        pressedScale: 0.975,
         child: Material(
           color: Colors.transparent,
           child: InkWell(
             onTap: () => _openProductDetails(product),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(22),
             child: Ink(
               decoration: BoxDecoration(
-                color: _milkyBackground,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: _softShadow,
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(
+                  color: colors.cardBorder.withValues(alpha: 0.65),
+                ),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x126D3317),
+                    blurRadius: 18,
+                    offset: Offset(0, 8),
+                  ),
+                ],
               ),
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(9),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(14),
-                      child: _NetworkImage(
-                        url: product.imageUrl,
-                        fit: BoxFit.cover,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        BulkaHero(
+                          tag: 'catalog-product-${product.id}',
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(17),
+                            child: _NetworkImage(
+                              url: product.imageUrl,
+                              fit: BoxFit.cover,
+                              semanticLabel: product.title,
+                            ),
+                          ),
+                        ),
+                        if (product.isStopListed)
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(17),
+                            child: ColoredBox(
+                              color: Colors.white.withValues(alpha: 0.58),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 38,
+                    child: Text(
+                      product.title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: _textDark,
+                        height: 1.25,
+                        letterSpacing: -0.15,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    product.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                      color: _textDark,
-                      height: 1.25,
-                      letterSpacing: -0.2,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
                   Text(
                     '${_formatPrice(product.price)} ₸',
                     style: TextStyle(
                       fontWeight: FontWeight.w800,
-                      fontSize: 15,
-                      color: colors.priceGold,
+                      fontSize: 17,
+                      color: _textDark,
+                      fontFeatures: const [FontFeature.tabularFigures()],
                     ),
                   ),
-                  if (product.isStopListed == true) ...[
-                    const SizedBox(height: 2),
-                    const Text(
-                      'В стоп-листе',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: _errorRed,
-                        fontWeight: FontWeight.w600,
+                  const SizedBox(height: 3),
+                  Row(
+                    children: [
+                      Container(
+                        width: 7,
+                        height: 7,
+                        decoration: BoxDecoration(
+                          color: product.isStopListed
+                              ? colors.danger
+                              : colors.success,
+                          shape: BoxShape.circle,
+                        ),
                       ),
-                    ),
-                  ],
-                  const SizedBox(height: 8),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          product.isStopListed
+                              ? 'catalog_stop_list'.tr
+                              : 'catalog_in_stock'.tr,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: product.isStopListed
+                                ? colors.danger
+                                : colors.success,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 9),
                   _CatalogQuantityControl(
                     quantity: quantity,
                     stopListed: product.isStopListed,
@@ -774,6 +968,88 @@ class _CatalogScreenState extends State<CatalogScreen>
                         _setProductQuantity(product, quantity - 1),
                     onIncrease: () =>
                         _setProductQuantity(product, quantity + 1),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CatalogCategoryChip extends StatelessWidget {
+  const _CatalogCategoryChip({
+    required this.label,
+    required this.imageUrl,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final String? imageUrl;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.bulkaColors;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      child: BulkaPressScale(
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(16),
+            child: AnimatedContainer(
+              duration: BulkaMotion.duration(context, BulkaMotion.fast),
+              curve: BulkaMotion.standardCurve,
+              height: 48,
+              padding: const EdgeInsets.fromLTRB(6, 5, 14, 5),
+              decoration: BoxDecoration(
+                color: selected ? _bulkaYellow : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: selected ? _bulkaYellow : colors.cardBorder,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: colors.surfaceCream,
+                      shape: BoxShape.circle,
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: imageUrl == null || imageUrl!.isEmpty
+                        ? const Icon(
+                            Icons.grid_view_rounded,
+                            size: 18,
+                            color: _bulkaBrown,
+                          )
+                        : _NetworkImage(
+                            url: imageUrl!,
+                            fit: BoxFit.cover,
+                            semanticLabel: label,
+                          ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: _textDark,
+                      fontSize: 13,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                    ),
                   ),
                 ],
               ),
@@ -803,28 +1079,29 @@ class _CatalogQuantityControl extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.bulkaColors;
+    late final Widget control;
     if (stopListed) {
-      return Container(
-        height: 48,
+      control = Container(
+        key: const ValueKey('catalog-stop'),
+        height: 46,
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: const Color(0xFFF2ECE4),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(15),
         ),
-        child: const Text(
-          'Стоп-лист',
-          style: TextStyle(
+        child: Text(
+          'catalog_stop_list'.tr,
+          style: const TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w600,
             color: Color(0xFF9E958A),
           ),
         ),
       );
-    }
-
-    if (quantity == 0) {
-      return SizedBox(
-        height: 48,
+    } else if (quantity == 0) {
+      control = SizedBox(
+        key: const ValueKey('catalog-add'),
+        height: 46,
         width: double.infinity,
         child: ElevatedButton.icon(
           onPressed: onAdd,
@@ -832,59 +1109,76 @@ class _CatalogQuantityControl extends StatelessWidget {
             backgroundColor: colors.brandGold,
             foregroundColor: _textDark,
             elevation: 0,
-            minimumSize: const Size(48, 48),
+            minimumSize: const Size(48, 46),
             tapTargetSize: MaterialTapTargetSize.padded,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(15),
             ),
           ),
-          icon: const Icon(Icons.shopping_bag_outlined, size: 20),
-          label: const Text('В корзину'),
+          icon: const Icon(Icons.shopping_bag_outlined, size: 18),
+          label: Text(
+            'catalog_add_to_cart'.tr,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12.5),
+          ),
+        ),
+      );
+    } else {
+      control = Container(
+        key: const ValueKey('catalog-quantity'),
+        height: 46,
+        decoration: BoxDecoration(
+          color: colors.brandGold,
+          borderRadius: BorderRadius.circular(15),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            IconButton(
+              onPressed: onDecrease,
+              tooltip: 'Уменьшить количество',
+              style: IconButton.styleFrom(
+                minimumSize: const Size(44, 44),
+                tapTargetSize: MaterialTapTargetSize.padded,
+              ),
+              icon: const Icon(Icons.remove, size: 18, color: _textDark),
+            ),
+            Semantics(
+              label: 'Количество',
+              value: '$quantity',
+              child: AnimatedSwitcher(
+                duration: BulkaMotion.duration(context, BulkaMotion.fast),
+                child: Text(
+                  '$quantity',
+                  key: ValueKey(quantity),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                    color: _textDark,
+                  ),
+                ),
+              ),
+            ),
+            IconButton(
+              onPressed: onIncrease,
+              tooltip: 'Увеличить количество',
+              style: IconButton.styleFrom(
+                minimumSize: const Size(44, 44),
+                tapTargetSize: MaterialTapTargetSize.padded,
+              ),
+              icon: const Icon(Icons.add, size: 18, color: _textDark),
+            ),
+          ],
         ),
       );
     }
 
-    return Container(
-      height: 48,
-      decoration: BoxDecoration(
-        color: colors.brandGold,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          IconButton(
-            onPressed: onDecrease,
-            tooltip: 'Уменьшить количество',
-            style: IconButton.styleFrom(
-              minimumSize: const Size(48, 48),
-              tapTargetSize: MaterialTapTargetSize.padded,
-            ),
-            icon: const Icon(Icons.remove, size: 18, color: _textDark),
-          ),
-          Semantics(
-            label: 'Количество',
-            value: '$quantity',
-            child: Text(
-              '$quantity',
-              style: const TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 14,
-                color: _textDark,
-              ),
-            ),
-          ),
-          IconButton(
-            onPressed: onIncrease,
-            tooltip: 'Увеличить количество',
-            style: IconButton.styleFrom(
-              minimumSize: const Size(48, 48),
-              tapTargetSize: MaterialTapTargetSize.padded,
-            ),
-            icon: const Icon(Icons.add, size: 18, color: _textDark),
-          ),
-        ],
-      ),
+    return BulkaMotionSwitcher(
+      duration: BulkaMotion.fast,
+      offset: const Offset(0, 0.06),
+      scale: 0.98,
+      child: control,
     );
   }
 }
@@ -900,9 +1194,9 @@ class _CatalogSkeletonGrid extends StatelessWidget {
       shrinkWrap: true,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        mainAxisSpacing: 14,
-        crossAxisSpacing: 14,
-        mainAxisExtent: 275,
+        mainAxisSpacing: 16,
+        crossAxisSpacing: 12,
+        mainAxisExtent: 326,
       ),
       itemCount: 6,
       itemBuilder: (context, index) => const _CatalogSkeletonCard(),
@@ -916,16 +1210,16 @@ class _CatalogSkeletonCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.all(9),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: _softShadow,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: const Color(0xFFEADBBE)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(child: _CatalogSkeletonBox(radius: 14)),
+          Expanded(child: _CatalogSkeletonBox(radius: 17)),
           const SizedBox(height: 10),
           const _CatalogSkeletonBox(width: double.infinity, height: 14),
           const SizedBox(height: 6),
@@ -964,73 +1258,34 @@ class _CatalogSkeletonBox extends StatelessWidget {
   }
 }
 
-const Map<String, String> _categoryImages = {
-  'Все':
-      'https://images.unsplash.com/photo-1519915028121-7d3463d20b13?w=400&auto=format&fit=crop&q=80',
-  'Пироги Четвертинки':
-      'https://images.unsplash.com/photo-1519915028121-7d3463d20b13?w=400&auto=format&fit=crop&q=80',
-  'Кофе':
-      'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=400&auto=format&fit=crop&q=80',
-  'Найди свою половинку':
-      'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=400&auto=format&fit=crop&q=80',
-  'Круглые торты':
-      'https://images.unsplash.com/photo-1588195538326-c5b1e9f80a1b?w=400&auto=format&fit=crop&q=80',
-  'Прямоугольные торты':
-      'https://images.unsplash.com/photo-1563729784474-d77dbb933a9e?w=400&auto=format&fit=crop&q=80',
-  'Круглые мини торты':
-      'https://images.unsplash.com/photo-1535141192574-5d4897c13136?w=400&auto=format&fit=crop&q=80',
-  'Пироги':
-      'https://images.unsplash.com/photo-1621303837174-89787a7d4729?w=400&auto=format&fit=crop&q=80',
-  'Сладкая выпечка':
-      'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400&auto=format&fit=crop&q=80',
-  'Слоенная выпечка':
-      'https://images.unsplash.com/photo-1555507036-ab1f4038808a?w=400&auto=format&fit=crop&q=80',
-  'Сытная выпечка':
-      'https://images.unsplash.com/photo-1509722747041-616f39b57569?w=400&auto=format&fit=crop&q=80',
-  'Чизкейки':
-      'https://images.unsplash.com/photo-1533134242443-d4fd215305ad?w=400&auto=format&fit=crop&q=80',
-};
-
 class _CatalogFilterScreen extends StatefulWidget {
-  const _CatalogFilterScreen();
+  const _CatalogFilterScreen({
+    required this.initialSort,
+    required this.initialOnlyAvailable,
+  });
+
+  final _CatalogSort initialSort;
+  final bool initialOnlyAvailable;
 
   @override
   State<_CatalogFilterScreen> createState() => _CatalogFilterScreenState();
 }
 
 class _CatalogFilterScreenState extends State<_CatalogFilterScreen> {
-  final Set<String> _expandedSections = {'Вкус'};
+  final Set<String> _expandedSections = {'Сортировка', 'Наличие'};
   final Set<String> _selectedFilters = {};
 
   final Map<String, List<String>> _sections = const {
-    'Вкус': [
-      'Медовый',
-      'Шоколадный',
-      'Фруктовый',
-      'Ореховый',
-      'Песочное с безе',
-      'Ягодный',
-      'Мороженое',
-      'Кофейный',
-      'Карамельный',
-      'Ванильный',
-    ],
-    'Коржи': ['Слоеные', 'Бисквитные', 'Песочные', 'Медовые', 'Заварные'],
-    'На сколько человек': [
-      '1-2 человека',
-      '4-6 человек',
-      '8-10 человек',
-      '12+ человек',
-    ],
-    'Начинка': [
-      'Сливочная',
-      'Творожная',
-      'Ягодная',
-      'Шоколадная',
-      'Сгущенное молоко',
-      'Заварной крем',
-    ],
+    'Сортировка': ['menu', 'priceLow', 'priceHigh'],
+    'Наличие': ['available'],
   };
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedFilters.add(widget.initialSort.name);
+    if (widget.initialOnlyAvailable) _selectedFilters.add('available');
+  }
 
   void _toggleSection(String title) {
     setState(() {
@@ -1044,18 +1299,56 @@ class _CatalogFilterScreenState extends State<_CatalogFilterScreen> {
 
   void _toggleFilter(String option) {
     setState(() {
-      if (_selectedFilters.contains(option)) {
-        _selectedFilters.remove(option);
+      if (option == 'available') {
+        if (_selectedFilters.contains(option)) {
+          _selectedFilters.remove(option);
+        } else {
+          _selectedFilters.add(option);
+        }
       } else {
+        _selectedFilters.removeAll(
+          _CatalogSort.values.map((sort) => sort.name),
+        );
         _selectedFilters.add(option);
       }
+    });
+  }
+
+  String _optionLabel(String option) {
+    return switch (option) {
+      'priceLow' => 'catalog_sort_price_low'.tr,
+      'priceHigh' => 'catalog_sort_price_high'.tr,
+      'available' => 'catalog_only_available'.tr,
+      _ => 'catalog_sort_default'.tr,
+    };
+  }
+
+  void _apply() {
+    final sort = _selectedFilters.contains('priceLow')
+        ? _CatalogSort.priceLow
+        : _selectedFilters.contains('priceHigh')
+        ? _CatalogSort.priceHigh
+        : _CatalogSort.menu;
+    Navigator.of(context).pop(
+      _CatalogFilterResult(
+        sort: sort,
+        onlyAvailable: _selectedFilters.contains('available'),
+      ),
+    );
+  }
+
+  void _reset() {
+    setState(() {
+      _selectedFilters
+        ..clear()
+        ..add(_CatalogSort.menu.name);
     });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.bulkaColors.surfaceCream,
       body: SafeArea(
         child: Column(
           children: [
@@ -1076,13 +1369,13 @@ class _CatalogFilterScreenState extends State<_CatalogFilterScreen> {
                       tapTargetSize: MaterialTapTargetSize.padded,
                     ),
                   ),
-                  const Expanded(
+                  Expanded(
                     child: Center(
                       child: Text(
-                        'Фильтр',
-                        style: TextStyle(
-                          fontFamily: _headingFont,
-                          fontSize: 18,
+                        'catalog_filter'.tr,
+                        style: const TextStyle(
+                          fontFamily: _brandFont,
+                          fontSize: 22,
                           fontWeight: FontWeight.w700,
                           color: _textDark,
                         ),
@@ -1116,7 +1409,9 @@ class _CatalogFilterScreenState extends State<_CatalogFilterScreen> {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(
-                                  sectionTitle,
+                                  sectionTitle == 'Сортировка'
+                                      ? 'catalog_sort_title'.tr
+                                      : 'catalog_availability'.tr,
                                   style: const TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w600,
@@ -1150,7 +1445,7 @@ class _CatalogFilterScreenState extends State<_CatalogFilterScreen> {
                                       MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text(
-                                      option,
+                                      _optionLabel(option),
                                       style: TextStyle(
                                         fontSize: 15,
                                         color: isSelected
@@ -1199,7 +1494,7 @@ class _CatalogFilterScreenState extends State<_CatalogFilterScreen> {
                     child: SizedBox(
                       height: 50,
                       child: ElevatedButton(
-                        onPressed: () => Navigator.of(context).pop(),
+                        onPressed: _apply,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: _bulkaYellow,
                           foregroundColor: _textDark,
@@ -1208,9 +1503,9 @@ class _CatalogFilterScreenState extends State<_CatalogFilterScreen> {
                             borderRadius: BorderRadius.circular(25),
                           ),
                         ),
-                        child: const Text(
-                          'Применить',
-                          style: TextStyle(
+                        child: Text(
+                          'catalog_apply'.tr,
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w700,
                             color: _textDark,
@@ -1225,17 +1520,16 @@ class _CatalogFilterScreenState extends State<_CatalogFilterScreen> {
                     child: SizedBox(
                       height: 50,
                       child: OutlinedButton(
-                        onPressed: () =>
-                            setState(() => _selectedFilters.clear()),
+                        onPressed: _reset,
                         style: OutlinedButton.styleFrom(
                           side: const BorderSide(color: _textDark, width: 1.5),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(25),
                           ),
                         ),
-                        child: const Text(
-                          'Сбросить',
-                          style: TextStyle(
+                        child: Text(
+                          'catalog_reset'.tr,
+                          style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
                             color: _textDark,
@@ -1272,7 +1566,7 @@ class _CatalogAllCategoriesScreen extends StatelessWidget {
     final displayCategories = categories.where((c) => c != 'Все').toList();
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.bulkaColors.surfaceCream,
       body: SafeArea(
         child: Column(
           children: [
@@ -1293,13 +1587,13 @@ class _CatalogAllCategoriesScreen extends StatelessWidget {
                       tapTargetSize: MaterialTapTargetSize.padded,
                     ),
                   ),
-                  const Expanded(
+                  Expanded(
                     child: Center(
                       child: Text(
-                        'Каталог',
-                        style: TextStyle(
-                          fontFamily: _headingFont,
-                          fontSize: 18,
+                        'nav_catalog'.tr,
+                        style: const TextStyle(
+                          fontFamily: _brandFont,
+                          fontSize: 22,
                           fontWeight: FontWeight.w700,
                           color: _textDark,
                         ),
@@ -1314,7 +1608,11 @@ class _CatalogAllCategoriesScreen extends StatelessWidget {
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   final textScale = MediaQuery.textScalerOf(context).scale(1);
-                  final columns = constraints.maxWidth >= 720 ? 4 : 3;
+                  final columns = constraints.maxWidth >= 900
+                      ? 4
+                      : constraints.maxWidth >= 600
+                      ? 3
+                      : 2;
                   return GridView.builder(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
@@ -1324,15 +1622,12 @@ class _CatalogAllCategoriesScreen extends StatelessWidget {
                       crossAxisCount: columns,
                       mainAxisSpacing: 16,
                       crossAxisSpacing: 12,
-                      mainAxisExtent: textScale > 1.2 ? 170 : 145,
+                      mainAxisExtent: textScale > 1.2 ? 218 : 190,
                     ),
                     itemCount: displayCategories.length,
                     itemBuilder: (context, i) {
                       final cat = displayCategories[i];
-                      final imageUrl =
-                          apiCategoryImages[cat] ??
-                          _categoryImages[cat] ??
-                          'https://images.unsplash.com/photo-1519915028121-7d3463d20b13?w=400&auto=format&fit=crop&q=80';
+                      final imageUrl = apiCategoryImages[cat] ?? '';
 
                       return Semantics(
                         button: true,
@@ -1347,46 +1642,46 @@ class _CatalogAllCategoriesScreen extends StatelessWidget {
                                 Navigator.of(context).pop();
                               },
                               borderRadius: BorderRadius.circular(18),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Expanded(
-                                    child: Container(
-                                      width: double.infinity,
-                                      decoration: BoxDecoration(
-                                        color: _milkyBackground,
-                                        borderRadius: BorderRadius.circular(18),
-                                        boxShadow: const [
-                                          BoxShadow(
-                                            color: Color(0x0A000000),
-                                            blurRadius: 8,
-                                            offset: Offset(0, 3),
-                                          ),
-                                        ],
-                                      ),
+                              child: Ink(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                    color: selectedCategory == cat
+                                        ? _bulkaYellow
+                                        : context.bulkaColors.cardBorder,
+                                    width: selectedCategory == cat ? 2 : 1,
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    Expanded(
                                       child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(18),
+                                        borderRadius: BorderRadius.circular(15),
                                         child: _NetworkImage(
                                           url: imageUrl,
                                           fit: BoxFit.cover,
+                                          semanticLabel: cat,
                                         ),
                                       ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    cat.toUpperCase(),
-                                    maxLines: 3,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: 0.2,
-                                      color: Color(0xFF5A4036),
-                                      height: 1.25,
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      cat,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                        color: _textDark,
+                                        height: 1.25,
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
                           ),
@@ -1407,13 +1702,15 @@ class _CatalogAllCategoriesScreen extends StatelessWidget {
 class _ProductDetailsScreen extends StatefulWidget {
   const _ProductDetailsScreen({
     required this.product,
+    required this.liveProducts,
     required this.initialQuantity,
     required this.onQuantityChanged,
   });
 
   final CatalogProduct product;
+  final ValueListenable<Map<String, CatalogProduct>> liveProducts;
   final int initialQuantity;
-  final ValueChanged<int> onQuantityChanged;
+  final void Function(CatalogProduct product, int quantity) onQuantityChanged;
 
   @override
   State<_ProductDetailsScreen> createState() => _ProductDetailsScreenState();
@@ -1429,20 +1726,26 @@ class _ProductDetailsScreenState extends State<_ProductDetailsScreen> {
     _quantity = widget.initialQuantity;
   }
 
-  void _updateQuantity(int newQty) {
-    final next = newQty.clamp(0, widget.product.inStockCount);
+  void _updateQuantity(CatalogProduct product, int newQty) {
+    if (product.isStopListed) return;
+    final next = newQty.clamp(0, product.inStockCount);
     setState(() {
       _quantity = next;
     });
-    widget.onQuantityChanged(next);
+    widget.onQuantityChanged(product, next);
   }
 
   @override
   Widget build(BuildContext context) {
-    final photos = [
-      widget.product.imageUrl,
-      'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=800&auto=format&fit=crop&q=80',
-    ];
+    return ValueListenableBuilder<Map<String, CatalogProduct>>(
+      valueListenable: widget.liveProducts,
+      builder: (context, products, _) =>
+          _buildContent(context, products[widget.product.id] ?? widget.product),
+    );
+  }
+
+  Widget _buildContent(BuildContext context, CatalogProduct product) {
+    final photos = [product.imageUrl];
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -1469,7 +1772,7 @@ class _ProductDetailsScreenState extends State<_ProductDetailsScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      widget.product.title,
+                      product.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
@@ -1497,38 +1800,51 @@ class _ProductDetailsScreenState extends State<_ProductDetailsScreen> {
                         itemBuilder: (context, i) {
                           return Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 24),
-                            child: Center(
-                              child: _NetworkImage(
-                                url: photos[i],
-                                fit: BoxFit.contain,
-                              ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(24),
+                              child: i == 0
+                                  ? BulkaHero(
+                                      tag: 'catalog-product-${product.id}',
+                                      child: _NetworkImage(
+                                        url: photos[i],
+                                        fit: BoxFit.cover,
+                                        semanticLabel: product.title,
+                                      ),
+                                    )
+                                  : _NetworkImage(
+                                      url: photos[i],
+                                      fit: BoxFit.cover,
+                                      semanticLabel: product.title,
+                                    ),
                             ),
                           );
                         },
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(photos.length, (i) {
-                        final active = _currentPhotoIndex == i;
-                        return AnimatedContainer(
-                          duration: BulkaMotion.duration(
-                            context,
-                            BulkaMotion.fast,
-                          ),
-                          margin: const EdgeInsets.symmetric(horizontal: 4),
-                          width: active ? 22 : 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: active
-                                ? _bulkaYellow
-                                : const Color(0xFFE5E0DA),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        );
-                      }),
-                    ),
+                    if (photos.length > 1) ...[
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(photos.length, (i) {
+                          final active = _currentPhotoIndex == i;
+                          return AnimatedContainer(
+                            duration: BulkaMotion.duration(
+                              context,
+                              BulkaMotion.fast,
+                            ),
+                            margin: const EdgeInsets.symmetric(horizontal: 4),
+                            width: active ? 22 : 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              color: active
+                                  ? _bulkaYellow
+                                  : const Color(0xFFE5E0DA),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          );
+                        }),
+                      ),
+                    ],
                     const SizedBox(height: 24),
                     Container(
                       width: double.infinity,
@@ -1543,7 +1859,7 @@ class _ProductDetailsScreenState extends State<_ProductDetailsScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            widget.product.title,
+                            product.title,
                             style: const TextStyle(
                               fontFamily: _headingFont,
                               fontSize: 21,
@@ -1554,7 +1870,7 @@ class _ProductDetailsScreenState extends State<_ProductDetailsScreen> {
                           ),
                           const SizedBox(height: 12),
                           Text(
-                            '${_CatalogScreenState._formatPrice(widget.product.price)} ₸',
+                            '${_CatalogScreenState._formatPrice(product.price)} ₸',
                             style: const TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.w800,
@@ -1563,8 +1879,8 @@ class _ProductDetailsScreenState extends State<_ProductDetailsScreen> {
                           ),
                           const SizedBox(height: 20),
                           Text(
-                            widget.product.description.isNotEmpty
-                                ? widget.product.description
+                            product.description.isNotEmpty
+                                ? product.description
                                 : 'Песочное тесто и нежная начинка из свежих отборных ингредиентов. Свежая выпечка каждый день.',
                             style: const TextStyle(
                               fontSize: 15,
@@ -1589,10 +1905,10 @@ class _ProductDetailsScreenState extends State<_ProductDetailsScreen> {
               ),
               child: _CatalogQuantityControl(
                 quantity: _quantity,
-                stopListed: widget.product.isStopListed,
-                onAdd: () => _updateQuantity(1),
-                onDecrease: () => _updateQuantity(_quantity - 1),
-                onIncrease: () => _updateQuantity(_quantity + 1),
+                stopListed: product.isStopListed,
+                onAdd: () => _updateQuantity(product, 1),
+                onDecrease: () => _updateQuantity(product, _quantity - 1),
+                onIncrease: () => _updateQuantity(product, _quantity + 1),
               ),
             ),
           ],

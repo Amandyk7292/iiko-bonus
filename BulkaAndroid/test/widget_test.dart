@@ -15,6 +15,201 @@ void main() {
     expect(translationValidationErrors(), isEmpty);
   });
 
+  test('delivery payload preserves exact address coordinates and details', () {
+    const address = DeliveryAddress(
+      id: 'address-1',
+      title: 'Дом',
+      location: DeliveryLocation(
+        city: 'Актау',
+        address: '17-й микрорайон',
+        latitude: 43.66944,
+        longitude: 51.136929,
+      ),
+      house: '1',
+      entrance: '2',
+      floor: '4',
+      apartment: '18',
+      courierComment: 'Позвонить заранее',
+    );
+
+    expect(address.hasValidCoordinates, isTrue);
+    expect(address.toOrderPayload(), {
+      'label': 'Дом',
+      'address': '17-й микрорайон, 1',
+      'city': 'Актау',
+      'latitude': 43.66944,
+      'longitude': 51.136929,
+      'entrance': '2',
+      'floor': '4',
+      'apartment': '18',
+      'comment': 'Позвонить заранее',
+    });
+  });
+
+  test('fulfillment location reads delivery rules from the API', () {
+    final location = BakeryLocation.fromJson({
+      'id': '48f71218-aa08-51bf-a6d9-2497c4a1e55b',
+      'name': 'ЖК Дукат',
+      'address': '17-й микрорайон, 1',
+      'city': 'Актау',
+      'latitude': 43.66944,
+      'longitude': 51.136929,
+      'hours': {
+        'daily': {'open': '08:00', 'close': '24:00'},
+      },
+      'deliveryEnabled': true,
+      'deliveryRadiusKm': 5.5,
+      'deliveryFee': 800,
+      'deliveryMinOrder': 5000,
+    });
+
+    expect(location.supports('delivery'), isTrue);
+    expect(location.deliveryRadiusKm, 5.5);
+    expect(location.deliveryFee, 800);
+    expect(location.deliveryMinOrder, 5000);
+  });
+
+  test('cart immediately reconciles menu price, image and stop-list state', () {
+    final cart = CartProvider();
+    cart.addItem(
+      productId: 'product-1',
+      name: 'Старое название',
+      price: 1000,
+      imageUrl: 'old.jpg',
+    );
+
+    cart.reconcileMenu(const [
+      CartProductSnapshot(
+        id: 'product-1',
+        name: 'Новое название',
+        price: 1250,
+        imageUrl: 'new.jpg',
+        isStopListed: true,
+      ),
+    ]);
+
+    final item = cart.items['product-1']!;
+    expect(item.name, 'Новое название');
+    expect(item.price, 1250);
+    expect(item.imageUrl, 'new.jpg');
+    expect(item.isStopListed, isTrue);
+    expect(item.quantity, 1);
+
+    cart.setQuantity('product-1', 2);
+    expect(cart.getQuantity('product-1'), 1);
+    cart.setQuantity('product-1', 0);
+    expect(cart.items, isEmpty);
+  });
+
+  testWidgets('address header fits a narrow screen with larger text', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildBulkaTheme(),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: const TextScaler.linear(1.3)),
+          child: child!,
+        ),
+        home: const AddressSelectionScreen(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Выберите адрес'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('checkout remains usable at 320px with larger text', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final cart = CartProvider()
+      ..addItem(
+        productId: 'product-1',
+        name: 'Вишнёво-яблочный пирог четвертинка',
+        price: 2500,
+        imageUrl: '',
+      );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildBulkaTheme(),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: const TextScaler.linear(1.3)),
+          child: child!,
+        ),
+        home: ChangeNotifierProvider.value(
+          value: cart,
+          child: MainShell(
+            api: _FakeBulkaApiClient(),
+            customer: _testCustomer,
+            transactions: _testTransactions,
+            initialTab: 2,
+            onLogout: () async {},
+            onRefreshProfile: () async {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.text('Оформить заказ'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Оформление заказа'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('all main tabs fit 320px with larger text', (tester) async {
+    tester.view.physicalSize = const Size(320, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildBulkaTheme(),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: const TextScaler.linear(1.3)),
+          child: child!,
+        ),
+        home: ChangeNotifierProvider(
+          create: (_) => CartProvider(),
+          child: MainShell(
+            api: _FakeBulkaApiClient(),
+            customer: _testCustomer,
+            transactions: _testTransactions,
+            onLogout: () async {},
+            onRefreshProfile: () async {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+
+    for (final tab in [1, 3, 4]) {
+      await tester.tap(find.byKey(ValueKey('nav-$tab')));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull, reason: 'tab $tab overflowed');
+    }
+  });
+
   testWidgets('shows login screen', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -372,7 +567,15 @@ void main() {
       find.widgetWithText(TextFormField, 'Введите').at(1),
       '9',
     );
-    await tester.ensureVisible(find.text('Продолжить'));
+    tester.testTextInput.hide();
+    await tester.pumpAndSettle();
+    final detailsList = find.ancestor(
+      of: find.text('Продолжить'),
+      matching: find.byType(ListView),
+    );
+    expect(detailsList, findsOneWidget);
+    await tester.drag(detailsList, const Offset(0, -700));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Продолжить'));
     await tester.pumpAndSettle();
 
@@ -383,6 +586,8 @@ void main() {
 }
 
 class _FakeBulkaApiClient extends BulkaApiClient {
+  final List<DeliveryAddress> _addresses = [];
+
   @override
   Future<List<PromoStory>> getStories() async => const [
     PromoStory(
@@ -401,6 +606,49 @@ class _FakeBulkaApiClient extends BulkaApiClient {
 
   @override
   Future<String> getQrToken(String phone) async => 'test-live-token';
+
+  @override
+  Future<List<BakeryLocation>> getFulfillmentLocations() async => const [
+    BakeryLocation(
+      id: 'aktau-1',
+      name: 'Bulka',
+      address: 'Актау',
+      city: 'Актау',
+      latitude: 43.6532,
+      longitude: 51.1975,
+      deliveryEnabled: true,
+    ),
+  ];
+
+  @override
+  Future<List<DeliveryAddress>> getCustomerAddresses() async =>
+      List.unmodifiable(_addresses);
+
+  @override
+  Future<Map<String, dynamic>> reverseDeliveryAddress({
+    required double latitude,
+    required double longitude,
+  }) async => {
+    'displayName': 'Актау, 9 микрорайон',
+    'address': '9 микрорайон',
+    'city': 'Актау',
+    'latitude': latitude,
+    'longitude': longitude,
+  };
+
+  @override
+  Future<DeliveryAddress> createCustomerAddress(DeliveryAddress address) async {
+    _addresses.insert(0, address);
+    return address;
+  }
+
+  @override
+  Future<void> setDefaultCustomerAddress(String id) async {}
+
+  @override
+  Future<void> deleteCustomerAddress(String id) async {
+    _addresses.removeWhere((address) => address.id == id);
+  }
 }
 
 final _testTransactions = [

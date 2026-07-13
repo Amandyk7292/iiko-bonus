@@ -38,24 +38,30 @@ class _NetworkImage extends StatelessWidget {
           2048,
           (logicalWidth * MediaQuery.devicePixelRatioOf(context)).ceil(),
         );
-        return Image.network(
-          url,
-          fit: fit,
-          cacheWidth: cacheWidth,
-          gaplessPlayback: true,
-          filterQuality: FilterQuality.medium,
-          semanticLabel: semanticLabel,
-          errorBuilder: (_, _, _) =>
-              const ColoredBox(color: _lightCardHighlight),
-          loadingBuilder: (context, child, progress) {
-            if (progress == null) return child;
-            return const ColoredBox(
-              color: _lightCardHighlight,
-              child: Center(
-                child: CircularProgressIndicator(color: _bulkaYellow),
-              ),
-            );
-          },
+        return SizedBox(
+          width: constraints.hasBoundedWidth ? constraints.maxWidth : null,
+          height: constraints.hasBoundedHeight ? constraints.maxHeight : null,
+          child: Image.network(
+            url,
+            width: constraints.hasBoundedWidth ? constraints.maxWidth : null,
+            height: constraints.hasBoundedHeight ? constraints.maxHeight : null,
+            fit: fit,
+            cacheWidth: cacheWidth,
+            gaplessPlayback: true,
+            filterQuality: FilterQuality.medium,
+            semanticLabel: semanticLabel,
+            errorBuilder: (_, _, _) =>
+                const ColoredBox(color: _lightCardHighlight),
+            loadingBuilder: (context, child, progress) {
+              if (progress == null) return child;
+              return const ColoredBox(
+                color: _lightCardHighlight,
+                child: Center(
+                  child: CircularProgressIndicator(color: _bulkaYellow),
+                ),
+              );
+            },
+          ),
         );
       },
     );

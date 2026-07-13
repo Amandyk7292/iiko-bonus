@@ -94,8 +94,8 @@ export default function TransactionsPage() {
               <tbody>
                 {filtered.map(transaction => {
                   const type = String(transaction.type ?? '');
-                  const isDeposit = type.includes('deposit');
-                  const isWithdrawal = type.includes('withdrawal');
+                  const isDeposit = ['deposit', 'manual_deposit'].includes(type);
+                  const isWithdrawal = type.includes('withdrawal') || type === 'refund_reversal';
                   const items = Array.isArray(transaction.items) ? transaction.items : [];
                   const expanded = expandedId === transaction.id;
                   const typeLabel = t(`transaction.${type}`);

@@ -14,6 +14,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       : Durations.extralong1;
 
   final _api = BulkaApiClient();
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   SharedPreferences? _prefs;
   Timer? _refreshTimer;
   bool _profileRefreshInFlight = false;
@@ -23,6 +24,10 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   String? _registrationToken;
   Customer? _customer;
   List<BonusTransaction> _transactions = const [];
+  int _lastMainTab = 0;
+  bool _ordersCompleted = false;
+  bool _restoreOrdersScreen = false;
+  bool _ordersRouteOpen = false;
 
   @override
   void initState() {
@@ -60,6 +65,10 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     final cachedTransactions = _readTransactions(
       prefs.getString('transactions'),
     );
+    final savedTab = (prefs.getInt('lastMainTab') ?? 0).clamp(0, 4).toInt();
+    final restoreOrdersScreen =
+        prefs.getString('lastAppScreen') == 'customer-orders';
+    final ordersCompleted = prefs.getBool('ordersCompleted') ?? false;
 
     await minimumSplashDelay;
     if (!mounted) return;
@@ -69,6 +78,9 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       _accessToken = accessToken;
       _customer = cachedCustomer;
       _transactions = cachedTransactions;
+      _lastMainTab = savedTab;
+      _restoreOrdersScreen = restoreOrdersScreen;
+      _ordersCompleted = ordersCompleted;
       _booting = false;
     });
 
@@ -77,6 +89,48 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       unawaited(PushNotifications.register(_api));
       await _refreshProfile(phone);
       _startProfileRefresh(phone);
+      if (_restoreOrdersScreen && _savedPhone != null) {
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => unawaited(_openCustomerOrders()),
+        );
+      }
+    }
+  }
+
+  Future<void> _saveMainTab(int tab) async {
+    _lastMainTab = tab.clamp(0, 4).toInt();
+    final prefs = _prefs ?? await SharedPreferences.getInstance();
+    await prefs.setInt('lastMainTab', _lastMainTab);
+  }
+
+  Future<void> _saveOrdersScope(bool completed) async {
+    _ordersCompleted = completed;
+    final prefs = _prefs ?? await SharedPreferences.getInstance();
+    await prefs.setBool('ordersCompleted', completed);
+  }
+
+  Future<void> _openCustomerOrders() async {
+    if (_ordersRouteOpen || _savedPhone == null) return;
+    final navigator = _navigatorKey.currentState;
+    if (navigator == null) return;
+    _ordersRouteOpen = true;
+    final prefs = _prefs ?? await SharedPreferences.getInstance();
+    await prefs.setString('lastAppScreen', 'customer-orders');
+    try {
+      await navigator.push<void>(
+        MaterialPageRoute(
+          settings: const RouteSettings(name: 'customer-orders'),
+          builder: (_) => CustomerOrdersScreen(
+            api: _api,
+            initialCompleted: _ordersCompleted,
+            onScopeChanged: (value) => unawaited(_saveOrdersScope(value)),
+          ),
+        ),
+      );
+    } finally {
+      _ordersRouteOpen = false;
+      _restoreOrdersScreen = false;
+      await prefs.setString('lastAppScreen', 'main');
     }
   }
 
@@ -245,6 +299,8 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     await prefs.remove('customer');
     await prefs.remove('transactions');
     await prefs.remove('accessToken');
+    await prefs.remove('lastAppScreen');
+    await prefs.remove('lastMainTab');
     _api.setAccessToken(null);
     if (!mounted) return;
     setState(() {
@@ -253,7 +309,10 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       _registrationToken = null;
       _customer = null;
       _transactions = const [];
+      _lastMainTab = 0;
+      _restoreOrdersScreen = false;
     });
+    _navigatorKey.currentState?.popUntil((route) => route.isFirst);
   }
 
   @override
@@ -262,6 +321,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       valueListenable: appLanguageNotifier,
       builder: (context, lang, child) {
         return MaterialApp(
+          navigatorKey: _navigatorKey,
           debugShowCheckedModeBanner: false,
           title: 'app_title'.tr,
           locale: Locale(lang),
@@ -309,6 +369,9 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       transactions: _transactions,
       onLogout: _logout,
       onRefreshProfile: () => _refreshProfile(_savedPhone!),
+      initialTab: _lastMainTab,
+      onTabChanged: (tab) => unawaited(_saveMainTab(tab)),
+      onOpenOrders: _openCustomerOrders,
     );
   }
 }

@@ -19,4 +19,4 @@ const saved = {
 };
 fs.writeFileSync(FILE, JSON.stringify(saved, null, 2));
 console.log('Generated new ECDSA keypair → keypair.json');
-console.log('⚠️  Re-authentication (SMS) required after keypair change.');
+console.log('Важно: Re-authentication (SMS) required after keypair change.');

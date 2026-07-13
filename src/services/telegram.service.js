@@ -6,7 +6,7 @@ const { createWalletToken } = require('./wallet.service');
 // Токен бота по умолчанию (от пользователя) или из переменных окружения
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
 // URL для WebApp (ваш продакшен на Render по умолчанию)
-const WEBAPP_URL = process.env.WEBAPP_URL || 'https://iiko-bonus.onrender.com/app';
+const WEBAPP_URL = process.env.WEBAPP_URL || 'https://bulka.com.kz';
 
 let offset = 0;
 let isRunning = false;

@@ -371,8 +371,11 @@ class BonusTransaction {
   final String timestamp;
   final List<dynamic>? items;
 
-  bool get isEarning =>
-      type.toLowerCase().contains('deposit') || type.toLowerCase() == 'earning';
+  bool get isEarning => const {
+    'deposit',
+    'manual_deposit',
+    'earning',
+  }.contains(type.toLowerCase());
 
   String get label {
     return localizeTransactionType(type, isEarning: isEarning);
@@ -419,6 +422,9 @@ class CustomerOrder {
     this.pickupTime,
     this.comment,
     this.cancellationReason,
+    this.refundStatus,
+    this.refundAmount,
+    this.refundedAt,
   });
 
   final String id;
@@ -435,6 +441,9 @@ class CustomerOrder {
   final DateTime? pickupTime;
   final String? comment;
   final String? cancellationReason;
+  final String? refundStatus;
+  final int? refundAmount;
+  final DateTime? refundedAt;
 
   factory CustomerOrder.fromJson(Map<String, dynamic> json) {
     final rawItems = json['items'];
@@ -456,6 +465,9 @@ class CustomerOrder {
       pickupTime: DateTime.tryParse(_asString(json['pickupTime'])),
       comment: _nullableString(json['comment']),
       cancellationReason: _nullableString(json['cancellationReason']),
+      refundStatus: _nullableString(json['refundStatus']),
+      refundAmount: _nullableInt(json['refundAmount']),
+      refundedAt: DateTime.tryParse(_asString(json['refundedAt'])),
     );
   }
 }
@@ -625,48 +637,89 @@ class DeliveryAddress {
     required this.title,
     required this.location,
     required this.house,
+    this.entrance,
     this.floor,
     this.apartment,
     this.courierComment,
+    this.isDefault = false,
   });
 
   final String id;
   final String title;
   final DeliveryLocation location;
   final String house;
+  final String? entrance;
   final String? floor;
   final String? apartment;
   final String? courierComment;
+  final bool isDefault;
 
-  String get displayAddress => location.fullAddress;
+  String get streetAddress {
+    final parts = <String>[location.address];
+    if (house.trim().isNotEmpty) parts.add(house.trim());
+    return parts.where((part) => part.trim().isNotEmpty).join(', ');
+  }
+
+  String get displayAddress {
+    final parts = <String>[location.fullAddress];
+    if (house.trim().isNotEmpty) parts.add(house.trim());
+    return parts.join(', ');
+  }
+
+  bool get hasValidCoordinates =>
+      location.latitude >= -90 &&
+      location.latitude <= 90 &&
+      location.longitude >= -180 &&
+      location.longitude <= 180 &&
+      !(location.latitude == 0 && location.longitude == 0);
+
+  Map<String, dynamic> toOrderPayload() => {
+    'label': title,
+    'address': streetAddress,
+    'city': location.city,
+    'latitude': location.latitude,
+    'longitude': location.longitude,
+    'entrance': entrance,
+    'floor': floor,
+    'apartment': apartment,
+    'comment': courierComment,
+  };
 
   Map<String, dynamic> toJson() => {
     'id': id,
     'title': title,
+    'label': title,
     'city': location.city,
     'address': location.address,
     'latitude': location.latitude,
     'longitude': location.longitude,
     'house': house,
+    'entrance': entrance,
     'floor': floor,
     'apartment': apartment,
     'courierComment': courierComment,
+    'comment': courierComment,
+    'isDefault': isDefault,
   };
 
   factory DeliveryAddress.fromJson(Map<String, dynamic> json) {
     return DeliveryAddress(
       id: _asString(json['id']),
-      title: _asString(json['title']),
+      title: _asString(json['title'] ?? json['label']),
       location: DeliveryLocation(
-        city: _asString(json['city'], fallback: 'Aktau'),
+        city: _asString(json['city']),
         address: _asString(json['address']),
-        latitude: _asDouble(json['latitude'], fallback: 43.6532),
-        longitude: _asDouble(json['longitude'], fallback: 51.1975),
+        latitude: _asDouble(json['latitude']),
+        longitude: _asDouble(json['longitude']),
       ),
       house: _asString(json['house']),
+      entrance: _nullableString(json['entrance']),
       floor: _nullableString(json['floor']),
       apartment: _nullableString(json['apartment']),
-      courierComment: _nullableString(json['courierComment']),
+      courierComment: _nullableString(
+        json['courierComment'] ?? json['comment'],
+      ),
+      isDefault: json['isDefault'] == true || json['is_default'] == true,
     );
   }
 }
@@ -702,6 +755,72 @@ class Point {
       id: _asString(json['id']),
       name: _asString(json['name']),
       address: _asString(json['address']),
+    );
+  }
+}
+
+class BakeryLocation {
+  const BakeryLocation({
+    required this.id,
+    required this.name,
+    required this.address,
+    required this.city,
+    this.latitude,
+    this.longitude,
+    this.hours = const {},
+    this.active = true,
+    this.pickupEnabled = true,
+    this.preorderEnabled = true,
+    this.deliveryEnabled = false,
+    this.deliveryRadiusKm,
+    this.deliveryFee,
+    this.deliveryMinOrder,
+  });
+
+  final String id;
+  final String name;
+  final String address;
+  final String city;
+  final double? latitude;
+  final double? longitude;
+  final Map<String, dynamic> hours;
+  final bool active;
+  final bool pickupEnabled;
+  final bool preorderEnabled;
+  final bool deliveryEnabled;
+  final double? deliveryRadiusKm;
+  final int? deliveryFee;
+  final int? deliveryMinOrder;
+
+  String get displayLabel =>
+      [name.trim(), address.trim()].where((part) => part.isNotEmpty).join(', ');
+
+  bool supports(String orderType) => switch (orderType) {
+    'preorder' => preorderEnabled,
+    'delivery' => deliveryEnabled,
+    _ => pickupEnabled,
+  };
+
+  factory BakeryLocation.fromJson(Map<String, dynamic> json) {
+    return BakeryLocation(
+      id: _asString(json['id']),
+      name: _asString(json['name']),
+      address: _asString(json['address']),
+      city: _asString(json['city']),
+      latitude: _nullableDouble(json['latitude']),
+      longitude: _nullableDouble(json['longitude']),
+      hours: _asMap(json['hours']),
+      active: json['active'] != false,
+      pickupEnabled: json['pickupEnabled'] != false,
+      preorderEnabled: json['preorderEnabled'] != false,
+      deliveryEnabled: json['deliveryEnabled'] == true,
+      deliveryRadiusKm: _nullableDouble(
+        json['deliveryRadiusKm'] ?? json['delivery_radius_km'],
+      ),
+      deliveryFee: _nullableInt(json['deliveryFee'] ?? json['delivery_fee']),
+      deliveryMinOrder: _nullableInt(
+        json['deliveryMinOrder'] ?? json['delivery_min_order'],
+      ),
     );
   }
 }

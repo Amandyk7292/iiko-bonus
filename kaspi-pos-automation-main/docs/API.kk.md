@@ -1,4 +1,4 @@
-# 📖 API құжаттамасы
+# API құжаттамасы
 
 Kaspi POS Automation Kaspi Pay төлемдерімен жұмыс істеу үшін REST API ұсынады: SMS арқылы авторизация, шот-фактуралар жасау, QR-төлем, операциялар тарихы және қайтарулар.
 
@@ -9,36 +9,36 @@ Kaspi POS Automation Kaspi Pay төлемдерімен жұмыс істеу ү
 ## Мазмұны
 
 - [Аутентификация](#аутентификация)
-  - [Сессия тақырыптары](#сессия-тақырыптары)
+- [Сессия тақырыптары](#сессия-тақырыптары)
 - [Health Check](#health-check)
 - [Auth — Авторизация](#auth--авторизация)
-  - [POST /api/auth/init](#post-apiauthinit)
-  - [POST /api/auth/send-phone](#post-apiauthsend-phone)
-  - [POST /api/auth/verify-otp](#post-apiauthverify-otp)
-  - [POST /api/auth/session](#post-apiauthsession)
-  - [POST /api/auth/logout](#post-apiauthlogout)
+- [POST /api/auth/init](#post-apiauthinit)
+- [POST /api/auth/send-phone](#post-apiauthsend-phone)
+- [POST /api/auth/verify-otp](#post-apiauthverify-otp)
+- [POST /api/auth/session](#post-apiauthsession)
+- [POST /api/auth/logout](#post-apiauthlogout)
 - [Invoice — Шот-фактуралар](#invoice--шот-фактуралар)
-  - [GET /api/invoice/client-info](#get-apiinvoiceclient-info)
-  - [POST /api/invoice/create](#post-apiinvoicecreate)
-  - [GET /api/invoice/details](#get-apiinvoicedetails)
-  - [POST /api/invoice/cancel](#post-apiinvoicecancel)
-  - [POST /api/invoice/history](#post-apiinvoicehistory)
+- [GET /api/invoice/client-info](#get-apiinvoiceclient-info)
+- [POST /api/invoice/create](#post-apiinvoicecreate)
+- [GET /api/invoice/details](#get-apiinvoicedetails)
+- [POST /api/invoice/cancel](#post-apiinvoicecancel)
+- [POST /api/invoice/history](#post-apiinvoicehistory)
 - [QR — QR-төлем](#qr--qr-төлем)
-  - [POST /api/qr/create](#post-apiqrcreate)
-  - [GET /api/qr/status](#get-apiqrstatus)
+- [POST /api/qr/create](#post-apiqrcreate)
+- [GET /api/qr/status](#get-apiqrstatus)
 - [History — Операциялар тарихы](#history--операциялар-тарихы)
-  - [POST /api/history/operations](#post-apihistoryoperations)
-  - [POST /api/history/details](#post-apihistorydetails)
+- [POST /api/history/operations](#post-apihistoryoperations)
+- [POST /api/history/details](#post-apihistorydetails)
 - [Refund — Қайтарулар](#refund--қайтарулар)
-  - [POST /api/refund/create](#post-apirefundcreate)
+- [POST /api/refund/create](#post-apirefundcreate)
 - [Session — Сессияны тексеру](#session--сессияны-тексеру)
-  - [GET /api/session/check](#get-apisessioncheck)
+- [GET /api/session/check](#get-apisessioncheck)
 - [Webhooks — Хабарламалар](#webhooks--хабарламалар)
-  - [Баптау](#баптау)
-  - [Оқиғалар](#оқиғалар)
-  - [Payload форматы](#payload-форматы)
-  - [Қолтаңба (HMAC)](#қолтаңба-hmac)
-  - [Қайта жіберу (Retry)](#қайта-жіберу-retry)
+- [Баптау](#баптау)
+- [Оқиғалар](#оқиғалар)
+- [Payload форматы](#payload-форматы)
+- [Қолтаңба (HMAC)](#қолтаңба-hmac)
+- [Қайта жіберу (Retry)](#қайта-жіберу-retry)
 
 ---
 
@@ -50,11 +50,11 @@ API 3 қадамды SMS-авторизацияны пайдаланады. Сә
 
 `/api/auth/*` және `/health` басқа барлық эндпоинттер келесі тақырыптарды талап етеді:
 
-| Тақырып | Түрі | Міндетті | Сипаттама |
-|---|---|---|---|
-| `X-Token-SN` | `string` | ✅ | Авторизация кезінде алынған сессия токені |
-| `X-Vtoken-Secret` | `string` | ✅ | Шифрланған сессия құпиясы |
-| `X-Profile-Id` | `string` | ❌ | Ұйым профилінің ID-сі |
+| Тақырып           | Түрі     | Міндетті | Сипаттама                                 |
+| ----------------- | -------- | -------- | ----------------------------------------- |
+| `X-Token-SN`      | `string` | да       | Авторизация кезінде алынған сессия токені |
+| `X-Vtoken-Secret` | `string` | да       | Шифрланған сессия құпиясы                 |
+| `X-Profile-Id`    | `string` | нет      | Ұйым профилінің ID-сі                     |
 
 ---
 
@@ -76,7 +76,7 @@ API 3 қадамды SMS-авторизацияны пайдаланады. Сә
 
 Kaspi SMS-коды арқылы үш қадамды авторизация процесі.
 
-> ⚠️ **Маңызды:** Кіру үшін Kaspi Pay **кассирінің** аккаунтының телефон нөмірін пайдаланыңыз.
+> Важно: **Маңызды:** Кіру үшін Kaspi Pay **кассирінің** аккаунтының телефон нөмірін пайдаланыңыз.
 
 ### `POST /api/auth/init`
 
@@ -94,10 +94,10 @@ curl -X POST http://localhost:3000/api/auth/init
 
 ```json
 {
-  "success": true,
-  "processId": "abc123-...",
-  "view": "EnterPhoneNumber",
-  "body": { ... }
+ "success": true,
+ "processId": "abc123-...",
+ "view": "EnterPhoneNumber",
+ "body": { ... }
 }
 ```
 
@@ -109,28 +109,28 @@ curl -X POST http://localhost:3000/api/auth/init
 
 **Сұраныс денесі:**
 
-| Өріс | Түрі | Міндетті | Сипаттама |
-|---|---|---|---|
-| `phoneNumber` | `string` | ✅ | Телефон нөмірі (формат: `7XXXXXXXXXX`) |
-| `processId` | `string` | ✅ | `/api/auth/init` процесінің ID-сі |
+| Өріс          | Түрі     | Міндетті | Сипаттама                              |
+| ------------- | -------- | -------- | -------------------------------------- |
+| `phoneNumber` | `string` | да       | Телефон нөмірі (формат: `7XXXXXXXXXX`) |
+| `processId`   | `string` | да       | `/api/auth/init` процесінің ID-сі      |
 
 **Сұраныс мысалы:**
 
 ```bash
 curl -X POST http://localhost:3000/api/auth/send-phone \
-  -H "Content-Type: application/json" \
-  -d '{"phoneNumber": "77001234567", "processId": "abc123-..."}'
+ -H "Content-Type: application/json" \
+ -d '{"phoneNumber": "77001234567", "processId": "abc123-..."}'
 ```
 
 **Сәтті жауап:**
 
 ```json
 {
-  "success": true,
-  "processId": "abc123-...",
-  "desc": "Код отправлен на номер +7 700 *** ** 67",
-  "view": "EnterOtp",
-  "body": { ... }
+ "success": true,
+ "processId": "abc123-...",
+ "desc": "Код отправлен на номер +7 700 *** ** 67",
+ "view": "EnterOtp",
+ "body": { ... }
 }
 ```
 
@@ -142,38 +142,38 @@ SMS-кодты растау. Сәтті болған жағдайда автор
 
 **Сұраныс денесі:**
 
-| Өріс | Түрі | Міндетті | Сипаттама |
-|---|---|---|---|
-| `otp` | `string` | ✅ | SMS-код |
-| `processId` | `string` | ✅ | `/api/auth/init` процесінің ID-сі |
+| Өріс        | Түрі     | Міндетті | Сипаттама                         |
+| ----------- | -------- | -------- | --------------------------------- |
+| `otp`       | `string` | да       | SMS-код                           |
+| `processId` | `string` | да       | `/api/auth/init` процесінің ID-сі |
 
 **Сұраныс мысалы:**
 
 ```bash
 curl -X POST http://localhost:3000/api/auth/verify-otp \
-  -H "Content-Type: application/json" \
-  -d '{"otp": "1234", "processId": "abc123-..."}'
+ -H "Content-Type: application/json" \
+ -d '{"otp": "1234", "processId": "abc123-..."}'
 ```
 
 **Сәтті жауап:**
 
 ```json
 {
-  "success": true,
-  "processId": "abc123-...",
-  "step": "finished",
-  "message": "OTP verified and finish completed",
-  "tokenSN": "TOKEN_SN_VALUE",
-  "vtokenSecret": "ENCRYPTED_SECRET",
-  "profileId": 12345,
-  "organizationId": 67890,
-  "orgName": "ЖК Иванов",
-  "phone": "77001234567",
-  "organizations": [ ... ]
+ "success": true,
+ "processId": "abc123-...",
+ "step": "finished",
+ "message": "OTP verified and finish completed",
+ "tokenSN": "TOKEN_SN_VALUE",
+ "vtokenSecret": "ENCRYPTED_SECRET",
+ "profileId": 12345,
+ "organizationId": 67890,
+ "orgName": "ЖК Иванов",
+ "phone": "77001234567",
+ "organizations": [ ... ]
 }
 ```
 
-> ⚠️ `tokenSN` және `vtokenSecret` сақтаңыз — олар барлық кейінгі сұраныстар үшін қажет.
+> Важно: `tokenSN` және `vtokenSecret` сақтаңыз — олар барлық кейінгі сұраныстар үшін қажет.
 
 ---
 
@@ -183,9 +183,9 @@ curl -X POST http://localhost:3000/api/auth/verify-otp \
 
 **Сұраныс денесі:**
 
-| Өріс | Түрі | Міндетті | Сипаттама |
-|---|---|---|---|
-| `tokenSN` | `string` | ❌ | Сессия токені |
+| Өріс      | Түрі     | Міндетті | Сипаттама     |
+| --------- | -------- | -------- | ------------- |
+| `tokenSN` | `string` | нет      | Сессия токені |
 
 **Жауап:**
 
@@ -216,7 +216,7 @@ curl -X POST http://localhost:3000/api/auth/verify-otp \
 
 Клиенттің телефон нөмірі бойынша төлем шот-фактураларын жасау.
 
-> 🔒 Барлық эндпоинттер [сессия тақырыптарын](#сессия-тақырыптары) талап етеді.
+> Защищено: Барлық эндпоинттер [сессия тақырыптарын](#сессия-тақырыптары) талап етеді.
 
 ### `GET /api/invoice/client-info`
 
@@ -224,17 +224,17 @@ curl -X POST http://localhost:3000/api/auth/verify-otp \
 
 **Query-параметрлері:**
 
-| Параметр | Түрі | Міндетті | Сипаттама |
-|---|---|---|---|
-| `phoneNumber` | `string` | ✅ | Клиенттің телефон нөмірі |
+| Параметр      | Түрі     | Міндетті | Сипаттама                |
+| ------------- | -------- | -------- | ------------------------ |
+| `phoneNumber` | `string` | да       | Клиенттің телефон нөмірі |
 
 **Сұраныс мысалы:**
 
 ```bash
 curl "http://localhost:3000/api/invoice/client-info?phoneNumber=77001234567" \
-  -H "X-Token-SN: ..." \
-  -H "X-Vtoken-Secret: ..." \
-  -H "X-Profile-Id: ..."
+ -H "X-Token-SN: ..." \
+ -H "X-Vtoken-Secret: ..." \
+ -H "X-Profile-Id: ..."
 ```
 
 ---
@@ -245,21 +245,21 @@ curl "http://localhost:3000/api/invoice/client-info?phoneNumber=77001234567" \
 
 **Сұраныс денесі:**
 
-| Өріс | Түрі | Міндетті | Сипаттама |
-|---|---|---|---|
-| `phoneNumber` | `string` | ✅ | Клиенттің телефон нөмірі |
-| `amount` | `number` | ✅ | Теңгемен сома |
-| `comment` | `string` | ❌ | Төлемге түсініктеме |
+| Өріс          | Түрі     | Міндетті | Сипаттама                |
+| ------------- | -------- | -------- | ------------------------ |
+| `phoneNumber` | `string` | да       | Клиенттің телефон нөмірі |
+| `amount`      | `number` | да       | Теңгемен сома            |
+| `comment`     | `string` | нет      | Төлемге түсініктеме      |
 
 **Сұраныс мысалы:**
 
 ```bash
 curl -X POST http://localhost:3000/api/invoice/create \
-  -H "Content-Type: application/json" \
-  -H "X-Token-SN: ..." \
-  -H "X-Vtoken-Secret: ..." \
-  -H "X-Profile-Id: ..." \
-  -d '{"phoneNumber": "77001234567", "amount": 1000, "comment": "Тапсырыс #42 төлемі"}'
+ -H "Content-Type: application/json" \
+ -H "X-Token-SN: ..." \
+ -H "X-Vtoken-Secret: ..." \
+ -H "X-Profile-Id: ..." \
+ -d '{"phoneNumber": "77001234567", "amount": 1000, "comment": "Тапсырыс #42 төлемі"}'
 ```
 
 **Сәтті жауап:**
@@ -286,16 +286,16 @@ curl -X POST http://localhost:3000/api/invoice/create \
 
 **Query-параметрлері:**
 
-| Параметр | Түрі | Міндетті | Сипаттама |
-|---|---|---|---|
-| `operationId` | `string` | ✅ | Операция ID-сі |
+| Параметр      | Түрі     | Міндетті | Сипаттама      |
+| ------------- | -------- | -------- | -------------- |
+| `operationId` | `string` | да       | Операция ID-сі |
 
 **Сұраныс мысалы:**
 
 ```bash
 curl "http://localhost:3000/api/invoice/details?operationId=123456" \
-  -H "X-Token-SN: ..." \
-  -H "X-Vtoken-Secret: ..."
+ -H "X-Token-SN: ..." \
+ -H "X-Vtoken-Secret: ..."
 ```
 
 ---
@@ -306,18 +306,18 @@ curl "http://localhost:3000/api/invoice/details?operationId=123456" \
 
 **Сұраныс денесі:**
 
-| Өріс | Түрі | Міндетті | Сипаттама |
-|---|---|---|---|
-| `operationId` | `string` | ✅ | Болдырмау үшін операция ID-сі |
+| Өріс          | Түрі     | Міндетті | Сипаттама                     |
+| ------------- | -------- | -------- | ----------------------------- |
+| `operationId` | `string` | да       | Болдырмау үшін операция ID-сі |
 
 **Сұраныс мысалы:**
 
 ```bash
 curl -X POST http://localhost:3000/api/invoice/cancel \
-  -H "Content-Type: application/json" \
-  -H "X-Token-SN: ..." \
-  -H "X-Vtoken-Secret: ..." \
-  -d '{"operationId": "123456"}'
+ -H "Content-Type: application/json" \
+ -H "X-Token-SN: ..." \
+ -H "X-Vtoken-Secret: ..." \
+ -d '{"operationId": "123456"}'
 ```
 
 ---
@@ -332,10 +332,10 @@ curl -X POST http://localhost:3000/api/invoice/cancel \
 
 ```bash
 curl -X POST http://localhost:3000/api/invoice/history \
-  -H "Content-Type: application/json" \
-  -H "X-Token-SN: ..." \
-  -H "X-Vtoken-Secret: ..." \
-  -d '{}'
+ -H "Content-Type: application/json" \
+ -H "X-Token-SN: ..." \
+ -H "X-Vtoken-Secret: ..." \
+ -d '{}'
 ```
 
 ---
@@ -344,7 +344,7 @@ curl -X POST http://localhost:3000/api/invoice/history \
 
 Kaspi Pay арқылы төлем үшін QR-кодтар генерациялау.
 
-> 🔒 Барлық эндпоинттер [сессия тақырыптарын](#сессия-тақырыптары) талап етеді.
+> Защищено: Барлық эндпоинттер [сессия тақырыптарын](#сессия-тақырыптары) талап етеді.
 
 ### `POST /api/qr/create`
 
@@ -352,21 +352,21 @@ Kaspi Pay арқылы төлем үшін QR-кодтар генерациял�
 
 **Сұраныс денесі:**
 
-| Өріс | Түрі | Міндетті | Сипаттама |
-|---|---|---|---|
-| `amount` | `number` | ✅ | Теңгемен сома |
-| `latitude` | `number` | ❌ | Ендік (әдепкі: Алматы) |
-| `longitude` | `number` | ❌ | Бойлық (әдепкі: Алматы) |
+| Өріс        | Түрі     | Міндетті | Сипаттама               |
+| ----------- | -------- | -------- | ----------------------- |
+| `amount`    | `number` | да       | Теңгемен сома           |
+| `latitude`  | `number` | нет      | Ендік (әдепкі: Алматы)  |
+| `longitude` | `number` | нет      | Бойлық (әдепкі: Алматы) |
 
 **Сұраныс мысалы:**
 
 ```bash
 curl -X POST http://localhost:3000/api/qr/create \
-  -H "Content-Type: application/json" \
-  -H "X-Token-SN: ..." \
-  -H "X-Vtoken-Secret: ..." \
-  -H "X-Profile-Id: ..." \
-  -d '{"amount": 500}'
+ -H "Content-Type: application/json" \
+ -H "X-Token-SN: ..." \
+ -H "X-Vtoken-Secret: ..." \
+ -H "X-Profile-Id: ..." \
+ -d '{"amount": 500}'
 ```
 
 **Сәтті жауап:**
@@ -384,7 +384,7 @@ curl -X POST http://localhost:3000/api/qr/create \
 }
 ```
 
-> 💡 `QrToken` төлем сілтемесін қамтиды — оны QR-кодқа түрлендіруге болады.
+> Совет: `QrToken` төлем сілтемесін қамтиды — оны QR-кодқа түрлендіруге болады.
 
 ---
 
@@ -394,16 +394,16 @@ QR-төлем статусын тексеру.
 
 **Query-параметрлері:**
 
-| Параметр | Түрі | Міндетті | Сипаттама |
-|---|---|---|---|
-| `qrOperationId` | `string` | ✅ | `/api/qr/create` QR-операциясының ID-сі |
+| Параметр        | Түрі     | Міндетті | Сипаттама                               |
+| --------------- | -------- | -------- | --------------------------------------- |
+| `qrOperationId` | `string` | да       | `/api/qr/create` QR-операциясының ID-сі |
 
 **Сұраныс мысалы:**
 
 ```bash
 curl "http://localhost:3000/api/qr/status?qrOperationId=789012" \
-  -H "X-Token-SN: ..." \
-  -H "X-Vtoken-Secret: ..."
+ -H "X-Token-SN: ..." \
+ -H "X-Vtoken-Secret: ..."
 ```
 
 ---
@@ -412,7 +412,7 @@ curl "http://localhost:3000/api/qr/status?qrOperationId=789012" \
 
 Барлық операциялар тарихын қарау (QR + шот-фактуралар).
 
-> 🔒 Барлық эндпоинттер [сессия тақырыптарын](#сессия-тақырыптары) талап етеді.
+> Защищено: Барлық эндпоинттер [сессия тақырыптарын](#сессия-тақырыптары) талап етеді.
 
 ### `POST /api/history/operations`
 
@@ -420,20 +420,20 @@ curl "http://localhost:3000/api/qr/status?qrOperationId=789012" \
 
 **Сұраныс денесі:**
 
-| Өріс | Түрі | Міндетті | Сипаттама |
-|---|---|---|---|
-| `endDate` | `string` | ✅ | Аяқталу күні (формат: `YYYY-MM-DD`) |
-| `lastTransactionDate` | `string` | ❌ | Соңғы транзакция күні (пагинация үшін) |
-| `statementPeriodCode` | `number` | ❌ | Кезең коды (әдепкі: `0`) |
+| Өріс                  | Түрі     | Міндетті | Сипаттама                              |
+| --------------------- | -------- | -------- | -------------------------------------- |
+| `endDate`             | `string` | да       | Аяқталу күні (формат: `YYYY-MM-DD`)    |
+| `lastTransactionDate` | `string` | нет      | Соңғы транзакция күні (пагинация үшін) |
+| `statementPeriodCode` | `number` | нет      | Кезең коды (әдепкі: `0`)               |
 
 **Сұраныс мысалы:**
 
 ```bash
 curl -X POST http://localhost:3000/api/history/operations \
-  -H "Content-Type: application/json" \
-  -H "X-Token-SN: ..." \
-  -H "X-Vtoken-Secret: ..." \
-  -d '{"endDate": "2025-01-15"}'
+ -H "Content-Type: application/json" \
+ -H "X-Token-SN: ..." \
+ -H "X-Vtoken-Secret: ..." \
+ -d '{"endDate": "2025-01-15"}'
 ```
 
 ---
@@ -444,19 +444,19 @@ curl -X POST http://localhost:3000/api/history/operations \
 
 **Сұраныс денесі:**
 
-| Өріс | Түрі | Міндетті | Сипаттама |
-|---|---|---|---|
-| `id` | `number` | ✅ | Операция ID-сі |
-| `operationMethod` | `number` | ❌ | Операция әдісі (әдепкі: `0`) |
+| Өріс              | Түрі     | Міндетті | Сипаттама                    |
+| ----------------- | -------- | -------- | ---------------------------- |
+| `id`              | `number` | да       | Операция ID-сі               |
+| `operationMethod` | `number` | нет      | Операция әдісі (әдепкі: `0`) |
 
 **Сұраныс мысалы:**
 
 ```bash
 curl -X POST http://localhost:3000/api/history/details \
-  -H "Content-Type: application/json" \
-  -H "X-Token-SN: ..." \
-  -H "X-Vtoken-Secret: ..." \
-  -d '{"id": 123456}'
+ -H "Content-Type: application/json" \
+ -H "X-Token-SN: ..." \
+ -H "X-Vtoken-Secret: ..." \
+ -d '{"id": 123456}'
 ```
 
 ---
@@ -465,7 +465,7 @@ curl -X POST http://localhost:3000/api/history/details \
 
 Бұрын жүргізілген операция бойынша қаражатты қайтару.
 
-> 🔒 Барлық эндпоинттер [сессия тақырыптарын](#сессия-тақырыптары) талап етеді.
+> Защищено: Барлық эндпоинттер [сессия тақырыптарын](#сессия-тақырыптары) талап етеді.
 
 ### `POST /api/refund/create`
 
@@ -473,19 +473,19 @@ curl -X POST http://localhost:3000/api/history/details \
 
 **Сұраныс денесі:**
 
-| Өріс | Түрі | Міндетті | Сипаттама |
-|---|---|---|---|
-| `qrOperationId` | `number` | ✅ | Қайтару үшін операция ID-сі |
-| `returnAmount` | `number` | ✅ | Теңгемен қайтару сомасы |
+| Өріс            | Түрі     | Міндетті | Сипаттама                   |
+| --------------- | -------- | -------- | --------------------------- |
+| `qrOperationId` | `number` | да       | Қайтару үшін операция ID-сі |
+| `returnAmount`  | `number` | да       | Теңгемен қайтару сомасы     |
 
 **Сұраныс мысалы:**
 
 ```bash
 curl -X POST http://localhost:3000/api/refund/create \
-  -H "Content-Type: application/json" \
-  -H "X-Token-SN: ..." \
-  -H "X-Vtoken-Secret: ..." \
-  -d '{"qrOperationId": 789012, "returnAmount": 500}'
+ -H "Content-Type: application/json" \
+ -H "X-Token-SN: ..." \
+ -H "X-Vtoken-Secret: ..." \
+ -d '{"qrOperationId": 789012, "returnAmount": 500}'
 ```
 
 ---
@@ -496,14 +496,14 @@ curl -X POST http://localhost:3000/api/refund/create \
 
 Kaspi API-ге сұраныс арқылы ағымдағы сессияның жарамдылығын тексеру.
 
-> 🔒 [Сессия тақырыптарын](#сессия-тақырыптары) талап етеді.
+> Защищено: [Сессия тақырыптарын](#сессия-тақырыптары) талап етеді.
 
 **Сұраныс мысалы:**
 
 ```bash
 curl "http://localhost:3000/api/session/check" \
-  -H "X-Token-SN: ..." \
-  -H "X-Vtoken-Secret: ..."
+ -H "X-Token-SN: ..." \
+ -H "X-Vtoken-Secret: ..."
 ```
 
 **Белсенді сессия:**
@@ -516,10 +516,10 @@ curl "http://localhost:3000/api/session/check" \
 
 ```json
 {
-  "active": false,
-  "error": "Session rejected by Kaspi API.",
-  "code": 401,
-  "details": { ... }
+ "active": false,
+ "error": "Session rejected by Kaspi API.",
+ "code": 401,
+ "details": { ... }
 }
 ```
 
@@ -533,11 +533,11 @@ curl "http://localhost:3000/api/session/check" \
 { "error": "Қатенің сипаттамасы" }
 ```
 
-| HTTP-код | Сипаттама |
-|---|---|
-| `400` | Міндетті параметрлер жоқ |
-| `401` | Сессия тақырыптары жоқ немесе жарамсыз |
-| `500` | Сервердің ішкі қатесі немесе Kaspi API қатесі |
+| HTTP-код | Сипаттама                                     |
+| -------- | --------------------------------------------- |
+| `400`    | Міндетті параметрлер жоқ                      |
+| `401`    | Сессия тақырыптары жоқ немесе жарамсыз        |
+| `500`    | Сервердің ішкі қатесі немесе Kaspi API қатесі |
 
 ---
 
@@ -559,13 +559,13 @@ curl "http://localhost:3000/api/session/check" \
 ]
 ```
 
-| Өріс | Түрі | Міндетті | Сипаттама |
-|---|---|---|---|
-| `url` | `string` | ✅ | Хабарламалар жіберілетін URL |
-| `events` | `string[]` | ✅ | Жазылу оқиғаларының тізімі |
-| `secret` | `string` | ❌ | HMAC қолтаңбасы үшін құпия (ұсынылады) |
+| Өріс     | Түрі       | Міндетті | Сипаттама                              |
+| -------- | ---------- | -------- | -------------------------------------- |
+| `url`    | `string`   | да       | Хабарламалар жіберілетін URL           |
+| `events` | `string[]` | да       | Жазылу оқиғаларының тізімі             |
+| `secret` | `string`   | нет      | HMAC қолтаңбасы үшін құпия (ұсынылады) |
 
-> 💡 Бастау үшін `webhooks.example.json` → `webhooks.json` көшіріп, өңдеңіз.
+> Совет: Бастау үшін `webhooks.example.json` → `webhooks.json` көшіріп, өңдеңіз.
 
 Әр түрлі URL және оқиғалармен бірнеше вебхук көрсетуге болады:
 
@@ -586,11 +586,11 @@ curl "http://localhost:3000/api/session/check" \
 
 ### Оқиғалар
 
-| Оқиға | Сипаттама | Қашан іске қосылады |
-|---|---|---|
-| `payment.success` | Төлем сәтті өтті | QR: `Processed` статусы; Invoice: `Processed` статусы |
-| `payment.failed` | Төлем қабылданбады / бас тартылды | QR: `CancelledByUser`, `Rejected`, `Error` және т.б.; Invoice: `RemotePaymentCanceled`, `RemotePaymentRejected` |
-| `payment.expired` | Төлем уақыты аяқталды | QR: `QrTokenDiscarded`, `Expired`; Invoice: `Expired` |
+| Оқиға             | Сипаттама                         | Қашан іске қосылады                                                                                             |
+| ----------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `payment.success` | Төлем сәтті өтті                  | QR: `Processed` статусы; Invoice: `Processed` статусы                                                           |
+| `payment.failed`  | Төлем қабылданбады / бас тартылды | QR: `CancelledByUser`, `Rejected`, `Error` және т.б.; Invoice: `RemotePaymentCanceled`, `RemotePaymentRejected` |
+| `payment.expired` | Төлем уақыты аяқталды             | QR: `QrTokenDiscarded`, `Expired`; Invoice: `Expired`                                                           |
 
 ### Payload форматы
 
@@ -598,33 +598,33 @@ curl "http://localhost:3000/api/session/check" \
 
 ```json
 {
-  "event": "payment.success",
-  "paymentId": "123456",
-  "type": "qr",
-  "status": "Processed",
-  "statusDesc": "Операция сәтті өтті",
-  "amount": 5000,
-  "qrToken": "QR-TOKEN-...",
-  "receiptUrl": "https://...",
-  "orderNumber": "ORDER-001",
-  "data": { ... },
-  "timestamp": "2026-05-10T00:00:00.000Z"
+ "event": "payment.success",
+ "paymentId": "123456",
+ "type": "qr",
+ "status": "Processed",
+ "statusDesc": "Операция сәтті өтті",
+ "amount": 5000,
+ "qrToken": "QR-TOKEN-...",
+ "receiptUrl": "https://...",
+ "orderNumber": "ORDER-001",
+ "data": { ... },
+ "timestamp": "2026-05-10T00:00:00.000Z"
 }
 ```
 
-| Өріс | Түрі | Сипаттама |
-|---|---|---|
-| `event` | `string` | Оқиға атауы (`payment.success`, `payment.failed`, `payment.expired`) |
-| `paymentId` | `string` | Төлем ID-сі (QR operationId немесе invoice operationId) |
-| `type` | `string` | Төлем түрі: `qr` немесе `invoice` |
-| `status` | `string` | Kaspi API-ден финалды статус |
-| `statusDesc` | `string` | Статус сипаттамасы |
-| `amount` | `number\|null` | Төлем сомасы теңгемен |
-| `qrToken` | `string\|null` | QR-токен (тек QR-төлемдер үшін) |
-| `receiptUrl` | `string\|null` | Чекке сілтеме |
-| `orderNumber` | `string\|null` | Тапсырыс нөмірі |
-| `data` | `object` | Kaspi API-ден толық жауап деректері |
-| `timestamp` | `string` | Хабарлама жіберу уақыты (ISO 8601) |
+| Өріс          | Түрі           | Сипаттама                                                            |
+| ------------- | -------------- | -------------------------------------------------------------------- |
+| `event`       | `string`       | Оқиға атауы (`payment.success`, `payment.failed`, `payment.expired`) |
+| `paymentId`   | `string`       | Төлем ID-сі (QR operationId немесе invoice operationId)              |
+| `type`        | `string`       | Төлем түрі: `qr` немесе `invoice`                                    |
+| `status`      | `string`       | Kaspi API-ден финалды статус                                         |
+| `statusDesc`  | `string`       | Статус сипаттамасы                                                   |
+| `amount`      | `number\|null` | Төлем сомасы теңгемен                                                |
+| `qrToken`     | `string\|null` | QR-токен (тек QR-төлемдер үшін)                                      |
+| `receiptUrl`  | `string\|null` | Чекке сілтеме                                                        |
+| `orderNumber` | `string\|null` | Тапсырыс нөмірі                                                      |
+| `data`        | `object`       | Kaspi API-ден толық жауап деректері                                  |
+| `timestamp`   | `string`       | Хабарлама жіберу уақыты (ISO 8601)                                   |
 
 ### Қолтаңба (HMAC)
 
@@ -640,14 +640,8 @@ X-Webhook-Signature: sha256=<hex-digest>
 import crypto from 'crypto';
 
 const verifySignature = (body, signature, secret) => {
-  const expected = 'sha256=' + crypto
-    .createHmac('sha256', secret)
-    .update(body)
-    .digest('hex');
-  return crypto.timingSafeEqual(
-    Buffer.from(signature),
-    Buffer.from(expected)
-  );
+  const expected = 'sha256=' + crypto.createHmac('sha256', secret).update(body).digest('hex');
+  return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
 };
 
 // Сұрау өңдеушісінде:
@@ -662,11 +656,11 @@ if (!verifySignature(rawBody, sig, 'your-webhook-secret')) {
 
 Вебхук жеткізілмесе (желі қатесі, таймаут, HTTP қатесі), жүйе **3 әрекетке** дейін өсетін кідіріспен орындайды:
 
-| Әрекет | Кідіріс |
-|---|---|
-| 1-ші (бірінші) | Бірден |
-| 2-ші | 5 секунд |
-| 3-ші | 30 секунд |
+| Әрекет         | Кідіріс   |
+| -------------- | --------- |
+| 1-ші (бірінші) | Бірден    |
+| 2-ші           | 5 секунд  |
+| 3-ші           | 30 секунд |
 
 - Сұрау таймауты: **10 секунд**.
 - Қайта жіберу кезегі `webhook-retries.json` файлында сақталады және сервер қайта іске қосылғанда жоғалмайды.
@@ -677,17 +671,17 @@ if (!verifySignature(rawBody, sig, 'your-webhook-secret')) {
 ## Пайдаланудың типтік сценарийі
 
 ```
-1. POST /api/auth/init              → processId алу
-2. POST /api/auth/send-phone        → SMS жіберу
-3. POST /api/auth/verify-otp        → кодты растау → tokenSN + vtokenSecret алу
+1. POST /api/auth/init → processId алу
+2. POST /api/auth/send-phone → SMS жіберу
+3. POST /api/auth/verify-otp → кодты растау → tokenSN + vtokenSecret алу
 
-4. POST /api/qr/create              → төлем үшін QR жасау
-5. GET  /api/qr/status              → төлем статусын тексеру
+4. POST /api/qr/create → төлем үшін QR жасау
+5. GET /api/qr/status → төлем статусын тексеру
 
-   — немесе —
+ — немесе —
 
-4. POST /api/invoice/create         → телефон нөмірі бойынша шот-фактура жасау
-5. GET  /api/invoice/details        → шот-фактура статусын тексеру
+4. POST /api/invoice/create → телефон нөмірі бойынша шот-фактура жасау
+5. GET /api/invoice/details → шот-фактура статусын тексеру
 
-6. POST /api/refund/create          → қаражатты қайтару (қажет болған жағдайда)
+6. POST /api/refund/create → қаражатты қайтару (қажет болған жағдайда)
 ```

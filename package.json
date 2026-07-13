@@ -19,7 +19,6 @@
   "dependencies": {
     "@parse/node-apn": "^8.1.0",
     "@supabase/supabase-js": "^2.110.0",
-    "@translate-tools/core": "^2.1.0",
     "@whiskeysockets/baileys": "^7.0.0-rc13",
     "adm-zip": "^0.5.18",
     "anylang": "^3.4.1",

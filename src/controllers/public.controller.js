@@ -13,7 +13,7 @@ const { getTierInfo } = require('../utils/tier.util');
 const { sendApiError } = require('../utils/http.util');
 
 const renderApp = (req, res) => {
-  res.sendFile(path.join(process.cwd(), 'public', 'app.html'));
+  res.sendFile(path.join(process.cwd(), 'public', 'app', 'index.html'));
 };
 
 const renderAdmin = (req, res) => {
@@ -123,7 +123,7 @@ const deleteProfile = async (req, res) => {
 
 const getCities = async (req, res) => {
   try {
-    const cities = await getCitiesWithPoints();
+    const cities = await getCitiesWithPoints({ throwOnError: true });
     res.json({ success: true, cities });
   } catch (err) {
     sendApiError(res, err);

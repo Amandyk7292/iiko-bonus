@@ -8,6 +8,11 @@ Future<void> _firebaseBackgroundMessage(RemoteMessage message) async {
 abstract final class PushNotifications {
   static bool _ready = false;
   static StreamSubscription<String>? _tokenSubscription;
+  static final StreamController<Map<String, dynamic>> _orderEventController =
+      StreamController<Map<String, dynamic>>.broadcast();
+
+  static Stream<Map<String, dynamic>> get orderEvents =>
+      _orderEventController.stream;
 
   static Future<void> initialize() async {
     try {
@@ -57,6 +62,9 @@ abstract final class PushNotifications {
     if (!_ready) return;
     _messageSubscription?.cancel();
     _messageSubscription = FirebaseMessaging.onMessage.listen((message) {
+      if (message.data['type'] == 'order') {
+        _orderEventController.add(Map<String, dynamic>.from(message.data));
+      }
       final notification = message.notification;
       final title = notification?.title ?? message.data['title'];
       final body = notification?.body ?? message.data['body'];

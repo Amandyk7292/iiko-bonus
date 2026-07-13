@@ -13,6 +13,7 @@ class _AddressDetailsScreenState extends State<AddressDetailsScreen> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _houseController = TextEditingController();
+  final _entranceController = TextEditingController();
   final _floorController = TextEditingController();
   final _apartmentController = TextEditingController();
   final _commentController = TextEditingController();
@@ -21,6 +22,7 @@ class _AddressDetailsScreenState extends State<AddressDetailsScreen> {
   void dispose() {
     _titleController.dispose();
     _houseController.dispose();
+    _entranceController.dispose();
     _floorController.dispose();
     _apartmentController.dispose();
     _commentController.dispose();
@@ -34,6 +36,7 @@ class _AddressDetailsScreenState extends State<AddressDetailsScreen> {
       title: _titleController.text.trim(),
       location: widget.location,
       house: _houseController.text.trim(),
+      entrance: _emptyToNull(_entranceController.text),
       floor: _emptyToNull(_floorController.text),
       apartment: _emptyToNull(_apartmentController.text),
       courierComment: _emptyToNull(_commentController.text),
@@ -57,6 +60,8 @@ class _AddressDetailsScreenState extends State<AddressDetailsScreen> {
       backgroundColor: Colors.white,
       appBar: AppBar(
         centerTitle: true,
+        toolbarHeight: 68,
+        titleSpacing: 0,
         backgroundColor: Colors.white,
         leading: IconButton(
           onPressed: () => Navigator.of(context).pop(),
@@ -66,12 +71,13 @@ class _AddressDetailsScreenState extends State<AddressDetailsScreen> {
         ),
         title: Text(
           widget.location.address,
-          maxLines: 1,
+          maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(
-            fontFamily: _headingFont,
-            fontSize: 28,
-            fontWeight: FontWeight.w400,
+            fontFamily: _brandFont,
+            fontSize: 20,
+            height: 1.12,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),
@@ -105,32 +111,64 @@ class _AddressDetailsScreenState extends State<AddressDetailsScreen> {
                       validator: _required,
                     ),
                     const SizedBox(height: 18),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _BulkaTextField(
-                            label: 'house_label'.tr,
-                            controller: _houseController,
-                            validator: _required,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _BulkaTextField(
-                            label: 'floor_label'.tr,
-                            controller: _floorController,
-                            keyboardType: TextInputType.number,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: _BulkaTextField(
-                            label: 'apartment_label'.tr,
-                            controller: _apartmentController,
-                            keyboardType: TextInputType.text,
-                          ),
-                        ),
-                      ],
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final compact = constraints.maxWidth < 420;
+                        final secondaryFields = Row(
+                          children: [
+                            Expanded(
+                              child: _BulkaTextField(
+                                label: 'entrance_label'.tr,
+                                controller: _entranceController,
+                                keyboardType: TextInputType.number,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _BulkaTextField(
+                                label: 'floor_label'.tr,
+                                controller: _floorController,
+                                keyboardType: TextInputType.number,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _BulkaTextField(
+                                label: 'apartment_label'.tr,
+                                controller: _apartmentController,
+                                keyboardType: TextInputType.text,
+                              ),
+                            ),
+                          ],
+                        );
+                        if (compact) {
+                          return Column(
+                            children: [
+                              _BulkaTextField(
+                                label: 'house_label'.tr,
+                                controller: _houseController,
+                                validator: _required,
+                              ),
+                              const SizedBox(height: 18),
+                              secondaryFields,
+                            ],
+                          );
+                        }
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: _BulkaTextField(
+                                label: 'house_label'.tr,
+                                controller: _houseController,
+                                validator: _required,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(flex: 2, child: secondaryFields),
+                          ],
+                        );
+                      },
                     ),
                     const SizedBox(height: 18),
                     _BulkaTextField(
@@ -192,8 +230,7 @@ class _BulkaTextField extends StatelessWidget {
       children: [
         Text(
           label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+          maxLines: 2,
           style: const TextStyle(
             color: Colors.black,
             fontFamily: _headingFont,

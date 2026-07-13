@@ -60,6 +60,17 @@ app.use(
   }),
 );
 
+// Never let SPA fallbacks turn probes for secret dotfiles into a successful
+// HTML response. The ACME path stays available for certificate renewal.
+app.use((req, res, next) => {
+  const segments = req.path.split('/').filter(Boolean);
+  const hasBlockedDotfile = segments.some(
+    (segment, index) => segment.startsWith('.') && !(index === 0 && segment === '.well-known'),
+  );
+  if (hasBlockedDotfile) return res.status(404).end();
+  return next();
+});
+
 const configuredOrigins = String(process.env.ALLOWED_ORIGINS || '')
   .split(',')
   .map((origin) => origin.trim())
@@ -149,6 +160,11 @@ app.get('/app/*', (req, res) => {
   res.sendFile(path.join(process.cwd(), 'public/app', 'index.html'));
 });
 
+// Serve the Flutter build at the domain root as the canonical web app.
+// Explicit API, admin, wallet and legacy routes are registered above, so
+// only Flutter assets fall through to this static middleware.
+app.use(express.static(path.join(process.cwd(), 'public/app'), { setHeaders: appStaticHeaders }));
+
 // Error handling middleware
 app.use((err, req, res, _next) => {
   console.error(err.stack);
@@ -165,10 +181,10 @@ if (process.env.NODE_ENV !== 'test' && process.env.KASPI_POS_ENABLED === 'true')
       app.use('/kaspi-pos', kaspiModule.kaspiApp);
       kaspiModule.startPolling();
       app.locals.kaspiReady = true;
-      console.log('✅ Kaspi POS Automation mounted at /kaspi-pos');
+      console.log('Kaspi POS Automation mounted at /kaspi-pos');
     } catch (err) {
       app.locals.kaspiReady = false;
-      console.error('❌ Failed to mount Kaspi POS Automation:', err.message);
+      console.error('Failed to mount Kaspi POS Automation:', err.message);
     }
   })();
 }

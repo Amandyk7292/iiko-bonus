@@ -113,19 +113,19 @@ async function notifyBonusChange({
 
   if (isOrder) {
     if (lang === 'kk') {
-      title = 'Тапсырыс рәсімделді! ☕';
+      title = 'Тапсырыс рәсімделді!';
       body = `Есепшот: ${total} ₸.`;
       if (discount > 0) body += ` Жұмсалды: ${discount} б.`;
       if (earnedBonus > 0) body += ` Қосылды: +${earnedBonus} б.`;
       body += ` Баланс: ${balance} б.`;
     } else if (lang === 'en') {
-      title = 'Order completed! ☕';
+      title = 'Order completed!';
       body = `Bill: ${total} ₸.`;
       if (discount > 0) body += ` Spent: ${discount} b.`;
       if (earnedBonus > 0) body += ` Earned: +${earnedBonus} b.`;
       body += ` Balance: ${balance} b.`;
     } else {
-      title = 'Ваш заказ оформлен! ☕';
+      title = 'Ваш заказ оформлен!';
       body = `Счет: ${total} ₸.`;
       if (discount > 0) body += ` Списано: ${discount} б.`;
       if (earnedBonus > 0) body += ` Начислено: +${earnedBonus} б.`;
@@ -135,19 +135,19 @@ async function notifyBonusChange({
     const isPositive = Number(amount) >= 0;
     const absAmount = Math.abs(Number(amount));
     if (lang === 'kk') {
-      title = isPositive ? 'Бонустар қосылды ✨' : 'Бонустар жұмсалды 💳';
+      title = isPositive ? 'Бонустар қосылды' : 'Бонустар жұмсалды';
       body = isPositive
         ? `Сізге +${absAmount} бонус қосылды! Ағымдағы баланс: ${balance} бон.`
         : `${absAmount} бонус есептен шығарылды. Ағымдағы баланс: ${balance} бон.`;
       if (reason) body += ` (Себебі: ${reason})`;
     } else if (lang === 'en') {
-      title = isPositive ? 'Bonuses earned ✨' : 'Bonuses spent 💳';
+      title = isPositive ? 'Bonuses earned' : 'Bonuses spent';
       body = isPositive
         ? `You received +${absAmount} bonuses! Current balance: ${balance} bon.`
         : `${absAmount} bonuses redeemed. Current balance: ${balance} bon.`;
       if (reason) body += ` (Reason: ${reason})`;
     } else {
-      title = isPositive ? 'Начисление бонусов ✨' : 'Списание бонусов 💳';
+      title = isPositive ? 'Начисление бонусов' : 'Списание бонусов';
       body = isPositive
         ? `Вам начислено +${absAmount} бонусов! Текущий баланс: ${balance} бон.`
         : `Списано ${absAmount} бонусов. Текущий баланс: ${balance} бон.`;

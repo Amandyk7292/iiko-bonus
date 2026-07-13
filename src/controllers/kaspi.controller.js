@@ -2,19 +2,14 @@ const crypto = require('crypto');
 const kaspiService = require('../services/kaspi.service');
 const { priceOrder } = require('../services/order.service');
 const { getCitiesWithPoints } = require('../services/location.service');
+const { normalizeOrderType, validateCheckout } = require('../services/checkout.service');
 const checkoutRequests = new Map();
+const publicError = (error, fallback) => (error.statusCode ? error.message : fallback);
 
 const createPayment = async (req, res) => {
   try {
-    const { items, branch, pickupTime, additionalPhone, comment, promoCode, checkoutId } = req.body;
+    const { items, promoCode, checkoutId } = req.body;
     const { id: customerId, phone } = req.customerAuth;
-    const normalizedBranch = String(branch || '')
-      .trim()
-      .slice(0, 160);
-    const normalizedPickupTime = String(pickupTime || '')
-      .trim()
-      .slice(0, 40);
-    const pickupDate = new Date(normalizedPickupTime);
     if (
       !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
         checkoutId || '',
@@ -22,40 +17,22 @@ const createPayment = async (req, res) => {
     ) {
       return res.status(400).json({ error: 'Некорректный идентификатор оформления' });
     }
-    if (!normalizedBranch || !normalizedPickupTime || Number.isNaN(pickupDate.getTime())) {
-      return res.status(400).json({ error: 'Выберите филиал и время самовывоза' });
-    }
-    const cities = await getCitiesWithPoints();
-    const validBranch = cities.some((city) =>
-      (city.points || []).some(
-        (point) => [point.name, point.address].filter(Boolean).join(', ') === normalizedBranch,
-      ),
-    );
-    if (!validBranch) {
-      return res.status(400).json({ error: 'Выбранный филиал больше недоступен' });
-    }
-    if (
-      pickupDate.getTime() < Date.now() - 5 * 60 * 1000 ||
-      pickupDate.getTime() > Date.now() + 60 * 24 * 60 * 60 * 1000
-    ) {
-      return res.status(400).json({ error: 'Выберите доступное время самовывоза' });
-    }
+    const cities = await getCitiesWithPoints({ throwOnError: true });
+    const checkout = validateCheckout(req.body, cities);
     const requestKey = `${customerId}:${checkoutId}`;
     let request = checkoutRequests.get(requestKey);
     if (!request) {
       request = (async () => {
-        const pricing = await priceOrder(items, promoCode);
+        const pricing = await priceOrder(items, promoCode, { deliveryFee: checkout.deliveryFee });
+        if (pricing.subtotal < checkout.deliveryMinimumOrder) {
+          const error = new Error(
+            `Минимальная сумма доставки — ${checkout.deliveryMinimumOrder.toLocaleString('ru-RU')} ₸`,
+          );
+          error.statusCode = 400;
+          throw error;
+        }
         return kaspiService.createInvoice(phone, pricing, customerId, {
-          branch: normalizedBranch,
-          pickupTime: normalizedPickupTime,
-          additionalPhone:
-            String(additionalPhone || '')
-              .trim()
-              .slice(0, 32) || null,
-          comment:
-            String(comment || '')
-              .trim()
-              .slice(0, 500) || null,
+          ...checkout,
           requestId: checkoutId,
         });
       })();
@@ -70,22 +47,43 @@ const createPayment = async (req, res) => {
     res.json(result);
   } catch (error) {
     console.error('Ошибка createPayment:', error);
-    res.status(error.statusCode || 500).json({ error: error.message });
+    res
+      .status(error.statusCode || 500)
+      .json({ error: publicError(error, 'Не удалось создать счет на оплату') });
   }
 };
 
 const quotePayment = async (req, res) => {
   try {
-    const pricing = await priceOrder(req.body?.items, req.body?.promoCode);
+    let deliveryFee = 0;
+    let deliveryMinimumOrder = 0;
+    const requestedType = normalizeOrderType(
+      req.body?.orderType ?? req.body?.fulfillmentType ?? 'pickup',
+    );
+    if (requestedType === 'delivery') {
+      const cities = await getCitiesWithPoints({ throwOnError: true });
+      const checkout = validateCheckout(req.body, cities);
+      deliveryFee = checkout.deliveryFee;
+      deliveryMinimumOrder = checkout.deliveryMinimumOrder;
+    }
+    const pricing = await priceOrder(req.body?.items, req.body?.promoCode, { deliveryFee });
+    if (pricing.subtotal < deliveryMinimumOrder) {
+      return res.status(400).json({
+        error: `Минимальная сумма доставки — ${deliveryMinimumOrder.toLocaleString('ru-RU')} ₸`,
+      });
+    }
     res.json({
       success: true,
       subtotal: pricing.subtotal,
       discount: pricing.discount,
+      deliveryFee: pricing.deliveryFee,
       total: pricing.total,
       promoCode: pricing.promoCode,
     });
   } catch (error) {
-    res.status(error.statusCode || 500).json({ error: error.message });
+    res
+      .status(error.statusCode || 500)
+      .json({ error: publicError(error, 'Не удалось рассчитать заказ') });
   }
 };
 
@@ -107,7 +105,12 @@ const checkStatus = async (req, res) => {
         order = await kaspiService.getOrderStatus(operationId, customerId);
       }
     }
-    if (order.status === 'paid' || order.status === 'failed' || order.status === 'expired') {
+    if (
+      order.status === 'paid' ||
+      order.status === 'refunded' ||
+      order.status === 'failed' ||
+      order.status === 'expired'
+    ) {
       return res.json({
         success: true,
         status: order.status,
@@ -141,7 +144,9 @@ const checkStatus = async (req, res) => {
     });
   } catch (error) {
     console.error('Ошибка checkStatus:', error);
-    res.status(error.statusCode || 500).json({ error: error.message });
+    res
+      .status(error.statusCode || 500)
+      .json({ error: publicError(error, 'Не удалось проверить статус оплаты') });
   }
 };
 
@@ -199,7 +204,7 @@ const handleWebhook = async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     console.error('Ошибка обработки Kaspi Webhook:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Webhook processing failed' });
   }
 };
 

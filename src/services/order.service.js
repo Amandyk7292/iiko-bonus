@@ -82,12 +82,12 @@ function applyPromoCode(subtotal, code, configuredPromos = []) {
 }
 
 async function loadOrderCatalog() {
-  const rawMenu = await iikoApi.getMenu();
+  const rawMenu = await iikoApi.getMenu({ strict: true });
   const [stopIds, productOverrides, categoryOverrides, customProducts] = await Promise.all([
-    iikoApi.getStopListProductIds().catch(() => new Set()),
-    menuService.getProductOverrides(),
-    menuService.getCategoryOverrides(),
-    menuService.getCustomProducts(),
+    iikoApi.getStopListProductIds(undefined, { strict: true }),
+    menuService.getProductOverrides({ strict: true }),
+    menuService.getCategoryOverrides({ strict: true }),
+    menuService.getCustomProducts({ strict: true }),
   ]);
   const productOverrideMap = new Map(productOverrides.map((item) => [item.iiko_product_id, item]));
   const hiddenCategories = new Set(
@@ -123,10 +123,28 @@ async function loadOrderCatalog() {
   return catalog;
 }
 
-async function priceOrder(items, promoCode) {
+async function priceOrder(items, promoCode, { deliveryFee = 0 } = {}) {
   const [catalog, settings] = await Promise.all([loadOrderCatalog(), getSettings()]);
   const priced = calculateOrderTotal(items, catalog);
-  return { ...priced, ...applyPromoCode(priced.subtotal, promoCode, settings.bonus_promocodes) };
+  const promotion = applyPromoCode(priced.subtotal, promoCode, settings.bonus_promocodes);
+  const normalizedDeliveryFee = Number(deliveryFee);
+  if (
+    !Number.isSafeInteger(normalizedDeliveryFee) ||
+    normalizedDeliveryFee < 0 ||
+    normalizedDeliveryFee > 100000
+  ) {
+    throw badRequest('Некорректная стоимость доставки');
+  }
+  const total = promotion.total + normalizedDeliveryFee;
+  if (!Number.isSafeInteger(total) || total <= 0 || total > 10000000) {
+    throw badRequest('Некорректная сумма заказа');
+  }
+  return {
+    ...priced,
+    ...promotion,
+    deliveryFee: normalizedDeliveryFee,
+    total,
+  };
 }
 
 module.exports = { applyPromoCode, calculateOrderTotal, loadOrderCatalog, priceOrder };

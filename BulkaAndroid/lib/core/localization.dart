@@ -184,15 +184,92 @@ const Map<String, Map<String, String>> _appTranslations = {
     'kk': 'Алып кету мәзірі',
     'en': 'Pickup menu',
   },
-  'catalog_bakery_label': {
-    'ru': 'Пекарня',
-    'kk': 'Наубайхана',
-    'en': 'Bakery',
+  'catalog_bakery_label': {'ru': 'Пекарня', 'kk': 'Наубайхана', 'en': 'Bakery'},
+  'catalog_search': {
+    'ru': 'Поиск по меню',
+    'kk': 'Мәзірден іздеу',
+    'en': 'Search menu',
   },
+  'catalog_clear_search': {
+    'ru': 'Очистить поиск',
+    'kk': 'Іздеуді тазарту',
+    'en': 'Clear search',
+  },
+  'catalog_filter': {'ru': 'Фильтры', 'kk': 'Сүзгілер', 'en': 'Filters'},
+  'catalog_all_categories': {
+    'ru': 'Все категории',
+    'kk': 'Барлық санаттар',
+    'en': 'All categories',
+  },
+  'catalog_products': {'ru': 'товаров', 'kk': 'тауар', 'en': 'items'},
+  'catalog_in_stock': {
+    'ru': 'В наличии',
+    'kk': 'Қоймада бар',
+    'en': 'In stock',
+  },
+  'catalog_stop_list': {
+    'ru': 'Нет в наличии',
+    'kk': 'Қоймада жоқ',
+    'en': 'Unavailable',
+  },
+  'catalog_add_to_cart': {
+    'ru': 'В корзину',
+    'kk': 'Себетке',
+    'en': 'Add to cart',
+  },
+  'catalog_load_failed': {
+    'ru': 'Не удалось загрузить меню',
+    'kk': 'Мәзірді жүктеу мүмкін болмады',
+    'en': 'Could not load the menu',
+  },
+  'catalog_retry': {'ru': 'Повторить', 'kk': 'Қайталау', 'en': 'Retry'},
+  'catalog_empty': {
+    'ru': 'По вашему запросу ничего не найдено',
+    'kk': 'Сұрауыңыз бойынша ештеңе табылмады',
+    'en': 'Nothing matches your search',
+  },
+  'catalog_sort_title': {'ru': 'Сортировка', 'kk': 'Сұрыптау', 'en': 'Sort by'},
+  'catalog_sort_default': {
+    'ru': 'По умолчанию',
+    'kk': 'Әдепкі бойынша',
+    'en': 'Default',
+  },
+  'catalog_sort_price_low': {
+    'ru': 'Сначала дешевле',
+    'kk': 'Алдымен арзанырақ',
+    'en': 'Lowest price first',
+  },
+  'catalog_sort_price_high': {
+    'ru': 'Сначала дороже',
+    'kk': 'Алдымен қымбатырақ',
+    'en': 'Highest price first',
+  },
+  'catalog_only_available': {
+    'ru': 'Только в наличии',
+    'kk': 'Тек қолжетімді',
+    'en': 'Available only',
+  },
+  'catalog_availability': {
+    'ru': 'Наличие',
+    'kk': 'Қолжетімділік',
+    'en': 'Availability',
+  },
+  'catalog_apply': {'ru': 'Применить', 'kk': 'Қолдану', 'en': 'Apply'},
+  'catalog_reset': {'ru': 'Сбросить', 'kk': 'Қалпына келтіру', 'en': 'Reset'},
   'promos_action': {
     'ru': 'Открыть главную',
     'kk': 'Басты бетті ашу',
     'en': 'Open home',
+  },
+  'promos_empty': {
+    'ru': 'Активных акций пока нет',
+    'kk': 'Белсенді акциялар әзірге жоқ',
+    'en': 'There are no active promotions yet',
+  },
+  'promos_load_failed': {
+    'ru': 'Не удалось загрузить акции',
+    'kk': 'Акцияларды жүктеу мүмкін болмады',
+    'en': 'Could not load promotions',
   },
   'balance_prefix': {'ru': 'Баланс: ', 'kk': 'Теңгерім: ', 'en': 'Balance: '},
   'points_suffix': {'ru': ' баллов', 'kk': ' ұпай', 'en': ' points'},
@@ -233,6 +310,16 @@ const Map<String, Map<String, String>> _appTranslations = {
   'cart_points': {'ru': 'баллов', 'kk': 'балл', 'en': 'points'},
   'cart_contains': {'ru': 'В корзине', 'kk': 'Себетте', 'en': 'In cart'},
   'cart_units': {'ru': 'шт', 'kk': 'дана', 'en': 'pcs'},
+  'cart_unavailable': {
+    'ru': 'Нет в наличии',
+    'kk': 'Қолда жоқ',
+    'en': 'Unavailable',
+  },
+  'cart_unavailable_hint': {
+    'ru': 'Удалите недоступные товары, чтобы оформить заказ.',
+    'kk': 'Тапсырыс беру үшін қолда жоқ тауарларды өшіріңіз.',
+    'en': 'Remove unavailable items to continue checkout.',
+  },
   'cart_clear_title': {
     'ru': 'Очистить корзину?',
     'kk': 'Себетті тазалау керек пе?',
@@ -261,11 +348,44 @@ const Map<String, Map<String, String>> _appTranslations = {
     'en': 'Checkout',
   },
   'checkout_pickup': {'ru': 'Самовывоз', 'kk': 'Алып кету', 'en': 'Pickup'},
+  'checkout_order_type': {
+    'ru': 'Способ получения заказа',
+    'kk': 'Тапсырысты алу тәсілі',
+    'en': 'Order fulfilment method',
+  },
   'checkout_branch': {'ru': 'Филиал', 'kk': 'Филиал', 'en': 'Location'},
   'checkout_select_branch': {
     'ru': 'Выберите филиал',
     'kk': 'Филиалды таңдаңыз',
     'en': 'Select a location',
+  },
+  'checkout_branch_required': {
+    'ru': 'Выберите филиал.',
+    'kk': 'Филиалды таңдаңыз.',
+    'en': 'Select a location.',
+  },
+  'checkout_delivery_address': {
+    'ru': 'Адрес доставки',
+    'kk': 'Жеткізу мекенжайы',
+    'en': 'Delivery address',
+  },
+  'checkout_select_delivery_address': {
+    'ru': 'Выберите адрес доставки',
+    'kk': 'Жеткізу мекенжайын таңдаңыз',
+    'en': 'Select a delivery address',
+  },
+  'checkout_delivery_address_required': {
+    'ru': 'Выберите точный адрес доставки на карте.',
+    'kk': 'Картадан нақты жеткізу мекенжайын таңдаңыз.',
+    'en': 'Select an exact delivery address on the map.',
+  },
+  'checkout_delivery_unavailable': {
+    'ru':
+        'Доставка пока недоступна для выбранных точек. Выберите самовывоз или предзаказ.',
+    'kk':
+        'Таңдалған орындар үшін жеткізу әзірге қолжетімсіз. Алып кетуді немесе алдын ала тапсырысты таңдаңыз.',
+    'en':
+        'Delivery is not available for the configured locations yet. Choose pickup or preorder.',
   },
   'checkout_additional_phone': {
     'ru': 'Дополнительный номер',
@@ -283,6 +403,16 @@ const Map<String, Map<String, String>> _appTranslations = {
     'ru': 'Выберите время самовывоза',
     'kk': 'Алып кету уақытын таңдаңыз',
     'en': 'Select pickup time',
+  },
+  'checkout_select_delivery_time': {
+    'ru': 'Выберите время доставки',
+    'kk': 'Жеткізу уақытын таңдаңыз',
+    'en': 'Select delivery time',
+  },
+  'checkout_select_preorder_time': {
+    'ru': 'Выберите время предзаказа',
+    'kk': 'Алдын ала тапсырыс уақытын таңдаңыз',
+    'en': 'Select preorder time',
   },
   'checkout_select_time': {
     'ru': 'Выберите время',
@@ -310,11 +440,32 @@ const Map<String, Map<String, String>> _appTranslations = {
     'kk': 'Промокод жеңілдігі',
     'en': 'Promo discount',
   },
+  'checkout_delivery_fee': {
+    'ru': 'Стоимость доставки',
+    'kk': 'Жеткізу құны',
+    'en': 'Delivery fee',
+  },
   'checkout_total': {'ru': 'Итоговая цена', 'kk': 'Жалпы баға', 'en': 'Total'},
   'checkout_time_required': {
-    'ru': 'Выберите время самовывоза.',
-    'kk': 'Алып кету уақытын таңдаңыз.',
-    'en': 'Select a pickup time.',
+    'ru': 'Выберите время получения заказа.',
+    'kk': 'Тапсырысты алу уақытын таңдаңыз.',
+    'en': 'Select an order time.',
+  },
+  'checkout_no_time_slots': {
+    'ru': 'Для выбранной точки нет доступного времени. Выберите другую точку.',
+    'kk': 'Таңдалған орын үшін бос уақыт жоқ. Басқа орынды таңдаңыз.',
+    'en':
+        'No time slots are available for this location. Choose another location.',
+  },
+  'checkout_delivery_outside_zone': {
+    'ru': 'Этот адрес находится вне зоны доставки доступных точек.',
+    'kk': 'Бұл мекенжай қолжетімді орындардың жеткізу аймағынан тыс.',
+    'en': 'This address is outside the delivery area of available locations.',
+  },
+  'checkout_phone_invalid': {
+    'ru': 'Проверьте дополнительный номер телефона.',
+    'kk': 'Қосымша телефон нөмірін тексеріңіз.',
+    'en': 'Check the additional phone number.',
   },
   'checkout_promo_applied': {
     'ru': 'Промокод применён',
@@ -411,13 +562,26 @@ const Map<String, Map<String, String>> _appTranslations = {
     'en': 'Paid orders will appear here.',
   },
   'orders_active': {'ru': 'Активные', 'kk': 'Белсенді', 'en': 'Active'},
-  'orders_completed': {'ru': 'Завершённые', 'kk': 'Аяқталған', 'en': 'Completed'},
+  'orders_completed': {
+    'ru': 'Завершённые',
+    'kk': 'Аяқталған',
+    'en': 'Completed',
+  },
   'orders_number': {'ru': 'Заказ №', 'kk': 'Тапсырыс №', 'en': 'Order #'},
   'orders_branch': {'ru': 'Филиал', 'kk': 'Филиал', 'en': 'Location'},
   'orders_pickup': {'ru': 'Самовывоз', 'kk': 'Алып кету', 'en': 'Pickup'},
-  'orders_bonus': {'ru': 'Начислим бонусов', 'kk': 'Қосылатын бонус', 'en': 'Bonus earned'},
+  'orders_bonus': {
+    'ru': 'Начислим бонусов',
+    'kk': 'Қосылатын бонус',
+    'en': 'Bonus earned',
+  },
   'orders_total': {'ru': 'Итоговая цена', 'kk': 'Жалпы баға', 'en': 'Total'},
-  'orders_cancel_reason': {'ru': 'Причина отмены', 'kk': 'Бас тарту себебі', 'en': 'Cancellation reason'},
+  'orders_refund': {'ru': 'Возвращено', 'kk': 'Қайтарылды', 'en': 'Refunded'},
+  'orders_cancel_reason': {
+    'ru': 'Причина отмены',
+    'kk': 'Бас тарту себебі',
+    'en': 'Cancellation reason',
+  },
   'orders_load_error': {
     'ru': 'Не удалось загрузить заказы.',
     'kk': 'Тапсырыстар жүктелмеді.',
@@ -425,11 +589,27 @@ const Map<String, Map<String, String>> _appTranslations = {
   },
   'orders_retry': {'ru': 'Повторить', 'kk': 'Қайталау', 'en': 'Retry'},
   'order_status_new': {'ru': 'Новый', 'kk': 'Жаңа', 'en': 'New'},
-  'order_status_accepted': {'ru': 'Принят', 'kk': 'Қабылданды', 'en': 'Accepted'},
-  'order_status_preparing': {'ru': 'Готовится', 'kk': 'Дайындалуда', 'en': 'Preparing'},
+  'order_status_accepted': {
+    'ru': 'Принят',
+    'kk': 'Қабылданды',
+    'en': 'Accepted',
+  },
+  'order_status_preparing': {
+    'ru': 'Готовится',
+    'kk': 'Дайындалуда',
+    'en': 'Preparing',
+  },
   'order_status_ready': {'ru': 'Готов', 'kk': 'Дайын', 'en': 'Ready'},
-  'order_status_completed': {'ru': 'Завершён', 'kk': 'Аяқталды', 'en': 'Completed'},
-  'order_status_cancelled': {'ru': 'Отменён', 'kk': 'Бас тартылды', 'en': 'Cancelled'},
+  'order_status_completed': {
+    'ru': 'Завершён',
+    'kk': 'Аяқталды',
+    'en': 'Completed',
+  },
+  'order_status_cancelled': {
+    'ru': 'Отменён',
+    'kk': 'Бас тартылды',
+    'en': 'Cancelled',
+  },
   'check_sum': {'ru': 'Сумма чека', 'kk': 'Чек сомасы', 'en': 'Bill amount'},
   'tx_pay_bonus': {
     'ru': 'Оплата бонусами',
@@ -818,6 +998,11 @@ const Map<String, Map<String, String>> _appTranslations = {
     'kk': 'Таңдалған орын: {name}',
     'en': 'Selected location: {name}',
   },
+  'delivery_address_selected': {
+    'ru': 'Выбран адрес доставки: {address}',
+    'kk': 'Жеткізу мекенжайы таңдалды: {address}',
+    'en': 'Delivery address selected: {address}',
+  },
   'select_address_title': {
     'ru': 'Выберите адрес',
     'kk': 'Мекенжайды таңдаңыз',
@@ -833,7 +1018,23 @@ const Map<String, Map<String, String>> _appTranslations = {
     'kk': 'Мекенжай атауы',
     'en': 'Address name',
   },
+  'address_actions': {
+    'ru': 'Действия с адресом',
+    'kk': 'Мекенжай әрекеттері',
+    'en': 'Address actions',
+  },
+  'delete_address_title': {
+    'ru': 'Удалить адрес?',
+    'kk': 'Мекенжай жойылсын ба?',
+    'en': 'Delete address?',
+  },
+  'delete_address_body': {
+    'ru': 'Адрес «{address}» будет удалён.',
+    'kk': '«{address}» мекенжайы жойылады.',
+    'en': 'The address “{address}” will be deleted.',
+  },
   'house_label': {'ru': 'Дом', 'kk': 'Үй', 'en': 'House'},
+  'entrance_label': {'ru': 'Подъезд', 'kk': 'Кіреберіс', 'en': 'Entrance'},
   'floor_label': {'ru': 'Этаж', 'kk': 'Қабат', 'en': 'Floor'},
   'apartment_label': {'ru': 'Квартира', 'kk': 'Пәтер', 'en': 'Apartment'},
   'courier_comment_label': {
@@ -914,6 +1115,11 @@ const Map<String, Map<String, String>> _appTranslations = {
     'ru': 'В этом городе локации не найдены.',
     'kk': 'Бұл қалада орындар табылмады.',
     'en': 'No locations were found in this city.',
+  },
+  'locations_other_city': {
+    'ru': 'Другой город',
+    'kk': 'Басқа қала',
+    'en': 'Other city',
   },
   'locations_search_empty': {
     'ru': 'По запросу ничего не найдено.',
@@ -1048,6 +1254,16 @@ const Map<String, Map<String, String>> _appTranslations = {
     'kk': 'Бонустардың мерзімі өтті',
     'en': 'Points expired',
   },
+  'tx_refund_reversal': {
+    'ru': 'Сторнирование после возврата',
+    'kk': 'Қайтарымнан кейінгі түзету',
+    'en': 'Reversed after refund',
+  },
+  'tx_cancelled_deposit': {
+    'ru': 'Начисление отменено',
+    'kk': 'Есептеу тоқтатылды',
+    'en': 'Credit cancelled',
+  },
   'tx_earning': {
     'ru': 'Начисление бонусов',
     'kk': 'Бонустар есептелді',
@@ -1109,6 +1325,10 @@ String localizeTransactionType(String type, {required bool isEarning}) {
       return 'tx_manual_withdrawal'.tr;
     case 'expiration':
       return 'tx_expiration'.tr;
+    case 'refund_reversal':
+      return 'tx_refund_reversal'.tr;
+    case 'cancelled_deposit':
+      return 'tx_cancelled_deposit'.tr;
     default:
       return isEarning ? 'tx_earning'.tr : 'tx_withdrawal'.tr;
   }

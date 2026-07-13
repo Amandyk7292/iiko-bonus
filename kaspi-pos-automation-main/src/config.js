@@ -76,7 +76,7 @@ export const KASPI_QRPAY_URL = 'https://qrpay.kaspi.kz';
 
 // ─── App version & device constants ───
 // Defaults match a known-good Kaspi Pay client. Override via .env if needed.
-// ⚠️ The Kaspi API validates these parameters and may reject unknown values.
+// Kaspi validates these parameters and may reject unknown values.
 
 export const APP = {
   version: process.env.APP_VERSION || '4.111',

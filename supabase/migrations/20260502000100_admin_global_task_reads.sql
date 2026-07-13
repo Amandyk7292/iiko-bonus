@@ -1,0 +1,1 @@
+-- Baseline marker: this migration was already applied to the shared Supabase project.

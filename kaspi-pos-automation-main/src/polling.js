@@ -8,7 +8,11 @@ import { signedQrPayHeaders } from './helpers.js';
 import { decryptSecret } from './crypto.js';
 import { getWebhooksByEvent } from './webhookStore.js';
 import { logger } from './logger.js';
-import { resolvePaymentEvent } from './paymentStatus.js';
+import {
+  resolvePaymentEvent,
+  shouldStopFastTracking,
+  shouldStopPollingAfterFailures,
+} from './paymentStatus.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TRACKED_FILE = path.join(__dirname, '..', 'tracked-payments.json');
@@ -16,6 +20,14 @@ const TRACKED_FILE = path.join(__dirname, '..', 'tracked-payments.json');
 // ─── Tracked payments ───
 
 const trackedPayments = new Map();
+const DEFAULT_FAST_TRACKING_MAX_MS = 30 * 60 * 1000;
+const MIN_FAST_TRACKING_MAX_MS = 5 * 60 * 1000;
+
+const fastTrackingMaxMs = () => {
+  const configured = Number(process.env.KASPI_FAST_TRACKING_MAX_MS);
+  if (!Number.isFinite(configured) || configured <= 0) return DEFAULT_FAST_TRACKING_MAX_MS;
+  return Math.max(MIN_FAST_TRACKING_MAX_MS, Math.floor(configured));
+};
 
 // ─── Persistence ───
 
@@ -234,6 +246,16 @@ const pollOnce = async () => {
       }
     }
 
+    if (
+      !entry.meta.expireDate &&
+      shouldStopFastTracking(entry.createdAt, Date.now(), fastTrackingMaxMs())
+    ) {
+      logger.info('POLLING', `Stopped fast tracking payment ${id}; background reconciliation remains active`);
+      trackedPayments.delete(id);
+      changed = true;
+      continue;
+    }
+
     const result = await fetchStatus(entry);
 
     // Handle session expiration
@@ -256,7 +278,7 @@ const pollOnce = async () => {
 
     if (!result || !result.Data) {
       entry.retryCount++;
-      if (entry.retryCount > 10) {
+      if (shouldStopPollingAfterFailures(entry.retryCount)) {
         logger.warn('POLLING', `Removing payment ${id} after 10 failed attempts`);
         trackedPayments.delete(id);
         changed = true;
@@ -270,6 +292,11 @@ const pollOnce = async () => {
     const newStatus = result.Data.Status;
     if (!newStatus) {
       entry.retryCount++;
+      if (shouldStopPollingAfterFailures(entry.retryCount)) {
+        logger.warn('POLLING', `Removing payment ${id} after 10 responses without a status`);
+        trackedPayments.delete(id);
+        changed = true;
+      }
       continue;
     }
     if (newStatus === entry.status) continue;

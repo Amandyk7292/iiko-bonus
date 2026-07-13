@@ -2,7 +2,7 @@ part of '../main.dart';
 
 const _apiBaseUrl = String.fromEnvironment(
   'BULKA_API_BASE_URL',
-  defaultValue: 'https://iiko-bonus.onrender.com',
+  defaultValue: 'https://bulka.com.kz',
 );
 
 class BulkaApiClient {
@@ -260,17 +260,24 @@ class BulkaApiClient {
 
   Future<Map<String, dynamic>> createKaspiPayment({
     required List<Map<String, dynamic>> cartItems,
-    required String branch,
-    required String pickupTime,
+    required String orderType,
+    required String scheduledAt,
     required String checkoutId,
+    String? branch,
+    String? branchId,
+    DeliveryAddress? deliveryAddress,
     String? additionalPhone,
     String? promoCode,
     String? comment,
   }) async {
     final json = await _post('/api/customer/kaspi-pay/create', {
       'items': cartItems,
+      'orderType': orderType,
       'branch': branch,
-      'pickupTime': pickupTime,
+      'branchId': branchId,
+      'scheduledAt': scheduledAt,
+      'pickupTime': scheduledAt,
+      'deliveryAddress': deliveryAddress?.toOrderPayload(),
       'checkoutId': checkoutId,
       'additionalPhone': additionalPhone,
       'promoCode': promoCode,
@@ -284,10 +291,20 @@ class BulkaApiClient {
 
   Future<Map<String, dynamic>> quoteKaspiOrder({
     required List<Map<String, dynamic>> cartItems,
+    String? orderType,
+    String? branch,
+    String? branchId,
+    String? scheduledAt,
+    DeliveryAddress? deliveryAddress,
     String? promoCode,
   }) async {
     final json = await _post('/api/customer/kaspi-pay/quote', {
       'items': cartItems,
+      'orderType': orderType,
+      'branch': branch,
+      'branchId': branchId,
+      'scheduledAt': scheduledAt,
+      'deliveryAddress': deliveryAddress?.toOrderPayload(),
       'promoCode': promoCode,
     });
     if (json['success'] != true) {
@@ -306,6 +323,120 @@ class BulkaApiClient {
     return json;
   }
 
+  Future<List<BakeryLocation>> getFulfillmentLocations() async {
+    final json = await _get('/api/guest/locations');
+    final rawLocations = json['locations'];
+    if (json['success'] == true && rawLocations is List) {
+      return rawLocations
+          .map((item) => BakeryLocation.fromJson(_asMap(item)))
+          .where(
+            (location) => location.active && location.displayLabel.isNotEmpty,
+          )
+          .toList();
+    }
+
+    final legacy = json['cityLocations'];
+    if (json['success'] == true && legacy is Map) {
+      final result = <BakeryLocation>[];
+      for (final entry in legacy.entries) {
+        if (entry.value is! List) continue;
+        for (final item in entry.value as List) {
+          final label = item.toString().trim();
+          if (label.isEmpty) continue;
+          result.add(
+            BakeryLocation(
+              id: '',
+              name: label,
+              address: '',
+              city: entry.key.toString(),
+            ),
+          );
+        }
+      }
+      return result;
+    }
+    return const [];
+  }
+
+  Future<List<Map<String, dynamic>>> searchDeliveryAddress(String query) async {
+    final uri =
+        '/api/public/geocode/search?q=${Uri.encodeQueryComponent(query)}';
+    final json = await _get(uri);
+    final results = json['results'];
+    if (json['success'] != true || results is! List) return const [];
+    return results.map((item) => _asMap(item)).toList();
+  }
+
+  Future<Map<String, dynamic>> reverseDeliveryAddress({
+    required double latitude,
+    required double longitude,
+  }) async {
+    final json = await _get(
+      '/api/public/geocode/reverse?lat=$latitude&lon=$longitude',
+    );
+    if (json['success'] != true || json['result'] is! Map) {
+      throw ApiException(_messageFrom(json, 'map_search_not_found'.tr));
+    }
+    return _asMap(json['result']);
+  }
+
+  Future<List<DeliveryAddress>> getCustomerAddresses() async {
+    final json = await _get('/api/customer/addresses');
+    final items = json['addresses'];
+    if (json['success'] != true || items is! List) {
+      throw ApiException(_messageFrom(json, 'error_network'.tr));
+    }
+    return items
+        .map((item) => DeliveryAddress.fromJson(_asMap(item)))
+        .where(
+          (address) => address.id.isNotEmpty && address.hasValidCoordinates,
+        )
+        .toList();
+  }
+
+  Future<DeliveryAddress> createCustomerAddress(DeliveryAddress address) async {
+    final json = await _post(
+      '/api/customer/addresses',
+      address.toOrderPayload(),
+    );
+    final value = _asMap(json['address']);
+    if (json['success'] != true || value.isEmpty) {
+      throw ApiException(_messageFrom(json, 'error_save'.tr));
+    }
+    return DeliveryAddress.fromJson(value);
+  }
+
+  Future<DeliveryAddress> updateCustomerAddress(DeliveryAddress address) async {
+    final json = await _put(
+      '/api/customer/addresses/${Uri.encodeComponent(address.id)}',
+      address.toOrderPayload(),
+    );
+    final value = _asMap(json['address']);
+    if (json['success'] != true || value.isEmpty) {
+      throw ApiException(_messageFrom(json, 'error_save'.tr));
+    }
+    return DeliveryAddress.fromJson(value);
+  }
+
+  Future<void> deleteCustomerAddress(String id) async {
+    final json = await _delete(
+      '/api/customer/addresses/${Uri.encodeComponent(id)}',
+    );
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'error_save'.tr));
+    }
+  }
+
+  Future<void> setDefaultCustomerAddress(String id) async {
+    final json = await _patch(
+      '/api/customer/addresses/${Uri.encodeComponent(id)}/default',
+      const {},
+    );
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'error_save'.tr));
+    }
+  }
+
   Future<List<CustomerOrder>> getCustomerOrders({
     bool completed = false,
   }) async {
@@ -315,9 +446,7 @@ class BulkaApiClient {
     if (json['success'] != true || orders is! List) {
       throw ApiException(_messageFrom(json, 'error_network'.tr));
     }
-    return orders
-        .map((item) => CustomerOrder.fromJson(_asMap(item)))
-        .toList();
+    return orders.map((item) => CustomerOrder.fromJson(_asMap(item))).toList();
   }
 
   Future<Map<String, dynamic>> _get(String path) async {
@@ -338,6 +467,33 @@ class BulkaApiClient {
           headers: _headers(bearerToken: bearerToken),
           body: jsonEncode(body),
         )
+        .timeout(const Duration(seconds: 15));
+    return _decode(response);
+  }
+
+  Future<Map<String, dynamic>> _put(
+    String path,
+    Map<String, dynamic> body,
+  ) async {
+    final response = await _client
+        .put(_uri(path), headers: _headers(), body: jsonEncode(body))
+        .timeout(const Duration(seconds: 15));
+    return _decode(response);
+  }
+
+  Future<Map<String, dynamic>> _patch(
+    String path,
+    Map<String, dynamic> body,
+  ) async {
+    final response = await _client
+        .patch(_uri(path), headers: _headers(), body: jsonEncode(body))
+        .timeout(const Duration(seconds: 15));
+    return _decode(response);
+  }
+
+  Future<Map<String, dynamic>> _delete(String path) async {
+    final response = await _client
+        .delete(_uri(path), headers: _headers(json: false))
         .timeout(const Duration(seconds: 15));
     return _decode(response);
   }

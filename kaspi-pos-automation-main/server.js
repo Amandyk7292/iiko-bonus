@@ -98,7 +98,7 @@ app.get('/api/payment/check/:id', async (req, res) => {
 
 if (!process.env.KASPI_MOUNTED) {
   app.listen(PORT, () => {
-    console.log(`\n  🟢 Kaspi Pay App running at http://localhost:${PORT}\n`);
+    console.log(`\n Kaspi Pay App running at http://localhost:${PORT}\n`);
     startPolling();
   });
 }

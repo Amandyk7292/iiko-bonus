@@ -100,38 +100,22 @@ router.post('/api/auth/verify-otp', authRateLimit, async (req, res) => {
     const { code } = req.body;
     if (!phone || !code) return res.status(400).json({ error: 'Phone and code required' });
 
-    const stored = await otpStore.get(phone);
-    if (!stored) {
+    const consumed = await otpStore.consume(phone, code);
+    if (consumed.status === 'expired') {
       return res.json({
         success: false,
         error: 'expired',
         message: 'Код устарел или не был запрошен',
       });
     }
-
-    if (Date.now() > stored.expires) {
-      await otpStore.delete(phone);
-      return res.json({
-        success: false,
-        error: 'expired',
-        message: 'Время действия кода истекло',
-      });
+    if (consumed.status === 'attempts_exceeded') {
+      return res
+        .status(429)
+        .json({ success: false, error: 'attempts_exceeded', message: 'Запросите новый код' });
     }
-
-    if (stored.code !== code) {
-      const attempts = Number(stored.attempts || 0) + 1;
-      if (attempts >= 5) {
-        await otpStore.delete(phone);
-        return res
-          .status(429)
-          .json({ success: false, error: 'attempts_exceeded', message: 'Запросите новый код' });
-      }
-      await otpStore.set(phone, { ...stored, attempts });
+    if (consumed.status !== 'success') {
       return res.json({ success: false, error: 'invalid', message: 'Неверный код' });
     }
-
-    // Success - clear OTP and check if customer exists
-    await otpStore.delete(phone);
 
     let existingCustomer = await getCustomerByPhone(phone);
     const isPlaceholder =
@@ -418,40 +402,30 @@ router.get('/api/guest/menu', async (req, res) => {
       return override[`custom_${fieldName}`] || fallbackName;
     };
 
-    const rawMenu = await iikoApi.getMenu();
-    let stopIds = new Set();
-    try {
-      stopIds = await iikoApi.getStopListProductIds(
-        req.query.organizationId || iikoApi.organizationId,
-      );
-    } catch (stopErr) {
-      console.warn('Не удалось получить стоп-лист, продолжаем без него:', stopErr.message);
-    }
+    const rawMenu = await iikoApi.getMenu({ strict: true });
+    const rawGroups = Array.isArray(rawMenu.groups) ? rawMenu.groups : [];
+    const rawProducts = Array.isArray(rawMenu.products) ? rawMenu.products : [];
 
-    // Подгружаем оверрайды из базы данных (если таблицы не существуют — продолжим с пустыми)
+    // Menu visibility, prices and stop-list state are order-critical. If one
+    // source is unavailable, fail the request instead of publishing stale or
+    // partially configured products.
     const menuService = require('../services/menu.service');
-    let productOverrides = [],
-      categoryOverrides = [],
-      customProducts = [];
-    try {
-      [productOverrides, categoryOverrides, customProducts] = await Promise.all([
-        menuService.getProductOverrides(),
-        menuService.getCategoryOverrides(),
-        menuService.getCustomProducts(),
-      ]);
-    } catch (dbErr) {
-      console.warn('Не удалось загрузить оверрайды меню из Supabase:', dbErr.message);
-    }
+    const [stopIds, productOverrides, categoryOverrides, customProducts] = await Promise.all([
+      iikoApi.getStopListProductIds(undefined, { strict: true }),
+      menuService.getProductOverrides({ strict: true }),
+      menuService.getCategoryOverrides({ strict: true }),
+      menuService.getCustomProducts({ strict: true }),
+    ]);
 
     const prodOverridesMap = new Map(productOverrides.map((o) => [o.iiko_product_id, o]));
     const catOverridesMap = new Map(categoryOverrides.map((o) => [o.iiko_category_id, o]));
 
     // Categories
-    let baseCategories = (rawMenu.groups || [])
+    const baseCategories = rawGroups
       .filter(
         (g) =>
           g.isIncludedInMenu ||
-          (rawMenu.groups.length > 0 && !rawMenu.groups.some((g2) => g2.isIncludedInMenu)),
+          (rawGroups.length > 0 && !rawGroups.some((g2) => g2.isIncludedInMenu)),
       )
       .map((g) => ({
         id: g.id,
@@ -460,7 +434,7 @@ router.get('/api/guest/menu', async (req, res) => {
       }));
 
     // Применяем оверрайды к категориям
-    let categories = [];
+    const categories = [];
     for (const cat of baseCategories) {
       const override = catOverridesMap.get(cat.id);
       if (override && override.is_hidden) continue;
@@ -485,15 +459,15 @@ router.get('/api/guest/menu', async (req, res) => {
     }
 
     // Products
-    let baseProducts = (rawMenu.products || []).filter(
+    const baseProducts = rawProducts.filter(
       (p) =>
         p.type === 'Dish' ||
         p.type === 'Good' ||
-        (rawMenu.products.length > 0 &&
-          !rawMenu.products.some((p2) => p2.type === 'Dish' || p2.type === 'Good')),
+        (rawProducts.length > 0 &&
+          !rawProducts.some((p2) => p2.type === 'Dish' || p2.type === 'Good')),
     );
 
-    let products = [];
+    const products = [];
     for (const p of baseProducts) {
       const override = prodOverridesMap.get(p.id);
       if (override && override.is_hidden) continue;
@@ -502,7 +476,7 @@ router.get('/api/guest/menu', async (req, res) => {
 
       let price = 0;
       if (p.sizePrices && p.sizePrices.length > 0) {
-        price = p.sizePrices[0].price.currentPrice;
+        price = Number(p.sizePrices[0]?.price?.currentPrice || 0);
       }
 
       // Скрываем товары с ценой 0 (служебные позиции iiko)
@@ -563,17 +537,17 @@ router.get('/api/guest/menu', async (req, res) => {
     // Сортировка товаров (если нужен кастомный порядок)
     products.sort((a, b) => a.sortOrder - b.sortOrder);
 
+    res.set('Cache-Control', 'private, no-store');
     res.json({
       success: true,
       categories,
       products,
-      debug: {
-        totalGroupsRaw: rawMenu.groups?.length || 0,
-        totalProductsRaw: rawMenu.products?.length || 0,
-        selectedOrgName: rawMenu.orgName || iikoApi.organizationId,
-        overridesCount: productOverrides.length,
-        customProductsCount: customProducts.length,
-      },
+      revision: Math.max(
+        0,
+        ...productOverrides.map((item) => Date.parse(item.updated_at) || 0),
+        ...categoryOverrides.map((item) => Date.parse(item.updated_at) || 0),
+        ...customProducts.map((item) => Date.parse(item.updated_at) || 0),
+      ),
     });
   } catch (error) {
     console.error('Ошибка получения меню:', error);
@@ -601,8 +575,11 @@ router.get('/api/guest/news', async (req, res) => {
 
 router.get('/api/guest/locations', async (req, res) => {
   try {
-    const { getCitiesWithPoints } = require('../services/location.service');
-    const cities = await getCitiesWithPoints();
+    const { getBulkaLocations, getCitiesWithPoints } = require('../services/location.service');
+    const [cities, locations] = await Promise.all([
+      getCitiesWithPoints({ throwOnError: true }),
+      getBulkaLocations(),
+    ]);
 
     const cityLocations = {};
     for (const city of cities) {
@@ -615,7 +592,8 @@ router.get('/api/guest/locations', async (req, res) => {
         }
       }
     }
-    res.json({ success: true, cityLocations });
+    res.set('Cache-Control', 'public, max-age=60, must-revalidate');
+    res.json({ success: true, cityLocations, locations });
   } catch (err) {
     sendApiError(res, err, { success: false });
   }

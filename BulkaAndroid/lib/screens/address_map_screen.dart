@@ -1,7 +1,9 @@
 part of '../main.dart';
 
 class AddressMapScreen extends StatefulWidget {
-  const AddressMapScreen({super.key});
+  const AddressMapScreen({this.api, super.key});
+
+  final BulkaApiClient? api;
 
   @override
   State<AddressMapScreen> createState() => _AddressMapScreenState();
@@ -11,6 +13,7 @@ class _AddressMapScreenState extends State<AddressMapScreen>
     with SingleTickerProviderStateMixin {
   static const _defaultPoint = LatLng(43.6532, 51.1975);
 
+  late final BulkaApiClient _api;
   final _mapController = MapController();
   final _searchController = TextEditingController();
   late final AnimationController _cameraController;
@@ -21,6 +24,7 @@ class _AddressMapScreenState extends State<AddressMapScreen>
   double _cameraStartZoom = 14.5;
   double _cameraTargetZoom = 14.5;
   String _address = '';
+  String _city = 'Aktau';
   bool _addressResolved = false;
   bool _resolving = false;
   bool _locating = false;
@@ -28,6 +32,7 @@ class _AddressMapScreenState extends State<AddressMapScreen>
   @override
   void initState() {
     super.initState();
+    _api = widget.api ?? BulkaApiClient();
     _address = 'map_select_point'.tr;
     _cameraController = AnimationController(
       vsync: this,
@@ -48,28 +53,15 @@ class _AddressMapScreenState extends State<AddressMapScreen>
     if (query.isEmpty) return;
     setState(() => _resolving = true);
     try {
-      final uri = Uri.https('nominatim.openstreetmap.org', '/search', {
-        'format': 'jsonv2',
-        'limit': '1',
-        'q': '$query, Aktau, Kazakhstan',
-        'accept-language': AppLang.current,
-      });
-      final response = await http
-          .get(uri, headers: _osmHeaders)
-          .timeout(const Duration(seconds: 12));
+      final items = await _api.searchDeliveryAddress(query);
       if (!mounted) return;
-      if (response.statusCode != 200) {
-        _showLocationError('map_search_failed'.tr);
-        return;
-      }
-      final items = jsonDecode(response.body);
-      if (items is! List || items.isEmpty) {
+      if (items.isEmpty) {
         _showLocationError('map_search_not_found'.tr);
         return;
       }
       final item = _asMap(items.first);
-      final lat = _asDouble(item['lat']);
-      final lon = _asDouble(item['lon']);
+      final lat = _asDouble(item['latitude']);
+      final lon = _asDouble(item['longitude']);
       if (lat == 0 || lon == 0) {
         _showLocationError('map_search_not_found'.tr);
         return;
@@ -77,8 +69,9 @@ class _AddressMapScreenState extends State<AddressMapScreen>
       final nextPoint = LatLng(lat, lon);
       setState(() {
         _address = _cleanAddress(
-          _asString(item['display_name'], fallback: query),
+          _asString(item['address'] ?? item['displayName'], fallback: query),
         );
+        _city = _asString(item['city'], fallback: _city);
         _addressResolved = true;
       });
       _moveMap(nextPoint, 16);
@@ -203,24 +196,20 @@ class _AddressMapScreenState extends State<AddressMapScreen>
   Future<void> _reverseGeocode(LatLng point) async {
     setState(() => _resolving = true);
     try {
-      final uri = Uri.https('nominatim.openstreetmap.org', '/reverse', {
-        'format': 'jsonv2',
-        'lat': point.latitude.toString(),
-        'lon': point.longitude.toString(),
-        'addressdetails': '1',
-        'accept-language': AppLang.current,
-      });
-      final response = await http
-          .get(uri, headers: _osmHeaders)
-          .timeout(const Duration(seconds: 12));
-      if (response.statusCode != 200) return;
-      final json = _asMap(jsonDecode(response.body));
+      final result = await _api.reverseDeliveryAddress(
+        latitude: point.latitude,
+        longitude: point.longitude,
+      );
       final nextAddress = _cleanAddress(
-        _asString(json['display_name'], fallback: 'map_selected_point'.tr),
+        _asString(
+          result['address'] ?? result['displayName'],
+          fallback: 'map_selected_point'.tr,
+        ),
       );
       if (!mounted) return;
       setState(() {
         _address = nextAddress;
+        _city = _asString(result['city'], fallback: _city);
         _addressResolved = true;
       });
     } catch (_) {
@@ -245,8 +234,8 @@ class _AddressMapScreenState extends State<AddressMapScreen>
 
   DeliveryLocation _selectedLocation() {
     return DeliveryLocation(
-      city: 'Aktau',
-      address: _addressResolved ? _address : 'map_selected_point'.tr,
+      city: _city,
+      address: _address,
       latitude: _point.latitude,
       longitude: _point.longitude,
     );
@@ -258,6 +247,7 @@ class _AddressMapScreenState extends State<AddressMapScreen>
       backgroundColor: Colors.white,
       appBar: AppBar(
         centerTitle: true,
+        titleSpacing: 0,
         backgroundColor: Colors.white,
         leading: IconButton(
           onPressed: () => Navigator.of(context).pop(),
@@ -267,10 +257,12 @@ class _AddressMapScreenState extends State<AddressMapScreen>
         ),
         title: Text(
           'locations_title'.tr,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: const TextStyle(
-            fontFamily: _headingFont,
-            fontSize: 30,
-            fontWeight: FontWeight.w400,
+            fontFamily: _brandFont,
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),
@@ -373,8 +365,10 @@ class _AddressMapScreenState extends State<AddressMapScreen>
                     width: double.infinity,
                     height: 58,
                     child: GradientButton(
-                      onPressed: () =>
-                          Navigator.of(context).pop(_selectedLocation()),
+                      onPressed: !_addressResolved || _resolving
+                          ? null
+                          : () =>
+                                Navigator.of(context).pop(_selectedLocation()),
                       child: Text(
                         'confirm_btn'.tr,
                         style: const TextStyle(
@@ -449,26 +443,8 @@ class _DeliveryMap extends StatelessWidget {
             color: const Color(0xFFFFFBF3).withValues(alpha: 0.34),
           ),
         ),
-        PolygonLayer(
-          polygons: [
-            Polygon(
-              points: _deliveryZone,
-              borderColor: const Color(0xFF2F80ED),
-              borderStrokeWidth: 2.2,
-              color: const Color(0xFF2F80ED).withValues(alpha: 0.08),
-            ),
-          ],
-        ),
         CircleLayer(
           circles: [
-            for (final bakery in _bakeryPoints)
-              CircleMarker(
-                point: bakery.point,
-                radius: 34,
-                color: const Color(0xFF2F80ED).withValues(alpha: 0.13),
-                borderColor: const Color(0xFF2F80ED),
-                borderStrokeWidth: 3,
-              ),
             CircleMarker(
               point: point,
               radius: 42,
@@ -480,13 +456,6 @@ class _DeliveryMap extends StatelessWidget {
         ),
         MarkerLayer(
           markers: [
-            for (final bakery in _bakeryPoints)
-              Marker(
-                point: bakery.point,
-                width: 104,
-                height: 72,
-                child: _MapPointLabel(label: bakery.label),
-              ),
             Marker(
               point: point,
               width: 116,
@@ -525,7 +494,7 @@ class _DeliveryMap extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  '${'map_data_attribution'.tr} © OSM · CARTO · Esri',
+                  '${'map_data_attribution'.tr}: OSM · CARTO · Esri',
                   style: const TextStyle(fontSize: 10, color: _textDark),
                 ),
               ),
@@ -723,30 +692,6 @@ class _MapPointLabel extends StatelessWidget {
     );
   }
 }
-
-class _MapBakeryPoint {
-  const _MapBakeryPoint(this.label, this.point);
-
-  final String label;
-  final LatLng point;
-}
-
-const _deliveryZone = [
-  LatLng(43.620, 51.120),
-  LatLng(43.690, 51.118),
-  LatLng(43.721, 51.197),
-  LatLng(43.686, 51.285),
-  LatLng(43.612, 51.279),
-  LatLng(43.590, 51.190),
-];
-
-const _bakeryPoints = [
-  _MapBakeryPoint('Bulka', LatLng(43.6532, 51.1975)),
-  _MapBakeryPoint('Premium', LatLng(43.6419, 51.1707)),
-  _MapBakeryPoint('Green Plaza', LatLng(43.6752, 51.2226)),
-];
-
-const _osmHeaders = {'User-Agent': 'BulkaBonus/1.0 contact@bulka.local'};
 
 String _cleanAddress(String value) {
   final parts = value

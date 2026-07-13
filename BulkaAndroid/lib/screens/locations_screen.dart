@@ -1,7 +1,9 @@
 part of '../main.dart';
 
 class LocationsScreen extends StatefulWidget {
-  const LocationsScreen({super.key});
+  const LocationsScreen({this.orderType = 'pickup', super.key});
+
+  final String orderType;
 
   @override
   State<LocationsScreen> createState() => _LocationsScreenState();
@@ -14,7 +16,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
   bool _loading = true;
   bool _loadFailed = false;
 
-  Map<String, List<String>> _cityLocations = {};
+  Map<String, List<BakeryLocation>> _cityLocations = {};
 
   @override
   void initState() {
@@ -31,7 +33,15 @@ class _LocationsScreenState extends State<LocationsScreen> {
     }
     try {
       final api = BulkaApiClient();
-      final locs = await api.getLocations();
+      final locations = await api.getFulfillmentLocations();
+      final locs = <String, List<BakeryLocation>>{};
+      for (final location in locations) {
+        if (!location.supports(widget.orderType)) continue;
+        final city = location.city.trim().isEmpty
+            ? 'locations_other_city'.tr
+            : location.city.trim();
+        locs.putIfAbsent(city, () => []).add(location);
+      }
       if (!mounted) return;
       setState(() {
         _cityLocations = locs;
@@ -59,16 +69,26 @@ class _LocationsScreenState extends State<LocationsScreen> {
     });
   }
 
-  void _onLocationTapped(String location) {
-    // Returning the selected location and city to the previous screen if needed.
-    Navigator.of(context).pop(location);
+  Future<void> _onLocationTapped(BakeryLocation location) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (location.id.isEmpty) {
+      await prefs.remove('selected_bakery_location_id');
+    } else {
+      await prefs.setString('selected_bakery_location_id', location.id);
+    }
+    await prefs.setString('selected_bakery_location', location.displayLabel);
+    if (mounted) Navigator.of(context).pop(location.displayLabel);
   }
 
   @override
   Widget build(BuildContext context) {
     final locations = _cityLocations[_selectedCity] ?? [];
     final filteredLocations = locations
-        .where((loc) => loc.toLowerCase().contains(_searchQuery.toLowerCase()))
+        .where(
+          (loc) => loc.displayLabel.toLowerCase().contains(
+            _searchQuery.toLowerCase(),
+          ),
+        )
         .toList();
 
     return Scaffold(
@@ -147,7 +167,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
     );
   }
 
-  Widget _buildLocationsList(List<String> locations) {
+  Widget _buildLocationsList(List<BakeryLocation> locations) {
     return Column(
       children: [
         Padding(
@@ -167,18 +187,12 @@ class _LocationsScreenState extends State<LocationsScreen> {
                   style: const TextStyle(fontSize: 16, color: _textDark),
                 ),
               ),
-              TextButton(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const AddressMapScreen()),
-                  );
-                },
-                child: Text(
-                  'view_on_map'.tr,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    color: Color(0xFFD3AD72),
-                  ),
+              IconButton(
+                onPressed: _loadLocations,
+                tooltip: 'refresh_btn'.tr,
+                icon: const Icon(
+                  Icons.refresh_rounded,
+                  color: Color(0xFFD3AD72),
                 ),
               ),
             ],
@@ -230,15 +244,30 @@ class _LocationsScreenState extends State<LocationsScreen> {
                     final location = locations[index];
                     return ListTile(
                       contentPadding: EdgeInsets.zero,
+                      minVerticalPadding: 12,
                       title: Text(
-                        location,
+                        location.name,
                         style: const TextStyle(fontSize: 18, color: _textDark),
                       ),
+                      subtitle: location.address.trim().isEmpty
+                          ? null
+                          : Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                location.address,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: _textDark.withValues(alpha: 0.62),
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
                       trailing: const Icon(
                         Icons.chevron_right_rounded,
                         color: _almond,
                       ),
-                      onTap: () => _onLocationTapped(location),
+                      onTap: () => unawaited(_onLocationTapped(location)),
                     );
                   },
                 ),

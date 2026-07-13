@@ -21,17 +21,20 @@ export default function OrdersPage() {
   const [savingId, setSavingId] = useState('');
   const pageSize = 50;
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
+  const load = useCallback(async (silent = false) => {
+    if (!silent) {
+      setLoading(true);
+      setError('');
+    }
     try {
       const result = await api.getOrders({ page, pageSize, search, paymentStatus, orderStatus });
       setOrders(result.orders ?? []);
       setTotal(result.total ?? 0);
+      if (!silent) setError('');
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : t('common.loadError'));
+      if (!silent) setError(caught instanceof Error ? caught.message : t('common.loadError'));
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [orderStatus, page, paymentStatus, search, t]);
 
@@ -40,17 +43,42 @@ export default function OrdersPage() {
     return () => window.clearTimeout(timer);
   }, [load]);
 
+  useEffect(() => {
+    let inFlight = false;
+    const refresh = async () => {
+      if (document.visibilityState !== 'visible' || inFlight) return;
+      inFlight = true;
+      try {
+        await load(true);
+      } finally {
+        inFlight = false;
+      }
+    };
+    const timer = window.setInterval(() => void refresh(), 5000);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') void refresh();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [load]);
+
   const changeStatus = async (order: AdminOrder, status: string) => {
     if (status === order.orderStatus || savingId) return;
     let cancellationReason = '';
     if (status === 'cancelled') {
-      cancellationReason = window.prompt(t('orders.cancelReasonPrompt'))?.trim() ?? '';
+      const promptedReason = window.prompt(t('orders.cancelReasonPrompt'));
+      if (promptedReason === null) return;
+      cancellationReason = promptedReason.trim();
+      if (!window.confirm(t('orders.refundConfirm', { amount: formatNumber(order.amount) }))) return;
     }
     setSavingId(order.id);
     try {
       const result = await api.updateOrderStatus(order.id, status, cancellationReason);
       setOrders(current => current.map(item => item.id === order.id ? result.order : item));
-      toast(t('orders.statusSaved'));
+      toast(status === 'cancelled' ? t('orders.refundSucceeded') : t('orders.statusSaved'));
     } catch (caught) {
       toast(caught instanceof Error ? caught.message : t('common.error'), 'error');
     } finally {
@@ -81,7 +109,7 @@ export default function OrdersPage() {
           <label className="field-label" htmlFor="payment-status">{t('orders.payment')}</label>
           <select id="payment-status" className="input-classic" value={paymentStatus} onChange={event => { setPaymentStatus(event.target.value); setPage(1); }}>
             <option value="">{t('orders.all')}</option>
-            {['pending', 'paid', 'failed', 'expired'].map(value => <option value={value} key={value}>{t(`payment.${value}`)}</option>)}
+            {['pending', 'paid', 'refunded', 'failed', 'expired'].map(value => <option value={value} key={value}>{t(`payment.${value}`)}</option>)}
           </select>
         </div>
         <div className="field-group">
@@ -104,7 +132,7 @@ export default function OrdersPage() {
               <td data-label={t('orders.details')}><strong>{order.branch || '—'}</strong><small className="table-secondary">{order.items.slice(0, 2).map(item => `${item.name || t('orders.item')} ×${item.quantity || 1}`).join(', ') || '—'}</small></td>
               <td data-label={t('orders.payment')}><span className={`order-badge payment-${order.paymentStatus}`}>{t(`payment.${order.paymentStatus}`)}</span></td>
               <td data-label={t('common.status')}>
-                {order.paymentStatus === 'paid' ? <div className="order-status-control">
+                {['paid', 'refunded'].includes(order.paymentStatus) ? <div className="order-status-control">
                   {savingId === order.id && <LoaderCircle className="spin" size={16} />}
                   <select aria-label={t('orders.changeStatus')} className="input-classic order-status-select" value={order.orderStatus} onChange={event => void changeStatus(order, event.target.value)} disabled={savingId === order.id || ['completed', 'cancelled'].includes(order.orderStatus)}>
                     {statuses.map(value => <option value={value} key={value}>{t(`orderStatus.${value}`)}</option>)}

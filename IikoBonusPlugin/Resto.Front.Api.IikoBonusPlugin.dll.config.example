@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <configuration>
   <appSettings>
-    <add key="IIKO_LOYALTY_API_BASE_URL" value="https://iiko-bonus.onrender.com/api/loyalty" />
-    <add key="IIKO_LOYALTY_API_TOKEN" value="replace-with-at-least-32-random-characters" />
-    <add key="IIKO_LOYALTY_TIMEOUT_SEC" value="10" />
+    <add key="IIKO_LOYALTY_API_BASE_URL" value="https://bulka.com.kz/api/loyalty" />
+    <add key="IIKO_LOYALTY_API_TOKEN" value="" />
+    <add key="IIKO_LOYALTY_DISCOUNT_TYPE_NAME" value="Bulka Bonus" />
+    <!-- If several similar discount types exist, set the exact iiko discount UUID below. -->
+    <add key="IIKO_LOYALTY_DISCOUNT_TYPE_ID" value="" />
+    <add key="IIKO_LOYALTY_TIMEOUT_SEC" value="8" />
     <add key="IIKO_LOYALTY_RETRY_INTERVAL_SEC" value="60" />
     <add key="IIKO_LOYALTY_MAX_ATTEMPTS" value="0" />
   </appSettings>

@@ -1,6 +1,16 @@
 const fetch = require('node-fetch');
 const crypto = require('crypto');
 
+const fetchWithTimeout = async (url, options = {}, timeoutMs = 15000) => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
 const configurationError = (message) => {
   const error = new Error(message);
   error.code = 'IIKO_ORDER_CONFIGURATION';
@@ -35,7 +45,7 @@ class IikoAPI {
     this.cachedMenu = null;
     this.cachedMenuExpiresAt = 0;
     this._menuFetchPromise = null; // Мьютекс: одновременно только 1 запрос меню
-    // Кэш стоп-листа: 5 минут
+    // Stop-list changes must reach checkout quickly without one iiko call per client.
     this._cachedStopIds = null;
     this._stopListExpiresAt = 0;
     this._stopListPromise = null;
@@ -62,7 +72,7 @@ class IikoAPI {
       };
     }
 
-    const response = await fetch(url, {
+    const response = await fetchWithTimeout(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -91,7 +101,7 @@ class IikoAPI {
       return this.organizationId;
     }
     const token = await this.getToken();
-    const response = await fetch(`${this.baseUrl}/api/1/organizations`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/api/1/organizations`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -130,14 +140,17 @@ class IikoAPI {
       },
     };
 
-    const response = await fetch(`${this.baseUrl}/api/1/loyalty/customers/create_or_update`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+    const response = await fetchWithTimeout(
+      `${this.baseUrl}/api/1/loyalty/customers/create_or_update`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
       },
-      body: JSON.stringify(payload),
-    });
+    );
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -147,7 +160,7 @@ class IikoAPI {
     return await response.json();
   }
 
-  async getMenu() {
+  async getMenu({ strict = false } = {}) {
     // 1. Отдаём из кэша если он живой
     if (this.cachedMenu && Date.now() < this.cachedMenuExpiresAt) {
       return this.cachedMenu;
@@ -162,11 +175,16 @@ class IikoAPI {
       return result;
     } catch (error) {
       console.warn('[iiko] Ошибка загрузки меню из iikoCloud:', error.message);
-      if (this.cachedMenu) {
+      if (this.cachedMenu && !strict) {
         console.warn('[iiko] Возвращаем устаревший кэш меню из-за ошибки iiko');
         return this.cachedMenu;
       }
-      // Возвращаем пустую структуру вместо падения, чтобы работали кастомные блюда
+      if (strict) {
+        throw Object.assign(new Error('Меню временно недоступно. Повторите попытку позже.'), {
+          statusCode: 503,
+        });
+      }
+      // Non-critical background consumers may continue with custom products.
       return { groups: [], products: [] };
     } finally {
       this._menuFetchPromise = null;
@@ -180,7 +198,7 @@ class IikoAPI {
     const token = await this.getToken();
     let orgId = await this.getOrganizationId();
 
-    let response = await fetch(`${this.baseUrl}/api/1/nomenclature`, {
+    let response = await fetchWithTimeout(`${this.baseUrl}/api/1/nomenclature`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -200,7 +218,7 @@ class IikoAPI {
     if (!menuData.products || menuData.products.length === 0) {
       console.log('Номенклатура v1 пуста. Проверяем External Menus (/api/2/menu)...');
       try {
-        const extRes = await fetch(`${this.baseUrl}/api/2/menu`, {
+        const extRes = await fetchWithTimeout(`${this.baseUrl}/api/2/menu`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -213,7 +231,7 @@ class IikoAPI {
           if (extData.externalMenus && extData.externalMenus.length > 0) {
             const extMenuId = extData.externalMenus[0].id;
             console.log('Найдено Внешнее Меню:', extData.externalMenus[0].name, extMenuId);
-            const itemsRes = await fetch(`${this.baseUrl}/api/2/menu/by_id`, {
+            const itemsRes = await fetchWithTimeout(`${this.baseUrl}/api/2/menu/by_id`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -312,7 +330,7 @@ class IikoAPI {
     return menuData;
   }
 
-  async getStopListProductIds(organizationId) {
+  async getStopListProductIds(organizationId, { strict = false } = {}) {
     // Кэш стоп-листа на 5 минут
     if (this._cachedStopIds && Date.now() < this._stopListExpiresAt) {
       return this._cachedStopIds;
@@ -324,51 +342,48 @@ class IikoAPI {
     this._stopListPromise = this._fetchStopList(organizationId);
     try {
       return await this._stopListPromise;
+    } catch (error) {
+      console.error('Ошибка получения стоп-листа из iiko:', error.message);
+      if (strict) throw error;
+      return this._cachedStopIds || new Set();
     } finally {
       this._stopListPromise = null;
     }
   }
 
   async _fetchStopList(organizationId) {
-    try {
-      this._apiCallCount++;
-      console.log(`[iiko] Запрос стоп-листа #${this._apiCallCount}`);
-      const token = await this.getToken();
-      const orgId = organizationId || (await this.getOrganizationId());
-      const res = await fetch(`${this.baseUrl}/api/1/stop_lists`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ organizationIds: [orgId] }),
-      });
-      if (!res.ok) {
-        this._cachedStopIds = new Set();
-        this._stopListExpiresAt = Date.now() + 2 * 60 * 1000;
-        return this._cachedStopIds;
-      }
-      const data = await res.json();
-      const stopIds = new Set();
-      if (data.terminalGroupStopLists) {
-        for (const group of data.terminalGroupStopLists) {
-          if (group.items) {
-            for (const item of group.items) {
-              if (item.balance <= 0 && item.productId) {
-                stopIds.add(item.productId);
-              }
+    this._apiCallCount++;
+    console.log(`[iiko] Запрос стоп-листа #${this._apiCallCount}`);
+    const token = await this.getToken();
+    const orgId = organizationId || (await this.getOrganizationId());
+    const res = await fetchWithTimeout(`${this.baseUrl}/api/1/stop_lists`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ organizationIds: [orgId] }),
+    });
+    if (!res.ok) {
+      throw new Error(`iiko stop list returned ${res.status}`);
+    }
+    const data = await res.json();
+    const stopIds = new Set();
+    if (data.terminalGroupStopLists) {
+      for (const group of data.terminalGroupStopLists) {
+        if (group.items) {
+          for (const item of group.items) {
+            if (item.balance <= 0 && item.productId) {
+              stopIds.add(item.productId);
             }
           }
         }
       }
-      this._cachedStopIds = stopIds;
-      this._stopListExpiresAt = Date.now() + 5 * 60 * 1000; // 5 минут кэш
-      console.log(`[iiko] Стоп-лист: ${stopIds.size} позиций, кэш 5 мин`);
-      return stopIds;
-    } catch (err) {
-      console.error('Ошибка получения стоп-листа из iiko:', err.message);
-      return this._cachedStopIds || new Set();
     }
+    this._cachedStopIds = stopIds;
+    this._stopListExpiresAt = Date.now() + 30 * 1000;
+    console.log(`[iiko] Стоп-лист: ${stopIds.size} позиций, кэш 30 сек`);
+    return stopIds;
   }
 
   async createDeliveryOrder(order) {
@@ -439,7 +454,7 @@ class IikoAPI {
       if (!item.productSizeId) delete item.productSizeId;
     }
 
-    const response = await fetch(`${this.baseUrl}/api/1/deliveries/create`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/api/1/deliveries/create`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

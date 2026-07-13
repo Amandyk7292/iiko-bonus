@@ -423,7 +423,7 @@ const qrStatusBadge = (status) => {
     QrTokenCreated: ['Ожидание сканирования', 'info'],
     QrTokenScanned: ['Отсканирован', 'info'],
     PaymentConfirmation: ['Подтверждение оплаты...', 'warn'],
-    Paid: ['Оплачено ✅', 'ok'],
+    Paid: ['Оплачено', 'ok'],
     CancelledByUser: ['Отменено клиентом', 'err'],
     NotConfirmedByUser: ['Не подтверждено', 'err'],
     QrTokenDiscarded: ['QR не отсканирован', 'err'],

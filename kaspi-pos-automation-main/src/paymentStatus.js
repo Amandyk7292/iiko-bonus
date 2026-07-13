@@ -29,6 +29,22 @@ const INVOICE_FINAL_STATUSES = {
 const QR_INTERMEDIATE = new Set(['QrTokenCreated', 'Wait']);
 const INVOICE_INTERMEDIATE = new Set(['RemotePaymentCreated']);
 
+export const shouldStopPollingAfterFailures = (retryCount) => Number(retryCount) > 10;
+
+export const shouldStopFastTracking = (createdAt, now, maxAgeMs) => {
+  const created = Number(createdAt);
+  const current = Number(now);
+  const maxAge = Number(maxAgeMs);
+  return (
+    Number.isFinite(created) &&
+    created > 0 &&
+    Number.isFinite(current) &&
+    Number.isFinite(maxAge) &&
+    maxAge > 0 &&
+    current - created > maxAge
+  );
+};
+
 export const resolvePaymentEvent = (type, status) => {
   if (!status) return null;
   if (type === 'qr') {

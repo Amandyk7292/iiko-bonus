@@ -46,6 +46,9 @@ export interface AdminOrder {
   comment?: string | null;
   items: Array<{ name?: string; quantity?: number; price?: number }>;
   earnedBonus: number;
+  refundStatus?: string | null;
+  refundAmount?: number | null;
+  refundedAt?: string | null;
   cancellationReason?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -69,7 +72,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
   let response: Response;
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 15000);
+  const timeout = window.setTimeout(() => controller.abort(), 30000);
   try {
     response = await fetch(`${BASE_URL}${endpoint}`, {
       ...options,
@@ -172,6 +175,12 @@ export const api = {
   addPoint: (cityId: string, data: Record<string, unknown>) => request('/points', json('POST', { ...data, city_id: cityId })),
   updatePoint: (id: string, data: Record<string, unknown>) => request(`/points/${encodeURIComponent(id)}`, json('PUT', data)),
   deletePoint: (id: string) => request(`/points/${encodeURIComponent(id)}`, json('DELETE')),
+  getFulfillmentLocations: () => request<{ success: boolean; locations: any[] }>('/locations'),
+  updateFulfillmentLocation: (id: string, data: Record<string, unknown>) =>
+    request<{ success: boolean; location: any }>(
+      `/locations/${encodeURIComponent(id)}`,
+      json('PATCH', data),
+    ),
 
   uploadPhoto: (base64: string, filename: string) => request<{ success: boolean; url?: string }>('/upload', json('POST', { imageBase64: base64, filename })),
   sendBroadcast: (message: string) => request<{ success: boolean; count?: number }>('/broadcast', json('POST', { message })),

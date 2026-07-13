@@ -5,29 +5,29 @@
 ## Архитектура
 
 ```
-┌──────────────┐       ┌──────────────────┐       ┌──────────────────┐
-│  Web UI      │◄─────►│  Express Server   │◄─────►│  Kaspi Pay API   │
-│  (public/)   │       │  (server.js)      │       │  (entrance/      │
-│              │       │                   │       │   mtoken/qrpay)  │
-└──────────────┘       └──────────────────┘       └──────────────────┘
-                              │
-                    ┌─────────┴─────────┐
-                    │   src/            │
-                    │  ├─ config.js     │  Keypair, device, constants
-                    │  ├─ crypto.js     │  ECDH, ECDSA, TOTP, AES
-                    │  ├─ helpers.js    │  Fetch wrapper, headers
-                    │  ├─ session.js    │  Stateless session factory
-                    │  ├─ logger.js     │  File & console logging
-                    │  ├─ polling.js    │  Payment status polling
-                    │  ├─ webhookStore  │  Webhook management
-                    │  └─ routes/       │  API route handlers
-                    │     ├─ auth.js    │  SMS auth (3-step)
-                    │     ├─ invoice.js │  Invoice creation
-                    │     ├─ qr.js      │  QR code generation
-                    │     ├─ history.js │  Transaction history
-                    │     ├─ refund.js  │  Refund processing
-                    │     └─ session.js │  Session management
-                    └───────────────────┘
+┌──────────────┐ ┌──────────────────┐ ┌──────────────────┐
+│ Web UI │◄─────►│ Express Server │◄─────►│ Kaspi Pay API │
+│ (public/) │ │ (server.js) │ │ (entrance/ │
+│ │ │ │ │ mtoken/qrpay) │
+└──────────────┘ └──────────────────┘ └──────────────────┘
+ │
+ ┌─────────┴─────────┐
+ │ src/ │
+ │ ├─ config.js │ Keypair, device, constants
+ │ ├─ crypto.js │ ECDH, ECDSA, TOTP, AES
+ │ ├─ helpers.js │ Fetch wrapper, headers
+ │ ├─ session.js │ Stateless session factory
+ │ ├─ logger.js │ File & console logging
+ │ ├─ polling.js │ Payment status polling
+ │ ├─ webhookStore │ Webhook management
+ │ └─ routes/ │ API route handlers
+ │ ├─ auth.js │ SMS auth (3-step)
+ │ ├─ invoice.js │ Invoice creation
+ │ ├─ qr.js │ QR code generation
+ │ ├─ history.js │ Transaction history
+ │ ├─ refund.js │ Refund processing
+ │ └─ session.js │ Session management
+ └───────────────────┘
 ```
 
 Сервер **stateless после авторизации** — данные сессии (зашифрованный `vtokenSecret`, `tokenSN`, `profileId`) хранятся на стороне клиента и передаются через заголовки.
@@ -36,12 +36,12 @@
 
 Сервер автоматически отслеживает статусы созданных QR- и invoice-платежей (polling каждые 3 сек.) и отправляет HTTP POST-уведомления на указанные URL при изменении статуса.
 
-- 📡 **События:** `payment.success` · `payment.failed` · `payment.expired`
-- ⚙️ **Настройка:** файл `webhooks.json` (см. [`webhooks.example.json`](./webhooks.example.json))
-- 🔐 **Подпись:** HMAC SHA-256
-- 🔄 **Retry:** до 3 попыток с нарастающей задержкой
+- **События:** `payment.success` · `payment.failed` · `payment.expired`
+- **Настройка:** файл `webhooks.json` (см. [`webhooks.example.json`](./webhooks.example.json))
+- **Подпись:** HMAC SHA-256
+- **Retry:** до 3 попыток с нарастающей задержкой
 
-> 📖 Подробнее — в [документации API](./docs/API.md#webhooks--уведомления).
+> Подробнее — в [документации API](./docs/API.md#webhooks--уведомления).
 
 ## Требования
 
@@ -72,30 +72,30 @@ npm start
 
 ## Переменные окружения
 
-| Переменная         | Описание                                 | По умолчанию               | Обязательная |
-| ------------------ | ---------------------------------------- | -------------------------- | ------------ |
-| `TOKEN_SECRET_KEY` | 64-символьная hex-строка для AES-256-GCM | —                          | Да           |
-| `PORT`             | Порт сервера                             | `3000`                     | Нет          |
-| `APP_VERSION`      | Версия приложения Kaspi Pay              | `4.110.1`                  | Нет          |
-| `APP_BUILD`        | Номер сборки                             | `1099`                     | Нет          |
-| `APP_PLATFORM`     | Платформа устройства                     | `iOS`                      | Нет          |
-| `APP_PLATFORM_VER` | Версия ОС                                | `18.5`                     | Нет          |
-| `APP_LOCALE`       | Локаль                                   | `ru-RU`                    | Нет          |
-| `APP_MODEL`        | Модель устройства                        | `iPhone17,3`               | Нет          |
-| `APP_BRAND`        | Бренд устройства                         | `Apple`                    | Нет          |
-| `APP_DEVICE_NAME`  | Имя устройства                           | `iPhone`                   | Нет          |
-| `APP_SCREEN_W`     | Ширина экрана                            | `393.0`                    | Нет          |
-| `APP_SCREEN_H`     | Высота экрана                            | `852.0`                    | Нет          |
-| `APP_CFNETWORK`    | Версия CFNetwork                         | `CFNetwork/3826.500.131`   | Нет          |
-| `APP_DARWIN`       | Версия Darwin                            | `Darwin/24.5.0`            | Нет          |
+| Переменная         | Описание                                 | По умолчанию             | Обязательная |
+| ------------------ | ---------------------------------------- | ------------------------ | ------------ |
+| `TOKEN_SECRET_KEY` | 64-символьная hex-строка для AES-256-GCM | —                        | Да           |
+| `PORT`             | Порт сервера                             | `3000`                   | Нет          |
+| `APP_VERSION`      | Версия приложения Kaspi Pay              | `4.110.1`                | Нет          |
+| `APP_BUILD`        | Номер сборки                             | `1099`                   | Нет          |
+| `APP_PLATFORM`     | Платформа устройства                     | `iOS`                    | Нет          |
+| `APP_PLATFORM_VER` | Версия ОС                                | `18.5`                   | Нет          |
+| `APP_LOCALE`       | Локаль                                   | `ru-RU`                  | Нет          |
+| `APP_MODEL`        | Модель устройства                        | `iPhone17,3`             | Нет          |
+| `APP_BRAND`        | Бренд устройства                         | `Apple`                  | Нет          |
+| `APP_DEVICE_NAME`  | Имя устройства                           | `iPhone`                 | Нет          |
+| `APP_SCREEN_W`     | Ширина экрана                            | `393.0`                  | Нет          |
+| `APP_SCREEN_H`     | Высота экрана                            | `852.0`                  | Нет          |
+| `APP_CFNETWORK`    | Версия CFNetwork                         | `CFNetwork/3826.500.131` | Нет          |
+| `APP_DARWIN`       | Версия Darwin                            | `Darwin/24.5.0`          | Нет          |
 
-> ⚠️ Параметры `APP_*` соответствуют реальному клиенту Kaspi Pay. API Kaspi валидирует эти значения и может отклонить запросы с неизвестными параметрами. Обновляйте их при выходе новой версии приложения.
+> Важно: Параметры `APP_*` соответствуют реальному клиенту Kaspi Pay. API Kaspi валидирует эти значения и может отклонить запросы с неизвестными параметрами. Обновляйте их при выходе новой версии приложения.
 
 ## Ротация ключей
 
 ```bash
-npm run regen:keypair   # Перегенерация ECDSA-ключей
-npm run regen:device    # Перегенерация идентификатора устройства
+npm run regen:keypair # Перегенерация ECDSA-ключей
+npm run regen:device # Перегенерация идентификатора устройства
 ```
 
 Старые файлы сохраняются как `.bak`. После ротации существующие сессии становятся недействительными.
@@ -106,18 +106,18 @@ npm run regen:device    # Перегенерация идентификатор�
 
 **Возможности интерфейса:**
 
-- 🔐 **Авторизация** — вход по номеру телефона кассира Kaspi Pay через 3-шаговый SMS-flow (ввод номера → OTP-код → завершение)
-- 🧾 **Выставление счёта** — создание счёта по номеру телефона клиента с указанием суммы и комментария
-- 📱 **QR-оплата** — генерация QR-кода для оплаты с отслеживанием статуса в реальном времени
-- 📋 **История операций** — просмотр списка транзакций с детализацией
-- 💰 **Продажи и возвраты** — статистика продаж и оформление возвратов
+- **Авторизация** — вход по номеру телефона кассира Kaspi Pay через 3-шаговый SMS-flow (ввод номера → OTP-код → завершение)
+- **Выставление счёта** — создание счёта по номеру телефона клиента с указанием суммы и комментария
+- **QR-оплата** — генерация QR-кода для оплаты с отслеживанием статуса в реальном времени
+- **История операций** — просмотр списка транзакций с детализацией
+- **Продажи и возвраты** — статистика продаж и оформление возвратов
 
 **Файлы:**
 
-| Файл | Описание |
-| --- | --- |
-| `public/index.html` | HTML-разметка и стили интерфейса |
-| `public/app.js` | Клиентская логика (API-вызовы, управление состоянием) |
+| Файл                | Описание                                              |
+| ------------------- | ----------------------------------------------------- |
+| `public/index.html` | HTML-разметка и стили интерфейса                      |
+| `public/app.js`     | Клиентская логика (API-вызовы, управление состоянием) |
 
 > Интерфейс предназначен для демонстрации и тестирования API. Для продакшена рекомендуется использовать собственный фронтенд.
 
@@ -125,7 +125,7 @@ npm run regen:device    # Перегенерация идентификатор�
 
 Подробная документация по всем эндпоинтам API: [`docs/API.md`](./docs/API.md).
 
-📗 Документация также доступна на казахском языке: [`README.kk.md`](./README.kk.md) | [`docs/API.kk.md`](./docs/API.kk.md)
+Документация также доступна на казахском языке: [`README.kk.md`](./README.kk.md) | [`docs/API.kk.md`](./docs/API.kk.md)
 
 ## Разработка
 

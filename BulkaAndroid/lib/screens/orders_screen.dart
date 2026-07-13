@@ -1,5 +1,33 @@
 part of '../main.dart';
 
+enum _OrderType { pickup, delivery, preorder }
+
+extension on _OrderType {
+  String get wireValue => switch (this) {
+    _OrderType.pickup => 'pickup',
+    _OrderType.delivery => 'delivery',
+    _OrderType.preorder => 'preorder',
+  };
+
+  String get label => switch (this) {
+    _OrderType.pickup => 'order_pickup'.tr,
+    _OrderType.delivery => 'order_delivery'.tr,
+    _OrderType.preorder => 'order_preorder'.tr,
+  };
+
+  IconData get icon => switch (this) {
+    _OrderType.pickup => Icons.storefront_outlined,
+    _OrderType.delivery => Icons.delivery_dining_outlined,
+    _OrderType.preorder => Icons.event_available_outlined,
+  };
+}
+
+_OrderType _orderTypeFromWire(String? value) => switch (value) {
+  'delivery' => _OrderType.delivery,
+  'preorder' => _OrderType.preorder,
+  _ => _OrderType.pickup,
+};
+
 class OrdersScreen extends StatefulWidget {
   const OrdersScreen({
     required this.api,
@@ -19,6 +47,64 @@ class OrdersScreen extends StatefulWidget {
 }
 
 class _OrdersScreenState extends State<OrdersScreen> {
+  CartProvider? _cartProvider;
+  bool _restoreCheckoutPending = false;
+  bool _checkoutOpen = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_prepareCheckoutRestore());
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final next = context.read<CartProvider>();
+    if (identical(next, _cartProvider)) return;
+    _cartProvider?.removeListener(_restoreCheckoutIfReady);
+    _cartProvider = next..addListener(_restoreCheckoutIfReady);
+  }
+
+  @override
+  void dispose() {
+    _cartProvider?.removeListener(_restoreCheckoutIfReady);
+    super.dispose();
+  }
+
+  Future<void> _prepareCheckoutRestore() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted || prefs.getString('lastAppScreen') != 'checkout') return;
+    _restoreCheckoutPending = true;
+    _restoreCheckoutIfReady();
+  }
+
+  Future<void> _markMainScreen() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('lastAppScreen', 'main');
+  }
+
+  void _restoreCheckoutIfReady() {
+    final cart = _cartProvider;
+    if (!mounted ||
+        !_restoreCheckoutPending ||
+        _checkoutOpen ||
+        cart == null ||
+        !cart.isRestored) {
+      return;
+    }
+    _restoreCheckoutPending = false;
+    if (cart.items.isEmpty) {
+      unawaited(_markMainScreen());
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_openCheckout(context, cart));
+    });
+  }
+
   void _showSuccessDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -63,8 +149,11 @@ class _OrdersScreenState extends State<OrdersScreen> {
         .toList();
     final result = await widget.api.createKaspiPayment(
       cartItems: items,
+      orderType: details.orderType.wireValue,
       branch: details.branch,
-      pickupTime: details.pickupTime,
+      branchId: details.branchId,
+      scheduledAt: details.scheduledAt,
+      deliveryAddress: details.deliveryAddress,
       checkoutId: details.checkoutId,
       additionalPhone: details.additionalPhone,
       promoCode: details.promoCode,
@@ -89,18 +178,29 @@ class _OrdersScreenState extends State<OrdersScreen> {
   }
 
   Future<void> _openCheckout(BuildContext context, CartProvider cart) async {
-    if (cart.items.isEmpty) return;
-    final completed = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-        builder: (_) => _CheckoutScreen(
-          customer: widget.customer,
-          api: widget.api,
-          total: cart.totalAmount,
-          cartItems: _paymentItems(cart),
-          onSubmit: (details) => _createOrder(cart, details),
+    if (cart.items.isEmpty || _checkoutOpen) return;
+    _checkoutOpen = true;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('lastAppScreen', 'checkout');
+    bool? completed;
+    try {
+      if (!context.mounted) return;
+      completed = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          settings: const RouteSettings(name: 'checkout'),
+          builder: (_) => _CheckoutScreen(
+            customer: widget.customer,
+            api: widget.api,
+            total: cart.totalAmount,
+            cartItems: _paymentItems(cart),
+            onSubmit: (details) => _createOrder(cart, details),
+          ),
         ),
-      ),
-    );
+      );
+    } finally {
+      _checkoutOpen = false;
+      await prefs.setString('lastAppScreen', 'main');
+    }
     if (!context.mounted || completed != true) return;
     _showSuccessDialog(context);
   }
@@ -239,6 +339,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
   Widget _buildCartItems(BuildContext context, CartProvider cart) {
     final items = cart.items.values.toList();
+    final hasUnavailableItems = items.any((item) => item.isStopListed);
 
     return Column(
       children: [
@@ -252,7 +353,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
               return _CartProductCard(
                 item: item,
                 onDecrease: () => cart.setQuantity(item.id, item.quantity - 1),
-                onIncrease: () => cart.setQuantity(item.id, item.quantity + 1),
+                onIncrease: item.isStopListed
+                    ? null
+                    : () => cart.setQuantity(item.id, item.quantity + 1),
               );
             },
           ),
@@ -264,7 +367,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
           child: _CartCheckoutBar(
             total: cart.totalAmount,
             cashbackPercent: widget.customer.cashbackPercent,
-            onCheckout: () => _openCheckout(context, cart),
+            hasUnavailableItems: hasUnavailableItems,
+            onCheckout: hasUnavailableItems
+                ? null
+                : () => _openCheckout(context, cart),
           ),
         ),
       ],
@@ -303,13 +409,17 @@ class _CartProductCard extends StatelessWidget {
 
   final CartItem item;
   final VoidCallback onDecrease;
-  final VoidCallback onIncrease;
+  final VoidCallback? onIncrease;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.bulkaColors;
+    final textScale = MediaQuery.textScalerOf(context).scale(1);
+    final compact = MediaQuery.sizeOf(context).width < 360;
+    final cardHeight =
+        138.0 + ((textScale - 1).clamp(0.0, 1.0) * 40) + (compact ? 4.0 : 0.0);
     return Container(
-      height: 138,
+      height: cardHeight,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: Colors.white,
@@ -319,7 +429,7 @@ class _CartProductCard extends StatelessWidget {
       child: Row(
         children: [
           SizedBox(
-            width: 126,
+            width: compact ? 110 : 126,
             height: double.infinity,
             child: _NetworkImage(url: item.imageUrl, fit: BoxFit.cover),
           ),
@@ -342,9 +452,13 @@ class _CartProductCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 5),
                   Text(
-                    '${'cart_contains'.tr} · ${item.quantity} ${'cart_units'.tr}',
+                    item.isStopListed
+                        ? 'cart_unavailable'.tr
+                        : '${'cart_contains'.tr} · ${item.quantity} ${'cart_units'.tr}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: colors.success,
+                      color: item.isStopListed ? colors.danger : colors.success,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
@@ -389,7 +503,7 @@ class _CartQuantityStepper extends StatelessWidget {
 
   final int quantity;
   final VoidCallback onDecrease;
-  final VoidCallback onIncrease;
+  final VoidCallback? onIncrease;
 
   @override
   Widget build(BuildContext context) {
@@ -442,12 +556,14 @@ class _CartCheckoutBar extends StatelessWidget {
   const _CartCheckoutBar({
     required this.total,
     required this.cashbackPercent,
+    required this.hasUnavailableItems,
     required this.onCheckout,
   });
 
   final int total;
   final int cashbackPercent;
-  final VoidCallback onCheckout;
+  final bool hasUnavailableItems;
+  final VoidCallback? onCheckout;
 
   @override
   Widget build(BuildContext context) {
@@ -461,6 +577,31 @@ class _CartCheckoutBar extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (hasUnavailableItems) ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.info_outline_rounded,
+                  size: 20,
+                  color: context.bulkaColors.danger,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'cart_unavailable_hint'.tr,
+                    style: TextStyle(
+                      color: context.bulkaColors.danger,
+                      fontSize: 13,
+                      height: 1.25,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+          ],
           Row(
             children: [
               Expanded(
@@ -524,16 +665,22 @@ class _CartCheckoutBar extends StatelessWidget {
 class _CheckoutDetails {
   const _CheckoutDetails({
     required this.checkoutId,
-    required this.branch,
-    required this.pickupTime,
+    required this.orderType,
+    required this.scheduledAt,
+    this.branch,
+    this.branchId,
+    this.deliveryAddress,
     this.additionalPhone,
     this.promoCode,
     this.comment,
   });
 
   final String checkoutId;
-  final String branch;
-  final String pickupTime;
+  final _OrderType orderType;
+  final String scheduledAt;
+  final String? branch;
+  final String? branchId;
+  final DeliveryAddress? deliveryAddress;
   final String? additionalPhone;
   final String? promoCode;
   final String? comment;
@@ -565,65 +712,280 @@ class _CheckoutScreen extends StatefulWidget {
 }
 
 class _CheckoutScreenState extends State<_CheckoutScreen> {
-  late final List<_PickupSlot> _timeSlots;
   late final TextEditingController _phoneController;
   final _promoController = TextEditingController();
   final _commentController = TextEditingController();
+  _OrderType _orderType = _OrderType.pickup;
   String _branch = '';
-  _PickupSlot? _pickupTime;
+  String? _branchId;
+  DeliveryAddress? _deliveryAddress;
+  _PickupSlot? _scheduledSlot;
+  List<BakeryLocation> _locations = const [];
+  bool _deliveryAvailable = false;
+  bool _deliveryAvailabilityChecked = false;
   bool _isSubmitting = false;
   bool _isQuoting = false;
   int _discount = 0;
+  int _deliveryFee = 0;
   int? _quotedTotal;
+  int _quoteRevision = 0;
   String _checkoutId = _newCheckoutId();
 
   @override
   void initState() {
     super.initState();
-    _timeSlots = _buildTimeSlots();
     _phoneController = TextEditingController();
     _promoController.addListener(_refreshPromoButton);
-    unawaited(_loadBranch());
+    _phoneController.addListener(_saveDraft);
+    _promoController.addListener(_saveDraft);
+    _commentController.addListener(_saveDraft);
+    unawaited(_loadCheckoutPreferences());
   }
 
-  Future<void> _loadBranch() async {
+  Future<void> _loadCheckoutPreferences() async {
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString('selected_bakery_location');
-    if (!mounted || saved == null || saved.trim().isEmpty) return;
-    setState(() => _branch = saved);
+    final savedBranch = prefs.getString('selected_bakery_location') ?? '';
+    final savedType = _orderTypeFromWire(
+      prefs.getString('selected_order_type'),
+    );
+    DeliveryAddress? address;
+    try {
+      address = await AddressRepository(api: widget.api).loadSelectedAddress();
+    } catch (_) {
+      address = null;
+    }
+    List<BakeryLocation> locations = const [];
+    try {
+      locations = await widget.api.getFulfillmentLocations();
+    } catch (_) {
+      // Checkout remains usable for pickup while branch availability retries.
+    }
+    final savedScheduledAt = prefs.getString('checkout_scheduled_at');
+    final parsedScheduledAt = DateTime.tryParse(savedScheduledAt ?? '');
+    final savedSlot =
+        parsedScheduledAt != null && parsedScheduledAt.isAfter(DateTime.now())
+        ? _slotFromDate(parsedScheduledAt)
+        : null;
+    if (!mounted) return;
+    _phoneController.text = prefs.getString('checkout_phone') ?? '';
+    _promoController.text = prefs.getString('checkout_promo') ?? '';
+    _commentController.text = prefs.getString('checkout_comment') ?? '';
+    setState(() {
+      _branch = savedBranch;
+      _branchId = prefs.getString('selected_bakery_location_id');
+      _orderType = savedType;
+      _deliveryAddress = address;
+      _scheduledSlot = savedSlot;
+      _locations = locations;
+      _deliveryAvailable = locations.any(
+        (location) => location.active && location.deliveryEnabled,
+      );
+      _deliveryAvailabilityChecked = true;
+      if (_orderType == _OrderType.delivery && !_deliveryAvailable) {
+        _orderType = _OrderType.pickup;
+      }
+    });
+    if (_scheduledSlot != null) unawaited(_refreshQuote());
   }
 
   void _refreshPromoButton() {
     if (mounted) {
+      _quoteRevision++;
       setState(() {
         _discount = 0;
+        _isQuoting = false;
         _quotedTotal = null;
       });
     }
   }
 
+  _PickupSlot _slotFromDate(DateTime date) {
+    final local = date.toLocal();
+    final end = local.add(const Duration(hours: 1));
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final slotDay = DateTime(local.year, local.month, local.day);
+    final offset = slotDay.difference(today).inDays;
+    final dayLabel = offset == 0
+        ? 'checkout_today'.tr
+        : offset == 1
+        ? 'checkout_tomorrow'.tr
+        : '${local.day.toString().padLeft(2, '0')}.${local.month.toString().padLeft(2, '0')}';
+    return _PickupSlot(
+      label:
+          '$dayLabel, ${local.hour.toString().padLeft(2, '0')}:00–${end.hour.toString().padLeft(2, '0')}:00',
+      value: local.toUtc().toIso8601String(),
+    );
+  }
+
+  void _saveDraft() {
+    unawaited(_persistDraft());
+  }
+
+  Future<void> _persistDraft() async {
+    final prefs = await SharedPreferences.getInstance();
+    await Future.wait([
+      prefs.setString('selected_order_type', _orderType.wireValue),
+      prefs.setString('checkout_phone', _phoneController.text),
+      prefs.setString('checkout_promo', _promoController.text),
+      prefs.setString('checkout_comment', _commentController.text),
+      if (_scheduledSlot == null)
+        prefs.remove('checkout_scheduled_at')
+      else
+        prefs.setString('checkout_scheduled_at', _scheduledSlot!.value),
+    ]);
+  }
+
+  Future<void> _setOrderType(_OrderType value) async {
+    if (value == _orderType) return;
+    if (value == _OrderType.delivery && !_deliveryAvailable) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('checkout_delivery_unavailable'.tr)),
+      );
+      return;
+    }
+    final selectedLocation = _selectedBranchLocation;
+    final clearBranch =
+        value != _OrderType.delivery &&
+        selectedLocation != null &&
+        !selectedLocation.supports(value.wireValue);
+    BulkaMotion.selection();
+    _quoteRevision++;
+    setState(() {
+      _orderType = value;
+      if (clearBranch) {
+        _branch = '';
+        _branchId = null;
+      }
+      _scheduledSlot = null;
+      _discount = 0;
+      _deliveryFee = 0;
+      _isQuoting = false;
+      _quotedTotal = null;
+    });
+    if (clearBranch) {
+      final prefs = await SharedPreferences.getInstance();
+      await Future.wait([
+        prefs.remove('selected_bakery_location'),
+        prefs.remove('selected_bakery_location_id'),
+      ]);
+    }
+    await _persistDraft();
+  }
+
+  BakeryLocation? get _selectedBranchLocation {
+    for (final location in _locations) {
+      if ((_branchId != null && location.id == _branchId) ||
+          location.displayLabel == _branch ||
+          location.name == _branch) {
+        return location;
+      }
+    }
+    return null;
+  }
+
+  double _distanceToAddressKm(
+    BakeryLocation location,
+    DeliveryAddress address,
+  ) {
+    final latitude = location.latitude;
+    final longitude = location.longitude;
+    if (latitude == null || longitude == null) return double.infinity;
+    const radius = 6371.0;
+    double radians(double degrees) => degrees * pi / 180;
+    final latitudeDelta = radians(address.location.latitude - latitude);
+    final longitudeDelta = radians(address.location.longitude - longitude);
+    final value =
+        pow(sin(latitudeDelta / 2), 2) +
+        cos(radians(latitude)) *
+            cos(radians(address.location.latitude)) *
+            pow(sin(longitudeDelta / 2), 2);
+    return radius * 2 * atan2(sqrt(value), sqrt(1 - value));
+  }
+
+  BakeryLocation? get _deliveryBranchLocation {
+    final address = _deliveryAddress;
+    if (address == null) return null;
+    final candidates =
+        _locations
+            .where(
+              (location) =>
+                  location.active &&
+                  location.deliveryEnabled &&
+                  location.deliveryRadiusKm != null &&
+                  location.deliveryRadiusKm! > 0 &&
+                  _distanceToAddressKm(location, address) <=
+                      location.deliveryRadiusKm!,
+            )
+            .toList()
+          ..sort(
+            (left, right) => _distanceToAddressKm(
+              left,
+              address,
+            ).compareTo(_distanceToAddressKm(right, address)),
+          );
+    return candidates.isEmpty ? null : candidates.first;
+  }
+
+  BakeryLocation? get _effectiveLocation => _orderType == _OrderType.delivery
+      ? _deliveryBranchLocation
+      : _selectedBranchLocation;
+
+  int? _clockMinutes(Object? value) {
+    final match = RegExp(r'^(\d{2}):(\d{2})$').firstMatch('$value');
+    if (match == null) return null;
+    final hour = int.parse(match.group(1)!);
+    final minute = int.parse(match.group(2)!);
+    if (hour > 24 || minute > 59 || (hour == 24 && minute != 0)) return null;
+    return hour * 60 + minute;
+  }
+
+  ({int open, int close})? _scheduleFor(BakeryLocation location, DateTime day) {
+    const dayNames = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+    final raw =
+        location.hours[dayNames[day.weekday - 1]] ?? location.hours['daily'];
+    final schedule = _asMap(raw);
+    if (schedule.isEmpty || schedule['closed'] == true) return null;
+    final open = _clockMinutes(schedule['open']);
+    final close = _clockMinutes(schedule['close']);
+    if (open == null || close == null || open >= close) return null;
+    return (open: open, close: close);
+  }
+
   List<_PickupSlot> _buildTimeSlots() {
     final now = DateTime.now();
-    final minimum = now.add(const Duration(minutes: 30));
+    final leadMinutes = switch (_orderType) {
+      _OrderType.preorder => 120,
+      _OrderType.delivery => 60,
+      _OrderType.pickup => 30,
+    };
+    final minimum = now.add(Duration(minutes: leadMinutes));
     final result = <_PickupSlot>[];
-    for (var dayOffset = 0; dayOffset < 3 && result.length < 12; dayOffset++) {
+    final location = _effectiveLocation;
+    if (location == null) return result;
+    final days = _orderType == _OrderType.preorder ? 7 : 3;
+    final maximumSlots = _orderType == _OrderType.preorder ? 36 : 24;
+    for (
+      var dayOffset = 0;
+      dayOffset < days && result.length < maximumSlots;
+      dayOffset++
+    ) {
       final day = DateTime(now.year, now.month, now.day + dayOffset);
-      for (var hour = 8; hour < 20 && result.length < 12; hour++) {
-        final start = DateTime(day.year, day.month, day.day, hour);
+      final schedule = _scheduleFor(location, day);
+      if (schedule == null) continue;
+      final firstMinute = ((schedule.open + 59) ~/ 60) * 60;
+      for (
+        var minute = firstMinute;
+        minute + 60 <= schedule.close && result.length < maximumSlots;
+        minute += 60
+      ) {
+        final start = DateTime(
+          day.year,
+          day.month,
+          day.day,
+        ).add(Duration(minutes: minute));
         if (start.isBefore(minimum)) continue;
-        final end = start.add(const Duration(hours: 1));
-        final dayLabel = dayOffset == 0
-            ? 'checkout_today'.tr
-            : dayOffset == 1
-            ? 'checkout_tomorrow'.tr
-            : '${day.day.toString().padLeft(2, '0')}.${day.month.toString().padLeft(2, '0')}';
-        result.add(
-          _PickupSlot(
-            label:
-                '$dayLabel, ${hour.toString().padLeft(2, '0')}:00–${end.hour.toString().padLeft(2, '0')}:00',
-            value: start.toIso8601String(),
-          ),
-        );
+        result.add(_slotFromDate(start));
       }
     }
     return result;
@@ -632,6 +994,9 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   @override
   void dispose() {
     _promoController.removeListener(_refreshPromoButton);
+    _phoneController.removeListener(_saveDraft);
+    _promoController.removeListener(_saveDraft);
+    _commentController.removeListener(_saveDraft);
     _phoneController.dispose();
     _promoController.dispose();
     _commentController.dispose();
@@ -639,16 +1004,72 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   }
 
   Future<void> _selectBranch() async {
-    final selected = await Navigator.of(
-      context,
-    ).push<String>(MaterialPageRoute(builder: (_) => const LocationsScreen()));
+    final selected = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) => LocationsScreen(orderType: _orderType.wireValue),
+      ),
+    );
     if (!mounted || selected == null || selected.trim().isEmpty) return;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('selected_bakery_location', selected);
-    if (mounted) setState(() => _branch = selected);
+    if (mounted) {
+      _quoteRevision++;
+      setState(() {
+        _branch = selected;
+        _branchId = prefs.getString('selected_bakery_location_id');
+        _scheduledSlot = null;
+        _deliveryFee = 0;
+        _isQuoting = false;
+        _quotedTotal = null;
+      });
+      await _persistDraft();
+    }
   }
 
-  Future<void> _selectPickupTime() async {
+  Future<void> _selectDeliveryAddress() async {
+    final selected = await Navigator.of(context).push<DeliveryAddress>(
+      MaterialPageRoute(
+        builder: (_) => AddressSelectionScreen(api: widget.api),
+      ),
+    );
+    if (!mounted || selected == null) return;
+    _quoteRevision++;
+    setState(() {
+      _deliveryAddress = selected;
+      _scheduledSlot = null;
+      _deliveryFee = 0;
+      _isQuoting = false;
+      _quotedTotal = null;
+    });
+    await _persistDraft();
+  }
+
+  Future<void> _selectScheduledTime() async {
+    if (_orderType != _OrderType.delivery && _branch.trim().isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('checkout_branch_required'.tr)));
+      return;
+    }
+    if (_orderType == _OrderType.delivery && _deliveryAddress == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('checkout_delivery_address_required'.tr)),
+      );
+      return;
+    }
+    if (_orderType == _OrderType.delivery && _deliveryBranchLocation == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('checkout_delivery_outside_zone'.tr)),
+      );
+      return;
+    }
+    final timeSlots = _buildTimeSlots();
+    if (timeSlots.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('checkout_no_time_slots'.tr)));
+      return;
+    }
     final selected = await showModalBottomSheet<_PickupSlot>(
       context: context,
       isScrollControlled: true,
@@ -683,11 +1104,11 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
             const SizedBox(height: 18),
             Expanded(
               child: ListView.separated(
-                itemCount: _timeSlots.length,
+                itemCount: timeSlots.length,
                 separatorBuilder: (_, _) => const SizedBox(height: 8),
                 itemBuilder: (context, index) {
-                  final slot = _timeSlots[index];
-                  final isSelected = slot.value == _pickupTime?.value;
+                  final slot = timeSlots[index];
+                  final isSelected = slot.value == _scheduledSlot?.value;
                   return ListTile(
                     onTap: () => Navigator.pop(sheetContext, slot),
                     selected: isSelected,
@@ -716,48 +1137,102 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         ),
       ),
     );
-    if (mounted && selected != null) setState(() => _pickupTime = selected);
+    if (mounted && selected != null) {
+      setState(() => _scheduledSlot = selected);
+      await _persistDraft();
+      await _refreshQuote();
+    }
   }
 
-  Future<void> _applyPromo() async {
-    FocusScope.of(context).unfocus();
+  bool get _canQuote =>
+      _scheduledSlot != null &&
+      (_orderType == _OrderType.delivery
+          ? _deliveryAddress != null && _deliveryBranchLocation != null
+          : _branch.trim().isNotEmpty);
+
+  Future<void> _refreshQuote({bool showFeedback = false}) async {
+    if (!_canQuote) return;
     if (_isQuoting) return;
+    final revision = ++_quoteRevision;
     setState(() => _isQuoting = true);
     try {
       final quote = await widget.api.quoteKaspiOrder(
         cartItems: widget.cartItems,
+        orderType: _orderType.wireValue,
+        branch: _orderType == _OrderType.delivery ? null : _branch,
+        branchId: _orderType == _OrderType.delivery ? null : _branchId,
+        scheduledAt: _scheduledSlot?.value,
+        deliveryAddress: _orderType == _OrderType.delivery
+            ? _deliveryAddress
+            : null,
         promoCode: _promoController.text.trim(),
       );
-      if (!mounted) return;
+      if (!mounted || revision != _quoteRevision) return;
       setState(() {
         _discount = (quote['discount'] as num?)?.round() ?? 0;
+        _deliveryFee = (quote['deliveryFee'] as num?)?.round() ?? 0;
         _quotedTotal = (quote['total'] as num?)?.round();
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _discount > 0
-                ? 'checkout_promo_applied'.tr
-                : 'checkout_price_checked'.tr,
+      if (showFeedback) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              _discount > 0
+                  ? 'checkout_promo_applied'.tr
+                  : 'checkout_price_checked'.tr,
+            ),
           ),
-        ),
-      );
+        );
+      }
     } catch (error) {
-      if (mounted) {
+      if (mounted && revision == _quoteRevision) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(error.toString())));
       }
     } finally {
-      if (mounted) setState(() => _isQuoting = false);
+      if (mounted && revision == _quoteRevision) {
+        setState(() => _isQuoting = false);
+      }
     }
   }
 
-  Future<void> _submit() async {
-    if (_pickupTime == null) {
+  Future<void> _applyPromo() async {
+    FocusScope.of(context).unfocus();
+    if (!_canQuote) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('checkout_time_required'.tr)));
+      return;
+    }
+    await _refreshQuote(showFeedback: true);
+  }
+
+  Future<void> _submit() async {
+    if (_orderType != _OrderType.delivery && _branch.trim().isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('checkout_branch_required'.tr)));
+      return;
+    }
+    if (_orderType == _OrderType.delivery &&
+        (_deliveryAddress == null || !_deliveryAddress!.hasValidCoordinates)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('checkout_delivery_address_required'.tr)),
+      );
+      return;
+    }
+    if (_scheduledSlot == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('checkout_time_required'.tr)));
+      return;
+    }
+    final phoneDigits = _phoneController.text.replaceAll(RegExp(r'\D'), '');
+    if (phoneDigits.isNotEmpty && phoneDigits.length < 10) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('checkout_phone_invalid'.tr)));
       return;
     }
     if (_isSubmitting) return;
@@ -766,14 +1241,28 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       final completed = await widget.onSubmit(
         _CheckoutDetails(
           checkoutId: _checkoutId,
-          branch: _branch,
-          pickupTime: _pickupTime!.value,
+          orderType: _orderType,
+          branch: _orderType == _OrderType.delivery ? null : _branch,
+          branchId: _orderType == _OrderType.delivery ? null : _branchId,
+          scheduledAt: _scheduledSlot!.value,
+          deliveryAddress: _orderType == _OrderType.delivery
+              ? _deliveryAddress
+              : null,
           additionalPhone: _phoneController.text.trim(),
           promoCode: _promoController.text.trim(),
           comment: _commentController.text.trim(),
         ),
       );
-      if (mounted && completed) Navigator.pop(context, true);
+      if (mounted && completed) {
+        final prefs = await SharedPreferences.getInstance();
+        await Future.wait([
+          prefs.remove('checkout_scheduled_at'),
+          prefs.remove('checkout_phone'),
+          prefs.remove('checkout_promo'),
+          prefs.remove('checkout_comment'),
+        ]);
+        if (mounted) Navigator.pop(context, true);
+      }
       if (mounted && !completed) {
         setState(() {
           _isSubmitting = false;
@@ -807,32 +1296,59 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              width: double.infinity,
-              height: 58,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(29),
-                border: Border.all(color: _bulkaYellow, width: 1.5),
-              ),
-              child: Text(
-                'checkout_pickup'.tr,
-                style: const TextStyle(
-                  color: _textDark,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+            _OrderTypeSelector(
+              value: _orderType,
+              enabledTypes: {
+                _OrderType.pickup,
+                _OrderType.preorder,
+                if (_deliveryAvailable) _OrderType.delivery,
+              },
+              onChanged: _isSubmitting ? null : _setOrderType,
             ),
+            if (_deliveryAvailabilityChecked && !_deliveryAvailable) ...[
+              const SizedBox(height: 10),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.info_outline_rounded,
+                    size: 18,
+                    color: colors.mutedText,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'checkout_delivery_unavailable'.tr,
+                      style: TextStyle(
+                        color: colors.mutedText,
+                        fontSize: 13,
+                        height: 1.35,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 28),
-            _CheckoutLabel('checkout_branch'.tr),
-            const SizedBox(height: 10),
-            _CheckoutField(
-              label: _branch.isEmpty ? 'checkout_select_branch'.tr : _branch,
-              icon: Icons.storefront_outlined,
-              onTap: _selectBranch,
-            ),
+            if (_orderType == _OrderType.delivery) ...[
+              _CheckoutLabel('checkout_delivery_address'.tr, required: true),
+              const SizedBox(height: 10),
+              _CheckoutField(
+                label:
+                    _deliveryAddress?.displayAddress ??
+                    'checkout_select_delivery_address'.tr,
+                icon: Icons.location_on_outlined,
+                onTap: _selectDeliveryAddress,
+              ),
+            ] else ...[
+              _CheckoutLabel('checkout_branch'.tr, required: true),
+              const SizedBox(height: 10),
+              _CheckoutField(
+                label: _branch.isEmpty ? 'checkout_select_branch'.tr : _branch,
+                icon: Icons.storefront_outlined,
+                onTap: _selectBranch,
+              ),
+            ],
             const SizedBox(height: 24),
             _CheckoutLabel('checkout_additional_phone'.tr),
             const SizedBox(height: 10),
@@ -891,12 +1407,19 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
               ),
             ),
             const SizedBox(height: 26),
-            _CheckoutLabel('checkout_select_pickup_time'.tr, required: true),
+            _CheckoutLabel(
+              _orderType == _OrderType.delivery
+                  ? 'checkout_select_delivery_time'.tr
+                  : _orderType == _OrderType.preorder
+                  ? 'checkout_select_preorder_time'.tr
+                  : 'checkout_select_pickup_time'.tr,
+              required: true,
+            ),
             const SizedBox(height: 10),
             _CheckoutField(
-              label: _pickupTime?.label ?? 'checkout_select_time'.tr,
+              label: _scheduledSlot?.label ?? 'checkout_select_time'.tr,
               icon: Icons.schedule_rounded,
-              onTap: _selectPickupTime,
+              onTap: _selectScheduledTime,
             ),
             const SizedBox(height: 28),
             _CheckoutLabel('checkout_payment_method'.tr, required: true),
@@ -961,10 +1484,18 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
                 value: '− ${_formatCartMoney(_discount)} ₸',
               ),
             ],
+            if (_deliveryFee > 0) ...[
+              const SizedBox(height: 8),
+              _CheckoutTotalRow(
+                label: 'checkout_delivery_fee'.tr,
+                value: '${_formatCartMoney(_deliveryFee)} ₸',
+              ),
+            ],
             const SizedBox(height: 8),
             _CheckoutTotalRow(
               label: 'checkout_total'.tr,
-              value: '${_formatCartMoney(_quotedTotal ?? widget.total)} ₸',
+              value:
+                  '${_formatCartMoney(_quotedTotal ?? widget.total + _deliveryFee)} ₸',
               emphasized: true,
             ),
             const SizedBox(height: 14),
@@ -986,6 +1517,88 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
                 ),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _OrderTypeSelector extends StatelessWidget {
+  const _OrderTypeSelector({
+    required this.value,
+    required this.enabledTypes,
+    required this.onChanged,
+  });
+
+  final _OrderType value;
+  final Set<_OrderType> enabledTypes;
+  final ValueChanged<_OrderType>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      container: true,
+      label: 'checkout_order_type'.tr,
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: _almond.withValues(alpha: 0.7)),
+        ),
+        child: Row(
+          children: [
+            for (final type in _OrderType.values)
+              Expanded(
+                child: Semantics(
+                  selected: type == value,
+                  enabled: enabledTypes.contains(type),
+                  button: true,
+                  child: Material(
+                    color: type == value ? _bulkaYellow : Colors.transparent,
+                    borderRadius: BorderRadius.circular(18),
+                    child: InkWell(
+                      onTap: onChanged == null || !enabledTypes.contains(type)
+                          ? null
+                          : () => onChanged!(type),
+                      borderRadius: BorderRadius.circular(18),
+                      child: SizedBox(
+                        height: 62,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              type.icon,
+                              size: 21,
+                              color: enabledTypes.contains(type)
+                                  ? _textDark
+                                  : _textDark.withValues(alpha: 0.32),
+                            ),
+                            const SizedBox(height: 3),
+                            FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text(
+                                type.label,
+                                maxLines: 1,
+                                style: TextStyle(
+                                  color: enabledTypes.contains(type)
+                                      ? _textDark
+                                      : _textDark.withValues(alpha: 0.32),
+                                  fontSize: 13,
+                                  fontWeight: type == value
+                                      ? FontWeight.w800
+                                      : FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -1036,26 +1649,28 @@ class _CheckoutField extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(18),
-        child: Ink(
-          height: 62,
-          padding: const EdgeInsets.symmetric(horizontal: 18),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: context.bulkaColors.cardBorder),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 16),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 62),
+          child: Ink(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: context.bulkaColors.cardBorder),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 16),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Icon(icon, color: _textDark.withValues(alpha: 0.72)),
-            ],
+                const SizedBox(width: 12),
+                Icon(icon, color: _textDark.withValues(alpha: 0.72)),
+              ],
+            ),
           ),
         ),
       ),

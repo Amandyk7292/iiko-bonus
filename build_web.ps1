@@ -8,7 +8,8 @@ Push-Location $flutterRoot
 # Prefer the SkWasm renderer on browsers with WasmGC support (including
 # current iOS Safari), while Flutter keeps the JavaScript/CanvasKit build as a
 # compatibility fallback for older devices.
-flutter build web --wasm --release --base-href "/app/"
+flutter build web --wasm --release --base-href "/" `
+    --dart-define=BULKA_API_BASE_URL=https://bulka.com.kz
 if ($LASTEXITCODE -ne 0) {
     Pop-Location
     Write-Host "Flutter build failed!" -ForegroundColor Red

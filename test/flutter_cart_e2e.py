@@ -6,7 +6,7 @@ import sys
 from playwright.sync_api import sync_playwright
 
 
-BASE_URL = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:3000/app/"
+BASE_URL = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:3000/"
 ROOT = Path(__file__).resolve().parents[1]
 
 CUSTOMER = {
@@ -50,7 +50,24 @@ def api_route(route):
     elif path.endswith("/api/customer/loyalty"):
         fulfill(route, {"success": True, "loyalty": CUSTOMER["tier"]})
     elif path.endswith("/api/guest/menu"):
-        fulfill(route, {"success": True, "categories": [], "products": []})
+        fulfill(
+            route,
+            {
+                "success": True,
+                "categories": [{"id": "bakery", "name": "Выпечка"}],
+                "products": [
+                    {
+                        "id": item["id"],
+                        "categoryId": "bakery",
+                        "name": item["name"],
+                        "price": item["price"],
+                        "imageUrl": item["imageUrl"],
+                        "onlineOrderable": True,
+                    }
+                    for item in CART
+                ],
+            },
+        )
     elif path.endswith("/api/guest/stories"):
         fulfill(route, {"success": True, "stories": []})
     elif path.endswith("/api/guest/news"):
@@ -63,7 +80,7 @@ with sync_playwright() as playwright:
     browser = playwright.chromium.launch(headless=True)
     context = browser.new_context(viewport={"width": 393, "height": 852}, locale="ru-RU", reduced_motion="reduce")
     page = context.new_page()
-    page.route("https://iiko-bonus.onrender.com/**", api_route)
+    page.route("**/api/**", api_route)
     page.add_init_script(
         f"""
         (() => {{

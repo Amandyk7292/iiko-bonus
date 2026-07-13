@@ -225,11 +225,16 @@ class _LoyaltyPanel extends StatelessWidget {
                           color: Colors.white,
                         ),
                         const SizedBox(width: 8),
-                        Text(
-                          'balance_history_btn'.tr,
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w400,
+                        Flexible(
+                          child: Text(
+                            'balance_history_btn'.tr,
+                            maxLines: 2,
+                            overflow: TextOverflow.fade,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w400,
+                            ),
                           ),
                         ),
                       ],

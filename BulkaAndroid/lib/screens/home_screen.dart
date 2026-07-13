@@ -131,15 +131,50 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openDeliveryAddresses() async {
-    await Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const AddressSelectionScreen()));
+    try {
+      final locations = await widget.api.getFulfillmentLocations();
+      final deliveryAvailable = locations.any(
+        (location) => location.active && location.deliveryEnabled,
+      );
+      if (!deliveryAvailable) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('checkout_delivery_unavailable'.tr)),
+        );
+        return;
+      }
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
+      return;
+    }
+    if (!mounted) return;
+    final address = await Navigator.of(context).push<DeliveryAddress>(
+      MaterialPageRoute(
+        builder: (_) => AddressSelectionScreen(api: widget.api),
+      ),
+    );
+    if (!mounted || address == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('selected_order_type', 'delivery');
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'delivery_address_selected'.trArgs({
+            'address': address.displayAddress,
+          }),
+        ),
+      ),
+    );
   }
 
   Future<void> _openBakeryLocations(String orderType) async {
-    final location = await Navigator.of(
-      context,
-    ).push<String>(MaterialPageRoute(builder: (_) => const LocationsScreen()));
+    final location = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => LocationsScreen(orderType: orderType)),
+    );
     if (!mounted || location == null || location.trim().isEmpty) return;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('selected_bakery_location', location);

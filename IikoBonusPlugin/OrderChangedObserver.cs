@@ -14,7 +14,10 @@ namespace Resto.Front.Api.IikoBonusPlugin
         }
 
         public void OnCompleted() { }
-        public void OnError(Exception error) { }
+        public void OnError(Exception error)
+        {
+            PluginContext.Log.Error("IikoBonusPlugin: OrderChanged subscription failed: " + error);
+        }
         public void OnNext(EntityChangedEventArgs<IOrder> value)
         {
             _onNext?.Invoke(value);
