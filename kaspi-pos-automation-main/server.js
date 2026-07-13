@@ -57,8 +57,6 @@ app.get('/api/payment/check/:id', async (req, res) => {
 
     // Try multiple Kaspi endpoints to find payment status
     const endpoints = [
-      `${KASPI_QRPAY_URL}/v02/remote/details?operationId=${req.params.id}`,
-      `${KASPI_QRPAY_URL}/v01/remote/details?operationId=${req.params.id}`,
       `${KASPI_QRPAY_URL}/v01/remote/details?qrOperationId=${req.params.id}`,
       `${KASPI_QRPAY_URL}/v02/kaspi-qr/status?qrOperationId=${req.params.id}`,
     ];

@@ -8,6 +8,7 @@ import { signedQrPayHeaders } from './helpers.js';
 import { decryptSecret } from './crypto.js';
 import { getWebhooksByEvent } from './webhookStore.js';
 import { logger } from './logger.js';
+import { resolvePaymentEvent } from './paymentStatus.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TRACKED_FILE = path.join(__dirname, '..', 'tracked-payments.json');
@@ -69,39 +70,6 @@ const loadRetries = () => {
     pendingRetries = [];
   }
 };
-
-// ─── Status → event mapping ───
-
-const QR_FINAL_STATUSES = {
-  Processed: 'payment.success',
-  CancelledByUser: 'payment.failed',
-  NotConfirmedByUser: 'payment.failed',
-  CancelledByExternalSource: 'payment.failed',
-  ProcessingFailed: 'payment.failed',
-  Rejected: 'payment.failed',
-  InsufficientFunds: 'payment.failed',
-  InsufficientFundsError: 'payment.failed',
-  Error: 'payment.failed',
-  IrisSrcBlockCode1: 'payment.failed',
-  IrisSrcBlockCode3: 'payment.failed',
-  IrisSrcBlockCode9: 'payment.failed',
-  IrisDestBlockCode3: 'payment.failed',
-  IrisDestBlockCode5: 'payment.failed',
-  IrisDestBlockCode7: 'payment.failed',
-  IrisDestBlockCode10: 'payment.failed',
-  QrTokenDiscarded: 'payment.expired',
-  Expired: 'payment.expired',
-};
-
-const INVOICE_FINAL_STATUSES = {
-  Processed: 'payment.success',
-  RemotePaymentCanceled: 'payment.failed',
-  RemotePaymentRejected: 'payment.failed',
-  Expired: 'payment.expired',
-};
-
-const QR_INTERMEDIATE = new Set(['QrTokenCreated', 'Wait']);
-const INVOICE_INTERMEDIATE = new Set(['RemotePaymentCreated']);
 
 // ─── Track a payment ───
 
@@ -245,18 +213,6 @@ const processRetries = async () => {
   }
 };
 
-// ─── Resolve event from status ───
-
-const resolveEvent = (type, status) => {
-  if (type === 'qr') {
-    if (QR_INTERMEDIATE.has(status)) return null;
-    return QR_FINAL_STATUSES[status] || 'payment.failed';
-  } else {
-    if (INVOICE_INTERMEDIATE.has(status)) return null;
-    return INVOICE_FINAL_STATUSES[status] || 'payment.failed';
-  }
-};
-
 // ─── Poll cycle ───
 
 const pollOnce = async () => {
@@ -266,7 +222,7 @@ const pollOnce = async () => {
     // TTL check via expireDate
     if (entry.meta.expireDate) {
       const expiry = new Date(entry.meta.expireDate).getTime();
-      if (Date.now() > expiry && resolveEvent(entry.type, entry.status) === null) {
+      if (Date.now() > expiry && resolvePaymentEvent(entry.type, entry.status) === null) {
         logger.info('POLLING', `Payment ${id} expired (TTL)`);
         sendWebhooks(
           'payment.expired',
@@ -312,13 +268,17 @@ const pollOnce = async () => {
     entry.retryCount = 0;
 
     const newStatus = result.Data.Status;
+    if (!newStatus) {
+      entry.retryCount++;
+      continue;
+    }
     if (newStatus === entry.status) continue;
 
     logger.info('POLLING', `Payment ${id}: ${entry.status} → ${newStatus}`);
     entry.status = newStatus;
     changed = true;
 
-    const event = resolveEvent(entry.type, newStatus);
+    const event = resolvePaymentEvent(entry.type, newStatus);
     if (event) {
       sendWebhooks(event, buildPayload(event, entry, result.Data));
       trackedPayments.delete(id);
