@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 
 // Set TOKEN_SECRET_KEY before importing crypto module
 process.env.TOKEN_SECRET_KEY = 'a'.repeat(64);
+process.env.DEVICE_JSON_B64 = Buffer.from(
+  JSON.stringify({ deviceId: 'TEST-DEVICE', installId: 'TEST-INSTALL', pinHash: '0'.repeat(32) }),
+).toString('base64');
 
 const { encryptSecret, decryptSecret, computeTokenSnMac, computeXSU } = await import('../src/crypto.js');
 

@@ -3,6 +3,7 @@ const cors = require('cors');
 const path = require('path');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const compression = require('compression');
 const { validateRuntimeConfig } = require('./config/env');
 
 const adminRoutes = require('./routes/admin.routes');
@@ -25,7 +26,14 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "'wasm-unsafe-eval'", 'https://cdn.tailwindcss.com', 'https://www.gstatic.com'],
+        scriptSrc: [
+          "'self'",
+          "'unsafe-inline'",
+          "'unsafe-eval'",
+          "'wasm-unsafe-eval'",
+          'https://cdn.tailwindcss.com',
+          'https://www.gstatic.com',
+        ],
         styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
         imgSrc: ["'self'", 'data:', 'https:', 'blob:'],
         connectSrc: ["'self'", 'https:', 'http:', 'ws:', 'wss:'],
@@ -38,7 +46,7 @@ app.use(
         scriptSrcAttr: ["'unsafe-inline'"],
       },
     },
-    crossOriginEmbedderPolicy: false,
+    crossOriginEmbedderPolicy: { policy: 'credentialless' },
   }),
 );
 
@@ -76,25 +84,59 @@ app.use(
       }
       return callback(new Error('Origin is not allowed'));
     },
-    credentials: false,
+    credentials: true,
   }),
 );
 
 app.use('/api', globalApiRateLimit);
-app.use(express.json({ limit: '2mb' }));
+app.use(compression());
+app.use(
+  express.json({
+    limit: '2mb',
+    verify(req, _res, buffer) {
+      if (req.originalUrl === '/webhooks/kaspi') req.rawBody = Buffer.from(buffer);
+    },
+  }),
+);
 app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
+app.locals.kaspiReady = process.env.KASPI_POS_ENABLED !== 'true';
 app.get('/healthz', (_req, res) => {
+  if (process.env.NODE_ENV !== 'test' && !app.locals.kaspiReady) {
+    return res.status(503).json({ status: 'degraded', dependency: 'kaspi-pos' });
+  }
   res.status(200).json({ status: 'ok' });
 });
 
-app.use('/admin', express.static(path.join(process.cwd(), 'admin-ui/dist')));
+const adminStaticHeaders = (res, filePath) => {
+  if (/index\.html$|flutter_service_worker\.js$/.test(filePath)) {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  } else {
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  }
+};
+
+const appStaticHeaders = (res, filePath) => {
+  if (/index\.html$|flutter_service_worker\.js$/.test(filePath)) {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  } else {
+    res.setHeader('Cache-Control', 'public, max-age=3600, must-revalidate');
+  }
+};
+
+app.use(
+  '/admin',
+  express.static(path.join(process.cwd(), 'admin-ui/dist'), { setHeaders: adminStaticHeaders }),
+);
 app.get('/admin/*', (req, res) => {
   res.sendFile(path.join(process.cwd(), 'admin-ui/dist', 'index.html'));
 });
 
 // Serve Flutter Web App
-app.use('/app', express.static(path.join(process.cwd(), 'public/app')));
+app.use(
+  '/app',
+  express.static(path.join(process.cwd(), 'public/app'), { setHeaders: appStaticHeaders }),
+);
 app.get('/app/*', (req, res) => {
   res.sendFile(path.join(process.cwd(), 'public/app', 'index.html'));
 });
@@ -113,17 +155,20 @@ app.use((err, req, res, _next) => {
   res.status(err.statusCode || 500).json(response);
 });
 
-// Mount Kaspi POS Automation as a sub-app
-process.env.KASPI_MOUNTED = 'true';
-(async () => {
-  try {
-    const kaspiModule = await import('../kaspi-pos-automation-main/server.js');
-    app.use('/kaspi-pos', kaspiModule.kaspiApp);
-    kaspiModule.startPolling();
-    console.log('✅ Kaspi POS Automation mounted at /kaspi-pos');
-  } catch (err) {
-    console.error('❌ Failed to mount Kaspi POS Automation:', err);
-  }
-})();
+if (process.env.NODE_ENV !== 'test' && process.env.KASPI_POS_ENABLED === 'true') {
+  process.env.KASPI_MOUNTED = 'true';
+  (async () => {
+    try {
+      const kaspiModule = await import('../kaspi-pos-automation-main/server.js');
+      app.use('/kaspi-pos', kaspiModule.kaspiApp);
+      kaspiModule.startPolling();
+      app.locals.kaspiReady = true;
+      console.log('✅ Kaspi POS Automation mounted at /kaspi-pos');
+    } catch (err) {
+      app.locals.kaspiReady = false;
+      console.error('❌ Failed to mount Kaspi POS Automation:', err.message);
+    }
+  })();
+}
 
 module.exports = app;

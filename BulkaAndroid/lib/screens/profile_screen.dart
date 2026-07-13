@@ -361,6 +361,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Column(
                   children: [
                     _ProfileMenuItem(
+                      icon: Icons.shopping_bag_outlined,
+                      title: 'menu_orders'.tr,
+                      onTap: () => Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) => CustomerOrdersScreen(api: widget.api),
+                        ),
+                      ),
+                    ),
+                    const Divider(
+                      height: 1,
+                      indent: 60,
+                      endIndent: 20,
+                      color: Color(0xFFF3F3F3),
+                    ),
+                    _ProfileMenuItem(
                       icon: Icons.receipt_long_outlined,
                       title: 'balance_history_title'.tr,
                       onTap: () => Navigator.of(context).push<void>(

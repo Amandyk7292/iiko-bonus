@@ -12,15 +12,19 @@ import { startPolling } from './src/polling.js';
 import { getGlobalSession } from './src/sessionStorage.js';
 import { decryptSecret } from './src/crypto.js';
 import { signedQrPayHeaders } from './src/helpers.js';
+import { requireInternalApi } from './src/internalAuth.js';
 import 'dotenv/config';
 
 const app = express();
 
 app.use(express.json());
-app.use(express.static(path.join(ROOT_DIR, 'public')));
+if (!process.env.KASPI_MOUNTED && process.env.NODE_ENV !== 'production') {
+  app.use(express.static(path.join(ROOT_DIR, 'public')));
+}
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
+app.use('/api', requireInternalApi);
 app.use('/api/auth', authRoutes);
 app.use('/api/invoice', invoiceRoutes);
 app.use('/api/qr', qrRoutes);
@@ -28,9 +32,11 @@ app.use('/api/history', historyRoutes);
 app.use('/api/refund', refundRoutes);
 app.use('/api/session', sessionRoutes);
 
-// ─── Public endpoint: direct Kaspi API status check (no auth from caller) ───
 app.get('/api/payment/check/:id', async (req, res) => {
   try {
+    if (!/^[A-Za-z0-9-]{1,100}$/.test(String(req.params.id || ''))) {
+      return res.status(400).json({ success: false, error: 'invalid_operation_id' });
+    }
     const globalSession = getGlobalSession();
     if (!globalSession) {
       return res.json({ success: false, error: 'no_session', kaspiStatus: null });
@@ -68,14 +74,16 @@ app.get('/api/payment/check/:id', async (req, res) => {
         const json = await resp.json();
         const status = json?.Data?.Status || null;
 
-        console.log(`[payment/check] ${req.params.id} → ${url.split('qrpay.kaspi.kz')[1]} → status: ${status}, code: ${json?.StatusCode}`);
+        console.log(
+          `[payment/check] ${req.params.id} → ${url.split('qrpay.kaspi.kz')[1]} → status: ${status}, code: ${json?.StatusCode}`,
+        );
 
         if (status) {
-          return res.json({ success: true, kaspiStatus: status, raw: json });
+          return res.json({ success: true, kaspiStatus: status });
         }
         // StatusCode 0 with no Status means endpoint worked but maybe different format
         if (json?.StatusCode === 0 && json?.Data) {
-          return res.json({ success: true, kaspiStatus: json.Data.Status || 'unknown', raw: json });
+          return res.json({ success: true, kaspiStatus: json.Data.Status || 'unknown' });
         }
       } catch (err) {
         console.log(`[payment/check] ${url.split('qrpay.kaspi.kz')[1]} failed: ${err.message}`);

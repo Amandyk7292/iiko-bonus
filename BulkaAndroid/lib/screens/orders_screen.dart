@@ -50,25 +50,42 @@ class _OrdersScreenState extends State<OrdersScreen> {
     );
   }
 
-  Future<void> _createOrder(CartProvider cart) async {
-    if (cart.items.isEmpty) return;
+  List<Map<String, dynamic>> _paymentItems(CartProvider cart) => cart
+      .items
+      .values
+      .map((item) => {'id': item.id, 'quantity': item.quantity})
+      .toList();
+
+  Future<bool> _createOrder(CartProvider cart, _CheckoutDetails details) async {
+    if (cart.items.isEmpty) return false;
     final items = cart.items.values
-        .map(
-          (item) => {
-            'id': item.id,
-            'name': item.name,
-            'price': item.price,
-            'quantity': item.quantity,
-          },
-        )
+        .map((item) => {'id': item.id, 'quantity': item.quantity})
         .toList();
-    final total = cart.totalAmount;
-    await widget.api.createKaspiPayment(
-      phone: widget.customer.phone,
-      amount: total.toDouble(),
+    final result = await widget.api.createKaspiPayment(
       cartItems: items,
+      branch: details.branch,
+      pickupTime: details.pickupTime,
+      checkoutId: details.checkoutId,
+      additionalPhone: details.additionalPhone,
+      promoCode: details.promoCode,
+      comment: details.comment,
     );
-    cart.clear();
+    final operationId = (result['operationId'] ?? '').toString();
+    if (operationId.isEmpty) {
+      throw ApiException('Kaspi не вернул номер операции');
+    }
+    if (!mounted) return false;
+    final paid = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => KaspiPaymentScreen(
+          api: widget.api,
+          operationId: operationId,
+          qrToken: result['qrToken']?.toString(),
+        ),
+      ),
+    );
+    if (paid == true) cart.clear();
+    return paid == true;
   }
 
   Future<void> _openCheckout(BuildContext context, CartProvider cart) async {
@@ -77,8 +94,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
       MaterialPageRoute(
         builder: (_) => _CheckoutScreen(
           customer: widget.customer,
+          api: widget.api,
           total: cart.totalAmount,
-          onSubmit: () => _createOrder(cart),
+          cartItems: _paymentItems(cart),
+          onSubmit: (details) => _createOrder(cart, details),
         ),
       ),
     );
@@ -90,17 +109,17 @@ class _OrdersScreenState extends State<OrdersScreen> {
     final shouldClear = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Очистить корзину?'),
-        content: const Text('Все добавленные товары будут удалены.'),
+        title: Text('cart_clear_title'.tr),
+        content: Text('cart_clear_body'.tr),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Отмена'),
+            child: Text('cancel_btn'.tr),
           ),
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, true),
             style: TextButton.styleFrom(foregroundColor: _errorRed),
-            child: const Text('Очистить'),
+            child: Text('cart_clear'.tr),
           ),
         ],
       ),
@@ -131,7 +150,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
           if (cart.items.isNotEmpty)
             IconButton(
               onPressed: () => _confirmClear(context, cart),
-              tooltip: 'Очистить корзину',
+              tooltip: 'cart_clear'.tr,
               icon: const Icon(Icons.delete_outline_rounded),
             ),
           const SizedBox(width: 8),
@@ -244,6 +263,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
           ),
           child: _CartCheckoutBar(
             total: cart.totalAmount,
+            cashbackPercent: widget.customer.cashbackPercent,
             onCheckout: () => _openCheckout(context, cart),
           ),
         ),
@@ -260,6 +280,18 @@ String _formatCartMoney(int value) {
     result.write(source[i]);
   }
   return result.toString();
+}
+
+String _newCheckoutId() {
+  final random = Random.secure();
+  final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  final hex = bytes
+      .map((value) => value.toRadixString(16).padLeft(2, '0'))
+      .join();
+  return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
+      '${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
 }
 
 class _CartProductCard extends StatelessWidget {
@@ -310,7 +342,7 @@ class _CartProductCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 5),
                   Text(
-                    'В корзине · ${item.quantity} шт',
+                    '${'cart_contains'.tr} · ${item.quantity} ${'cart_units'.tr}',
                     style: TextStyle(
                       color: colors.success,
                       fontSize: 12,
@@ -372,13 +404,13 @@ class _CartQuantityStepper extends StatelessWidget {
         children: [
           IconButton(
             onPressed: onDecrease,
-            tooltip: 'Уменьшить количество',
+            tooltip: 'cart_decrease'.tr,
             constraints: const BoxConstraints.tightFor(width: 44, height: 46),
             padding: EdgeInsets.zero,
             icon: const Icon(Icons.remove_rounded, size: 20),
           ),
           Semantics(
-            label: 'Количество',
+            label: 'cart_quantity'.tr,
             value: '$quantity',
             child: SizedBox(
               width: 28,
@@ -395,7 +427,7 @@ class _CartQuantityStepper extends StatelessWidget {
           ),
           IconButton(
             onPressed: onIncrease,
-            tooltip: 'Увеличить количество',
+            tooltip: 'cart_increase'.tr,
             constraints: const BoxConstraints.tightFor(width: 44, height: 46),
             padding: EdgeInsets.zero,
             icon: const Icon(Icons.add_rounded, size: 20),
@@ -407,9 +439,14 @@ class _CartQuantityStepper extends StatelessWidget {
 }
 
 class _CartCheckoutBar extends StatelessWidget {
-  const _CartCheckoutBar({required this.total, required this.onCheckout});
+  const _CartCheckoutBar({
+    required this.total,
+    required this.cashbackPercent,
+    required this.onCheckout,
+  });
 
   final int total;
+  final int cashbackPercent;
   final VoidCallback onCheckout;
 
   @override
@@ -426,16 +463,16 @@ class _CartCheckoutBar extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'Вернём бонусами',
+                  'cart_reward'.tr,
                   maxLines: 1,
                   style: TextStyle(fontSize: 15),
                 ),
               ),
               const SizedBox(width: 12),
               Text(
-                '+ 0 баллов',
+                '+ ${(total * cashbackPercent / 100).round()} ${'cart_points'.tr}',
                 style: TextStyle(
                   color: _textDark.withValues(alpha: 0.72),
                   fontSize: 15,
@@ -447,9 +484,9 @@ class _CartCheckoutBar extends StatelessWidget {
           const SizedBox(height: 8),
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'Итоговая цена:',
+                  'cart_total'.tr,
                   maxLines: 1,
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
                 ),
@@ -469,9 +506,12 @@ class _CartCheckoutBar extends StatelessWidget {
             width: double.infinity,
             child: GradientButton(
               onPressed: onCheckout,
-              child: const Text(
-                'Оформить заказ',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+              child: Text(
+                'cart_checkout'.tr,
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
           ),
@@ -481,45 +521,67 @@ class _CartCheckoutBar extends StatelessWidget {
   }
 }
 
+class _CheckoutDetails {
+  const _CheckoutDetails({
+    required this.checkoutId,
+    required this.branch,
+    required this.pickupTime,
+    this.additionalPhone,
+    this.promoCode,
+    this.comment,
+  });
+
+  final String checkoutId;
+  final String branch;
+  final String pickupTime;
+  final String? additionalPhone;
+  final String? promoCode;
+  final String? comment;
+}
+
+class _PickupSlot {
+  const _PickupSlot({required this.label, required this.value});
+  final String label;
+  final String value;
+}
+
 class _CheckoutScreen extends StatefulWidget {
   const _CheckoutScreen({
     required this.customer,
+    required this.api,
     required this.total,
+    required this.cartItems,
     required this.onSubmit,
   });
 
   final Customer customer;
+  final BulkaApiClient api;
   final int total;
-  final Future<void> Function() onSubmit;
+  final List<Map<String, dynamic>> cartItems;
+  final Future<bool> Function(_CheckoutDetails details) onSubmit;
 
   @override
   State<_CheckoutScreen> createState() => _CheckoutScreenState();
 }
 
 class _CheckoutScreenState extends State<_CheckoutScreen> {
-  static const _timeSlots = [
-    '10:00 – 11:00',
-    '11:00 – 12:00',
-    '12:00 – 13:00',
-    '13:00 – 14:00',
-    '14:00 – 15:00',
-    '15:00 – 16:00',
-    '16:00 – 17:00',
-    '17:00 – 18:00',
-    '18:00 – 19:00',
-  ];
-
+  late final List<_PickupSlot> _timeSlots;
   late final TextEditingController _phoneController;
   final _promoController = TextEditingController();
   final _commentController = TextEditingController();
-  String _branch = 'Аскарова, 21';
-  String? _pickupTime;
+  String _branch = '';
+  _PickupSlot? _pickupTime;
   bool _isSubmitting = false;
+  bool _isQuoting = false;
+  int _discount = 0;
+  int? _quotedTotal;
+  String _checkoutId = _newCheckoutId();
 
   @override
   void initState() {
     super.initState();
-    _phoneController = TextEditingController(text: widget.customer.phone);
+    _timeSlots = _buildTimeSlots();
+    _phoneController = TextEditingController();
     _promoController.addListener(_refreshPromoButton);
     unawaited(_loadBranch());
   }
@@ -532,7 +594,39 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   }
 
   void _refreshPromoButton() {
-    if (mounted) setState(() {});
+    if (mounted) {
+      setState(() {
+        _discount = 0;
+        _quotedTotal = null;
+      });
+    }
+  }
+
+  List<_PickupSlot> _buildTimeSlots() {
+    final now = DateTime.now();
+    final minimum = now.add(const Duration(minutes: 30));
+    final result = <_PickupSlot>[];
+    for (var dayOffset = 0; dayOffset < 3 && result.length < 12; dayOffset++) {
+      final day = DateTime(now.year, now.month, now.day + dayOffset);
+      for (var hour = 8; hour < 20 && result.length < 12; hour++) {
+        final start = DateTime(day.year, day.month, day.day, hour);
+        if (start.isBefore(minimum)) continue;
+        final end = start.add(const Duration(hours: 1));
+        final dayLabel = dayOffset == 0
+            ? 'checkout_today'.tr
+            : dayOffset == 1
+            ? 'checkout_tomorrow'.tr
+            : '${day.day.toString().padLeft(2, '0')}.${day.month.toString().padLeft(2, '0')}';
+        result.add(
+          _PickupSlot(
+            label:
+                '$dayLabel, ${hour.toString().padLeft(2, '0')}:00–${end.hour.toString().padLeft(2, '0')}:00',
+            value: start.toIso8601String(),
+          ),
+        );
+      }
+    }
+    return result;
   }
 
   @override
@@ -555,7 +649,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   }
 
   Future<void> _selectPickupTime() async {
-    final selected = await showModalBottomSheet<String>(
+    final selected = await showModalBottomSheet<_PickupSlot>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -582,9 +676,9 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
               ),
             ),
             const SizedBox(height: 18),
-            const Text(
-              'Выберите время',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+            Text(
+              'checkout_select_time'.tr,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 18),
             Expanded(
@@ -593,7 +687,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
                 separatorBuilder: (_, _) => const SizedBox(height: 8),
                 itemBuilder: (context, index) {
                   final slot = _timeSlots[index];
-                  final isSelected = slot == _pickupTime;
+                  final isSelected = slot.value == _pickupTime?.value;
                   return ListTile(
                     onTap: () => Navigator.pop(sheetContext, slot),
                     selected: isSelected,
@@ -602,7 +696,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
                       borderRadius: BorderRadius.circular(16),
                     ),
                     title: Text(
-                      slot,
+                      slot.label,
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: isSelected
@@ -625,25 +719,67 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
     if (mounted && selected != null) setState(() => _pickupTime = selected);
   }
 
-  void _applyPromo() {
+  Future<void> _applyPromo() async {
     FocusScope.of(context).unfocus();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Проверка промокода пока недоступна.')),
-    );
+    if (_isQuoting) return;
+    setState(() => _isQuoting = true);
+    try {
+      final quote = await widget.api.quoteKaspiOrder(
+        cartItems: widget.cartItems,
+        promoCode: _promoController.text.trim(),
+      );
+      if (!mounted) return;
+      setState(() {
+        _discount = (quote['discount'] as num?)?.round() ?? 0;
+        _quotedTotal = (quote['total'] as num?)?.round();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _discount > 0
+                ? 'checkout_promo_applied'.tr
+                : 'checkout_price_checked'.tr,
+          ),
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(error.toString())));
+      }
+    } finally {
+      if (mounted) setState(() => _isQuoting = false);
+    }
   }
 
   Future<void> _submit() async {
     if (_pickupTime == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Выберите время самовывоза.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('checkout_time_required'.tr)));
       return;
     }
     if (_isSubmitting) return;
     setState(() => _isSubmitting = true);
     try {
-      await widget.onSubmit();
-      if (mounted) Navigator.pop(context, true);
+      final completed = await widget.onSubmit(
+        _CheckoutDetails(
+          checkoutId: _checkoutId,
+          branch: _branch,
+          pickupTime: _pickupTime!.value,
+          additionalPhone: _phoneController.text.trim(),
+          promoCode: _promoController.text.trim(),
+          comment: _commentController.text.trim(),
+        ),
+      );
+      if (mounted && completed) Navigator.pop(context, true);
+      if (mounted && !completed) {
+        setState(() {
+          _isSubmitting = false;
+          _checkoutId = _newCheckoutId();
+        });
+      }
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -661,9 +797,9 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       appBar: AppBar(
         centerTitle: true,
         backgroundColor: Colors.white,
-        title: const Text(
-          'Оформление заказа',
-          style: TextStyle(fontWeight: FontWeight.w700),
+        title: Text(
+          'checkout_title'.tr,
+          style: const TextStyle(fontWeight: FontWeight.w700),
         ),
       ),
       body: SingleChildScrollView(
@@ -680,9 +816,9 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
                 borderRadius: BorderRadius.circular(29),
                 border: Border.all(color: _bulkaYellow, width: 1.5),
               ),
-              child: const Text(
-                'Самовывоз',
-                style: TextStyle(
+              child: Text(
+                'checkout_pickup'.tr,
+                style: const TextStyle(
                   color: _textDark,
                   fontSize: 17,
                   fontWeight: FontWeight.w700,
@@ -690,15 +826,15 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
               ),
             ),
             const SizedBox(height: 28),
-            const _CheckoutLabel('Филиал'),
+            _CheckoutLabel('checkout_branch'.tr),
             const SizedBox(height: 10),
             _CheckoutField(
-              label: _branch,
+              label: _branch.isEmpty ? 'checkout_select_branch'.tr : _branch,
               icon: Icons.storefront_outlined,
               onTap: _selectBranch,
             ),
             const SizedBox(height: 24),
-            const _CheckoutLabel('Дополнительный номер'),
+            _CheckoutLabel('checkout_additional_phone'.tr),
             const SizedBox(height: 10),
             TextField(
               controller: _phoneController,
@@ -710,7 +846,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            const _CheckoutLabel('Промокод'),
+            _CheckoutLabel('checkout_promo'.tr),
             const SizedBox(height: 10),
             SizedBox(
               height: 58,
@@ -721,16 +857,17 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
                     child: TextField(
                       controller: _promoController,
                       textCapitalization: TextCapitalization.characters,
-                      decoration: const InputDecoration(
-                        hintText: 'Введите код',
+                      decoration: InputDecoration(
+                        hintText: 'checkout_enter_code'.tr,
                       ),
                     ),
                   ),
                   const SizedBox(width: 10),
                   SizedBox(
-                    width: 116,
+                    width: 126,
                     child: FilledButton(
-                      onPressed: _promoController.text.trim().isEmpty
+                      onPressed:
+                          _promoController.text.trim().isEmpty || _isQuoting
                           ? null
                           : _applyPromo,
                       style: FilledButton.styleFrom(
@@ -738,22 +875,31 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
                         foregroundColor: _textDark,
                         disabledBackgroundColor: _almond.withValues(alpha: 0.5),
                       ),
-                      child: const Text('Применить'),
+                      child: _isQuoting
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : FittedBox(
+                              fit: BoxFit.scaleDown,
+                              child: Text('checkout_apply'.tr, maxLines: 1),
+                            ),
                     ),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 26),
-            const _CheckoutLabel('Выберите время самовывоза', required: true),
+            _CheckoutLabel('checkout_select_pickup_time'.tr, required: true),
             const SizedBox(height: 10),
             _CheckoutField(
-              label: _pickupTime ?? 'Выберите время',
+              label: _pickupTime?.label ?? 'checkout_select_time'.tr,
               icon: Icons.schedule_rounded,
               onTap: _selectPickupTime,
             ),
             const SizedBox(height: 28),
-            const _CheckoutLabel('Выберите способ оплаты', required: true),
+            _CheckoutLabel('checkout_payment_method'.tr, required: true),
             const SizedBox(height: 12),
             Container(
               width: 152,
@@ -774,14 +920,14 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
               ),
             ),
             const SizedBox(height: 28),
-            const _CheckoutLabel('Комментарий'),
+            _CheckoutLabel('checkout_comment'.tr),
             const SizedBox(height: 10),
             TextField(
               controller: _commentController,
               minLines: 4,
               maxLines: 6,
-              decoration: const InputDecoration(
-                hintText: 'Оставьте свой комментарий',
+              decoration: InputDecoration(
+                hintText: 'checkout_comment_hint'.tr,
                 alignLabelWithHint: true,
               ),
             ),
@@ -805,36 +951,39 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             _CheckoutTotalRow(
-              label: 'Сумма заказа',
+              label: 'checkout_subtotal'.tr,
               value: '${_formatCartMoney(widget.total)} ₸',
             ),
+            if (_discount > 0) ...[
+              const SizedBox(height: 8),
+              _CheckoutTotalRow(
+                label: 'checkout_discount'.tr,
+                value: '− ${_formatCartMoney(_discount)} ₸',
+              ),
+            ],
             const SizedBox(height: 8),
             _CheckoutTotalRow(
-              label: 'Итоговая цена',
-              value: '${_formatCartMoney(widget.total)} ₸',
+              label: 'checkout_total'.tr,
+              value: '${_formatCartMoney(_quotedTotal ?? widget.total)} ₸',
               emphasized: true,
             ),
             const SizedBox(height: 14),
             SizedBox(
               width: double.infinity,
               child: GradientButton(
-                onPressed: _isSubmitting ? () {} : _submit,
-                child: _isSubmitting
-                    ? const SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Text(
-                        'Оформить заказ',
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
+                onPressed: _isSubmitting ? null : _submit,
+                loading: _isSubmitting,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    'cart_checkout'.tr,
+                    maxLines: 1,
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
               ),
             ),
           ],

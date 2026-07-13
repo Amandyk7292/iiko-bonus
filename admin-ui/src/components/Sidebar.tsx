@@ -7,6 +7,7 @@ import {
   Gift,
   Images,
   Newspaper,
+  ShoppingBag,
   ReceiptText,
   Settings2,
   Store,
@@ -15,6 +16,7 @@ import {
   X,
 } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { useI18n } from '../lib/i18n';
 
 const sections = [
@@ -29,7 +31,10 @@ const sections = [
   },
   {
     title: 'nav.customersGroup',
-    items: [{ to: '/customers', label: 'nav.customers', icon: Users }],
+    items: [
+      { to: '/orders', label: 'nav.orders', icon: ShoppingBag },
+      { to: '/customers', label: 'nav.customers', icon: Users },
+    ],
   },
   {
     title: 'nav.content',
@@ -47,6 +52,13 @@ const sections = [
 
 export default function Sidebar({ isOpen = false, onClose }: { isOpen?: boolean; onClose?: () => void }) {
   const { t } = useI18n();
+  const [isDesktop, setIsDesktop] = useState(() => window.matchMedia('(min-width: 1024px)').matches);
+  useEffect(() => {
+    const media = window.matchMedia('(min-width: 1024px)');
+    const update = () => setIsDesktop(media.matches);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
   return (
     <>
       <button
@@ -56,7 +68,12 @@ export default function Sidebar({ isOpen = false, onClose }: { isOpen?: boolean;
         aria-label={t('nav.closeMenu')}
         tabIndex={isOpen ? 0 : -1}
       />
-      <aside className={`sagi-sidebar ${isOpen ? 'sidebar-open' : ''}`} aria-label={t('nav.main')}>
+      <aside
+        className={`sagi-sidebar ${isOpen ? 'sidebar-open' : ''}`}
+        aria-label={t('nav.main')}
+        aria-hidden={!isDesktop && !isOpen}
+        inert={!isDesktop && !isOpen}
+      >
         <div className="sidebar-brand-row">
           <img src="/admin/bulka_logo.png" alt="Bulka" className="sidebar-logo" width="142" height="52" />
           <button type="button" onClick={onClose} className="icon-button sidebar-close" aria-label={t('nav.closeMenu')}>

@@ -1,8 +1,8 @@
 import 'dotenv/config';
 import crypto from 'crypto';
-import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { persistRuntimeJson, readRuntimeJson } from './runtimeJson.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(__dirname, '..');
@@ -14,8 +14,9 @@ export const PORT = process.env.PORT || 3000;
 const KEYPAIR_FILE = path.join(ROOT_DIR, 'keypair.json');
 
 let ecKeyPair;
-if (fs.existsSync(KEYPAIR_FILE)) {
-  const saved = JSON.parse(fs.readFileSync(KEYPAIR_FILE, 'utf8'));
+const savedKeyPair = readRuntimeJson(KEYPAIR_FILE, 'KEYPAIR_JSON_B64');
+if (savedKeyPair) {
+  const saved = savedKeyPair;
   ecKeyPair = {
     privateKey: crypto.createPrivateKey({ key: Buffer.from(saved.privateKey, 'base64'), format: 'der', type: 'pkcs8' }),
     publicKey: crypto.createPublicKey({ key: Buffer.from(saved.publicKey, 'base64'), format: 'der', type: 'spki' }),
@@ -27,7 +28,7 @@ if (fs.existsSync(KEYPAIR_FILE)) {
     privateKey: ecKeyPair.privateKey.export({ type: 'pkcs8', format: 'der' }).toString('base64'),
     publicKey: ecKeyPair.publicKey.export({ type: 'spki', format: 'der' }).toString('base64'),
   };
-  fs.writeFileSync(KEYPAIR_FILE, JSON.stringify(saved, null, 2));
+  persistRuntimeJson(KEYPAIR_FILE, saved, 'KEYPAIR_JSON_B64');
   console.log('Generated new ECDSA keypair → saved to keypair.json');
 }
 
@@ -45,15 +46,16 @@ const pkTagHash = crypto.createHash('md5').update(pkB64).digest('hex');
 const DEVICE_FILE = path.join(ROOT_DIR, 'device.json');
 
 let deviceId, installId, pinHash;
-if (fs.existsSync(DEVICE_FILE)) {
-  const saved = JSON.parse(fs.readFileSync(DEVICE_FILE, 'utf8'));
+const savedDevice = readRuntimeJson(DEVICE_FILE, 'DEVICE_JSON_B64');
+if (savedDevice) {
+  const saved = savedDevice;
   ({ deviceId, installId, pinHash } = saved);
   console.log('Loaded device identity from device.json');
 } else {
   deviceId = crypto.randomUUID().toUpperCase();
   installId = crypto.randomUUID().toUpperCase();
   pinHash = crypto.createHash('md5').update(crypto.randomBytes(16)).digest('hex');
-  fs.writeFileSync(DEVICE_FILE, JSON.stringify({ deviceId, installId, pinHash }, null, 2));
+  persistRuntimeJson(DEVICE_FILE, { deviceId, installId, pinHash }, 'DEVICE_JSON_B64');
   console.log('Generated new device identity → saved to device.json');
 }
 
@@ -65,10 +67,6 @@ export const DEVICE = {
   pinHash,
   x509: x509B64,
 };
-
-console.log('  pk:', DEVICE.pk);
-console.log('  x509:', DEVICE.x509);
-console.log('  pkTag:', DEVICE.pkTag);
 
 // ─── Kaspi Base URLs ───
 

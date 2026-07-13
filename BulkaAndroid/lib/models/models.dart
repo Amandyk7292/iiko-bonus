@@ -403,6 +403,63 @@ class BonusTransaction {
   };
 }
 
+class CustomerOrder {
+  const CustomerOrder({
+    required this.id,
+    required this.number,
+    required this.paymentStatus,
+    required this.orderStatus,
+    required this.amount,
+    required this.subtotal,
+    required this.discount,
+    required this.branch,
+    required this.items,
+    required this.earnedBonus,
+    required this.createdAt,
+    this.pickupTime,
+    this.comment,
+    this.cancellationReason,
+  });
+
+  final String id;
+  final int number;
+  final String paymentStatus;
+  final String orderStatus;
+  final int amount;
+  final int subtotal;
+  final int discount;
+  final String branch;
+  final List<Map<String, dynamic>> items;
+  final int earnedBonus;
+  final DateTime createdAt;
+  final DateTime? pickupTime;
+  final String? comment;
+  final String? cancellationReason;
+
+  factory CustomerOrder.fromJson(Map<String, dynamic> json) {
+    final rawItems = json['items'];
+    return CustomerOrder(
+      id: _asString(json['id']),
+      number: _asInt(json['number']),
+      paymentStatus: _asString(json['paymentStatus']),
+      orderStatus: _asString(json['orderStatus']),
+      amount: _asDouble(json['amount']).round(),
+      subtotal: _asDouble(json['subtotal']).round(),
+      discount: _asDouble(json['discount']).round(),
+      branch: _asString(json['branch']),
+      items: rawItems is List
+          ? rawItems.map((item) => _asMap(item)).toList()
+          : const [],
+      earnedBonus: _asDouble(json['earnedBonus']).round(),
+      createdAt:
+          DateTime.tryParse(_asString(json['createdAt'])) ?? DateTime.now(),
+      pickupTime: DateTime.tryParse(_asString(json['pickupTime'])),
+      comment: _nullableString(json['comment']),
+      cancellationReason: _nullableString(json['cancellationReason']),
+    );
+  }
+}
+
 class PromoStory {
   const PromoStory({
     required this.id,
@@ -527,14 +584,15 @@ class AppNotification {
   final bool isRead;
   final String type;
 
-  factory AppNotification.fromJson(Map<String, dynamic> json) => AppNotification(
-    id: _asString(json['id']),
-    title: _asString(json['title']),
-    body: _asString(json['body']),
-    type: _asString(json['type'], fallback: 'broadcast'),
-    createdAt: _asString(json['created_at'] ?? json['createdAt']),
-    isRead: json['is_read'] == true || json['isRead'] == true,
-  );
+  factory AppNotification.fromJson(Map<String, dynamic> json) =>
+      AppNotification(
+        id: _asString(json['id']),
+        title: _asString(json['title']),
+        body: _asString(json['body']),
+        type: _asString(json['type'], fallback: 'broadcast'),
+        createdAt: _asString(json['created_at'] ?? json['createdAt']),
+        isRead: json['is_read'] == true || json['isRead'] == true,
+      );
 }
 
 class DeliveryLocation {

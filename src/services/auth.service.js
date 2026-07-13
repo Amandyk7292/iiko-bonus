@@ -34,13 +34,21 @@ function signRegistrationToken(phone) {
   });
 }
 
-function signAdminToken() {
-  return jwt.sign({ role: 'admin' }, requireJwtSecret(), {
-    algorithm: 'HS256',
-    expiresIn: '8h',
-    issuer: 'bulka-bonus',
-    audience: 'bulka-admin',
-  });
+function signAdminToken(admin = {}) {
+  return jwt.sign(
+    {
+      sub: String(admin.username || admin.sub || 'admin'),
+      role: String(admin.role || 'admin'),
+      jti: crypto.randomUUID(),
+    },
+    requireJwtSecret(),
+    {
+      algorithm: 'HS256',
+      expiresIn: '2h',
+      issuer: 'bulka-bonus',
+      audience: 'bulka-admin',
+    },
+  );
 }
 
 function signWalletToken(phone) {
@@ -73,6 +81,15 @@ function readBearerToken(req) {
   return header.startsWith('Bearer ') ? header.slice(7).trim() : '';
 }
 
+function readCookieToken(req, cookieName = 'bulka_admin') {
+  const cookie = String(req.headers.cookie || '');
+  for (const part of cookie.split(';')) {
+    const [name, ...value] = part.trim().split('=');
+    if (name === cookieName) return decodeURIComponent(value.join('='));
+  }
+  return '';
+}
+
 module.exports = {
   getJwtSecret,
   signCustomerToken,
@@ -82,4 +99,5 @@ module.exports = {
   verifyToken,
   safeEqual,
   readBearerToken,
+  readCookieToken,
 };

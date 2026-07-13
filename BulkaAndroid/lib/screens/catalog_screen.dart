@@ -33,11 +33,10 @@ class CatalogScreen extends StatefulWidget {
 
 class _CatalogScreenState extends State<CatalogScreen>
     with WidgetsBindingObserver {
-  static const _menuRefreshInterval = Duration(seconds: 30);
+  static const _menuRefreshInterval = Duration(minutes: 10);
 
-  final _addressRepo = const AddressRepository();
   final _api = BulkaApiClient();
-  DeliveryAddress? _selectedAddress;
+  String _selectedBakery = '';
   String _searchQuery = '';
   String _selectedCategory = 'Все';
   Map<String, String> _apiCategoryImages = {};
@@ -55,7 +54,7 @@ class _CatalogScreenState extends State<CatalogScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     appLanguageNotifier.addListener(_onLanguageChanged);
-    _loadCurrentAddress();
+    _loadSelectedBakery();
     _loadMenu();
     // Тихое фоновое обновление каждые 30 секунд
     _autoRefreshTimer = Timer.periodic(_menuRefreshInterval, (_) {
@@ -120,7 +119,8 @@ class _CatalogScreenState extends State<CatalogScreen>
             imageUrl: (p['imageUrl'] ?? '').toString(),
             inStockCount: 99,
             description: (p['description'] ?? '').toString(),
-            isStopListed: p['inStopList'] == true,
+            isStopListed:
+                p['inStopList'] == true || p['onlineOrderable'] == false,
           ),
         );
       }
@@ -211,7 +211,8 @@ class _CatalogScreenState extends State<CatalogScreen>
             imageUrl: (p['imageUrl'] ?? '').toString(),
             inStockCount: 99,
             description: (p['description'] ?? '').toString(),
-            isStopListed: p['inStopList'] == true,
+            isStopListed:
+                p['inStopList'] == true || p['onlineOrderable'] == false,
           ),
         );
       }
@@ -231,22 +232,22 @@ class _CatalogScreenState extends State<CatalogScreen>
     }
   }
 
-  Future<void> _loadCurrentAddress() async {
-    final addresses = await _addressRepo.loadAddresses();
-    final selectedId = await _addressRepo.loadSelectedAddressId();
+  Future<void> _loadSelectedBakery() async {
+    final prefs = await SharedPreferences.getInstance();
+    final selected = prefs.getString('selected_bakery_location')?.trim() ?? '';
     if (!mounted) return;
-    setState(() {
-      if (selectedId != null) {
-        final match = addresses.where((a) => a.id == selectedId);
-        if (match.isNotEmpty) {
-          _selectedAddress = match.first;
-          return;
-        }
-      }
-      if (addresses.isNotEmpty) {
-        _selectedAddress = addresses.first;
-      }
-    });
+    setState(() => _selectedBakery = selected);
+  }
+
+  Future<void> _selectBakery() async {
+    final selected = await Navigator.of(
+      context,
+    ).push<String>(MaterialPageRoute(builder: (_) => const LocationsScreen()));
+    if (!mounted || selected == null || selected.trim().isEmpty) return;
+    final value = selected.trim();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('selected_bakery_location', value);
+    if (mounted) setState(() => _selectedBakery = value);
   }
 
   List<CatalogProduct> get _filteredProducts {
@@ -317,9 +318,9 @@ class _CatalogScreenState extends State<CatalogScreen>
   @override
   Widget build(BuildContext context) {
     final cart = context.watch<CartProvider>();
-    final addressText = _selectedAddress != null
-        ? _selectedAddress!.displayAddress
-        : 'Аскарова, 21';
+    final bakeryText = _selectedBakery.isEmpty
+        ? 'catalog_action'.tr
+        : _selectedBakery;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -327,9 +328,9 @@ class _CatalogScreenState extends State<CatalogScreen>
         automaticallyImplyLeading: false,
         backgroundColor: Colors.white,
         elevation: 0,
-        title: const Text(
-          'Каталог',
-          style: TextStyle(
+        title: Text(
+          'nav_catalog'.tr,
+          style: const TextStyle(
             fontFamily: _headingFont,
             fontWeight: FontWeight.w400,
             color: _textDark,
@@ -354,24 +355,38 @@ class _CatalogScreenState extends State<CatalogScreen>
                           child: SizedBox(
                             height: 48,
                             child: TextField(
-                              onChanged: (val) => setState(() => _searchQuery = val),
+                              onChanged: (val) =>
+                                  setState(() => _searchQuery = val),
                               decoration: InputDecoration(
                                 hintText: 'Поиск товаров',
-                                prefixIcon: const Icon(Icons.search_rounded, color: _textDark),
+                                prefixIcon: const Icon(
+                                  Icons.search_rounded,
+                                  color: _textDark,
+                                ),
                                 filled: true,
                                 fillColor: _milkyBackground,
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 0),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 0,
+                                ),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(24),
-                                  borderSide: BorderSide(color: _almond.withValues(alpha: 0.6)),
+                                  borderSide: BorderSide(
+                                    color: _almond.withValues(alpha: 0.6),
+                                  ),
                                 ),
                                 enabledBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(24),
-                                  borderSide: BorderSide(color: _almond.withValues(alpha: 0.6)),
+                                  borderSide: BorderSide(
+                                    color: _almond.withValues(alpha: 0.6),
+                                  ),
                                 ),
                                 focusedBorder: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(24),
-                                  borderSide: const BorderSide(color: _bulkaYellow, width: 2),
+                                  borderSide: const BorderSide(
+                                    color: _bulkaYellow,
+                                    width: 2,
+                                  ),
                                 ),
                               ),
                             ),
@@ -403,17 +418,21 @@ class _CatalogScreenState extends State<CatalogScreen>
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       scrollDirection: Axis.horizontal,
                       itemCount: _categories.length,
-                      separatorBuilder: (context, index) => const SizedBox(width: 8),
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(width: 8),
                       itemBuilder: (context, i) {
                         final cat = _categories[i];
                         final active = _selectedCategory == cat;
                         return ChoiceChip(
                           label: Text(cat),
                           selected: active,
-                          onSelected: (_) => setState(() => _selectedCategory = cat),
+                          onSelected: (_) =>
+                              setState(() => _selectedCategory = cat),
                           labelStyle: TextStyle(
                             color: _textDark,
-                            fontWeight: active ? FontWeight.w700 : FontWeight.w400,
+                            fontWeight: active
+                                ? FontWeight.w700
+                                : FontWeight.w400,
                             fontSize: 13,
                           ),
                           selectedColor: _bulkaYellow,
@@ -443,7 +462,10 @@ class _CatalogScreenState extends State<CatalogScreen>
                         minimumSize: const Size(48, 48),
                         tapTargetSize: MaterialTapTargetSize.padded,
                       ),
-                      icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 20),
+                      icon: const Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        size: 20,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -453,25 +475,26 @@ class _CatalogScreenState extends State<CatalogScreen>
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Semantics(
                       button: true,
-                      label: 'Адрес: $addressText',
+                      label: '${'catalog_bakery_label'.tr}: $bakeryText',
                       child: BulkaPressScale(
                         child: Material(
                           color: Colors.transparent,
                           child: InkWell(
-                            onTap: () async {
-                              await Navigator.of(context).push<void>(
-                                MaterialPageRoute(
-                                  builder: (_) => const AddressSelectionScreen(),
-                                ),
-                              );
-                              _loadCurrentAddress();
-                            },
+                            onTap: _selectBakery,
                             borderRadius: BorderRadius.circular(20),
                             child: Ink(
-                              padding: const EdgeInsets.fromLTRB(18, 16, 16, 16),
+                              padding: const EdgeInsets.fromLTRB(
+                                18,
+                                16,
+                                16,
+                                16,
+                              ),
                               decoration: BoxDecoration(
                                 gradient: const LinearGradient(
-                                  colors: [Color(0xFFFFDF6C), Color(0xFFFFB814)],
+                                  colors: [
+                                    Color(0xFFFFDF6C),
+                                    Color(0xFFFFB814),
+                                  ],
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
                                 ),
@@ -482,11 +505,12 @@ class _CatalogScreenState extends State<CatalogScreen>
                                 children: [
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
-                                        const Text(
-                                          'Данное меню доступно\nдля САМОВЫВОЗА!',
-                                          style: TextStyle(
+                                        Text(
+                                          'catalog_pickup_menu'.tr,
+                                          style: const TextStyle(
                                             fontFamily: _headingFont,
                                             fontSize: 18,
                                             height: 1.2,
@@ -504,7 +528,7 @@ class _CatalogScreenState extends State<CatalogScreen>
                                             const SizedBox(width: 4),
                                             Expanded(
                                               child: Text(
-                                                'Адрес: $addressText',
+                                                '${'catalog_bakery_label'.tr}: $bakeryText',
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
                                                 style: const TextStyle(
@@ -566,7 +590,10 @@ class _CatalogScreenState extends State<CatalogScreen>
                             tapTargetSize: MaterialTapTargetSize.padded,
                           ),
                           label: const Text('Все'),
-                          icon: const Icon(Icons.chevron_right_rounded, size: 20),
+                          icon: const Icon(
+                            Icons.chevron_right_rounded,
+                            size: 20,
+                          ),
                           iconAlignment: IconAlignment.end,
                         ),
                       ],
@@ -641,19 +668,18 @@ class _CatalogScreenState extends State<CatalogScreen>
                     final mainAxisExtent = textScale > 1.2 ? 305.0 : 275.0;
                     return SliverGrid(
                       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: constraints.crossAxisExtent >= 700 ? 3 : 2,
+                        crossAxisCount: constraints.crossAxisExtent >= 700
+                            ? 3
+                            : 2,
                         mainAxisSpacing: 14,
                         crossAxisSpacing: 14,
                         mainAxisExtent: mainAxisExtent,
                       ),
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) {
-                          final p = _filteredProducts[index];
-                          final qty = cart.getQuantity(p.id);
-                          return _buildProductCard(p, qty);
-                        },
-                        childCount: _filteredProducts.length,
-                      ),
+                      delegate: SliverChildBuilderDelegate((context, index) {
+                        final p = _filteredProducts[index];
+                        final qty = cart.getQuantity(p.id);
+                        return _buildProductCard(p, qty);
+                      }, childCount: _filteredProducts.length),
                     );
                   },
                 ),

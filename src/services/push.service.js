@@ -108,8 +108,8 @@ async function notifyBonusChange({
       ? 'en'
       : 'ru';
 
-  let title = '';
-  let body = '';
+  let title;
+  let body;
 
   if (isOrder) {
     if (lang === 'kk') {

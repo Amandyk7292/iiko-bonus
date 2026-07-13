@@ -53,15 +53,20 @@ const updateSettingsHandler = async (req, res) => {
 const getCustomersHandler = async (req, res) => {
   try {
     await activatePendingBonusesSafe();
-    const data = await getAllCustomers();
+    const result = await getAllCustomers({
+      page: req.query.page,
+      pageSize: req.query.pageSize,
+      search: req.query.search,
+    });
     const settings = await getSettings();
     const tiers = await getActiveLoyaltyTiers(settings);
-    res.json(
-      data.map((customer) => {
+    res.json({
+      ...result,
+      customers: result.customers.map((customer) => {
         const tier = getTierInfo(customer.total_spent, tiers, settings);
         return { ...customer, cashbackPercent: tier.percent, tier };
       }),
-    );
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -302,6 +307,18 @@ const uploadPhotoHandler = async (req, res) => {
     const buffer = Buffer.from(match[2], 'base64');
     if (buffer.length === 0 || buffer.length > 1500000)
       return res.status(413).json({ error: 'Image must not exceed 1.5 MB' });
+    const isJpeg = buffer.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff]));
+    const isPng = buffer
+      .subarray(0, 8)
+      .equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    const isWebp =
+      buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+      buffer.subarray(8, 12).toString('ascii') === 'WEBP';
+    const signatureMatches =
+      (match[1] === 'image/jpeg' && isJpeg) ||
+      (match[1] === 'image/png' && isPng) ||
+      (match[1] === 'image/webp' && isWebp);
+    if (!signatureMatches) return res.status(400).json({ error: 'Image content is invalid' });
     const extension = match[1] === 'image/jpeg' ? 'jpg' : match[1].split('/')[1];
     const objectPath = `admin/${Date.now()}-${crypto.randomBytes(8).toString('hex')}.${extension}`;
     const { error } = await supabase.storage.from('stories').upload(objectPath, buffer, {

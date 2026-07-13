@@ -1,7 +1,9 @@
 import 'package:bulka_bonus/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:bulka_bonus/core/cart_provider.dart';
 
 void main() {
   setUp(() {
@@ -28,7 +30,7 @@ void main() {
       find.image(const AssetImage('assets/brand/bulka_logo.png')),
       findsOneWidget,
     );
-    expect(find.text('Получить код в WhatsApp'), findsOneWidget);
+    expect(find.text('Получить код'), findsOneWidget);
   });
 
   testWidgets('keeps the branded splash during minimum boot time', (
@@ -155,12 +157,15 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: buildBulkaTheme(),
-        home: MainShell(
-          api: _FakeBulkaApiClient(),
-          customer: _testCustomer,
-          transactions: _testTransactions,
-          onLogout: () async {},
-          onRefreshProfile: () async {},
+        home: ChangeNotifierProvider(
+          create: (_) => CartProvider(),
+          child: MainShell(
+            api: _FakeBulkaApiClient(),
+            customer: _testCustomer,
+            transactions: _testTransactions,
+            onLogout: () async {},
+            onRefreshProfile: () async {},
+          ),
         ),
       ),
     );
@@ -231,29 +236,11 @@ void main() {
     await tester.ensureVisible(historyButton);
     await tester.tap(historyButton);
     await tester.pumpAndSettle();
-    final ordersSemantics = find.byWidgetPredicate(
-      (widget) =>
-          widget is Semantics && widget.properties.label == 'Мои заказы',
-    );
-    expect(
-      tester.widget<Semantics>(ordersSemantics).properties.selected,
-      isTrue,
-    );
+    expect(find.byType(BalanceHistoryScreen), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const ValueKey('nav-4')));
-    await tester.pump();
-    expect(
-      tester
-          .widget<Offstage>(find.byKey(const ValueKey('tab-slot-2')))
-          .offstage,
-      isFalse,
-    );
-    expect(
-      tester
-          .widget<Offstage>(find.byKey(const ValueKey('tab-slot-4')))
-          .offstage,
-      isFalse,
-    );
     await tester.pumpAndSettle();
     expect(find.text('Профиль'), findsWidgets);
     expect(find.byType(ProfileScreen).hitTestable(), findsOneWidget);
@@ -304,12 +291,15 @@ void main() {
           data: MediaQuery.of(context).copyWith(disableAnimations: true),
           child: child!,
         ),
-        home: MainShell(
-          api: _FakeBulkaApiClient(),
-          customer: _testCustomer,
-          transactions: _testTransactions,
-          onLogout: () async {},
-          onRefreshProfile: () async {},
+        home: ChangeNotifierProvider(
+          create: (_) => CartProvider(),
+          child: MainShell(
+            api: _FakeBulkaApiClient(),
+            customer: _testCustomer,
+            transactions: _testTransactions,
+            onLogout: () async {},
+            onRefreshProfile: () async {},
+          ),
         ),
       ),
     );
@@ -347,12 +337,15 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: buildBulkaTheme(),
-        home: MainShell(
-          api: _FakeBulkaApiClient(),
-          customer: _testCustomer,
-          transactions: _testTransactions,
-          onLogout: () async {},
-          onRefreshProfile: () async {},
+        home: ChangeNotifierProvider(
+          create: (_) => CartProvider(),
+          child: MainShell(
+            api: _FakeBulkaApiClient(),
+            customer: _testCustomer,
+            transactions: _testTransactions,
+            onLogout: () async {},
+            onRefreshProfile: () async {},
+          ),
         ),
       ),
     );

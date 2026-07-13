@@ -14,11 +14,12 @@ abstract final class PushNotifications {
       await Firebase.initializeApp();
       _ready = true;
       FirebaseMessaging.onBackgroundMessage(_firebaseBackgroundMessage);
-      await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
+      await FirebaseMessaging.instance
+          .setForegroundNotificationPresentationOptions(
+            alert: true,
+            badge: true,
+            sound: true,
+          );
     } catch (error) {
       debugPrint('Push initialization unavailable: $error');
     }

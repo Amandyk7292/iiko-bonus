@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  node:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            admin-ui/package-lock.json
+            kaspi-pos-automation-main/package-lock.json
+      - run: npm ci
+      - run: npm ci --prefix admin-ui
+      - run: npm ci --prefix kaspi-pos-automation-main
+      - run: npm run db:migrate:check
+      - run: npm run verify
+
+  flutter:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: BulkaAndroid
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+      - run: flutter build web --release --wasm --base-href /app/ --pwa-strategy=none

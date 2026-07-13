@@ -430,7 +430,9 @@ router.get('/api/guest/menu', async (req, res) => {
 
     // Подгружаем оверрайды из базы данных (если таблицы не существуют — продолжим с пустыми)
     const menuService = require('../services/menu.service');
-    let productOverrides = [], categoryOverrides = [], customProducts = [];
+    let productOverrides = [],
+      categoryOverrides = [],
+      customProducts = [];
     try {
       [productOverrides, categoryOverrides, customProducts] = await Promise.all([
         menuService.getProductOverrides(),
@@ -466,7 +468,7 @@ router.get('/api/guest/menu', async (req, res) => {
       categories.push({
         id: cat.id,
         name: getLocalized(override, 'name', cat.name),
-        order: (override && override.sort_order) ? override.sort_order : cat.order,
+        order: override && override.sort_order ? override.sort_order : cat.order,
         imageUrl: (override && override.custom_image_url) || null,
       });
     }
@@ -517,11 +519,12 @@ router.get('/api/guest/menu', async (req, res) => {
         id: p.id,
         name: getLocalized(override, 'name', p.name),
         description: getLocalized(override, 'description', p.description || ''),
-        price: (override && override.custom_price > 0) ? override.custom_price : price,
+        price: override && override.custom_price > 0 ? override.custom_price : price,
         categoryId: p.parentGroup,
         imageUrl: (override && override.custom_image_url) || imageUrl,
         inStopList: isStopped,
         isAvailable: !isStopped,
+        onlineOrderable: true,
         sortOrder: (override && override.sort_order) || 0,
       });
     }
@@ -552,6 +555,7 @@ router.get('/api/guest/menu', async (req, res) => {
         imageUrl: cp.image_url,
         inStopList: !cp.is_available,
         isAvailable: cp.is_available,
+        onlineOrderable: true,
         sortOrder: cp.sort_order || 0,
       });
     }

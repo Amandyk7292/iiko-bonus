@@ -33,8 +33,23 @@ export interface LoyaltyTier {
 
 export type LoyaltyTierInput = Omit<LoyaltyTier, 'id'>;
 
-function getToken() {
-  return localStorage.getItem('adminToken');
+export interface AdminOrder {
+  id: string;
+  number: number;
+  paymentStatus: string;
+  orderStatus: string;
+  amount: number;
+  subtotal: number;
+  discount: number;
+  branch: string;
+  pickupTime?: string | null;
+  comment?: string | null;
+  items: Array<{ name?: string; quantity?: number; price?: number }>;
+  earnedBonus: number;
+  cancellationReason?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  customer?: { name?: string; phone?: string };
 }
 
 async function parseResponse<T>(response: Response): Promise<T> {
@@ -48,24 +63,30 @@ async function parseResponse<T>(response: Response): Promise<T> {
 }
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const token = getToken();
   const headers = new Headers(options.headers);
 
-  if (token) headers.set('Authorization', `Bearer ${token}`);
   if (options.body && !(options.body instanceof FormData)) headers.set('Content-Type', 'application/json');
   headers.set('Accept', 'application/json');
 
   let response: Response;
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 15000);
   try {
-    response = await fetch(`${BASE_URL}${endpoint}`, { ...options, headers });
+    response = await fetch(`${BASE_URL}${endpoint}`, {
+      ...options,
+      headers,
+      credentials: 'same-origin',
+      signal: options.signal ?? controller.signal,
+    });
   } catch (error) {
-    throw new ApiError(error instanceof Error ? error.message : 'Network request failed', 0, 'NETWORK_ERROR');
+    throw new ApiError(error instanceof Error && error.name === 'AbortError' ? 'Request timed out' : 'Network request failed', 0, 'NETWORK_ERROR');
+  } finally {
+    window.clearTimeout(timeout);
   }
 
   if (!response.ok) {
     const errorData: { error?: string; message?: string; code?: string; details?: unknown } = await parseResponse<{ error?: string; message?: string; code?: string; details?: unknown }>(response).catch(() => ({}));
-    if (response.status === 401 || response.status === 403) {
-      localStorage.removeItem('adminToken');
+    if (response.status === 401) {
       window.dispatchEvent(new Event('unauthorized'));
     }
     throw new ApiError(
@@ -84,25 +105,45 @@ function json(method: string, data?: unknown): RequestInit {
 }
 
 export const api = {
-  login: async (password: string) => {
+  login: async (username: string, password: string, code: string) => {
     const response = await fetch(`${BASE_URL}/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ password }),
+      credentials: 'same-origin',
+      body: JSON.stringify({ username, password, code }),
     }).catch(() => { throw new ApiError('Network request failed', 0, 'NETWORK_ERROR'); });
-    if (!response.ok) throw new ApiError('Invalid password', response.status, 'AUTH_INVALID');
-    const data = await parseResponse<{ token?: string }>(response);
-    if (!data.token) throw new ApiError('Missing session token', 500, 'AUTH_NO_SESSION');
-    localStorage.setItem('adminToken', data.token);
+    if (!response.ok) {
+      const errorData: { error?: string } = await parseResponse<{ error?: string }>(response).catch(() => ({}));
+      throw new ApiError(errorData.error || 'Invalid credentials', response.status, response.status === 401 ? 'AUTH_INVALID' : 'AUTH_CONFIG');
+    }
+    return parseResponse<{ user: { username: string; role: string } }>(response);
   },
 
-  logout: () => {
-    localStorage.removeItem('adminToken');
+  session: () => request<{ user: { username: string; role: string } }>('/session'),
+
+  logout: async () => {
+    await request('/logout', json('POST')).catch(() => undefined);
     window.dispatchEvent(new Event('unauthorized'));
   },
 
   getStats: () => request<Record<string, number>>('/stats'),
-  getCustomers: () => request<any[] | { customers: any[] }>('/customers'),
+  getCustomers: ({ page = 1, pageSize = 50, search = '' } = {}) => {
+    const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    if (search.trim()) params.set('search', search.trim());
+    return request<{ customers: any[]; total: number; page: number; pageSize: number }>(`/customers?${params}`);
+  },
+  getOrders: ({ page = 1, pageSize = 50, search = '', paymentStatus = '', orderStatus = '' } = {}) => {
+    const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    if (search.trim()) params.set('search', search.trim());
+    if (paymentStatus) params.set('paymentStatus', paymentStatus);
+    if (orderStatus) params.set('orderStatus', orderStatus);
+    return request<{ orders: AdminOrder[]; total: number; page: number; pageSize: number }>(`/orders?${params}`);
+  },
+  updateOrderStatus: (id: string, status: string, cancellationReason = '') =>
+    request<{ success: boolean; order: AdminOrder }>(
+      `/orders/${encodeURIComponent(id)}/status`,
+      json('PATCH', { status, cancellationReason }),
+    ),
   updateCustomer: (id: string, data: Record<string, unknown>) => request<{ success: boolean }>('/customers/update', json('POST', { customerId: id, ...data })),
   addCustomerBonus: (customerId: string, amount: number, reason: string) => request<{ success: boolean }>('/customers/bonus', json('POST', { customerId, amount, reason })),
   notifyInactive: () => request<{ success: boolean; notifiedCount?: number; totalNotifiedBalance?: number }>('/customers/notify-inactive', json('POST')),
@@ -164,15 +205,14 @@ export const api = {
   deleteCustomProduct: (id: string) =>
     request<{ success: boolean }>(`/menu/custom-product/${encodeURIComponent(id)}`, json('DELETE')),
   uploadMenuPhoto: async (file: File): Promise<{ success: boolean; imageUrl?: string }> => {
-    const token = getToken();
     const formData = new FormData();
     formData.append('image', file);
     const headers = new Headers();
-    if (token) headers.set('Authorization', `Bearer ${token}`);
     const response = await fetch(`${BASE_URL}/menu/upload-image`, {
       method: 'POST',
       headers,
       body: formData,
+      credentials: 'same-origin',
     });
     if (!response.ok) throw new ApiError('Ошибка загрузки фото', response.status);
     return response.json();

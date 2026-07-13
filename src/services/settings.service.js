@@ -109,6 +109,35 @@ async function updateSettings(newSettings) {
       const numeric = Number(newSettings[key]);
       if (!Number.isFinite(numeric) || numeric < 0) throw new Error(`Invalid threshold: ${key}`);
     }
+    if (key === 'bonus_promocodes') {
+      const promos = newSettings[key];
+      if (!Array.isArray(promos) || promos.length > 100) {
+        throw new Error('bonus_promocodes must be an array with at most 100 items');
+      }
+      const codes = new Set();
+      for (const promo of promos) {
+        const code = String(promo?.code || '')
+          .trim()
+          .toUpperCase();
+        const type = String(promo?.type || 'percent');
+        const value = Number(promo?.value);
+        const minOrder = Number(promo?.min_order ?? 0);
+        if (
+          !/^[A-Z0-9_-]{3,32}$/.test(code) ||
+          codes.has(code) ||
+          !['percent', 'fixed'].includes(type) ||
+          !Number.isFinite(value) ||
+          value <= 0 ||
+          (type === 'percent' && value > 100) ||
+          !Number.isFinite(minOrder) ||
+          minOrder < 0
+        ) {
+          throw new Error(`Invalid promo code configuration: ${code || 'empty'}`);
+        }
+        promo.code = code;
+        codes.add(code);
+      }
+    }
     const value =
       typeof newSettings[key] === 'object' && newSettings[key] !== null
         ? JSON.stringify(newSettings[key])

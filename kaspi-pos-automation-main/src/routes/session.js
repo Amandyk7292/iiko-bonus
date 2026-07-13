@@ -4,7 +4,7 @@ import { loggedFetch, signedQrPayHeaders } from '../helpers.js';
 import { decryptSecret } from '../crypto.js';
 import { inactiveSessionResponse, isActiveSession } from '../activeSession.js';
 import { getKaspiErrorMessage, isKaspiSessionExpired, isKaspiSuccess } from '../kaspiResponse.js';
-import { getGlobalSession, saveGlobalSession } from '../sessionStorage.js';
+import { saveGlobalSession } from '../sessionStorage.js';
 
 const router = Router();
 

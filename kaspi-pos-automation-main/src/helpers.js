@@ -15,7 +15,7 @@ export const nowISO = () => {
   const sign = off >= 0 ? '+' : '-';
   const hh = String(Math.floor(Math.abs(off) / 60)).padStart(2, '0');
   const mm = String(Math.abs(off) % 60).padStart(2, '0');
-  
+
   const localD = new Date(d.getTime() + off * 60000);
   return (
     localD
@@ -51,30 +51,11 @@ export const extractUserToken = (resp) => {
 
 export const loggedFetch = async (url, options = {}) => {
   const method = (options.method || 'GET').toUpperCase();
-  console.log(`\n>>> ${method} ${url}`);
-  if (options.headers) console.log('>>> Headers:', JSON.stringify(options.headers, null, 2));
-  if (options.body) {
-    try {
-      console.log('>>> Body:', JSON.parse(options.body));
-    } catch {
-      console.log('>>> Body:', options.body);
-    }
-  }
+  const safeUrl = new URL(url);
+  console.log(`>>> Kaspi ${method} ${safeUrl.origin}${safeUrl.pathname}`);
 
   const resp = await fetch(url, options);
-  const cloned = resp.clone();
-  let body;
-  try {
-    body = await cloned.json();
-  } catch {
-    try {
-      body = await cloned.text();
-    } catch {
-      body = '[unreadable]';
-    }
-  }
-  console.log(`<<< ${resp.status} ${resp.statusText}`);
-  console.log('<<< Response:', typeof body === 'object' ? JSON.stringify(body, null, 2) : body);
+  console.log(`<<< Kaspi ${resp.status} ${resp.statusText}`);
   return resp;
 };
 

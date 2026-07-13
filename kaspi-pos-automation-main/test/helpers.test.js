@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 
 // Set TOKEN_SECRET_KEY before importing (helpers imports from crypto via config chain)
 process.env.TOKEN_SECRET_KEY = 'a'.repeat(64);
+process.env.DEVICE_JSON_B64 = Buffer.from(
+  JSON.stringify({ deviceId: 'TEST-DEVICE', installId: 'TEST-INSTALL', pinHash: '0'.repeat(32) }),
+).toString('base64');
 
 const { generateUUID, nowISO, entranceCookie, extractUserToken } = await import('../src/helpers.js');
 

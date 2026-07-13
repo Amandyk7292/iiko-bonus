@@ -11,6 +11,7 @@ const {
 const { startPolling: startTelegramBot } = require('./services/telegram.service');
 const { getSettings } = require('./services/settings.service');
 const { shouldRunBots } = require('./config/env');
+const kaspiService = require('./services/kaspi.service');
 
 const PORT = process.env.PORT || 3000;
 
@@ -48,6 +49,21 @@ if (!process.env.VERCEL) {
   if (runWorkers) {
     setTimeout(runDailyChecks, 5000);
     setInterval(runDailyChecks, 24 * 60 * 60 * 1000);
+
+    let kaspiReconciliationRunning = false;
+    const reconcileKaspiOrders = async () => {
+      if (kaspiReconciliationRunning || process.env.KASPI_POS_ENABLED !== 'true') return;
+      kaspiReconciliationRunning = true;
+      try {
+        await kaspiService.reconcileOrders();
+      } catch (error) {
+        console.error('Kaspi reconciliation failed:', error.message);
+      } finally {
+        kaspiReconciliationRunning = false;
+      }
+    };
+    setTimeout(reconcileKaspiOrders, 15 * 1000);
+    setInterval(reconcileKaspiOrders, 60 * 1000);
   }
 
   app.listen(PORT, () => {

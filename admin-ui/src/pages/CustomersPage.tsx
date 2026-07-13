@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Download, Gift, LoaderCircle, Pencil, RefreshCw, Search, Trash2 } from 'lucide-react';
 import Modal from '../components/Modal';
 import PageState from '../components/PageState';
@@ -21,6 +21,9 @@ export default function CustomersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const pageSize = 50;
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [bonusCustomer, setBonusCustomer] = useState<Customer | null>(null);
   const [bonusAmount, setBonusAmount] = useState('');
@@ -33,21 +36,22 @@ export default function CustomersPage() {
     setLoading(true);
     setError('');
     try {
-      const data = await api.getCustomers();
-      setCustomers(Array.isArray(data) ? data : data.customers ?? []);
+      const data = await api.getCustomers({ page, pageSize, search });
+      setCustomers(data.customers ?? []);
+      setTotal(data.total ?? 0);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : t('common.loadError'));
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }, [page, search, t]);
 
-  useEffect(() => { void fetchCustomers(); }, [fetchCustomers]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => void fetchCustomers(), 250);
+    return () => window.clearTimeout(timer);
+  }, [fetchCustomers]);
 
-  const filtered = useMemo(() => {
-    const query = search.trim().toLocaleLowerCase();
-    return customers.filter(customer => `${customer.name ?? ''} ${customer.phone ?? ''}`.toLocaleLowerCase().includes(query));
-  }, [customers, search]);
+  const filtered = customers;
 
   const handleExport = () => {
     const rows: Array<Array<string | number>> = [[t('common.name'), t('transactions.phone'), t('customers.balance'), t('customers.purchases')]];
@@ -167,14 +171,14 @@ export default function CustomersPage() {
       {error && <div className="inline-alert inline-alert-error" role="alert">{error}</div>}
 
       <section className="sagi-filter">
-        <div className="field-group filter-search"><label className="field-label" htmlFor="customer-search">{t('common.search')}</label><div className="input-with-icon"><Search aria-hidden="true" size={18} /><input id="customer-search" type="search" className="input-classic" value={search} onChange={event => setSearch(event.target.value)} placeholder={t('customers.searchPlaceholder')} /></div></div>
+        <div className="field-group filter-search"><label className="field-label" htmlFor="customer-search">{t('common.search')}</label><div className="input-with-icon"><Search aria-hidden="true" size={18} /><input id="customer-search" type="search" className="input-classic" value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} placeholder={t('customers.searchPlaceholder')} autoComplete="off" /></div></div>
       </section>
 
       {filtered.length === 0 ? <PageState type="empty" title={t('customers.empty')} description={t('customers.emptyHint')} /> : (
         <section className="card table-card"><div className="responsive-table-wrap"><table className="data-table customers-table">
           <thead><tr><th scope="col">#</th><th scope="col">{t('common.name')}</th><th scope="col">{t('transactions.phone')}</th><th scope="col" className="text-right">{t('customers.balance')}</th><th scope="col" className="text-right">{t('customers.purchases')}</th><th scope="col" className="text-right">{t('customers.manage')}</th></tr></thead>
           <tbody>{filtered.map((customer, index) => <tr key={customer.id}>
-            <td data-label="#" className="row-number">{index + 1}</td><td data-label={t('common.name')}><strong>{customer.name || t('customers.noName')}</strong></td>
+            <td data-label="#" className="row-number">{(page - 1) * pageSize + index + 1}</td><td data-label={t('common.name')}><strong>{customer.name || t('customers.noName')}</strong></td>
             <td data-label={t('transactions.phone')}>{customer.phone || '—'}</td><td data-label={t('customers.balance')} className="text-right tabular value-info"><strong>{formatNumber(customer.balance ?? 0)}</strong></td>
             <td data-label={t('customers.purchases')} className="text-right tabular">{formatNumber(customer.total_spent ?? 0)}</td>
             <td data-label={t('customers.manage')}><div className="row-actions justify-end">
@@ -183,7 +187,13 @@ export default function CustomersPage() {
               <button type="button" className="icon-button icon-button-danger" onClick={() => deleteCustomer(customer)} disabled={Boolean(busyAction)} aria-label={t('common.delete')} title={t('common.delete')}>{busyAction === customer.id ? <LoaderCircle className="spin" size={17} /> : <Trash2 aria-hidden="true" size={17} />}</button>
             </div></td>
           </tr>)}</tbody>
-        </table></div></section>
+        </table></div>
+        {total > pageSize && <div className="table-pagination" aria-label="Пагинация клиентов">
+          <button type="button" className="btn-outline px-4" onClick={() => setPage(value => Math.max(1, value - 1))} disabled={page === 1 || loading}>←</button>
+          <span className="tabular">{page} / {Math.ceil(total / pageSize)}</span>
+          <button type="button" className="btn-outline px-4" onClick={() => setPage(value => value + 1)} disabled={page >= Math.ceil(total / pageSize) || loading}>→</button>
+        </div>}
+        </section>
       )}
 
       <Modal open={Boolean(editingCustomer)} onClose={() => !submitting && setEditingCustomer(null)} title={t('customers.editTitle')} size="md">
@@ -203,7 +213,7 @@ export default function CustomersPage() {
         <form className="modal-body form-stack" onSubmit={saveBonus}>
           <p className="modal-context"><strong>{bonusCustomer?.name || t('customers.noName')}</strong><span>{bonusCustomer?.phone}</span></p>
           {formError && <div className="inline-alert inline-alert-error" role="alert">{formError}</div>}
-          <div className="field-group"><label className="field-label" htmlFor="bonus-amount">{t('customers.bonusAmount')} *</label><input id="bonus-amount" type="number" step="0.01" className="input-classic" value={bonusAmount} onChange={event => setBonusAmount(event.target.value)} required autoFocus /><p className="field-hint">{t('customers.bonusAmountHint')}</p></div>
+          <div className="field-group"><label className="field-label" htmlFor="bonus-amount">{t('customers.bonusAmount')} *</label><input id="bonus-amount" type="number" step="0.01" className="input-classic" value={bonusAmount} onChange={event => setBonusAmount(event.target.value)} required /><p className="field-hint">{t('customers.bonusAmountHint')}</p></div>
           <div className="field-group"><label className="field-label" htmlFor="bonus-reason">{t('customers.reason')}</label><textarea id="bonus-reason" rows={3} className="input-classic" value={bonusReason} onChange={event => setBonusReason(event.target.value)} placeholder={t('customers.reasonPlaceholder')} maxLength={240} /></div>
           <div className="modal-actions"><button type="button" className="btn-outline px-5" onClick={() => setBonusCustomer(null)} disabled={submitting}>{t('common.cancel')}</button><button type="submit" className="btn-classic px-5 inline-flex items-center gap-2" disabled={submitting}>{submitting && <LoaderCircle className="spin" size={17} />}{submitting ? t('common.saving') : t('common.save')}</button></div>
         </form>

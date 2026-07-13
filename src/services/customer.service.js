@@ -216,13 +216,18 @@ async function logTransaction(transactionData) {
 // ФУНКЦИИ ДЛЯ CRM И АДМИН-ПАНЕЛИ
 // ==========================================
 
-async function getAllCustomers() {
-  const { data, error } = await supabase
-    .from('customers')
-    .select('*')
-    .order('created_at', { ascending: false });
+async function getAllCustomers({ page = 1, pageSize = 50, search = '' } = {}) {
+  const safePage = Math.max(1, Number.parseInt(page, 10) || 1);
+  const safePageSize = Math.min(100, Math.max(10, Number.parseInt(pageSize, 10) || 50));
+  let query = supabase.from('customers').select('*', { count: 'exact' });
+  const cleanSearch = String(search).trim().replace(/[,()]/g, ' ').slice(0, 100);
+  if (cleanSearch) query = query.or(`name.ilike.%${cleanSearch}%,phone.ilike.%${cleanSearch}%`);
+  const from = (safePage - 1) * safePageSize;
+  const { data, error, count } = await query
+    .order('created_at', { ascending: false })
+    .range(from, from + safePageSize - 1);
   if (error) throw new Error(error.message);
-  return data;
+  return { customers: data || [], total: count || 0, page: safePage, pageSize: safePageSize };
 }
 
 async function getTransactions() {
@@ -236,6 +241,9 @@ async function getTransactions() {
 }
 
 async function getStats() {
+  const { data: aggregate, error: aggregateError } = await supabase.rpc('get_admin_stats');
+  if (!aggregateError && aggregate) return aggregate;
+
   const { data: customers } = await supabase
     .from('customers')
     .select('balance, total_spent, created_at');

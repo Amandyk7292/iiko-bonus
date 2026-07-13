@@ -32,19 +32,18 @@ export const isKaspiSessionExpired = (body) => {
   const hasExpiredCode = codes.some((code) => code === 12 || code === 401);
 
   const message = getKaspiErrorMessage(body, '').toLocaleLowerCase('ru');
-  const hasExpiredMessage = (
+  const hasExpiredMessage =
     message.includes('вход с другого устройства') ||
     message.includes('введите логин/пароль') ||
     message.includes('сессия истекла') ||
     message.includes('сессия неактивна') ||
     message.includes('session expired') ||
-    message.includes('re-authenticate')
-  );
+    message.includes('re-authenticate');
 
   if (hasExpiredCode || hasExpiredMessage) {
-    console.error('\n!!! [SESSION EXPIRED DETECTED] Kaspi Triggered Logout !!!');
-    console.error('Kaspi Response Body:', JSON.stringify(body, null, 2));
-    console.error('Triggered by Code?', hasExpiredCode, 'Triggered by Message?', hasExpiredMessage);
+    console.error(
+      `[Kaspi] Session expired (code=${getKaspiResultCode(body) ?? 'unknown'}, messageMatch=${hasExpiredMessage})`,
+    );
     return true;
   }
   return false;

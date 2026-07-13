@@ -1,4 +1,8 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class CartItem {
   final String id;
@@ -18,14 +22,38 @@ class CartItem {
   });
 
   int get total => price * quantity;
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'price': price,
+    'imageUrl': imageUrl,
+    'isStopListed': isStopListed,
+    'quantity': quantity,
+  };
+
+  factory CartItem.fromJson(Map<String, dynamic> json) => CartItem(
+    id: json['id']?.toString() ?? '',
+    name: json['name']?.toString() ?? '',
+    price: (json['price'] as num?)?.toInt() ?? 0,
+    imageUrl: json['imageUrl']?.toString() ?? '',
+    isStopListed: json['isStopListed'] == true,
+    quantity: ((json['quantity'] as num?)?.toInt() ?? 1).clamp(1, 99).toInt(),
+  );
 }
 
 class CartProvider extends ChangeNotifier {
+  CartProvider() {
+    unawaited(_restore());
+  }
+
+  static const _storageKey = 'bulka_cart_v1';
   final Map<String, CartItem> _items = {};
 
   Map<String, CartItem> get items => {..._items};
 
-  int get itemCount => _items.values.fold(0, (sum, item) => sum + item.quantity);
+  int get itemCount =>
+      _items.values.fold(0, (sum, item) => sum + item.quantity);
 
   int get totalAmount => _items.values.fold(0, (sum, item) => sum + item.total);
 
@@ -53,6 +81,7 @@ class CartProvider extends ChangeNotifier {
       );
     }
     notifyListeners();
+    unawaited(_save());
   }
 
   void setQuantity(String productId, int quantity) {
@@ -63,15 +92,46 @@ class CartProvider extends ChangeNotifier {
       _items[productId]!.quantity = quantity;
     }
     notifyListeners();
+    unawaited(_save());
   }
 
   void removeItem(String productId) {
     _items.remove(productId);
     notifyListeners();
+    unawaited(_save());
   }
 
   void clear() {
     _items.clear();
     notifyListeners();
+    unawaited(_save());
+  }
+
+  Future<void> _restore() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_storageKey);
+    if (raw == null || _items.isNotEmpty) return;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return;
+      for (final value in decoded) {
+        if (value is! Map) continue;
+        final item = CartItem.fromJson(Map<String, dynamic>.from(value));
+        if (item.id.isNotEmpty && item.price > 0 && !item.isStopListed) {
+          _items[item.id] = item;
+        }
+      }
+      notifyListeners();
+    } catch (_) {
+      await prefs.remove(_storageKey);
+    }
+  }
+
+  Future<void> _save() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _storageKey,
+      jsonEncode(_items.values.map((item) => item.toJson()).toList()),
+    );
   }
 }

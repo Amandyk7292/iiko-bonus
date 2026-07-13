@@ -26,7 +26,8 @@ const requireAuth = (req, res, next) => {
   }
 
   if (!session.tokenSN) return res.status(401).json({ error: 'Missing X-Token-SN header or global session.' });
-  if (!session.vtokenSecret) return res.status(401).json({ error: 'Missing X-Vtoken-Secret header or global session.' });
+  if (!session.vtokenSecret)
+    return res.status(401).json({ error: 'Missing X-Vtoken-Secret header or global session.' });
   if (!isActiveSession(session.tokenSN)) return res.status(401).json(inactiveSessionResponse());
   try {
     session.decryptedSecret = decryptSecret(session.vtokenSecret);
@@ -43,7 +44,10 @@ router.use(requireAuth);
 
 router.post('/create', async (req, res) => {
   const { amount, latitude, longitude } = req.body;
-  if (!amount) return res.status(400).json({ error: 'amount required' });
+  const numericAmount = Number(amount);
+  if (!Number.isFinite(numericAmount) || numericAmount <= 0 || numericAmount > 10000000) {
+    return res.status(400).json({ error: 'Valid amount is required' });
+  }
 
   try {
     const url = `${KASPI_QRPAY_URL}/v01/qr-token/create`;
@@ -52,7 +56,7 @@ router.post('/create', async (req, res) => {
       method: 'POST',
       headers,
       body: JSON.stringify({
-        PaymentAmount: Number(amount),
+        PaymentAmount: numericAmount,
         DeviceInterface: 'Pos',
         Latitude: latitude || 43.204643483375889,
         Longitude: longitude || 76.891962364115912,
@@ -70,7 +74,7 @@ router.post('/create', async (req, res) => {
         'qr',
         {
           tokenSN: req.session.tokenSN,
-          vtokenSecret: req.headers['x-vtoken-secret'],
+          vtokenSecret: req.session.vtokenSecret,
           profileId: req.session.profileId,
         },
         {

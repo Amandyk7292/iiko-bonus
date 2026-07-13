@@ -35,7 +35,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       future: _future,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
-          return const Center(child: CircularProgressIndicator(color: _caramel));
+          return const Center(
+            child: CircularProgressIndicator(color: _caramel),
+          );
         }
         final items = snapshot.data ?? const <AppNotification>[];
         if (items.isEmpty) {
@@ -51,31 +53,70 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             itemBuilder: (context, index) {
               final item = items[index];
               return InkWell(
-                onTap: item.isRead ? null : () async {
-                  await widget.api.markNotificationRead(item.id);
-                  await _reload();
-                },
+                onTap: item.isRead
+                    ? null
+                    : () async {
+                        await widget.api.markNotificationRead(item.id);
+                        await _reload();
+                      },
                 borderRadius: BorderRadius.circular(18),
                 child: Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: item.isRead ? _cream : _almond.withValues(alpha: .28),
+                    color: item.isRead
+                        ? _cream
+                        : _almond.withValues(alpha: .28),
                     borderRadius: BorderRadius.circular(18),
                     border: Border.all(color: _almond.withValues(alpha: .55)),
                   ),
-                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Icon(item.isRead ? Icons.notifications_none_rounded : Icons.notifications_active_rounded, color: _caramel),
-                    const SizedBox(width: 12),
-                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(item.title, style: const TextStyle(color: _textDark, fontWeight: FontWeight.w800, fontSize: 16)),
-                      const SizedBox(height: 4),
-                      Text(item.body, style: TextStyle(color: _textDark.withValues(alpha: .7), height: 1.3)),
-                      if (item.createdAt.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        Text(item.createdAt.replaceFirst('T', ' ').split('.').first, style: TextStyle(color: _textDark.withValues(alpha: .45), fontSize: 12)),
-                      ],
-                    ])),
-                  ]),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        item.isRead
+                            ? Icons.notifications_none_rounded
+                            : Icons.notifications_active_rounded,
+                        color: _caramel,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.title,
+                              style: const TextStyle(
+                                color: _textDark,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              item.body,
+                              style: TextStyle(
+                                color: _textDark.withValues(alpha: .7),
+                                height: 1.3,
+                              ),
+                            ),
+                            if (item.createdAt.isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                item.createdAt
+                                    .replaceFirst('T', ' ')
+                                    .split('.')
+                                    .first,
+                                style: TextStyle(
+                                  color: _textDark.withValues(alpha: .45),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               );
             },

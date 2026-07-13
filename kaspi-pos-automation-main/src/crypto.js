@@ -1,8 +1,8 @@
 import crypto from 'crypto';
-import fs from 'fs';
 import path from 'path';
-import {fileURLToPath} from 'url';
-import {ecKeyPair} from './config.js';
+import { fileURLToPath } from 'url';
+import { ecKeyPair } from './config.js';
+import { persistRuntimeJson, readRuntimeJson } from './runtimeJson.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ECDH_FILE = path.join(__dirname, '..', 'ecdh-keypair.json');
@@ -13,14 +13,9 @@ const vtokenSuite = 'OCRA-1:HOTP-SHA256-6:QH64-T1M';
 
 // ─── AES-256-GCM encryption for vtokenSecret ───
 
-if (!process.env.TOKEN_SECRET_KEY) {
-  console.error('FATAL: TOKEN_SECRET_KEY environment variable is not set.');
-  console.error('Generate one with: echo "TOKEN_SECRET_KEY=$(openssl rand -hex 32)" > .env');
-  process.exit(1);
-}
-
 const loadEncryptionKey = () => {
-  const value = process.env.TOKEN_SECRET_KEY.trim();
+  const value = String(process.env.TOKEN_SECRET_KEY || '').trim();
+  if (!value) throw new Error('TOKEN_SECRET_KEY environment variable is required');
   if (/^[0-9a-fA-F]{64}$/.test(value)) {
     return Buffer.from(value, 'hex');
   }
@@ -52,33 +47,31 @@ export const decryptSecret = (tokenB64) => {
 let lastEcdhKeyPair = null;
 
 export const generateECDH = () => {
-  lastEcdhKeyPair = crypto.generateKeyPairSync('ec', {namedCurve: 'prime256v1'});
+  lastEcdhKeyPair = crypto.generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
   // Persist ECDH private key so refresh (SignInLite) can reuse it
   const saved = {
-    privateKey: lastEcdhKeyPair.privateKey.export({type: 'pkcs8', format: 'der'}).toString('base64'),
-    publicKey: lastEcdhKeyPair.publicKey.export({type: 'spki', format: 'der'}).toString('base64'),
+    privateKey: lastEcdhKeyPair.privateKey.export({ type: 'pkcs8', format: 'der' }).toString('base64'),
+    publicKey: lastEcdhKeyPair.publicKey.export({ type: 'spki', format: 'der' }).toString('base64'),
   };
-  fs.writeFileSync(ECDH_FILE, JSON.stringify(saved, null, 2));
-  const spki = lastEcdhKeyPair.publicKey.export({type: 'spki', format: 'der'});
+  persistRuntimeJson(ECDH_FILE, saved, 'ECDH_KEYPAIR_JSON_B64');
+  const spki = lastEcdhKeyPair.publicKey.export({ type: 'spki', format: 'der' });
   return spki.toString('base64');
 };
 
 const p256SpkiPrefix = Buffer.from('3059301306072a8648ce3d020106082a8648ce3d030107034200', 'hex');
 
-const publicKeyFromRawP256Point = (point) => crypto.createPublicKey({
-  key: Buffer.concat([p256SpkiPrefix, point]),
-  format: 'der',
-  type: 'spki',
-});
+const publicKeyFromRawP256Point = (point) =>
+  crypto.createPublicKey({
+    key: Buffer.concat([p256SpkiPrefix, point]),
+    format: 'der',
+    type: 'spki',
+  });
 
 const decodeKaspiPublicKey = (serverX509B64) => {
   const value = String(serverX509B64).trim();
 
   if (value.startsWith('-----BEGIN')) {
-    const attempts = [
-      () => crypto.createPublicKey(value),
-      () => new crypto.X509Certificate(value).publicKey,
-    ];
+    const attempts = [() => crypto.createPublicKey(value), () => new crypto.X509Certificate(value).publicKey];
     const errors = [];
     for (const attempt of attempts) {
       try {
@@ -94,7 +87,7 @@ const decodeKaspiPublicKey = (serverX509B64) => {
   const der = Buffer.from(normalized, 'base64');
 
   const attempts = [
-    () => crypto.createPublicKey({key: der, format: 'der', type: 'spki'}),
+    () => crypto.createPublicKey({ key: der, format: 'der', type: 'spki' }),
     () => new crypto.X509Certificate(der).publicKey,
   ];
 
@@ -102,8 +95,10 @@ const decodeKaspiPublicKey = (serverX509B64) => {
   if (der.length === 65 && der[0] === 0x04) {
     attempts.push(() => publicKeyFromRawP256Point(der));
   }
-  if ((der.length === 33) && (der[0] === 0x02 || der[0] === 0x03)) {
-    attempts.push(() => publicKeyFromRawP256Point(crypto.ECDH.convertKey(der, 'prime256v1', undefined, undefined, 'uncompressed')));
+  if (der.length === 33 && (der[0] === 0x02 || der[0] === 0x03)) {
+    attempts.push(() =>
+      publicKeyFromRawP256Point(crypto.ECDH.convertKey(der, 'prime256v1', undefined, undefined, 'uncompressed')),
+    );
   }
 
   const errors = [];
@@ -115,7 +110,9 @@ const decodeKaspiPublicKey = (serverX509B64) => {
     }
   }
 
-  throw new Error(`Unsupported Kaspi ECDH public key format (${der.length} bytes, first byte 0x${der[0]?.toString(16) || '??'}): ${errors.join('; ')}`);
+  throw new Error(
+    `Unsupported Kaspi ECDH public key format (${der.length} bytes, first byte 0x${der[0]?.toString(16) || '??'}): ${errors.join('; ')}`,
+  );
 };
 
 export const completeECDH = (serverX509B64) => {
@@ -131,15 +128,15 @@ export const completeECDH = (serverX509B64) => {
 };
 
 export const completeECDHWithSaved = (serverX509B64) => {
-  if (!fs.existsSync(ECDH_FILE)) throw new Error('No saved ECDH keypair (ecdh-keypair.json missing)');
-  const saved = JSON.parse(fs.readFileSync(ECDH_FILE, 'utf8'));
+  const saved = readRuntimeJson(ECDH_FILE, 'ECDH_KEYPAIR_JSON_B64');
+  if (!saved) throw new Error('No saved ECDH keypair');
   const privateKey = crypto.createPrivateKey({
     key: Buffer.from(saved.privateKey, 'base64'),
     format: 'der',
     type: 'pkcs8',
   });
   const serverPubKey = decodeKaspiPublicKey(serverX509B64);
-  const secret = crypto.diffieHellman({privateKey, publicKey: serverPubKey});
+  const secret = crypto.diffieHellman({ privateKey, publicKey: serverPubKey });
   console.log('ECDH (saved key) shared secret derived, length:', secret.length);
   return secret;
 };

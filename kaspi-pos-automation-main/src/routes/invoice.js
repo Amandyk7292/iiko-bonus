@@ -27,7 +27,8 @@ const requireAuth = (req, res, next) => {
   }
 
   if (!session.tokenSN) return res.status(401).json({ error: 'Missing X-Token-SN header or global session.' });
-  if (!session.vtokenSecret) return res.status(401).json({ error: 'Missing X-Vtoken-Secret header or global session.' });
+  if (!session.vtokenSecret)
+    return res.status(401).json({ error: 'Missing X-Vtoken-Secret header or global session.' });
   if (!isActiveSession(session.tokenSN)) return res.status(401).json(inactiveSessionResponse());
   try {
     session.decryptedSecret = decryptSecret(session.vtokenSecret);
@@ -61,10 +62,12 @@ router.get('/client-info', async (req, res) => {
 // ─── Create invoice ───
 
 router.post('/create', async (req, res) => {
-  console.log('>>> RECEIVED POST /api/invoice/create', req.body);
   const { phoneNumber, amount, comment } = req.body;
+  const numericAmount = Number(amount);
   const normalizedPhone = normalizeKaspiPhoneNumber(phoneNumber);
-  if (!phoneNumber || !amount) return res.status(400).json({ error: 'phoneNumber and amount required' });
+  if (!phoneNumber || !Number.isFinite(numericAmount) || numericAmount <= 0 || numericAmount > 10000000) {
+    return res.status(400).json({ error: 'Valid phoneNumber and amount are required' });
+  }
   if (!normalizedPhone) return res.status(400).json({ error: 'Invalid phoneNumber format' });
 
   try {
@@ -73,21 +76,25 @@ router.post('/create', async (req, res) => {
     const resp = await loggedFetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ PhoneNumber: normalizedPhone, Amount: Number(amount), Comment: comment || '' }),
+      body: JSON.stringify({
+        PhoneNumber: normalizedPhone,
+        Amount: numericAmount,
+        Comment: String(comment || '').slice(0, 500),
+      }),
     });
     const kaspiResponse = await resp.json();
     if (isKaspiSessionExpired(kaspiResponse)) {
       return res.status(401).json(inactiveSessionResponse(getKaspiErrorMessage(kaspiResponse)));
     }
     const d = kaspiResponse.Data;
-    const opId = d ? (d.Id || d.QrOperationId) : null;
+    const opId = d ? d.Id || d.QrOperationId : null;
     if (d && opId && (d.Status === 'RemotePaymentCreated' || d.Status === 'null' || !d.Status)) {
       trackPayment(
         opId,
         'invoice',
         {
           tokenSN: req.session.tokenSN,
-          vtokenSecret: req.headers['x-vtoken-secret'],
+          vtokenSecret: req.session.vtokenSecret,
           profileId: req.session.profileId,
         },
         {

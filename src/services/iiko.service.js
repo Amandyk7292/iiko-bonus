@@ -1,4 +1,26 @@
 const fetch = require('node-fetch');
+const crypto = require('crypto');
+
+const configurationError = (message) => {
+  const error = new Error(message);
+  error.code = 'IIKO_ORDER_CONFIGURATION';
+  return error;
+};
+
+const deterministicUuid = (value) => {
+  const bytes = crypto.createHash('sha256').update(String(value)).digest().subarray(0, 16);
+  bytes[6] = (bytes[6] & 0x0f) | 0x50;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = bytes.toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+};
+
+const iikoLocalDateTime = (value) => {
+  if (!value) return null;
+  const normalized = String(value).trim().replace('T', ' ').replace(/Z$/, '');
+  const match = normalized.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2})(?::\d{2})?/);
+  return match ? `${match[1]}:00.000` : null;
+};
 
 class IikoAPI {
   constructor() {
@@ -19,16 +41,6 @@ class IikoAPI {
     this._stopListPromise = null;
     // Счётчик запросов для мониторинга
     this._apiCallCount = 0;
-  }
-
-  /**
-   * Сбрасывает кэш меню — изменения админа сразу видны клиентам.
-   * НЕ делает новый запрос к iiko, просто помечает кэш как устаревший.
-   * При следующем запросе клиента сервер загрузит свежие данные.
-   */
-  invalidateMenuCache() {
-    this.cachedMenuExpiresAt = 0;
-    console.log('[iiko] Кэш меню сброшен (админ внёс изменения)');
   }
 
   async getToken() {
@@ -269,19 +281,19 @@ class IikoAPI {
       if (!name || typeof name !== 'string') return '';
       return name
         .replace(/\+{2,}/g, '') // Убираем ++, +++
-        .replace(/\+$/g, '')    // Убираем один + в конце строки
+        .replace(/\+$/g, '') // Убираем один + в конце строки
         .replace(/\s{2,}/g, ' ') // Убираем двойные пробелы
         .trim();
     };
 
     if (menuData && menuData.products) {
-      menuData.products = menuData.products.map(p => ({
+      menuData.products = menuData.products.map((p) => ({
         ...p,
         name: cleanIikoName(p.name),
       }));
     }
     if (menuData && menuData.groups) {
-      menuData.groups = menuData.groups.map(g => ({
+      menuData.groups = menuData.groups.map((g) => ({
         ...g,
         name: cleanIikoName(g.name),
       }));
@@ -357,6 +369,98 @@ class IikoAPI {
       console.error('Ошибка получения стоп-листа из iiko:', err.message);
       return this._cachedStopIds || new Set();
     }
+  }
+
+  async createDeliveryOrder(order) {
+    if (process.env.IIKO_ORDER_EXPORT_ENABLED !== 'true') {
+      throw configurationError('Автоматическая отправка заказов в iiko отключена');
+    }
+    const paymentTypeId = String(process.env.IIKO_PAYMENT_TYPE_ID || '').trim();
+    let terminalGroupId = String(process.env.IIKO_TERMINAL_GROUP_ID || '').trim();
+    try {
+      const terminalGroups = JSON.parse(process.env.IIKO_TERMINAL_GROUPS_JSON || '{}');
+      if (Object.keys(terminalGroups).length > 0 && !terminalGroups[order.branch_name]) {
+        throw configurationError(`Для филиала «${order.branch_name}» не задан terminalGroupId`);
+      }
+      terminalGroupId = terminalGroups[order.branch_name] || terminalGroupId;
+    } catch {
+      throw configurationError('IIKO_TERMINAL_GROUPS_JSON содержит некорректный JSON');
+    }
+    if (!terminalGroupId || !paymentTypeId) {
+      throw configurationError(
+        'Для отправки заказа нужны IIKO_TERMINAL_GROUP_ID и IIKO_PAYMENT_TYPE_ID',
+      );
+    }
+    if (!Array.isArray(order.cart_items) || order.cart_items.some((item) => !item.iikoProductId)) {
+      throw configurationError('Заказ содержит ручной товар без iiko productId');
+    }
+
+    const token = await this.getToken();
+    const organizationId = await this.getOrganizationId();
+    const completeBefore = iikoLocalDateTime(order.pickup_time);
+    const phone = `+${String(order.phone || '').replace(/\D/g, '')}`;
+    const payload = {
+      organizationId,
+      terminalGroupId,
+      createOrderSettings: { transportToFrontTimeout: 15, checkStopList: true },
+      order: {
+        id: deterministicUuid(`bulka:${order.operation_id}`),
+        externalNumber: `Bulka-${order.operation_id}`.slice(0, 50),
+        phone,
+        orderServiceType: 'DeliveryByClient',
+        completeBefore,
+        comment: [order.comment, order.branch_name ? `Филиал: ${order.branch_name}` : '']
+          .filter(Boolean)
+          .join('\n')
+          .slice(0, 500),
+        customer: { type: 'regular', name: 'Гость' },
+        sourceKey: 'bulka-bonus-web',
+        items: order.cart_items.map((item) => ({
+          type: 'Product',
+          productId: item.iikoProductId,
+          productSizeId: item.productSizeId || null,
+          amount: Number(item.quantity),
+          price: Number(item.price),
+        })),
+        payments: [
+          {
+            paymentTypeKind: 'External',
+            sum: Number(order.amount),
+            paymentTypeId,
+            isProcessedExternally: true,
+            isFiscalizedExternally: false,
+          },
+        ],
+      },
+    };
+
+    if (!completeBefore) delete payload.order.completeBefore;
+    for (const item of payload.order.items) {
+      if (!item.productSizeId) delete item.productSizeId;
+    }
+
+    const response = await fetch(`${this.baseUrl}/api/1/deliveries/create`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        Timeout: '20',
+      },
+      body: JSON.stringify(payload),
+    });
+    const responseText = await response.text();
+    let result;
+    try {
+      result = JSON.parse(responseText);
+    } catch {
+      result = { message: responseText };
+    }
+    if (!response.ok || result?.errorInfo) {
+      throw new Error(
+        `iiko не принял заказ: ${result?.errorInfo?.message || result?.message || response.status}`,
+      );
+    }
+    return result;
   }
 
   // Принудительный сброс кэша (для админа)

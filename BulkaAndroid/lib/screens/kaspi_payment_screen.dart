@@ -1,135 +1,179 @@
-import 'dart:async';
-import 'package:flutter/material.dart';
-import '../main.dart'; // import BulkaApiClient or dependencies
+part of '../main.dart';
 
 class KaspiPaymentScreen extends StatefulWidget {
-  final String operationId;
-
   const KaspiPaymentScreen({
-    Key? key,
+    required this.api,
     required this.operationId,
-  }) : super(key: key);
+    this.qrToken,
+    super.key,
+  });
+
+  final BulkaApiClient api;
+  final String operationId;
+  final String? qrToken;
 
   @override
   State<KaspiPaymentScreen> createState() => _KaspiPaymentScreenState();
 }
 
 class _KaspiPaymentScreenState extends State<KaspiPaymentScreen> {
-  Timer? _pollingTimer;
-  bool _isPaid = false;
-  bool _isError = false;
-  String _errorMessage = '';
+  Timer? _timer;
+  final DateTime _deadline = DateTime.now().add(const Duration(minutes: 10));
+  String _paymentStatus = 'pending';
+  String? _error;
+  bool _checking = false;
 
   @override
   void initState() {
     super.initState();
-    _startPolling();
+    unawaited(_checkStatus());
+    _timer = Timer.periodic(
+      const Duration(seconds: 3),
+      (_) => unawaited(_checkStatus()),
+    );
   }
 
-  void _startPolling() {
-    // Poll every 3 seconds for payment status
-    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
-      try {
-        final result = await api.checkKaspiPaymentStatus(widget.operationId);
-        
-        if (result['status'] == 'paid') {
-          timer.cancel();
-          setState(() {
-            _isPaid = true;
-          });
-          // Optionally auto-navigate back or to success screen:
-          // Future.delayed(Duration(seconds: 2), () => Navigator.pop(context, true));
-        } else if (result['status'] == 'failed' || result['status'] == 'expired') {
-          timer.cancel();
-          setState(() {
-            _isError = true;
-            _errorMessage = 'Счет отменен или истек по времени.';
-          });
-        }
-      } catch (e) {
-        // Ignore network errors during polling, keep trying
+  Future<void> _checkStatus() async {
+    if (_checking || !mounted) return;
+    if (DateTime.now().isAfter(_deadline)) {
+      _timer?.cancel();
+      setState(() => _error = 'payment_timeout'.tr);
+      return;
+    }
+    _checking = true;
+    try {
+      final result = await widget.api.checkKaspiPaymentStatus(
+        widget.operationId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _paymentStatus =
+            (result['paymentStatus'] ?? result['status'] ?? 'pending')
+                .toString();
+        _error = null;
+      });
+      if (['paid', 'failed', 'expired'].contains(_paymentStatus)) {
+        _timer?.cancel();
       }
-    });
+    } catch (_) {
+      // Temporary network failures are retried until the deadline.
+    } finally {
+      _checking = false;
+    }
+  }
+
+  Future<void> _openKaspi() async {
+    final value = widget.qrToken;
+    if (value == null || value.isEmpty) return;
+    final uri = Uri.tryParse(value);
+    if (uri == null ||
+        !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      if (mounted) {
+        setState(() => _error = 'payment_open_failed'.tr);
+      }
+    }
   }
 
   @override
   void dispose() {
-    _pollingTimer?.cancel();
+    _timer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isPaid) {
-      return Scaffold(
-        backgroundColor: Colors.white,
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: const [
-              Icon(Icons.check_circle, color: Colors.green, size: 100),
-              SizedBox(height: 24),
-              Text(
-                'Успешно оплачено!',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 12),
-              Text('Ваш заказ передан на кухню.'),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (_isError) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Ошибка оплаты')),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error, color: Colors.red, size: 80),
-              const SizedBox(height: 24),
-              Text(
-                _errorMessage,
-                style: const TextStyle(fontSize: 18),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Вернуться назад'),
-              )
-            ],
-          ),
-        ),
-      );
-    }
+    final paid = _paymentStatus == 'paid';
+    final terminalFailure =
+        _paymentStatus == 'failed' || _paymentStatus == 'expired';
+    final title = paid
+        ? 'payment_received'.tr
+        : terminalFailure
+        ? 'payment_failed'.tr
+        : 'payment_confirm'.tr;
+    final message = paid
+        ? 'payment_saved'.tr
+        : terminalFailure
+        ? 'payment_not_charged'.tr
+        : 'payment_open_kaspi_hint'.tr;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Оплата через Kaspi'),
-      ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: const [
-              CircularProgressIndicator(color: Colors.red),
-              SizedBox(height: 32),
-              Text(
-                'Счет на оплату отправлен!',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-              ),
-              SizedBox(height: 16),
-              Text(
-                'Пожалуйста, откройте приложение Kaspi.kz на вашем телефоне и подтвердите платеж.',
-                style: TextStyle(fontSize: 16, color: Colors.grey),
-                textAlign: TextAlign.center,
-              ),
-            ],
+      backgroundColor: context.bulkaColors.surfaceCream,
+      appBar: AppBar(title: Text('payment_title'.tr)),
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  paid
+                      ? Icons.check_circle_rounded
+                      : terminalFailure
+                      ? Icons.error_outline_rounded
+                      : Icons.account_balance_wallet_outlined,
+                  color: paid
+                      ? _successGreen
+                      : terminalFailure
+                      ? _errorRed
+                      : _bulkaYellow,
+                  size: 88,
+                ),
+                const SizedBox(height: 24),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 25,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 16,
+                    height: 1.4,
+                    color: _textDark.withValues(alpha: 0.72),
+                  ),
+                ),
+                if (!paid && !terminalFailure) ...[
+                  const SizedBox(height: 28),
+                  const CircularProgressIndicator(color: _bulkaYellow),
+                  if (widget.qrToken?.isNotEmpty == true) ...[
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: GradientButton(
+                        onPressed: _openKaspi,
+                        child: Text('payment_open_kaspi'.tr),
+                      ),
+                    ),
+                  ],
+                ],
+                if (_error != null) ...[
+                  const SizedBox(height: 18),
+                  Text(
+                    _error!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: _errorRed),
+                  ),
+                ],
+                if (paid || terminalFailure) ...[
+                  const SizedBox(height: 28),
+                  SizedBox(
+                    width: double.infinity,
+                    child: GradientButton(
+                      onPressed: () => Navigator.pop(context, paid),
+                      child: Text(
+                        paid ? 'payment_done'.tr : 'payment_back_cart'.tr,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
       ),

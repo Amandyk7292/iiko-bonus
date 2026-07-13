@@ -51,21 +51,55 @@ TIERS = {
         },
     ],
 }
+ORDERS = {
+    "success": True,
+    "total": 1,
+    "page": 1,
+    "pageSize": 50,
+    "orders": [
+        {
+            "id": "11111111-1111-4111-8111-111111111111",
+            "number": 530383,
+            "paymentStatus": "paid",
+            "orderStatus": "new",
+            "amount": 2500,
+            "subtotal": 2500,
+            "discount": 0,
+            "branch": "Тауке Хана",
+            "items": [{"name": "Вишнёво-яблочный пирог", "quantity": 1}],
+            "earnedBonus": 125,
+            "createdAt": "2026-07-13T08:44:00Z",
+            "updatedAt": "2026-07-13T08:44:00Z",
+            "customer": {"name": "Алия", "phone": "77000000000"},
+        }
+    ],
+}
 
 
 def fulfill_json(route, payload, status=200):
     route.fulfill(status=status, content_type="application/json", body=json.dumps(payload))
 
 
+logged_in = {"value": False}
+
+
 def route_api(route):
     request = route.request
     path = urlparse(request.url).path
     if path.endswith("/admin/api/login") and request.method == "POST":
-        fulfill_json(route, {"token": "test-admin-token"})
+        logged_in["value"] = True
+        fulfill_json(route, {"user": {"username": "admin", "role": "admin"}})
+    elif path.endswith("/admin/api/session"):
+        if logged_in["value"]:
+            fulfill_json(route, {"user": {"username": "admin", "role": "admin"}})
+        else:
+            fulfill_json(route, {"error": "Unauthorized"}, status=401)
     elif path.endswith("/admin/api/stats"):
         fulfill_json(route, STATS)
     elif path.endswith("/admin/api/loyalty-tiers"):
         fulfill_json(route, TIERS)
+    elif path.endswith("/admin/api/orders"):
+        fulfill_json(route, ORDERS)
     else:
         fulfill_json(route, {"success": True, "data": []})
 
@@ -84,11 +118,17 @@ with sync_playwright() as playwright:
 
     page.goto(BASE_URL)
     page.wait_for_load_state("networkidle")
+    page.get_by_role("textbox", name="Имя пользователя").fill("admin")
     page.get_by_role("textbox", name="Пароль").fill("test-password")
     page.get_by_role("button", name="Войти в систему").click()
     page.get_by_role("heading", name="Аналитика").wait_for()
     page.get_by_text("Всего клиентов", exact=True).wait_for()
-    assert page.get_by_label("Язык интерфейса").count() == 0
+    assert page.get_by_label("Язык интерфейса").count() == 1
+
+    page.get_by_role("link", name="Заказы").click()
+    page.get_by_role("heading", name="Заказы").wait_for()
+    page.get_by_text("№530383", exact=True).wait_for()
+    assert page.get_by_text("Тауке Хана", exact=True).is_visible()
 
     page.get_by_role("link", name="Уровни кэшбэка").click()
     page.get_by_role("heading", name="Уровни кэшбэка").wait_for()
@@ -105,7 +145,8 @@ with sync_playwright() as playwright:
     assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
     page.screenshot(path=str(ROOT / "scratch" / "admin-ui-e2e.png"), full_page=True)
 
-    assert not console_errors, f"Browser console errors: {console_errors}"
+    unexpected_errors = [error for error in console_errors if "401" not in error]
+    assert not unexpected_errors, f"Browser console errors: {unexpected_errors}"
     print("Admin UI E2E passed")
     context.close()
     browser.close()

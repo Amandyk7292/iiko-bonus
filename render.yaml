@@ -1,20 +1,66 @@
 services:
   - type: web
-    name: kaspi-pos-automation
-    env: node
-    rootDir: kaspi-pos-automation-main
-    buildCommand: npm install
+    name: iiko-bonus
+    runtime: node
+    buildCommand: npm ci && npm ci --prefix admin-ui && npm ci --prefix kaspi-pos-automation-main && npm run build:admin
     startCommand: npm start
+    healthCheckPath: /healthz
     envVars:
       - key: NODE_VERSION
-        value: 20.6.0
-      - key: PORT
-        value: 10000
-      - key: TOKEN_SECRET_KEY
+        value: 22.14.0
+      - key: NODE_ENV
+        value: production
+      - key: PUBLIC_BASE_URL
+        value: https://iiko-bonus.onrender.com
+      - key: ALLOWED_ORIGINS
+        value: https://iiko-bonus.onrender.com
+      - key: KASPI_POS_ENABLED
+        value: "true"
+      - key: RUN_BACKGROUND_WORKERS
+        value: "true"
+      - key: RUN_BOTS
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: API_SECRET
         generateValue: true
+      - key: BULKA_SECRET
+        generateValue: true
+      - key: CUSTOMER_JWT_SECRET
+        generateValue: true
+      - key: ADMIN_USERS_JSON
+        sync: false
+      - key: ADMIN_REQUIRE_MFA
+        value: "true"
+      - key: IIKO_API_LOGIN
+        sync: false
+      - key: IIKO_APP_ID
+        sync: false
+      - key: IIKO_CLIENT_SECRET
+        sync: false
+      - key: IIKO_ORGANIZATION_ID
+        sync: false
+      - key: IIKO_TERMINAL_GROUP_ID
+        sync: false
+      - key: IIKO_TERMINAL_GROUPS_JSON
+        sync: false
+      - key: IIKO_PAYMENT_TYPE_ID
+        sync: false
+      - key: KASPI_INTERNAL_SECRET
+        generateValue: true
+      - key: KASPI_WEBHOOK_SECRET
+        generateValue: true
+      - key: IIKO_ORDER_EXPORT_ENABLED
+        value: "false"
+      - key: TOKEN_SECRET_KEY
+        sync: false
       - key: KEYPAIR_JSON_B64
         sync: false
       - key: DEVICE_JSON_B64
         sync: false
       - key: ECDH_KEYPAIR_JSON_B64
+        sync: false
+      - key: SESSION_JSON_B64
         sync: false

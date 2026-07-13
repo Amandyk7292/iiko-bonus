@@ -1,61 +1,132 @@
 const crypto = require('crypto');
-const fetch = require('node-fetch');
 const kaspiService = require('../services/kaspi.service');
-const iikoService = require('../services/iiko.service');
-
-const KASPI_URL = process.env.KASPI_MICROSERVICE_URL || `http://127.0.0.1:${process.env.PORT || 3000}/kaspi-pos`;
+const { priceOrder } = require('../services/order.service');
+const { getCitiesWithPoints } = require('../services/location.service');
+const checkoutRequests = new Map();
 
 const createPayment = async (req, res) => {
   try {
-    const { phone, amount, items } = req.body;
-    const customerId = req.customerAuth ? req.customerAuth.id : null;
-
-    if (!phone || !amount) {
-      return res.status(400).json({ error: 'phone и amount обязательны' });
+    const { items, branch, pickupTime, additionalPhone, comment, promoCode, checkoutId } = req.body;
+    const { id: customerId, phone } = req.customerAuth;
+    const normalizedBranch = String(branch || '')
+      .trim()
+      .slice(0, 160);
+    const normalizedPickupTime = String(pickupTime || '')
+      .trim()
+      .slice(0, 40);
+    const pickupDate = new Date(normalizedPickupTime);
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        checkoutId || '',
+      )
+    ) {
+      return res.status(400).json({ error: 'Некорректный идентификатор оформления' });
     }
-
-    const result = await kaspiService.createInvoice(phone, amount, customerId, items);
+    if (!normalizedBranch || !normalizedPickupTime || Number.isNaN(pickupDate.getTime())) {
+      return res.status(400).json({ error: 'Выберите филиал и время самовывоза' });
+    }
+    const cities = await getCitiesWithPoints();
+    const validBranch = cities.some((city) =>
+      (city.points || []).some(
+        (point) => [point.name, point.address].filter(Boolean).join(', ') === normalizedBranch,
+      ),
+    );
+    if (!validBranch) {
+      return res.status(400).json({ error: 'Выбранный филиал больше недоступен' });
+    }
+    if (
+      pickupDate.getTime() < Date.now() - 5 * 60 * 1000 ||
+      pickupDate.getTime() > Date.now() + 60 * 24 * 60 * 60 * 1000
+    ) {
+      return res.status(400).json({ error: 'Выберите доступное время самовывоза' });
+    }
+    const requestKey = `${customerId}:${checkoutId}`;
+    let request = checkoutRequests.get(requestKey);
+    if (!request) {
+      request = (async () => {
+        const pricing = await priceOrder(items, promoCode);
+        return kaspiService.createInvoice(phone, pricing, customerId, {
+          branch: normalizedBranch,
+          pickupTime: normalizedPickupTime,
+          additionalPhone:
+            String(additionalPhone || '')
+              .trim()
+              .slice(0, 32) || null,
+          comment:
+            String(comment || '')
+              .trim()
+              .slice(0, 500) || null,
+          requestId: checkoutId,
+        });
+      })();
+      checkoutRequests.set(requestKey, request);
+    }
+    let result;
+    try {
+      result = await request;
+    } finally {
+      if (checkoutRequests.get(requestKey) === request) checkoutRequests.delete(requestKey);
+    }
     res.json(result);
   } catch (error) {
     console.error('Ошибка createPayment:', error);
-    res.status(500).json({ error: error.message });
+    res.status(error.statusCode || 500).json({ error: error.message });
+  }
+};
+
+const quotePayment = async (req, res) => {
+  try {
+    const pricing = await priceOrder(req.body?.items, req.body?.promoCode);
+    res.json({
+      success: true,
+      subtotal: pricing.subtotal,
+      discount: pricing.discount,
+      total: pricing.total,
+      promoCode: pricing.promoCode,
+    });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ error: error.message });
   }
 };
 
 const checkStatus = async (req, res) => {
   try {
     const { operationId } = req.params;
-    if (!operationId) {
-      return res.status(400).json({ error: 'operationId обязателен' });
+    if (!/^[A-Za-z0-9-]{1,100}$/.test(String(operationId || ''))) {
+      return res.status(400).json({ error: 'Некорректный operationId' });
     }
 
     // 1. Сначала проверяем в нашей БД — может, уже обновлен
-    const order = await kaspiService.getOrderStatus(operationId);
+    const customerId = req.customerAuth.id;
+    let order = await kaspiService.getOrderStatus(operationId, customerId);
+    if (order.status === 'paid') {
+      try {
+        order = await kaspiService.recordPaidOrder(operationId);
+      } catch (recordError) {
+        console.error('Ошибка сохранения оплаченного заказа:', recordError.message);
+        order = await kaspiService.getOrderStatus(operationId, customerId);
+      }
+    }
     if (order.status === 'paid' || order.status === 'failed' || order.status === 'expired') {
-      return res.json({ success: true, status: order.status });
+      return res.json({
+        success: true,
+        status: order.status,
+        paymentStatus: order.status,
+        fulfillmentStatus: order.fulfillment_status || 'pending',
+      });
     }
 
     // 2. Если в БД pending — напрямую спрашиваем Kaspi API через микросервис
     try {
-      const response = await fetch(`${KASPI_URL}/api/payment/check/${operationId}`);
-      if (response.ok) {
-        const result = await response.json();
-        console.log(`[checkStatus] Kaspi direct check for ${operationId}:`, JSON.stringify(result));
-
-        if (result.success && result.kaspiStatus) {
-          const s = result.kaspiStatus;
-          if (s === 'Processed') {
-            await kaspiService.updateOrderStatus(operationId, 'paid');
-            return res.json({ success: true, status: 'paid' });
-          } else if (['RemotePaymentCanceled', 'RemotePaymentRejected', 'CancelledByUser', 'ProcessingFailed', 'Rejected', 'Error'].includes(s)) {
-            await kaspiService.updateOrderStatus(operationId, 'failed');
-            return res.json({ success: true, status: 'failed' });
-          } else if (['Expired', 'QrTokenDiscarded'].includes(s)) {
-            await kaspiService.updateOrderStatus(operationId, 'expired');
-            return res.json({ success: true, status: 'expired' });
-          }
-          // Intermediate status (e.g. RemotePaymentCreated) — still pending
-        }
+      const syncedStatus = await kaspiService.syncRemoteOrder(operationId);
+      if (syncedStatus && syncedStatus !== 'pending') {
+        order = await kaspiService.getOrderStatus(operationId, customerId);
+        return res.json({
+          success: true,
+          status: order.status,
+          paymentStatus: order.status,
+          fulfillmentStatus: order.fulfillment_status || 'pending',
+        });
       }
     } catch (kaspiErr) {
       console.error('Ошибка прямого запроса статуса у Kaspi:', kaspiErr.message);
@@ -65,51 +136,64 @@ const checkStatus = async (req, res) => {
     res.json({
       success: true,
       status: order.status || 'pending',
+      paymentStatus: order.status || 'pending',
+      fulfillmentStatus: order.fulfillment_status || 'pending',
     });
   } catch (error) {
     console.error('Ошибка checkStatus:', error);
-    res.status(500).json({ error: error.message });
+    res.status(error.statusCode || 500).json({ error: error.message });
   }
 };
 
 const handleWebhook = async (req, res) => {
   try {
     // 1. Проверка подписи HMAC SHA-256
-    const signature = req.headers['x-hub-signature-256'];
+    const signature = req.headers['x-webhook-signature'] || req.headers['x-hub-signature-256'];
     const secret = process.env.KASPI_WEBHOOK_SECRET;
 
     if (!signature || !secret) {
       return res.status(401).json({ error: 'Unauthorized: missing signature or secret' });
     }
 
-    const rawBody = JSON.stringify(req.body); // В реальном проекте лучше использовать raw-body буфер, если middleware body-parser его поддерживает, но для простого JSON сойдет
-    const expectedSignature = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
+    if (secret.length < 32 || !Buffer.isBuffer(req.rawBody)) {
+      return res.status(503).json({ error: 'Webhook is not configured' });
+    }
+    const actualSignature = String(signature).replace(/^sha256=/i, '');
+    const expectedSignature = crypto.createHmac('sha256', secret).update(req.rawBody).digest('hex');
+    const actualBuffer = Buffer.from(actualSignature);
+    const expectedBuffer = Buffer.from(expectedSignature);
 
-    if (signature !== expectedSignature) {
-      // Игнорируем несовпадение для безопасности (чтобы не падать при ложных запросах)
-      console.warn('Kaspi Webhook: неверная подпись', { signature, expectedSignature });
+    if (
+      actualBuffer.length !== expectedBuffer.length ||
+      !crypto.timingSafeEqual(actualBuffer, expectedBuffer)
+    ) {
+      console.warn('Kaspi Webhook: неверная подпись');
       return res.status(403).json({ error: 'Invalid signature' });
     }
 
     // 2. Обработка payload
-    const { event, operationId, data } = req.body;
+    const { event } = req.body;
+    const operationId = String(req.body?.operationId || req.body?.paymentId || '');
+    if (
+      !/^[A-Za-z0-9-]{1,100}$/.test(operationId) ||
+      !['payment.success', 'payment.failed', 'payment.expired'].includes(event)
+    ) {
+      return res.status(400).json({ error: 'Invalid webhook payload' });
+    }
     console.log(`Kaspi Webhook получен: event=${event}, operationId=${operationId}`);
 
     if (event === 'payment.success') {
-      const order = await kaspiService.updateOrderStatus(operationId, 'paid');
-      
-      // Здесь мы можем отправить заказ в iiko!
-      if (order && order.cart_items && order.cart_items.length > 0) {
-        try {
-          // Пример интеграции, если у вас есть соответствующий метод в iikoService
-          // await iikoService.createOrder(order.customer_id, order.cart_items, order.amount);
-          console.log(`Заказ ${operationId} успешно оплачен. Требуется отправка в iiko.`);
-        } catch (iikoErr) {
-          console.error('Ошибка отправки заказа в iiko:', iikoErr);
-        }
+      await kaspiService.updateOrderStatus(operationId, 'paid');
+      try {
+        await kaspiService.recordPaidOrder(operationId);
+      } catch (recordError) {
+        console.error('Ошибка сохранения оплаченного заказа:', recordError.message);
       }
     } else if (event === 'payment.failed' || event === 'payment.expired') {
-      await kaspiService.updateOrderStatus(operationId, event === 'payment.failed' ? 'failed' : 'expired');
+      await kaspiService.updateOrderStatus(
+        operationId,
+        event === 'payment.failed' ? 'failed' : 'expired',
+      );
     }
 
     res.json({ success: true });
@@ -121,6 +205,7 @@ const handleWebhook = async (req, res) => {
 
 module.exports = {
   createPayment,
+  quotePayment,
   checkStatus,
   handleWebhook,
 };

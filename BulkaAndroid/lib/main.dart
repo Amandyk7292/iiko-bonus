@@ -34,6 +34,8 @@ part 'screens/address_selection_screen.dart';
 part 'screens/home_screen.dart';
 part 'screens/login_screen.dart';
 part 'screens/orders_screen.dart';
+part 'screens/customer_orders_screen.dart';
+part 'screens/kaspi_payment_screen.dart';
 part 'screens/notifications_screen.dart';
 part 'screens/profile_screen.dart';
 part 'screens/personal_data_screen.dart';

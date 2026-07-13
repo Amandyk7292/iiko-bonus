@@ -5,6 +5,7 @@ const { Client } = require('pg');
 require('dotenv').config();
 
 const schemaPath = path.resolve(__dirname, '..', 'supabase_schema.sql');
+const migrationsDirectory = path.resolve(__dirname, '..', 'migrations');
 const shouldApply = process.argv.includes('--apply');
 const connectionString =
   process.env.SUPABASE_DB_URL || process.env.DATABASE_URL || process.env.POSTGRES_URL || '';
@@ -20,14 +21,25 @@ async function main() {
     return;
   }
 
-  const sql = fs.readFileSync(schemaPath, 'utf8').replace(/^\uFEFF/, '').trim();
+  const migrationPaths = fs.existsSync(migrationsDirectory)
+    ? fs
+        .readdirSync(migrationsDirectory)
+        .filter((file) => file.endsWith('.sql'))
+        .sort()
+        .map((file) => path.join(migrationsDirectory, file))
+    : [];
+  const paths = [schemaPath, ...migrationPaths];
+  const sql = paths
+    .map((file) => `-- FILE: ${path.basename(file)}\n${fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '').trim()}`)
+    .join('\n\n');
   if (!sql) {
     fail('supabase_schema.sql is empty.');
     return;
   }
 
   if (!shouldApply) {
-    console.log(`Migration plan is ready: ${path.relative(process.cwd(), schemaPath)} (${sql.length} bytes).`);
+    console.log(`Migration plan is ready: ${paths.length} SQL files (${sql.length} bytes).`);
+    for (const file of paths) console.log(` - ${path.relative(process.cwd(), file)}`);
     console.log('No database changes were made. Run `npm run db:migrate` to apply it.');
     if (!connectionString) {
       console.log('Before applying, set SUPABASE_DB_URL (or DATABASE_URL/POSTGRES_URL) to a Supabase PostgreSQL connection string.');

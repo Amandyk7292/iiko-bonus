@@ -21,14 +21,14 @@ const _softShadow = [
 ];
 
 abstract final class BulkaLayout {
-  static const floatingNavBarHeight = 98.0;
+  static const floatingNavBarHeight = 88.0;
   static const floatingNavBarHorizontalPadding = 10.0;
-  static const floatingNavBarTopPadding = 8.0;
-  static const floatingNavBarBottomPadding = 10.0;
-  static const navItemHeight = 80.0;
-  static const centerNavIconSize = 54.0;
-  static const navIconSize = 33.0;
-  static const navContentGap = 16.0;
+  static const floatingNavBarTopPadding = 6.0;
+  static const floatingNavBarBottomPadding = 8.0;
+  static const navItemHeight = 74.0;
+  static const centerNavIconSize = 50.0;
+  static const navIconSize = 31.0;
+  static const navContentGap = 10.0;
 
   static double safeBottomInset(BuildContext context) {
     // Safari already removes its browser toolbar from the visual viewport.

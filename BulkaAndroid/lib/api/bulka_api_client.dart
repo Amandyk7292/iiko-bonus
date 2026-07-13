@@ -171,7 +171,9 @@ class BulkaApiClient {
       'fcmToken': fcmToken,
       'language': AppLang.current,
     });
-    if (json['success'] != true) throw ApiException(_messageFrom(json, 'error_network'.tr));
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'error_network'.tr));
+    }
   }
 
   Future<void> clearFcmToken() async {
@@ -227,12 +229,16 @@ class BulkaApiClient {
 
   Future<void> markNotificationRead(String id) async {
     final json = await _post('/api/customer/notifications/$id/read', {});
-    if (json['success'] != true) throw ApiException(_messageFrom(json, 'error_network'.tr));
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'error_network'.tr));
+    }
   }
 
   Future<void> markAllNotificationsRead() async {
     final json = await _post('/api/customer/notifications/read-all', {});
-    if (json['success'] != true) throw ApiException(_messageFrom(json, 'error_network'.tr));
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'error_network'.tr));
+    }
   }
 
   Future<Map<String, List<String>>> getLocations() async {
@@ -253,14 +259,22 @@ class BulkaApiClient {
   }
 
   Future<Map<String, dynamic>> createKaspiPayment({
-    required String phone,
-    required double amount,
     required List<Map<String, dynamic>> cartItems,
+    required String branch,
+    required String pickupTime,
+    required String checkoutId,
+    String? additionalPhone,
+    String? promoCode,
+    String? comment,
   }) async {
     final json = await _post('/api/customer/kaspi-pay/create', {
-      'phone': phone,
-      'amount': amount,
       'items': cartItems,
+      'branch': branch,
+      'pickupTime': pickupTime,
+      'checkoutId': checkoutId,
+      'additionalPhone': additionalPhone,
+      'promoCode': promoCode,
+      'comment': comment,
     });
     if (json['success'] != true) {
       throw ApiException(_messageFrom(json, 'error_kaspi_payment'.tr));
@@ -268,12 +282,42 @@ class BulkaApiClient {
     return json;
   }
 
-  Future<Map<String, dynamic>> checkKaspiPaymentStatus(String operationId) async {
+  Future<Map<String, dynamic>> quoteKaspiOrder({
+    required List<Map<String, dynamic>> cartItems,
+    String? promoCode,
+  }) async {
+    final json = await _post('/api/customer/kaspi-pay/quote', {
+      'items': cartItems,
+      'promoCode': promoCode,
+    });
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'error_kaspi_payment'.tr));
+    }
+    return json;
+  }
+
+  Future<Map<String, dynamic>> checkKaspiPaymentStatus(
+    String operationId,
+  ) async {
     final json = await _get('/api/customer/kaspi-pay/status/$operationId');
     if (json['success'] != true) {
       throw ApiException(_messageFrom(json, 'error_kaspi_status'.tr));
     }
     return json;
+  }
+
+  Future<List<CustomerOrder>> getCustomerOrders({
+    bool completed = false,
+  }) async {
+    final scope = completed ? 'completed' : 'active';
+    final json = await _get('/api/customer/orders?scope=$scope&pageSize=50');
+    final orders = json['orders'];
+    if (json['success'] != true || orders is! List) {
+      throw ApiException(_messageFrom(json, 'error_network'.tr));
+    }
+    return orders
+        .map((item) => CustomerOrder.fromJson(_asMap(item)))
+        .toList();
   }
 
   Future<Map<String, dynamic>> _get(String path) async {

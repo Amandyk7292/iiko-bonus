@@ -851,20 +851,46 @@ create policy "service role manages customer notifications"
 -- --------------------------------------------------------------------
 -- Kaspi Orders
 -- --------------------------------------------------------------------
+create sequence if not exists public.kaspi_order_number_seq start with 100001;
+
 create table if not exists public.kaspi_orders (
   id uuid primary key default gen_random_uuid(),
+  order_number bigint not null default nextval('public.kaspi_order_number_seq'),
   customer_id uuid references public.customers(id) on delete set null,
   operation_id varchar(100) not null,
   amount numeric(12, 2) not null,
+  subtotal numeric(12, 2),
+  discount_amount numeric(12, 2) not null default 0,
+  promo_code varchar(64),
   phone varchar(32) not null,
   status varchar(50) default 'pending' not null,
   cart_items jsonb default '[]'::jsonb,
+  branch_name varchar(160),
+  pickup_time varchar(40),
+  additional_phone varchar(32),
+  comment varchar(500),
+  fulfillment_status varchar(40) not null default 'pending',
+  fulfilled_at timestamptz,
+  iiko_order_id varchar(100),
+  last_error varchar(1000),
+  client_request_id uuid,
+  payment_method varchar(20),
+  qr_token varchar(1000),
+  earned_bonus numeric(12, 2),
+  bonus_awarded_at timestamptz,
+  cancellation_reason varchar(500),
   created_at timestamptz default now() not null,
   updated_at timestamptz default now() not null
 );
 
 create index if not exists kaspi_orders_customer_id_idx on public.kaspi_orders(customer_id);
 create index if not exists kaspi_orders_operation_id_idx on public.kaspi_orders(operation_id);
+create unique index if not exists kaspi_orders_operation_id_unique_idx on public.kaspi_orders(operation_id);
+create unique index if not exists kaspi_orders_order_number_unique_idx on public.kaspi_orders(order_number);
+create unique index if not exists kaspi_orders_client_request_unique_idx
+  on public.kaspi_orders(customer_id, client_request_id)
+  where client_request_id is not null;
+alter sequence public.kaspi_order_number_seq owned by public.kaspi_orders.order_number;
 
 alter table public.kaspi_orders enable row level security;
 drop policy if exists "service role manages kaspi orders" on public.kaspi_orders;

@@ -14,7 +14,7 @@
     "db:migrate": "node scripts/apply-migrations.js --apply",
     "build:admin": "npm --prefix admin-ui run build",
     "build": "npm run build:admin",
-    "verify": "npm run lint && npm test && npm run build"
+    "verify": "npm run lint && npm test && npm run build && npm --prefix admin-ui run lint && npm --prefix kaspi-pos-automation-main run lint && npm --prefix kaspi-pos-automation-main test"
   },
   "dependencies": {
     "@parse/node-apn": "^8.1.0",
@@ -23,6 +23,8 @@
     "@whiskeysockets/baileys": "^7.0.0-rc13",
     "adm-zip": "^0.5.18",
     "anylang": "^3.4.1",
+    "bcryptjs": "^3.0.3",
+    "compression": "^1.8.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",

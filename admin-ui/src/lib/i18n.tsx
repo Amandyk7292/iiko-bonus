@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 export type Locale = 'ru' | 'kk' | 'en';
 
@@ -59,6 +59,8 @@ const messages: Record<Locale, Record<string, string>> = {
     'auth.title': 'Управление Bulka',
     'auth.subtitle': 'Введите пароль администратора для безопасного доступа.',
     'auth.password': 'Пароль',
+    'auth.username': 'Имя пользователя',
+    'auth.code': 'Код подтверждения (если включён)',
     'auth.signIn': 'Войти в систему',
     'auth.signingIn': 'Вход…',
     'auth.invalidPassword': 'Неверный пароль',
@@ -67,6 +69,7 @@ const messages: Record<Locale, Record<string, string>> = {
     'auth.hidePassword': 'Скрыть пароль',
     'auth.logout': 'Выйти',
     'auth.logoutFull': 'Выйти из системы',
+    'bonus.promocodes': 'Промокоды', 'bonus.promocodesHint': 'Скидка проверяется сервером при оформлении заказа.', 'bonus.addPromo': 'Добавить промокод', 'bonus.noPromos': 'Активных промокодов пока нет.', 'bonus.promoCode': 'Код', 'bonus.promoType': 'Тип', 'bonus.promoValue': 'Скидка', 'bonus.promoMin': 'Мин. заказ, ₸',
     'nav.main': 'Главное',
     'nav.customersGroup': 'Клиенты',
     'nav.content': 'Контент и профиль',
@@ -322,6 +325,14 @@ const messages: Record<Locale, Record<string, string>> = {
     'locations.latitude': 'Широта', 'locations.longitude': 'Долгота',
     'locations.allLanguagesValidation': 'Заполните обязательные поля на русском, казахском и английском.',
     'locations.saved': 'Локация сохранена',
+    'nav.orders': 'Заказы', 'page.orders.title': 'Заказы', 'page.orders.subtitle': 'Оплаченные заказы приложения без отправки в iiko',
+    'orders.found': 'Найдено: {{count}}', 'orders.searchPlaceholder': 'Номер, телефон или филиал', 'orders.all': 'Все',
+    'orders.number': 'Заказ', 'orders.customer': 'Клиент', 'orders.details': 'Состав и филиал', 'orders.payment': 'Оплата', 'orders.total': 'Сумма',
+    'orders.item': 'Товар', 'orders.empty': 'Заказов пока нет', 'orders.emptyHint': 'После оплаты Kaspi заказ появится здесь.',
+    'orders.changeStatus': 'Изменить статус', 'orders.statusSaved': 'Статус заказа обновлён', 'orders.cancelReasonPrompt': 'Причина отмены (необязательно)',
+    'payment.pending': 'Ожидает', 'payment.paid': 'Оплачен', 'payment.failed': 'Ошибка', 'payment.expired': 'Истёк',
+    'orderStatus.new': 'Новый', 'orderStatus.accepted': 'Принят', 'orderStatus.preparing': 'Готовится',
+    'orderStatus.ready': 'Готов', 'orderStatus.completed': 'Завершён', 'orderStatus.cancelled': 'Отменён',
   },
   kk: {
     'language.ru': 'Русский', 'language.kk': 'Қазақша', 'language.en': 'English', 'language.label': 'Интерфейс тілі',
@@ -335,9 +346,10 @@ const messages: Record<Locale, Record<string, string>> = {
     'common.description': 'Сипаттама', 'common.status': 'Күйі', 'common.order': 'Реті', 'common.preview': 'Алдын ала қарау',
     'common.image': 'Сурет', 'common.uploading': 'Файл жүктелуде…', 'common.uploadSuccess': 'Файл жүктелді', 'common.uploadError': 'Файлды жүктеу мүмкін болмады',
     'common.saved': 'Өзгерістер сақталды', 'common.deleted': 'Жазба жойылды', 'common.unsavedTitle': 'Сақтамай жабу керек пе?', 'common.unsavedBody': 'Енгізілген өзгерістер жоғалады.',
-    'auth.title': 'Bulka басқару жүйесі', 'auth.subtitle': 'Қауіпсіз кіру үшін әкімші құпиясөзін енгізіңіз.', 'auth.password': 'Құпиясөз',
+    'auth.title': 'Bulka басқару жүйесі', 'auth.subtitle': 'Қауіпсіз кіру үшін әкімші құпиясөзін енгізіңіз.', 'auth.password': 'Құпиясөз', 'auth.username': 'Пайдаланушы аты', 'auth.code': 'Растау коды (қосылған болса)',
     'auth.signIn': 'Жүйеге кіру', 'auth.signingIn': 'Кіру…', 'auth.invalidPassword': 'Құпиясөз қате', 'auth.noSession': 'Сервер сессия бермеді',
     'auth.showPassword': 'Құпиясөзді көрсету', 'auth.hidePassword': 'Құпиясөзді жасыру', 'auth.logout': 'Шығу', 'auth.logoutFull': 'Жүйеден шығу',
+    'bonus.promocodes': 'Промокодтар', 'bonus.promocodesHint': 'Жеңілдік тапсырыс кезінде серверде тексеріледі.', 'bonus.addPromo': 'Промокод қосу', 'bonus.noPromos': 'Промокодтар әлі жоқ.', 'bonus.promoCode': 'Код', 'bonus.promoType': 'Түрі', 'bonus.promoValue': 'Жеңілдік', 'bonus.promoMin': 'Мин. тапсырыс, ₸',
     'nav.main': 'Негізгі', 'nav.customersGroup': 'Клиенттер', 'nav.content': 'Контент және профиль', 'nav.analytics': 'Аналитика',
     'nav.transactions': 'Транзакциялар', 'nav.iiko': 'iiko Front', 'nav.broadcast': 'Хабарламалар', 'nav.customers': 'Клиенттер базасы',
     'nav.settings': 'Жалпы ақпарат', 'nav.stories': 'Акциялар мен баннерлер', 'nav.news': 'Жаңалықтар', 'nav.bonus': 'Бонус ережелері',
@@ -429,6 +441,14 @@ const messages: Record<Locale, Record<string, string>> = {
     'locations.deletePointTitle': 'Филиалды жою керек пе?', 'locations.deletePointBody': 'Филиал қайтарымсыз жойылады.',
     'locations.latitude': 'Ендік', 'locations.longitude': 'Бойлық', 'locations.allLanguagesValidation': 'Міндетті өрістерді орысша, қазақша және ағылшынша толтырыңыз.',
     'locations.saved': 'Мекенжай сақталды',
+    'nav.orders': 'Тапсырыстар', 'page.orders.title': 'Тапсырыстар', 'page.orders.subtitle': 'iiko-ға жіберілмейтін төленген тапсырыстар',
+    'orders.found': 'Табылды: {{count}}', 'orders.searchPlaceholder': 'Нөмір, телефон немесе филиал', 'orders.all': 'Барлығы',
+    'orders.number': 'Тапсырыс', 'orders.customer': 'Клиент', 'orders.details': 'Құрамы және филиал', 'orders.payment': 'Төлем', 'orders.total': 'Сома',
+    'orders.item': 'Тауар', 'orders.empty': 'Тапсырыс жоқ', 'orders.emptyHint': 'Kaspi төлемінен кейін тапсырыс осында шығады.',
+    'orders.changeStatus': 'Күйді өзгерту', 'orders.statusSaved': 'Тапсырыс күйі жаңартылды', 'orders.cancelReasonPrompt': 'Бас тарту себебі (міндетті емес)',
+    'payment.pending': 'Күтуде', 'payment.paid': 'Төленді', 'payment.failed': 'Қате', 'payment.expired': 'Мерзімі өтті',
+    'orderStatus.new': 'Жаңа', 'orderStatus.accepted': 'Қабылданды', 'orderStatus.preparing': 'Дайындалуда',
+    'orderStatus.ready': 'Дайын', 'orderStatus.completed': 'Аяқталды', 'orderStatus.cancelled': 'Бас тартылды',
   },
   en: {
     'language.ru': 'Русский', 'language.kk': 'Қазақша', 'language.en': 'English', 'language.label': 'Interface language',
@@ -442,9 +462,10 @@ const messages: Record<Locale, Record<string, string>> = {
     'common.description': 'Description', 'common.status': 'Status', 'common.order': 'Order', 'common.preview': 'Preview',
     'common.image': 'Image', 'common.uploading': 'Uploading file…', 'common.uploadSuccess': 'File uploaded', 'common.uploadError': 'Could not upload file',
     'common.saved': 'Changes saved', 'common.deleted': 'Record deleted', 'common.unsavedTitle': 'Close without saving?', 'common.unsavedBody': 'Your changes will be lost.',
-    'auth.title': 'Bulka management', 'auth.subtitle': 'Enter the administrator password for secure access.', 'auth.password': 'Password',
+    'auth.title': 'Bulka management', 'auth.subtitle': 'Enter the administrator password for secure access.', 'auth.password': 'Password', 'auth.username': 'Username', 'auth.code': 'Verification code (if enabled)',
     'auth.signIn': 'Sign in', 'auth.signingIn': 'Signing in…', 'auth.invalidPassword': 'Incorrect password', 'auth.noSession': 'The server did not issue a session',
     'auth.showPassword': 'Show password', 'auth.hidePassword': 'Hide password', 'auth.logout': 'Sign out', 'auth.logoutFull': 'Sign out',
+    'bonus.promocodes': 'Promo codes', 'bonus.promocodesHint': 'The server validates discounts during checkout.', 'bonus.addPromo': 'Add promo code', 'bonus.noPromos': 'No promo codes yet.', 'bonus.promoCode': 'Code', 'bonus.promoType': 'Type', 'bonus.promoValue': 'Discount', 'bonus.promoMin': 'Min. order, ₸',
     'nav.main': 'Main', 'nav.customersGroup': 'Customers', 'nav.content': 'Content and profile', 'nav.analytics': 'Analytics',
     'nav.transactions': 'Transactions', 'nav.iiko': 'iiko Front', 'nav.broadcast': 'Broadcasts', 'nav.customers': 'Customer database',
     'nav.settings': 'General information', 'nav.stories': 'Promotions and banners', 'nav.news': 'News', 'nav.bonus': 'Bonus rules',
@@ -536,6 +557,14 @@ const messages: Record<Locale, Record<string, string>> = {
     'locations.deletePointTitle': 'Delete branch?', 'locations.deletePointBody': 'The branch will be permanently deleted.',
     'locations.latitude': 'Latitude', 'locations.longitude': 'Longitude', 'locations.allLanguagesValidation': 'Complete the required fields in Russian, Kazakh, and English.',
     'locations.saved': 'Location saved',
+    'nav.orders': 'Orders', 'page.orders.title': 'Orders', 'page.orders.subtitle': 'Paid app orders kept separate from iiko',
+    'orders.found': 'Found: {{count}}', 'orders.searchPlaceholder': 'Number, phone, or location', 'orders.all': 'All',
+    'orders.number': 'Order', 'orders.customer': 'Customer', 'orders.details': 'Items and location', 'orders.payment': 'Payment', 'orders.total': 'Total',
+    'orders.item': 'Item', 'orders.empty': 'No orders yet', 'orders.emptyHint': 'A Kaspi-paid order will appear here.',
+    'orders.changeStatus': 'Change status', 'orders.statusSaved': 'Order status updated', 'orders.cancelReasonPrompt': 'Cancellation reason (optional)',
+    'payment.pending': 'Pending', 'payment.paid': 'Paid', 'payment.failed': 'Failed', 'payment.expired': 'Expired',
+    'orderStatus.new': 'New', 'orderStatus.accepted': 'Accepted', 'orderStatus.preparing': 'Preparing',
+    'orderStatus.ready': 'Ready', 'orderStatus.completed': 'Completed', 'orderStatus.cancelled': 'Cancelled',
   },
 };
 
@@ -557,16 +586,21 @@ interface I18nValue {
 const I18nContext = createContext<I18nValue | null>(null);
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const locale: Locale = 'ru';
+  const [locale, setLocale] = useState<Locale>(() => {
+    const saved = localStorage.getItem('adminLocale');
+    if (saved === 'ru' || saved === 'kk' || saved === 'en') return saved;
+    const language = navigator.language.toLowerCase();
+    return language.startsWith('kk') ? 'kk' : language.startsWith('en') ? 'en' : 'ru';
+  });
 
   useEffect(() => {
-    localStorage.removeItem('adminLocale');
-    document.documentElement.lang = 'ru';
-  }, []);
+    localStorage.setItem('adminLocale', locale);
+    document.documentElement.lang = locale;
+  }, [locale]);
 
   const value = useMemo<I18nValue>(() => ({
     locale,
-    setLocale: () => {},
+    setLocale,
     t: (key, vars) => interpolate(messages[locale][key] ?? messages.ru[key] ?? key, vars),
     formatNumber: (number, options) => new Intl.NumberFormat(localeTags[locale], options).format(Number(number) || 0),
     formatDate: (date, options) => {
@@ -574,7 +608,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       if (Number.isNaN(parsed.getTime())) return '—';
       return new Intl.DateTimeFormat(localeTags[locale], options ?? { dateStyle: 'medium', timeStyle: 'short' }).format(parsed);
     },
-  }), []);
+  }), [locale]);
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }

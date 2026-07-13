@@ -85,7 +85,9 @@ class _LoginScreenState extends State<LoginScreen> {
     // Bypass popup blockers on Web by opening the URL synchronously
     // before the async API request. The backend uses the same token.
     if (kIsWeb) {
-      final waUri = Uri.parse('https://wa.me/77008317499?text=%D0%BA%D0%BE%D0%B4%20$token');
+      final waUri = Uri.parse(
+        'https://wa.me/77008317499?text=%D0%BA%D0%BE%D0%B4%20$token',
+      );
       launchUrl(waUri, mode: LaunchMode.externalApplication).ignore();
     }
 

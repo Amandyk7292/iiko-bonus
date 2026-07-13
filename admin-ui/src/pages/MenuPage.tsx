@@ -300,7 +300,7 @@ export default function MenuPage() {
         return res.translated || '';
       };
 
-      toast('Переводим...', 'info');
+      toast('Переводим…', 'info');
       const [transName, transDesc] = await Promise.all([
         translate(editForm.name),
         translate(editForm.description)
@@ -410,7 +410,7 @@ export default function MenuPage() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
               <input
                 type="text"
-                placeholder="Поиск блюда по названию..."
+                placeholder="Поиск блюда по названию…"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm"
@@ -455,7 +455,7 @@ export default function MenuPage() {
                   {/* Фото */}
                   <div className="relative h-32 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-gray-700 dark:to-gray-800 rounded-t-2xl overflow-hidden">
                     {imgUrl ? (
-                      <img src={imgUrl} alt={displayName} className="w-full h-full object-cover" loading="lazy" />
+                      <img src={imgUrl} alt={displayName} className="w-full h-full object-cover" width="160" height="120" loading="lazy" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         <ImageIcon className="text-amber-200 dark:text-gray-600" size={36} />
@@ -569,7 +569,7 @@ export default function MenuPage() {
                 <div className="flex items-center gap-4 flex-1">
                   <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 shrink-0">
                     {override?.custom_image_url ? (
-                      <img src={override.custom_image_url} alt={g.name} className="w-full h-full object-cover" loading="lazy" />
+                      <img src={override.custom_image_url} alt={g.name} className="w-full h-full object-cover" width="160" height="120" loading="lazy" />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         <ImageIcon className="text-gray-400" size={24} />
@@ -653,7 +653,7 @@ export default function MenuPage() {
                       <div className="flex items-center gap-3">
                         <div className="w-16 h-16 rounded-xl bg-gray-100 dark:bg-gray-700 overflow-hidden flex items-center justify-center shrink-0">
                           {cp.image_url ? (
-                            <img src={cp.image_url} alt={cp.name} className="w-full h-full object-cover" loading="lazy" />
+                            <img src={cp.image_url} alt={cp.name} className="w-full h-full object-cover" width="160" height="120" loading="lazy" />
                           ) : (
                             <ImageIcon className="text-gray-400" size={24} />
                           )}
@@ -797,7 +797,7 @@ export default function MenuPage() {
                 value={editForm.imageUrl}
                 onChange={e => setEditForm({ ...editForm, imageUrl: e.target.value })}
                 className="input-classic"
-                placeholder="https://..."
+                placeholder="https://example.com/image.webp"
               />
             </div>
           </div>
@@ -808,7 +808,7 @@ export default function MenuPage() {
             </button>
             <button type="submit" disabled={editSaving} className="btn-classic px-5 inline-flex items-center gap-2">
               {editSaving && <LoaderCircle className="spin" size={17} />}
-              {editSaving ? 'Сохранение...' : 'Сохранить'}
+              {editSaving ? 'Сохранение…' : 'Сохранить'}
             </button>
           </div>
         </form>
@@ -874,7 +874,7 @@ export default function MenuPage() {
               value={customForm.image_url}
               onChange={e => setCustomForm({ ...customForm, image_url: e.target.value })}
               className="input-classic"
-              placeholder="https://..."
+              placeholder="https://example.com/image.webp"
             />
           </div>
 
@@ -897,7 +897,7 @@ export default function MenuPage() {
             </button>
             <button type="submit" disabled={submitting} className="btn-classic px-5 inline-flex items-center gap-2">
               {submitting && <LoaderCircle className="spin" size={17} />}
-              {submitting ? 'Сохранение...' : 'Сохранить'}
+              {submitting ? 'Сохранение…' : 'Сохранить'}
             </button>
           </div>
         </form>

@@ -260,8 +260,7 @@ class _NavButton extends StatelessWidget {
     final duration = BulkaMotion.duration(context, BulkaMotion.fast);
     final color = selected ? _textDark : _textDark.withValues(alpha: 0.44);
     final isCenter = item.prominent;
-    final textScale = MediaQuery.textScalerOf(context).scale(1);
-    final labelFontSize = textScale > 1.2 ? 9.0 : 10.0;
+    const labelFontSize = 11.0;
     return Semantics(
       button: true,
       selected: selected,
