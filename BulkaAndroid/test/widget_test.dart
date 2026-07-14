@@ -69,6 +69,51 @@ void main() {
     expect(location.deliveryMinOrder, 5000);
   });
 
+  test(
+    'delivery location resolves tariff rings and rejects outside points',
+    () {
+      const location = BakeryLocation(
+        id: 'aktau-1',
+        name: 'Bulka',
+        address: 'Актау',
+        city: 'Актау',
+        deliveryEnabled: true,
+        deliveryZones: [
+          DeliveryZone(
+            id: 'far',
+            radiusKm: 10,
+            fee: 1000,
+            minOrder: 3000,
+            color: '#EC407A',
+          ),
+          DeliveryZone(
+            id: 'near',
+            radiusKm: 2.5,
+            fee: 400,
+            minOrder: 3000,
+            color: '#66BB6A',
+          ),
+        ],
+      );
+
+      expect(location.deliveryOuterRadiusKm, 10);
+      expect(location.deliveryZoneForDistance(2)?.id, 'near');
+      expect(location.deliveryZoneForDistance(7)?.id, 'far');
+      expect(location.deliveryZoneForDistance(10.01), isNull);
+    },
+  );
+
+  test('coordinate distance uses real haversine kilometers', () {
+    final distance = distanceBetweenCoordinatesKm(
+      firstLatitude: 43.6532,
+      firstLongitude: 51.1975,
+      secondLatitude: 43.6632,
+      secondLongitude: 51.1975,
+    );
+
+    expect(distance, closeTo(1.112, 0.01));
+  });
+
   test('cart immediately reconciles menu price, image and stop-list state', () {
     final cart = CartProvider();
     cart.addItem(
@@ -555,6 +600,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Локации'), findsOneWidget);
 
+    await tester.tap(find.byKey(const ValueKey('yandex-map-fallback')));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Подтвердить'));
     await tester.pumpAndSettle();
     expect(find.text('Название адреса'), findsOneWidget);
@@ -582,6 +629,53 @@ void main() {
     expect(find.text('Выберите адрес'), findsOneWidget);
     expect(find.text('тест'), findsOneWidget);
     expect(find.byIcon(Icons.check_rounded), findsWidgets);
+  });
+
+  testWidgets('delivery map blocks a selected point outside every zone', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(430, 932);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildBulkaTheme(),
+        home: AddressMapScreen(api: _OutsideDeliveryApiClient()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Укажите адрес — сразу проверим доставку'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('yandex-map-fallback')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Сюда пока не доставляем'), findsOneWidget);
+    expect(find.text('Вне зоны доставки'), findsOneWidget);
+  });
+
+  testWidgets('delivery map shows the matched branch tariff', (tester) async {
+    tester.view.physicalSize = const Size(430, 932);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildBulkaTheme(),
+        home: AddressMapScreen(api: _FakeBulkaApiClient()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('yandex-map-fallback')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Доставка из «Bulka» доступна'), findsOneWidget);
+    expect(find.text('Стоимость 0 ₸ · расстояние 0.0 км'), findsOneWidget);
   });
 }
 
@@ -617,6 +711,15 @@ class _FakeBulkaApiClient extends BulkaApiClient {
       latitude: 43.6532,
       longitude: 51.1975,
       deliveryEnabled: true,
+      deliveryZones: [
+        DeliveryZone(
+          id: 'test-zone',
+          radiusKm: 100,
+          fee: 0,
+          minOrder: 0,
+          color: '#66BB6A',
+        ),
+      ],
     ),
   ];
 
@@ -649,6 +752,30 @@ class _FakeBulkaApiClient extends BulkaApiClient {
   Future<void> deleteCustomerAddress(String id) async {
     _addresses.removeWhere((address) => address.id == id);
   }
+}
+
+class _OutsideDeliveryApiClient extends _FakeBulkaApiClient {
+  @override
+  Future<List<BakeryLocation>> getFulfillmentLocations() async => const [
+    BakeryLocation(
+      id: 'far-away',
+      name: 'Far Bulka',
+      address: 'Вне Актау',
+      city: 'Актау',
+      latitude: 44.5,
+      longitude: 52.5,
+      deliveryEnabled: true,
+      deliveryZones: [
+        DeliveryZone(
+          id: 'small-zone',
+          radiusKm: 1,
+          fee: 1000,
+          minOrder: 3000,
+          color: '#EC407A',
+        ),
+      ],
+    ),
+  ];
 }
 
 final _testTransactions = [

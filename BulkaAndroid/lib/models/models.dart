@@ -831,6 +831,25 @@ class BakeryLocation {
   String get displayLabel =>
       [name.trim(), address.trim()].where((part) => part.isNotEmpty).join(', ');
 
+  double? get deliveryOuterRadiusKm {
+    if (deliveryZones.isNotEmpty) {
+      return deliveryZones
+          .map((zone) => zone.radiusKm)
+          .reduce((first, second) => max(first, second));
+    }
+    return deliveryRadiusKm;
+  }
+
+  DeliveryZone? deliveryZoneForDistance(double distanceKm) {
+    if (!distanceKm.isFinite || distanceKm < 0) return null;
+    final ordered = [...deliveryZones]
+      ..sort((first, second) => first.radiusKm.compareTo(second.radiusKm));
+    for (final zone in ordered) {
+      if (distanceKm <= zone.radiusKm) return zone;
+    }
+    return null;
+  }
+
   bool supports(String orderType) => switch (orderType) {
     'preorder' => preorderEnabled,
     'delivery' => deliveryEnabled,

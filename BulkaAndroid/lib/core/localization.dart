@@ -1065,6 +1065,46 @@ const Map<String, Map<String, String>> _appTranslations = {
     'kk': 'Менің орным',
     'en': 'My location',
   },
+  'map_delivery_select_point': {
+    'ru': 'Укажите адрес — сразу проверим доставку',
+    'kk': 'Мекенжайды көрсетіңіз — жеткізуді бірден тексереміз',
+    'en': 'Choose an address to check delivery',
+  },
+  'map_delivery_checking': {
+    'ru': 'Проверяем зону доставки…',
+    'kk': 'Жеткізу аймағын тексеріп жатырмыз…',
+    'en': 'Checking the delivery area…',
+  },
+  'map_delivery_check_failed': {
+    'ru': 'Не удалось проверить зону доставки',
+    'kk': 'Жеткізу аймағын тексеру мүмкін болмады',
+    'en': 'Could not check the delivery area',
+  },
+  'map_delivery_outside_zone': {
+    'ru': 'Сюда пока не доставляем',
+    'kk': 'Бұл мекенжайға әзірге жеткізбейміз',
+    'en': 'Delivery is not available here yet',
+  },
+  'map_delivery_outside_hint': {
+    'ru': 'Выберите адрес внутри цветной зоны на карте.',
+    'kk': 'Картадағы түсті аймақтың ішінен мекенжай таңдаңыз.',
+    'en': 'Choose an address inside a colored area on the map.',
+  },
+  'map_delivery_available': {
+    'ru': 'Доставка из «{branch}» доступна',
+    'kk': '«{branch}» нүктесінен жеткізу қолжетімді',
+    'en': 'Delivery from “{branch}” is available',
+  },
+  'map_delivery_tariff': {
+    'ru': 'Стоимость {fee} ₸ · расстояние {distance} км',
+    'kk': 'Құны {fee} ₸ · қашықтық {distance} км',
+    'en': 'Fee {fee} ₸ · distance {distance} km',
+  },
+  'map_delivery_unavailable_short': {
+    'ru': 'Вне зоны доставки',
+    'kk': 'Жеткізу аймағынан тыс',
+    'en': 'Outside delivery area',
+  },
   'map_you_are_here': {
     'ru': 'Вы здесь',
     'kk': 'Сіз осындасыз',
@@ -1100,6 +1140,17 @@ const Map<String, Map<String, String>> _appTranslations = {
     'ru': 'Не удалось определить местоположение.',
     'kk': 'Орналасқан жерді анықтау мүмкін болмады.',
     'en': 'Could not determine your location.',
+  },
+  'geo_accuracy': {
+    'ru': 'Точность геолокации: ±{meters} м',
+    'kk': 'Геолокация дәлдігі: ±{meters} м',
+    'en': 'Location accuracy: ±{meters} m',
+  },
+  'geo_low_accuracy': {
+    'ru':
+        'Геолокация получена с точностью ±{meters} м. Уточните точку вручную.',
+    'kk': 'Геолокация дәлдігі ±{meters} м. Нүктені картадан нақтылаңыз.',
+    'en': 'Location accuracy is ±{meters} m. Refine the point on the map.',
   },
   'all_locations': {
     'ru': 'Все локации',

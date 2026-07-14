@@ -23,6 +23,10 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
   bool _addressResolved = false;
   bool _resolving = false;
   bool _locating = false;
+  bool _pointSelected = false;
+  bool _locationsLoaded = false;
+  bool _locationsFailed = false;
+  double? _locationAccuracyMeters;
 
   @override
   void initState() {
@@ -30,15 +34,25 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
     _api = widget.api ?? BulkaApiClient();
     _address = 'map_select_point'.tr;
     unawaited(_loadLocations());
-    unawaited(_reverseGeocode(_point));
   }
 
   Future<void> _loadLocations() async {
     try {
       final locations = await _api.getFulfillmentLocations();
-      if (mounted) setState(() => _locations = locations);
+      if (mounted) {
+        setState(() {
+          _locations = locations;
+          _locationsLoaded = true;
+          _locationsFailed = false;
+        });
+      }
     } catch (_) {
-      // Address selection remains available; the server validates the zone.
+      if (mounted) {
+        setState(() {
+          _locationsLoaded = true;
+          _locationsFailed = true;
+        });
+      }
     }
   }
 
@@ -74,6 +88,8 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
         );
         _city = _asString(item['city'], fallback: _city);
         _addressResolved = true;
+        _pointSelected = true;
+        _locationAccuracyMeters = null;
       });
       _moveMap(nextPoint, 16);
     } catch (_) {
@@ -90,7 +106,7 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
       final serviceEnabled = await Geolocator.isLocationServiceEnabled()
           .timeout(const Duration(seconds: 3), onTimeout: () => false);
       if (!serviceEnabled) {
-        _useAktauFallback('geo_disabled'.tr);
+        _showLocationError('geo_disabled'.tr);
         return;
       }
 
@@ -110,28 +126,25 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
         return;
       }
 
-      final lastKnown = await Geolocator.getLastKnownPosition().timeout(
-        const Duration(seconds: 2),
-        onTimeout: () => null,
-      );
-      if (lastKnown != null) {
-        if (!mounted) return;
-        _applyPosition(lastKnown);
-        return;
-      }
-
+      final locationSettings = kIsWeb
+          ? WebSettings(
+              accuracy: LocationAccuracy.bestForNavigation,
+              maximumAge: Duration.zero,
+              timeLimit: const Duration(seconds: 15),
+            )
+          : const LocationSettings(
+              accuracy: LocationAccuracy.bestForNavigation,
+              timeLimit: Duration(seconds: 15),
+            );
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.medium,
-          timeLimit: Duration(seconds: 4),
-        ),
-      ).timeout(const Duration(seconds: 5));
+        locationSettings: locationSettings,
+      ).timeout(const Duration(seconds: 16));
       if (!mounted) return;
       _applyPosition(position);
     } on TimeoutException {
-      _useAktauFallback('geo_timeout'.tr);
+      _showLocationError('geo_timeout'.tr);
     } catch (_) {
-      _useAktauFallback('geo_failed'.tr);
+      _showLocationError('geo_failed'.tr);
     } finally {
       if (mounted) setState(() => _locating = false);
     }
@@ -139,15 +152,14 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
 
   void _applyPosition(Position position) {
     final point = LatLng(position.latitude, position.longitude);
+    _locationAccuracyMeters = position.accuracy;
     _moveMap(point, 16);
-    _setPoint(point);
-  }
-
-  void _useAktauFallback(String message) {
-    if (!mounted) return;
-    _moveMap(_defaultPoint, 14.5);
-    _setPoint(_defaultPoint);
-    _showLocationError(message);
+    _setPoint(point, preserveAccuracy: true);
+    if (position.accuracy > 250) {
+      _showLocationError(
+        'geo_low_accuracy'.trArgs({'meters': position.accuracy.round()}),
+      );
+    }
   }
 
   void _showLocationError(String message) {
@@ -202,11 +214,13 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
     }
   }
 
-  void _setPoint(LatLng point) {
+  void _setPoint(LatLng point, {bool preserveAccuracy = false}) {
     setState(() {
       _point = point;
       _address = 'map_resolving'.tr;
       _addressResolved = false;
+      _pointSelected = true;
+      if (!preserveAccuracy) _locationAccuracyMeters = null;
     });
     _mapController.move(point, _zoom, selected: point);
     unawaited(_reverseGeocode(point));
@@ -251,6 +265,90 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
     );
   }
 
+  ({BakeryLocation branch, DeliveryZone zone, double distanceKm})?
+  get _deliveryMatch {
+    if (!_pointSelected || !_locationsLoaded || _locationsFailed) return null;
+    final matches =
+        <({BakeryLocation branch, DeliveryZone zone, double distanceKm})>[];
+    for (final location in _locations) {
+      final latitude = location.latitude;
+      final longitude = location.longitude;
+      if (!location.active ||
+          !location.deliveryEnabled ||
+          latitude == null ||
+          longitude == null) {
+        continue;
+      }
+      final distance = distanceBetweenCoordinatesKm(
+        firstLatitude: latitude,
+        firstLongitude: longitude,
+        secondLatitude: _point.latitude,
+        secondLongitude: _point.longitude,
+      );
+      final zone = location.deliveryZoneForDistance(distance);
+      if (zone != null) {
+        matches.add((branch: location, zone: zone, distanceKm: distance));
+      }
+    }
+    matches.sort(
+      (first, second) => first.distanceKm.compareTo(second.distanceKm),
+    );
+    return matches.isEmpty ? null : matches.first;
+  }
+
+  bool get _canConfirm =>
+      _pointSelected &&
+      _addressResolved &&
+      !_resolving &&
+      _locationsLoaded &&
+      !_locationsFailed &&
+      _deliveryMatch != null;
+
+  Widget _deliveryStatus() {
+    if (!_pointSelected) {
+      return _DeliveryStatusCard(
+        icon: Icons.touch_app_rounded,
+        title: 'map_delivery_select_point'.tr,
+        color: _cocoa,
+      );
+    }
+    if (!_locationsLoaded) {
+      return _DeliveryStatusCard(
+        icon: Icons.sync_rounded,
+        title: 'map_delivery_checking'.tr,
+        color: _caramel,
+        loading: true,
+      );
+    }
+    if (_locationsFailed) {
+      return _DeliveryStatusCard(
+        icon: Icons.cloud_off_rounded,
+        title: 'map_delivery_check_failed'.tr,
+        color: _errorRed,
+        actionLabel: 'retry_btn'.tr,
+        onAction: _loadLocations,
+      );
+    }
+    final match = _deliveryMatch;
+    if (match == null) {
+      return _DeliveryStatusCard(
+        icon: Icons.location_off_rounded,
+        title: 'map_delivery_outside_zone'.tr,
+        subtitle: 'map_delivery_outside_hint'.tr,
+        color: _errorRed,
+      );
+    }
+    return _DeliveryStatusCard(
+      icon: Icons.check_circle_rounded,
+      title: 'map_delivery_available'.trArgs({'branch': match.branch.name}),
+      subtitle: 'map_delivery_tariff'.trArgs({
+        'fee': formatGroupedNumber(match.zone.fee.toDouble()),
+        'distance': match.distanceKm.toStringAsFixed(1),
+      }),
+      color: const Color(0xFF2E7D32),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -286,7 +384,7 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
                   YandexMapView(
                     controller: _mapController,
                     center: _point,
-                    selectedPoint: _point,
+                    selectedPoint: _pointSelected ? _point : null,
                     zoom: _zoom,
                     branches: _mapBranches,
                     onCameraChanged: (_, zoom) => _zoom = zoom,
@@ -364,19 +462,38 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
                             ),
                           ),
                   ),
-                  const SizedBox(height: 24),
+                  if (_locationAccuracyMeters != null &&
+                      _locationAccuracyMeters! <= 250) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'geo_accuracy'.trArgs({
+                        'meters': _locationAccuracyMeters!.round(),
+                      }),
+                      style: TextStyle(
+                        color: _textDark.withValues(alpha: 0.55),
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 14),
+                  _deliveryStatus(),
+                  const SizedBox(height: 18),
                   const Divider(height: 1),
-                  const SizedBox(height: 22),
+                  const SizedBox(height: 18),
                   SizedBox(
                     width: double.infinity,
                     height: 58,
                     child: GradientButton(
-                      onPressed: !_addressResolved || _resolving
-                          ? null
-                          : () =>
-                                Navigator.of(context).pop(_selectedLocation()),
+                      onPressed: _canConfirm
+                          ? () => Navigator.of(context).pop(_selectedLocation())
+                          : null,
                       child: Text(
-                        'confirm_btn'.tr,
+                        _pointSelected &&
+                                _locationsLoaded &&
+                                !_locationsFailed &&
+                                _deliveryMatch == null
+                            ? 'map_delivery_unavailable_short'.tr
+                            : 'confirm_btn'.tr,
                         style: const TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w400,
@@ -387,6 +504,86 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
                 ],
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DeliveryStatusCard extends StatelessWidget {
+  const _DeliveryStatusCard({
+    required this.icon,
+    required this.title,
+    required this.color,
+    this.subtitle,
+    this.loading = false,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final Color color;
+  final bool loading;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      liveRegion: true,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withValues(alpha: 0.24)),
+        ),
+        child: Row(
+          children: [
+            if (loading)
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.2,
+                  color: color,
+                ),
+              )
+            else
+              Icon(icon, color: color, size: 24),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle!,
+                      style: TextStyle(
+                        color: _textDark.withValues(alpha: 0.68),
+                        fontSize: 13,
+                        height: 1.25,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (onAction != null && actionLabel != null)
+              TextButton(onPressed: onAction, child: Text(actionLabel!)),
           ],
         ),
       ),

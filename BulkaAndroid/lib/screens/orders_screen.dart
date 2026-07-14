@@ -891,16 +891,12 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
     final latitude = location.latitude;
     final longitude = location.longitude;
     if (latitude == null || longitude == null) return double.infinity;
-    const radius = 6371.0;
-    double radians(double degrees) => degrees * pi / 180;
-    final latitudeDelta = radians(address.location.latitude - latitude);
-    final longitudeDelta = radians(address.location.longitude - longitude);
-    final value =
-        pow(sin(latitudeDelta / 2), 2) +
-        cos(radians(latitude)) *
-            cos(radians(address.location.latitude)) *
-            pow(sin(longitudeDelta / 2), 2);
-    return radius * 2 * atan2(sqrt(value), sqrt(1 - value));
+    return distanceBetweenCoordinatesKm(
+      firstLatitude: latitude,
+      firstLongitude: longitude,
+      secondLatitude: address.location.latitude,
+      secondLongitude: address.location.longitude,
+    );
   }
 
   BakeryLocation? get _deliveryBranchLocation {
@@ -912,10 +908,10 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
               (location) =>
                   location.active &&
                   location.deliveryEnabled &&
-                  location.deliveryRadiusKm != null &&
-                  location.deliveryRadiusKm! > 0 &&
-                  _distanceToAddressKm(location, address) <=
-                      location.deliveryRadiusKm!,
+                  location.deliveryZoneForDistance(
+                        _distanceToAddressKm(location, address),
+                      ) !=
+                      null,
             )
             .toList()
           ..sort(

@@ -21,7 +21,7 @@ class YandexMapView extends StatefulWidget {
 
   final YandexMapController controller;
   final LatLng center;
-  final LatLng selectedPoint;
+  final LatLng? selectedPoint;
   final double zoom;
   final List<YandexMapBranch> branches;
   final YandexMapTap? onTap;
@@ -33,27 +33,32 @@ class YandexMapView extends StatefulWidget {
 }
 
 class _YandexMapViewState extends State<YandexMapView> {
-  late final WebViewController _webController;
+  WebViewController? _webController;
   bool _ready = false;
 
   @override
   void initState() {
     super.initState();
-    _webController = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0xFFF7F2E8))
-      ..addJavaScriptChannel(
-        'BulkaMap',
-        onMessageReceived: (message) => _receive(message.message),
-      )
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onNavigationRequest: (request) => request.url.startsWith(yandexMapUrl)
-              ? NavigationDecision.navigate
-              : NavigationDecision.prevent,
-        ),
-      )
-      ..loadRequest(Uri.parse(yandexMapUrl));
+    try {
+      _webController = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setBackgroundColor(const Color(0xFFF7F2E8))
+        ..addJavaScriptChannel(
+          'BulkaMap',
+          onMessageReceived: (message) => _receive(message.message),
+        )
+        ..setNavigationDelegate(
+          NavigationDelegate(
+            onNavigationRequest: (request) =>
+                request.url.startsWith(yandexMapUrl)
+                ? NavigationDecision.navigate
+                : NavigationDecision.prevent,
+          ),
+        )
+        ..loadRequest(Uri.parse(yandexMapUrl));
+    } catch (_) {
+      _webController = null;
+    }
     widget.controller.addListener(_sendCommand);
   }
 
@@ -96,14 +101,18 @@ class _YandexMapViewState extends State<YandexMapView> {
     'type': 'state',
     'mode': widget.interactive ? 'customer' : 'preview',
     'center': [widget.center.latitude, widget.center.longitude],
-    'selected': [widget.selectedPoint.latitude, widget.selectedPoint.longitude],
+    'selected': widget.selectedPoint == null
+        ? null
+        : [widget.selectedPoint!.latitude, widget.selectedPoint!.longitude],
     'zoom': widget.zoom,
     'branches': widget.branches.map((branch) => branch.toPayload()).toList(),
   };
 
   Future<void> _post(Map<String, Object?> payload) async {
+    final controller = _webController;
+    if (controller == null) return;
     final encoded = jsonEncode(jsonEncode(payload));
-    await _webController.runJavaScript(
+    await controller.runJavaScript(
       'window.postMessage($encoded, window.location.origin);',
     );
   }
@@ -126,6 +135,24 @@ class _YandexMapViewState extends State<YandexMapView> {
   }
 
   @override
-  Widget build(BuildContext context) =>
-      WebViewWidget(controller: _webController);
+  Widget build(BuildContext context) {
+    final controller = _webController;
+    if (controller != null) return WebViewWidget(controller: controller);
+    return Material(
+      key: const ValueKey('yandex-map-fallback'),
+      color: const Color(0xFFF7F2E8),
+      child: InkWell(
+        onTap: widget.interactive
+            ? () => widget.onTap?.call(widget.center)
+            : null,
+        child: Center(
+          child: Icon(
+            Icons.map_outlined,
+            size: 42,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        ),
+      ),
+    );
+  }
 }

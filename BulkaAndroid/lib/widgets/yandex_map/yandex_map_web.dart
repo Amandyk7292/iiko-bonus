@@ -23,7 +23,7 @@ class YandexMapView extends StatefulWidget {
 
   final YandexMapController controller;
   final LatLng center;
-  final LatLng selectedPoint;
+  final LatLng? selectedPoint;
   final double zoom;
   final List<YandexMapBranch> branches;
   final YandexMapTap? onTap;
@@ -101,7 +101,9 @@ class _YandexMapViewState extends State<YandexMapView> {
     'type': 'state',
     'mode': widget.interactive ? 'customer' : 'preview',
     'center': [widget.center.latitude, widget.center.longitude],
-    'selected': [widget.selectedPoint.latitude, widget.selectedPoint.longitude],
+    'selected': widget.selectedPoint == null
+        ? null
+        : [widget.selectedPoint!.latitude, widget.selectedPoint!.longitude],
     'zoom': widget.zoom,
     'branches': widget.branches.map((branch) => branch.toPayload()).toList(),
   };

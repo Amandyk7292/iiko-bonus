@@ -1,5 +1,23 @@
 part of '../main.dart';
 
+double distanceBetweenCoordinatesKm({
+  required double firstLatitude,
+  required double firstLongitude,
+  required double secondLatitude,
+  required double secondLongitude,
+}) {
+  const earthRadiusKm = 6371.0;
+  double radians(double degrees) => degrees * pi / 180;
+  final latitudeDelta = radians(secondLatitude - firstLatitude);
+  final longitudeDelta = radians(secondLongitude - firstLongitude);
+  final value =
+      pow(sin(latitudeDelta / 2), 2) +
+      cos(radians(firstLatitude)) *
+          cos(radians(secondLatitude)) *
+          pow(sin(longitudeDelta / 2), 2);
+  return earthRadiusKm * 2 * atan2(sqrt(value), sqrt(1 - value));
+}
+
 InputDecoration _inputDecoration({
   required String label,
   String? prefix,

@@ -18,7 +18,7 @@ class YandexMapView extends StatelessWidget {
 
   final YandexMapController controller;
   final LatLng center;
-  final LatLng selectedPoint;
+  final LatLng? selectedPoint;
   final double zoom;
   final List<YandexMapBranch> branches;
   final YandexMapTap? onTap;
