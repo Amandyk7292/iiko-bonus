@@ -9,20 +9,15 @@ class AddressMapScreen extends StatefulWidget {
   State<AddressMapScreen> createState() => _AddressMapScreenState();
 }
 
-class _AddressMapScreenState extends State<AddressMapScreen>
-    with SingleTickerProviderStateMixin {
+class _AddressMapScreenState extends State<AddressMapScreen> {
   static const _defaultPoint = LatLng(43.6532, 51.1975);
 
   late final BulkaApiClient _api;
-  final _mapController = MapController();
+  final _mapController = YandexMapController();
   final _searchController = TextEditingController();
-  late final AnimationController _cameraController;
   LatLng _point = _defaultPoint;
   double _zoom = 14.5;
-  LatLng _cameraStart = _defaultPoint;
-  LatLng _cameraTarget = _defaultPoint;
-  double _cameraStartZoom = 14.5;
-  double _cameraTargetZoom = 14.5;
+  List<BakeryLocation> _locations = const [];
   String _address = '';
   String _city = 'Aktau';
   bool _addressResolved = false;
@@ -34,16 +29,22 @@ class _AddressMapScreenState extends State<AddressMapScreen>
     super.initState();
     _api = widget.api ?? BulkaApiClient();
     _address = 'map_select_point'.tr;
-    _cameraController = AnimationController(
-      vsync: this,
-      duration: BulkaMotion.standard,
-    )..addListener(_animateCamera);
+    unawaited(_loadLocations());
     unawaited(_reverseGeocode(_point));
+  }
+
+  Future<void> _loadLocations() async {
+    try {
+      final locations = await _api.getFulfillmentLocations();
+      if (mounted) setState(() => _locations = locations);
+    } catch (_) {
+      // Address selection remains available; the server validates the zone.
+    }
   }
 
   @override
   void dispose() {
-    _cameraController.dispose();
+    _mapController.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -158,39 +159,17 @@ class _AddressMapScreenState extends State<AddressMapScreen>
 
   void _moveMap(LatLng point, double zoom) {
     if (!mounted) return;
-    if (BulkaMotion.reduced(context)) {
-      _cameraController.stop();
+    setState(() {
       _point = point;
       _zoom = zoom;
-      _mapController.move(point, zoom);
-      return;
-    }
-    _cameraStart = _point;
-    _cameraTarget = point;
-    _cameraStartZoom = _zoom;
-    _cameraTargetZoom = zoom;
-    _cameraController.forward(from: 0);
-  }
-
-  void _animateCamera() {
-    if (!mounted) return;
-    final t = BulkaMotion.enterCurve.transform(_cameraController.value);
-    final point = LatLng(
-      _cameraStart.latitude +
-          ((_cameraTarget.latitude - _cameraStart.latitude) * t),
-      _cameraStart.longitude +
-          ((_cameraTarget.longitude - _cameraStart.longitude) * t),
-    );
-    final zoom =
-        _cameraStartZoom + ((_cameraTargetZoom - _cameraStartZoom) * t);
-    _point = point;
-    _zoom = zoom;
-    _mapController.move(point, zoom);
+    });
+    _mapController.move(point, zoom, selected: point);
   }
 
   void _zoomBy(double delta) {
     final nextZoom = (_zoom + delta).clamp(11.0, 18.0);
-    _moveMap(_point, nextZoom);
+    setState(() => _zoom = nextZoom);
+    _mapController.zoomBy(delta);
   }
 
   Future<void> _reverseGeocode(LatLng point) async {
@@ -229,8 +208,39 @@ class _AddressMapScreenState extends State<AddressMapScreen>
       _address = 'map_resolving'.tr;
       _addressResolved = false;
     });
+    _mapController.move(point, _zoom, selected: point);
     unawaited(_reverseGeocode(point));
   }
+
+  List<YandexMapBranch> get _mapBranches => _locations
+      .where(
+        (location) =>
+            location.latitude != null &&
+            location.longitude != null &&
+            location.active,
+      )
+      .map(
+        (location) => YandexMapBranch(
+          id: location.id,
+          name: location.name,
+          address: location.address,
+          point: LatLng(location.latitude!, location.longitude!),
+          active: location.active,
+          deliveryEnabled: location.deliveryEnabled,
+          zones: location.deliveryZones
+              .map(
+                (zone) => YandexDeliveryZone(
+                  id: zone.id,
+                  radiusKm: zone.radiusKm,
+                  fee: zone.fee,
+                  minOrder: zone.minOrder,
+                  color: zone.color,
+                ),
+              )
+              .toList(),
+        ),
+      )
+      .toList();
 
   DeliveryLocation _selectedLocation() {
     return DeliveryLocation(
@@ -273,17 +283,13 @@ class _AddressMapScreenState extends State<AddressMapScreen>
             Expanded(
               child: Stack(
                 children: [
-                  _DeliveryMap(
+                  YandexMapView(
                     controller: _mapController,
-                    point: _point,
+                    center: _point,
+                    selectedPoint: _point,
                     zoom: _zoom,
-                    onPositionChanged: (point, zoom, hasGesture) {
-                      if (hasGesture && _cameraController.isAnimating) {
-                        _cameraController.stop();
-                      }
-                      _point = point;
-                      _zoom = zoom;
-                    },
+                    branches: _mapBranches,
+                    onCameraChanged: (_, zoom) => _zoom = zoom,
                     onTap: _setPoint,
                   ),
                   Positioned(
@@ -388,149 +394,6 @@ class _AddressMapScreenState extends State<AddressMapScreen>
   }
 }
 
-class _DeliveryMap extends StatelessWidget {
-  const _DeliveryMap({
-    required this.controller,
-    required this.point,
-    this.zoom = 15,
-    this.onPositionChanged,
-    this.onTap,
-    this.interactive = true,
-  });
-
-  final MapController? controller;
-  final LatLng point;
-  final double zoom;
-  final void Function(LatLng point, double zoom, bool hasGesture)?
-  onPositionChanged;
-  final ValueChanged<LatLng>? onTap;
-  final bool interactive;
-
-  @override
-  Widget build(BuildContext context) {
-    return FlutterMap(
-      mapController: controller,
-      options: MapOptions(
-        initialCenter: point,
-        initialZoom: zoom,
-        minZoom: 11,
-        maxZoom: 18,
-        interactionOptions: interactive
-            ? const InteractionOptions()
-            : const InteractionOptions(flags: InteractiveFlag.none),
-        onTap: interactive && onTap != null
-            ? (_, point) => onTap!(point)
-            : null,
-        onPositionChanged: onPositionChanged == null
-            ? null
-            : (camera, hasGesture) =>
-                  onPositionChanged!(camera.center, camera.zoom, hasGesture),
-      ),
-      children: [
-        TileLayer(
-          urlTemplate:
-              'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
-          fallbackUrl:
-              'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
-          userAgentPackageName: 'kz.bulka.bonus',
-          errorTileCallback: (tile, error, stackTrace) {
-            debugPrint('Map tile load failed: $error');
-          },
-          errorImage: const AssetImage('assets/brand/bulka_logo.png'),
-        ),
-        DecoratedBox(
-          decoration: BoxDecoration(
-            color: const Color(0xFFFFFBF3).withValues(alpha: 0.34),
-          ),
-        ),
-        CircleLayer(
-          circles: [
-            CircleMarker(
-              point: point,
-              radius: 42,
-              color: const Color(0xFF7B2FF2).withValues(alpha: 0.1),
-              borderColor: const Color(0xFF7B2FF2),
-              borderStrokeWidth: 3,
-            ),
-          ],
-        ),
-        MarkerLayer(
-          markers: [
-            Marker(
-              point: point,
-              width: 116,
-              height: 86,
-              child: _MapPointLabel(
-                label: 'map_you_are_here'.tr,
-                accent: const Color(0xFF7B2FF2),
-              ),
-            ),
-          ],
-        ),
-        RichAttributionWidget(
-          alignment: AttributionAlignment.bottomLeft,
-          showFlutterMapAttribution: false,
-          permanentHeight: 22,
-          popupBackgroundColor: Colors.white.withValues(alpha: 0.94),
-          popupBorderRadius: BorderRadius.circular(12),
-          openButton: (context, open) => IconButton(
-            onPressed: open,
-            tooltip: 'map_data_attribution'.tr,
-            icon: const Icon(Icons.info_outline_rounded, size: 22),
-          ),
-          closeButton: (context, close) => IconButton(
-            onPressed: close,
-            tooltip: 'close_tooltip'.tr,
-            icon: const Icon(Icons.cancel_outlined, size: 22),
-          ),
-          attributions: [
-            LogoSourceAttribution(
-              Container(
-                height: 22,
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.9),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  '${'map_data_attribution'.tr}: OSM · CARTO · Esri',
-                  style: const TextStyle(fontSize: 10, color: _textDark),
-                ),
-              ),
-              height: 22,
-              tooltip: 'map_data_attribution'.tr,
-              onTap: () => unawaited(
-                launchUrl(Uri.parse('https://www.openstreetmap.org/copyright')),
-              ),
-            ),
-            TextSourceAttribution(
-              'OpenStreetMap contributors',
-              onTap: () => unawaited(
-                launchUrl(Uri.parse('https://www.openstreetmap.org/copyright')),
-              ),
-            ),
-            TextSourceAttribution(
-              'CARTO',
-              onTap: () => unawaited(
-                launchUrl(Uri.parse('https://carto.com/attributions')),
-              ),
-            ),
-            TextSourceAttribution(
-              'Esri',
-              onTap: () => unawaited(
-                launchUrl(
-                  Uri.parse('https://www.esri.com/legal/copyright-trademarks'),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
 class _MapSearchField extends StatelessWidget {
   const _MapSearchField({required this.controller, required this.onSubmitted});
 
@@ -623,72 +486,6 @@ class _MapRoundButton extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class _MapPointLabel extends StatelessWidget {
-  const _MapPointLabel({
-    required this.label,
-    this.accent = const Color(0xFF2F80ED),
-  });
-
-  final String label;
-  final Color accent;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          constraints: const BoxConstraints(maxWidth: 104),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.94),
-            borderRadius: BorderRadius.circular(8),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.12),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-            border: Border.all(color: const Color(0xFFE5E0D8)),
-          ),
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Color(0xFF30343B),
-              fontSize: 13,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ),
-        Transform.translate(
-          offset: const Offset(0, -2),
-          child: Icon(Icons.arrow_drop_down, color: Colors.white, size: 22),
-        ),
-        Container(
-          width: 18,
-          height: 18,
-          decoration: BoxDecoration(
-            color: accent,
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 3),
-            boxShadow: [
-              BoxShadow(
-                color: accent.withValues(alpha: 0.28),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }

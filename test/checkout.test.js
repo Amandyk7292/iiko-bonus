@@ -102,6 +102,48 @@ test('delivery uses only an enabled branch with explicit radius and tariffs', ()
   assert.equal(checkout.deliveryAddress.apartment, '41');
 });
 
+test('delivery selects the first matching tariff zone by real distance', () => {
+  const zonedCities = structuredClone(cities);
+  zonedCities[0].points[0].deliveryZones = [
+    { id: 'near', radiusKm: 1, fee: 300, minOrder: 2000, color: '#66BB6A' },
+    { id: 'far', radiusKm: 5, fee: 700, minOrder: 3000, color: '#29B6F6' },
+  ];
+
+  const near = validateCheckout(
+    {
+      orderType: 'delivery',
+      deliveryAddress: {
+        city: 'Актау',
+        address: 'Рядом с филиалом',
+        latitude: 43.654,
+        longitude: 51.198,
+      },
+    },
+    zonedCities,
+    { now: new Date('2026-07-13T12:00:00.000Z'), env },
+  );
+  const far = validateCheckout(
+    {
+      orderType: 'delivery',
+      deliveryAddress: {
+        city: 'Актау',
+        address: 'Внешнее кольцо',
+        latitude: 43.675,
+        longitude: 51.1975,
+      },
+    },
+    zonedCities,
+    { now: new Date('2026-07-13T12:00:00.000Z'), env },
+  );
+
+  assert.equal(near.deliveryFee, 300);
+  assert.equal(near.deliveryMinimumOrder, 2000);
+  assert.equal(near.deliveryZone.id, 'near');
+  assert.equal(far.deliveryFee, 700);
+  assert.equal(far.deliveryMinimumOrder, 3000);
+  assert.equal(far.deliveryZone.id, 'far');
+});
+
 test('delivery rejects coordinates outside every configured branch radius', () => {
   const polygon = [
     [43.62, 51.12],

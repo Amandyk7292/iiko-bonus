@@ -422,6 +422,8 @@ alter table public.bulka_locations add column if not exists delivery_enabled boo
 alter table public.bulka_locations add column if not exists delivery_radius_km numeric(8, 2);
 alter table public.bulka_locations add column if not exists delivery_fee numeric(12, 2);
 alter table public.bulka_locations add column if not exists delivery_min_order numeric(12, 2);
+alter table public.bulka_locations
+  add column if not exists delivery_zones jsonb not null default '[]'::jsonb;
 alter table public.bulka_locations add column if not exists sort_order integer not null default 0;
 alter table public.bulka_locations add column if not exists updated_at timestamptz not null default now();
 do $$

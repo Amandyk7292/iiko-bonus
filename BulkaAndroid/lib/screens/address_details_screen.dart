@@ -11,6 +11,7 @@ class AddressDetailsScreen extends StatefulWidget {
 
 class _AddressDetailsScreenState extends State<AddressDetailsScreen> {
   final _formKey = GlobalKey<FormState>();
+  final _mapController = YandexMapController();
   final _titleController = TextEditingController();
   final _houseController = TextEditingController();
   final _entranceController = TextEditingController();
@@ -20,6 +21,7 @@ class _AddressDetailsScreenState extends State<AddressDetailsScreen> {
 
   @override
   void dispose() {
+    _mapController.dispose();
     _titleController.dispose();
     _houseController.dispose();
     _entranceController.dispose();
@@ -91,12 +93,18 @@ class _AddressDetailsScreenState extends State<AddressDetailsScreen> {
               SizedBox(
                 height: 330,
                 width: double.infinity,
-                child: _DeliveryMap(
-                  controller: null,
-                  point: LatLng(
+                child: YandexMapView(
+                  controller: _mapController,
+                  center: LatLng(
                     widget.location.latitude,
                     widget.location.longitude,
                   ),
+                  selectedPoint: LatLng(
+                    widget.location.latitude,
+                    widget.location.longitude,
+                  ),
+                  zoom: 15,
+                  branches: const [],
                   interactive: false,
                 ),
               ),

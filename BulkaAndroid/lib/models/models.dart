@@ -759,6 +759,40 @@ class Point {
   }
 }
 
+class DeliveryZone {
+  const DeliveryZone({
+    required this.id,
+    required this.radiusKm,
+    required this.fee,
+    required this.minOrder,
+    required this.color,
+  });
+
+  final String id;
+  final double radiusKm;
+  final int fee;
+  final int minOrder;
+  final String color;
+
+  factory DeliveryZone.fromJson(Map<String, dynamic> json, int index) =>
+      DeliveryZone(
+        id: _asString(json['id'], fallback: 'zone-${index + 1}'),
+        radiusKm: _asDouble(json['radiusKm'] ?? json['radius_km']),
+        fee: _asInt(json['fee']),
+        minOrder: _asInt(json['minOrder'] ?? json['min_order']),
+        color: _asString(
+          json['color'],
+          fallback: const [
+            '#66BB6A',
+            '#29B6F6',
+            '#FFD54F',
+            '#EC407A',
+            '#7E57C2',
+          ][index % 5],
+        ),
+      );
+}
+
 class BakeryLocation {
   const BakeryLocation({
     required this.id,
@@ -775,6 +809,7 @@ class BakeryLocation {
     this.deliveryRadiusKm,
     this.deliveryFee,
     this.deliveryMinOrder,
+    this.deliveryZones = const [],
   });
 
   final String id;
@@ -791,6 +826,7 @@ class BakeryLocation {
   final double? deliveryRadiusKm;
   final int? deliveryFee;
   final int? deliveryMinOrder;
+  final List<DeliveryZone> deliveryZones;
 
   String get displayLabel =>
       [name.trim(), address.trim()].where((part) => part.isNotEmpty).join(', ');
@@ -802,6 +838,20 @@ class BakeryLocation {
   };
 
   factory BakeryLocation.fromJson(Map<String, dynamic> json) {
+    final rawZones = json['deliveryZones'] ?? json['delivery_zones'];
+    final zones = rawZones is List
+        ? rawZones.indexed
+              .map((entry) => DeliveryZone.fromJson(_asMap(entry.$2), entry.$1))
+              .where((zone) => zone.radiusKm > 0)
+              .toList()
+        : <DeliveryZone>[];
+    final legacyRadius = _nullableDouble(
+      json['deliveryRadiusKm'] ?? json['delivery_radius_km'],
+    );
+    final legacyFee = _nullableInt(json['deliveryFee'] ?? json['delivery_fee']);
+    final legacyMinimum = _nullableInt(
+      json['deliveryMinOrder'] ?? json['delivery_min_order'],
+    );
     return BakeryLocation(
       id: _asString(json['id']),
       name: _asString(json['name']),
@@ -814,13 +864,25 @@ class BakeryLocation {
       pickupEnabled: json['pickupEnabled'] != false,
       preorderEnabled: json['preorderEnabled'] != false,
       deliveryEnabled: json['deliveryEnabled'] == true,
-      deliveryRadiusKm: _nullableDouble(
-        json['deliveryRadiusKm'] ?? json['delivery_radius_km'],
-      ),
-      deliveryFee: _nullableInt(json['deliveryFee'] ?? json['delivery_fee']),
-      deliveryMinOrder: _nullableInt(
-        json['deliveryMinOrder'] ?? json['delivery_min_order'],
-      ),
+      deliveryRadiusKm: legacyRadius,
+      deliveryFee: legacyFee,
+      deliveryMinOrder: legacyMinimum,
+      deliveryZones: zones.isNotEmpty
+          ? zones
+          : legacyRadius != null &&
+                legacyRadius > 0 &&
+                legacyFee != null &&
+                legacyMinimum != null
+          ? [
+              DeliveryZone(
+                id: 'zone-1',
+                radiusKm: legacyRadius,
+                fee: legacyFee,
+                minOrder: legacyMinimum,
+                color: '#66BB6A',
+              ),
+            ]
+          : const [],
     );
   }
 }

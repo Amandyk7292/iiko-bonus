@@ -127,6 +127,44 @@ const normalizeDeliveryAddress = (raw, env = process.env) => {
 
 const branchLabel = (point) => [point?.name, point?.address].filter(Boolean).join(', ');
 
+const normalizeBranchZones = (point) => {
+  const raw = Array.isArray(point?.deliveryZones)
+    ? point.deliveryZones
+    : Array.isArray(point?.delivery_zones)
+      ? point.delivery_zones
+      : [];
+  const zones = raw
+    .map((zone, index) => ({
+      id: boundedText(zone?.id || `zone-${index + 1}`, 64),
+      radiusKm: finiteNumber(zone?.radiusKm ?? zone?.radius_km),
+      fee: finiteNumber(zone?.fee),
+      minOrder: finiteNumber(zone?.minOrder ?? zone?.min_order),
+      color: boundedText(zone?.color, 16) || null,
+    }))
+    .filter(
+      (zone) =>
+        zone.radiusKm !== null &&
+        zone.radiusKm > 0 &&
+        zone.fee !== null &&
+        zone.fee >= 0 &&
+        zone.minOrder !== null &&
+        zone.minOrder >= 0,
+    )
+    .sort((first, second) => first.radiusKm - second.radiusKm);
+  if (zones.length > 0) return zones;
+  const radiusKm = finiteNumber(point?.deliveryRadiusKm ?? point?.delivery_radius_km);
+  const fee = finiteNumber(point?.deliveryFee ?? point?.delivery_fee);
+  const minOrder = finiteNumber(point?.deliveryMinOrder ?? point?.delivery_min_order);
+  return radiusKm !== null &&
+    radiusKm > 0 &&
+    fee !== null &&
+    fee >= 0 &&
+    minOrder !== null &&
+    minOrder >= 0
+    ? [{ id: 'zone-1', radiusKm, fee, minOrder, color: null }]
+    : [];
+};
+
 const flattenBranches = (cities) =>
   (Array.isArray(cities) ? cities : []).flatMap((city) =>
     (Array.isArray(city?.points) ? city.points : []).map((point) => ({
@@ -142,6 +180,7 @@ const flattenBranches = (cities) =>
       deliveryRadiusKm: finiteNumber(point.deliveryRadiusKm ?? point.delivery_radius_km),
       deliveryFee: finiteNumber(point.deliveryFee ?? point.delivery_fee),
       deliveryMinOrder: finiteNumber(point.deliveryMinOrder ?? point.delivery_min_order),
+      deliveryZones: normalizeBranchZones(point),
       hours: point.hours && typeof point.hours === 'object' ? point.hours : {},
     })),
   );
@@ -157,6 +196,16 @@ const haversineDistance = (first, second) => {
       Math.sin(longitudeDelta / 2) ** 2;
   return 6371 * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
 };
+
+const deliveryZoneForDistance = (point, distance) =>
+  point.deliveryZones.find((zone) => distance <= zone.radiusKm) || null;
+
+const withResolvedDeliveryZone = (point, zone, distance) => ({
+  ...point,
+  deliveryFee: zone.fee,
+  deliveryMinOrder: zone.minOrder,
+  resolvedDeliveryZone: { ...zone, distanceKm: Number(distance.toFixed(3)) },
+});
 
 const resolveBranch = ({ branchId, branch, orderType, deliveryAddress }, cities) => {
   const branches = flattenBranches(cities).filter((point) => point.active);
@@ -189,12 +238,7 @@ const resolveBranch = ({ branchId, branch, orderType, deliveryAddress }, cities)
         point.deliveryEnabled &&
         point.latitude !== null &&
         point.longitude !== null &&
-        point.deliveryRadiusKm !== null &&
-        point.deliveryRadiusKm > 0 &&
-        point.deliveryFee !== null &&
-        point.deliveryFee >= 0 &&
-        point.deliveryMinOrder !== null &&
-        point.deliveryMinOrder >= 0,
+        point.deliveryZones.length > 0,
     );
     if (configured.length === 0) {
       throw checkoutError('Доставка пока не настроена ни для одного филиала', 503);
@@ -203,15 +247,27 @@ const resolveBranch = ({ branchId, branch, orderType, deliveryAddress }, cities)
       if (!configured.includes(selected)) {
         throw checkoutError('Доставка из выбранного филиала сейчас недоступна');
       }
-      if (haversineDistance(deliveryAddress, selected) > selected.deliveryRadiusKm) {
+      const distance = haversineDistance(deliveryAddress, selected);
+      const zone = deliveryZoneForDistance(selected, distance);
+      if (!zone) {
         throw checkoutError('Адрес находится вне зоны доставки выбранного филиала');
       }
+      selected = withResolvedDeliveryZone(selected, zone, distance);
     } else {
       selected = configured
-        .map((point) => ({ point, distance: haversineDistance(deliveryAddress, point) }))
-        .filter(({ point, distance }) => distance <= point.deliveryRadiusKm)
+        .map((point) => {
+          const distance = haversineDistance(deliveryAddress, point);
+          return { point, distance, zone: deliveryZoneForDistance(point, distance) };
+        })
+        .filter(({ zone }) => zone !== null)
         .sort((left, right) => left.distance - right.distance)[0]?.point;
       if (!selected) throw checkoutError('Адрес находится вне зоны доставки');
+      const distance = haversineDistance(deliveryAddress, selected);
+      selected = withResolvedDeliveryZone(
+        selected,
+        deliveryZoneForDistance(selected, distance),
+        distance,
+      );
     }
   } else if (selected) {
     const enabled = orderType === 'preorder' ? selected.preorderEnabled : selected.pickupEnabled;
@@ -356,6 +412,7 @@ function validateCheckout(payload, cities, options = {}) {
     deliveryAddress,
     deliveryFee,
     deliveryMinimumOrder: Number(Number(minimumOrder).toFixed(2)),
+    deliveryZone: branch.resolvedDeliveryZone || null,
     additionalPhone: normalizeAdditionalPhone(payload?.additionalPhone),
     comment: boundedText(payload?.comment, 500) || null,
   };

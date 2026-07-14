@@ -1,6 +1,8 @@
 const { supabase } = require('../config/supabase');
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const ZONE_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
+const DEFAULT_ZONE_COLORS = ['#66BB6A', '#29B6F6', '#FFD54F', '#EC407A', '#7E57C2', '#FF8A65'];
 
 const locationError = (message, statusCode = 400) =>
   Object.assign(new Error(message), { statusCode });
@@ -33,6 +35,78 @@ const validateHours = (hours) => {
   }
 };
 
+const normalizeDeliveryZones = (value, row = {}) => {
+  const source = Array.isArray(value) ? value : [];
+  const zones = source
+    .map((zone, index) => ({
+      id: String(zone?.id || `zone-${index + 1}`).slice(0, 64),
+      radiusKm: Number(zone?.radiusKm ?? zone?.radius_km),
+      fee: Number(zone?.fee),
+      minOrder: Number(zone?.minOrder ?? zone?.min_order),
+      color: ZONE_COLOR_PATTERN.test(String(zone?.color || ''))
+        ? String(zone.color).toUpperCase()
+        : DEFAULT_ZONE_COLORS[index % DEFAULT_ZONE_COLORS.length],
+    }))
+    .filter(
+      (zone) =>
+        Number.isFinite(zone.radiusKm) &&
+        zone.radiusKm > 0 &&
+        Number.isFinite(zone.fee) &&
+        zone.fee >= 0 &&
+        Number.isFinite(zone.minOrder) &&
+        zone.minOrder >= 0,
+    )
+    .sort((first, second) => first.radiusKm - second.radiusKm);
+  if (zones.length > 0) return zones;
+
+  const radius = Number(row.delivery_radius_km);
+  const fee = Number(row.delivery_fee);
+  const minOrder = Number(row.delivery_min_order);
+  if (radius > 0 && fee >= 0 && minOrder >= 0) {
+    return [{ id: 'zone-1', radiusKm: radius, fee, minOrder, color: DEFAULT_ZONE_COLORS[0] }];
+  }
+  return [];
+};
+
+const validateDeliveryZones = (value) => {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 8) {
+    throw locationError('Добавьте от 1 до 8 зон доставки');
+  }
+  const seenRadii = new Set();
+  const zones = value.map((zone, index) => {
+    if (!zone || typeof zone !== 'object' || Array.isArray(zone)) {
+      throw locationError('Некорректная зона доставки');
+    }
+    const radiusKm = Number(zone.radiusKm ?? zone.radius_km);
+    const fee = Number(zone.fee);
+    const minOrder = Number(zone.minOrder ?? zone.min_order);
+    const color = String(zone.color || DEFAULT_ZONE_COLORS[index % DEFAULT_ZONE_COLORS.length]);
+    const radiusKey = radiusKm.toFixed(3);
+    if (!Number.isFinite(radiusKm) || radiusKm <= 0 || radiusKm > 100) {
+      throw locationError('Радиус зоны должен быть от 0.1 до 100 км');
+    }
+    if (!Number.isSafeInteger(fee) || fee < 0 || fee > 100000) {
+      throw locationError('Стоимость доставки должна быть целым числом от 0 до 100000');
+    }
+    if (!Number.isSafeInteger(minOrder) || minOrder < 0 || minOrder > 10000000) {
+      throw locationError('Минимальная сумма должна быть целым числом от 0 до 10000000');
+    }
+    if (!ZONE_COLOR_PATTERN.test(color)) throw locationError('Некорректный цвет зоны доставки');
+    if (seenRadii.has(radiusKey)) throw locationError('Радиусы зон доставки не должны повторяться');
+    seenRadii.add(radiusKey);
+    return {
+      id: String(zone.id || `zone-${index + 1}`)
+        .replace(/[^a-zA-Z0-9_-]/g, '')
+        .slice(0, 64),
+      radiusKm: Number(radiusKm.toFixed(2)),
+      fee,
+      minOrder,
+      color: color.toUpperCase(),
+    };
+  });
+  return zones.sort((first, second) => first.radiusKm - second.radiusKm);
+};
+
 const normalizeLocation = (row) => ({
   id: String(row.id),
   twoGisId: row.two_gis_id || null,
@@ -49,6 +123,7 @@ const normalizeLocation = (row) => ({
   deliveryRadiusKm: row.delivery_radius_km == null ? null : Number(row.delivery_radius_km),
   deliveryFee: row.delivery_fee == null ? null : Number(row.delivery_fee),
   deliveryMinOrder: row.delivery_min_order == null ? null : Number(row.delivery_min_order),
+  deliveryZones: normalizeDeliveryZones(row.delivery_zones, row),
   sortOrder: Number(row.sort_order || 0),
 });
 
@@ -56,7 +131,7 @@ async function getBulkaLocations({ includeInactive = false } = {}) {
   let query = supabase
     .from('bulka_locations')
     .select(
-      'id,two_gis_id,name,city,address,latitude,longitude,hours,active,pickup_enabled,preorder_enabled,delivery_enabled,delivery_radius_km,delivery_fee,delivery_min_order,sort_order',
+      'id,two_gis_id,name,city,address,latitude,longitude,hours,active,pickup_enabled,preorder_enabled,delivery_enabled,delivery_radius_km,delivery_fee,delivery_min_order,delivery_zones,sort_order',
     );
   if (!includeInactive) query = query.eq('active', true);
   const { data, error } = await query.order('sort_order', { ascending: true }).order('name');
@@ -129,6 +204,26 @@ async function updateBulkaLocation(id, payload = {}) {
     }
     updates[databaseKey] = number;
   }
+  for (const [apiKey, databaseKey, minimum, maximum] of [
+    ['latitude', 'latitude', -90, 90],
+    ['longitude', 'longitude', -180, 180],
+  ]) {
+    if (payload[apiKey] === undefined) continue;
+    const number = Number(payload[apiKey]);
+    if (!Number.isFinite(number) || number < minimum || number > maximum) {
+      throw locationError(`Поле ${apiKey} содержит некорректное значение`);
+    }
+    updates[databaseKey] = Number(number.toFixed(7));
+  }
+  if (payload.deliveryZones !== undefined) {
+    const zones = validateDeliveryZones(payload.deliveryZones);
+    const outer = zones[zones.length - 1];
+    updates.delivery_zones = zones;
+    // Keep old clients compatible while the server uses the full zone list.
+    updates.delivery_radius_km = outer.radiusKm;
+    updates.delivery_fee = outer.fee;
+    updates.delivery_min_order = outer.minOrder;
+  }
   if (payload.hours !== undefined) {
     if (!payload.hours || typeof payload.hours !== 'object' || Array.isArray(payload.hours)) {
       throw locationError('Некорректное расписание филиала');
@@ -143,20 +238,19 @@ async function updateBulkaLocation(id, payload = {}) {
   const { data: current, error: currentError } = await supabase
     .from('bulka_locations')
     .select(
-      'delivery_enabled,delivery_radius_km,delivery_fee,delivery_min_order,latitude,longitude',
+      'delivery_enabled,delivery_radius_km,delivery_fee,delivery_min_order,delivery_zones,latitude,longitude',
     )
     .eq('id', id)
     .maybeSingle();
   if (currentError) throw currentError;
   if (!current) throw locationError('Филиал не найден', 404);
   const effective = { ...current, ...updates };
+  const effectiveZones = normalizeDeliveryZones(effective.delivery_zones, effective);
   if (
     effective.delivery_enabled === true &&
     (!Number.isFinite(Number(effective.latitude)) ||
       !Number.isFinite(Number(effective.longitude)) ||
-      !(Number(effective.delivery_radius_km) > 0) ||
-      !(Number(effective.delivery_fee) >= 0) ||
-      !(Number(effective.delivery_min_order) >= 0))
+      effectiveZones.length === 0)
   ) {
     throw locationError('Для доставки задайте радиус больше 0, стоимость и минимальную сумму');
   }
@@ -232,6 +326,7 @@ async function deletePoint(id) {
 }
 
 module.exports = {
+  normalizeDeliveryZones,
   getBulkaLocations,
   getCitiesWithPoints,
   updateBulkaLocation,

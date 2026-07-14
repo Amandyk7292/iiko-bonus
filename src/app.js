@@ -11,6 +11,7 @@ const loyaltyRoutes = require('./routes/loyalty.routes');
 const walletRoutes = require('./routes/wallet.routes');
 const publicRoutes = require('./routes/public.routes');
 const legacyRoutes = require('./routes/legacy.routes');
+const yandexMapRoutes = require('./routes/yandex-map.routes');
 const { globalApiRateLimit } = require('./middlewares/rate-limit.middleware');
 
 const app = express();
@@ -33,11 +34,25 @@ app.use(
           "'wasm-unsafe-eval'",
           'https://cdn.tailwindcss.com',
           'https://www.gstatic.com',
+          'https://api-maps.yandex.ru',
+          'https://yastatic.net',
+          'https://*.maps.yandex.net',
         ],
-        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        styleSrc: [
+          "'self'",
+          "'unsafe-inline'",
+          'https://fonts.googleapis.com',
+          'https://yastatic.net',
+        ],
         imgSrc: ["'self'", 'data:', 'https:', 'blob:'],
         connectSrc: ["'self'", 'https:', 'http:', 'ws:', 'wss:'],
-        fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com', 'https://fonts.googleapis.com'],
+        fontSrc: [
+          "'self'",
+          'data:',
+          'https://fonts.gstatic.com',
+          'https://fonts.googleapis.com',
+          'https://yastatic.net',
+        ],
         objectSrc: ["'none'"],
         workerSrc: ["'self'", 'blob:'],
         childSrc: ["'self'", 'blob:'],
@@ -141,6 +156,7 @@ app.use(adminRoutes);
 app.use(loyaltyRoutes);
 app.use(walletRoutes);
 app.use(publicRoutes);
+app.use(yandexMapRoutes);
 app.use(legacyRoutes);
 
 app.use(
