@@ -204,6 +204,11 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'en':
         'No time slots are available for this location. Choose another location.',
   },
+  'checkout_time_expired': {
+    'ru': 'Это время уже недоступно. Выберите новый интервал.',
+    'kk': 'Бұл уақыт енді қолжетімсіз. Жаңа аралықты таңдаңыз.',
+    'en': 'This time is no longer available. Select a new time slot.',
+  },
   'checkout_delivery_outside_zone': {
     'ru': 'Этот адрес находится вне зоны доставки доступных точек.',
     'kk': 'Бұл мекенжай қолжетімді орындардың жеткізу аймағынан тыс.',

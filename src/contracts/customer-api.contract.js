@@ -15,6 +15,11 @@ const timeSchema = z
   .string()
   .trim()
   .regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+const forteOperationParamsSchema = z.object({ operationId: z.string().trim().uuid() }).strict();
+const fortePaymentMethodParamsSchema = z.object({ methodId: z.string().trim().uuid() }).strict();
+const forteCardSetupBodySchema = z
+  .object({ language: z.enum(['ru', 'kk', 'en']).optional().default('ru') })
+  .strict();
 
 const courierAuthRequestBodySchema = z
   .object({
@@ -160,6 +165,9 @@ module.exports = {
   courierLocationBodySchema,
   courierOrderParamsSchema,
   courierOrderStatusBodySchema,
+  forteCardSetupBodySchema,
+  forteOperationParamsSchema,
+  fortePaymentMethodParamsSchema,
   liveActivityBodySchema,
   liveActivityDeleteBodySchema,
   notificationPreferencesBodySchema,

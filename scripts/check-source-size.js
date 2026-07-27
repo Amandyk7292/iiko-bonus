@@ -15,7 +15,7 @@ const budgets = new Map([
   ['BulkaAndroid/lib/widgets/stories.dart', 1620],
   ['BulkaAndroid/lib/models/models.dart', 1640],
   ['src/routes/admin.routes.js', 1670],
-  ['src/services/legal-page.service.js', 1200],
+  ['src/services/legal-page.service.js', 1727],
   ['src/services/whatsapp-assistant-console.service.js', 1205],
 ]);
 

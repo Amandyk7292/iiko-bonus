@@ -10,29 +10,6 @@ class OtpRequestResult {
   bool get isSuccess => error == null;
 }
 
-class FulfillmentSlot {
-  const FulfillmentSlot({
-    required this.startsAt,
-    required this.endsAt,
-    required this.capacity,
-    required this.remaining,
-  });
-
-  final DateTime startsAt;
-  final DateTime endsAt;
-  final int capacity;
-  final int remaining;
-
-  factory FulfillmentSlot.fromJson(Map<String, dynamic> json) {
-    return FulfillmentSlot(
-      startsAt: DateTime.parse(_asString(json['startsAt'])).toLocal(),
-      endsAt: DateTime.parse(_asString(json['endsAt'])).toLocal(),
-      capacity: _asInt(json['capacity']),
-      remaining: _asInt(json['remaining']),
-    );
-  }
-}
-
 class ProfileResponse {
   const ProfileResponse({
     required this.success,

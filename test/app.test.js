@@ -88,6 +88,30 @@ test('admin and Flutter CSP remove general-purpose script evaluation', async (t)
   assert.doesNotMatch(clientScriptPolicy, /(?:^|\s)'unsafe-inline'(?:\s|$)/);
 });
 
+test('Forte widget shell is private, pinned to official hosts and never reflects query tokens', async (t) => {
+  const server = http.createServer(app);
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  t.after(() => server.close());
+
+  const leakedToken = 'query-token-must-not-be-used';
+  const response = await fetch(
+    `http://127.0.0.1:${server.address().port}/payments/forte-widget?token=${leakedToken}`,
+  );
+  const html = await response.text();
+  const csp = response.headers.get('content-security-policy') || '';
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('cache-control') || '', /no-store/);
+  assert.equal(response.headers.get('referrer-policy'), 'no-referrer');
+  assert.doesNotMatch(html, new RegExp(leakedToken));
+  assert.match(html, /https:\/\/js\.fortebank\.com\/widget\/be_gateway\.js/);
+  assert.match(csp, /script-src 'self' https:\/\/js\.fortebank\.com/);
+  assert.match(csp, /frame-src https:\/\/securepayments\.fortebank\.com/);
+  assert.doesNotMatch(csp, /script-src[^;]*unsafe-eval/);
+});
+
 test('payment and refund policy is publicly available as a stable HTML page', async (t) => {
   const server = http.createServer(app);
   await new Promise((resolve, reject) => {
@@ -296,6 +320,7 @@ test('privacy policy discloses messaging and AI subprocessors in every language'
     assert.match(html, /Google Gemini/, route);
     assert.match(html, /Alibaba Cloud\/Qwen/, route);
     assert.match(html, /DeepSeek/, route);
+    assert.match(html, /ForteBank/, route);
   }
 });
 

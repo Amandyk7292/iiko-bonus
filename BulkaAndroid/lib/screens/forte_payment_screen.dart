@@ -16,7 +16,7 @@ ForteCheckoutReturn? forteCheckoutReturnFromUri(Uri uri) {
   final path = uri.path.replaceFirst(RegExp(r'/+$'), '');
   if (uri.scheme.toLowerCase() != 'https' ||
       uri.host.toLowerCase() != 'bulka.com.kz' ||
-      path != '/orders') {
+      !const {'/orders', '/profile'}.contains(path)) {
     return null;
   }
 
@@ -28,7 +28,7 @@ ForteCheckoutReturn? forteCheckoutReturnFromUri(Uri uri) {
   }
 
   if ((queryValue('payment') ?? '').toLowerCase() != 'forte') return null;
-  final orderId = queryValue('order') ?? '';
+  final orderId = queryValue(path == '/profile' ? 'setup' : 'order') ?? '';
   if (!RegExp(
     r'^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
     caseSensitive: false,
@@ -51,17 +51,47 @@ ForteCheckoutReturn? forteCheckoutReturnFromUri(Uri uri) {
   return ForteCheckoutReturn.completed;
 }
 
+@visibleForTesting
+String forteCheckoutAcceptLanguage(String languageCode) {
+  return switch (languageCode.toLowerCase()) {
+    'kk' => 'kk-KZ,kk;q=1.0,ru;q=0.8',
+    'en' => 'en-US,en;q=1.0,ru;q=0.6',
+    _ => 'ru-RU,ru;q=1.0',
+  };
+}
+
+@visibleForTesting
+bool isAllowedForteCheckoutUri(Uri uri) {
+  if (uri.scheme.toLowerCase() != 'https' ||
+      uri.userInfo.isNotEmpty ||
+      (uri.hasPort && uri.port != 443)) {
+    return false;
+  }
+  final host = uri.host.toLowerCase();
+  if (host == 'ecom.fortebank.com') {
+    return uri.path == '/flex/' && uri.fragment.isEmpty;
+  }
+  if (host == 'bulka.com.kz') {
+    return uri.path == '/payments/forte-widget' &&
+        uri.query.isEmpty &&
+        uri.fragment.isNotEmpty;
+  }
+  return false;
+}
+
 class FortePaymentScreen extends StatefulWidget {
   const FortePaymentScreen({
     required this.api,
     required this.operationId,
     required this.redirectUrl,
+    this.cardSetup = false,
     super.key,
   });
 
   final BulkaApiClient api;
   final String operationId;
   final String redirectUrl;
+  final bool cardSetup;
 
   @override
   State<FortePaymentScreen> createState() => _FortePaymentScreenState();
@@ -82,13 +112,7 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
 
   Uri? get _checkoutUri {
     final uri = Uri.tryParse(widget.redirectUrl);
-    if (uri == null ||
-        uri.scheme != 'https' ||
-        uri.host != 'ecom.fortebank.com' ||
-        uri.path != '/flex/') {
-      return null;
-    }
-    return uri;
+    return uri != null && isAllowedForteCheckoutUri(uri) ? uri : null;
   }
 
   bool get _supportsEmbeddedCheckout => supportsEmbeddedForteCheckout(
@@ -118,9 +142,9 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
     }
     _checking = true;
     try {
-      final result = await widget.api.checkFortePaymentStatus(
-        widget.operationId,
-      );
+      final result = widget.cardSetup
+          ? await widget.api.checkForteCardSetupStatus(widget.operationId)
+          : await widget.api.checkFortePaymentStatus(widget.operationId);
       if (!mounted) return;
       final status = (result['paymentStatus'] ?? result['status'] ?? 'pending')
           .toString()
@@ -257,14 +281,30 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
     final verifying = _checkoutReturned && !paid && !terminalFailure;
     final showEmbeddedCheckout =
         _embeddedCheckoutVisible && !paid && !terminalFailure;
-    final title = paid
+    final title = widget.cardSetup
+        ? paid
+              ? 'card_setup_success'.tr
+              : terminalFailure
+              ? 'card_setup_failed'.tr
+              : verifying
+              ? 'card_setup_verifying'.tr
+              : 'card_setup_confirm'.tr
+        : paid
         ? 'payment_received'.tr
         : terminalFailure
         ? 'payment_failed'.tr
         : verifying
         ? 'forte_payment_verifying_title'.tr
         : 'payment_confirm'.tr;
-    final message = paid
+    final message = widget.cardSetup
+        ? paid
+              ? 'card_setup_success_hint'.tr
+              : terminalFailure
+              ? 'card_setup_failed_hint'.tr
+              : verifying
+              ? 'card_setup_verifying_hint'.tr
+              : 'card_setup_hint'.tr
+        : paid
         ? 'payment_saved'.tr
         : terminalFailure
         ? 'payment_not_charged'.tr
@@ -281,7 +321,11 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
           icon: const Icon(Icons.close_rounded),
           onPressed: () => Navigator.pop(context, false),
         ),
-        title: _FortePaymentAppBarTitle(title: 'forte_payment_title'.tr),
+        title: _FortePaymentAppBarTitle(
+          title: widget.cardSetup
+              ? 'payment_methods_add'.tr
+              : 'forte_payment_title'.tr,
+        ),
         actions: const [SizedBox(width: BulkaLayout.appBarSideSlot)],
         bottom: showEmbeddedCheckout
             ? PreferredSize(
@@ -333,6 +377,9 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
                     child: ForteCheckoutWebView(
                       key: ValueKey('forte-webview-${widget.operationId}'),
                       initialUri: _checkoutUri!,
+                      acceptLanguage: forteCheckoutAcceptLanguage(
+                        AppLang.current,
+                      ),
                       semanticLabel: 'forte_secure_page'.tr,
                       isReturnUri: (uri) =>
                           forteCheckoutReturnFromUri(uri) != null,

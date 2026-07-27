@@ -74,6 +74,28 @@ const receiptPolicy = {
   connectSrc: ["'none'"],
 };
 
+const forteWidgetPolicy = {
+  defaultSrc: ["'self'"],
+  baseUri: ["'none'"],
+  objectSrc: ["'none'"],
+  frameAncestors: ["'self'"],
+  formAction: ["'self'", 'https://securepayments.fortebank.com', 'https://gateway.fortebank.com'],
+  scriptSrc: ["'self'", 'https://js.fortebank.com'],
+  scriptSrcAttr: ["'none'"],
+  // Forte's loader positions the bank iframe with generated inline styles.
+  // This exception is isolated to the payment document.
+  styleSrc: ["'self'", "'unsafe-inline'"],
+  styleSrcAttr: ["'unsafe-inline'"],
+  imgSrc: ["'self'", 'data:', 'https://*.fortebank.com'],
+  fontSrc: ["'self'", 'data:'],
+  connectSrc: ["'self'", 'https://securepayments.fortebank.com', 'https://gateway.fortebank.com'],
+  frameSrc: [
+    'https://securepayments.fortebank.com',
+    'https://gateway.fortebank.com',
+    'https://*.fortebank.com',
+  ],
+};
+
 const legalPagePolicy = {
   defaultSrc: ["'self'"],
   baseUri: ["'self'"],
@@ -216,6 +238,7 @@ function isApiPath(requestPath) {
 function directivesForPath(requestPath, nonce) {
   if (isApiPath(requestPath)) return apiPolicy;
   if (requestPath === '/maps/yandex') return mapPolicy(nonce);
+  if (requestPath === '/payments/forte-widget') return forteWidgetPolicy;
   if (legalPagePaths.has(requestPath)) return legalPagePolicy;
   if (staticDocumentPolicies.has(requestPath)) return staticDocumentPolicies.get(requestPath);
   if (requestPath.startsWith('/payment-receipts/')) return receiptPolicy;

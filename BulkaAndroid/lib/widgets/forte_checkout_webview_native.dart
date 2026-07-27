@@ -6,6 +6,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 class ForteCheckoutWebView extends StatefulWidget {
   const ForteCheckoutWebView({
     required this.initialUri,
+    required this.acceptLanguage,
     required this.semanticLabel,
     required this.isReturnUri,
     required this.onReturn,
@@ -18,6 +19,7 @@ class ForteCheckoutWebView extends StatefulWidget {
   });
 
   final Uri initialUri;
+  final String acceptLanguage;
   final String semanticLabel;
   final bool Function(Uri uri) isReturnUri;
   final ValueChanged<Uri> onReturn;
@@ -60,7 +62,10 @@ class _ForteCheckoutWebViewState extends State<ForteCheckoutWebView> {
       );
       if (!mounted) return;
       setState(() => _controller = controller);
-      await controller.loadRequest(widget.initialUri);
+      await controller.loadRequest(
+        widget.initialUri,
+        headers: {'Accept-Language': widget.acceptLanguage},
+      );
     } catch (_) {
       _reportUnavailable();
     }

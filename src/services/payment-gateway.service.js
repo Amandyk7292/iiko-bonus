@@ -1,5 +1,6 @@
 const kaspiService = require('./kaspi.service');
 const forteService = require('./forte.service');
+const forteWidgetService = require('./forte-widget.service');
 
 const isForteOrder = (order) => String(order?.payment_method || '') === 'forte_card';
 
@@ -14,6 +15,9 @@ async function refundPaymentForOrder(order, amount, options = {}) {
   }
   if (!isForteOrder(order)) {
     return kaspiService.refundPayment(order.operation_id, amount);
+  }
+  if (order.provider_payment_system === 'forte_widget') {
+    return forteWidgetService.refundPayment(order, amount, options);
   }
   return forteService.refundPayment(order, amount, options);
 }

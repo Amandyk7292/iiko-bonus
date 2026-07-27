@@ -15,7 +15,7 @@ const {
   canMarkCustomerArrived,
   normalizeOrder,
 } = require('../src/services/customer-order.service');
-const { slotHorizonDays } = require('../src/services/slot.service');
+const { slotHorizonDays, timezoneOffsetMinutes } = require('../src/services/slot.service');
 
 const primaryBranchId = '11111111-1111-4111-8111-111111111111';
 const branchHours = { daily: { open: '08:00', close: '21:00' } };
@@ -279,6 +279,8 @@ test('pickup and delivery expose only today while preorder keeps future dates', 
   assert.equal(slotHorizonDays('pickup', 7), 1);
   assert.equal(slotHorizonDays('delivery', 3), 1);
   assert.equal(slotHorizonDays('preorder', 7), 7);
+  assert.equal(timezoneOffsetMinutes({ ORDER_TIMEZONE_OFFSET_MINUTES: '300' }), 300);
+  assert.equal(timezoneOffsetMinutes({ ORDER_TIMEZONE_OFFSET_MINUTES: 'invalid' }), 300);
 });
 
 test('payment state machine never downgrades paid or refunded orders', () => {

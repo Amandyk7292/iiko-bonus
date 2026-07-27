@@ -118,7 +118,7 @@ app.use(
   express.json({
     limit: '2mb',
     verify(req, _res, buffer) {
-      if (req.originalUrl.split('?')[0] === '/webhooks/kaspi') {
+      if (['/webhooks/kaspi', '/webhooks/forte/widget'].includes(req.originalUrl.split('?')[0])) {
         req.rawBody = Buffer.from(buffer);
       }
     },
@@ -369,6 +369,22 @@ app.get('/assets/legal/account-deletion.js', (_req, res) => {
   res
     .type('application/javascript')
     .sendFile(path.join(process.cwd(), 'public/legal/account-deletion.js'));
+});
+app.get('/assets/forte-widget.css', (_req, res) => {
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.type('text/css').sendFile(path.join(process.cwd(), 'public/forte-widget.css'));
+});
+app.get('/assets/forte-widget.js', (_req, res) => {
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.type('application/javascript').sendFile(path.join(process.cwd(), 'public/forte-widget.js'));
+});
+app.get('/payments/forte-widget', (_req, res) => {
+  res.set({
+    'Cache-Control': 'private, no-store',
+    'Referrer-Policy': 'no-referrer',
+    'X-Robots-Tag': 'noindex, nofollow, noarchive',
+  });
+  res.sendFile(path.join(process.cwd(), 'public/forte-widget.html'));
 });
 app.get('/payment-receipts/:receiptId', async (req, res, next) => {
   try {

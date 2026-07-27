@@ -122,6 +122,51 @@ function validateRuntimeConfig() {
       missing.push('FORTE_API_BASE_URL(valid URL)');
     }
   }
+  if (process.env.FORTE_WIDGET_ENABLED === 'true') {
+    for (const [name, minLength] of [
+      ['FORTE_WIDGET_SHOP_ID', 1],
+      ['FORTE_WIDGET_SECRET_KEY', 16],
+      ['FORTE_WIDGET_TOKEN_KEY', 32],
+      ['FORTE_WIDGET_WEBHOOK_PUBLIC_KEY', 64],
+    ]) {
+      if (String(process.env[name] || '').trim().length < minLength) missing.push(name);
+    }
+    if (!/^\d{1,20}$/.test(String(process.env.FORTE_WIDGET_SHOP_ID || '').trim())) {
+      missing.push('FORTE_WIDGET_SHOP_ID(numeric)');
+    }
+    for (const [name, fallback, hostname] of [
+      [
+        'FORTE_WIDGET_CHECKOUT_API_URL',
+        'https://securepayments.fortebank.com',
+        'securepayments.fortebank.com',
+      ],
+      [
+        'FORTE_WIDGET_TRANSACTION_API_URL',
+        'https://gateway.fortebank.com',
+        'gateway.fortebank.com',
+      ],
+    ]) {
+      try {
+        const url = new URL(String(process.env[name] || fallback));
+        if (
+          url.protocol !== 'https:' ||
+          url.hostname.toLowerCase() !== hostname ||
+          url.port ||
+          !['', '/'].includes(url.pathname)
+        ) {
+          missing.push(`${name}(official Forte HTTPS origin)`);
+        }
+      } catch {
+        missing.push(`${name}(valid URL)`);
+      }
+    }
+    if (
+      process.env.FORTE_WIDGET_APPLE_PAY_ENABLED &&
+      !['true', 'false'].includes(process.env.FORTE_WIDGET_APPLE_PAY_ENABLED)
+    ) {
+      missing.push('FORTE_WIDGET_APPLE_PAY_ENABLED(true or false)');
+    }
+  }
   if (process.env.YANDEX_DELIVERY_ENABLED === 'true') {
     if (String(process.env.YANDEX_DELIVERY_API_TOKEN || '').trim().length < 10) {
       missing.push('YANDEX_DELIVERY_API_TOKEN');

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 class ForteCheckoutWebView extends StatelessWidget {
   const ForteCheckoutWebView({
     required this.initialUri,
+    required this.acceptLanguage,
     required this.semanticLabel,
     required this.isReturnUri,
     required this.onReturn,
@@ -15,6 +16,7 @@ class ForteCheckoutWebView extends StatelessWidget {
   });
 
   final Uri initialUri;
+  final String acceptLanguage;
   final String semanticLabel;
   final bool Function(Uri uri) isReturnUri;
   final ValueChanged<Uri> onReturn;

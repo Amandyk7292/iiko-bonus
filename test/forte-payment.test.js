@@ -9,6 +9,7 @@ const {
   formatAmount,
   mapForteStatus,
   normalizeForteOrder,
+  normalizeLanguage,
   toMinorUnits,
 } = require('../src/services/forte.service');
 
@@ -67,6 +68,13 @@ test('ForteBank amount and documented order statuses are normalized safely', () 
       createTime: '',
     },
   );
+});
+
+test('ForteBank checkout language follows the app locale and defaults to Russian', () => {
+  assert.equal(normalizeLanguage('ru-RU'), 'ru');
+  assert.equal(normalizeLanguage('kk-KZ'), 'kk');
+  assert.equal(normalizeLanguage('en-US'), 'en');
+  assert.equal(normalizeLanguage('unsupported'), 'ru');
 });
 
 test('ForteBank HPP URL is pinned to the official HTTPS host and flex path', () => {

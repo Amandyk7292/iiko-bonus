@@ -23,6 +23,85 @@ void main() {
     expect(translationValidationErrors(), isEmpty);
   });
 
+  test('fulfillment slots use branch time instead of the device timezone', () {
+    final slot = FulfillmentSlot.fromJson(
+      {
+        'startsAt': '2026-07-27T16:00:00.000Z',
+        'endsAt': '2026-07-27T17:00:00.000Z',
+        'capacity': 20,
+        'remaining': 19,
+      },
+      timezoneOffsetMinutes: 300,
+      serverTime: DateTime.parse('2026-07-27T15:22:00.000Z'),
+    );
+
+    expect(slot.startsAt.isUtc, isTrue);
+    expect(slot.branchStartsAt.hour, 21);
+    expect(slot.branchEndsAt.hour, 22);
+    expect(slot.branchServerTime.hour, 20);
+  });
+
+  test('Forte checkout sends the selected language to its WebView', () {
+    expect(forteCheckoutAcceptLanguage('ru'), startsWith('ru-RU'));
+    expect(forteCheckoutAcceptLanguage('kk'), startsWith('kk-KZ'));
+    expect(forteCheckoutAcceptLanguage('en'), startsWith('en-US'));
+    expect(forteCheckoutAcceptLanguage('unknown'), startsWith('ru-RU'));
+  });
+
+  test('Forte checkout accepts only the legacy bank page or Bulka widget', () {
+    expect(
+      isAllowedForteCheckoutUri(
+        Uri.parse(
+          'https://ecom.fortebank.com/flex/?id=1000001918261&password=test123',
+        ),
+      ),
+      isTrue,
+    );
+    expect(
+      isAllowedForteCheckoutUri(
+        Uri.parse(
+          'https://bulka.com.kz/payments/forte-widget#token=abc1234567890123&order=117615f9-b35f-4eb4-9f6d-777f2236bb25',
+        ),
+      ),
+      isTrue,
+    );
+    expect(
+      isAllowedForteCheckoutUri(
+        Uri.parse(
+          'https://bulka.com.kz.attacker.example/payments/forte-widget#token=abc1234567890123',
+        ),
+      ),
+      isFalse,
+    );
+    expect(
+      isAllowedForteCheckoutUri(
+        Uri.parse(
+          'https://bulka.com.kz/payments/forte-widget?token=logged-secret',
+        ),
+      ),
+      isFalse,
+    );
+  });
+
+  test('Forte WebView recognizes both order and card-setup returns', () {
+    expect(
+      forteCheckoutReturnFromUri(
+        Uri.parse(
+          'https://bulka.com.kz/orders?payment=forte&order=117615f9-b35f-4eb4-9f6d-777f2236bb25&status=successful',
+        ),
+      ),
+      ForteCheckoutReturn.completed,
+    );
+    expect(
+      forteCheckoutReturnFromUri(
+        Uri.parse(
+          'https://bulka.com.kz/profile?payment=forte&setup=117615f9-b35f-4eb4-9f6d-777f2236bb25&status=cancelled',
+        ),
+      ),
+      ForteCheckoutReturn.cancelled,
+    );
+  });
+
   test('product storage conditions parse and localize duration units', () {
     final conditions = productStorageConditionsFromJson([
       {'temperature': '-18 °C', 'durationValue': 90, 'durationUnit': 'days'},

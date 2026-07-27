@@ -13,6 +13,9 @@ const {
 } = require('../src/contracts/admin-auth.contract');
 const {
   courierLocationBodySchema,
+  forteCardSetupBodySchema,
+  forteOperationParamsSchema,
+  fortePaymentMethodParamsSchema,
   profileUpdateBodySchema,
   supportCreateBodySchema,
 } = require('../src/contracts/customer-api.contract');
@@ -109,6 +112,15 @@ test('authentication and customer contracts reject extra and malformed fields', 
   });
   assert.equal(courierLocationBodySchema.safeParse({ latitude: 91, longitude: 0 }).success, false);
   assert.equal(profileUpdateBodySchema.safeParse({ email: 'not-an-email' }).success, false);
+  assert.deepEqual(forteCardSetupBodySchema.parse({ language: 'kk' }), {
+    language: 'kk',
+  });
+  assert.equal(
+    forteCardSetupBodySchema.safeParse({ language: 'de', token: 'secret' }).success,
+    false,
+  );
+  assert.equal(forteOperationParamsSchema.safeParse({ operationId: customerId }).success, true);
+  assert.equal(fortePaymentMethodParamsSchema.safeParse({ methodId: 'not-a-uuid' }).success, false);
   assert.equal(
     supportCreateBodySchema.safeParse({
       category: 'refund',

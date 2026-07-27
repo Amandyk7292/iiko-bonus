@@ -785,163 +785,22 @@ class _CartCheckoutBar extends StatelessWidget {
   }
 }
 
-enum _CheckoutPaymentMethod { kaspi, forte }
-
-enum _CheckoutPaymentVisual { kaspi, bankCard }
-
-class _CheckoutDetails {
-  const _CheckoutDetails({
-    required this.checkoutId,
-    required this.orderType,
-    required this.scheduledAt,
-    required this.paymentMethod,
-    this.preorderFulfillmentType,
-    this.branch,
-    this.branchId,
-    this.deliveryAddress,
-    this.additionalPhone,
-    this.promoCode,
-    this.comment,
-  });
-
-  final String checkoutId;
-  final _OrderType orderType;
-  final String scheduledAt;
-  final _CheckoutPaymentMethod paymentMethod;
-  final String? preorderFulfillmentType;
-  final String? branch;
-  final String? branchId;
-  final DeliveryAddress? deliveryAddress;
-  final String? additionalPhone;
-  final String? promoCode;
-  final String? comment;
-}
-
-class _CheckoutPaymentCard extends StatelessWidget {
-  const _CheckoutPaymentCard({
-    required this.cardKey,
-    required this.title,
-    required this.subtitle,
-    required this.visual,
-    required this.available,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final Key cardKey;
-  final String title;
-  final String subtitle;
-  final _CheckoutPaymentVisual visual;
-  final bool? available;
-  final bool selected;
-  final VoidCallback onTap;
-
-  Widget _buildPaymentMark(bool enabled) {
-    return switch (visual) {
-      _CheckoutPaymentVisual.kaspi => Icon(
-        Icons.account_balance_wallet_outlined,
-        color: enabled ? _textDark : Colors.grey,
-      ),
-      _CheckoutPaymentVisual.bankCard => Opacity(
-        opacity: enabled ? 1 : 0.42,
-        child: SvgPicture.asset(
-          'assets/brand/card_networks.svg',
-          width: 78,
-          height: 24,
-          fit: BoxFit.contain,
-          excludeFromSemantics: true,
-        ),
-      ),
-    };
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final enabled = available == true;
-    return Semantics(
-      button: true,
-      selected: selected,
-      enabled: enabled,
-      label: '$title. $subtitle',
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(BulkaRadii.control),
-        child: AnimatedContainer(
-          key: cardKey,
-          duration: const Duration(milliseconds: 180),
-          width: double.infinity,
-          constraints: const BoxConstraints(minHeight: 112),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(BulkaRadii.control),
-            border: Border.all(
-              color: selected && enabled ? _bulkaYellow : Colors.grey.shade300,
-              width: selected && enabled ? 2 : 1.5,
-            ),
-          ),
-          child: available == null
-              ? const Center(
-                  child: SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                )
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        _buildPaymentMark(enabled),
-                        const Spacer(),
-                        if (selected && enabled)
-                          const Icon(
-                            Icons.check_circle_rounded,
-                            color: _bulkaYellow,
-                            size: 20,
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontFamily: _headingFont,
-                        fontWeight: FontWeight.w700,
-                        color: enabled ? _textDark : Colors.grey.shade600,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      enabled ? subtitle : 'payment_method_unavailable'.tr,
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: BulkaTypeScale.caption,
-                        height: 1.2,
-                      ),
-                    ),
-                  ],
-                ),
-        ),
-      ),
-    );
-  }
-}
-
 class _PickupSlot {
   const _PickupSlot({
     required this.label,
     required this.value,
     required this.startsAt,
     required this.endsAt,
+    required this.timezoneOffsetMinutes,
+    required this.serverNow,
     this.remaining,
   });
   final String label;
   final String value;
   final DateTime startsAt;
   final DateTime endsAt;
+  final int timezoneOffsetMinutes;
+  final DateTime serverNow;
   final int? remaining;
 }
 
@@ -982,11 +841,13 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   bool _isSelectingTime = false;
   bool? _kaspiAvailable;
   bool? _forteAvailable;
+  String? _forteSavedCardLabel;
   _CheckoutPaymentMethod _paymentMethod = _CheckoutPaymentMethod.kaspi;
   int _discount = 0;
   int _deliveryFee = 0;
   int? _quotedTotal;
   Map<String, dynamic>? _etaQuote;
+  int _branchTimezoneOffsetMinutes = 300;
   int _quoteRevision = 0;
   String _checkoutId = _newCheckoutId();
 
@@ -1029,6 +890,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
     setState(() {
       _kaspiAvailable = availability[0];
       _forteAvailable = availability[1];
+      _forteSavedCardLabel = widget.api.forteSavedCardLabel;
       if (_paymentMethod == _CheckoutPaymentMethod.kaspi &&
           _kaspiAvailable != true &&
           _forteAvailable == true) {
@@ -1070,13 +932,6 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       _draftKey('checkout_scheduled_at'),
     );
     final parsedScheduledAt = DateTime.tryParse(savedScheduledAt ?? '');
-    final savedSlot =
-        parsedScheduledAt != null &&
-            parsedScheduledAt.isAfter(DateTime.now()) &&
-            (savedType == _OrderType.preorder ||
-                _isOnLocalToday(parsedScheduledAt))
-        ? _slotFromDate(parsedScheduledAt, orderType: savedType)
-        : null;
     if (!mounted) return;
     _phoneController.text = prefs.getString(_draftKey('checkout_phone')) ?? '';
     _promoController.text = prefs.getString(_draftKey('checkout_promo')) ?? '';
@@ -1088,14 +943,16 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       _orderType = savedType;
       _preorderFulfillment = savedPreorderFulfillment;
       _deliveryAddress = address;
-      _scheduledSlot = savedSlot;
+      _scheduledSlot = null;
       _locations = locations;
       _deliveryAvailable = locations.any(
         (location) => location.active && location.deliveryEnabled,
       );
       _deliveryAvailabilityChecked = locationsLoaded;
     });
-    if (_scheduledSlot != null) unawaited(_refreshQuote());
+    if (parsedScheduledAt != null) {
+      await _restoreScheduledSlot(parsedScheduledAt);
+    }
   }
 
   void _refreshPromoButton() {
@@ -1115,43 +972,97 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
     DateTime? endDate,
     int? remaining,
     _OrderType? orderType,
+    int? timezoneOffsetMinutes,
+    DateTime? serverNow,
   }) {
-    final local = date.toLocal();
-    final end = (endDate ?? local.add(const Duration(hours: 1))).toLocal();
+    final offset = timezoneOffsetMinutes ?? _branchTimezoneOffsetMinutes;
+    final startsAt = date.toUtc();
+    final endsAt = (endDate ?? startsAt.add(const Duration(hours: 1))).toUtc();
+    final local = branchWallClock(startsAt, offset);
+    final end = branchWallClock(endsAt, offset);
+    final branchNow = branchWallClock(
+      serverNow?.toUtc() ?? DateTime.now().toUtc(),
+      offset,
+    );
     final selectedType = orderType ?? _orderType;
     if (selectedType != _OrderType.preorder) {
       return _PickupSlot(
         label: '${_clockLabel(local)}–${_clockLabel(end)}',
-        value: local.toUtc().toIso8601String(),
+        value: startsAt.toIso8601String(),
         startsAt: local,
         endsAt: end,
+        timezoneOffsetMinutes: offset,
+        serverNow: branchNow,
         remaining: remaining,
       );
     }
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
+    final today = DateTime(branchNow.year, branchNow.month, branchNow.day);
     final slotDay = DateTime(local.year, local.month, local.day);
-    final offset = slotDay.difference(today).inDays;
-    final dayLabel = offset == 0
+    final dayOffset = slotDay.difference(today).inDays;
+    final dayLabel = dayOffset == 0
         ? 'checkout_today'.tr
-        : offset == 1
+        : dayOffset == 1
         ? 'checkout_tomorrow'.tr
         : formatUiDate(context, local);
     return _PickupSlot(
       label: '$dayLabel, ${_clockLabel(local)}–${_clockLabel(end)}',
-      value: local.toUtc().toIso8601String(),
+      value: startsAt.toIso8601String(),
       startsAt: local,
       endsAt: end,
+      timezoneOffsetMinutes: offset,
+      serverNow: branchNow,
       remaining: remaining,
     );
   }
 
-  bool _isOnLocalToday(DateTime value) {
-    final now = DateTime.now();
-    final local = value.toLocal();
-    return local.year == now.year &&
-        local.month == now.month &&
-        local.day == now.day;
+  _PickupSlot _slotFromFulfillment(
+    FulfillmentSlot slot, {
+    _OrderType? orderType,
+  }) {
+    return _slotFromDate(
+      slot.startsAt,
+      endDate: slot.endsAt,
+      remaining: slot.remaining,
+      orderType: orderType,
+      timezoneOffsetMinutes: slot.timezoneOffsetMinutes,
+      serverNow: slot.serverTime,
+    );
+  }
+
+  Future<void> _restoreScheduledSlot(DateTime savedScheduledAt) async {
+    final location = _effectiveLocation;
+    if (location == null) return;
+    try {
+      final slots = await widget.api.getFulfillmentSlots(
+        branchId: location.id,
+        orderType: _orderType.wireValue,
+        days: _orderType == _OrderType.preorder ? 7 : 1,
+      );
+      FulfillmentSlot? matchingSlot;
+      for (final slot in slots) {
+        if (slot.startsAt.isAtSameMomentAs(savedScheduledAt.toUtc())) {
+          matchingSlot = slot;
+          break;
+        }
+      }
+      if (!mounted) return;
+      if (matchingSlot == null) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove(_draftKey('checkout_scheduled_at'));
+        return;
+      }
+      final restored = _slotFromFulfillment(
+        matchingSlot,
+        orderType: _orderType,
+      );
+      setState(() {
+        _branchTimezoneOffsetMinutes = matchingSlot!.timezoneOffsetMinutes;
+        _scheduledSlot = restored;
+      });
+      await _refreshQuote();
+    } catch (_) {
+      // Keep checkout usable; the customer can select a fresh slot manually.
+    }
   }
 
   String _clockLabel(DateTime value) => formatUiTime(context, value);
@@ -1347,16 +1258,13 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         days: _orderType == _OrderType.preorder ? 7 : 1,
       );
       timeSlots = slots
-          .map(
-            (slot) => _slotFromDate(
-              slot.startsAt,
-              endDate: slot.endsAt,
-              remaining: slot.remaining,
-            ),
-          )
+          .map(_slotFromFulfillment)
           .take(_orderType == _OrderType.preorder ? 50 : 30)
           .toList();
       if (!mounted) return;
+      if (slots.isNotEmpty) {
+        _branchTimezoneOffsetMinutes = slots.first.timezoneOffsetMinutes;
+      }
       if (timeSlots.isEmpty) {
         ScaffoldMessenger.of(
           context,
@@ -1416,9 +1324,17 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   String get _quoteEtaText {
     final eta = _etaQuote;
     if (eta == null) return '';
-    final minimum = DateTime.tryParse(_asString(eta['minAt']))?.toLocal();
-    final maximum = DateTime.tryParse(_asString(eta['maxAt']))?.toLocal();
-    if (minimum != null && maximum != null) {
+    final minimumInstant = DateTime.tryParse(_asString(eta['minAt']));
+    final maximumInstant = DateTime.tryParse(_asString(eta['maxAt']));
+    if (minimumInstant != null && maximumInstant != null) {
+      final minimum = branchWallClock(
+        minimumInstant,
+        _branchTimezoneOffsetMinutes,
+      );
+      final maximum = branchWallClock(
+        maximumInstant,
+        _branchTimezoneOffsetMinutes,
+      );
       final start = _clockLabel(minimum);
       final end = _clockLabel(maximum);
       return 'checkout_eta_window'.trArgs({
@@ -1506,6 +1422,46 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
     await _refreshQuote(showFeedback: true);
   }
 
+  Future<bool> _revalidateScheduledSlot() async {
+    final selected = _scheduledSlot;
+    final location = _effectiveLocation;
+    if (selected == null || location == null) return false;
+    final slots = await widget.api.getFulfillmentSlots(
+      branchId: location.id,
+      orderType: _orderType.wireValue,
+      days: _orderType == _OrderType.preorder ? 7 : 1,
+    );
+    FulfillmentSlot? matchingSlot;
+    final selectedInstant = DateTime.parse(selected.value);
+    for (final slot in slots) {
+      if (slot.startsAt.isAtSameMomentAs(selectedInstant)) {
+        matchingSlot = slot;
+        break;
+      }
+    }
+    if (!mounted) return false;
+    if (matchingSlot == null) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_draftKey('checkout_scheduled_at'));
+      if (!mounted) return false;
+      setState(() {
+        _scheduledSlot = null;
+        _quotedTotal = null;
+        _etaQuote = null;
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('checkout_time_expired'.tr)));
+      return false;
+    }
+    final refreshed = _slotFromFulfillment(matchingSlot);
+    setState(() {
+      _branchTimezoneOffsetMinutes = matchingSlot!.timezoneOffsetMinutes;
+      _scheduledSlot = refreshed;
+    });
+    return true;
+  }
+
   Future<void> _submit() async {
     if (!_selectedPaymentAvailable) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1548,6 +1504,10 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
     if (_isSubmitting) return;
     setState(() => _isSubmitting = true);
     try {
+      if (!await _revalidateScheduledSlot()) {
+        if (mounted) setState(() => _isSubmitting = false);
+        return;
+      }
       final completed = await widget.onSubmit(
         _CheckoutDetails(
           checkoutId: _checkoutId,
@@ -1774,7 +1734,8 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
                     child: _CheckoutPaymentCard(
                       cardKey: const ValueKey('checkout-payment-card'),
                       title: 'checkout_card_payment_title'.tr,
-                      subtitle: 'checkout_forte_card_hint'.tr,
+                      subtitle:
+                          _forteSavedCardLabel ?? 'checkout_forte_card_hint'.tr,
                       visual: _CheckoutPaymentVisual.bankCard,
                       available: _forteAvailable,
                       selected: _paymentMethod == _CheckoutPaymentMethod.forte,
@@ -2088,7 +2049,7 @@ class _PreorderScheduleField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final local = slot.startsAt.toLocal();
-    final now = DateTime.now();
+    final now = slot.serverNow;
     final today = DateTime(now.year, now.month, now.day);
     final day = DateTime(local.year, local.month, local.day);
     final offset = day.difference(today).inDays;
@@ -2276,7 +2237,7 @@ class _PreorderCalendarSheetState extends State<_PreorderCalendarSheet> {
                 initialDate: _selected,
                 firstDate: _days.first,
                 lastDate: _days.last,
-                currentDate: DateTime.now(),
+                currentDate: widget.slots.first.serverNow,
                 selectableDayPredicate: available.contains,
                 onDateChanged: (value) => setState(() => _selected = value),
               ),

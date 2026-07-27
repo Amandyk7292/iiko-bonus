@@ -283,10 +283,11 @@ class MenuService {
    */
   async setProductOverride(iikoProductId, overrides) {
     const id = cleanId(iikoProductId, 'iikoProductId');
+    const input = productOverrideInput(overrides);
     const { error } = await supabase.from('menu_overrides').upsert(
       {
         iiko_product_id: id,
-        ...productOverrideInput(overrides),
+        ...input,
         updated_at: new Date(),
       },
       { onConflict: 'iiko_product_id' },
@@ -312,10 +313,11 @@ class MenuService {
    */
   async setCategoryOverride(iikoCategoryId, overrides) {
     const id = cleanId(iikoCategoryId, 'iikoCategoryId');
+    const input = categoryOverrideInput(overrides);
     const { error } = await supabase.from('menu_category_overrides').upsert(
       {
         iiko_category_id: id,
-        ...categoryOverrideInput(overrides),
+        ...input,
         updated_at: new Date(),
       },
       { onConflict: 'iiko_category_id' },
@@ -343,7 +345,8 @@ class MenuService {
    * Добавляет или обновляет кастомный товар
    */
   async upsertCustomProduct(product) {
-    const { error } = await supabase.from('custom_products').upsert(customProductInput(product));
+    const input = customProductInput(product);
+    const { error } = await supabase.from('custom_products').upsert(input);
     if (error) throw new Error('Ошибка сохранения кастомного товара: ' + error.message);
   }
 

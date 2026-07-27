@@ -496,6 +496,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       color: Color(0xFFF3F3F3),
                     ),
                     _ProfileMenuItem(
+                      icon: Icons.credit_card_rounded,
+                      title: 'payment_methods_title'.tr,
+                      onTap: () => _openPage(
+                        (_) => PaymentMethodsScreen(api: widget.api),
+                      ),
+                    ),
+                    const Divider(
+                      height: 1,
+                      indent: 60,
+                      endIndent: 20,
+                      color: Color(0xFFF3F3F3),
+                    ),
+                    _ProfileMenuItem(
                       icon: Icons.notifications_active_outlined,
                       title: 'notifications_settings_title'.tr,
                       onTap: () => _openPage(

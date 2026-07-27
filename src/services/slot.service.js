@@ -15,6 +15,11 @@ const parseClock = (value) => {
 const slotHorizonDays = (orderType, days) =>
   orderType === 'preorder' ? Math.min(14, Math.max(1, Number.parseInt(days, 10) || 7)) : 1;
 
+const timezoneOffsetMinutes = (env = process.env) => {
+  const offset = Number.parseInt(env.ORDER_TIMEZONE_OFFSET_MINUTES || '300', 10);
+  return Number.isInteger(offset) && Math.abs(offset) <= 840 ? offset : 300;
+};
+
 const capacityFor = (location, type) =>
   Number(
     type === 'preorder'
@@ -46,9 +51,7 @@ async function listAvailableSlots({ branchId, orderType, days = 7, now = new Dat
         : location.pickup_enabled;
   if (!enabled) throw slotError('Этот способ получения в филиале временно недоступен');
 
-  const offsetMinutes = Number.parseInt(process.env.ORDER_TIMEZONE_OFFSET_MINUTES || '300', 10);
-  const safeOffset =
-    Number.isInteger(offsetMinutes) && Math.abs(offsetMinutes) <= 840 ? offsetMinutes : 300;
+  const safeOffset = timezoneOffsetMinutes();
   const localNow = new Date(now.getTime() + safeOffset * 60000);
   const startLocalDay = Date.UTC(
     localNow.getUTCFullYear(),
@@ -109,7 +112,14 @@ async function listAvailableSlots({ branchId, orderType, days = 7, now = new Dat
       });
     }
   }
-  return { branchId: String(branchId), orderType, slotMinutes: interval, slots };
+  return {
+    branchId: String(branchId),
+    orderType,
+    slotMinutes: interval,
+    serverTime: now.toISOString(),
+    timezoneOffsetMinutes: safeOffset,
+    slots,
+  };
 }
 
-module.exports = { listAvailableSlots, slotHorizonDays };
+module.exports = { listAvailableSlots, slotHorizonDays, timezoneOffsetMinutes };

@@ -13,6 +13,7 @@ const { getSettings } = require('./services/settings.service');
 const { shouldRunBots } = require('./config/env');
 const kaspiService = require('./services/kaspi.service');
 const forteService = require('./services/forte.service');
+const forteWidgetService = require('./services/forte-widget.service');
 const {
   deliverAutomatedMessages,
   enqueueAutomatedMessages,
@@ -54,7 +55,13 @@ if (!process.env.VERCEL) {
     setInterval(reconcileKaspiOrders, 60 * 1000);
 
     const reconcileForteOrders = () =>
-      runMonitoredWorker('forte-reconciliation', () => forteService.reconcileOrders());
+      runMonitoredWorker('forte-reconciliation', async () => {
+        const [legacy, widget] = await Promise.all([
+          forteService.reconcileOrders(),
+          forteWidgetService.reconcileOrders(),
+        ]);
+        return Number(legacy || 0) + Number(widget || 0);
+      });
     setTimeout(reconcileForteOrders, 20 * 1000);
     setInterval(reconcileForteOrders, 60 * 1000);
 
@@ -72,7 +79,9 @@ if (!process.env.VERCEL) {
     critical: true,
   });
   registerWorker('forte-reconciliation', {
-    enabled: runWorkers && process.env.FORTE_ENABLED === 'true',
+    enabled:
+      runWorkers &&
+      (process.env.FORTE_ENABLED === 'true' || process.env.FORTE_WIDGET_ENABLED === 'true'),
     intervalMs: 60 * 1000,
     critical: true,
   });

@@ -130,8 +130,10 @@ const pages = {
           <h2>6. Оплата и документы</h2>
           <p>Расчёты производятся в казахстанских тенге способами, доступными при оформлении:
             через Kaspi Pay, банковской картой через защищённую страницу ForteBank либо иным
-            показанным способом. Bulka не получает и не хранит полный номер карты, срок её действия
-            и CVC/CVV. Платёж считается совершённым после подтверждения платёжным сервисом.</p>
+            показанным способом. Bulka не получает и не хранит полный номер карты и CVC/CVV.
+            С согласия Покупателя может храниться зашифрованный токен ForteBank и отображаемые
+            сведения карты; токен можно удалить в профиле. Платёж считается совершённым после
+            подтверждения платёжным сервисом.</p>
           <p>После подтверждённой оплаты Покупателю предоставляется торговый или иной предусмотренный
             законодательством платёжный документ. Подробные правила опубликованы на странице
             <a href="/payment-and-refund">«Условия оплаты и возврата»</a>.</p>
@@ -299,9 +301,10 @@ const pages = {
           <h2>6. Төлем және құжаттар</h2>
           <p>Есеп айырысу тапсырыс беру кезінде қолжетімді тәсілдермен Қазақстан теңгесінде
             жүргізіледі: Kaspi Pay арқылы, ForteBank қорғалған бетінде банк картасымен немесе
-            көрсетілген өзге тәсілмен. Bulka картаның толық нөмірін, жарамдылық мерзімін және
-            CVC/CVV кодын алмайды және сақтамайды. Төлемді төлем сервисі растағаннан кейін ол
-            жасалған болып есептеледі.</p>
+            көрсетілген өзге тәсілмен. Bulka картаның толық нөмірін және CVC/CVV кодын алмайды әрі
+            сақтамайды. Сатып алушының келісімімен ForteBank шифрланған токені және картаның
+            көрсетілетін деректері сақталуы мүмкін; токенді профильден жоюға болады. Төлемді төлем
+            сервисі растағаннан кейін ол жасалған болып есептеледі.</p>
           <p>Расталған төлемнен кейін Сатып алушыға сауда чегі немесе заңнамада көзделген өзге төлем
             құжаты беріледі. Толық ережелер
             <a href="/kk/payment-and-refund">«Төлем және қайтару шарттары»</a> бетінде жарияланған.</p>
@@ -473,8 +476,10 @@ const pages = {
           <h2>6. Payment and documents</h2>
           <p>Payments are made in Kazakhstan tenge using the methods available at checkout: Kaspi
             Pay, bank card through the protected ForteBank page, or another displayed method. Bulka
-            does not receive or store the full card number, expiry date or CVC/CVV. Payment is
-            complete when confirmed by the payment service.</p>
+            does not receive or store the full card number or CVC/CVV. With the Buyer’s consent,
+            Bulka may store an encrypted ForteBank token and display-only card details; the token
+            can be removed in the profile. Payment is complete when confirmed by the payment
+            service.</p>
           <p>After confirmed payment, the Buyer receives a merchant receipt or other payment
             document required by law. Full rules are published in the
             <a href="/en/payment-and-refund">Payment and refund terms</a>.</p>
@@ -572,10 +577,10 @@ const pages = {
       title: 'Условия оплаты и возврата',
       description:
         'Условия оплаты заказов Bulka банковской картой и через Kaspi Pay, отмены заказа и возврата денежных средств.',
-      updated: 'Редакция от 25 июля 2026 года',
+      updated: 'Редакция от 27 июля 2026 года',
       summary: [
         ['Валюта — тенге', 'Полная сумма заказа и доставки показывается до перехода к оплате.'],
-        ['Безопасная оплата', 'Данные банковской карты вводятся на защищённой странице банка.'],
+        ['Безопасная оплата', 'Данные банковской карты вводятся в защищённом виджете банка.'],
         ['Возврат на карту', 'Деньги возвращаются тем же способом, которым был оплачен заказ.'],
       ],
       body: `
@@ -599,7 +604,9 @@ const pages = {
             <li>Карточный платёж обрабатывает АО «ForteBank» на своей защищённой платёжной странице.
               Bulka получает только результат операции и данные, необходимые для формирования
               чека.</li>
-            <li>Bulka не получает и не хранит полный номер карты, срок её действия и код CVC/CVV.</li>
+            <li>Bulka не получает и не хранит полный номер карты и код CVC/CVV. С согласия клиента
+              сохраняются зашифрованный токен ForteBank, платёжная система, последние четыре цифры
+              и срок действия; карту можно удалить в профиле.</li>
             <li>Заказ считается оплаченным после получения сервером подтверждённого успешного
               статуса от банка. При отказе банка деньги не считаются принятыми.</li>
             <li>Если после оплаты статус заказа не обновился, не оплачивайте его повторно —
@@ -674,7 +681,7 @@ const pages = {
       title: 'Төлем және қайтару шарттары',
       description:
         'Bulka тапсырыстарын банк картасымен және Kaspi Pay арқылы төлеу, тапсырысты болдырмау және ақшаны қайтару шарттары.',
-      updated: '2026 жылғы 25 шілдедегі редакция',
+      updated: '2026 жылғы 27 шілдедегі редакция',
       summary: [
         ['Валюта — теңге', 'Тапсырыс пен жеткізудің толық сомасы төлемге дейін көрсетіледі.'],
         ['Қауіпсіз төлем', 'Банк картасының деректері банктің қорғалған бетінде енгізіледі.'],
@@ -698,8 +705,9 @@ const pages = {
               төлеуге болады.</li>
             <li>Карта төлемін «ForteBank» АҚ өзінің қорғалған төлем бетінде өңдейді. Bulka тек
               операция нәтижесін және чек қалыптастыруға қажетті деректерді алады.</li>
-            <li>Bulka картаның толық нөмірін, жарамдылық мерзімін және CVC/CVV кодын алмайды әрі
-              сақтамайды.</li>
+            <li>Bulka картаның толық нөмірін және CVC/CVV кодын алмайды әрі сақтамайды. Клиенттің
+              келісімімен ForteBank шифрланған токені, төлем жүйесі, соңғы төрт сан және жарамдылық
+              мерзімі сақталады; картаны профильден жоюға болады.</li>
             <li>Сервер банктен сәтті мәртебе туралы растау алғаннан кейін тапсырыс төленді деп
               есептеледі. Банк бас тартса, ақша қабылданды деп есептелмейді.</li>
             <li>Төлемнен кейін тапсырыс мәртебесі жаңармаса, қайта төлем жасамаңыз — қолдау қызметіне
@@ -777,7 +785,7 @@ const pages = {
       title: 'Payment and refund terms',
       description:
         'Terms for paying for Bulka orders by bank card and Kaspi Pay, cancelling an order and receiving a refund.',
-      updated: 'Revision dated 25 July 2026',
+      updated: 'Revision dated 27 July 2026',
       summary: [
         ['Currency — tenge', 'The full order and delivery total is shown before payment.'],
         ['Secure payment', 'Bank card details are entered on the bank’s protected payment page.'],
@@ -803,7 +811,9 @@ const pages = {
               Pay or with a Visa or Mastercard bank card when card payment is available.</li>
             <li>Card payments are processed by ForteBank JSC on its protected payment page. Bulka
               receives only the operation result and the information required to issue a receipt.</li>
-            <li>Bulka does not receive or store the full card number, expiry date or CVC/CVV.</li>
+            <li>Bulka does not receive or store the full card number or CVC/CVV. With customer
+              consent, an encrypted ForteBank token, payment network, last four digits and expiry
+              are stored; the card can be removed in the profile.</li>
             <li>An order is considered paid after the server receives a confirmed successful status
               from the bank. If the bank declines the operation, the money is not treated as
               accepted.</li>
@@ -1209,7 +1219,7 @@ const pages = {
       title: 'Политика конфиденциальности Bulka',
       description:
         'Как Bulka обрабатывает персональные данные, сведения о заказах, доставке и платежах.',
-      updated: 'Дата обновления: 25 июля 2026 года',
+      updated: 'Дата обновления: 27 июля 2026 года',
       body: `
         <section>
           <h2>Какие данные мы используем</h2>
@@ -1217,10 +1227,11 @@ const pages = {
             необязательные данные профиля и электронной почты, адреса доставки, геопозицию выбранной
             точки, историю заказов, состав и сумму платежей, возвраты, бонусные операции, выбранный
             язык и технические идентификаторы push-уведомлений.</p>
-          <p>При карточной оплате Bulka может получить от банка только результат операции, платёжную
-            систему, первые шесть и последние четыре цифры карты, код авторизации и идентификатор
-            транзакции — в объёме, необходимом для торгового чека и разрешения споров. Полный номер
-            карты, срок действия и CVC/CVV в Bulka не поступают и не хранятся.</p>
+          <p>При карточной оплате Bulka может получить от банка результат операции, платёжную
+            систему, последние четыре цифры, месяц и год окончания действия карты, код авторизации
+            и идентификатор транзакции. Если клиент явно согласился сохранить карту, Bulka также
+            получает токен ForteBank, шифрует его и связывает с профилем для следующих покупок.
+            Полный номер карты и CVC/CVV в Bulka не поступают и не хранятся.</p>
         </section>
         <section>
           <h2>Для чего нужны данные</h2>
@@ -1236,8 +1247,8 @@ const pages = {
           <ul>
             <li>Kaspi Pay — создание и проверка оплаты, а также возврат через исходный платёжный
               канал;</li>
-            <li>АО «ForteBank» — проведение оплаты Visa и Mastercard, 3‑D Secure и возврат по
-              карточной операции после активации интернет-эквайринга;</li>
+            <li>АО «ForteBank» — проведение карточной оплаты, Google Pay, 3‑D Secure, токенизация
+              сохранённой карты и возврат по карточной операции;</li>
             <li>Яндекс Доставка — имя, телефон, адрес, маршрут и сведения о заказе, необходимые
               курьеру;</li>
             <li>Firebase — доставка push-уведомлений;</li>
@@ -1263,13 +1274,14 @@ const pages = {
             претензий и выполнения требований законодательства, даже после удаления аккаунта; при
             этом профиль обезличивается, когда это допустимо.</p>
           <p>Доступ администраторов журналируется, соединение использует HTTPS, а карточные реквизиты
-            вводятся только на защищённой странице банка. Bulka не хранит данные, достаточные для
-            повторного использования банковской карты.</p>
+            вводятся только в защищённом виджете банка. Токен сохранённой карты шифруется отдельным
+            ключом и не раскрывает полный номер или CVC/CVV.</p>
         </section>
         <section class="notice">
           <h2>Ваши права</h2>
-          <p>В личном кабинете можно изменить профиль и адреса, отключить уведомления, выгрузить
-            доступные данные и удалить аккаунт. Удаление также доступно на отдельной странице:
+          <p>В личном кабинете можно изменить профиль и адреса, удалить сохранённую карту, отключить
+            уведомления, выгрузить доступные данные и удалить аккаунт. Удаление аккаунта также
+            доступно на отдельной странице:
             <a href="/account-deletion">удалить аккаунт Bulka</a>. Вопросы можно направить по адресу
             <a href="mailto:bulka.kazakhstan@mail.ru">bulka.kazakhstan@mail.ru</a> или по телефону
             <a href="tel:+77012772233">+7 701 277 22 33</a>.</p>
@@ -1279,7 +1291,7 @@ const pages = {
       title: 'Bulka құпиялылық саясаты',
       description:
         'Bulka жеке деректерді, тапсырыс, жеткізу және төлем туралы мәліметтерді қалай өңдейді.',
-      updated: 'Жаңартылған күні: 2026 жылғы 25 шілде',
+      updated: 'Жаңартылған күні: 2026 жылғы 27 шілде',
       body: `
         <section>
           <h2>Қандай деректерді пайдаланамыз</h2>
@@ -1288,10 +1300,11 @@ const pages = {
             таңдалған нүктенің геопозициясын, тапсырыстар тарихын, төлем құрамы мен сомасын,
             қайтаруларды, бонустық операцияларды, таңдалған тілді және push-хабарламалардың
             техникалық идентификаторларын өңдейді.</p>
-          <p>Картамен төлеу кезінде Bulka банктен тек операция нәтижесін, төлем жүйесін, картаның
-            алғашқы алты және соңғы төрт санын, авторизация кодын және транзакция идентификаторын —
-            сауда чегін қалыптастыруға және дауларды шешуге қажетті көлемде ала алады. Картаның
-            толық нөмірі, жарамдылық мерзімі және CVC/CVV Bulka-ға түспейді және сақталмайды.</p>
+          <p>Картамен төлеу кезінде Bulka банктен операция нәтижесін, төлем жүйесін, картаның соңғы
+            төрт санын, жарамдылық мерзімінің айы мен жылын, авторизация кодын және транзакция
+            идентификаторын ала алады. Клиент картаны сақтауға анық келіссе, Bulka келесі сатып
+            алулар үшін ForteBank токенін алып, оны шифрлап профильмен байланыстырады. Картаның
+            толық нөмірі және CVC/CVV Bulka-ға түспейді және сақталмайды.</p>
         </section>
         <section>
           <h2>Деректер не үшін қажет</h2>
@@ -1306,8 +1319,8 @@ const pages = {
           <ul>
             <li>Kaspi Pay — төлемді жасау және тексеру, сондай-ақ бастапқы төлем арнасы арқылы
               қайтару;</li>
-            <li>«ForteBank» АҚ — интернет-эквайринг іске қосылғаннан кейін Visa және Mastercard
-              төлемдерін, 3‑D Secure тексеруін және карта операциясы бойынша қайтаруды жүргізу;</li>
+            <li>«ForteBank» АҚ — картамен төлемді, Google Pay, 3‑D Secure тексеруін, сақталған
+              картаны токендеуді және карта операциясы бойынша қайтаруды жүргізу;</li>
             <li>Яндекс Доставка — курьерге қажет аты-жөн, телефон, мекенжай, маршрут және тапсырыс
               мәліметтері;</li>
             <li>Firebase — push-хабарламаларды жеткізу;</li>
@@ -1332,13 +1345,14 @@ const pages = {
             талаптарын орындау үшін аккаунт жойылғаннан кейін де кемінде бес жыл сақталуы мүмкін;
             рұқсат етілген жағдайда профиль иесіздендіріледі.</p>
           <p>Әкімшілердің қолжетімділігі журналға жазылады, байланыс HTTPS қолданады, ал карта
-            деректері тек банктің қорғалған бетінде енгізіледі. Bulka банк картасын қайта
-            пайдалануға жеткілікті деректерді сақтамайды.</p>
+            деректері тек банктің қорғалған виджетінде енгізіледі. Сақталған карта токені бөлек
+            кілтпен шифрланады және картаның толық нөмірін не CVC/CVV кодын ашпайды.</p>
         </section>
         <section class="notice">
           <h2>Сіздің құқықтарыңыз</h2>
-          <p>Жеке кабинетте профиль мен мекенжайларды өзгертуге, хабарламаларды өшіруге, қолжетімді
-            деректерді жүктеуге және аккаунтты жоюға болады. Жою жеке бетте де қолжетімді:
+          <p>Жеке кабинетте профиль мен мекенжайларды өзгертуге, сақталған картаны жоюға,
+            хабарламаларды өшіруге, қолжетімді деректерді жүктеуге және аккаунтты жоюға болады.
+            Аккаунтты жою жеке бетте де қолжетімді:
             <a href="/kk/account-deletion">Bulka аккаунтын жою</a>. Сұрақтарды
             <a href="mailto:bulka.kazakhstan@mail.ru">bulka.kazakhstan@mail.ru</a> мекенжайына
             немесе <a href="tel:+77012772233">+7 701 277 22 33</a> телефонына жіберуге болады.</p>
@@ -1348,7 +1362,7 @@ const pages = {
       title: 'Bulka privacy policy',
       description:
         'How Bulka processes personal data and information about orders, delivery and payments.',
-      updated: 'Updated on 25 July 2026',
+      updated: 'Updated on 27 July 2026',
       body: `
         <section>
           <h2>Data we use</h2>
@@ -1356,10 +1370,11 @@ const pages = {
             number, optional profile and email information, delivery addresses, the geolocation of
             a selected point, order history, payment contents and amounts, refunds, bonus
             transactions, selected language and technical push-notification identifiers.</p>
-          <p>For card payments, Bulka may receive from the bank only the operation result, payment
-            system, first six and last four card digits, authorisation code and transaction
-            identifier, to the extent required for the merchant receipt and dispute resolution.
-            The full card number, expiry date and CVC/CVV are not received or stored by Bulka.</p>
+          <p>For card payments, Bulka may receive the operation result, payment network, last four
+            card digits, expiry month and year, authorisation code and transaction identifier. If
+            the customer expressly agrees to save the card, Bulka also receives a ForteBank token,
+            encrypts it and links it to the profile for future purchases. The full card number and
+            CVC/CVV are not received or stored by Bulka.</p>
         </section>
         <section>
           <h2>Why the data is needed</h2>
@@ -1374,8 +1389,8 @@ const pages = {
           <ul>
             <li>Kaspi Pay — creating and verifying payments and issuing refunds through the original
               payment channel;</li>
-            <li>ForteBank JSC — processing Visa and Mastercard payments, 3‑D Secure and card refunds
-              after internet acquiring is activated;</li>
+            <li>ForteBank JSC — processing card payments, Google Pay, 3‑D Secure, saved-card
+              tokenisation and card refunds;</li>
             <li>Yandex Delivery — the name, phone number, address, route and order information
               required by the courier;</li>
             <li>Firebase — delivery of push notifications;</li>
@@ -1400,14 +1415,15 @@ const pages = {
             of the bank agreement, claims and legal requirements, including after account deletion;
             the profile is anonymised where permitted.</p>
           <p>Administrator access is logged, connections use HTTPS and card details are entered only
-            on the bank’s protected page. Bulka does not store information sufficient to reuse a
-            bank card.</p>
+            in the bank’s protected widget. A saved-card token is encrypted with a separate key and
+            does not reveal the full card number or CVC/CVV.</p>
         </section>
         <section class="notice">
           <h2>Your rights</h2>
-          <p>The account allows you to change your profile and addresses, disable notifications,
-            export available data and delete the account. Deletion is also available on a separate
-            page: <a href="/en/account-deletion">delete a Bulka account</a>. Questions may be sent to
+          <p>The account allows you to change your profile and addresses, remove a saved card,
+            disable notifications, export available data and delete the account. Account deletion
+            is also available on a separate page:
+            <a href="/en/account-deletion">delete a Bulka account</a>. Questions may be sent to
             <a href="mailto:bulka.kazakhstan@mail.ru">bulka.kazakhstan@mail.ru</a> or asked by phone
             at <a href="tel:+77012772233">+7 701 277 22 33</a>.</p>
         </section>`,
@@ -1417,7 +1433,7 @@ const pages = {
     ru: {
       title: 'Условия использования Bulka',
       description: 'Правила использования сервиса Bulka, оформления заказов и бонусной программы.',
-      updated: 'Дата обновления: 25 июля 2026 года',
+      updated: 'Дата обновления: 27 июля 2026 года',
       body: `
         <section>
           <h2>О сервисе</h2>
@@ -1459,7 +1475,7 @@ const pages = {
     kk: {
       title: 'Bulka пайдалану шарттары',
       description: 'Bulka сервисін, тапсырыстарды және бонустық бағдарламаны пайдалану ережелері.',
-      updated: 'Жаңартылған күні: 2026 жылғы 25 шілде',
+      updated: 'Жаңартылған күні: 2026 жылғы 27 шілде',
       body: `
         <section>
           <h2>Сервис туралы</h2>
@@ -1501,7 +1517,7 @@ const pages = {
     en: {
       title: 'Bulka terms of use',
       description: 'Rules for using the Bulka service, placing orders and the bonus programme.',
-      updated: 'Updated on 25 July 2026',
+      updated: 'Updated on 27 July 2026',
       body: `
         <section>
           <h2>About the service</h2>

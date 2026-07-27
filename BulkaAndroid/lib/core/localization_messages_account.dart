@@ -58,6 +58,115 @@ const Map<String, Map<String, String>> _accountTranslations = {
   'surname_label': {'ru': 'Фамилия', 'kk': 'Тегі', 'en': 'Last name'},
   'email_label': {'ru': 'E-mail', 'kk': 'E-mail', 'en': 'Email'},
   'email_verified': {'ru': 'Подтверждён', 'kk': 'Расталған', 'en': 'Verified'},
+  'payment_methods_title': {
+    'ru': 'Сохранённые карты',
+    'kk': 'Сақталған карталар',
+    'en': 'Saved cards',
+  },
+  'payment_methods_description': {
+    'ru':
+        'Привяжите карту один раз и выбирайте её при следующих покупках. Bulka хранит только защищённый токен ForteBank и последние 4 цифры — не номер карты и не CVV. Для проверки банк может временно списать 30 ₸ и автоматически вернуть.',
+    'kk':
+        'Картаны бір рет байланыстырып, келесі сатып алуларда таңдаңыз. Bulka карта нөмірі мен CVV-ді емес, тек ForteBank қорғалған токенін және соңғы 4 санды сақтайды. Тексеру үшін банк 30 ₸ уақытша есептен шығарып, автоматты түрде қайтара алады.',
+    'en':
+        'Link a card once and select it for future purchases. Bulka stores only a ForteBank token and the last 4 digits—not the card number or CVV. The bank may temporarily debit 30 KZT for verification and automatically return it.',
+  },
+  'payment_methods_add': {
+    'ru': 'Добавить карту',
+    'kk': 'Карта қосу',
+    'en': 'Add card',
+  },
+  'payment_methods_add_error': {
+    'ru': 'Не удалось привязать карту.',
+    'kk': 'Картаны байланыстыру мүмкін болмады.',
+    'en': 'Could not link the card.',
+  },
+  'payment_methods_empty': {
+    'ru': 'Сохранённых карт пока нет.',
+    'kk': 'Сақталған карта жоқ.',
+    'en': 'No saved cards yet.',
+  },
+  'payment_methods_default': {
+    'ru': 'Основная',
+    'kk': 'Негізгі',
+    'en': 'Default',
+  },
+  'payment_methods_expiry': {'ru': 'до', 'kk': 'дейін', 'en': 'expires'},
+  'payment_methods_make_default': {
+    'ru': 'Сделать основной',
+    'kk': 'Негізгі ету',
+    'en': 'Make default',
+  },
+  'payment_methods_remove': {
+    'ru': 'Удалить карту',
+    'kk': 'Картаны жою',
+    'en': 'Remove card',
+  },
+  'payment_methods_remove_title': {
+    'ru': 'Удалить сохранённую карту?',
+    'kk': 'Сақталған картаны жою керек пе?',
+    'en': 'Remove saved card?',
+  },
+  'payment_methods_remove_message': {
+    'ru': 'Для следующей оплаты реквизиты карты придётся ввести заново.',
+    'kk': 'Келесі төлемде карта деректерін қайта енгізу қажет болады.',
+    'en': 'You will need to enter the card details again next time.',
+  },
+  'payment_methods_load_error': {
+    'ru': 'Не удалось загрузить сохранённые карты.',
+    'kk': 'Сақталған карталарды жүктеу мүмкін болмады.',
+    'en': 'Could not load saved cards.',
+  },
+  'payment_methods_update_error': {
+    'ru': 'Не удалось выбрать основную карту.',
+    'kk': 'Негізгі картаны таңдау мүмкін болмады.',
+    'en': 'Could not select the default card.',
+  },
+  'payment_methods_remove_error': {
+    'ru': 'Не удалось удалить карту.',
+    'kk': 'Картаны жою мүмкін болмады.',
+    'en': 'Could not remove the card.',
+  },
+  'card_setup_confirm': {
+    'ru': 'Привязка карты',
+    'kk': 'Картаны байланыстыру',
+    'en': 'Link card',
+  },
+  'card_setup_hint': {
+    'ru': 'Подтвердите привязку на защищённой форме ForteBank.',
+    'kk': 'ForteBank қорғалған нысанында байланыстыруды растаңыз.',
+    'en': 'Confirm the link on the secure ForteBank form.',
+  },
+  'card_setup_verifying': {
+    'ru': 'Проверяем карту',
+    'kk': 'Картаны тексеріп жатырмыз',
+    'en': 'Verifying card',
+  },
+  'card_setup_verifying_hint': {
+    'ru': 'Подождите подтверждения ForteBank.',
+    'kk': 'ForteBank растауын күтіңіз.',
+    'en': 'Waiting for confirmation from ForteBank.',
+  },
+  'card_setup_success': {
+    'ru': 'Карта сохранена',
+    'kk': 'Карта сақталды',
+    'en': 'Card saved',
+  },
+  'card_setup_success_hint': {
+    'ru': 'Теперь её можно выбирать при следующих покупках.',
+    'kk': 'Енді оны келесі сатып алуларда таңдауға болады.',
+    'en': 'You can now select it for future purchases.',
+  },
+  'card_setup_failed': {
+    'ru': 'Карта не сохранена',
+    'kk': 'Карта сақталмады',
+    'en': 'Card not saved',
+  },
+  'card_setup_failed_hint': {
+    'ru': 'Деньги не списаны. Попробуйте ещё раз или выберите другую карту.',
+    'kk': 'Ақша алынбады. Қайталап көріңіз немесе басқа картаны таңдаңыз.',
+    'en': 'No payment was taken. Try again or use another card.',
+  },
   'support_message': {
     'ru': 'Напишите нам в Telegram — мы поможем.',
     'kk': 'Telegram-да бізге жазыңыз — көмектесеміз.',

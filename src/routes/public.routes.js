@@ -49,6 +49,9 @@ const {
   courierLocationBodySchema,
   courierOrderParamsSchema,
   courierOrderStatusBodySchema,
+  forteCardSetupBodySchema,
+  forteOperationParamsSchema,
+  fortePaymentMethodParamsSchema,
   liveActivityBodySchema,
   liveActivityDeleteBodySchema,
   notificationPreferencesBodySchema,
@@ -695,6 +698,28 @@ router.get('/api/customer/forte-pay/availability', forteController.availability)
 router.post('/api/customer/forte-pay/create', forteController.createPayment);
 router.post('/api/customer/forte-pay/quote', forteController.quotePayment);
 router.get('/api/customer/forte-pay/status/:operationId', forteController.checkStatus);
+router.get('/api/customer/forte-pay/methods', forteController.listPaymentMethods);
+router.post(
+  '/api/customer/forte-pay/card-setup',
+  validateRequest({ body: forteCardSetupBodySchema }),
+  forteController.createCardSetup,
+);
+router.get(
+  '/api/customer/forte-pay/card-setup/:operationId',
+  validateRequest({ params: forteOperationParamsSchema }),
+  forteController.checkCardSetupStatus,
+);
+router.delete(
+  '/api/customer/forte-pay/methods/:methodId',
+  validateRequest({ params: fortePaymentMethodParamsSchema }),
+  forteController.removePaymentMethod,
+);
+router.patch(
+  '/api/customer/forte-pay/methods/:methodId/default',
+  validateRequest({ params: fortePaymentMethodParamsSchema }),
+  forteController.setDefaultPaymentMethod,
+);
+router.post('/webhooks/forte/widget', webhookRateLimit, forteController.handleWidgetWebhook);
 
 router.get('/api/public/cities', publicController.getCities);
 router.get('/api/public/geocode/search', geocodeController.search);

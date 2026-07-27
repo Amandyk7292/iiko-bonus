@@ -510,7 +510,10 @@ class ForteService {
 
   async findOrder(orderOrId) {
     if (orderOrId && typeof orderOrId === 'object') {
-      if (orderOrId.payment_method !== FORTE_PAYMENT_METHOD) {
+      if (
+        orderOrId.payment_method !== FORTE_PAYMENT_METHOD ||
+        orderOrId.provider_payment_system === 'forte_widget'
+      ) {
         throw forteError('Payment provider mismatch', 409, 'FORTE_PROVIDER_MISMATCH');
       }
       return orderOrId;
@@ -529,7 +532,10 @@ class ForteService {
     const { data, error } = await query.maybeSingle();
     if (error) throw error;
     if (!data) throw forteError('Заказ не найден', 404, 'FORTE_ORDER_NOT_FOUND');
-    if (data.payment_method !== FORTE_PAYMENT_METHOD) {
+    if (
+      data.payment_method !== FORTE_PAYMENT_METHOD ||
+      data.provider_payment_system === 'forte_widget'
+    ) {
       throw forteError('Payment provider mismatch', 409, 'FORTE_PROVIDER_MISMATCH');
     }
     return data;
@@ -757,6 +763,7 @@ class ForteService {
         last_error: 'Автоматическая сверка ForteBank остановлена спустя 24 часа.',
       })
       .eq('payment_method', FORTE_PAYMENT_METHOD)
+      .or('provider_payment_system.is.null,provider_payment_system.neq.forte_widget')
       .eq('status', 'pending')
       .lt('created_at', cutoff)
       .is('last_error', null);
@@ -770,6 +777,7 @@ class ForteService {
         .from('kaspi_orders')
         .select('*')
         .eq('payment_method', FORTE_PAYMENT_METHOD)
+        .or('provider_payment_system.is.null,provider_payment_system.neq.forte_widget')
         .eq('status', 'pending')
         .gte('created_at', cutoff)
         .order('created_at', { ascending: true })
@@ -779,6 +787,7 @@ class ForteService {
         .select('*')
         .in('status', ['paid', 'refunded'])
         .eq('payment_method', FORTE_PAYMENT_METHOD)
+        .or('provider_payment_system.is.null,provider_payment_system.neq.forte_widget')
         .is('payment_reconciled_at', null)
         .order('created_at', { ascending: true })
         .limit(50),

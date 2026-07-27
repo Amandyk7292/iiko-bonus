@@ -518,9 +518,74 @@ class BulkaApiClient {
     return json;
   }
 
+  String? _forteSavedCardLabel;
+  String? get forteSavedCardLabel => _forteSavedCardLabel;
+
   Future<bool> isFortePaymentAvailable() async {
     final json = await _get('/api/customer/forte-pay/availability');
+    final savedCard = json['savedCard'];
+    if (savedCard is Map) {
+      final brand = (savedCard['brand'] ?? 'card').toString().trim();
+      final lastFour = (savedCard['lastFour'] ?? '').toString().trim();
+      _forteSavedCardLabel = lastFour.length == 4
+          ? '${brand.toUpperCase()} •••• $lastFour'
+          : null;
+    } else {
+      _forteSavedCardLabel = null;
+    }
     return json['success'] == true && json['available'] == true;
+  }
+
+  Future<List<Map<String, dynamic>>> getFortePaymentMethods() async {
+    final json = await _get('/api/customer/forte-pay/methods');
+    final methods = json['methods'];
+    if (json['success'] != true || methods is! List) return const [];
+    return methods
+        .whereType<Map>()
+        .map((method) => Map<String, dynamic>.from(method))
+        .toList();
+  }
+
+  Future<Map<String, dynamic>> createForteCardSetup() async {
+    final json = await _post('/api/customer/forte-pay/card-setup', {
+      'language': AppLang.current,
+    });
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'payment_methods_add_error'.tr));
+    }
+    return json;
+  }
+
+  Future<Map<String, dynamic>> checkForteCardSetupStatus(
+    String operationId,
+  ) async {
+    final json = await _get(
+      '/api/customer/forte-pay/card-setup/${Uri.encodeComponent(operationId)}',
+    );
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'payment_methods_add_error'.tr));
+    }
+    return json;
+  }
+
+  Future<void> removeFortePaymentMethod(String methodId) async {
+    final json = await _delete(
+      '/api/customer/forte-pay/methods/${Uri.encodeComponent(methodId)}',
+    );
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'error_forte_payment'.tr));
+    }
+    _forteSavedCardLabel = null;
+  }
+
+  Future<void> setDefaultFortePaymentMethod(String methodId) async {
+    final json = await _patch(
+      '/api/customer/forte-pay/methods/${Uri.encodeComponent(methodId)}/default',
+      const {},
+    );
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'error_forte_payment'.tr));
+    }
   }
 
   Future<Map<String, dynamic>> checkFortePaymentStatus(
@@ -948,7 +1013,23 @@ class BulkaApiClient {
     if (json['success'] != true || slots is! List) {
       throw ApiException(_messageFrom(json, 'checkout_no_time_slots'.tr));
     }
-    return slots.map((item) => FulfillmentSlot.fromJson(_asMap(item))).toList();
+    final requestedOffset = _asInt(
+      json['timezoneOffsetMinutes'],
+      fallback: 300,
+    );
+    final timezoneOffsetMinutes = requestedOffset.abs() <= 840
+        ? requestedOffset
+        : 300;
+    final serverTime = DateTime.tryParse(_asString(json['serverTime']));
+    return slots
+        .map(
+          (item) => FulfillmentSlot.fromJson(
+            _asMap(item),
+            timezoneOffsetMinutes: timezoneOffsetMinutes,
+            serverTime: serverTime,
+          ),
+        )
+        .toList();
   }
 
   Future<void> recordAnalyticsEvents(List<Map<String, dynamic>> events) async {
