@@ -371,11 +371,11 @@ app.get('/assets/legal/account-deletion.js', (_req, res) => {
     .sendFile(path.join(process.cwd(), 'public/legal/account-deletion.js'));
 });
 app.get('/assets/forte-widget.css', (_req, res) => {
-  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.setHeader('Cache-Control', 'no-cache, must-revalidate');
   res.type('text/css').sendFile(path.join(process.cwd(), 'public/forte-widget.css'));
 });
 app.get('/assets/forte-widget.js', (_req, res) => {
-  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.setHeader('Cache-Control', 'no-cache, must-revalidate');
   res.type('application/javascript').sendFile(path.join(process.cwd(), 'public/forte-widget.js'));
 });
 app.get('/payments/forte-widget', (_req, res) => {

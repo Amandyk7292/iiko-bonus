@@ -109,6 +109,8 @@ test('Forte widget shell is private, pinned to official hosts and never reflects
   assert.equal(response.headers.get('cross-origin-embedder-policy'), null);
   assert.doesNotMatch(html, new RegExp(leakedToken));
   assert.match(html, /https:\/\/js\.fortebank\.com\/widget\/be_gateway\.js/);
+  assert.match(html, /\/assets\/forte-widget\.js\?v=2/);
+  assert.match(html, /\/assets\/forte-widget\.css\?v=2/);
   assert.match(csp, /script-src 'self' https:\/\/js\.fortebank\.com/);
   assert.match(csp, /frame-src https:\/\/securepayments\.fortebank\.com/);
   assert.doesNotMatch(csp, /script-src[^;]*unsafe-eval/);
