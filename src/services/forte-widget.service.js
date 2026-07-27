@@ -282,6 +282,7 @@ class ForteWidgetService {
   config() {
     return {
       enabled: this.env.FORTE_WIDGET_ENABLED === 'true',
+      checkoutEnabled: this.env.FORTE_WIDGET_CHECKOUT_ENABLED !== 'false',
       shopId: String(this.env.FORTE_WIDGET_SHOP_ID || '').trim(),
       secretKey: String(this.env.FORTE_WIDGET_SECRET_KEY || '').trim(),
       test: this.env.FORTE_WIDGET_TEST_MODE === 'true',
@@ -331,6 +332,22 @@ class ForteWidgetService {
 
   availability() {
     return this.isConfigured();
+  }
+
+  checkoutAvailability() {
+    return this.availability() && this.config().checkoutEnabled;
+  }
+
+  assertCheckoutAvailable() {
+    const config = this.assertConfigured();
+    if (!config.checkoutEnabled) {
+      throw widgetError(
+        'Платёжный виджет ForteBank временно недоступен',
+        503,
+        'FORTE_WIDGET_CHECKOUT_DISABLED',
+      );
+    }
+    return config;
   }
 
   basicAuthorization(config = this.assertConfigured()) {
@@ -643,7 +660,7 @@ class ForteWidgetService {
     savedCardToken,
     purpose = 'order',
   }) {
-    const config = this.assertConfigured();
+    const config = this.assertCheckoutAvailable();
     const localized = localizedWidgetText(language);
     const returnBase =
       purpose === 'card-setup'
@@ -762,7 +779,7 @@ class ForteWidgetService {
   }
 
   async createCheckout(phone, pricing, customerId, checkout = {}, options = {}) {
-    const config = this.assertConfigured();
+    const config = this.assertCheckoutAvailable();
     const normalizedPhone = normalizePhone(phone);
     if (!normalizedPhone) {
       throw widgetError('Некорректный номер телефона', 400, 'FORTE_WIDGET_INVALID_PHONE');
@@ -898,7 +915,7 @@ class ForteWidgetService {
   }
 
   async createCardSetup(customerId, phone, language = 'ru') {
-    const config = this.assertConfigured();
+    const config = this.assertCheckoutAvailable();
     const normalizedPhone = normalizePhone(phone);
     if (!normalizedPhone) {
       throw widgetError('Некорректный номер телефона', 400, 'FORTE_WIDGET_INVALID_PHONE');

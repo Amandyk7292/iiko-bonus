@@ -115,6 +115,7 @@ const fs = require('node:fs');
 const file = process.env.BULKA_FORTE_ENV_FILE;
 const updates = new Map([
   ['FORTE_WIDGET_ENABLED', 'true'],
+  ['FORTE_WIDGET_CHECKOUT_ENABLED', 'true'],
   ['FORTE_WIDGET_SHOP_ID', process.env.BULKA_FORTE_SHOP_ID],
   ['FORTE_WIDGET_SECRET_KEY', process.env.BULKA_FORTE_SECRET_KEY],
   ['FORTE_WIDGET_TOKEN_KEY', process.env.BULKA_FORTE_TOKEN_KEY],

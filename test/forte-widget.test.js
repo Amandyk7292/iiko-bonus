@@ -27,6 +27,7 @@ const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
 const publicKeyPem = publicKey.export({ type: 'spki', format: 'pem' });
 const env = {
   FORTE_WIDGET_ENABLED: 'true',
+  FORTE_WIDGET_CHECKOUT_ENABLED: 'true',
   FORTE_WIDGET_SHOP_ID: shopId,
   FORTE_WIDGET_SECRET_KEY: secretKey,
   FORTE_WIDGET_TOKEN_KEY: tokenKey,
@@ -42,6 +43,18 @@ const response = (body, { ok = true, status = 200 } = {}) => ({
   ok,
   status,
   text: async () => JSON.stringify(body),
+});
+
+test('Forte checkout fallback keeps reconciliation and webhooks configured', () => {
+  const service = new ForteWidgetService({
+    env: { ...env, FORTE_WIDGET_CHECKOUT_ENABLED: 'false' },
+  });
+  assert.equal(service.availability(), true);
+  assert.equal(service.checkoutAvailability(), false);
+  assert.throws(
+    () => service.assertCheckoutAvailable(),
+    (error) => error.code === 'FORTE_WIDGET_CHECKOUT_DISABLED',
+  );
 });
 
 test('Forte widget launch keeps the payment token out of the query string', () => {

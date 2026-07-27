@@ -18,10 +18,11 @@ const CHECKOUT_ID_PATTERN =
 const PAYMENT_TOKEN_PATTERN = /^[A-Za-z0-9._~-]{8,100}$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const publicError = (error, fallback) => (error.statusCode ? error.message : fallback);
-const activeService = () => (forteWidgetService.availability() ? forteWidgetService : forteService);
+const activeService = () =>
+  forteWidgetService.checkoutAvailability() ? forteWidgetService : forteService;
 
 const availability = async (req, res) => {
-  const widgetAvailable = forteWidgetService.availability();
+  const widgetAvailable = forteWidgetService.checkoutAvailability();
   const service = widgetAvailable ? forteWidgetService : forteService;
   const available = service.availability();
   const paymentMethods = widgetAvailable

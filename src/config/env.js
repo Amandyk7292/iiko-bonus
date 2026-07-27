@@ -166,6 +166,12 @@ function validateRuntimeConfig() {
     ) {
       missing.push('FORTE_WIDGET_APPLE_PAY_ENABLED(true or false)');
     }
+    if (
+      process.env.FORTE_WIDGET_CHECKOUT_ENABLED &&
+      !['true', 'false'].includes(process.env.FORTE_WIDGET_CHECKOUT_ENABLED)
+    ) {
+      missing.push('FORTE_WIDGET_CHECKOUT_ENABLED(true or false)');
+    }
   }
   if (process.env.YANDEX_DELIVERY_ENABLED === 'true') {
     if (String(process.env.YANDEX_DELIVERY_API_TOKEN || '').trim().length < 10) {
