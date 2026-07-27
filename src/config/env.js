@@ -93,19 +93,33 @@ function validateRuntimeConfig() {
   }
   if (process.env.FORTE_ENABLED === 'true') {
     for (const [name, minLength] of [
-      ['FORTE_SHOP_ID', 1],
-      ['FORTE_SECRET_KEY', 8],
-      ['FORTE_WEBHOOK_PUBLIC_KEY', 64],
+      ['FORTE_API_USERNAME', 8],
+      ['FORTE_API_PASSWORD', 8],
+      ['FORTE_MERCHANT_ID', 1],
+      ['FORTE_ORDER_CREDENTIAL_KEY', 32],
     ]) {
       if (String(process.env[name] || '').trim().length < minLength) missing.push(name);
     }
-    for (const [name, fallback] of [
-      ['FORTE_CHECKOUT_BASE_URL', 'https://securepayments.fortebank.com'],
-      ['FORTE_GATEWAY_BASE_URL', 'https://gateway.fortebank.com'],
-    ]) {
-      if (!/^https:\/\//.test(String(process.env[name] || fallback))) {
-        missing.push(`${name}(https)`);
+    if (
+      !/^Terminal(?:Sys|User)\/[A-Za-z0-9._-]{1,100}$/.test(
+        String(process.env.FORTE_API_USERNAME || '').trim(),
+      )
+    ) {
+      missing.push('FORTE_API_USERNAME(TerminalSys/login)');
+    }
+    try {
+      const forteApiUrl = new URL(
+        String(process.env.FORTE_API_BASE_URL || 'https://api.fortebank.com'),
+      );
+      if (
+        forteApiUrl.protocol !== 'https:' ||
+        forteApiUrl.hostname.toLowerCase() !== 'api.fortebank.com' ||
+        forteApiUrl.port
+      ) {
+        missing.push('FORTE_API_BASE_URL(https://api.fortebank.com)');
       }
+    } catch {
+      missing.push('FORTE_API_BASE_URL(valid URL)');
     }
   }
   if (process.env.YANDEX_DELIVERY_ENABLED === 'true') {

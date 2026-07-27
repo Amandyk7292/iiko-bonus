@@ -689,13 +689,12 @@ router.get('/api/customer/kaspi-pay/status/:operationId', kaspiController.checkS
 // Kaspi Webhook (должен быть открытым)
 router.post('/webhooks/kaspi', webhookRateLimit, kaspiController.handleWebhook);
 
-// ForteBank hosted checkout and signed webhook
+// ForteBank PaymentGateway: HPP redirect plus server-side status polling.
 const forteController = require('../controllers/forte.controller');
 router.get('/api/customer/forte-pay/availability', forteController.availability);
 router.post('/api/customer/forte-pay/create', forteController.createPayment);
 router.post('/api/customer/forte-pay/quote', forteController.quotePayment);
 router.get('/api/customer/forte-pay/status/:operationId', forteController.checkStatus);
-router.post('/webhooks/forte', webhookRateLimit, forteController.handleWebhook);
 
 router.get('/api/public/cities', publicController.getCities);
 router.get('/api/public/geocode/search', geocodeController.search);

@@ -5,12 +5,13 @@ const kaspiService = require('./kaspi.service');
 const { recordSystemEvent } = require('./analytics-event.service');
 const { forecastOrderEta } = require('./eta.service');
 
-const DEFAULT_CHECKOUT_BASE_URL = 'https://securepayments.fortebank.com';
-const DEFAULT_GATEWAY_BASE_URL = 'https://gateway.fortebank.com';
+const DEFAULT_API_BASE_URL = 'https://api.fortebank.com';
+const FORTE_HPP_HOST = 'ecom.fortebank.com';
 const FORTE_PAYMENT_METHOD = 'forte_card';
 const FINAL_PAYMENT_STATUSES = new Set(['paid', 'failed', 'expired', 'refunded']);
+const ORDER_ID_PATTERN = /^\d{8,20}$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const TOKEN_PATTERN = /^[A-Za-z0-9._~-]{8,100}$/;
+const USERNAME_PATTERN = /^Terminal(?:Sys|User)\/[A-Za-z0-9._-]{1,100}$/;
 
 const cleanText = (value, maximum = 1000) =>
   String(value == null ? '' : value)
@@ -40,11 +41,8 @@ const normalizeLanguage = (value) => {
   return ['ru', 'kk', 'en'].includes(language) ? language : 'ru';
 };
 
-const parseBoolean = (value) => {
-  if (value === true || value === 'true' || value === 1 || value === '1') return true;
-  if (value === false || value === 'false' || value === 0 || value === '0') return false;
-  return null;
-};
+const forteError = (message, statusCode = 502, code = 'FORTE_REQUEST_FAILED', extra = {}) =>
+  Object.assign(new Error(message), { statusCode, code, ...extra });
 
 const toMinorUnits = (amount) => {
   const numeric = Number(amount);
@@ -60,228 +58,165 @@ const toMinorUnits = (amount) => {
   return minor;
 };
 
-const forteError = (message, statusCode = 502, code = 'FORTE_REQUEST_FAILED', extra = {}) =>
-  Object.assign(new Error(message), { statusCode, code, ...extra });
+const formatAmount = (amount) => (toMinorUnits(amount) / 100).toFixed(2);
 
 const trimBaseUrl = (value, fallback) => String(value || fallback).replace(/\/+$/, '');
 
-const headerValue = (headers, name) => {
-  if (typeof headers?.get === 'function') return headers.get(name);
-  const target = String(name).toLowerCase();
-  const key = Object.keys(headers || {}).find((entry) => entry.toLowerCase() === target);
-  return key ? headers[key] : undefined;
+const normalizeProviderOrderId = (value) => {
+  if (typeof value === 'number' && (!Number.isSafeInteger(value) || value <= 0)) return '';
+  const normalized = String(value == null ? '' : value).trim();
+  return ORDER_ID_PATTERN.test(normalized) ? normalized : '';
 };
 
-const safeTextEqual = (left, right) => {
-  const leftBuffer = Buffer.from(String(left || ''), 'utf8');
-  const rightBuffer = Buffer.from(String(right || ''), 'utf8');
-  return (
-    leftBuffer.length === rightBuffer.length && crypto.timingSafeEqual(leftBuffer, rightBuffer)
-  );
+const normalizeOrderPassword = (value) => {
+  const normalized = String(value == null ? '' : value).trim();
+  return /^[\x21-\x7e]{6,256}$/.test(normalized) ? normalized : '';
 };
 
-const normalizePublicKey = (value) => {
-  const supplied = String(value || '')
-    .trim()
-    .replace(/\\r/g, '')
-    .replace(/\\n/g, '\n');
-  if (!supplied) throw forteError('ForteBank webhook public key is not configured', 503);
-  if (supplied.includes('-----BEGIN')) return supplied;
-  const compact = supplied.replace(/\s+/g, '');
-  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(compact)) {
-    throw forteError('ForteBank webhook public key has an invalid format', 503);
-  }
-  return `-----BEGIN PUBLIC KEY-----\n${compact.match(/.{1,64}/g).join('\n')}\n-----END PUBLIC KEY-----`;
-};
-
-const verifyForteWebhook = ({ headers, rawBody, shopId, secretKey, publicKey }) => {
-  if (!Buffer.isBuffer(rawBody)) {
-    throw forteError('Webhook raw body is unavailable', 503, 'FORTE_WEBHOOK_NOT_CONFIGURED');
-  }
-
-  const expectedAuthorization = `Basic ${Buffer.from(`${shopId}:${secretKey}`, 'utf8').toString(
-    'base64',
-  )}`;
-  if (!safeTextEqual(headerValue(headers, 'authorization'), expectedAuthorization)) {
-    throw forteError('Invalid webhook credentials', 401, 'FORTE_WEBHOOK_UNAUTHORIZED');
-  }
-
-  const signatureText = String(headerValue(headers, 'content-signature') || '').trim();
-  if (
-    !signatureText ||
-    signatureText.length > 2048 ||
-    !/^[A-Za-z0-9+/]+={0,2}$/.test(signatureText)
-  ) {
-    throw forteError('Invalid webhook signature', 403, 'FORTE_WEBHOOK_INVALID_SIGNATURE');
-  }
-
-  let verified;
-  try {
-    verified = crypto.verify(
-      'RSA-SHA256',
-      rawBody,
-      crypto.createPublicKey(normalizePublicKey(publicKey)),
-      Buffer.from(signatureText, 'base64'),
-    );
-  } catch (error) {
+const credentialEncryptionKey = (env = process.env) => {
+  const secret = String(env.FORTE_ORDER_CREDENTIAL_KEY || '').trim();
+  if (secret.length < 32) {
     throw forteError(
-      'ForteBank webhook signature cannot be verified',
+      'Шифрование данных заказа ForteBank не настроено',
       503,
-      'FORTE_WEBHOOK_KEY_ERROR',
-      {
-        cause: error,
-      },
+      'FORTE_CREDENTIAL_ENCRYPTION_UNAVAILABLE',
     );
   }
-  if (!verified) {
-    throw forteError('Invalid webhook signature', 403, 'FORTE_WEBHOOK_INVALID_SIGNATURE');
-  }
-  return true;
+  return crypto.createHash('sha256').update(secret, 'utf8').digest();
 };
 
-const firstDefined = (...values) =>
-  values.find((value) => value !== undefined && value !== null && value !== '');
+const credentialAad = (internalOrderId, providerOrderId) =>
+  Buffer.from(`forte-order:${internalOrderId}:${providerOrderId}`, 'utf8');
 
-const normalizeFortePayload = (payload = {}) => {
-  const checkout = payload.checkout || {};
-  const gateway = checkout.gateway_response || payload.gateway_response || {};
-  const transaction =
-    payload.transaction ||
-    checkout.transaction ||
-    gateway.payment ||
-    gateway.transaction ||
-    checkout.payment ||
-    payload.payment ||
-    payload;
-  const order = checkout.order || transaction.order || payload.order || {};
-  const card =
-    transaction.credit_card ||
-    transaction.card ||
-    gateway.credit_card ||
-    gateway.card ||
-    checkout.card ||
-    payload.card ||
-    {};
-  const paymentDetails = transaction.payment || gateway.payment || {};
-  const rawStatus = cleanText(
-    firstDefined(transaction.status, paymentDetails.status, checkout.status, payload.status),
-    40,
-  ).toLowerCase();
+const encryptOrderPassword = (password, internalOrderId, providerOrderId, env = process.env) => {
+  const normalized = normalizeOrderPassword(password);
+  if (!normalized) {
+    throw forteError(
+      'ForteBank вернул некорректный пароль заказа',
+      502,
+      'FORTE_INVALID_CREATE_RESPONSE',
+    );
+  }
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', credentialEncryptionKey(env), iv);
+  cipher.setAAD(credentialAad(internalOrderId, providerOrderId));
+  const ciphertext = Buffer.concat([cipher.update(normalized, 'utf8'), cipher.final()]);
+  return [
+    'v1',
+    iv.toString('base64url'),
+    cipher.getAuthTag().toString('base64url'),
+    ciphertext.toString('base64url'),
+  ].join('.');
+};
 
+const decryptOrderPassword = (envelope, internalOrderId, providerOrderId, env = process.env) => {
+  try {
+    const [version, ivValue, tagValue, ciphertextValue, extra] = String(envelope || '').split('.');
+    if (version !== 'v1' || !ivValue || !tagValue || !ciphertextValue || extra) {
+      throw new Error('Invalid credential envelope');
+    }
+    const decipher = crypto.createDecipheriv(
+      'aes-256-gcm',
+      credentialEncryptionKey(env),
+      Buffer.from(ivValue, 'base64url'),
+    );
+    decipher.setAAD(credentialAad(internalOrderId, providerOrderId));
+    decipher.setAuthTag(Buffer.from(tagValue, 'base64url'));
+    const password = Buffer.concat([
+      decipher.update(Buffer.from(ciphertextValue, 'base64url')),
+      decipher.final(),
+    ]).toString('utf8');
+    if (!normalizeOrderPassword(password)) throw new Error('Invalid decrypted password');
+    return password;
+  } catch (error) {
+    if (error?.code === 'FORTE_CREDENTIAL_ENCRYPTION_UNAVAILABLE') throw error;
+    throw forteError(
+      'Данные заказа ForteBank невозможно расшифровать',
+      503,
+      'FORTE_CREDENTIAL_DECRYPTION_FAILED',
+    );
+  }
+};
+
+const normalizeHppBaseUrl = (value) => {
+  let parsed;
+  try {
+    parsed = new URL(String(value || '').trim());
+  } catch {
+    return '';
+  }
+  const normalizedPath = parsed.pathname.replace(/\/+$/, '').toLowerCase();
+  if (
+    parsed.protocol !== 'https:' ||
+    parsed.hostname.toLowerCase() !== FORTE_HPP_HOST ||
+    parsed.port ||
+    !['', '/flex'].includes(normalizedPath)
+  ) {
+    return '';
+  }
+  parsed.username = '';
+  parsed.password = '';
+  parsed.pathname = '/flex/';
+  parsed.search = '';
+  parsed.hash = '';
+  return parsed.toString();
+};
+
+const buildHostedPaymentUrl = (hppUrl, providerOrderId, password) => {
+  const baseUrl = normalizeHppBaseUrl(hppUrl);
+  const orderId = normalizeProviderOrderId(providerOrderId);
+  const orderPassword = normalizeOrderPassword(password);
+  if (!baseUrl || !orderId || !orderPassword) {
+    throw forteError(
+      'ForteBank вернул некорректную ссылку оплаты',
+      502,
+      'FORTE_INVALID_CREATE_RESPONSE',
+    );
+  }
+  const result = new URL(baseUrl);
+  result.searchParams.set('id', orderId);
+  result.searchParams.set('password', orderPassword);
+  return result.toString();
+};
+
+const normalizeForteOrder = (payload = {}) => {
+  const order = payload?.order || {};
+  const rawStatus = cleanText(order.status, 40);
   return {
-    checkoutToken: cleanText(
-      firstDefined(
-        checkout.token,
-        transaction.checkout_token,
-        transaction.payment_token,
-        payload.checkout_token,
-        payload.token,
-      ),
-      100,
-    ),
-    trackingId: cleanText(
-      firstDefined(
-        transaction.tracking_id,
-        paymentDetails.tracking_id,
-        order.tracking_id,
-        checkout.tracking_id,
-        payload.tracking_id,
-      ),
-      100,
-    ),
-    transactionId: cleanText(
-      firstDefined(transaction.uid, paymentDetails.uid, transaction.id, paymentDetails.id),
-      100,
-    ),
-    parentTransactionId: cleanText(
-      firstDefined(transaction.parent_uid, paymentDetails.parent_uid),
-      100,
-    ),
-    transactionType: cleanText(
-      firstDefined(transaction.type, transaction.transaction_type, checkout.transaction_type),
-      40,
-    ).toLowerCase(),
+    id: normalizeProviderOrderId(order.id),
+    typeRid: cleanText(order.typeRid, 40),
     status: rawStatus,
-    amount: Number(
-      firstDefined(transaction.amount, paymentDetails.amount, order.amount, checkout.amount),
-    ),
-    currency: cleanText(
-      firstDefined(
-        transaction.currency,
-        paymentDetails.currency,
-        order.currency,
-        checkout.currency,
-      ),
-      3,
-    ).toUpperCase(),
-    test: parseBoolean(firstDefined(transaction.test, paymentDetails.test, checkout.test)),
-    shopId: cleanText(
-      firstDefined(transaction.shop_id, paymentDetails.shop_id, checkout.shop_id, payload.shop_id),
-      100,
-    ),
-    paymentSystem: cleanText(
-      firstDefined(
-        card.brand,
-        transaction.payment_method_type,
-        paymentDetails.payment_method_type,
-        checkout.payment_method_type,
-      ),
-      40,
-    ),
-    cardFirstSix: digitsOnly(firstDefined(card.bin, card.first_6, card.first_six), 6),
-    cardLastFour: digitsOnly(firstDefined(card.last_4, card.last_four), 4),
-    authorizationCode: cleanText(
-      firstDefined(
-        transaction.auth_code,
-        transaction.authorization_code,
-        transaction.payment?.auth_code,
-        paymentDetails.auth_code,
-        transaction.refund?.auth_code,
-      ),
-      100,
-    ),
-    settledAt: firstDefined(
-      transaction.settled_at,
-      paymentDetails.settled_at,
-      transaction.psp_settled_at,
-    ),
-    paidAt: firstDefined(transaction.paid_at, paymentDetails.paid_at),
-    message: cleanText(
-      firstDefined(transaction.friendly_message, transaction.message, payload.message),
-      500,
-    ),
+    amount: Number(order.amount),
+    currency: cleanText(order.currency, 3).toUpperCase(),
+    allowVoid: order?.type?.allowVoid === true,
+    createTime: cleanText(order.createTime, 80),
   };
 };
 
 const mapForteStatus = (status) => {
-  const normalized = String(status || '').toLowerCase();
-  if (['successful', 'success', 'succeeded', 'paid', 'captured'].includes(normalized)) {
-    return 'paid';
-  }
-  if (['failed', 'declined', 'error', 'rejected'].includes(normalized)) return 'failed';
+  const normalized = String(status || '')
+    .replace(/[\s_-]/g, '')
+    .toLowerCase();
+  if (['fullypaid', 'closed'].includes(normalized)) return 'paid';
+  if (['declined', 'refused', 'rejected'].includes(normalized)) return 'failed';
   if (['expired', 'cancelled', 'canceled'].includes(normalized)) return 'expired';
-  if (['refunded'].includes(normalized)) return 'refunded';
+  if (['refunded', 'voided'].includes(normalized)) return 'refunded';
   return 'pending';
 };
 
-const paymentResponse = (order) => ({
-  success: true,
-  method: FORTE_PAYMENT_METHOD,
-  operationId: order.operation_id,
-  redirectUrl: order.provider_redirect_url,
-  amount: Number(order.amount),
-  orderType: order.fulfillment_type || 'pickup',
-  branchId: order.branch_id == null ? null : String(order.branch_id),
-  scheduledAt: order.scheduled_at || null,
-  orderId: order.id == null ? undefined : String(order.id),
-});
+const bankErrorCode = (body) =>
+  cleanText(body?.errorCode || body?.code, 80).replace(/[^A-Za-z0-9._-]/g, '');
 
-const apiErrorMessage = (body, fallback) => {
-  const message = cleanText(body?.message || body?.error || body?.friendly_message, 500);
-  if (message) return message;
-  if (body?.errors && typeof body.errors === 'object') {
-    return cleanText(JSON.stringify(body.errors), 500) || fallback;
+const bankErrorStatus = (response, body, fallback = 502) => {
+  const code = bankErrorCode(body);
+  if (
+    response?.status === 401 ||
+    response?.status === 403 ||
+    ['InvalidLogin', 'NeedChangePwd', 'PwdTryLimitExceeded', 'UserSessionExpired'].includes(code)
+  ) {
+    return 503;
   }
+  if (response?.status >= 400 && response?.status < 500) return 409;
   return fallback;
 };
 
@@ -301,12 +236,11 @@ class ForteService {
   config() {
     return {
       enabled: this.env.FORTE_ENABLED === 'true',
-      shopId: String(this.env.FORTE_SHOP_ID || this.env.FORTE_MERCHANT_ID || '').trim(),
-      secretKey: String(this.env.FORTE_SECRET_KEY || '').trim(),
-      publicKey: String(this.env.FORTE_WEBHOOK_PUBLIC_KEY || '').trim(),
+      username: String(this.env.FORTE_API_USERNAME || '').trim(),
+      password: String(this.env.FORTE_API_PASSWORD || '').trim(),
+      merchantId: String(this.env.FORTE_MERCHANT_ID || '').trim(),
       test: this.env.FORTE_TEST_MODE === 'true',
-      checkoutBaseUrl: trimBaseUrl(this.env.FORTE_CHECKOUT_BASE_URL, DEFAULT_CHECKOUT_BASE_URL),
-      gatewayBaseUrl: trimBaseUrl(this.env.FORTE_GATEWAY_BASE_URL, DEFAULT_GATEWAY_BASE_URL),
+      apiBaseUrl: trimBaseUrl(this.env.FORTE_API_BASE_URL, DEFAULT_API_BASE_URL),
       publicBaseUrl: trimBaseUrl(this.env.PUBLIC_BASE_URL, 'https://bulka.com.kz'),
       timeoutMs: Math.min(60000, Math.max(1000, Number(this.env.FORTE_TIMEOUT_MS) || 15000)),
     };
@@ -314,11 +248,22 @@ class ForteService {
 
   isConfigured() {
     const config = this.config();
+    let apiUrl;
+    try {
+      apiUrl = new URL(config.apiBaseUrl);
+    } catch {
+      return false;
+    }
     return (
       config.enabled &&
-      config.shopId.length > 0 &&
-      config.secretKey.length >= 8 &&
-      config.publicKey.length >= 64
+      USERNAME_PATTERN.test(config.username) &&
+      config.password.length >= 8 &&
+      config.password.length <= 512 &&
+      config.merchantId.length > 0 &&
+      String(this.env.FORTE_ORDER_CREDENTIAL_KEY || '').trim().length >= 32 &&
+      apiUrl.protocol === 'https:' &&
+      apiUrl.hostname.toLowerCase() === 'api.fortebank.com' &&
+      !apiUrl.port
     );
   }
 
@@ -334,44 +279,49 @@ class ForteService {
   }
 
   basicAuthorization(config = this.assertConfigured()) {
-    return `Basic ${Buffer.from(`${config.shopId}:${config.secretKey}`, 'utf8').toString('base64')}`;
+    return `Basic ${Buffer.from(`${config.username}:${config.password}`, 'utf8').toString(
+      'base64',
+    )}`;
   }
 
-  verifyWebhookAuthentication(headers, rawBody) {
+  async request(pathOrUrl, { method = 'GET', body, idempotencyKey } = {}) {
     const config = this.assertConfigured();
-    return verifyForteWebhook({
-      headers,
-      rawBody,
-      shopId: config.shopId,
-      secretKey: config.secretKey,
-      publicKey: config.publicKey,
-    });
-  }
+    const apiOrigin = new URL(config.apiBaseUrl).origin;
+    const url = new URL(String(pathOrUrl), `${config.apiBaseUrl}/`);
+    if (url.origin !== apiOrigin) {
+      throw forteError('Некорректный адрес API ForteBank', 500, 'FORTE_INVALID_API_URL');
+    }
+    if (idempotencyKey && !UUID_PATTERN.test(String(idempotencyKey))) {
+      throw forteError(
+        'Некорректный ключ операции ForteBank',
+        409,
+        'FORTE_INVALID_IDEMPOTENCY_KEY',
+      );
+    }
 
-  async request(url, { method = 'GET', body, apiVersion, requestId } = {}) {
-    const config = this.assertConfigured();
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), config.timeoutMs);
     let response;
     try {
-      response = await this.fetchImpl(url, {
+      response = await this.fetchImpl(url.toString(), {
         method,
         signal: controller.signal,
         headers: {
           Authorization: this.basicAuthorization(config),
           Accept: 'application/json',
           ...(body && { 'Content-Type': 'application/json' }),
-          ...(apiVersion && { 'X-API-Version': String(apiVersion) }),
-          ...(requestId && { RequestID: String(requestId) }),
+          ...(idempotencyKey && {
+            'TXPG-Idempotence-Key': String(idempotencyKey),
+          }),
         },
         ...(body && { body: JSON.stringify(body) }),
       });
-    } catch (error) {
+    } catch {
       throw forteError(
         'Ответ ForteBank не получен. Проверьте операцию перед повторной попыткой.',
         502,
         'FORTE_NETWORK_ERROR',
-        { cause: error, retryable: true },
+        { retryable: true },
       );
     } finally {
       clearTimeout(timeout);
@@ -383,7 +333,7 @@ class ForteService {
       try {
         payload = JSON.parse(text);
       } catch {
-        payload = { message: text };
+        payload = {};
       }
     }
     return { response, body: payload };
@@ -398,6 +348,72 @@ class ForteService {
       .maybeSingle();
     if (error) throw error;
     return data || null;
+  }
+
+  async paymentResponse(order) {
+    const password = decryptOrderPassword(
+      order.provider_auth_ciphertext,
+      order.id,
+      order.operation_id,
+      this.env,
+    );
+    return {
+      success: true,
+      method: FORTE_PAYMENT_METHOD,
+      operationId: String(order.operation_id),
+      redirectUrl: buildHostedPaymentUrl(order.provider_redirect_url, order.operation_id, password),
+      amount: Number(order.amount),
+      orderType: order.fulfillment_type || 'pickup',
+      branchId: order.branch_id == null ? null : String(order.branch_id),
+      scheduledAt: order.scheduled_at || null,
+      orderId: order.id == null ? undefined : String(order.id),
+    };
+  }
+
+  async createProviderOrder({ amount, language, redirectUrl, description, idempotencyKey }) {
+    const config = this.assertConfigured();
+    const { response, body } = await this.request('/order', {
+      method: 'POST',
+      idempotencyKey,
+      body: {
+        order: {
+          typeRid: 'Order_RID',
+          language: normalizeLanguage(language),
+          amount: formatAmount(amount),
+          currency: 'KZT',
+          hppRedirectUrl: redirectUrl,
+          description: cleanText(description, 255) || 'Заказ Bulka',
+        },
+      },
+    });
+    if (!response.ok) {
+      throw forteError(
+        'ForteBank не смог создать платёж. Попробуйте позже.',
+        bankErrorStatus(response, body),
+        'FORTE_CREATE_REJECTED',
+        { bankCode: bankErrorCode(body) || undefined, retryable: response.status >= 500 },
+      );
+    }
+
+    const providerOrder = body?.order || {};
+    const id = normalizeProviderOrderId(providerOrder.id);
+    const password = normalizeOrderPassword(providerOrder.password);
+    const hppBaseUrl = normalizeHppBaseUrl(providerOrder.hppUrl);
+    if (!id || !password || !hppBaseUrl) {
+      throw forteError(
+        'ForteBank вернул неполные данные платежа',
+        502,
+        'FORTE_INVALID_CREATE_RESPONSE',
+      );
+    }
+    buildHostedPaymentUrl(hppBaseUrl, id, password);
+    return {
+      id,
+      password,
+      hppBaseUrl,
+      status: cleanText(providerOrder.status, 40) || 'Preparing',
+      config,
+    };
   }
 
   async createCheckout(phone, pricing, customerId, checkout = {}, options = {}) {
@@ -415,17 +431,10 @@ class ForteService {
           'PAYMENT_REQUEST_ALREADY_USED',
         );
       }
-      return paymentResponse(existing);
+      return this.paymentResponse(existing);
     }
 
-    const amount = toMinorUnits(pricing.total);
     const trackingId = crypto.randomUUID();
-    const language = normalizeLanguage(options.language);
-    const expiryMinutes = Math.min(
-      1440,
-      Math.max(5, Number(this.env.FORTE_CHECKOUT_EXPIRY_MINUTES) || 30),
-    );
-    const expiredAt = new Date(Date.now() + expiryMinutes * 60 * 1000).toISOString();
     const returnUrl = `${config.publicBaseUrl}/orders?payment=forte&order=${encodeURIComponent(
       trackingId,
     )}`;
@@ -437,72 +446,6 @@ class ForteService {
           .join(', ')}`,
         255,
       ) || 'Заказ Bulka';
-
-    const requestBody = {
-      checkout: {
-        transaction_type: 'payment',
-        attempts: 3,
-        test: config.test,
-        settings: {
-          return_url: returnUrl,
-          notification_url: `${config.publicBaseUrl}/webhooks/forte`,
-          language,
-          auto_return: 0,
-          customer_fields: {
-            read_only: ['phone'],
-          },
-        },
-        payment_method: {
-          types: ['credit_card'],
-        },
-        order: {
-          amount,
-          currency: 'KZT',
-          description,
-          tracking_id: trackingId,
-          expired_at: expiredAt,
-        },
-        customer: {
-          phone: `+${normalizedPhone}`,
-          external_id: String(customerId),
-        },
-      },
-    };
-
-    const { response, body } = await this.request(`${config.checkoutBaseUrl}/ctp/api/checkouts`, {
-      method: 'POST',
-      body: requestBody,
-      apiVersion: 2,
-    });
-    if (!response.ok) {
-      throw forteError(
-        apiErrorMessage(body, `ForteBank отклонил создание платежа (${response.status})`),
-        response.status >= 400 && response.status < 500 ? 409 : 502,
-        'FORTE_CHECKOUT_REJECTED',
-      );
-    }
-
-    const token = cleanText(body?.checkout?.token, 100);
-    const redirectUrl = cleanText(body?.checkout?.redirect_url, 1000);
-    let parsedRedirect;
-    try {
-      parsedRedirect = new URL(redirectUrl);
-    } catch {
-      parsedRedirect = null;
-    }
-    if (
-      !TOKEN_PATTERN.test(token) ||
-      !parsedRedirect ||
-      parsedRedirect.origin !== new URL(config.checkoutBaseUrl).origin ||
-      parsedRedirect.protocol !== 'https:'
-    ) {
-      throw forteError(
-        'ForteBank вернул некорректную ссылку оплаты',
-        502,
-        'FORTE_INVALID_CHECKOUT_RESPONSE',
-      );
-    }
-
     const eta = await forecastOrderEta({
       branchId: checkout.branchId,
       orderType: checkout.orderType,
@@ -511,10 +454,17 @@ class ForteService {
       deliveryAddress: checkout.deliveryAddress,
       deliveryZone: checkout.deliveryZone,
     });
+    const providerOrder = await this.createProviderOrder({
+      amount: pricing.total,
+      language: options.language,
+      redirectUrl: returnUrl,
+      description,
+      idempotencyKey: checkout.requestId,
+    });
     const orderRecord = {
       ...this.orderService.orderRecord({
         customerId,
-        operationId: token,
+        operationId: providerOrder.id,
         normalizedPhone,
         pricing,
         cartItems: pricing.canonicalItems,
@@ -523,8 +473,14 @@ class ForteService {
         eta,
       }),
       id: trackingId,
-      provider_redirect_url: redirectUrl,
-      provider_status: 'checkout_created',
+      provider_redirect_url: providerOrder.hppBaseUrl,
+      provider_auth_ciphertext: encryptOrderPassword(
+        providerOrder.password,
+        trackingId,
+        providerOrder.id,
+        this.env,
+      ),
+      provider_status: providerOrder.status,
       payment_test: config.test,
     };
     const { data: savedOrder, error } = await this.db
@@ -534,12 +490,12 @@ class ForteService {
       .single();
     if (error) {
       const raced = await this.existingRequest(customerId, checkout.requestId).catch(() => null);
-      if (raced?.payment_method === FORTE_PAYMENT_METHOD) return paymentResponse(raced);
+      if (raced?.payment_method === FORTE_PAYMENT_METHOD) return this.paymentResponse(raced);
       throw forteError(
         'Платёж создан в ForteBank, но заказ не сохранён. Обратитесь в поддержку до повтора.',
         502,
-        'FORTE_CHECKOUT_SAVE_UNKNOWN',
-        { cause: error, retryable: false },
+        'FORTE_CREATE_SAVE_UNKNOWN',
+        { retryable: true },
       );
     }
 
@@ -549,103 +505,124 @@ class ForteService {
       branchId: checkout.branchId,
       properties: { paymentMethod: FORTE_PAYMENT_METHOD, amount: pricing.total },
     }).catch((error) => console.error('Не удалось записать аналитику ForteBank:', error.message));
-    return paymentResponse(savedOrder);
+    return this.paymentResponse(savedOrder);
   }
 
-  async findOrder(normalized) {
-    let result = null;
-    if (TOKEN_PATTERN.test(normalized.checkoutToken)) {
-      const { data, error } = await this.db
-        .from('kaspi_orders')
-        .select('*')
-        .eq('operation_id', normalized.checkoutToken)
-        .maybeSingle();
-      if (error) throw error;
-      result = data;
+  async findOrder(orderOrId) {
+    if (orderOrId && typeof orderOrId === 'object') {
+      if (orderOrId.payment_method !== FORTE_PAYMENT_METHOD) {
+        throw forteError('Payment provider mismatch', 409, 'FORTE_PROVIDER_MISMATCH');
+      }
+      return orderOrId;
     }
-    if (!result && UUID_PATTERN.test(normalized.trackingId)) {
-      const { data, error } = await this.db
-        .from('kaspi_orders')
-        .select('*')
-        .eq('id', normalized.trackingId)
-        .maybeSingle();
-      if (error) throw error;
-      result = data;
+    const identifier = String(orderOrId || '').trim();
+    let query = this.db.from('kaspi_orders').select('*');
+    if (UUID_PATTERN.test(identifier)) query = query.eq('id', identifier);
+    else if (ORDER_ID_PATTERN.test(identifier)) query = query.eq('operation_id', identifier);
+    else {
+      throw forteError(
+        'Некорректный идентификатор операции ForteBank',
+        400,
+        'FORTE_INVALID_ORDER_ID',
+      );
     }
-    if (!result && normalized.transactionId) {
-      const { data, error } = await this.db
-        .from('kaspi_orders')
-        .select('*')
-        .eq('provider_transaction_id', normalized.transactionId)
-        .maybeSingle();
-      if (error) throw error;
-      result = data;
-    }
-    if (!result) {
-      throw forteError('ForteBank order was not found', 404, 'FORTE_ORDER_NOT_FOUND');
-    }
-    if (result.payment_method !== FORTE_PAYMENT_METHOD) {
+    const { data, error } = await query.maybeSingle();
+    if (error) throw error;
+    if (!data) throw forteError('Заказ не найден', 404, 'FORTE_ORDER_NOT_FOUND');
+    if (data.payment_method !== FORTE_PAYMENT_METHOD) {
       throw forteError('Payment provider mismatch', 409, 'FORTE_PROVIDER_MISMATCH');
     }
-    return result;
+    return data;
   }
 
-  validateProviderPayment(order, normalized) {
-    const config = this.assertConfigured();
-    const expectedAmount = toMinorUnits(order.amount);
-    if (!Number.isSafeInteger(normalized.amount) || normalized.amount !== expectedAmount) {
-      throw forteError('ForteBank payment amount mismatch', 422, 'FORTE_AMOUNT_MISMATCH');
+  validateProviderOrder(order, normalized) {
+    if (!normalized.id || normalized.id !== String(order.operation_id)) {
+      throw forteError(
+        'ForteBank вернул другой идентификатор заказа',
+        422,
+        'FORTE_ORDER_ID_MISMATCH',
+      );
+    }
+    if (normalized.typeRid && normalized.typeRid !== 'Order_RID') {
+      throw forteError('ForteBank вернул другой тип заказа', 422, 'FORTE_ORDER_TYPE_MISMATCH');
+    }
+    if (
+      !Number.isFinite(normalized.amount) ||
+      toMinorUnits(normalized.amount) !== toMinorUnits(order.amount)
+    ) {
+      throw forteError('ForteBank вернул другую сумму заказа', 422, 'FORTE_AMOUNT_MISMATCH');
     }
     if (normalized.currency !== 'KZT') {
-      throw forteError('ForteBank payment currency mismatch', 422, 'FORTE_CURRENCY_MISMATCH');
-    }
-    if (normalized.test === null || normalized.test !== config.test) {
-      throw forteError('ForteBank payment mode mismatch', 422, 'FORTE_TEST_MODE_MISMATCH');
-    }
-    if (!UUID_PATTERN.test(normalized.trackingId) || normalized.trackingId !== String(order.id)) {
-      throw forteError('ForteBank tracking id mismatch', 422, 'FORTE_TRACKING_MISMATCH');
-    }
-    if (normalized.checkoutToken && normalized.checkoutToken !== String(order.operation_id)) {
-      throw forteError('ForteBank checkout token mismatch', 422, 'FORTE_TOKEN_MISMATCH');
-    }
-    if (normalized.shopId && normalized.shopId !== config.shopId) {
-      throw forteError('ForteBank shop id mismatch', 422, 'FORTE_SHOP_MISMATCH');
+      throw forteError('ForteBank вернул другую валюту заказа', 422, 'FORTE_CURRENCY_MISMATCH');
     }
   }
 
-  async applyProviderPayment(order, normalized) {
-    this.validateProviderPayment(order, normalized);
-    const nextStatus = mapForteStatus(normalized.status);
-    if (nextStatus === 'paid' && !normalized.transactionId) {
-      throw forteError('ForteBank payment UID is missing', 422, 'FORTE_TRANSACTION_ID_MISSING');
+  async queryOrder(orderOrId) {
+    const order = await this.findOrder(orderOrId);
+    const password = decryptOrderPassword(
+      order.provider_auth_ciphertext,
+      order.id,
+      order.operation_id,
+      this.env,
+    );
+    const url = new URL(
+      `/order/${encodeURIComponent(order.operation_id)}`,
+      `${this.assertConfigured().apiBaseUrl}/`,
+    );
+    url.searchParams.set('password', password);
+    url.searchParams.set('tranDetailLevel', '1');
+    url.searchParams.set('orderDetailLevel', '1');
+    const { response, body } = await this.request(url);
+    if (!response.ok) {
+      throw forteError(
+        'ForteBank не подтвердил состояние платежа. Повторите проверку позже.',
+        bankErrorStatus(response, body),
+        'FORTE_STATUS_FAILED',
+        { bankCode: bankErrorCode(body) || undefined, retryable: response.status >= 500 },
+      );
     }
-    const firstSix = normalized.cardFirstSix.length === 6 ? normalized.cardFirstSix : null;
-    const lastFour = normalized.cardLastFour.length === 4 ? normalized.cardLastFour : null;
+    const normalized = normalizeForteOrder(body);
+    this.validateProviderOrder(order, normalized);
+    return { order, normalized, response: body };
+  }
+
+  async applyProviderOrder(order, normalized) {
+    this.validateProviderOrder(order, normalized);
+    const nextStatus = mapForteStatus(normalized.status);
+    const normalizedStatus = String(normalized.status || '')
+      .replace(/[\s_-]/g, '')
+      .toLowerCase();
+    const unexpectedPartial = normalizedStatus === 'partpaid' && order.status === 'pending';
+    const unknownStatus =
+      !nextStatus ||
+      (nextStatus === 'pending' &&
+        !['preparing', 'authorized', 'partpaid', 'waitpushtran', 'funded'].includes(
+          normalizedStatus,
+        ));
+    const metadata = {
+      provider_status: normalized.status || 'Unknown',
+      payment_reconciled_at: FINAL_PAYMENT_STATUSES.has(nextStatus)
+        ? new Date().toISOString()
+        : null,
+      last_error:
+        nextStatus === 'failed' || nextStatus === 'expired'
+          ? `ForteBank: ${normalized.status || 'Unknown'}`
+          : unexpectedPartial
+            ? 'ForteBank сообщил частичную оплату; требуется ручная проверка.'
+            : unknownStatus
+              ? `Неизвестный статус ForteBank: ${normalized.status || 'empty'}`
+              : null,
+    };
     const { data: updatedMetadata, error } = await this.db
       .from('kaspi_orders')
-      .update({
-        ...(normalized.transactionId && {
-          provider_transaction_id: normalized.transactionId,
-        }),
-        provider_status: normalized.status || 'unknown',
-        provider_payment_system: normalized.paymentSystem || null,
-        provider_card_first_six: firstSix,
-        provider_card_last_four: lastFour,
-        provider_authorization_code: normalized.authorizationCode || null,
-        provider_settled_at: normalized.settledAt || null,
-        payment_test: normalized.test,
-        last_error:
-          nextStatus === 'failed' || nextStatus === 'expired'
-            ? normalized.message || `ForteBank: ${normalized.status}`
-            : null,
-      })
+      .update(metadata)
       .eq('id', order.id)
       .eq('payment_method', FORTE_PAYMENT_METHOD)
       .select('*')
       .maybeSingle();
     if (error) throw error;
     if (!updatedMetadata) {
-      throw forteError('ForteBank order changed during processing', 409, 'FORTE_ORDER_CONFLICT');
+      throw forteError('Заказ изменился во время сверки', 409, 'FORTE_ORDER_CONFLICT');
     }
 
     let updatedOrder = updatedMetadata;
@@ -656,47 +633,18 @@ class ForteService {
     }
     if (nextStatus === 'paid') {
       updatedOrder = (await this.orderService.recordPaidOrder(order.operation_id)) || updatedOrder;
+    } else if (
+      nextStatus === 'refunded' &&
+      typeof this.orderService.reverseOrderLoyalty === 'function'
+    ) {
+      updatedOrder = (await this.orderService.reverseOrderLoyalty(updatedOrder)) || updatedOrder;
     }
-    return { order: updatedOrder, status: nextStatus };
+    return { order: updatedOrder, status: nextStatus, providerStatus: normalized.status };
   }
 
-  async processWebhook(payload) {
-    const normalized = normalizeFortePayload(payload);
-    if (normalized.transactionType === 'refund') {
-      return { accepted: true, ignored: true, type: 'refund' };
-    }
-    const order = await this.findOrder(normalized);
-    return this.applyProviderPayment(order, normalized);
-  }
-
-  async queryCheckout(paymentToken) {
-    const config = this.assertConfigured();
-    if (!TOKEN_PATTERN.test(String(paymentToken || ''))) {
-      throw forteError('Некорректный токен ForteBank', 400, 'FORTE_INVALID_TOKEN');
-    }
-    const { response, body } = await this.request(
-      `${config.checkoutBaseUrl}/ctp/api/checkouts/${encodeURIComponent(paymentToken)}`,
-      { apiVersion: 2 },
-    );
-    if (!response.ok) {
-      throw forteError(
-        apiErrorMessage(body, `ForteBank не вернул статус платежа (${response.status})`),
-        response.status === 404 ? 404 : 502,
-        'FORTE_STATUS_FAILED',
-      );
-    }
-    return body;
-  }
-
-  async syncOrder(orderOrToken) {
-    const order =
-      typeof orderOrToken === 'object'
-        ? orderOrToken
-        : await this.findOrder({ checkoutToken: String(orderOrToken), trackingId: '' });
-    const payload = await this.queryCheckout(order.operation_id);
-    const normalized = normalizeFortePayload(payload);
-    if (!normalized.checkoutToken) normalized.checkoutToken = String(order.operation_id);
-    return this.applyProviderPayment(order, normalized);
+  async syncOrder(orderOrId) {
+    const { order, normalized } = await this.queryOrder(orderOrId);
+    return this.applyProviderOrder(order, normalized);
   }
 
   async getOrderStatus(operationId, customerId) {
@@ -712,16 +660,8 @@ class ForteService {
     return data;
   }
 
-  async refundPayment(parentUid, amount, { reason, idempotencyKey } = {}) {
-    const config = this.assertConfigured();
-    const cleanParentUid = cleanText(parentUid, 100);
-    if (!TOKEN_PATTERN.test(cleanParentUid)) {
-      throw forteError(
-        'Некорректный идентификатор операции ForteBank',
-        409,
-        'FORTE_REFUND_INVALID_OPERATION',
-      );
-    }
+  async refundPayment(orderOrId, amount, { idempotencyKey } = {}) {
+    const order = await this.findOrder(orderOrId);
     const requestId = String(idempotencyKey || crypto.randomUUID());
     if (!UUID_PATTERN.test(requestId)) {
       throw forteError(
@@ -730,24 +670,50 @@ class ForteService {
         'FORTE_REFUND_INVALID_REQUEST_ID',
       );
     }
+    const refundMinor = toMinorUnits(amount);
+    const { normalized } = await this.queryOrder(order);
+    const providerStatus = String(normalized.status || '').toLowerCase();
+    if (!['fullypaid', 'closed', 'partpaid'].includes(providerStatus)) {
+      throw forteError(
+        'Состояние платежа ForteBank не позволяет выполнить возврат',
+        409,
+        'FORTE_REFUND_INVALID_STATE',
+      );
+    }
+    const totalMinor = toMinorUnits(normalized.amount);
+    if (refundMinor > totalMinor) {
+      throw forteError(
+        'Сумма возврата превышает сумму платежа',
+        409,
+        'FORTE_REFUND_INVALID_AMOUNT',
+      );
+    }
+    const useVoid = normalized.allowVoid && refundMinor === totalMinor;
+    const password = decryptOrderPassword(
+      order.provider_auth_ciphertext,
+      order.id,
+      order.operation_id,
+      this.env,
+    );
+    const url = new URL(
+      `/order/${encodeURIComponent(order.operation_id)}/exec-tran`,
+      `${this.assertConfigured().apiBaseUrl}/`,
+    );
+    url.searchParams.set('password', password);
     const requestBody = {
-      request: {
-        parent_uid: cleanParentUid,
-        amount: toMinorUnits(amount),
-        reason: cleanText(reason, 255) || 'Customer order refund',
-        additional_data: {
-          referer: config.publicBaseUrl,
-        },
+      tran: {
+        ...(useVoid ? { voidKind: 'Full' } : { type: 'Refund' }),
+        amount: formatAmount(amount),
+        phase: 'Single',
       },
     };
 
     let result;
     try {
-      result = await this.request(`${config.gatewayBaseUrl}/transactions/refunds`, {
+      result = await this.request(url, {
         method: 'POST',
         body: requestBody,
-        apiVersion: 3,
-        requestId,
+        idempotencyKey: requestId,
       });
     } catch (error) {
       error.refundUncertain = true;
@@ -755,62 +721,32 @@ class ForteService {
       throw error;
     }
     const { response, body } = result;
-    const transaction = body?.transaction || {};
-    const status = cleanText(transaction.status, 40).toLowerCase();
-    const reference = cleanText(transaction.uid || transaction.id, 100) || null;
-    if (
-      response.ok &&
-      status === 'successful' &&
-      reference &&
-      transaction.parent_uid === cleanParentUid &&
-      Number(transaction.amount) === requestBody.request.amount &&
-      String(transaction.currency || '').toUpperCase() === 'KZT' &&
-      parseBoolean(transaction.test) === config.test
-    ) {
-      return { reference, response: body, requestId };
-    }
-    if (response.ok && ['incomplete', 'pending', 'processing'].includes(status)) {
-      throw forteError(
-        'ForteBank принял возврат в обработку. Результат требует сверки.',
-        502,
-        'FORTE_REFUND_UNKNOWN',
-        { refundUncertain: true, refundReference: reference, requestId },
-      );
+    const reference = cleanText(
+      body?.tran?.match?.tranActionId || body?.tran?.match?.ridByPmo,
+      160,
+    );
+    if (response.ok && reference && body?.tran?.approvedPartial !== true) {
+      return {
+        reference,
+        response: body,
+        requestId,
+        operation: useVoid ? 'void' : 'refund',
+      };
     }
     if (response.status >= 400 && response.status < 500) {
       throw forteError(
-        apiErrorMessage(body, 'ForteBank отклонил возврат'),
-        409,
+        'ForteBank отклонил возврат',
+        bankErrorStatus(response, body, 409),
         'FORTE_REFUND_REJECTED',
-        { requestId },
+        { bankCode: bankErrorCode(body) || undefined, requestId },
       );
     }
     throw forteError(
-      apiErrorMessage(body, 'ForteBank не подтвердил возврат. Требуется сверка.'),
+      'ForteBank не подтвердил возврат. Требуется сверка.',
       502,
       'FORTE_REFUND_UNKNOWN',
-      { refundUncertain: true, refundReference: reference, requestId },
+      { refundUncertain: true, refundReference: reference || undefined, requestId },
     );
-  }
-
-  async queryTransaction(transactionId) {
-    const config = this.assertConfigured();
-    const uid = cleanText(transactionId, 100);
-    if (!TOKEN_PATTERN.test(uid)) {
-      throw forteError('Некорректный UID ForteBank', 400, 'FORTE_INVALID_TRANSACTION_ID');
-    }
-    const { response, body } = await this.request(
-      `${config.gatewayBaseUrl}/transactions/${encodeURIComponent(uid)}`,
-      { apiVersion: 3 },
-    );
-    if (!response.ok) {
-      throw forteError(
-        apiErrorMessage(body, `ForteBank не вернул транзакцию (${response.status})`),
-        response.status === 404 ? 404 : 502,
-        'FORTE_TRANSACTION_QUERY_FAILED',
-      );
-    }
-    return body;
   }
 
   async reconcileOrders() {
@@ -841,8 +777,8 @@ class ForteService {
       this.db
         .from('kaspi_orders')
         .select('*')
-        .eq('payment_method', FORTE_PAYMENT_METHOD)
         .in('status', ['paid', 'refunded'])
+        .eq('payment_method', FORTE_PAYMENT_METHOD)
         .is('payment_reconciled_at', null)
         .order('created_at', { ascending: true })
         .limit(50),
@@ -856,27 +792,6 @@ class ForteService {
     for (const order of uniqueOrders.values()) {
       try {
         await this.syncOrder(order);
-        if (order.provider_transaction_id && FINAL_PAYMENT_STATUSES.has(order.status)) {
-          const transactionPayload = await this.queryTransaction(order.provider_transaction_id);
-          const normalized = normalizeFortePayload(transactionPayload);
-          this.validateProviderPayment(order, {
-            ...normalized,
-            checkoutToken: order.operation_id,
-          });
-          await this.db
-            .from('kaspi_orders')
-            .update({
-              provider_status: normalized.status || order.provider_status,
-              provider_settled_at: normalized.settledAt || order.provider_settled_at,
-              payment_reconciled_at: new Date().toISOString(),
-              last_error:
-                order.status === 'paid' && mapForteStatus(normalized.status) !== 'paid'
-                  ? `Сверка ForteBank: неожиданный статус ${normalized.status || 'unknown'}`
-                  : null,
-            })
-            .eq('id', order.id)
-            .eq('payment_method', FORTE_PAYMENT_METHOD);
-        }
       } catch (error) {
         console.error(`Не удалось сверить ForteBank заказ ${order.id}:`, error.message);
       }
@@ -888,9 +803,12 @@ class ForteService {
 module.exports = new ForteService();
 module.exports.ForteService = ForteService;
 module.exports.FORTE_PAYMENT_METHOD = FORTE_PAYMENT_METHOD;
+module.exports.buildHostedPaymentUrl = buildHostedPaymentUrl;
+module.exports.decryptOrderPassword = decryptOrderPassword;
+module.exports.encryptOrderPassword = encryptOrderPassword;
+module.exports.formatAmount = formatAmount;
 module.exports.mapForteStatus = mapForteStatus;
-module.exports.normalizeFortePayload = normalizeFortePayload;
+module.exports.normalizeForteOrder = normalizeForteOrder;
+module.exports.normalizeHppBaseUrl = normalizeHppBaseUrl;
 module.exports.normalizeLanguage = normalizeLanguage;
-module.exports.normalizePublicKey = normalizePublicKey;
 module.exports.toMinorUnits = toMinorUnits;
-module.exports.verifyForteWebhook = verifyForteWebhook;

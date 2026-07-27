@@ -22,7 +22,7 @@ const availability = async (_req, res) => {
   res.json({
     success: true,
     available,
-    testMode: available && process.env.FORTE_TEST_MODE === 'true',
+    testMode: available && forteService.config().test,
     ...(!available && {
       message: 'Оплата картой ForteBank временно недоступна.',
     }),
@@ -97,7 +97,7 @@ const createPayment = async (req, res) => {
     });
     return res.json(result);
   } catch (error) {
-    console.error('Ошибка ForteBank createPayment:', error);
+    console.error('Ошибка ForteBank createPayment:', error.code || 'UNKNOWN', error.message);
     return res.status(error.statusCode || 500).json({
       error: publicError(error, 'Не удалось создать оплату ForteBank'),
       ...(error.code && { code: error.code }),
@@ -137,29 +137,9 @@ const checkStatus = async (req, res) => {
   }
 };
 
-const handleWebhook = async (req, res) => {
-  try {
-    forteService.verifyWebhookAuthentication(req.headers, req.rawBody);
-    const result = await forteService.processWebhook(req.body);
-    return res.status(200).json({
-      success: true,
-      status: result.status || 'accepted',
-    });
-  } catch (error) {
-    const status = error.statusCode || 500;
-    console.error('Ошибка ForteBank webhook:', error.code || status, error.message);
-    return res.status(status).json({
-      error:
-        status >= 500 ? 'Webhook processing failed' : publicError(error, 'Invalid webhook request'),
-      ...(error.code && { code: error.code }),
-    });
-  }
-};
-
 module.exports = {
   availability,
   checkStatus,
   createPayment,
-  handleWebhook,
   quotePayment: kaspiController.quotePayment,
 };

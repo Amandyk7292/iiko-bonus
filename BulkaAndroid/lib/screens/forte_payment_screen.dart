@@ -28,7 +28,8 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
     final uri = Uri.tryParse(widget.redirectUrl);
     if (uri == null ||
         uri.scheme != 'https' ||
-        uri.host != 'securepayments.fortebank.com') {
+        uri.host != 'ecom.fortebank.com' ||
+        uri.path != '/flex/') {
       return null;
     }
     return uri;

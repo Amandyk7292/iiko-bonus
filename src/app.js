@@ -118,7 +118,7 @@ app.use(
   express.json({
     limit: '2mb',
     verify(req, _res, buffer) {
-      if (['/webhooks/kaspi', '/webhooks/forte'].includes(req.originalUrl.split('?')[0])) {
+      if (req.originalUrl.split('?')[0] === '/webhooks/kaspi') {
         req.rawBody = Buffer.from(buffer);
       }
     },
