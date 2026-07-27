@@ -3,6 +3,7 @@ set -Eeuo pipefail
 
 project='/var/www/iiko-bonus'
 env_file="$project/.env"
+service_user='deploy'
 timestamp=$(date -u +'%Y%m%dT%H%M%SZ')
 backup="/var/backups/bulka-forte-widget-${timestamp}.env"
 changed=0
@@ -15,7 +16,18 @@ test -d "$project"
 test -f "$env_file"
 command -v node >/dev/null
 command -v openssl >/dev/null
-command -v pm2 >/dev/null
+command -v sudo >/dev/null
+id "$service_user" >/dev/null 2>&1
+sudo -u "$service_user" -H bash -lc 'command -v pm2 >/dev/null'
+
+restart_production() {
+  sudo -u "$service_user" -H bash -lc \
+    "cd '$project' && env HOST=127.0.0.1 pm2 restart iiko-bonus --update-env"
+}
+
+save_process_list() {
+  sudo -u "$service_user" -H bash -lc 'pm2 save'
+}
 
 rollback() {
   local exit_code=$?
@@ -23,10 +35,7 @@ rollback() {
   if [[ $changed -eq 1 && -f $backup ]]; then
     echo 'Activation failed; restoring the previous environment.' >&2
     cp -a -- "$backup" "$env_file"
-    (
-      cd "$project"
-      env HOST=127.0.0.1 pm2 restart iiko-bonus --update-env
-    ) >/dev/null 2>&1 || true
+    restart_production >/dev/null 2>&1 || true
   fi
   exit "$exit_code"
 }
@@ -148,10 +157,7 @@ unset BULKA_FORTE_SECRET_KEY BULKA_FORTE_TOKEN_KEY secret_key token_key
 )
 
 echo 'Restarting Bulka production...'
-(
-  cd "$project"
-  env HOST=127.0.0.1 pm2 restart iiko-bonus --update-env
-)
+restart_production
 for _attempt in {1..30}; do
   if curl -fsS 'http://127.0.0.1:3000/readyz' >/dev/null 2>&1; then
     break
@@ -160,11 +166,10 @@ for _attempt in {1..30}; do
 done
 curl -fsS 'http://127.0.0.1:3000/readyz' >/dev/null
 curl -fsS 'https://bulka.com.kz/payments/forte-widget' >/dev/null
-pm2 save >/dev/null
+save_process_list >/dev/null
 
 changed=0
 trap - ERR
 echo
 echo 'FORTE_WIDGET_ACTIVE'
 echo 'Google Pay is available on supported devices. Apple Pay remains disabled pending Apple registration.'
-

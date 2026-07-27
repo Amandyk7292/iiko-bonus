@@ -101,6 +101,7 @@ foreach ($scriptName in @(
     'deploy-release.sh',
     'rollback-vps.sh',
     'prepare-cloudflare-origin.sh',
+    'configure-forte-widget-vps.sh',
     'harden-nginx-access-logs.sh'
 )) {
     Copy-Item -LiteralPath (Join-Path $projectRoot "scripts\$scriptName") `
