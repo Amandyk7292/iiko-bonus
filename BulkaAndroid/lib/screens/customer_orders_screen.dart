@@ -6,6 +6,7 @@ class CustomerOrdersScreen extends StatefulWidget {
     this.initialCompleted = false,
     this.onScopeChanged,
     this.cacheScope = 'session',
+    this.paymentReturnNotice,
     super.key,
   });
 
@@ -13,6 +14,7 @@ class CustomerOrdersScreen extends StatefulWidget {
   final bool initialCompleted;
   final ValueChanged<bool>? onScopeChanged;
   final String cacheScope;
+  final PaymentReturnNotice? paymentReturnNotice;
 
   @override
   State<CustomerOrdersScreen> createState() => _CustomerOrdersScreenState();
@@ -30,6 +32,7 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
   String? _error;
   List<CustomerOrder> _orders = const [];
   bool _usingOfflineCache = false;
+  PaymentReturnNotice? _paymentReturnNotice;
 
   String get _cacheKey =>
       'customer_orders_cache_${widget.cacheScope}_${_completed ? 'completed' : 'active'}';
@@ -38,6 +41,7 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
   void initState() {
     super.initState();
     _completed = widget.initialCompleted;
+    _paymentReturnNotice = widget.paymentReturnNotice;
     WidgetsBinding.instance.addObserver(this);
     _startRefreshTimer();
     _pushOrderSubscription = PushNotifications.orderEvents.listen(
@@ -452,6 +456,14 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
                 color: context.bulkaColors.warning,
               ),
             ),
+          if (_paymentReturnNotice == PaymentReturnNotice.cancelled)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 12, 18, 0),
+              child: _PaymentCancellationNotice(
+                onDismiss: () => setState(() => _paymentReturnNotice = null),
+                onBackToCart: () => Navigator.of(context).maybePop(),
+              ),
+            ),
           Expanded(child: _buildContent()),
         ],
       ),
@@ -497,6 +509,101 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
           onArrived: () => _markArrived(_orders[index]),
           onOpen: () => _openDetails(_orders[index]),
           arrivalLoading: _arrivalInFlight == _orders[index].id,
+        ),
+      ),
+    );
+  }
+}
+
+class _PaymentCancellationNotice extends StatelessWidget {
+  const _PaymentCancellationNotice({
+    required this.onDismiss,
+    required this.onBackToCart,
+  });
+
+  final VoidCallback onDismiss;
+  final VoidCallback onBackToCart;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.bulkaColors;
+    final title = 'payment_cancelled_title'.tr;
+    final description = 'payment_cancelled_explanation'.tr;
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      label: '$title. $description',
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(16, 14, 8, 12),
+        decoration: BoxDecoration(
+          color: colors.warning.withValues(alpha: .11),
+          borderRadius: BorderRadius.circular(BulkaRadii.control),
+          border: Border.all(color: colors.warning.withValues(alpha: .55)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: colors.warning.withValues(alpha: .18),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.info_outline_rounded,
+                    color: colors.warning,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            fontFamily: _headingFont,
+                            fontSize: BulkaTypeScale.titleSmall,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          description,
+                          style: TextStyle(
+                            color: colors.mutedText,
+                            fontSize: BulkaTypeScale.bodySmall,
+                            height: 1.4,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                IconButton(
+                  key: const ValueKey('payment-cancel-notice-dismiss'),
+                  onPressed: onDismiss,
+                  tooltip: 'payment_cancelled_dismiss'.tr,
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.only(left: 52, top: 8, right: 8),
+              child: TextButton.icon(
+                onPressed: onBackToCart,
+                icon: const Icon(Icons.shopping_bag_outlined),
+                label: Text('payment_back_cart'.tr),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -633,9 +740,27 @@ class _CustomerOrderCard extends StatelessWidget {
 
   String get _status => 'order_status_${order.orderStatus}'.tr;
 
+  String get _paymentStatus => switch (order.paymentStatus) {
+    'paid' => 'payment_status_paid'.tr,
+    'refunded' => 'payment_status_refunded'.tr,
+    'failed' => 'payment_status_failed'.tr,
+    'expired' => 'payment_status_expired'.tr,
+    _ => 'payment_status_pending'.tr,
+  };
+
   Color get _statusColor {
     if (order.orderStatus == 'cancelled') return _errorRed;
     if (order.orderStatus == 'completed') return _successGreen;
+    return const Color(0xFFB87919);
+  }
+
+  Color get _paymentStatusColor {
+    if (order.paymentStatus == 'paid' || order.paymentStatus == 'refunded') {
+      return _successGreen;
+    }
+    if (order.paymentStatus == 'failed' || order.paymentStatus == 'expired') {
+      return _errorRed;
+    }
     return const Color(0xFFB87919);
   }
 
@@ -696,26 +821,33 @@ class _CustomerOrderCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 7,
-                ),
-                decoration: BoxDecoration(
-                  color: _statusColor.withValues(alpha: .1),
-                  borderRadius: BorderRadius.circular(BulkaRadii.control),
-                ),
-                child: Text(
-                  _status,
-                  style: TextStyle(
-                    fontFamily: _headingFont,
-                    color: _statusColor,
-                    fontSize: BulkaTypeScale.caption,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
             ],
+          ),
+          const SizedBox(height: 12),
+          Semantics(
+            label:
+                '${'orders_payment_status_format'.trArgs({'status': _paymentStatus})}. '
+                '${'orders_fulfillment_status_format'.trArgs({'status': _status})}',
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _OrderStateChip(
+                  icon: Icons.payments_outlined,
+                  label: 'orders_payment_status_format'.trArgs({
+                    'status': _paymentStatus,
+                  }),
+                  color: _paymentStatusColor,
+                ),
+                _OrderStateChip(
+                  icon: Icons.receipt_long_rounded,
+                  label: 'orders_fulfillment_status_format'.trArgs({
+                    'status': _status,
+                  }),
+                  color: _statusColor,
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 16),
           _OrderInfoRow(label: 'orders_branch'.tr, value: order.branch),
@@ -1074,6 +1206,48 @@ class _DeliveryProgress extends StatelessWidget {
       ),
     );
   }
+}
+
+class _OrderStateChip extends StatelessWidget {
+  const _OrderStateChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    constraints: const BoxConstraints(minHeight: 36),
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: .1),
+      borderRadius: BorderRadius.circular(BulkaRadii.control),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 17, color: color),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: _headingFont,
+              color: color,
+              fontSize: BulkaTypeScale.caption,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _OrderInfoRow extends StatelessWidget {

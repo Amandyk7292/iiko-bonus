@@ -20,6 +20,44 @@ final ValueNotifier<Uri> clientRouteNotifier = ValueNotifier<Uri>(
   currentClientUri(),
 );
 
+enum PaymentReturnNotice { cancelled }
+
+@visibleForTesting
+PaymentReturnNotice? paymentReturnNoticeFromUri(Uri uri) {
+  final path = uri.path.replaceFirst(RegExp(r'/+$'), '');
+  if (path != '/orders') return null;
+
+  String? queryValue(String key) {
+    for (final entry in uri.queryParameters.entries) {
+      if (entry.key.toLowerCase() == key.toLowerCase()) return entry.value;
+    }
+    return null;
+  }
+
+  if ((queryValue('payment') ?? '').toLowerCase() != 'forte') return null;
+  final orderId = queryValue('order') ?? '';
+  if (!RegExp(
+    r'^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+    caseSensitive: false,
+  ).hasMatch(orderId)) {
+    return null;
+  }
+
+  final status = (queryValue('status') ?? '').toLowerCase().replaceAll(
+    RegExp('[^a-z]'),
+    '',
+  );
+  if (const {
+    'cancelled',
+    'canceled',
+    'cancelledbyuser',
+    'canceledbyuser',
+  }.contains(status)) {
+    return PaymentReturnNotice.cancelled;
+  }
+  return null;
+}
+
 Uri normalizedClientUri(Uri uri) {
   final path = uri.path.isEmpty ? '/' : uri.path;
   return Uri(

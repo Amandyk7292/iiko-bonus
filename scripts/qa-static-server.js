@@ -27,7 +27,7 @@ app.use(
 );
 app.get('/app/*', (_req, res) => res.sendFile(path.join(root, 'app', 'index.html')));
 app.get(
-  ['/catalog', '/catalog/*', '/cart', '/promos', '/profile'],
+  ['/catalog', '/catalog/*', '/cart', '/orders', '/promos', '/profile'],
   (_req, res) => res.sendFile(path.join(root, 'index.html')),
 );
 app.listen(port, '127.0.0.1', () => {

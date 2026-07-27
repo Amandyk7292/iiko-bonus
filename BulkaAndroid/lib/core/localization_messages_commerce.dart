@@ -301,6 +301,24 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'kk': 'Шот жойылды немесе мерзімі өтті. Ақша алынбады.',
     'en': 'The invoice was canceled or expired. No money was charged.',
   },
+  'payment_cancelled_title': {
+    'ru': 'Оплата отменена',
+    'kk': 'Төлемнен бас тартылды',
+    'en': 'Payment cancelled',
+  },
+  'payment_cancelled_explanation': {
+    'ru':
+        'Деньги не списаны. Отменённая попытка не стала заказом. Ниже показаны ваши предыдущие заказы.',
+    'kk':
+        'Ақша алынбады. Бас тартылған төлем әрекеті тапсырысқа айналмады. Төменде бұрынғы тапсырыстарыңыз көрсетілген.',
+    'en':
+        'No money was charged. The cancelled payment attempt did not become an order. Your previous orders are shown below.',
+  },
+  'payment_cancelled_dismiss': {
+    'ru': 'Скрыть сообщение',
+    'kk': 'Хабарламаны жасыру',
+    'en': 'Dismiss message',
+  },
   'payment_open_kaspi_hint': {
     'ru': 'Откройте Kaspi.kz и подтвердите выставленный счёт.',
     'kk': 'Kaspi.kz қолданбасын ашып, шотты растаңыз.',
@@ -373,6 +391,37 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'en': 'Completed',
   },
   'orders_number': {'ru': 'Заказ №', 'kk': 'Тапсырыс №', 'en': 'Order #'},
+  'orders_payment_status_format': {
+    'ru': 'Оплата: {status}',
+    'kk': 'Төлем: {status}',
+    'en': 'Payment: {status}',
+  },
+  'orders_fulfillment_status_format': {
+    'ru': 'Заказ: {status}',
+    'kk': 'Тапсырыс: {status}',
+    'en': 'Order: {status}',
+  },
+  'payment_status_pending': {
+    'ru': 'Ожидается',
+    'kk': 'Күтілуде',
+    'en': 'Pending',
+  },
+  'payment_status_paid': {'ru': 'Оплачено', 'kk': 'Төленді', 'en': 'Paid'},
+  'payment_status_refunded': {
+    'ru': 'Возвращено',
+    'kk': 'Қайтарылды',
+    'en': 'Refunded',
+  },
+  'payment_status_failed': {
+    'ru': 'Не оплачено',
+    'kk': 'Төленбеді',
+    'en': 'Not paid',
+  },
+  'payment_status_expired': {
+    'ru': 'Отменено',
+    'kk': 'Бас тартылды',
+    'en': 'Cancelled',
+  },
   'orders_branch': {'ru': 'Филиал', 'kk': 'Филиал', 'en': 'Location'},
   'orders_pickup': {'ru': 'Самовывоз', 'kk': 'Алып кету', 'en': 'Pickup'},
   'orders_bonus': {

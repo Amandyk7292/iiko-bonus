@@ -36,6 +36,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   bool _ordersCompleted = false;
   bool _restoreOrdersScreen = false;
   bool _ordersRouteOpen = false;
+  PaymentReturnNotice? _pendingPaymentReturnNotice;
 
   @override
   void initState() {
@@ -132,9 +133,11 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       prefs.getString('transactions'),
     );
     final savedTab = (prefs.getInt('lastMainTab') ?? 0).clamp(0, 4).toInt();
+    final initialUri = currentClientUri();
+    final paymentReturnNotice = paymentReturnNoticeFromUri(initialUri);
     final restoreOrdersScreen =
         prefs.getString('lastAppScreen') == 'customer-orders' ||
-        Uri.base.path == '/orders';
+        initialUri.path == '/orders';
     final ordersCompleted = prefs.getBool('ordersCompleted') ?? false;
 
     _api.setSession(
@@ -161,8 +164,12 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       _lastMainTab = savedTab;
       _restoreOrdersScreen = restoreOrdersScreen;
       _ordersCompleted = ordersCompleted;
+      _pendingPaymentReturnNotice = paymentReturnNotice;
       _booting = false;
     });
+    if (paymentReturnNotice != null && kIsWeb) {
+      publishClientRoute(Uri(path: '/orders'), replace: true);
+    }
 
     if (phone != null && accessToken != null) {
       _api.trackEvent('app_open');
@@ -197,6 +204,8 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     _ordersRouteOpen = true;
     final prefs = _prefs ?? await SharedPreferences.getInstance();
     await prefs.setString('lastAppScreen', 'customer-orders');
+    final paymentReturnNotice = _pendingPaymentReturnNotice;
+    _pendingPaymentReturnNotice = null;
     try {
       await navigator.push<void>(
         MaterialPageRoute(
@@ -206,6 +215,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
             cacheScope: _savedPhone ?? 'session',
             initialCompleted: _ordersCompleted,
             onScopeChanged: (value) => unawaited(_saveOrdersScope(value)),
+            paymentReturnNotice: paymentReturnNotice,
           ),
         ),
       );
@@ -559,6 +569,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
         uri.path == '/orders' ||
         (uri.scheme == 'bulka' && uri.host == 'orders');
     if (isOrders) {
+      _pendingPaymentReturnNotice = paymentReturnNoticeFromUri(uri);
       _restoreOrdersScreen = true;
       if (_savedPhone != null) unawaited(_openCustomerOrders());
       return;
