@@ -239,6 +239,11 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'kk': 'Kaspi.kz шоты',
     'en': 'Kaspi.kz invoice',
   },
+  'checkout_card_payment_title': {
+    'ru': 'Оплатить картой',
+    'kk': 'Картамен төлеу',
+    'en': 'Pay by card',
+  },
   'checkout_forte_card_hint': {
     'ru': 'Visa, Mastercard',
     'kk': 'Visa, Mastercard',

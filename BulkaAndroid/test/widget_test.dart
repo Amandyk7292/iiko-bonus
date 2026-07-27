@@ -410,6 +410,25 @@ void main() {
       find.text('Ассортимент выбран для этого типа заказа'),
       findsOneWidget,
     );
+
+    final cardPayment = find.text('Оплатить картой');
+    await tester.scrollUntilVisible(
+      cardPayment,
+      420,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
+
+    final kaspiCard = find.byKey(const ValueKey('checkout-payment-kaspi'));
+    final bankCard = find.byKey(const ValueKey('checkout-payment-card'));
+    expect(kaspiCard, findsOneWidget);
+    expect(bankCard, findsOneWidget);
+    expect(find.text('ForteBank'), findsNothing);
+    expect(tester.getTopLeft(kaspiCard).dy, tester.getTopLeft(bankCard).dy);
+    expect(
+      tester.getRect(kaspiCard).right,
+      lessThan(tester.getRect(bankCard).left),
+    );
     expect(tester.takeException(), isNull);
   });
 

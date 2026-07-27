@@ -787,6 +787,8 @@ class _CartCheckoutBar extends StatelessWidget {
 
 enum _CheckoutPaymentMethod { kaspi, forte }
 
+enum _CheckoutPaymentVisual { kaspi, bankCard }
+
 class _CheckoutDetails {
   const _CheckoutDetails({
     required this.checkoutId,
@@ -817,20 +819,41 @@ class _CheckoutDetails {
 
 class _CheckoutPaymentCard extends StatelessWidget {
   const _CheckoutPaymentCard({
+    required this.cardKey,
     required this.title,
     required this.subtitle,
-    required this.icon,
+    required this.visual,
     required this.available,
     required this.selected,
     required this.onTap,
   });
 
+  final Key cardKey;
   final String title;
   final String subtitle;
-  final IconData icon;
+  final _CheckoutPaymentVisual visual;
   final bool? available;
   final bool selected;
   final VoidCallback onTap;
+
+  Widget _buildPaymentMark(bool enabled) {
+    return switch (visual) {
+      _CheckoutPaymentVisual.kaspi => Icon(
+        Icons.account_balance_wallet_outlined,
+        color: enabled ? _textDark : Colors.grey,
+      ),
+      _CheckoutPaymentVisual.bankCard => Opacity(
+        opacity: enabled ? 1 : 0.42,
+        child: SvgPicture.asset(
+          'assets/brand/card_networks.svg',
+          width: 78,
+          height: 24,
+          fit: BoxFit.contain,
+          excludeFromSemantics: true,
+        ),
+      ),
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -844,8 +867,9 @@ class _CheckoutPaymentCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(BulkaRadii.control),
         child: AnimatedContainer(
+          key: cardKey,
           duration: const Duration(milliseconds: 180),
-          width: 190,
+          width: double.infinity,
           constraints: const BoxConstraints(minHeight: 112),
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
@@ -870,7 +894,7 @@ class _CheckoutPaymentCard extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Icon(icon, color: enabled ? _textDark : Colors.grey),
+                        _buildPaymentMark(enabled),
                         const Spacer(),
                         if (selected && enabled)
                           const Icon(
@@ -1722,43 +1746,51 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
             const SizedBox(height: 28),
             _CheckoutLabel('checkout_payment_method'.tr, required: true),
             const SizedBox(height: 12),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                _CheckoutPaymentCard(
-                  title: 'Kaspi Pay',
-                  subtitle: 'checkout_kaspi_card_hint'.tr,
-                  icon: Icons.account_balance_wallet_outlined,
-                  available: _kaspiAvailable,
-                  selected: _paymentMethod == _CheckoutPaymentMethod.kaspi,
-                  onTap: () {
-                    if (_kaspiAvailable == true) {
-                      setState(
-                        () => _paymentMethod = _CheckoutPaymentMethod.kaspi,
-                      );
-                    } else {
-                      unawaited(_loadPaymentAvailability());
-                    }
-                  },
-                ),
-                _CheckoutPaymentCard(
-                  title: 'ForteBank',
-                  subtitle: 'checkout_forte_card_hint'.tr,
-                  icon: Icons.credit_card_rounded,
-                  available: _forteAvailable,
-                  selected: _paymentMethod == _CheckoutPaymentMethod.forte,
-                  onTap: () {
-                    if (_forteAvailable == true) {
-                      setState(
-                        () => _paymentMethod = _CheckoutPaymentMethod.forte,
-                      );
-                    } else {
-                      unawaited(_loadPaymentAvailability());
-                    }
-                  },
-                ),
-              ],
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: _CheckoutPaymentCard(
+                      cardKey: const ValueKey('checkout-payment-kaspi'),
+                      title: 'Kaspi Pay',
+                      subtitle: 'checkout_kaspi_card_hint'.tr,
+                      visual: _CheckoutPaymentVisual.kaspi,
+                      available: _kaspiAvailable,
+                      selected: _paymentMethod == _CheckoutPaymentMethod.kaspi,
+                      onTap: () {
+                        if (_kaspiAvailable == true) {
+                          setState(
+                            () => _paymentMethod = _CheckoutPaymentMethod.kaspi,
+                          );
+                        } else {
+                          unawaited(_loadPaymentAvailability());
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _CheckoutPaymentCard(
+                      cardKey: const ValueKey('checkout-payment-card'),
+                      title: 'checkout_card_payment_title'.tr,
+                      subtitle: 'checkout_forte_card_hint'.tr,
+                      visual: _CheckoutPaymentVisual.bankCard,
+                      available: _forteAvailable,
+                      selected: _paymentMethod == _CheckoutPaymentMethod.forte,
+                      onTap: () {
+                        if (_forteAvailable == true) {
+                          setState(
+                            () => _paymentMethod = _CheckoutPaymentMethod.forte,
+                          );
+                        } else {
+                          unawaited(_loadPaymentAvailability());
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 28),
             _CheckoutLabel('checkout_comment'.tr),

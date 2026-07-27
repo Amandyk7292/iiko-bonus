@@ -86,7 +86,12 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
     }
     _opening = true;
     try {
-      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      final opened = await launchUrl(
+        uri,
+        mode: kIsWeb ? LaunchMode.platformDefault : LaunchMode.inAppBrowserView,
+        browserConfiguration: const BrowserConfiguration(showTitle: false),
+        webOnlyWindowName: kIsWeb ? '_self' : null,
+      );
       if (!opened && mounted) {
         setState(() => _error = 'forte_payment_open_failed'.tr);
       }
