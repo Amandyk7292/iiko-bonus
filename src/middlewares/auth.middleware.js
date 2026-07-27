@@ -151,6 +151,10 @@ const CUSTOMER_ACTIONS = Object.freeze({
   BULK_EXPIRE: 'customers:bulk-expire',
 });
 
+const PAYMENT_ACTIONS = Object.freeze({
+  MANAGE: 'payments:manage',
+});
+
 /**
  * Area access controls navigation. Action access controls the sensitive
  * operation itself, so adding a role to the customers area never grants
@@ -501,6 +505,7 @@ module.exports = {
   whatsappOperatorAccessHandler,
   ADMIN_ROLES,
   CUSTOMER_ACTIONS,
+  PAYMENT_ACTIONS,
   ROLE_ACTIONS,
   ROLE_AREAS,
   actionsForRole,

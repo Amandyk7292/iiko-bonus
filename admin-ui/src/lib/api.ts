@@ -1,3 +1,4 @@
+import type { PaymentDiagnostics } from './payment-diagnostics';
 const BASE_URL = '/admin/api';
 const BRANCH_SCOPE_STORAGE_KEY = 'adminSelectedBranchId';
 
@@ -623,7 +624,6 @@ export const api = {
       locations: AdminScopeLocation[];
       selectedBranchId: string | null;
     }>('/scope'),
-
   logout: async () => {
     await request('/logout', json('POST')).catch(() => undefined);
     window.dispatchEvent(new Event('unauthorized'));
@@ -637,7 +637,18 @@ export const api = {
       success: boolean;
       checkedAt: string;
       services: IntegrationHealthService[];
+      payments: PaymentDiagnostics;
     }>('/integrations/status'),
+  setForteWidgetEnabled: (enabled: boolean) =>
+    request<{ success: boolean; payments: PaymentDiagnostics }>(
+      '/integrations/payments/widget',
+      json('PUT', { enabled }),
+    ),
+  runPaymentProbe: () =>
+    request<{ success: boolean; payments: PaymentDiagnostics }>(
+      '/integrations/payments/probe',
+      json('POST'),
+    ),
   getCustomers: ({ page = 1, pageSize = 50, search = '' } = {}) => {
     const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
     if (search.trim()) params.set('search', search.trim());
@@ -874,10 +885,7 @@ export const api = {
   getLocationCities: () =>
     request<{ success: boolean; cities: AdminLocationCity[] }>('/locations/cities'),
   createLocationCity: (data: { name: string; latitude: number; longitude: number }) =>
-    request<{ success: boolean; city: AdminLocationCity }>(
-      '/locations/cities',
-      json('POST', data),
-    ),
+    request<{ success: boolean; city: AdminLocationCity }>('/locations/cities', json('POST', data)),
   createFulfillmentLocation: (data: Record<string, unknown>) =>
     request<{ success: boolean; location: any }>('/locations', json('POST', data)),
   updateFulfillmentLocation: (id: string, data: Record<string, unknown>) =>

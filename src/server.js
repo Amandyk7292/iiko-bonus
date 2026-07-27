@@ -20,6 +20,7 @@ const {
 } = require('./services/commerce-marketing.service');
 const { syncActiveDeliveries } = require('./services/yandex-delivery.service');
 const { registerWorker, runMonitoredWorker } = require('./services/operational-health.service');
+const { cleanupExpiredPayments } = require('./services/payment-cleanup.service');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -65,6 +66,11 @@ if (!process.env.VERCEL) {
     setTimeout(reconcileForteOrders, 20 * 1000);
     setInterval(reconcileForteOrders, 60 * 1000);
 
+    const cleanupUnpaidOrders = () =>
+      runMonitoredWorker('payment-expiration-cleanup', cleanupExpiredPayments);
+    setTimeout(cleanupUnpaidOrders, 25 * 1000);
+    setInterval(cleanupUnpaidOrders, 60 * 1000);
+
     const runMarketing = () =>
       runMonitoredWorker('marketing-automation', async () => {
         await enqueueAutomatedMessages();
@@ -82,6 +88,11 @@ if (!process.env.VERCEL) {
     enabled:
       runWorkers &&
       (process.env.FORTE_ENABLED === 'true' || process.env.FORTE_WIDGET_ENABLED === 'true'),
+    intervalMs: 60 * 1000,
+    critical: true,
+  });
+  registerWorker('payment-expiration-cleanup', {
+    enabled: runWorkers,
     intervalMs: 60 * 1000,
     critical: true,
   });

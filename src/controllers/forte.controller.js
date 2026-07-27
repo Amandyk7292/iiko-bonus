@@ -1,5 +1,7 @@
 const forteService = require('../services/forte.service');
 const forteWidgetService = require('../services/forte-widget.service');
+const paymentOperations = require('../services/payment-operations.service');
+const { isSafeWidgetFallbackError } = paymentOperations;
 const kaspiController = require('./kaspi.controller');
 const { priceOrder } = require('../services/order.service');
 const { getCitiesWithPoints } = require('../services/location.service');
@@ -18,11 +20,17 @@ const CHECKOUT_ID_PATTERN =
 const PAYMENT_TOKEN_PATTERN = /^[A-Za-z0-9._~-]{8,100}$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const publicError = (error, fallback) => (error.statusCode ? error.message : fallback);
-const activeService = () =>
-  forteWidgetService.checkoutAvailability() ? forteWidgetService : forteService;
+const existingForteRequest = async (customerId, checkoutId) => {
+  const results = await Promise.allSettled([
+    forteWidgetService.existingRequest(customerId, checkoutId),
+    forteService.existingRequest(customerId, checkoutId),
+  ]);
+  return results.find((result) => result.status === 'fulfilled' && result.value)?.value || null;
+};
 
 const availability = async (req, res) => {
-  const widgetAvailable = forteWidgetService.checkoutAvailability();
+  const decision = await paymentOperations.getForteCheckoutDecision();
+  const widgetAvailable = decision.effectiveIntegration === 'widget';
   const service = widgetAvailable ? forteWidgetService : forteService;
   const available = service.availability();
   const paymentMethods = widgetAvailable
@@ -32,6 +40,7 @@ const availability = async (req, res) => {
     success: true,
     available,
     integration: widgetAvailable ? 'widget' : available ? 'hosted_page' : null,
+    fallbackActive: decision.fallbackActive,
     testMode: available && service.config().test,
     savedCard: paymentMethods.find((method) => method.isDefault) || null,
     cardSetup: widgetAvailable,
@@ -53,7 +62,6 @@ const createPayment = async (req, res) => {
 
     const cities = await getCitiesWithPoints({ throwOnError: true });
     const checkout = validateCheckout(req.body, cities);
-    const service = activeService();
     const requestKey = `${customerId}:${checkoutId}`;
     const result = await checkoutRequests.run(requestKey, async () => {
       const pricing = await priceOrder(items, promoCode, {
@@ -82,19 +90,44 @@ const createPayment = async (req, res) => {
         scheduledAt: checkout.scheduledAt,
       });
       try {
-        const payment = await service.createCheckout(
-          phone,
-          pricing,
-          customerId,
-          {
-            ...checkout,
-            requestId: checkoutId,
-          },
-          {
-            language: req.body?.language || req.headers['accept-language'] || 'ru',
-            paymentMethodId: req.body?.savedPaymentMethodId,
-          },
-        );
+        const decision = await paymentOperations.getForteCheckoutDecision();
+        let service =
+          decision.effectiveIntegration === 'widget' ? forteWidgetService : forteService;
+        const checkoutPayload = {
+          ...checkout,
+          requestId: checkoutId,
+        };
+        const checkoutOptions = {
+          language: req.body?.language || req.headers['accept-language'] || 'ru',
+          paymentMethodId: req.body?.savedPaymentMethodId,
+        };
+        let payment;
+        try {
+          payment = await service.createCheckout(
+            phone,
+            pricing,
+            customerId,
+            checkoutPayload,
+            checkoutOptions,
+          );
+        } catch (error) {
+          if (
+            service !== forteWidgetService ||
+            !forteService.availability() ||
+            !isSafeWidgetFallbackError(error)
+          ) {
+            throw error;
+          }
+          await paymentOperations.recordWidgetFailure(error);
+          service = forteService;
+          payment = await service.createCheckout(
+            phone,
+            pricing,
+            customerId,
+            checkoutPayload,
+            checkoutOptions,
+          );
+        }
         const order = await service.existingRequest(customerId, checkoutId);
         if (order?.id) {
           await attachOrderReservations(customerId, checkoutId, order.id);
@@ -102,7 +135,7 @@ const createPayment = async (req, res) => {
         }
         return payment;
       } catch (error) {
-        const order = await service.existingRequest(customerId, checkoutId).catch(() => null);
+        const order = await existingForteRequest(customerId, checkoutId);
         if (!order) {
           await releaseCheckoutRequest(customerId, checkoutId).catch((releaseError) =>
             console.error('Не удалось освободить резерв ForteBank:', releaseError.message),
@@ -173,6 +206,13 @@ const listPaymentMethods = async (req, res) => {
 
 const createCardSetup = async (req, res) => {
   try {
+    const decision = await paymentOperations.getForteCheckoutDecision();
+    if (decision.effectiveIntegration !== 'widget') {
+      throw Object.assign(new Error('Привязка карты временно недоступна'), {
+        statusCode: 503,
+        code: 'FORTE_WIDGET_CHECKOUT_DISABLED',
+      });
+    }
     const result = await forteWidgetService.createCardSetup(
       req.customerAuth.id,
       req.customerAuth.phone,
@@ -245,8 +285,15 @@ const setDefaultPaymentMethod = async (req, res) => {
 const handleWidgetWebhook = async (req, res) => {
   try {
     await forteWidgetService.handleWebhook(req.body, req.rawBody, req.headers);
+    await paymentOperations.recordWebhook('forte_widget', { success: true }).catch(() => undefined);
     return res.status(200).json({ success: true });
   } catch (error) {
+    await paymentOperations
+      .recordWebhook('forte_widget', {
+        success: false,
+        errorCode: error.code || 'FORTE_WIDGET_WEBHOOK_FAILED',
+      })
+      .catch(() => undefined);
     console.error('Ошибка ForteBank Widget webhook:', error.code || 'UNKNOWN', error.message);
     return res.status(error.statusCode || 500).json({
       error: error.statusCode && error.statusCode < 500 ? error.message : 'Webhook failed',

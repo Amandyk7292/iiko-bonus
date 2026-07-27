@@ -196,6 +196,34 @@ const normalizeWidgetCheckout = (payload = {}) => {
   };
 };
 
+const widgetCheckoutAvailability = (payload = {}) => {
+  const checkout = payload?.checkout || payload || {};
+  const status = cleanText(checkout.status, 60).toLowerCase();
+  const message = cleanText(checkout.message, 240);
+  const methodTypes = Array.isArray(checkout?.payment_method?.types)
+    ? checkout.payment_method.types.map((value) => cleanText(value, 40).toLowerCase())
+    : null;
+  const shopBrands = Array.isArray(checkout?.shop?.brands)
+    ? checkout.shop.brands.map((value) => cleanText(value, 40).toLowerCase())
+    : null;
+  const availableMethods = [...(methodTypes || []), ...(shopBrands || [])].filter(Boolean);
+  const explicitError =
+    ['error', 'failed', 'rejected', 'declined'].includes(status) ||
+    /gateway response not found|no available payment methods|нет доступных (?:способов|методов) оплаты|қолжетімді төлем (?:тәсілдері|әдістері) жоқ/i.test(
+      message,
+    );
+  const declaredMethodCollections = [methodTypes, shopBrands].filter(Array.isArray);
+  const explicitEmpty =
+    declaredMethodCollections.length > 0 &&
+    declaredMethodCollections.every((methods) => methods.length === 0);
+  return {
+    available: !explicitError && !explicitEmpty,
+    availableMethods: [...new Set(availableMethods)],
+    message,
+    providerStatus: status,
+  };
+};
+
 const mapWidgetStatus = (normalized = {}) => {
   if (normalized.expired) return 'expired';
   const transactionStatus = String(normalized.transactionStatus || '').toLowerCase();
@@ -339,15 +367,7 @@ class ForteWidgetService {
   }
 
   assertCheckoutAvailable() {
-    const config = this.assertConfigured();
-    if (!config.checkoutEnabled) {
-      throw widgetError(
-        'Платёжный виджет ForteBank временно недоступен',
-        503,
-        'FORTE_WIDGET_CHECKOUT_DISABLED',
-      );
-    }
-    return config;
+    return this.assertConfigured();
   }
 
   basicAuthorization(config = this.assertConfigured()) {
@@ -412,6 +432,62 @@ class ForteWidgetService {
       }
     }
     return { response, body: payload };
+  }
+
+  async probeCheckout() {
+    const config = this.assertConfigured();
+    const trackingId = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 2 * 60 * 1000).toISOString();
+    const { response, body } = await this.request('/ctp/api/checkouts', {
+      method: 'POST',
+      requestId: trackingId,
+      body: {
+        checkout: {
+          transaction_type: 'payment',
+          attempts: 1,
+          iframe: true,
+          test: config.test,
+          order: {
+            amount: 0,
+            currency: 'KZT',
+            description: 'Bulka payment diagnostic',
+            tracking_id: trackingId,
+            expired_at: expiresAt,
+          },
+          settings: {
+            return_url: `${config.publicBaseUrl}/orders`,
+            cancel_url: `${config.publicBaseUrl}/orders`,
+            language: 'ru',
+          },
+          payment_method: {
+            types: ['credit_card'],
+            ...(!config.applePayEnabled && { excluded_brands: ['apple_pay'] }),
+          },
+        },
+      },
+    });
+    const token = normalizeProviderToken(body?.checkout?.token);
+    if (!response.ok || !token) {
+      return {
+        available: false,
+        message: 'Банк отклонил безопасную проверку',
+        errorCode: 'FORTE_WIDGET_PROBE_REJECTED',
+        providerStatus: cleanText(body?.checkout?.status, 60),
+        availableMethods: [],
+      };
+    }
+    const detail = await this.request(`/ctp/api/checkouts/${encodeURIComponent(token)}`).catch(
+      () => null,
+    );
+    const payload = detail?.response?.ok ? detail.body : body;
+    const availability = widgetCheckoutAvailability(payload);
+    return {
+      ...availability,
+      message: availability.available
+        ? 'Карты доступны, списания не было'
+        : availability.message || 'Банк не вернул доступные карты',
+      errorCode: availability.available ? null : 'FORTE_WIDGET_NO_PAYMENT_METHODS',
+    };
   }
 
   async existingRequest(customerId, requestId) {
@@ -736,6 +812,7 @@ class ForteWidgetService {
     const { response, body: responseBody } = await this.request('/ctp/api/checkouts', {
       method: 'POST',
       body,
+      requestId: trackingId,
     });
     const providerCheckout = responseBody?.checkout || {};
     const token = normalizeProviderToken(providerCheckout.token);
@@ -746,6 +823,20 @@ class ForteWidgetService {
         'FORTE_WIDGET_CREATE_REJECTED',
         { retryable: response.status >= 500 },
       );
+    }
+    const detail = await this.request(`/ctp/api/checkouts/${encodeURIComponent(token)}`).catch(
+      () => null,
+    );
+    if (detail?.response?.ok) {
+      const paymentAvailability = widgetCheckoutAvailability(detail.body);
+      if (!paymentAvailability.available) {
+        throw widgetError(
+          'ForteBank не вернул доступные способы оплаты',
+          409,
+          'FORTE_WIDGET_NO_PAYMENT_METHODS',
+          { retryable: false },
+        );
+      }
     }
     return { token, expiresAt, language: localized.language, request: body };
   }
@@ -806,7 +897,9 @@ class ForteWidgetService {
       console.warn('Сохранённая карта ForteBank недоступна:', error.message);
       return null;
     });
-    const operationId = crypto.randomUUID();
+    const operationId = UUID_PATTERN.test(String(checkout.requestId || ''))
+      ? String(checkout.requestId)
+      : crypto.randomUUID();
     const internalOrderId = crypto.randomUUID();
     const description =
       cleanText(
@@ -854,6 +947,7 @@ class ForteWidgetService {
       ),
       provider_status: 'created',
       provider_redirect_url: `${config.publicBaseUrl}/payments/forte-widget`,
+      payment_expires_at: providerCheckout.expiresAt,
       payment_test: config.test,
     };
     const { data: savedOrder, error } = await this.db
@@ -1263,7 +1357,16 @@ class ForteWidgetService {
     } catch (error) {
       if (error?.code !== 'FORTE_WIDGET_ORDER_NOT_FOUND') throw error;
     }
-    const setup = await this.findCardSetup(normalized.trackingId);
+    let setup;
+    try {
+      setup = await this.findCardSetup(normalized.trackingId);
+    } catch (error) {
+      if (error?.code !== 'FORTE_WIDGET_CARD_SETUP_NOT_FOUND') throw error;
+      console.warn(
+        `ForteBank Widget прислал событие для завершённой проверки ${normalized.trackingId}`,
+      );
+      return { ignored: true };
+    }
     const expectedToken = decryptProviderToken(
       setup.checkout_token_ciphertext,
       'card-setup',
@@ -1367,3 +1470,4 @@ module.exports.resolveCardSetupStatus = resolveCardSetupStatus;
 module.exports.tokenFingerprint = tokenFingerprint;
 module.exports.verifyWebhookBasicAuth = verifyWebhookBasicAuth;
 module.exports.verifyWebhookSignature = verifyWebhookSignature;
+module.exports.widgetCheckoutAvailability = widgetCheckoutAvailability;

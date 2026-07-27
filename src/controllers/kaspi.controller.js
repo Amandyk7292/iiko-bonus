@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const kaspiService = require('../services/kaspi.service');
+const paymentOperations = require('../services/payment-operations.service');
 const { priceOrder } = require('../services/order.service');
 const { getCitiesWithPoints } = require('../services/location.service');
 const { normalizeOrderType, validateCheckout } = require('../services/checkout.service');
@@ -207,10 +208,16 @@ const handleWebhook = async (req, res) => {
     const secret = process.env.KASPI_WEBHOOK_SECRET;
 
     if (!signature || !secret) {
+      void paymentOperations
+        .recordWebhook('kaspi', { success: false, errorCode: 'KASPI_WEBHOOK_AUTH_MISSING' })
+        .catch(() => undefined);
       return res.status(401).json({ error: 'Unauthorized: missing signature or secret' });
     }
 
     if (secret.length < 32 || !Buffer.isBuffer(req.rawBody)) {
+      void paymentOperations
+        .recordWebhook('kaspi', { success: false, errorCode: 'KASPI_WEBHOOK_NOT_CONFIGURED' })
+        .catch(() => undefined);
       return res.status(503).json({ error: 'Webhook is not configured' });
     }
     const actualSignature = String(signature).replace(/^sha256=/i, '');
@@ -223,6 +230,9 @@ const handleWebhook = async (req, res) => {
       !crypto.timingSafeEqual(actualBuffer, expectedBuffer)
     ) {
       console.warn('Kaspi Webhook: неверная подпись');
+      void paymentOperations
+        .recordWebhook('kaspi', { success: false, errorCode: 'KASPI_WEBHOOK_SIGNATURE_INVALID' })
+        .catch(() => undefined);
       return res.status(403).json({ error: 'Invalid signature' });
     }
 
@@ -233,6 +243,9 @@ const handleWebhook = async (req, res) => {
       !/^[A-Za-z0-9-]{1,100}$/.test(operationId) ||
       !['payment.success', 'payment.failed', 'payment.expired'].includes(event)
     ) {
+      void paymentOperations
+        .recordWebhook('kaspi', { success: false, errorCode: 'KASPI_WEBHOOK_PAYLOAD_INVALID' })
+        .catch(() => undefined);
       return res.status(400).json({ error: 'Invalid webhook payload' });
     }
     console.log(`Kaspi Webhook получен: event=${event}, operationId=${operationId}`);
@@ -251,8 +264,15 @@ const handleWebhook = async (req, res) => {
       );
     }
 
+    await paymentOperations.recordWebhook('kaspi', { success: true }).catch(() => undefined);
     res.json({ success: true });
   } catch (error) {
+    await paymentOperations
+      .recordWebhook('kaspi', {
+        success: false,
+        errorCode: error.code || 'KASPI_WEBHOOK_FAILED',
+      })
+      .catch(() => undefined);
     console.error('Ошибка обработки Kaspi Webhook:', error);
     res.status(500).json({ error: 'Webhook processing failed' });
   }

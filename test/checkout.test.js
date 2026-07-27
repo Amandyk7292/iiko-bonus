@@ -364,3 +364,23 @@ test('normalized customer order includes the arrival timestamp', () => {
 
   assert.equal(normalized.customerArrivedAt, customerArrivedAt);
 });
+
+test('unpaid orders are never presented as new fulfillment work', () => {
+  const baseOrder = {
+    id: 'unpaid-order',
+    order_number: 100125,
+    fulfillment_status: 'pending',
+    fulfillment_type: 'pickup',
+    amount: 2400,
+    subtotal: 2400,
+    discount_amount: 0,
+    cart_items: [],
+    created_at: '2026-07-27T12:00:00.000Z',
+    updated_at: '2026-07-27T12:00:00.000Z',
+  };
+
+  assert.equal(normalizeOrder({ ...baseOrder, status: 'pending' }).orderStatus, 'awaiting_payment');
+  assert.equal(normalizeOrder({ ...baseOrder, status: 'failed' }).orderStatus, 'cancelled');
+  assert.equal(normalizeOrder({ ...baseOrder, status: 'expired' }).orderStatus, 'cancelled');
+  assert.equal(normalizeOrder({ ...baseOrder, status: 'paid' }).orderStatus, 'new');
+});

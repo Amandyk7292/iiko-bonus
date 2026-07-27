@@ -92,7 +92,7 @@ const {
   validateVoiceNoteUpload,
 } = require('../services/voice-note.service');
 const { getOperationsSummary } = require('../services/operations-dashboard.service');
-const { getIntegrationHealth } = require('../services/integration-health.service');
+const { registerPaymentIntegrationAdminRoutes } = require('./admin/payment-integration.routes');
 
 const allowedImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const upload = multer({
@@ -360,13 +360,7 @@ router.get('/admin/api/operations/summary', async (req, res) => {
     res.status(error.statusCode || 500).json({ success: false, error: error.message });
   }
 });
-router.get('/admin/api/integrations/status', async (_req, res) => {
-  try {
-    res.json({ success: true, ...(await getIntegrationHealth()) });
-  } catch (error) {
-    res.status(error.statusCode || 500).json({ success: false, error: error.message });
-  }
-});
+registerPaymentIntegrationAdminRoutes(router);
 router.get('/admin/api/whatsapp/status', async (req, res) => {
   try {
     const settings = await getAssistantSettings({ allowFallback: true });

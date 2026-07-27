@@ -3,6 +3,7 @@ const { getPushStatus } = require('./push.service');
 const { getAssistantSettings } = require('./whatsapp-assistant-console.service');
 const { getWhatsAppStatus } = require('./whatsapp-baileys.service');
 const yandexDelivery = require('./yandex-delivery.service');
+const paymentOperations = require('./payment-operations.service');
 
 const booleanEnvironment = (name) => String(process.env[name] || '').trim().length > 0;
 
@@ -18,11 +19,12 @@ async function latestTimestamp(table, column) {
   return data?.[column] || null;
 }
 
-async function getIntegrationHealth() {
-  const [settings, inventorySyncedAt, latestOrderAt] = await Promise.all([
+async function getIntegrationHealth({ canManagePayments = false } = {}) {
+  const [settings, inventorySyncedAt, latestOrderAt, payments] = await Promise.all([
     getAssistantSettings({ allowFallback: true }),
     latestTimestamp('branch_product_inventory', 'last_synced_at'),
     latestTimestamp('kaspi_orders', 'updated_at'),
+    paymentOperations.getDiagnostics({ canManage: canManagePayments }),
   ]);
   const whatsapp = getWhatsAppStatus(settings);
   const yandex = yandexDelivery.getConfigurationStatus();
@@ -39,6 +41,7 @@ async function getIntegrationHealth() {
 
   return {
     checkedAt: new Date().toISOString(),
+    payments,
     services: [
       {
         id: 'whatsapp',

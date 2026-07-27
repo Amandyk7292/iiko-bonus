@@ -5,6 +5,7 @@ const test = require('node:test');
 
 const {
   CUSTOMER_ACTIONS,
+  PAYMENT_ACTIONS,
   actionsForRole,
   hasAdminAction,
   requireAdminAction,
@@ -21,10 +22,7 @@ test('customer action matrix follows least privilege', () => {
     assert.equal(hasAdminAction({ role }, CUSTOMER_ACTIONS.BULK_EXPIRE), true);
   }
 
-  assert.equal(
-    hasAdminAction({ role: 'branch_manager' }, CUSTOMER_ACTIONS.ADJUST_BONUS),
-    true,
-  );
+  assert.equal(hasAdminAction({ role: 'branch_manager' }, CUSTOMER_ACTIONS.ADJUST_BONUS), true);
   assert.equal(hasAdminAction({ role: 'marketer' }, CUSTOMER_ACTIONS.ADJUST_BONUS), false);
   assert.equal(hasAdminAction({ role: 'operator' }, CUSTOMER_ACTIONS.ADJUST_BONUS), false);
 
@@ -37,6 +35,15 @@ test('customer action matrix follows least privilege', () => {
   }
 
   assert.deepEqual([...actionsForRole('unknown')], []);
+});
+
+test('only owners and administrators can change the payment runtime mode', () => {
+  for (const role of ['owner', 'admin']) {
+    assert.equal(hasAdminAction({ role }, PAYMENT_ACTIONS.MANAGE), true);
+  }
+  for (const role of ['branch_manager', 'operator', 'marketer', 'editor', 'viewer']) {
+    assert.equal(hasAdminAction({ role }, PAYMENT_ACTIONS.MANAGE), false);
+  }
 });
 
 test('requireAdminAction fails closed with a stable error code', () => {
@@ -53,13 +60,9 @@ test('requireAdminAction fails closed with a stable error code', () => {
     },
   };
   let nextCalled = false;
-  requireAdminAction(CUSTOMER_ACTIONS.DELETE)(
-    { admin: { role: 'operator' } },
-    response,
-    () => {
-      nextCalled = true;
-    },
-  );
+  requireAdminAction(CUSTOMER_ACTIONS.DELETE)({ admin: { role: 'operator' } }, response, () => {
+    nextCalled = true;
+  });
 
   assert.equal(nextCalled, false);
   assert.equal(response.statusCode, 403);

@@ -113,6 +113,12 @@ const orderReceiptUrl = (order) => {
   }
 };
 
+const normalizedOrderStatus = (order) => {
+  if (order?.status === 'pending') return 'awaiting_payment';
+  if (['failed', 'expired'].includes(order?.status)) return 'cancelled';
+  return order?.fulfillment_status === 'pending' ? 'new' : order?.fulfillment_status;
+};
+
 const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
   const external = latestExternalDelivery(order);
   const ownCourier = order.couriers
@@ -137,7 +143,7 @@ const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
       order.status === 'refunded' || order.refund_status === 'succeeded'
         ? 'refunded'
         : order.status,
-    orderStatus: order.fulfillment_status === 'pending' ? 'new' : order.fulfillment_status,
+    orderStatus: normalizedOrderStatus(order),
     amount: Number(order.amount || 0),
     subtotal: Number(order.subtotal ?? order.amount ?? 0),
     discount: Number(order.discount_amount || 0),

@@ -339,6 +339,39 @@ class ForteService {
     return { response, body: payload };
   }
 
+  async probeConnection() {
+    if (!this.availability()) {
+      return {
+        available: false,
+        message: 'Forte /flex не настроен',
+        errorCode: 'FORTE_NOT_CONFIGURED',
+      };
+    }
+    const url = new URL('/order/99999999999999999999', `${this.assertConfigured().apiBaseUrl}/`);
+    url.searchParams.set('password', 'bulka-read-only-probe');
+    url.searchParams.set('tranDetailLevel', '0');
+    const { response, body } = await this.request(url);
+    const authenticationRejected =
+      [401, 403].includes(response.status) ||
+      ['InvalidLogin', 'NeedChangePwd', 'PwdTryLimitExceeded', 'UserSessionExpired'].includes(
+        bankErrorCode(body),
+      );
+    const upstreamUnavailable = response.status === 429 || response.status >= 500;
+    return {
+      available: !authenticationRejected && !upstreamUnavailable,
+      message: authenticationRejected
+        ? 'Банк отклонил учётные данные'
+        : upstreamUnavailable
+          ? 'Forte /flex временно не отвечает'
+          : 'Соединение и учётные данные работают',
+      errorCode: authenticationRejected
+        ? 'FORTE_AUTH_REJECTED'
+        : upstreamUnavailable
+          ? 'FORTE_UPSTREAM_UNAVAILABLE'
+          : null,
+    };
+  }
+
   async existingRequest(customerId, requestId) {
     const { data, error } = await this.db
       .from('kaspi_orders')

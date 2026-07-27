@@ -14,6 +14,7 @@ const {
   resolveCardSetupStatus,
   verifyWebhookBasicAuth,
   verifyWebhookSignature,
+  widgetCheckoutAvailability,
 } = require('../src/services/forte-widget.service');
 
 const shopId = '123456';
@@ -51,9 +52,53 @@ test('Forte checkout fallback keeps reconciliation and webhooks configured', () 
   });
   assert.equal(service.availability(), true);
   assert.equal(service.checkoutAvailability(), false);
-  assert.throws(
-    () => service.assertCheckoutAvailable(),
-    (error) => error.code === 'FORTE_WIDGET_CHECKOUT_DISABLED',
+  assert.doesNotThrow(() => service.assertCheckoutAvailable());
+});
+
+test('Forte checkout availability detects an explicitly empty provider response', () => {
+  assert.deepEqual(
+    widgetCheckoutAvailability({
+      checkout: {
+        status: 'error',
+        message: 'No available payment methods',
+        payment_method: { types: [] },
+        shop: { brands: [] },
+      },
+    }),
+    {
+      available: false,
+      availableMethods: [],
+      message: 'No available payment methods',
+      providerStatus: 'error',
+    },
+  );
+  assert.equal(
+    widgetCheckoutAvailability({
+      checkout: {
+        status: 'pending',
+        payment_method: { types: ['credit_card'] },
+      },
+    }).available,
+    true,
+  );
+  assert.equal(
+    widgetCheckoutAvailability({
+      checkout: {
+        status: 'pending',
+        payment_method: { types: [] },
+      },
+    }).available,
+    false,
+  );
+  assert.equal(
+    widgetCheckoutAvailability({
+      checkout: {
+        status: 'pending',
+        message: 'Нет доступных методов оплаты',
+        payment_method: { types: ['credit_card'] },
+      },
+    }).available,
+    false,
   );
 });
 
@@ -166,10 +211,15 @@ test('Forte card binding uses the documented zero amount and recurring contract'
     purpose: 'card-setup',
   });
   assert.equal(result.token, checkoutToken);
-  assert.equal(requests.length, 1);
+  assert.equal(requests.length, 2);
   const request = requests[0];
   assert.equal(request.url, 'https://securepayments.fortebank.com/ctp/api/checkouts');
+  assert.equal(
+    requests[1].url,
+    `https://securepayments.fortebank.com/ctp/api/checkouts/${checkoutToken}`,
+  );
   assert.equal(request.options.headers['X-API-Version'], '2');
+  assert.equal(request.options.headers.RequestID, operationId);
   assert.match(request.options.headers.Authorization, /^Basic /);
   const body = JSON.parse(request.options.body);
   assert.equal(body.checkout.transaction_type, 'payment');

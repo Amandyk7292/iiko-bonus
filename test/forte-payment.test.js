@@ -169,6 +169,29 @@ test('CreateOrder follows the official TXPG Basic Auth and idempotency contract'
   assert.equal(Object.hasOwn(created, 'secret'), false);
 });
 
+test('Forte /flex safe probe distinguishes a missing order from an unavailable bank', async () => {
+  const healthy = new ForteService({
+    env,
+    fetchImpl: async () =>
+      response({ error: { code: 'OrderNotFound' } }, { ok: false, status: 404 }),
+  });
+  assert.deepEqual(await healthy.probeConnection(), {
+    available: true,
+    message: 'Соединение и учётные данные работают',
+    errorCode: null,
+  });
+
+  const unavailable = new ForteService({
+    env,
+    fetchImpl: async () => response({}, { ok: false, status: 503 }),
+  });
+  assert.deepEqual(await unavailable.probeConnection(), {
+    available: false,
+    message: 'Forte /flex временно не отвечает',
+    errorCode: 'FORTE_UPSTREAM_UNAVAILABLE',
+  });
+});
+
 test('Refund queries getOrder and sends documented exec-tran payload', async () => {
   const encryptedPassword = encryptOrderPassword(
     orderPassword,
