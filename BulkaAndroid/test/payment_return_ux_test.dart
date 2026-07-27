@@ -34,6 +34,75 @@ void main() {
     );
   });
 
+  test('embedded checkout closes only for a trusted Forte return', () {
+    const orderId = '31f0d793-0102-4d2f-a5a1-744d12cffe7c';
+
+    expect(
+      forteCheckoutReturnFromUri(
+        Uri.parse(
+          'https://bulka.com.kz/orders'
+          '?payment=forte&order=$orderId&STATUS=Cancelled',
+        ),
+      ),
+      ForteCheckoutReturn.cancelled,
+    );
+    expect(
+      forteCheckoutReturnFromUri(
+        Uri.parse(
+          'https://bulka.com.kz/orders'
+          '?payment=forte&order=$orderId&STATUS=Approved',
+        ),
+      ),
+      ForteCheckoutReturn.completed,
+    );
+    expect(
+      forteCheckoutReturnFromUri(
+        Uri.parse(
+          'https://bulka.com.kz.attacker.example/orders'
+          '?payment=forte&order=$orderId&STATUS=Approved',
+        ),
+      ),
+      isNull,
+    );
+    expect(
+      forteCheckoutReturnFromUri(
+        Uri.parse(
+          'http://bulka.com.kz/orders'
+          '?payment=forte&order=$orderId&STATUS=Approved',
+        ),
+      ),
+      isNull,
+    );
+  });
+
+  test('embedded checkout is limited to Android and iOS apps', () {
+    expect(
+      supportsEmbeddedForteCheckout(
+        isWeb: false,
+        platform: TargetPlatform.android,
+      ),
+      isTrue,
+    );
+    expect(
+      supportsEmbeddedForteCheckout(isWeb: false, platform: TargetPlatform.iOS),
+      isTrue,
+    );
+    expect(
+      supportsEmbeddedForteCheckout(
+        isWeb: true,
+        platform: TargetPlatform.android,
+      ),
+      isFalse,
+    );
+    expect(
+      supportsEmbeddedForteCheckout(
+        isWeb: false,
+        platform: TargetPlatform.windows,
+      ),
+      isFalse,
+    );
+  });
+
   testWidgets(
     'cancelled payment is explained separately from previous order statuses',
     (tester) async {

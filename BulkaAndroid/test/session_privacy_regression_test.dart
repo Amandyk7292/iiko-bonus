@@ -252,7 +252,10 @@ void main() {
     ]) {
       expect(manifest, contains('<string>$type</string>'));
     }
-    expect(manifest, contains('<key>NSPrivacyTracking</key>\n\t<false/>'));
+    expect(
+      manifest.replaceAll('\r\n', '\n'),
+      contains('<key>NSPrivacyTracking</key>\n\t<false/>'),
+    );
     expect(
       manifest,
       isNot(contains('NSPrivacyCollectedDataTypePurposeDeveloperAdvertising')),

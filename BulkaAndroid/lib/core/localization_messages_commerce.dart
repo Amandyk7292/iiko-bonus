@@ -342,6 +342,42 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'kk': 'Төлем бетін ашу',
     'en': 'Open payment page',
   },
+  'forte_payment_open_external': {
+    'ru': 'Открыть в системном браузере',
+    'kk': 'Жүйелік браузерде ашу',
+    'en': 'Open in system browser',
+  },
+  'forte_secure_page': {
+    'ru': 'Защищённая страница банка',
+    'kk': 'Банктің қорғалған беті',
+    'en': 'Secure bank page',
+  },
+  'forte_payment_verifying_title': {
+    'ru': 'Проверяем оплату',
+    'kk': 'Төлемді тексеріп жатырмыз',
+    'en': 'Checking payment',
+  },
+  'forte_payment_verifying_hint': {
+    'ru':
+        'Страница банка закрыта. Подождите несколько секунд — мы подтверждаем результат оплаты.',
+    'kk':
+        'Банк беті жабылды. Бірнеше секунд күтіңіз — төлем нәтижесін растап жатырмыз.',
+    'en':
+        'The bank page is closed. Please wait a few seconds while we confirm the payment result.',
+  },
+  'forte_payment_embed_failed': {
+    'ru':
+        'Не удалось показать оплату внутри приложения. Повторите попытку или откройте системный браузер.',
+    'kk':
+        'Төлемді қолданба ішінде көрсету мүмкін болмады. Қайталап көріңіз немесе жүйелік браузерді ашыңыз.',
+    'en':
+        'Could not show payment inside the app. Try again or open the system browser.',
+  },
+  'forte_external_app_failed': {
+    'ru': 'Не удалось открыть приложение для оплаты.',
+    'kk': 'Төлем қолданбасын ашу мүмкін болмады.',
+    'en': 'Could not open the payment app.',
+  },
   'forte_checkout_invalid': {
     'ru': 'ForteBank вернул некорректную ссылку оплаты.',
     'kk': 'ForteBank қате төлем сілтемесін қайтарды.',

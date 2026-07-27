@@ -32,6 +32,7 @@ import 'core/http_client_backend.dart';
 import 'core/session_storage_backend.dart';
 import 'core/url_navigation.dart';
 import 'firebase_options.dart';
+import 'widgets/forte_checkout_webview.dart';
 import 'widgets/yandex_map/yandex_map.dart';
 part 'api/bulka_api_client.dart';
 part 'app/app.dart';
