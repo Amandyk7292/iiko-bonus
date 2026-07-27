@@ -8,6 +8,192 @@ const {
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { writeAdminAudit } = require('../services/admin-audit.service');
+const {
+  createAdminSession,
+  revokeAdminSession,
+  validateAdminSession,
+} = require('../services/admin-session.service');
+const { supabase } = require('../config/supabase');
+const {
+  requestAdminPhoneLogin,
+  verifyAdminPhoneLogin,
+} = require('../services/admin-phone-auth.service');
+const { applyAdminBranchSelection } = require('../utils/admin-scope.util');
+
+const ADMIN_ROLES = new Set([
+  'admin',
+  'owner',
+  'branch_manager',
+  'operator',
+  'marketer',
+  'courier',
+  'editor',
+  'viewer',
+  'whatsapp_operator',
+]);
+
+const ROLE_AREAS = {
+  owner: new Set(['*']),
+  admin: new Set(['*']),
+  branch_manager: new Set([
+    'session',
+    'scope',
+    'events',
+    'operations',
+    'integrations',
+    'analytics',
+    'customers',
+    'orders',
+    'menu',
+    'inventory',
+    'couriers',
+    'dispatch',
+    'kitchen',
+    'locations',
+    'reviews',
+    'support',
+    'transactions',
+    'whatsapp',
+  ]),
+  operator: new Set([
+    'session',
+    'scope',
+    'events',
+    'operations',
+    'customers',
+    'orders',
+    'dispatch',
+    'kitchen',
+    'reviews',
+    'support',
+    'whatsapp',
+  ]),
+  marketer: new Set([
+    'session',
+    'scope',
+    'events',
+    'operations',
+    'analytics',
+    'customers',
+    'broadcast',
+    'stories',
+    'news',
+    'bonus',
+    'loyalty-tiers',
+    'promotions',
+    'gift-cards',
+    'reviews',
+    'support',
+    'automations',
+    'contact-cards',
+    'contact-actions',
+  ]),
+  courier: new Set(['session', 'scope', 'events', 'couriers', 'dispatch']),
+  editor: new Set([
+    'session',
+    'scope',
+    'events',
+    'operations',
+    'integrations',
+    'analytics',
+    'customers',
+    'orders',
+    'menu',
+    'inventory',
+    'couriers',
+    'dispatch',
+    'kitchen',
+    'locations',
+    'reviews',
+    'support',
+    'transactions',
+    'broadcast',
+    'stories',
+    'news',
+    'bonus',
+    'loyalty-tiers',
+    'promotions',
+    'gift-cards',
+    'automations',
+    'contact-cards',
+    'contact-actions',
+    'whatsapp',
+  ]),
+  viewer: new Set([
+    'session',
+    'scope',
+    'events',
+    'operations',
+    'integrations',
+    'analytics',
+    'customers',
+    'orders',
+    'menu',
+    'inventory',
+    'couriers',
+    'dispatch',
+    'kitchen',
+    'locations',
+    'reviews',
+    'support',
+    'transactions',
+    'whatsapp',
+  ]),
+  whatsapp_operator: new Set(['session', 'events', 'whatsapp']),
+};
+
+const CUSTOMER_ACTIONS = Object.freeze({
+  READ: 'customers:read',
+  UPDATE: 'customers:update',
+  ADJUST_BONUS: 'customers:adjust-bonus',
+  DELETE: 'customers:delete',
+  BULK_NOTIFY: 'customers:bulk-notify',
+  BULK_EXPIRE: 'customers:bulk-expire',
+});
+
+/**
+ * Area access controls navigation. Action access controls the sensitive
+ * operation itself, so adding a role to the customers area never grants
+ * customer mutations implicitly.
+ */
+const ROLE_ACTIONS = Object.freeze({
+  owner: new Set(['*']),
+  admin: new Set(['*']),
+  branch_manager: new Set([CUSTOMER_ACTIONS.READ, CUSTOMER_ACTIONS.ADJUST_BONUS]),
+  operator: new Set([CUSTOMER_ACTIONS.READ]),
+  marketer: new Set([CUSTOMER_ACTIONS.READ]),
+  editor: new Set([CUSTOMER_ACTIONS.READ]),
+  viewer: new Set([CUSTOMER_ACTIONS.READ]),
+});
+
+const actionsForRole = (role) => ROLE_ACTIONS[String(role || '')] || new Set();
+
+const hasAdminAction = (admin, action) => {
+  const actions = actionsForRole(admin?.role || admin);
+  return actions.has('*') || actions.has(action);
+};
+
+const requireAdminAction = (action) => (req, res, next) => {
+  if (!hasAdminAction(req.admin, action)) {
+    return res.status(403).json({
+      error: 'Недостаточно прав для этого действия',
+      code: 'ADMIN_ACTION_FORBIDDEN',
+    });
+  }
+  return next();
+};
+
+const adminUserResponse = (admin) => ({
+  username: String(admin?.username || admin?.sub || ''),
+  role: String(admin?.role || 'viewer'),
+  branchIds: Array.isArray(admin?.branchIds) ? admin.branchIds.map(String) : [],
+  actions: [...actionsForRole(admin?.role)],
+});
+
+const adminArea = (req) => {
+  const value = String(req.path || req.originalUrl || '').replace(/^\/+/, '');
+  return value.split('/')[0] || 'session';
+};
 
 const parseAdminUsers = () => {
   if (process.env.ADMIN_USERS_JSON) {
@@ -65,6 +251,77 @@ const verifyTotp = (code, secret) => {
   return [-1, 0, 1].some((offset) => safeEqual(code, totpAt(secret, counter + offset)));
 };
 
+const issueAdminSession = async (
+  req,
+  res,
+  admin,
+  { expiresIn = '2h', maxAgeMs = 2 * 60 * 60 * 1000 } = {},
+) => {
+  try {
+    const jti = crypto.randomUUID();
+    const token = signAdminToken(admin, { expiresIn, jti });
+    const payload = verifyToken(token, 'bulka-admin');
+    const isProduction = process.env.NODE_ENV === 'production' || Boolean(process.env.RENDER);
+    await createAdminSession({
+      jti,
+      subject: payload.sub,
+      role: payload.role,
+      branchIds: payload.branchIds,
+      expiresAt: payload.exp * 1000,
+      ip: req?.ip,
+      userAgent: req?.headers?.['user-agent'],
+    });
+    res.cookie('bulka_admin', token, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict',
+      path: '/admin',
+      maxAge: maxAgeMs,
+    });
+    return res.json({ user: adminUserResponse(admin) });
+  } catch (error) {
+    req?.log?.error({ err: error, event: 'admin_session_issue_failed' }, 'Session issue failed');
+    return res.status(503).json({
+      error: 'Не удалось создать защищённую сессию',
+      code: 'ADMIN_SESSION_UNAVAILABLE',
+    });
+  }
+};
+
+const whatsappOperatorAccessHandler = async (req, res) => {
+  const configuredHash = String(process.env.WHATSAPP_OPERATOR_ACCESS_TOKEN_HASH || '')
+    .trim()
+    .toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(configuredHash)) {
+    return res.status(503).json({
+      error: 'Ссылка оператора WhatsApp ещё не настроена',
+      code: 'WHATSAPP_OPERATOR_ACCESS_UNAVAILABLE',
+    });
+  }
+
+  const accessToken = String(req.body?.token || '').trim();
+  if (!/^[a-zA-Z0-9_-]{43,128}$/.test(accessToken)) {
+    return res.status(401).json({
+      error: 'Ссылка недействительна или была заменена',
+      code: 'WHATSAPP_OPERATOR_ACCESS_INVALID',
+    });
+  }
+  const accessTokenHash = crypto.createHash('sha256').update(accessToken, 'utf8').digest('hex');
+  if (!safeEqual(accessTokenHash, configuredHash)) {
+    return res.status(401).json({
+      error: 'Ссылка недействительна или была заменена',
+      code: 'WHATSAPP_OPERATOR_ACCESS_INVALID',
+    });
+  }
+
+  return issueAdminSession(
+    req,
+    res,
+    { username: 'whatsapp-operator', role: 'whatsapp_operator', branchIds: [] },
+    { expiresIn: '12h', maxAgeMs: 12 * 60 * 60 * 1000 },
+  );
+};
+
 const adminLoginHandler = async (req, res) => {
   const username = String(req.body?.username || 'admin')
     .trim()
@@ -105,30 +362,70 @@ const adminLoginHandler = async (req, res) => {
     }
   }
 
-  const role = String(user.role || 'viewer');
-  if (!['admin', 'editor', 'viewer'].includes(role)) {
+  let role = String(user.role || 'viewer');
+  let branchIds = Array.isArray(user.branchIds) ? user.branchIds.map(String) : [];
+  try {
+    const { data: profile, error: profileError } = await supabase
+      .from('admin_user_profiles')
+      .select('role,branch_ids,active')
+      .eq('username', String(user.username))
+      .maybeSingle();
+    if (!profileError && profile) {
+      if (profile.active === false)
+        return res.status(403).json({ error: 'Admin account is disabled' });
+      role = String(profile.role || role);
+      branchIds = Array.isArray(profile.branch_ids) ? profile.branch_ids.map(String) : branchIds;
+    }
+  } catch (_error) {
+    // The environment configuration remains the bootstrap source before the
+    // role migration is applied.
+  }
+  if (!ADMIN_ROLES.has(role)) {
     return res.status(503).json({ error: 'Admin role is invalid' });
   }
-  const admin = { username: String(user.username), role };
-  const token = signAdminToken(admin);
-  const isProduction = process.env.NODE_ENV === 'production' || Boolean(process.env.RENDER);
-  res.cookie('bulka_admin', token, {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: 'strict',
-    path: '/admin',
-    maxAge: 2 * 60 * 60 * 1000,
-  });
-  return res.json({ user: admin });
+  const admin = { username: String(user.username), role, branchIds };
+  return issueAdminSession(req, res, admin);
 };
 
-const adminAuthMiddleware = (req, res, next) => {
+const adminPhoneLoginRequestHandler = async (req, res) => {
+  try {
+    const challenge = await requestAdminPhoneLogin(req.body?.phone);
+    return res.json({ success: true, ...challenge });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      error: error.message || 'Не удалось запросить код',
+      code: error.code,
+    });
+  }
+};
+
+const adminPhoneLoginVerifyHandler = async (req, res) => {
+  try {
+    const admin = await verifyAdminPhoneLogin(req.body?.phone, req.body?.code);
+    return issueAdminSession(req, res, admin);
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      error: error.message || 'Не удалось выполнить вход',
+      code: error.code,
+    });
+  }
+};
+
+const adminAuthMiddleware = async (req, res, next) => {
   try {
     const payload = verifyToken(readCookieToken(req) || readBearerToken(req), 'bulka-admin');
-    if (!['admin', 'editor', 'viewer'].includes(payload.role)) throw new Error('Invalid role');
-    req.admin = payload;
-    next();
-  } catch (_error) {
+    if (!ADMIN_ROLES.has(payload.role)) throw new Error('Invalid role');
+    const activeSession = await validateAdminSession(payload);
+    if (!activeSession || !ADMIN_ROLES.has(activeSession.role)) {
+      throw new Error('Session is revoked');
+    }
+    const requestedBranch = req.headers['x-bulka-branch-id'] || req.query?.scopeBranchId || '';
+    req.admin = applyAdminBranchSelection(activeSession, requestedBranch);
+    return next();
+  } catch (error) {
+    if (error?.statusCode) return res.status(error.statusCode).json({ error: error.message });
     return res.status(401).json({ error: 'Admin session is invalid or expired' });
   }
 };
@@ -146,8 +443,24 @@ const adminCsrfMiddleware = (req, res, next) => {
 };
 
 const adminMutationRoleMiddleware = (req, res, next) => {
-  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method) || req.admin.role !== 'viewer') return next();
-  return res.status(403).json({ error: 'Viewer role is read-only' });
+  const readOnly = ['GET', 'HEAD', 'OPTIONS'].includes(req.method);
+  if (req.admin.role === 'viewer' && !readOnly) {
+    return res.status(403).json({ error: 'Viewer role is read-only' });
+  }
+  const areas = ROLE_AREAS[req.admin.role] || new Set();
+  const area = adminArea(req);
+  if (!areas.has('*') && !areas.has(area)) {
+    return res.status(403).json({ error: 'Недостаточно прав для этого раздела' });
+  }
+  if (!readOnly && !['admin', 'owner'].includes(req.admin.role) && req.admin.branchIds?.length) {
+    const requestedBranch = String(
+      req.body?.branchId || req.params?.branchId || req.query?.branchId || '',
+    );
+    if (requestedBranch && !req.admin.branchIds.map(String).includes(requestedBranch)) {
+      return res.status(403).json({ error: 'Филиал не входит в область доступа' });
+    }
+  }
+  return next();
 };
 
 const adminAuditMiddleware = (req, res, next) => {
@@ -157,13 +470,23 @@ const adminAuditMiddleware = (req, res, next) => {
   next();
 };
 
-const adminLogoutHandler = (_req, res) => {
-  res.clearCookie('bulka_admin', { httpOnly: true, sameSite: 'strict', path: '/admin' });
-  res.json({ success: true });
+const adminLogoutHandler = async (req, res) => {
+  try {
+    await revokeAdminSession(req.admin?.jti);
+    res.clearCookie('bulka_admin', { httpOnly: true, sameSite: 'strict', path: '/admin' });
+    return res.json({ success: true });
+  } catch {
+    return res.status(503).json({
+      error: 'Не удалось завершить сессию',
+      code: 'ADMIN_SESSION_REVOKE_FAILED',
+    });
+  }
 };
 
 const adminSessionHandler = (req, res) =>
-  res.json({ user: { username: req.admin.sub, role: req.admin.role } });
+  res.json({
+    user: adminUserResponse(req.admin),
+  });
 
 module.exports = {
   adminAuditMiddleware,
@@ -172,5 +495,15 @@ module.exports = {
   adminLoginHandler,
   adminLogoutHandler,
   adminMutationRoleMiddleware,
+  adminPhoneLoginRequestHandler,
+  adminPhoneLoginVerifyHandler,
   adminSessionHandler,
+  whatsappOperatorAccessHandler,
+  ADMIN_ROLES,
+  CUSTOMER_ACTIONS,
+  ROLE_ACTIONS,
+  ROLE_AREAS,
+  actionsForRole,
+  hasAdminAction,
+  requireAdminAction,
 };

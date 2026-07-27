@@ -1,0 +1,336 @@
+const { supabase } = require('../config/supabase');
+const iikoApi = require('./iiko.service');
+
+const inventoryError = (message, statusCode = 400) =>
+  Object.assign(new Error(message), { statusCode });
+
+const normalizedKey = (value) =>
+  String(value || '')
+    .trim()
+    .toLocaleLowerCase('ru-RU')
+    .replace(/\s+/g, ' ');
+
+const parseTerminalMappings = () => {
+  try {
+    const parsed = JSON.parse(process.env.IIKO_TERMINAL_GROUPS_JSON || '{}');
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return [];
+    return Object.entries(parsed)
+      .map(([key, value]) => ({
+        key: normalizedKey(key),
+        terminalGroupId: String(
+          typeof value === 'string'
+            ? value
+            : value?.terminalGroupId || value?.terminal_group_id || value?.id || '',
+        ).trim(),
+        branchId: String(
+          typeof value === 'object' ? value?.branchId || value?.branch_id || '' : '',
+        ).trim(),
+      }))
+      .filter((item) => item.terminalGroupId);
+  } catch (error) {
+    console.error('IIKO_TERMINAL_GROUPS_JSON is invalid:', error.message);
+    return [];
+  }
+};
+
+const locationKeys = (location) =>
+  [
+    location?.id,
+    location?.name,
+    location?.address,
+    [location?.name, location?.address].filter(Boolean).join(', '),
+  ]
+    .map(normalizedKey)
+    .filter(Boolean);
+
+const terminalGroupForLocation = (location, snapshot) => {
+  const groups = Array.isArray(snapshot?.groups) ? snapshot.groups : [];
+  const mappings = parseTerminalMappings();
+  const keys = locationKeys(location);
+  const mapping = mappings.find(
+    (item) =>
+      (item.branchId && item.branchId === String(location?.id || '')) || keys.includes(item.key),
+  );
+  if (mapping) {
+    const group = groups.find((item) => item.terminalGroupId === mapping.terminalGroupId);
+    if (group) return group;
+  }
+  const defaultTerminal = String(process.env.IIKO_TERMINAL_GROUP_ID || '').trim();
+  if (defaultTerminal) {
+    const group = groups.find((item) => item.terminalGroupId === defaultTerminal);
+    if (group) return group;
+  }
+  return groups.length === 1 ? groups[0] : null;
+};
+
+async function readLocation(branchId) {
+  const { data, error } = await supabase
+    .from('bulka_locations')
+    .select('id,name,address,active')
+    .eq('id', branchId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data || data.active === false) throw inventoryError('Филиал больше недоступен', 404);
+  return data;
+}
+
+async function syncBranchInventory(branchId, { strict = false, products = [] } = {}) {
+  if (!branchId) return { tracked: false, balances: new Map(), stopIds: new Set() };
+  try {
+    const [location, snapshot] = await Promise.all([
+      readLocation(branchId),
+      iikoApi.getStopListSnapshot(undefined, { strict: true }),
+    ]);
+    const group = terminalGroupForLocation(location, snapshot);
+    if (!group) {
+      return {
+        tracked: false,
+        balances: new Map(),
+        stopIds: snapshot.stopIds || new Set(),
+      };
+    }
+
+    const productNames = new Map(
+      (Array.isArray(products) ? products : []).map((product) => [
+        String(product?.id || ''),
+        String(product?.name || '').slice(0, 160) || null,
+      ]),
+    );
+    const balances = new Map();
+    const rows = [];
+    for (const item of group.items || []) {
+      const quantity = Math.max(0, Math.floor(Number(item.balance)));
+      balances.set(item.productId, quantity);
+      rows.push({
+        branch_id: String(branchId),
+        product_id: item.productId,
+        product_name: productNames.get(item.productId) || null,
+        source_quantity: quantity,
+        source: 'iiko',
+        last_synced_at: snapshot.fetchedAt || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+    }
+    if (rows.length > 0) {
+      const { error } = await supabase
+        .from('branch_product_inventory')
+        .upsert(rows, { onConflict: 'branch_id,product_id' });
+      if (error) throw error;
+    }
+    return { tracked: true, balances, stopIds: snapshot.stopIds || new Set(), group };
+  } catch (error) {
+    if (strict) throw error;
+    console.error(`Не удалось синхронизировать остатки филиала ${branchId}:`, error.message);
+    return { tracked: false, balances: new Map(), stopIds: new Set() };
+  }
+}
+
+async function getBranchAvailability(
+  branchId,
+  { sync = false, products = [], strict = false } = {},
+) {
+  if (!branchId) return new Map();
+  if (sync) await syncBranchInventory(branchId, { strict, products });
+  const now = new Date().toISOString();
+  const [inventoryResult, reservationsResult] = await Promise.all([
+    supabase
+      .from('branch_product_inventory')
+      .select(
+        'product_id,product_name,source_quantity,manual_stop,source,last_synced_at,preparation_minutes',
+      )
+      .eq('branch_id', branchId),
+    supabase
+      .from('inventory_reservations')
+      .select('product_id,quantity,status,expires_at')
+      .eq('branch_id', branchId)
+      .in('status', ['active', 'committed']),
+  ]);
+  if (inventoryResult.error) {
+    if (strict) throw inventoryResult.error;
+    return new Map();
+  }
+  if (reservationsResult.error) {
+    if (strict) throw reservationsResult.error;
+    return new Map();
+  }
+  const held = new Map();
+  for (const item of reservationsResult.data || []) {
+    if (item.status === 'active' && String(item.expires_at) <= now) continue;
+    held.set(item.product_id, (held.get(item.product_id) || 0) + Number(item.quantity || 0));
+  }
+  return new Map(
+    (inventoryResult.data || []).map((item) => {
+      const sourceQuantity = item.source_quantity == null ? null : Number(item.source_quantity);
+      const reserved = held.get(item.product_id) || 0;
+      return [
+        String(item.product_id),
+        {
+          productName: item.product_name || null,
+          sourceQuantity,
+          reserved,
+          availableQuantity: sourceQuantity == null ? null : Math.max(0, sourceQuantity - reserved),
+          isAvailable:
+            item.manual_stop !== true && (sourceQuantity == null || sourceQuantity > reserved),
+          manualStop: item.manual_stop === true,
+          source: item.source,
+          lastSyncedAt: item.last_synced_at,
+          preparationMinutes:
+            item.preparation_minutes == null ? null : Number(item.preparation_minutes),
+        },
+      ];
+    }),
+  );
+}
+
+async function reserveCheckout({ customerId, requestId, branchId, items, orderType, scheduledAt }) {
+  const { data: inventory, error: inventoryRpcError } = await supabase.rpc(
+    'reserve_order_inventory',
+    {
+      p_customer_id: customerId,
+      p_request_id: requestId,
+      p_branch_id: branchId,
+      p_items: items,
+      p_ttl_minutes: 20,
+    },
+  );
+  if (inventoryRpcError) throw inventoryError(inventoryRpcError.message, 409);
+
+  const { data: slot, error: slotRpcError } = await supabase.rpc('reserve_fulfillment_slot', {
+    p_customer_id: customerId,
+    p_request_id: requestId,
+    p_branch_id: branchId,
+    p_fulfillment_type: orderType,
+    p_scheduled_at: scheduledAt,
+    p_ttl_minutes: 20,
+  });
+  if (slotRpcError) {
+    await releaseCheckoutRequest(customerId, requestId).catch(() => undefined);
+    throw inventoryError(slotRpcError.message, 409);
+  }
+  return { inventory, slot };
+}
+
+async function releaseCheckoutRequest(customerId, requestId) {
+  const now = new Date().toISOString();
+  const [inventoryResult, slotResult] = await Promise.all([
+    supabase
+      .from('inventory_reservations')
+      .update({ status: 'released', updated_at: now })
+      .eq('customer_id', customerId)
+      .eq('client_request_id', requestId)
+      .eq('status', 'active'),
+    supabase
+      .from('fulfillment_slot_reservations')
+      .update({ status: 'released', updated_at: now })
+      .eq('customer_id', customerId)
+      .eq('client_request_id', requestId)
+      .eq('status', 'active'),
+  ]);
+  if (inventoryResult.error) throw inventoryResult.error;
+  if (slotResult.error) throw slotResult.error;
+}
+
+async function attachOrderReservations(customerId, requestId, orderId) {
+  const { error } = await supabase.rpc('attach_order_reservations', {
+    p_customer_id: customerId,
+    p_request_id: requestId,
+    p_order_id: orderId,
+  });
+  if (error) throw error;
+}
+
+async function commitOrderReservations(orderId) {
+  const { error } = await supabase.rpc('commit_order_reservations', { p_order_id: orderId });
+  if (error) throw error;
+}
+
+async function releaseOrderReservations(orderId) {
+  const { error } = await supabase.rpc('release_order_reservations', { p_order_id: orderId });
+  if (error) throw error;
+}
+
+async function listInventory({ branchId = '', branchIds = [] } = {}) {
+  let query = supabase
+    .from('branch_product_inventory')
+    .select(
+      'branch_id,product_id,product_name,source_quantity,manual_stop,source,last_synced_at,updated_at,preparation_minutes,bulka_locations(name,address)',
+    )
+    .order('product_name', { ascending: true });
+  if (branchId) query = query.eq('branch_id', branchId);
+  else if (Array.isArray(branchIds) && branchIds.length) query = query.in('branch_id', branchIds);
+  const { data, error } = await query.limit(5000);
+  if (error) throw error;
+  return data || [];
+}
+
+async function updateInventory(branchId, productId, payload = {}) {
+  const quantity = payload.sourceQuantity;
+  if (quantity !== null && quantity !== undefined) {
+    const numeric = Number(quantity);
+    if (!Number.isInteger(numeric) || numeric < 0 || numeric > 100000) {
+      throw inventoryError('Остаток должен быть целым числом от 0 до 100000');
+    }
+  }
+  if (payload.manualStop !== undefined && typeof payload.manualStop !== 'boolean') {
+    throw inventoryError('Некорректный стоп-лист');
+  }
+  if (payload.preparationMinutes !== undefined && payload.preparationMinutes !== null) {
+    const minutes = Number(payload.preparationMinutes);
+    if (!Number.isInteger(minutes) || minutes < 1 || minutes > 240) {
+      throw inventoryError('Время приготовления должно быть от 1 до 240 минут');
+    }
+  }
+  const row = {
+    branch_id: branchId,
+    product_id: String(productId || '')
+      .trim()
+      .slice(0, 100),
+    product_name:
+      String(payload.productName || '')
+        .trim()
+        .slice(0, 160) || null,
+    source_quantity: quantity == null ? null : Number(quantity),
+    manual_stop: payload.manualStop === true,
+    preparation_minutes:
+      payload.preparationMinutes == null ? null : Number(payload.preparationMinutes),
+    source: 'admin',
+    updated_at: new Date().toISOString(),
+  };
+  if (!row.product_id) throw inventoryError('Не указан товар');
+  const { data, error } = await supabase
+    .from('branch_product_inventory')
+    .upsert(row, { onConflict: 'branch_id,product_id' })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+async function syncAllBranchInventory({ strict = false, products = [], branchIds = [] } = {}) {
+  let locationsQuery = supabase.from('bulka_locations').select('id').eq('active', true);
+  if (Array.isArray(branchIds) && branchIds.length)
+    locationsQuery = locationsQuery.in('id', branchIds);
+  const { data: locations, error } = await locationsQuery;
+  if (error) throw error;
+  const results = [];
+  for (const location of locations || []) {
+    const result = await syncBranchInventory(location.id, { strict, products });
+    results.push({ branchId: location.id, tracked: result.tracked, count: result.balances.size });
+  }
+  return results;
+}
+
+module.exports = {
+  attachOrderReservations,
+  commitOrderReservations,
+  getBranchAvailability,
+  listInventory,
+  parseTerminalMappings,
+  releaseCheckoutRequest,
+  releaseOrderReservations,
+  reserveCheckout,
+  syncAllBranchInventory,
+  syncBranchInventory,
+  terminalGroupForLocation,
+  updateInventory,
+};

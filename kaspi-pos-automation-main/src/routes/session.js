@@ -2,9 +2,9 @@ import { Router } from 'express';
 import { KASPI_QRPAY_URL } from '../config.js';
 import { loggedFetch, signedQrPayHeaders } from '../helpers.js';
 import { decryptSecret } from '../crypto.js';
-import { inactiveSessionResponse, isActiveSession } from '../activeSession.js';
+import { clearActiveSession, inactiveSessionResponse, isActiveSession } from '../activeSession.js';
 import { getKaspiErrorMessage, isKaspiSessionExpired, isKaspiSuccess } from '../kaspiResponse.js';
-import { saveGlobalSession } from '../sessionStorage.js';
+import { clearGlobalSession, saveGlobalSession } from '../sessionStorage.js';
 
 const router = Router();
 
@@ -37,21 +37,24 @@ router.get('/check', async (req, res) => {
   // 3. Ping Kaspi API to verify the token is still accepted
   try {
     const url = `${KASPI_QRPAY_URL}/v02/history/operations`;
-    const headers = { ...signedQrPayHeaders(url, session), 'Content-Type': 'application/json' };
+    const payload = JSON.stringify({
+      EndDate: new Date().toISOString().slice(0, 10),
+      LastTransactionDate: '',
+      StatementPeriodCode: 0,
+    });
+    const headers = { ...signedQrPayHeaders(url, session, payload), 'Content-Type': 'application/json' };
     const resp = await loggedFetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({
-        EndDate: new Date().toISOString().slice(0, 10),
-        LastTransactionDate: '',
-        StatementPeriodCode: 0,
-      }),
+      body: payload,
     });
 
     const body = await resp.json().catch(() => ({}));
 
     if (isKaspiSessionExpired(body)) {
-      return res.status(401).json({ active: false, ...inactiveSessionResponse(getKaspiErrorMessage(body)) });
+      clearActiveSession(session.tokenSN);
+      clearGlobalSession('kaspi_session_expired', session);
+      return res.status(401).json({ active: false, ...inactiveSessionResponse() });
     }
 
     if (resp.ok && isKaspiSuccess(body)) {

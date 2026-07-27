@@ -1,4 +1,5 @@
 const { createClient } = require('@supabase/supabase-js');
+const { logger } = require('./logger');
 require('dotenv').config();
 
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -11,7 +12,7 @@ if (!supabaseUrl || !supabaseKey) {
   if (process.env.NODE_ENV === 'production' || process.env.RENDER || process.env.VERCEL) {
     throw new Error(message);
   }
-  console.warn('ВНИМАНИЕ: ' + message);
+  logger.warn({ event: 'supabase_not_configured' }, message);
 }
 
 const supabase =

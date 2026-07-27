@@ -1,86 +1,132 @@
-require('dotenv').config();
+require('dotenv').config({ path: process.env.DOTENV_CONFIG_PATH || undefined });
+const { installConsoleBridge, logger } = require('./config/logger');
+installConsoleBridge();
 const app = require('./app');
-const { initWhatsApp } = require('./services/whatsapp-baileys.service');
+const { flushWhatsAppOutbox, initWhatsApp } = require('./services/whatsapp-baileys.service');
 const {
   getOrCreateCustomerByPhone,
   checkAndExpireInactiveBonuses,
-  checkAndNotifyInactiveCustomers,
-  checkAndNotifyBirthdays,
   activatePendingBonusesSafe,
 } = require('./services/customer.service');
 const { startPolling: startTelegramBot } = require('./services/telegram.service');
 const { getSettings } = require('./services/settings.service');
 const { shouldRunBots } = require('./config/env');
 const kaspiService = require('./services/kaspi.service');
+const forteService = require('./services/forte.service');
+const {
+  deliverAutomatedMessages,
+  enqueueAutomatedMessages,
+} = require('./services/commerce-marketing.service');
+const { syncActiveDeliveries } = require('./services/yandex-delivery.service');
+const { registerWorker, runMonitoredWorker } = require('./services/operational-health.service');
 
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '0.0.0.0';
 
 if (!process.env.VERCEL) {
   const runWorkers = process.env.RUN_BACKGROUND_WORKERS === 'true';
   const runBots = shouldRunBots();
-  if (runWorkers) setInterval(activatePendingBonusesSafe, 60 * 60 * 1000);
+  registerWorker('pending-bonus-activation', { enabled: runWorkers, intervalMs: 60 * 60 * 1000 });
+  const activatePendingBonuses = () =>
+    runMonitoredWorker('pending-bonus-activation', activatePendingBonusesSafe);
+  if (runWorkers) setInterval(activatePendingBonuses, 60 * 60 * 1000);
 
-  let dailyChecksRunning = false;
-  const runDailyChecks = async () => {
-    if (dailyChecksRunning) return;
-    dailyChecksRunning = true;
-    try {
+  registerWorker('daily-bonus-expiration', {
+    enabled: runWorkers,
+    intervalMs: 24 * 60 * 60 * 1000,
+  });
+  const runDailyChecks = () =>
+    runMonitoredWorker('daily-bonus-expiration', async () => {
       const settings = await getSettings();
       const expiration = settings.bonus_expiration || {};
       if (expiration.enabled !== false && expiration.auto_write_off !== false) {
         await checkAndExpireInactiveBonuses(Number(expiration.expiration_days || 90));
       }
-      if (expiration.enabled !== false && Number(expiration.notify_before_days || 0) > 0) {
-        const expirationDays = Number(expiration.expiration_days || 90);
-        const notifyBeforeDays = Number(expiration.notify_before_days || 30);
-        await checkAndNotifyInactiveCustomers(
-          Math.max(1, expirationDays - notifyBeforeDays),
-          expirationDays,
-        );
-      }
-      await checkAndNotifyBirthdays(settings);
-    } catch (err) {
-      console.error('Daily checks failed:', err);
-    } finally {
-      dailyChecksRunning = false;
-    }
-  };
+    });
 
   if (runWorkers) {
     setTimeout(runDailyChecks, 5000);
     setInterval(runDailyChecks, 24 * 60 * 60 * 1000);
 
-    let kaspiReconciliationRunning = false;
-    const reconcileKaspiOrders = async () => {
-      if (kaspiReconciliationRunning || process.env.KASPI_POS_ENABLED !== 'true') return;
-      kaspiReconciliationRunning = true;
-      try {
-        await kaspiService.reconcileOrders();
-      } catch (error) {
-        console.error('Kaspi reconciliation failed:', error.message);
-      } finally {
-        kaspiReconciliationRunning = false;
-      }
-    };
+    const reconcileKaspiOrders = () =>
+      runMonitoredWorker('kaspi-reconciliation', () => kaspiService.reconcileOrders());
     setTimeout(reconcileKaspiOrders, 15 * 1000);
     setInterval(reconcileKaspiOrders, 60 * 1000);
-  }
 
-  app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+    const reconcileForteOrders = () =>
+      runMonitoredWorker('forte-reconciliation', () => forteService.reconcileOrders());
+    setTimeout(reconcileForteOrders, 20 * 1000);
+    setInterval(reconcileForteOrders, 60 * 1000);
+
+    const runMarketing = () =>
+      runMonitoredWorker('marketing-automation', async () => {
+        await enqueueAutomatedMessages();
+        await deliverAutomatedMessages();
+      });
+    setTimeout(runMarketing, 30 * 1000);
+    setInterval(runMarketing, 10 * 60 * 1000);
+  }
+  registerWorker('kaspi-reconciliation', {
+    enabled: runWorkers && process.env.KASPI_POS_ENABLED === 'true',
+    intervalMs: 60 * 1000,
+    critical: true,
+  });
+  registerWorker('forte-reconciliation', {
+    enabled: runWorkers && process.env.FORTE_ENABLED === 'true',
+    intervalMs: 60 * 1000,
+    critical: true,
+  });
+  registerWorker('marketing-automation', {
+    enabled: runWorkers,
+    intervalMs: 10 * 60 * 1000,
+  });
+
+  // Delivery tracking is part of the request lifecycle, not an optional
+  // marketing worker. It starts automatically when the integration is enabled.
+  if (
+    process.env.YANDEX_DELIVERY_ENABLED === 'true' &&
+    process.env.RUN_YANDEX_DELIVERY_WORKER !== 'false'
+  ) {
+    const syncYandexDeliveries = () =>
+      runMonitoredWorker('yandex-delivery-sync', syncActiveDeliveries);
+    setTimeout(syncYandexDeliveries, 10 * 1000);
+    setInterval(syncYandexDeliveries, 15 * 1000);
+  }
+  registerWorker('yandex-delivery-sync', {
+    enabled:
+      process.env.YANDEX_DELIVERY_ENABLED === 'true' &&
+      process.env.RUN_YANDEX_DELIVERY_WORKER !== 'false',
+    intervalMs: 15 * 1000,
+    critical: true,
+  });
+
+  app.listen(PORT, HOST, () => {
+    logger.info({ event: 'server_started', host: HOST, port: Number(PORT) }, 'Server started');
 
     if (runBots) {
       try {
         startTelegramBot();
       } catch (e) {
-        console.error('Telegram bot init error:', e);
+        logger.error({ err: e, event: 'telegram_bot_init_failed' }, 'Telegram bot init failed');
       }
 
       try {
         const otpStore = require('./services/otpStore.service');
         initWhatsApp(otpStore, getOrCreateCustomerByPhone);
+        const runWhatsAppOutbox = process.env.RUN_WHATSAPP_OUTBOX_WORKER !== 'false';
+        registerWorker('whatsapp-outbox', {
+          enabled: runWhatsAppOutbox,
+          intervalMs: 5000,
+          critical: true,
+        });
+        if (runWhatsAppOutbox) {
+          const outboxTimer = setInterval(() => {
+            void runMonitoredWorker('whatsapp-outbox', flushWhatsAppOutbox);
+          }, 5000);
+          outboxTimer.unref?.();
+        }
       } catch (e) {
-        console.error('WhatsApp bot init error:', e);
+        logger.error({ err: e, event: 'whatsapp_bot_init_failed' }, 'WhatsApp bot init failed');
       }
     }
   });

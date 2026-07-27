@@ -7,14 +7,20 @@ class HomeScreen extends StatefulWidget {
     required this.transactions,
     required this.onHistoryTap,
     required this.onProfileTap,
+    required this.onRequireAuth,
+    required this.onOpenCatalog,
+    this.onOpenNotificationTab,
     super.key,
   });
 
   final BulkaApiClient api;
-  final Customer customer;
+  final Customer? customer;
   final List<BonusTransaction> transactions;
   final VoidCallback onHistoryTap;
   final VoidCallback onProfileTap;
+  final Future<bool> Function() onRequireAuth;
+  final Future<void> Function(String orderType) onOpenCatalog;
+  final ValueChanged<int>? onOpenNotificationTab;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -28,13 +34,16 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _feedLoading = false;
   bool _initialLoading = true;
   bool _loyaltyExpanded = true;
+  final _navigationGate = _AsyncActionGate();
 
   @override
   void initState() {
     super.initState();
-    _loadCachedFeed();
-    _loadViewedStoryGroups();
-    _loadFeed();
+    unawaited(_loadCachedFeed());
+    unawaited(_loadViewedStoryGroups());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_loadFeed());
+    });
     _feedRefreshTimer = Timer.periodic(
       const Duration(minutes: 1),
       (_) => _loadFeed(),
@@ -131,76 +140,108 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openDeliveryAddresses() async {
-    try {
-      final locations = await widget.api.getFulfillmentLocations();
-      final deliveryAvailable = locations.any(
-        (location) => location.active && location.deliveryEnabled,
-      );
-      if (!deliveryAvailable) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('checkout_delivery_unavailable'.tr)),
+    await _navigationGate.run(() async {
+      if (widget.customer == null && !await widget.onRequireAuth()) return;
+      try {
+        final locations = await widget.api.getFulfillmentLocations();
+        final deliveryAvailable = locations.any(
+          (location) => location.active && location.deliveryEnabled,
         );
+        if (!deliveryAvailable) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('checkout_delivery_unavailable'.tr)),
+          );
+          return;
+        }
+      } catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
         return;
       }
-    } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
-      return;
-    }
-    if (!mounted) return;
-    final address = await Navigator.of(context).push<DeliveryAddress>(
-      MaterialPageRoute(
-        builder: (_) => AddressSelectionScreen(api: widget.api),
-      ),
-    );
-    if (!mounted || address == null) return;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('selected_order_type', 'delivery');
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'delivery_address_selected'.trArgs({
-            'address': address.displayAddress,
-          }),
+      final address = await Navigator.of(context).push<DeliveryAddress>(
+        MaterialPageRoute(
+          builder: (_) => AddressSelectionScreen(api: widget.api),
         ),
-      ),
-    );
+      );
+      if (!mounted || address == null) return;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('selected_order_type', 'delivery');
+      await Future.wait([
+        prefs.remove('selected_bakery_location'),
+        prefs.remove('selected_bakery_location_id'),
+      ]);
+      if (!mounted) return;
+      await widget.onOpenCatalog('delivery');
+    });
   }
 
   Future<void> _openBakeryLocations(String orderType) async {
-    final location = await Navigator.of(context).push<String>(
-      MaterialPageRoute(builder: (_) => LocationsScreen(orderType: orderType)),
-    );
-    if (!mounted || location == null || location.trim().isEmpty) return;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('selected_bakery_location', location);
-    await prefs.setString('selected_order_type', orderType);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('bakery_selected'.trArgs({'name': location}))),
-    );
+    await _navigationGate.run(() async {
+      final location = await Navigator.of(context).push<String>(
+        MaterialPageRoute(
+          builder: (_) => LocationsScreen(orderType: orderType),
+        ),
+      );
+      if (!mounted || location == null || location.trim().isEmpty) return;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('selected_bakery_location', location);
+      await prefs.setString('selected_order_type', orderType);
+      if (!mounted) return;
+      await widget.onOpenCatalog(orderType);
+    });
+  }
+
+  Future<void> _openLocationsDirectory() async {
+    await _navigationGate.run(() async {
+      await Navigator.of(
+        context,
+      ).push<void>(MaterialPageRoute(builder: (_) => const LocationsScreen()));
+    });
+  }
+
+  Future<void> _openNotifications() async {
+    await _navigationGate.run(() async {
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) => NotificationsScreen(
+            api: widget.api,
+            onRequireAuth: widget.onRequireAuth,
+            onOpenTab: widget.onOpenNotificationTab,
+          ),
+        ),
+      );
+    });
   }
 
   Future<void> _openQr() async {
-    BulkaMotion.lightImpact();
-    // A dialog route keeps the current home screen beneath the QR card.  The
-    // former opaque page route painted a black Scaffold over it, so the app
-    // background disappeared completely instead of being softly dimmed.
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: 'close_tooltip'.tr,
-      barrierColor: _cocoa.withValues(alpha: 0.18),
-      builder: (_) => QrDialog(
-        api: widget.api,
-        customer: widget.customer,
-        heroTag: 'qr-${widget.customer.phone}',
-      ),
-    );
+    await _navigationGate.run(() async {
+      final customer = widget.customer;
+      if (customer == null) {
+        await widget.onRequireAuth();
+        return;
+      }
+      BulkaMotion.lightImpact();
+      // A dialog route keeps the current home screen beneath the QR card.  The
+      // former opaque page route painted a black Scaffold over it, so the app
+      // background disappeared completely instead of being softly dimmed.
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        barrierLabel: 'close_tooltip'.tr,
+        barrierColor: kIsWeb
+            ? Colors.white.withValues(alpha: 0.72)
+            : _cocoa.withValues(alpha: 0.18),
+        builder: (_) => QrDialog(
+          api: widget.api,
+          customer: customer,
+          heroTag: 'qr-${customer.phone}',
+        ),
+      );
+    });
   }
 
   @override
@@ -209,14 +250,14 @@ class _HomeScreenState extends State<HomeScreen> {
     final storyGroups = _groupStories(_stories);
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       body: SafeArea(
         bottom: false,
         child: LayoutBuilder(
           builder: (context, constraints) {
             return RefreshIndicator(
               color: _caramel,
-              backgroundColor: Colors.white,
+              backgroundColor: Theme.of(context).colorScheme.surface,
               onRefresh: _loadFeed,
               child: SingleChildScrollView(
                 key: const PageStorageKey('home-scroll'),
@@ -230,57 +271,34 @@ class _HomeScreenState extends State<HomeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(8, 16, 24, 8),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Transform.translate(
-                              offset: const Offset(-12, 0),
-                              child: Image.asset(
-                                'assets/brand/bulka_logo.png',
-                                semanticLabel: 'app_title'.tr,
-                                width: 165,
-                                height: 64,
-                                fit: BoxFit.contain,
-                                alignment: Alignment.centerLeft,
-                                filterQuality: FilterQuality.high,
-                              ),
-                            ),
-                            Row(
-                              children: [
-                                _IconCircleButton(
-                                  tooltip: 'locations_tooltip'.tr,
-                                  icon: Icons.location_on_outlined,
-                                  onTap: () {
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) => const LocationsScreen(),
-                                      ),
-                                    );
-                                  },
-                                ),
-                                const SizedBox(width: 8),
-                                _IconCircleButton(
-                                  tooltip: 'notifications_tooltip'.tr,
-                                  icon: Icons.notifications_none_rounded,
-                                  onTap: () => Navigator.of(context).push<void>(
-                                    MaterialPageRoute(
-                                      builder: (_) =>
-                                          NotificationsScreen(api: widget.api),
-                                    ),
+                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                        child: SizedBox(
+                          key: const ValueKey('home-header'),
+                          height: 56,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const _BulkaHeaderLogo(),
+                              Row(
+                                children: [
+                                  _IconCircleButton(
+                                    tooltip: 'locations_tooltip'.tr,
+                                    icon: Icons.location_on_outlined,
+                                    onTap: _openLocationsDirectory,
                                   ),
-                                ),
-                              ],
-                            ),
-                          ],
+                                  const SizedBox(width: 4),
+                                  _IconCircleButton(
+                                    tooltip: 'notifications_tooltip'.tr,
+                                    icon: Icons.notifications_none_rounded,
+                                    onTap: _openNotifications,
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                       if (_initialLoading || storyGroups.isNotEmpty) ...[
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                          child: _SectionTitle('home_interesting'.tr),
-                        ),
-                        const SizedBox(height: 14),
                         if (_initialLoading)
                           const PromoBannerShimmer()
                         else
@@ -289,45 +307,47 @@ class _HomeScreenState extends State<HomeScreen> {
                             viewedGroups: _viewedStoryGroups,
                             onGroupTap: _openStoryGroup,
                           ),
-                        const SizedBox(height: 24),
+                        const SizedBox(height: 18),
                       ],
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: _SectionTitle('home_select_order_type'.tr),
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 16),
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: _OrderTypeSection(
                           onDeliveryTap: _openDeliveryAddresses,
                           onPickupTap: () => _openBakeryLocations('pickup'),
                           onPreorderTap: () => _openBakeryLocations('preorder'),
                         ),
                       ),
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 24),
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: _SectionTitle('home_loyalty_header'.tr),
                       ),
-                      const SizedBox(height: 18),
+                      const SizedBox(height: 16),
                       Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: _LoyaltyPanel(
-                          api: widget.api,
-                          customer: customer,
-                          transactions: widget.transactions,
-                          expanded: _loyaltyExpanded,
-                          onToggle: () => setState(
-                            () => _loyaltyExpanded = !_loyaltyExpanded,
-                          ),
-                          onHistoryTap: widget.onHistoryTap,
-                          onQrTap: _openQr,
-                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: customer == null
+                            ? _GuestLoyaltyCard(onSignIn: widget.onRequireAuth)
+                            : _LoyaltyPanel(
+                                api: widget.api,
+                                customer: customer,
+                                transactions: widget.transactions,
+                                expanded: _loyaltyExpanded,
+                                onToggle: () => setState(
+                                  () => _loyaltyExpanded = !_loyaltyExpanded,
+                                ),
+                                onHistoryTap: widget.onHistoryTap,
+                                onQrTap: _openQr,
+                              ),
                       ),
                       if (_news.isNotEmpty) ...[
                         const SizedBox(height: 24),
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
                           child: NewsFeed(news: _news),
                         ),
                       ],
@@ -353,41 +373,51 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     final groups =
         byGroup.entries.map((entry) {
-          final items = [...entry.value]
-            ..sort((a, b) {
-              final byOrder = a.sortOrder.compareTo(b.sortOrder);
-              if (byOrder != 0) return byOrder;
-              return a.id.compareTo(b.id);
-            });
-          final first = items.first;
-          return StoryGroup(
-            id: entry.key,
-            title: first.groupTitle.isNotEmpty ? first.groupTitle : first.title,
-            subtitle: first.description?.isNotEmpty == true
-                ? first.description
-                : first.title,
-            coverUrl: first.groupCoverUrl.isNotEmpty
-                ? first.groupCoverUrl
-                : first.imageUrl,
-            stories: items,
-          );
-        }).toList()..sort(
-          (a, b) => a.stories.first.id.compareTo(b.stories.first.id),
-        );
+            final items = [...entry.value]
+              ..sort((a, b) {
+                final byOrder = a.sortOrder.compareTo(b.sortOrder);
+                if (byOrder != 0) return byOrder;
+                return a.id.compareTo(b.id);
+              });
+            final first = items.first;
+            return StoryGroup(
+              id: entry.key,
+              title: first.localizedGroupTitle.isNotEmpty
+                  ? first.localizedGroupTitle
+                  : first.localizedTitle,
+              subtitle: first.localizedDescription?.isNotEmpty == true
+                  ? first.localizedDescription
+                  : first.localizedTitle,
+              coverUrl: first.localizedGroupCoverUrl.isNotEmpty
+                  ? first.localizedGroupCoverUrl
+                  : first.localizedImageUrl,
+              stories: items,
+            );
+          }).toList()
+          ..sort((a, b) => a.stories.first.id.compareTo(b.stories.first.id));
     return groups;
   }
 
   Future<void> _openStoryGroup(StoryGroup group) async {
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        builder: (_) => StoryViewer(
-          stories: group.stories,
-          initialIndex: 0,
-          heroTag: 'promo-${group.id}',
+    await _navigationGate.run(() async {
+      final sequence = _groupStories(
+        _stories,
+      ).expand((item) => item.stories).toList(growable: false);
+      if (sequence.isEmpty) return;
+      final matchedIndex = sequence.indexWhere(
+        (story) => story.id == group.stories.first.id,
+      );
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (_) => StoryViewer(
+            stories: sequence,
+            initialIndex: matchedIndex < 0 ? 0 : matchedIndex,
+            heroTag: 'promo-${group.id}',
+          ),
         ),
-      ),
-    );
-    await _markStoryGroupViewed(group.id);
+      );
+      await _markStoryGroupViewed(group.id);
+    });
   }
 
   Future<void> _markStoryGroupViewed(String groupId) async {
@@ -409,12 +439,50 @@ class _SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: const TextStyle(
-        color: Color(0xFF6D3317),
+      style: TextStyle(
+        color: context.bulkaColors.brandBrown,
         fontFamily: _headingFont,
-        fontSize: 27,
-        height: 1.05,
-        fontWeight: FontWeight.w400,
+        fontSize: BulkaTypeScale.title,
+        height: 1.15,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+  }
+}
+
+class _BulkaHeaderLogo extends StatelessWidget {
+  const _BulkaHeaderLogo();
+
+  @override
+  Widget build(BuildContext context) {
+    // The source logo contains large transparent margins. Crop them at layout
+    // time so the visible mark follows the same 16 dp grid as the content.
+    return SizedBox(
+      key: const ValueKey('home-brand-logo'),
+      width: 100,
+      height: 56,
+      child: ClipRect(
+        child: OverflowBox(
+          alignment: Alignment.center,
+          minWidth: 235,
+          maxWidth: 235,
+          minHeight: 82,
+          maxHeight: 82,
+          child: ColorFiltered(
+            colorFilter: ColorFilter.mode(
+              context.bulkaColors.brandBrown,
+              BlendMode.srcIn,
+            ),
+            child: Image.asset(
+              'assets/brand/bulka_logo.png',
+              semanticLabel: 'app_title'.tr,
+              width: 235,
+              height: 82,
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -433,18 +501,95 @@ class _IconCircleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
-      onPressed: () {
-        BulkaMotion.lightImpact();
-        onTap();
-      },
-      tooltip: tooltip,
-      style: IconButton.styleFrom(
-        foregroundColor: const Color(0xFF6D3317),
-        minimumSize: const Size(48, 48),
-        tapTargetSize: MaterialTapTargetSize.padded,
+    return BulkaPressScale(
+      pressedScale: 0.92,
+      pressedOpacity: 0.82,
+      child: IconButton(
+        onPressed: () {
+          BulkaMotion.lightImpact();
+          onTap();
+        },
+        tooltip: tooltip,
+        style: IconButton.styleFrom(
+          foregroundColor: context.bulkaColors.brandBrown,
+          minimumSize: const Size(48, 48),
+          tapTargetSize: MaterialTapTargetSize.padded,
+        ),
+        icon: Icon(icon, size: 28),
       ),
-      icon: Icon(icon, size: 32),
+    );
+  }
+}
+
+class _GuestLoyaltyCard extends StatelessWidget {
+  const _GuestLoyaltyCard({required this.onSignIn});
+
+  final Future<bool> Function() onSignIn;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.bulkaColors;
+    return Semantics(
+      container: true,
+      label: '${'guest_loyalty_heading'.tr}. ${'guest_loyalty_body'.tr}',
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: colors.surfaceCream,
+          borderRadius: BorderRadius.circular(BulkaRadii.card),
+          border: Border.all(color: colors.cardBorder),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: colors.brandGold.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(BulkaRadii.control),
+                  ),
+                  child: Icon(
+                    Icons.account_balance_wallet_outlined,
+                    color: colors.brandBrown,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Text(
+                    'guest_loyalty_heading'.tr,
+                    style: const TextStyle(
+                      fontFamily: _headingFont,
+                      fontSize: BulkaTypeScale.titleSmall,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'guest_loyalty_body'.tr,
+              style: TextStyle(
+                color: colors.mutedText,
+                fontSize: BulkaTypeScale.body,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => unawaited(onSignIn()),
+                icon: const Icon(Icons.login_rounded),
+                label: Text('guest_sign_in'.tr),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -473,7 +618,7 @@ class _OrderTypeSection extends StatelessWidget {
                 illustration: _OrderIllustrationKind.pickup,
                 onTap: onPickupTap,
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 10),
               _OrderTypeCard(
                 title: 'order_preorder'.tr,
                 illustration: _OrderIllustrationKind.preorder,
@@ -482,7 +627,7 @@ class _OrderTypeSection extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(width: 14),
+        const SizedBox(width: 12),
         Expanded(
           child: _OrderTypeCard(
             title: 'order_delivery'.tr,
@@ -511,15 +656,19 @@ class _OrderTypeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final illustrationWidth = tall ? 178.0 : 88.0;
+    final illustrationWidth = tall ? 192.0 : 118.0;
     final cacheWidth =
         (illustrationWidth * MediaQuery.devicePixelRatioOf(context)).ceil();
     return BulkaPressScale(
       enabled: onTap != null,
       child: SizedBox(
-        height: tall ? 208 : 100,
+        key: ValueKey('order-card-${illustration.name}'),
+        height: tall ? 174 : 82,
         child: Material(
+          key: ValueKey('order-card-clip-${illustration.name}'),
           color: Colors.transparent,
+          borderRadius: BorderRadius.circular(BulkaRadii.card),
+          clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: onTap == null
                 ? null
@@ -527,54 +676,57 @@ class _OrderTypeCard extends StatelessWidget {
                     BulkaMotion.lightImpact();
                     onTap!();
                   },
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(BulkaRadii.control),
             child: Ink(
+              key: ValueKey('order-card-background-${illustration.name}'),
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(BulkaRadii.control),
                 gradient: const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: [Color(0xFFFFD54F), Color(0xFFFFB300)],
+                ),
+                image: const DecorationImage(
+                  image: AssetImage('assets/order/berliner_oreo_cluster.webp'),
+                  fit: BoxFit.cover,
+                  alignment: Alignment.center,
+                  opacity: 0.34,
                 ),
               ),
               child: Stack(
                 clipBehavior: Clip.hardEdge,
                 children: [
                   Positioned(
-                    right: tall ? -18 : -10,
-                    bottom: tall ? 10 : -14,
+                    // Keep the compact-card artwork anchored to the outer
+                    // right corner, away from the title's reading zone.
+                    right: tall ? -46 : -29,
+                    // Short illustrations have transparent space above the
+                    // artwork. Lower the source canvas so the first visible
+                    // pixels start below the title instead of behind it.
+                    bottom: tall ? -18 : -34,
                     child: SizedBox(
-                      width: tall ? 175 : 105,
-                      height: tall ? 175 : 105,
-                      child: const CustomPaint(painter: _OrderSplashPainter()),
-                    ),
-                  ),
-                  Positioned(
-                    right: tall ? -34 : 0,
-                    bottom: tall ? -8 : -12,
-                    child: SizedBox(
+                      key: ValueKey('order-illustration-${illustration.name}'),
                       width: illustrationWidth,
-                      height: tall ? 172 : 84,
-                      child: Image.asset(
-                        illustration.assetPath,
+                      height: tall ? 170 : 88,
+                      child: _DeferredOrderIllustration(
+                        assetPath: illustration.assetPath,
                         fit: BoxFit.contain,
                         cacheWidth: cacheWidth,
-                        filterQuality: FilterQuality.medium,
                       ),
                     ),
                   ),
                   Positioned(
-                    left: 14,
-                    top: 16,
-                    right: 12,
+                    left: 12,
+                    top: 12,
+                    right: 10,
                     child: _OrderCardTitle(title: title, tall: tall),
                   ),
                   Positioned(
-                    left: 14,
-                    bottom: 16,
+                    left: 12,
+                    bottom: 10,
                     child: Container(
-                      width: 38,
-                      height: 38,
+                      width: 30,
+                      height: 30,
                       decoration: const BoxDecoration(
                         color: Colors.white,
                         shape: BoxShape.circle,
@@ -582,7 +734,7 @@ class _OrderTypeCard extends StatelessWidget {
                       child: const Icon(
                         Icons.chevron_right_rounded,
                         color: Color(0xFF6D3317),
-                        size: 28,
+                        size: 22,
                       ),
                     ),
                   ),
@@ -596,50 +748,60 @@ class _OrderTypeCard extends StatelessWidget {
   }
 }
 
-class _OrderSplashPainter extends CustomPainter {
-  const _OrderSplashPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.45)
-      ..style = PaintingStyle.fill;
-
-    final center = Offset(size.width * 0.5, size.height * 0.5);
-    final radius = size.width * 0.42;
-    final waveDepth = size.width * 0.08;
-    const petals = 10;
-
-    final path = Path();
-    const steps = 120;
-    for (int i = 0; i <= steps; i++) {
-      final t = (i / steps) * 2 * pi;
-      final r = radius + waveDepth * cos(petals * t);
-      final x = center.dx + r * cos(t);
-      final y = center.dy + r * sin(t);
-      if (i == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
-      }
-    }
-    path.close();
-
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _OrderSplashPainter oldDelegate) => false;
-}
-
 enum _OrderIllustrationKind {
-  pickup('assets/order/pickup.png'),
-  preorder('assets/order/preorder.png'),
-  delivery('assets/order/delivery.png');
+  pickup('assets/order/pickup.webp'),
+  preorder('assets/order/preorder.webp'),
+  delivery('assets/order/delivery.webp');
 
   const _OrderIllustrationKind(this.assetPath);
 
   final String assetPath;
+}
+
+class _DeferredOrderIllustration extends StatefulWidget {
+  const _DeferredOrderIllustration({
+    required this.assetPath,
+    required this.fit,
+    required this.cacheWidth,
+  });
+
+  final String assetPath;
+  final BoxFit fit;
+  final int cacheWidth;
+
+  @override
+  State<_DeferredOrderIllustration> createState() =>
+      _DeferredOrderIllustrationState();
+}
+
+class _DeferredOrderIllustrationState
+    extends State<_DeferredOrderIllustration> {
+  bool _ready = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _ready = true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedOpacity(
+      opacity: _ready ? 1 : 0,
+      duration: BulkaMotion.fast,
+      curve: BulkaMotion.standardCurve,
+      child: _ready
+          ? Image.asset(
+              widget.assetPath,
+              fit: widget.fit,
+              cacheWidth: widget.cacheWidth,
+              filterQuality: FilterQuality.medium,
+            )
+          : const SizedBox.expand(),
+    );
+  }
 }
 
 class _OrderCardTitle extends StatelessWidget {
@@ -653,7 +815,7 @@ class _OrderCardTitle extends StatelessWidget {
     const style = TextStyle(
       color: Color(0xFF6D3317),
       fontFamily: _headingFont,
-      fontSize: 19,
+      fontSize: BulkaTypeScale.titleSmall,
       height: 1.08,
       fontWeight: FontWeight.w400,
     );

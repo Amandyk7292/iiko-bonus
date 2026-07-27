@@ -1,6 +1,12 @@
+const crypto = require('node:crypto');
 const { supabase } = require('../config/supabase');
-const { sendPushNotification } = require('./push.service');
+const { sendPushToCustomer } = require('./push.service');
 const kaspiService = require('./kaspi.service');
+const { releaseOrderReservations } = require('./inventory.service');
+const realtime = require('./realtime.service');
+const { sendOrderLiveActivity } = require('./live-activity.service');
+const { paymentReceiptUrl } = require('./payment-receipt.service');
+const { paymentProviderName, refundPaymentForOrder } = require('./payment-gateway.service');
 
 const ORDER_FIELDS = [
   'id',
@@ -30,6 +36,25 @@ const ORDER_FIELDS = [
   'refund_requested_at',
   'refunded_at',
   'refund_error',
+  'courier_id',
+  'delivery_status',
+  'estimated_delivery_at',
+  'promised_ready_at',
+  'eta_min_at',
+  'eta_max_at',
+  'eta_confidence',
+  'eta_version',
+  'eta_updated_at',
+  'route_distance_km',
+  'preparation_minutes',
+  'courier_assigned_at',
+  'out_for_delivery_at',
+  'delivered_at',
+  'delivery_pin',
+  'delivery_confirmed_at',
+  'tracking_code',
+  'customer_arrived_at',
+  'receipt_created_at',
   'created_at',
   'updated_at',
 ].join(',');
@@ -50,52 +75,138 @@ const httpError = (statusCode, message) => Object.assign(new Error(message), { s
 const refundError = (statusCode, message, code) =>
   Object.assign(new Error(message), { statusCode, code });
 
-const normalizeOrder = (order) => ({
-  id: order.id,
-  number: Number(order.order_number),
-  paymentStatus:
-    order.status === 'refunded' || order.refund_status === 'succeeded' ? 'refunded' : order.status,
-  orderStatus: order.fulfillment_status === 'pending' ? 'new' : order.fulfillment_status,
-  amount: Number(order.amount || 0),
-  subtotal: Number(order.subtotal ?? order.amount ?? 0),
-  discount: Number(order.discount_amount || 0),
-  promoCode: order.promo_code || null,
-  orderType: order.fulfillment_type || 'pickup',
-  fulfillmentType: order.fulfillment_type || 'pickup',
-  branchId: order.branch_id == null ? null : String(order.branch_id),
-  branch: order.branch_name || '',
-  scheduledAt: order.scheduled_at || order.pickup_time || null,
-  pickupTime: order.scheduled_at || order.pickup_time || null,
-  deliveryAddress:
-    order.delivery_address && typeof order.delivery_address === 'object'
-      ? order.delivery_address
-      : null,
-  deliveryFee: Number(order.delivery_fee || 0),
-  comment: order.comment || null,
-  items: Array.isArray(order.cart_items) ? order.cart_items : [],
-  earnedBonus: Number(order.earned_bonus || 0),
-  refundStatus: order.refund_status || null,
-  refundAmount: order.refund_amount == null ? null : Number(order.refund_amount),
-  refundedAt: order.refunded_at || null,
-  cancellationReason: order.cancellation_reason || null,
-  createdAt: order.created_at,
-  updatedAt: order.updated_at,
-  ...(order.customers
+const latestExternalDelivery = (order) =>
+  Array.isArray(order?.delivery_jobs)
+    ? [...order.delivery_jobs].sort(
+        (left, right) =>
+          new Date(right.created_at || 0).getTime() - new Date(left.created_at || 0).getTime(),
+      )[0] || null
+    : null;
+
+const externalCourier = (job) => {
+  if (!job?.courier_name && !job?.courier_car_model && !job?.courier_transport_type) return null;
+  return {
+    id: String(job.id || ''),
+    name: job.courier_name || 'Курьер Яндекс.Доставки',
+    phone: job.courier_phone || '',
+    vehicle:
+      [job.courier_car_color, job.courier_car_model, job.courier_car_number]
+        .filter(Boolean)
+        .join(' · ') ||
+      job.courier_transport_type ||
+      null,
+    latitude: null,
+    longitude: null,
+    locationUpdatedAt: job.updated_at || null,
+  };
+};
+
+const orderReceiptUrl = (order) => {
+  const relation = Array.isArray(order?.payment_receipts)
+    ? order.payment_receipts[0]
+    : order?.payment_receipts;
+  if (!relation?.id) return null;
+  try {
+    return paymentReceiptUrl(relation.id, process.env, relation.language);
+  } catch {
+    return null;
+  }
+};
+
+const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
+  const external = latestExternalDelivery(order);
+  const ownCourier = order.couriers
     ? {
-        customer: {
-          name: order.customers.name || '',
-          phone: order.customers.phone || '',
-        },
+        id: String(order.couriers.id || order.courier_id || ''),
+        name: order.couriers.name || '',
+        phone: order.couriers.phone || '',
+        vehicle: order.couriers.vehicle || null,
+        latitude:
+          order.couriers.current_latitude == null ? null : Number(order.couriers.current_latitude),
+        longitude:
+          order.couriers.current_longitude == null
+            ? null
+            : Number(order.couriers.current_longitude),
+        locationUpdatedAt: order.couriers.location_updated_at || null,
       }
-    : {}),
-});
+    : null;
+  return {
+    id: order.id,
+    number: Number(order.order_number),
+    paymentStatus:
+      order.status === 'refunded' || order.refund_status === 'succeeded'
+        ? 'refunded'
+        : order.status,
+    orderStatus: order.fulfillment_status === 'pending' ? 'new' : order.fulfillment_status,
+    amount: Number(order.amount || 0),
+    subtotal: Number(order.subtotal ?? order.amount ?? 0),
+    discount: Number(order.discount_amount || 0),
+    promoCode: order.promo_code || null,
+    orderType: order.fulfillment_type || 'pickup',
+    fulfillmentType: order.fulfillment_type || 'pickup',
+    branchId: order.branch_id == null ? null : String(order.branch_id),
+    branch: order.branch_name || '',
+    scheduledAt: order.scheduled_at || order.pickup_time || null,
+    pickupTime: order.scheduled_at || order.pickup_time || null,
+    deliveryAddress:
+      order.delivery_address && typeof order.delivery_address === 'object'
+        ? order.delivery_address
+        : null,
+    deliveryFee: Number(order.delivery_fee || 0),
+    comment: order.comment || null,
+    items: Array.isArray(order.cart_items) ? order.cart_items : [],
+    earnedBonus: Number(order.earned_bonus || 0),
+    refundStatus: order.refund_status || null,
+    refundAmount: order.refund_amount == null ? null : Number(order.refund_amount),
+    refundedAt: order.refunded_at || null,
+    deliveryStatus: order.delivery_status || 'unassigned',
+    deliveryConfirmedAt: order.delivery_confirmed_at || null,
+    ...(includeDeliveryPin && order.delivery_pin ? { deliveryPin: order.delivery_pin } : {}),
+    estimatedDeliveryAt: order.estimated_delivery_at || null,
+    promisedReadyAt: order.promised_ready_at || null,
+    etaMinAt: order.eta_min_at || null,
+    etaMaxAt: order.eta_max_at || null,
+    etaConfidence: order.eta_confidence || null,
+    etaVersion: order.eta_version || null,
+    etaUpdatedAt: order.eta_updated_at || null,
+    routeDistanceKm: order.route_distance_km == null ? null : Number(order.route_distance_km),
+    preparationMinutes:
+      order.preparation_minutes == null ? null : Number(order.preparation_minutes),
+    trackingCode: order.tracking_code || null,
+    trackingUrl: external?.tracking_url || null,
+    deliveryProvider: ownCourier ? 'bulka' : external?.provider || null,
+    providerDeliveryStatus: external?.provider_status || null,
+    providerDeliveryPrice:
+      external?.provider_price == null ? null : Number(external.provider_price),
+    customerArrivedAt: order.customer_arrived_at || null,
+    courier: ownCourier || externalCourier(external),
+    cancellationReason: order.cancellation_reason || null,
+    receiptUrl: orderReceiptUrl(order),
+    createdAt: order.created_at,
+    updatedAt: order.updated_at,
+    ...(order.customers
+      ? {
+          customer: {
+            name: order.customers.name || '',
+            phone: order.customers.phone || '',
+          },
+        }
+      : {}),
+  };
+};
+
+const DELIVERY_JOB_FIELDS =
+  'delivery_jobs(id,provider,provider_status,internal_status,provider_price,currency,tracking_url,courier_name,courier_phone,courier_transport_type,courier_car_model,courier_car_number,courier_car_color,eta_minutes,created_at,updated_at)';
 
 async function listCustomerOrders(customerId, { scope = 'active', page = 1, pageSize = 30 } = {}) {
   const safePage = Math.max(1, Number.parseInt(page, 10) || 1);
   const safePageSize = Math.min(50, Math.max(1, Number.parseInt(pageSize, 10) || 30));
   let query = supabase
     .from('kaspi_orders')
-    .select(ORDER_FIELDS, { count: 'exact' })
+    .select(
+      `${ORDER_FIELDS},payment_receipts(id,language),couriers(id,name,phone,vehicle,current_latitude,current_longitude,location_updated_at),${DELIVERY_JOB_FIELDS}`,
+      { count: 'exact' },
+    )
     .eq('customer_id', customerId)
     .in('status', ['paid', 'refunded']);
 
@@ -111,11 +222,59 @@ async function listCustomerOrders(customerId, { scope = 'active', page = 1, page
     .range(from, from + safePageSize - 1);
   if (error) throw error;
   return {
-    orders: (data || []).map(normalizeOrder),
+    orders: (data || []).map((order) => normalizeOrder(order, { includeDeliveryPin: true })),
     total: count || 0,
     page: safePage,
     pageSize: safePageSize,
   };
+}
+
+function canMarkCustomerArrived(order) {
+  if (!order || order.status !== 'paid') return false;
+  if (!['pickup', 'preorder'].includes(order.fulfillment_type || 'pickup')) return false;
+  const status = order.fulfillment_status === 'pending' ? 'new' : order.fulfillment_status;
+  return status === 'ready';
+}
+
+async function markCustomerArrived(customerId, orderId) {
+  const { data: current, error: readError } = await supabase
+    .from('kaspi_orders')
+    .select('*,payment_receipts(id,language)')
+    .eq('id', orderId)
+    .eq('customer_id', customerId)
+    .maybeSingle();
+  if (readError) throw readError;
+  if (!current) throw httpError(404, 'Заказ не найден');
+  if (current.customer_arrived_at) return normalizeOrder(current);
+  if (!canMarkCustomerArrived(current)) {
+    throw httpError(409, 'Сообщить о прибытии можно, когда заказ готов к самовывозу');
+  }
+
+  const arrivedAt = new Date().toISOString();
+  const { data, error } = await supabase
+    .from('kaspi_orders')
+    .update({ customer_arrived_at: arrivedAt })
+    .eq('id', orderId)
+    .eq('customer_id', customerId)
+    .is('customer_arrived_at', null)
+    .select('*,payment_receipts(id,language)')
+    .maybeSingle();
+  if (error) throw error;
+
+  const updated = data || { ...current, customer_arrived_at: arrivedAt };
+  const event = {
+    orderId: updated.id,
+    orderNumber: updated.order_number,
+    orderStatus: updated.fulfillment_status,
+    customerArrivedAt: updated.customer_arrived_at,
+    branchId: updated.branch_id,
+  };
+  realtime.publish('order.customer_arrived', event, {
+    customerId,
+    includeAdmins: true,
+    branchId: updated.branch_id,
+  });
+  return normalizeOrder(updated);
 }
 
 async function listAdminOrders({
@@ -124,6 +283,7 @@ async function listAdminOrders({
   search = '',
   paymentStatus,
   orderStatus,
+  branchIds = [],
 } = {}) {
   const safePage = Math.max(1, Number.parseInt(page, 10) || 1);
   const safePageSize = Math.min(100, Math.max(10, Number.parseInt(pageSize, 10) || 50));
@@ -133,7 +293,10 @@ async function listAdminOrders({
     .slice(0, 80);
   let query = supabase
     .from('kaspi_orders')
-    .select(`${ORDER_FIELDS},customers(name,phone)`, { count: 'exact' });
+    .select(
+      `${ORDER_FIELDS},customers(name,phone),payment_receipts(id,language),couriers(id,name,phone,vehicle,current_latitude,current_longitude,location_updated_at),${DELIVERY_JOB_FIELDS}`,
+      { count: 'exact' },
+    );
 
   if (
     paymentStatus &&
@@ -144,6 +307,10 @@ async function listAdminOrders({
   if (orderStatus && [...ORDER_STATUSES, 'pending'].includes(orderStatus)) {
     query = query.eq('fulfillment_status', orderStatus);
   }
+  const scopedBranchIds = Array.isArray(branchIds)
+    ? [...new Set(branchIds.map(String).filter(Boolean))]
+    : [];
+  if (scopedBranchIds.length) query = query.in('branch_id', scopedBranchIds);
   if (cleanSearch) {
     const predicates = [
       `phone.ilike.%${cleanSearch}%`,
@@ -169,29 +336,83 @@ async function listAdminOrders({
 
 async function notifyOrderStatus(order) {
   if (!order.customer_id) return;
-  const copy = {
-    accepted: ['Заказ принят', `Заказ №${order.order_number} принят в работу.`],
-    preparing: ['Заказ готовится', `Мы готовим заказ №${order.order_number}.`],
-    ready: ['Заказ готов', `Заказ №${order.order_number} готов к выдаче.`],
-    completed: ['Заказ выдан', `Заказ №${order.order_number} завершён. Спасибо!`],
-    cancelled:
-      order.status === 'refunded'
-        ? [
-            'Заказ отменён, деньги возвращены',
-            `Возврат ${Number(order.refund_amount || order.amount || 0).toLocaleString('ru-RU')} ₸ по заказу №${order.order_number} оформлен.`,
-          ]
-        : [
-            'Заказ отменён',
-            `Заказ №${order.order_number} отменён${order.cancellation_reason ? `: ${order.cancellation_reason}` : '.'}`,
-          ],
-  }[order.fulfillment_status];
-  if (!copy) return;
+  const number = order.order_number;
+  const refundAmount = Number(order.refund_amount || order.amount || 0).toLocaleString('ru-RU');
+  const cancellationSuffix = order.cancellation_reason ? `: ${order.cancellation_reason}` : '.';
+  const copiesByLanguage = {
+    ru: {
+      accepted: ['Заказ принят', `Заказ №${number} принят в работу.`],
+      preparing: ['Заказ готовится', `Мы готовим заказ №${number}.`],
+      ready: ['Заказ готов', `Заказ №${number} готов к выдаче.`],
+      completed: ['Заказ выдан', `Заказ №${number} завершён. Спасибо!`],
+      cancelled:
+        order.status === 'refunded'
+          ? [
+              'Заказ отменён, деньги возвращены',
+              `Возврат ${refundAmount} ₸ по заказу №${number} оформлен.`,
+            ]
+          : ['Заказ отменён', `Заказ №${number} отменён${cancellationSuffix}`],
+    },
+    kk: {
+      accepted: ['Тапсырыс қабылданды', `№${number} тапсырыс жұмысқа қабылданды.`],
+      preparing: ['Тапсырыс дайындалып жатыр', `№${number} тапсырысты дайындап жатырмыз.`],
+      ready: ['Тапсырыс дайын', `№${number} тапсырыс алып кетуге дайын.`],
+      completed: ['Тапсырыс табысталды', `№${number} тапсырыс аяқталды. Рақмет!`],
+      cancelled:
+        order.status === 'refunded'
+          ? [
+              'Тапсырыс тоқтатылды, ақша қайтарылды',
+              `№${number} тапсырыс бойынша ${refundAmount} ₸ қайтару рәсімделді.`,
+            ]
+          : ['Тапсырыс тоқтатылды', `№${number} тапсырыс тоқтатылды${cancellationSuffix}`],
+    },
+    en: {
+      accepted: ['Order accepted', `Order #${number} has been accepted.`],
+      preparing: ['Order is being prepared', `We are preparing order #${number}.`],
+      ready: ['Order is ready', `Order #${number} is ready for pickup.`],
+      completed: ['Order collected', `Order #${number} is complete. Thank you!`],
+      cancelled:
+        order.status === 'refunded'
+          ? [
+              'Order cancelled and refunded',
+              `The ${refundAmount} ₸ refund for order #${number} has been processed.`,
+            ]
+          : ['Order cancelled', `Order #${number} was cancelled${cancellationSuffix}`],
+    },
+  };
+  const localizedCopies = Object.fromEntries(
+    Object.entries(copiesByLanguage).map(([language, copies]) => [
+      language,
+      copies[order.fulfillment_status],
+    ]),
+  );
+  if (!localizedCopies.ru) return;
+  const messageKey =
+    order.fulfillment_status === 'cancelled' && order.status === 'refunded'
+      ? 'order_refunded'
+      : `order_${order.fulfillment_status}`;
+
+  await sendOrderLiveActivity(order, {
+    end: ['completed', 'cancelled'].includes(order.fulfillment_status),
+  }).catch((error) => console.error('Не удалось обновить Live Activity:', error.message));
 
   const { data: customer } = await supabase
     .from('customers')
-    .select('fcm_token')
+    .select('fcm_token,preferred_language')
     .eq('id', order.customer_id)
     .maybeSingle();
+  const language = ['kk', 'en'].includes(String(customer?.preferred_language || '').toLowerCase())
+    ? String(customer.preferred_language).toLowerCase()
+    : 'ru';
+  const copy = localizedCopies[language] || localizedCopies.ru;
+  const i18n = {
+    titles: Object.fromEntries(
+      Object.entries(localizedCopies).map(([code, value]) => [code, value[0]]),
+    ),
+    bodies: Object.fromEntries(
+      Object.entries(localizedCopies).map(([code, value]) => [code, value[1]]),
+    ),
+  };
   const { data: saved } = await supabase
     .from('customer_notifications')
     .insert({
@@ -199,28 +420,47 @@ async function notifyOrderStatus(order) {
       title: copy[0],
       body: copy[1],
       type: 'order',
-      payload: { orderId: order.id, orderNumber: order.order_number },
+      payload: {
+        orderId: order.id,
+        orderNumber: order.order_number,
+        messageKey,
+        i18n,
+      },
     })
     .select('id')
     .maybeSingle();
-  if (customer?.fcm_token) {
-    await sendPushNotification(customer.fcm_token, copy[0], copy[1], {
-      type: 'order',
-      orderId: String(order.id),
-      notificationId: String(saved?.id || ''),
-    });
+  if (order.customer_id) {
+    await sendPushToCustomer(
+      order.customer_id,
+      copy[0],
+      copy[1],
+      {
+        type: 'order',
+        orderId: String(order.id),
+        orderNumber: String(order.order_number),
+        orderStatus: String(order.fulfillment_status || ''),
+        fulfillmentType: String(order.fulfillment_type || 'pickup'),
+        orderEta: String(order.promised_ready_at || order.estimated_delivery_at || ''),
+        deepLink: `${String(process.env.PUBLIC_BASE_URL || 'https://bulka.com.kz').replace(/\/$/, '')}/orders?order=${encodeURIComponent(order.id)}`,
+        notificationId: String(saved?.id || ''),
+      },
+      customer?.fcm_token,
+    );
   }
 }
 
 async function markRefundFailure(order, error) {
   const uncertain = error?.refundUncertain === true;
-  const message = String(error?.message || 'Возврат Kaspi не выполнен').slice(0, 1000);
+  const message = String(error?.message || 'Возврат не выполнен').slice(0, 1000);
   await supabase
     .from('kaspi_orders')
     .update({
       refund_status: uncertain ? 'unknown' : 'failed',
       refund_error: message,
       last_error: message,
+      ...(error?.refundReference && {
+        refund_reference: String(error.refundReference).slice(0, 160),
+      }),
     })
     .eq('id', order.id)
     .eq('refund_status', 'processing');
@@ -252,7 +492,7 @@ async function cancelPaidOrder(current, cancellationReason) {
       'KASPI_REFUND_UNKNOWN',
     );
   }
-  if (current.refund_status && current.refund_status !== 'failed') {
+  if (current.refund_status && !['failed', 'partial'].includes(current.refund_status)) {
     throw refundError(
       409,
       'Текущее состояние возврата не позволяет повтор',
@@ -264,6 +504,7 @@ async function cancelPaidOrder(current, cancellationReason) {
     .trim()
     .slice(0, 500);
   const requestedAt = new Date().toISOString();
+  const refundRequestId = crypto.randomUUID();
   let claim = supabase
     .from('kaspi_orders')
     .update({
@@ -272,6 +513,7 @@ async function cancelPaidOrder(current, cancellationReason) {
       refund_error: null,
       cancellation_reason: reason || null,
       last_error: null,
+      refund_request_id: refundRequestId,
     })
     .eq('id', current.id)
     .eq('status', 'paid');
@@ -290,15 +532,22 @@ async function cancelPaidOrder(current, cancellationReason) {
 
   let refund;
   try {
-    refund = await kaspiService.refundPayment(claimed.operation_id, claimed.amount);
+    const remainingRefund = Number(claimed.amount) - Number(claimed.partially_refunded_amount || 0);
+    if (!Number.isFinite(remainingRefund) || remainingRefund <= 0) {
+      throw refundError(409, 'Заказ уже полностью возвращён', 'KASPI_REFUND_CONFLICT');
+    }
+    refund = await refundPaymentForOrder(claimed, remainingRefund, {
+      reason,
+      idempotencyKey: claimed.refund_request_id || refundRequestId,
+    });
   } catch (error) {
     await markRefundFailure(claimed, error).catch((saveError) =>
-      console.error('Не удалось сохранить ошибку возврата Kaspi:', saveError.message),
+      console.error('Не удалось сохранить ошибку возврата:', saveError.message),
     );
     throw refundError(
       error.statusCode || 502,
-      error.message || 'Kaspi не подтвердил возврат',
-      error.code || 'KASPI_REFUND_FAILED',
+      error.message || `${paymentProviderName(claimed)} не подтвердил возврат`,
+      error.code || 'PAYMENT_REFUND_FAILED',
     );
   }
 
@@ -312,6 +561,7 @@ async function cancelPaidOrder(current, cancellationReason) {
       fulfilled_at: null,
       refund_status: 'succeeded',
       refund_amount: Number(claimed.amount),
+      partially_refunded_amount: Number(claimed.amount),
       refund_reference: refund.reference,
       refunded_at: refundedAt,
       refund_error: null,
@@ -325,8 +575,8 @@ async function cancelPaidOrder(current, cancellationReason) {
   if (!refunded) {
     throw refundError(
       500,
-      'Kaspi подтвердил возврат, но заказ не обновился. Обратитесь к администратору.',
-      'KASPI_REFUND_DB_CONFLICT',
+      `${paymentProviderName(claimed)} подтвердил возврат, но заказ не обновился. Обратитесь к администратору.`,
+      'PAYMENT_REFUND_DB_CONFLICT',
     );
   }
 
@@ -343,10 +593,32 @@ async function cancelPaidOrder(current, cancellationReason) {
   await notifyOrderStatus(finalOrder).catch((error) =>
     console.error('Не удалось отправить уведомление о заказе:', error.message),
   );
+  await releaseOrderReservations(finalOrder.id).catch((error) =>
+    console.error('Не удалось освободить резерв отменённого заказа:', error.message),
+  );
+  realtime.publish(
+    'order.updated',
+    {
+      orderId: finalOrder.id,
+      orderNumber: finalOrder.order_number,
+      paymentStatus: finalOrder.status,
+      orderStatus: finalOrder.fulfillment_status,
+    },
+    {
+      customerId: finalOrder.customer_id,
+      includeAdmins: true,
+      branchId: finalOrder.branch_id,
+    },
+  );
   return normalizeOrder(finalOrder);
 }
 
-async function updateAdminOrderStatus(id, nextStatus, cancellationReason = '') {
+async function updateAdminOrderStatus(
+  id,
+  nextStatus,
+  cancellationReason = '',
+  { branchIds = [] } = {},
+) {
   if (!ORDER_STATUSES.includes(nextStatus)) throw httpError(400, 'Некорректный статус заказа');
   const { data: current, error: readError } = await supabase
     .from('kaspi_orders')
@@ -355,6 +627,10 @@ async function updateAdminOrderStatus(id, nextStatus, cancellationReason = '') {
     .maybeSingle();
   if (readError) throw readError;
   if (!current) throw httpError(404, 'Заказ не найден');
+  const scopedBranchIds = Array.isArray(branchIds) ? branchIds.map(String).filter(Boolean) : [];
+  if (scopedBranchIds.length && !scopedBranchIds.includes(String(current.branch_id || ''))) {
+    throw httpError(404, 'Заказ не найден');
+  }
 
   const currentStatus =
     current.fulfillment_status === 'pending' ? 'new' : current.fulfillment_status;
@@ -400,6 +676,21 @@ async function updateAdminOrderStatus(id, nextStatus, cancellationReason = '') {
   await notifyOrderStatus(data).catch((error) =>
     console.error('Не удалось отправить уведомление о заказе:', error.message),
   );
+  if (['completed', 'cancelled'].includes(nextStatus)) {
+    await releaseOrderReservations(data.id).catch((error) =>
+      console.error('Не удалось освободить резерв закрытого заказа:', error.message),
+    );
+  }
+  realtime.publish(
+    'order.updated',
+    {
+      orderId: data.id,
+      orderNumber: data.order_number,
+      paymentStatus: data.status,
+      orderStatus: data.fulfillment_status,
+    },
+    { customerId: data.customer_id, includeAdmins: true, branchId: data.branch_id },
+  );
   return normalizeOrder(data);
 }
 
@@ -408,5 +699,8 @@ module.exports = {
   normalizeOrder,
   listAdminOrders,
   listCustomerOrders,
+  canMarkCustomerArrived,
+  markCustomerArrived,
+  notifyOrderStatus,
   updateAdminOrderStatus,
 };

@@ -1,10 +1,10 @@
 const fetch = require('node-fetch');
 
-const AKTAU_BOUNDS = Object.freeze({
-  south: 43.55,
-  west: 51.05,
-  north: 43.75,
-  east: 51.32,
+const ASTANA_BOUNDS = Object.freeze({
+  south: 50.85,
+  west: 70.85,
+  north: 51.35,
+  east: 71.85,
 });
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const CACHE_LIMIT = 500;
@@ -15,11 +15,11 @@ let nextRequestAt = 0;
 const geocodeError = (message, statusCode = 400) =>
   Object.assign(new Error(message), { statusCode });
 
-const insideAktauBounds = (latitude, longitude) =>
-  latitude >= AKTAU_BOUNDS.south &&
-  latitude <= AKTAU_BOUNDS.north &&
-  longitude >= AKTAU_BOUNDS.west &&
-  longitude <= AKTAU_BOUNDS.east;
+const insideAstanaBounds = (latitude, longitude) =>
+  latitude >= ASTANA_BOUNDS.south &&
+  latitude <= ASTANA_BOUNDS.north &&
+  longitude >= ASTANA_BOUNDS.west &&
+  longitude <= ASTANA_BOUNDS.east;
 
 const fromCache = (key) => {
   const entry = cache.get(key);
@@ -90,7 +90,7 @@ const normalizedAddress = (item) => ({
       item?.display_name ||
       '',
   ).slice(0, 500),
-  city: String(item?.address?.city || item?.address?.town || 'Актау').slice(0, 100),
+  city: String(item?.address?.city || item?.address?.town || 'Астана').slice(0, 100),
   latitude: Number(item?.lat),
   longitude: Number(item?.lon),
 });
@@ -109,12 +109,12 @@ async function searchAddresses(query, language = 'ru') {
   const data = await nominatim(
     'search',
     {
-      q: `${cleanQuery}, Актау, Казахстан`,
+      q: `${cleanQuery}, Астана, Казахстан`,
       format: 'jsonv2',
       addressdetails: 1,
       limit: 5,
       bounded: 1,
-      viewbox: `${AKTAU_BOUNDS.west},${AKTAU_BOUNDS.north},${AKTAU_BOUNDS.east},${AKTAU_BOUNDS.south}`,
+      viewbox: `${ASTANA_BOUNDS.west},${ASTANA_BOUNDS.north},${ASTANA_BOUNDS.east},${ASTANA_BOUNDS.south}`,
     },
     normalizedLanguage,
   );
@@ -124,7 +124,7 @@ async function searchAddresses(query, language = 'ru') {
       (item) =>
         Number.isFinite(item.latitude) &&
         Number.isFinite(item.longitude) &&
-        insideAktauBounds(item.latitude, item.longitude),
+        insideAstanaBounds(item.latitude, item.longitude),
     );
   saveCache(key, results);
   return results;
@@ -136,9 +136,9 @@ async function reverseAddress(latitudeValue, longitudeValue, language = 'ru') {
   if (
     !Number.isFinite(latitude) ||
     !Number.isFinite(longitude) ||
-    !insideAktauBounds(latitude, longitude)
+    !insideAstanaBounds(latitude, longitude)
   ) {
-    throw geocodeError('Координаты находятся за пределами Актау');
+    throw geocodeError('Координаты находятся за пределами Астаны');
   }
   const normalizedLanguage = normalizeLanguage(language);
   const key = `reverse:${normalizedLanguage}:${latitude.toFixed(5)}:${longitude.toFixed(5)}`;
@@ -164,8 +164,8 @@ async function reverseAddress(latitudeValue, longitudeValue, language = 'ru') {
 }
 
 module.exports = {
-  AKTAU_BOUNDS,
-  insideAktauBounds,
+  ASTANA_BOUNDS,
+  insideAstanaBounds,
   normalizeLanguage,
   reverseAddress,
   searchAddresses,

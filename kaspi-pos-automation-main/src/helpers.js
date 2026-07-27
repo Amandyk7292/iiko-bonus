@@ -1,9 +1,10 @@
 import crypto from 'crypto';
 import fetch from 'node-fetch';
 import { DEVICE, APP, UA_NATIVE } from './config.js';
-import { computeTokenSnMac, computeXSign, computeXSU } from './crypto.js';
-import { inactiveSessionResponse } from './activeSession.js';
-import { getKaspiErrorMessage, isKaspiSessionExpired } from './kaspiResponse.js';
+import { computeTokenSnMac, computeXSign } from './crypto.js';
+import { clearActiveSession, inactiveSessionResponse } from './activeSession.js';
+import { isKaspiSessionExpired } from './kaspiResponse.js';
+import { clearGlobalSession } from './sessionStorage.js';
 
 // ─── Utilities ───
 
@@ -59,40 +60,42 @@ export const loggedFetch = async (url, options = {}) => {
   return resp;
 };
 
-export const kaspiProxyJson = async (res, resp, fallback = 'Kaspi отклонил запрос.') => {
+export const kaspiProxyJson = async (res, resp, session) => {
   const body = await resp.json().catch(() => ({}));
   if (isKaspiSessionExpired(body)) {
-    return res.status(401).json(inactiveSessionResponse(getKaspiErrorMessage(body, fallback)));
+    clearActiveSession(session?.tokenSN);
+    clearGlobalSession('kaspi_session_expired', session);
+    return res.status(401).json(inactiveSessionResponse());
   }
   return res.status(resp.ok ? 200 : resp.status).json(body);
 };
 
 // ─── Signed QR-pay headers (session passed as parameter) ───
 
-export const signedQrPayHeaders = (url, session) => {
+export const signedQrPayHeaders = (url, session, body) => {
   const xsh =
-    'url,X-Kb-Client-Ip,X-Time,X-App-Ver,X-SV,X-Locale,X-App-Bld,X-Install-ID,X-Kb-TokenSn,X-S,X-Kb-TokenSnMac,X-Call';
+    'url,X-Install-ID,X-PI,X-App-Bld,X-Platform-Ver,X-Locale,X-App-Ver,X-Device-ID,X-SV,X-Time,X-Platform-Type,X-Call,X-Kb-TokenSnMac,X-Kb-TokenSn';
   const headers = {
     'X-Kb-TokenSn': session.tokenSN,
     'X-Kb-TokenSnMac': computeTokenSnMac(session.tokenSN, session.decryptedSecret),
+    'X-PI': session.profileId != null ? String(session.profileId) : '',
     'X-Install-ID': DEVICE.installId,
+    'X-Device-ID': DEVICE.deviceId,
     'X-App-Ver': APP.version,
     'X-App-Bld': APP.build,
+    'X-Platform-Type': APP.platform,
+    'X-Platform-Ver': APP.platformVer,
     'X-Locale': APP.locale,
     'X-Time': nowISO(),
     'X-Request-ID': generateUUID(),
     'X-Call': 'notConnected',
     'X-SV': '2',
     'X-SH': xsh,
-    'X-SU': computeXSU(url),
-    'X-Kb-Client-Ip': '192.168.1.96',
     'User-Agent': UA_NATIVE,
-    'X-PkTag': DEVICE.pkTag,
-    Cookie: entranceCookie(),
     Accept: '*/*',
     'Accept-Language': 'ru',
     'Accept-Encoding': 'gzip, deflate, br',
   };
-  headers['X-Sign'] = computeXSign(url, headers, xsh);
+  headers['X-Sign'] = computeXSign(url, headers, xsh, body);
   return headers;
 };

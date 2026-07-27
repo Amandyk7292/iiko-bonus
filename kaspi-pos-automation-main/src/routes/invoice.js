@@ -4,9 +4,9 @@ import { kaspiProxyJson, loggedFetch, signedQrPayHeaders } from '../helpers.js';
 import { decryptSecret } from '../crypto.js';
 import { trackPayment } from '../polling.js';
 import { normalizeKaspiPhoneNumber } from '../phone.js';
-import { getGlobalSession } from '../sessionStorage.js';
-import { inactiveSessionResponse, isActiveSession } from '../activeSession.js';
-import { getKaspiErrorMessage, isKaspiSessionExpired } from '../kaspiResponse.js';
+import { clearGlobalSession, getGlobalSession } from '../sessionStorage.js';
+import { clearActiveSession, inactiveSessionResponse, isActiveSession } from '../activeSession.js';
+import { isKaspiSessionExpired } from '../kaspiResponse.js';
 
 const router = Router();
 
@@ -26,14 +26,16 @@ const requireAuth = (req, res, next) => {
     }
   }
 
-  if (!session.tokenSN) return res.status(401).json({ error: 'Missing X-Token-SN header or global session.' });
-  if (!session.vtokenSecret)
-    return res.status(401).json({ error: 'Missing X-Vtoken-Secret header or global session.' });
+  if (!session.tokenSN || !session.vtokenSecret) {
+    return res.status(401).json(inactiveSessionResponse());
+  }
   if (!isActiveSession(session.tokenSN)) return res.status(401).json(inactiveSessionResponse());
   try {
     session.decryptedSecret = decryptSecret(session.vtokenSecret);
   } catch {
-    return res.status(401).json({ error: 'Invalid or expired vtokenSecret. Re-authenticate.' });
+    clearActiveSession(session.tokenSN);
+    clearGlobalSession('invalid_vtoken_secret', session);
+    return res.status(401).json(inactiveSessionResponse());
   }
   req.session = session;
   next();
@@ -53,7 +55,7 @@ router.get('/client-info', async (req, res) => {
     const url = `${KASPI_QRPAY_URL}/v01/remote/client-info?phoneNumber=${encodeURIComponent(normalizedPhone)}`;
     const headers = signedQrPayHeaders(url, req.session);
     const resp = await loggedFetch(url, { headers });
-    return kaspiProxyJson(res, resp);
+    return kaspiProxyJson(res, resp, req.session);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -72,19 +74,22 @@ router.post('/create', async (req, res) => {
 
   try {
     const url = `${KASPI_QRPAY_URL}/v01/remote/create`;
-    const headers = { ...signedQrPayHeaders(url, req.session), 'Content-Type': 'application/json' };
+    const payload = JSON.stringify({
+      PhoneNumber: normalizedPhone,
+      Amount: numericAmount,
+      Comment: String(comment || '').slice(0, 500),
+    });
+    const headers = { ...signedQrPayHeaders(url, req.session, payload), 'Content-Type': 'application/json' };
     const resp = await loggedFetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({
-        PhoneNumber: normalizedPhone,
-        Amount: numericAmount,
-        Comment: String(comment || '').slice(0, 500),
-      }),
+      body: payload,
     });
     const kaspiResponse = await resp.json();
     if (isKaspiSessionExpired(kaspiResponse)) {
-      return res.status(401).json(inactiveSessionResponse(getKaspiErrorMessage(kaspiResponse)));
+      clearActiveSession(req.session.tokenSN);
+      clearGlobalSession('kaspi_session_expired', req.session);
+      return res.status(401).json(inactiveSessionResponse());
     }
     const d = kaspiResponse.Data;
     const opId = d ? d.Id || d.QrOperationId : null;
@@ -120,7 +125,7 @@ router.get('/details', async (req, res) => {
   try {
     const url = `${KASPI_QRPAY_URL}/v01/remote/details?qrOperationId=${operationId}`;
     const resp = await loggedFetch(url, { headers: signedQrPayHeaders(url, req.session) });
-    return kaspiProxyJson(res, resp);
+    return kaspiProxyJson(res, resp, req.session);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -134,13 +139,14 @@ router.post('/cancel', async (req, res) => {
 
   try {
     const url = `${KASPI_QRPAY_URL}/v01/remote/cancel`;
-    const headers = { ...signedQrPayHeaders(url, req.session), 'Content-Type': 'application/json' };
+    const payload = JSON.stringify({ qrOperationId: Number(operationId) });
+    const headers = { ...signedQrPayHeaders(url, req.session, payload), 'Content-Type': 'application/json' };
     const resp = await loggedFetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ qrOperationId: Number(operationId) }),
+      body: payload,
     });
-    return kaspiProxyJson(res, resp);
+    return kaspiProxyJson(res, resp, req.session);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -151,13 +157,14 @@ router.post('/cancel', async (req, res) => {
 router.post('/history', async (req, res) => {
   try {
     const url = `${KASPI_QRPAY_URL}/v01/remote/history`;
-    const headers = { ...signedQrPayHeaders(url, req.session), 'Content-Type': 'application/json' };
+    const payload = JSON.stringify({ MaxResult: 20 });
+    const headers = { ...signedQrPayHeaders(url, req.session, payload), 'Content-Type': 'application/json' };
     const resp = await loggedFetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ MaxResult: 20 }),
+      body: payload,
     });
-    return kaspiProxyJson(res, resp);
+    return kaspiProxyJson(res, resp, req.session);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

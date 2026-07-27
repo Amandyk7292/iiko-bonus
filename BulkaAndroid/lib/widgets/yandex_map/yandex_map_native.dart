@@ -13,6 +13,8 @@ class YandexMapView extends StatefulWidget {
     required this.selectedPoint,
     required this.zoom,
     required this.branches,
+    required this.semanticLabel,
+    required this.unavailableLabel,
     this.onTap,
     this.onCameraChanged,
     this.interactive = true,
@@ -24,6 +26,8 @@ class YandexMapView extends StatefulWidget {
   final LatLng? selectedPoint;
   final double zoom;
   final List<YandexMapBranch> branches;
+  final String semanticLabel;
+  final String unavailableLabel;
   final YandexMapTap? onTap;
   final YandexCameraChanged? onCameraChanged;
   final bool interactive;
@@ -137,7 +141,12 @@ class _YandexMapViewState extends State<YandexMapView> {
   @override
   Widget build(BuildContext context) {
     final controller = _webController;
-    if (controller != null) return WebViewWidget(controller: controller);
+    if (controller != null) {
+      return Semantics(
+        label: widget.semanticLabel,
+        child: WebViewWidget(controller: controller),
+      );
+    }
     return Material(
       key: const ValueKey('yandex-map-fallback'),
       color: const Color(0xFFF7F2E8),
@@ -145,11 +154,14 @@ class _YandexMapViewState extends State<YandexMapView> {
         onTap: widget.interactive
             ? () => widget.onTap?.call(widget.center)
             : null,
-        child: Center(
-          child: Icon(
-            Icons.map_outlined,
-            size: 42,
-            color: Theme.of(context).colorScheme.primary,
+        child: Semantics(
+          label: widget.unavailableLabel,
+          child: Center(
+            child: Icon(
+              Icons.map_outlined,
+              size: 42,
+              color: Theme.of(context).colorScheme.primary,
+            ),
           ),
         ),
       ),

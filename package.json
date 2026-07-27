@@ -8,19 +8,23 @@
     "dev": "node --watch src/server.js",
     "lint": "eslint src/**/*.js",
     "lint:fix": "eslint src/**/*.js --fix",
-    "test": "node --test test/*.test.js",
+    "check:structure": "node scripts/check-source-size.js",
+    "check:migration-safety": "node scripts/check-migration-safety.js",
+    "check:bundle-admin": "node scripts/check-build-budgets.js --admin admin-ui/dist",
+    "test": "node --require ./test/test-env.cjs --test test/*.test.js",
+    "test:coverage": "node --require ./test/test-env.cjs --test --experimental-test-coverage --test-coverage-include=src/**/*.js --test-coverage-exclude=src/server.js --test-coverage-lines=42 test/*.test.js",
     "check:supabase": "node scripts/check-supabase.js",
     "db:migrate:check": "node scripts/apply-migrations.js",
     "db:migrate": "node scripts/apply-migrations.js --apply",
+    "wallet:google:setup": "node scripts/setup-google-wallet.js",
     "build:admin": "npm --prefix admin-ui run build",
     "build": "npm run build:admin",
-    "verify": "npm run lint && npm test && npm run build && npm --prefix admin-ui run lint && npm --prefix kaspi-pos-automation-main run lint && npm --prefix kaspi-pos-automation-main test"
+    "verify": "npm run lint && npm run check:structure && npm run check:migration-safety && npm run test:coverage && npm run build && npm run check:bundle-admin && npm --prefix admin-ui run lint && npm --prefix admin-ui run test:coverage && npm --prefix kaspi-pos-automation-main run lint && npm --prefix kaspi-pos-automation-main test"
   },
   "dependencies": {
     "@parse/node-apn": "^8.1.0",
     "@supabase/supabase-js": "^2.110.0",
     "@whiskeysockets/baileys": "^7.0.0-rc13",
-    "adm-zip": "^0.5.18",
     "anylang": "^3.4.1",
     "bcryptjs": "^3.0.3",
     "compression": "^1.8.1",
@@ -28,12 +32,12 @@
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "express-rate-limit": "^8.5.2",
+    "ffmpeg-static": "5.3.0",
     "firebase-admin": "^14.1.0",
     "google-auth-library": "^10.9.0",
     "helmet": "^8.2.0",
     "jimp": "^1.6.1",
     "jsonwebtoken": "^9.0.3",
-    "morgan": "^1.11.0",
     "multer": "^2.2.0",
     "node-fetch": "^2.7.0",
     "node-forge": "^1.4.0",
@@ -41,10 +45,13 @@
     "pg": "^8.22.0",
     "pino": "^10.3.1",
     "qrcode": "^1.5.4",
-    "qrcode-terminal": "^0.12.0"
+    "qrcode-terminal": "^0.12.0",
+    "sharp": "^0.35.3",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "adm-zip": "^0.6.0",
     "eslint": "^10.6.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.6",
@@ -52,6 +59,7 @@
     "prettier": "^3.9.4"
   },
   "overrides": {
+    "google-gax": "5.0.4",
     "joi": "17.13.4",
     "uuid": "11.1.1"
   }

@@ -1,0 +1,17 @@
+User-agent: *
+Allow: /
+Allow: /privacy
+Allow: /terms
+Allow: /public-offer
+Allow: /payment-and-refund
+Allow: /delivery-terms
+Allow: /company-details
+Allow: /kk/
+Allow: /en/
+Disallow: /admin/
+Disallow: /api/
+Disallow: /wallet/
+Disallow: /payment-receipts/
+Disallow: /kaspi-pos/
+
+Sitemap: https://bulka.com.kz/sitemap.xml

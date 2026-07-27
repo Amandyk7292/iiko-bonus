@@ -15,7 +15,7 @@ class GradientButton extends StatelessWidget {
     this.loading = false,
     this.padding,
     this.height = 58,
-    this.borderRadius = 28,
+    this.borderRadius = BulkaRadii.card,
   });
 
   @override
@@ -37,6 +37,11 @@ class GradientButton extends StatelessWidget {
           curve: BulkaMotion.standardCurve,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(borderRadius),
+            border: Border.all(
+              color: disabled
+                  ? Colors.transparent
+                  : Colors.white.withValues(alpha: 0.42),
+            ),
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
@@ -50,11 +55,16 @@ class GradientButton extends StatelessWidget {
             ),
             boxShadow: disabled
                 ? null
-                : [
-                    const BoxShadow(
-                      color: Color(0x33FFA000),
-                      blurRadius: 8,
-                      offset: Offset(0, 4),
+                : const [
+                    BoxShadow(
+                      color: Color(0x245A260D),
+                      blurRadius: 22,
+                      offset: Offset(0, 10),
+                    ),
+                    BoxShadow(
+                      color: Color(0x42FFA000),
+                      blurRadius: 9,
+                      offset: Offset(0, 3),
                     ),
                   ],
           ),
@@ -88,7 +98,7 @@ class GradientButton extends StatelessWidget {
                       child: DefaultTextStyle(
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 18,
+                          fontSize: BulkaTypeScale.titleSmall,
                           fontWeight: FontWeight.w500,
                         ),
                         child: child,

@@ -1,6 +1,16 @@
 const iikoApi = require('./iiko.service');
 const menuService = require('./menu.service');
+const { supabase } = require('../config/supabase');
 const { getSettings } = require('./settings.service');
+const { getBranchAvailability } = require('./inventory.service');
+const {
+  categoryNameKey,
+  getHiddenCategoryVisibility,
+  normalizeMenuOrderType,
+  productSupportsFulfillmentType,
+} = require('../utils/menu-visibility.util');
+const { validateCartOptions } = require('./product-options.service');
+const { resolveTargetedPromotion } = require('./commerce-marketing.service');
 
 const badRequest = (message) => {
   const error = new Error(message);
@@ -9,6 +19,11 @@ const badRequest = (message) => {
 };
 
 const productPrice = (product) => Number(product?.sizePrices?.[0]?.price?.currentPrice || 0);
+
+const preparationMinutes = (value, fallback = 15) => {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 1 && parsed <= 240 ? parsed : fallback;
+};
 
 function calculateOrderTotal(items, catalog) {
   if (!Array.isArray(items) || items.length === 0) throw badRequest('Корзина пуста');
@@ -21,16 +36,34 @@ function calculateOrderTotal(items, catalog) {
     if (!id || id.length > 100 || !Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
       throw badRequest('Некорректная позиция корзины');
     }
-    quantities.set(id, (quantities.get(id) || 0) + quantity);
-    if (quantities.get(id) > 99) throw badRequest('Количество одной позиции не может превышать 99');
+    const configuration =
+      item?.configuration && typeof item.configuration === 'object' ? item.configuration : null;
+    const modifiers = Array.isArray(item?.modifiers) ? item.modifiers : [];
+    const selectionKey = JSON.stringify({ configuration, modifiers });
+    const key = `${id}:${selectionKey}`;
+    const previous = quantities.get(key);
+    quantities.set(key, {
+      id,
+      quantity: Number(previous?.quantity || 0) + quantity,
+      configuration,
+      modifiers,
+    });
+    if (quantities.get(key).quantity > 99) {
+      throw badRequest('Количество одной позиции не может превышать 99');
+    }
   }
 
   const canonicalItems = [];
   let subtotal = 0;
-  for (const [id, quantity] of quantities) {
+  for (const { id, quantity, configuration, modifiers } of quantities.values()) {
     const product = catalog.get(id);
     if (!product) throw badRequest('Один из товаров больше недоступен. Обновите корзину.');
     if (!product.isAvailable) throw badRequest(`«${product.name}» сейчас недоступен`);
+    if (Number.isInteger(product.availableQuantity) && quantity > product.availableQuantity) {
+      throw badRequest(
+        `Недостаточно товара «${product.name}». Доступно: ${Math.max(product.availableQuantity, 0)}`,
+      );
+    }
     const price = Number(product.price);
     if (!Number.isFinite(price) || price <= 0) throw badRequest('У товара некорректная цена');
 
@@ -43,6 +76,9 @@ function calculateOrderTotal(items, catalog) {
       price,
       quantity,
       source: product.source || 'iiko',
+      preparationMinutes: preparationMinutes(product.preparationMinutes),
+      configuration,
+      modifiers,
     });
   }
 
@@ -81,7 +117,9 @@ function applyPromoCode(subtotal, code, configuredPromos = []) {
   return { promoCode: normalized, discount, total: subtotal - discount };
 }
 
-async function loadOrderCatalog() {
+async function loadOrderCatalog({ branchId = null, orderType = 'pickup' } = {}) {
+  const normalizedOrderType = normalizeMenuOrderType(orderType);
+  if (!normalizedOrderType) throw badRequest('Некорректный способ получения заказа');
   const rawMenu = await iikoApi.getMenu({ strict: true });
   const [stopIds, productOverrides, categoryOverrides, customProducts] = await Promise.all([
     iikoApi.getStopListProductIds(undefined, { strict: true }),
@@ -90,43 +128,100 @@ async function loadOrderCatalog() {
     menuService.getCustomProducts({ strict: true }),
   ]);
   const productOverrideMap = new Map(productOverrides.map((item) => [item.iiko_product_id, item]));
-  const hiddenCategories = new Set(
-    categoryOverrides.filter((item) => item.is_hidden).map((item) => item.iiko_category_id),
+  const categoryOverrideMap = new Map(
+    categoryOverrides.map((item) => [item.iiko_category_id, item]),
   );
+  const rawGroups = Array.isArray(rawMenu.groups) ? rawMenu.groups : [];
+  const baseCategories = rawGroups
+    .filter(
+      (group) =>
+        group.isIncludedInMenu ||
+        (rawGroups.length > 0 && !rawGroups.some((item) => item.isIncludedInMenu)),
+    )
+    .map((group) => ({ id: group.id, name: group.name }));
+  const hiddenCategories = getHiddenCategoryVisibility(baseCategories, categoryOverrideMap);
+  let branchPreparationMinutes = 15;
+  if (branchId) {
+    const { data: branch, error: branchError } = await supabase
+      .from('bulka_locations')
+      .select('default_preparation_minutes')
+      .eq('id', branchId)
+      .eq('active', true)
+      .maybeSingle();
+    if (branchError) throw branchError;
+    if (!branch) throw badRequest('Филиал больше недоступен');
+    branchPreparationMinutes = preparationMinutes(branch.default_preparation_minutes);
+  }
+  const branchAvailability = branchId
+    ? await getBranchAvailability(branchId, {
+        sync: true,
+        strict: true,
+        products: rawMenu.products || [],
+      })
+    : new Map();
   const catalog = new Map();
 
   for (const product of rawMenu.products || []) {
     const override = productOverrideMap.get(product.id);
-    if (override?.is_hidden || hiddenCategories.has(product.parentGroup)) continue;
+    if (override?.is_hidden || hiddenCategories.ids.has(product.parentGroup)) continue;
+    if (!productSupportsFulfillmentType(override, normalizedOrderType)) continue;
     const price =
       Number(override?.custom_price) > 0 ? Number(override.custom_price) : productPrice(product);
     if (!price) continue;
+    const inventory = branchAvailability.get(String(product.id));
+    const globallyAvailable = !stopIds.has(product.id) && !override?.is_stop_listed;
     catalog.set(String(product.id), {
       iikoProductId: String(product.id),
       productSizeId: product.sizePrices?.[0]?.sizeId || null,
       name: override?.custom_name || product.name,
       price,
-      isAvailable: !stopIds.has(product.id) && !override?.is_stop_listed,
+      isAvailable: globallyAvailable && (inventory?.isAvailable ?? true),
+      availableQuantity: inventory?.availableQuantity ?? null,
+      preparationMinutes: preparationMinutes(
+        inventory?.preparationMinutes ?? override?.preparation_minutes,
+        branchPreparationMinutes,
+      ),
       source: 'iiko',
     });
   }
 
   for (const product of customProducts) {
+    if (hiddenCategories.names.has(categoryNameKey(product.category_name))) continue;
+    if (!productSupportsFulfillmentType(product, normalizedOrderType)) continue;
+    const inventory = branchAvailability.get(String(product.id));
     catalog.set(String(product.id), {
       iikoProductId: null,
       name: product.name,
       price: Number(product.price),
-      isAvailable: product.is_available !== false,
+      isAvailable: product.is_available !== false && (inventory?.isAvailable ?? true),
+      availableQuantity: inventory?.availableQuantity ?? null,
+      preparationMinutes: preparationMinutes(
+        inventory?.preparationMinutes ?? product.preparation_minutes,
+        branchPreparationMinutes,
+      ),
       source: 'custom',
     });
   }
   return catalog;
 }
 
-async function priceOrder(items, promoCode, { deliveryFee = 0 } = {}) {
-  const [catalog, settings] = await Promise.all([loadOrderCatalog(), getSettings()]);
-  const priced = calculateOrderTotal(items, catalog);
-  const promotion = applyPromoCode(priced.subtotal, promoCode, settings.bonus_promocodes);
+async function priceOrder(
+  items,
+  promoCode,
+  { deliveryFee = 0, branchId = null, customerId = null, orderType = 'pickup' } = {},
+) {
+  const [catalog, settings] = await Promise.all([
+    loadOrderCatalog({ branchId, orderType }),
+    getSettings(),
+  ]);
+  const basePriced = calculateOrderTotal(items, catalog);
+  const priced = await validateCartOptions(basePriced.canonicalItems);
+  const targetedPromotion = await resolveTargetedPromotion(priced.subtotal, promoCode, {
+    customerId,
+    branchId,
+  });
+  const promotion =
+    targetedPromotion || applyPromoCode(priced.subtotal, promoCode, settings.bonus_promocodes);
   const normalizedDeliveryFee = Number(deliveryFee);
   if (
     !Number.isSafeInteger(normalizedDeliveryFee) ||
@@ -142,6 +237,10 @@ async function priceOrder(items, promoCode, { deliveryFee = 0 } = {}) {
   return {
     ...priced,
     ...promotion,
+    preparationMinutes: Math.max(
+      1,
+      ...priced.canonicalItems.map((item) => preparationMinutes(item.preparationMinutes)),
+    ),
     deliveryFee: normalizedDeliveryFee,
     total,
   };

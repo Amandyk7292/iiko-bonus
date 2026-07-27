@@ -1,12 +1,16 @@
 part of '../main.dart';
 
 class AddressRepository {
-  const AddressRepository({this.api});
+  const AddressRepository({this.api, this.cacheScope});
 
   final BulkaApiClient? api;
+  final String? cacheScope;
 
-  static const _addressesKey = 'delivery_addresses';
-  static const _selectedAddressKey = 'selected_delivery_address_id';
+  String get _scope => cacheScope ?? api?.sessionCacheScope ?? 'guest';
+  String get _addressesKey =>
+      customerPreferenceKey('delivery_addresses', _scope);
+  String get _selectedAddressKey =>
+      customerPreferenceKey('selected_delivery_address_id', _scope);
 
   Future<List<DeliveryAddress>> loadAddresses() async {
     final prefs = await SharedPreferences.getInstance();

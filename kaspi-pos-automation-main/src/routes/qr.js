@@ -3,9 +3,9 @@ import { KASPI_QRPAY_URL } from '../config.js';
 import { kaspiProxyJson, loggedFetch, signedQrPayHeaders } from '../helpers.js';
 import { decryptSecret } from '../crypto.js';
 import { trackPayment } from '../polling.js';
-import { getGlobalSession } from '../sessionStorage.js';
-import { inactiveSessionResponse, isActiveSession } from '../activeSession.js';
-import { getKaspiErrorMessage, isKaspiSessionExpired } from '../kaspiResponse.js';
+import { clearGlobalSession, getGlobalSession } from '../sessionStorage.js';
+import { clearActiveSession, inactiveSessionResponse, isActiveSession } from '../activeSession.js';
+import { isKaspiSessionExpired } from '../kaspiResponse.js';
 
 const router = Router();
 
@@ -25,14 +25,16 @@ const requireAuth = (req, res, next) => {
     }
   }
 
-  if (!session.tokenSN) return res.status(401).json({ error: 'Missing X-Token-SN header or global session.' });
-  if (!session.vtokenSecret)
-    return res.status(401).json({ error: 'Missing X-Vtoken-Secret header or global session.' });
+  if (!session.tokenSN || !session.vtokenSecret) {
+    return res.status(401).json(inactiveSessionResponse());
+  }
   if (!isActiveSession(session.tokenSN)) return res.status(401).json(inactiveSessionResponse());
   try {
     session.decryptedSecret = decryptSecret(session.vtokenSecret);
   } catch {
-    return res.status(401).json({ error: 'Invalid or expired vtokenSecret. Re-authenticate.' });
+    clearActiveSession(session.tokenSN);
+    clearGlobalSession('invalid_vtoken_secret', session);
+    return res.status(401).json(inactiveSessionResponse());
   }
   req.session = session;
   next();
@@ -51,20 +53,23 @@ router.post('/create', async (req, res) => {
 
   try {
     const url = `${KASPI_QRPAY_URL}/v01/qr-token/create`;
-    const headers = { ...signedQrPayHeaders(url, req.session), 'Content-Type': 'application/json' };
+    const payload = JSON.stringify({
+      PaymentAmount: numericAmount,
+      DeviceInterface: 'Pos',
+      Latitude: latitude || 43.204643483375889,
+      Longitude: longitude || 76.891962364115912,
+    });
+    const headers = { ...signedQrPayHeaders(url, req.session, payload), 'Content-Type': 'application/json' };
     const resp = await loggedFetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({
-        PaymentAmount: numericAmount,
-        DeviceInterface: 'Pos',
-        Latitude: latitude || 43.204643483375889,
-        Longitude: longitude || 76.891962364115912,
-      }),
+      body: payload,
     });
     const kaspiResponse = await resp.json();
     if (isKaspiSessionExpired(kaspiResponse)) {
-      return res.status(401).json(inactiveSessionResponse(getKaspiErrorMessage(kaspiResponse)));
+      clearActiveSession(req.session.tokenSN);
+      clearGlobalSession('kaspi_session_expired', req.session);
+      return res.status(401).json(inactiveSessionResponse());
     }
     const d = kaspiResponse.Data;
     if (d && d.QrOperationId) {
@@ -109,7 +114,7 @@ router.get('/status', async (req, res) => {
   try {
     const url = `${KASPI_QRPAY_URL}/v02/kaspi-qr/status?qrOperationId=${qrOperationId}`;
     const resp = await loggedFetch(url, { headers: signedQrPayHeaders(url, req.session) });
-    return kaspiProxyJson(res, resp);
+    return kaspiProxyJson(res, resp, req.session);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

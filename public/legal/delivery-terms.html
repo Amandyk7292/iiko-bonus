@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#ffffff" />
+    <meta
+      name="description"
+      content="Условия доставки заказов Bulka через сервис Яндекс Доставка."
+    />
+    <meta name="robots" content="index,follow" />
+    <link rel="canonical" href="https://bulka.com.kz/delivery-terms" />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="660x660"
+      href="/assets/wallet/bulka-wallet-logo.png?v=20260715"
+    />
+    <title>Условия доставки — Bulka</title>
+    <style>
+      @font-face {
+        font-family: Montserrat;
+        src: url('/app/assets/assets/fonts/Montserrat-Regular.ttf') format('truetype');
+        font-weight: 400;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: Montserrat;
+        src: url('/app/assets/assets/fonts/Montserrat-SemiBold.ttf') format('truetype');
+        font-weight: 600;
+        font-display: swap;
+      }
+      :root {
+        color-scheme: light;
+        --page: #ffffff;
+        --surface: #fffaf2;
+        --text: #3b2117;
+        --muted: #74665e;
+        --accent-soft: #fff1c9;
+        --border: #eadcc8;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        min-width: 320px;
+        margin: 0;
+        background: var(--page);
+        color: var(--text);
+        font-family:
+          Montserrat,
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
+        font-size: 16px;
+        line-height: 1.65;
+      }
+      main {
+        width: min(100%, 860px);
+        margin: 0 auto;
+        padding: 28px 20px 72px;
+      }
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        margin-bottom: 42px;
+      }
+      .brand {
+        width: 124px;
+        height: auto;
+      }
+      .back,
+      a {
+        color: var(--text);
+        text-underline-offset: 3px;
+      }
+      h1,
+      h2 {
+        margin-top: 0;
+        line-height: 1.2;
+      }
+      h1 {
+        max-width: 19ch;
+        margin-bottom: 14px;
+        font-size: clamp(2rem, 6vw, 3.5rem);
+        font-weight: 600;
+        letter-spacing: -0.035em;
+      }
+      h2 {
+        margin-bottom: 12px;
+        font-size: clamp(1.18rem, 3vw, 1.45rem);
+        font-weight: 600;
+      }
+      p,
+      ul {
+        margin: 0;
+      }
+      ul {
+        padding-left: 1.3em;
+      }
+      li + li {
+        margin-top: 8px;
+      }
+      .updated {
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+      .summary {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin: 32px 0;
+      }
+      .summary div {
+        min-height: 112px;
+        padding: 18px;
+        border-radius: 18px;
+        background: var(--accent-soft);
+      }
+      .summary strong,
+      .summary span {
+        display: block;
+      }
+      .summary strong {
+        margin-bottom: 5px;
+        font-size: 1.05rem;
+        font-weight: 600;
+      }
+      .summary span {
+        color: var(--muted);
+        font-size: 0.88rem;
+        line-height: 1.45;
+      }
+      section {
+        margin: 14px 0;
+        padding: clamp(20px, 4vw, 28px);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        background: #ffffff;
+      }
+      section p + p,
+      section p + ul,
+      section ul + p {
+        margin-top: 14px;
+      }
+      .notice {
+        border-color: #f0c45e;
+        background: #fffbef;
+      }
+      .contacts {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 16px;
+      }
+      .contact {
+        padding: 16px;
+        border-radius: 14px;
+        background: var(--surface);
+        text-decoration: none;
+      }
+      .contact span,
+      .contact strong {
+        display: block;
+      }
+      .contact span {
+        margin-bottom: 3px;
+        color: var(--muted);
+        font-size: 0.78rem;
+      }
+      .contact strong {
+        overflow-wrap: anywhere;
+        font-weight: 600;
+      }
+      footer {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 22px;
+        padding: 24px 4px 0;
+        color: var(--muted);
+        font-size: 0.86rem;
+      }
+      @media (max-width: 680px) {
+        main {
+          padding: 20px 16px 56px;
+        }
+        .topbar {
+          margin-bottom: 30px;
+        }
+        .brand {
+          width: 104px;
+        }
+        .summary,
+        .contacts {
+          grid-template-columns: 1fr;
+        }
+        .summary div {
+          min-height: 0;
+        }
+      }
+      @media print {
+        main {
+          width: 100%;
+          padding: 0;
+        }
+        .back {
+          display: none;
+        }
+        section,
+        .summary div {
+          break-inside: avoid;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div class="topbar">
+          <img
+            class="brand"
+            src="/assets/wallet/bulka-wallet-wide-logo.png?v=20260715"
+            alt="Bulka — семейная пекарня"
+          />
+          <a class="back" href="/">Вернуться в Bulka</a>
+        </div>
+        <h1>Условия доставки</h1>
+        <p class="updated">Редакция от 24 июля 2026 года</p>
+      </header>
+
+      <div class="summary" aria-label="Краткие условия">
+        <div>
+          <strong>Яндекс Курьер</strong>
+          <span>Заказ доставляет курьер сервиса Яндекс Доставка.</span>
+        </div>
+        <div>
+          <strong>Цена до оплаты</strong>
+          <span>Стоимость доставки и общая сумма заказа показываются до оплаты.</span>
+        </div>
+        <div>
+          <strong>Статус заказа</strong>
+          <span>После назначения курьера могут отображаться его данные и ссылка отслеживания.</span>
+        </div>
+      </div>
+
+      <section>
+        <h2>1. Общие положения</h2>
+        <p>
+          Настоящие условия применяются к заказам Bulka по городу Астана с выбранным способом
+          получения «Доставка». Продавцом товаров является Bulka, а перевозку выполняет сторонний
+          сервис Яндекс Доставка по тарифу для курьерской доставки.
+        </p>
+        <p>
+          По вопросам состава, качества, оплаты и исполнения заказа покупатель обращается в Bulka.
+          Курьер отвечает за получение заказа в выбранной пекарне и его перевозку по указанному
+          адресу.
+        </p>
+      </section>
+
+      <section>
+        <h2>2. Доступность и зона доставки</h2>
+        <ul>
+          <li>
+            Доставка доступна только для тех пекарен и адресов, для которых она разрешена при
+            оформлении заказа.
+          </li>
+          <li>
+            Возможность доставки зависит от зоны обслуживания, наличия свободных курьеров, дорожной
+            и погодной обстановки, а также технической доступности сервиса Яндекс Доставка.
+          </li>
+          <li>
+            Если доставить заказ по выбранному адресу невозможно, Bulka свяжется с покупателем и
+            предложит изменить адрес, выбрать самовывоз либо отменить заказ с возвратом оплаты.
+          </li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>3. Адрес и контактные данные</h2>
+        <p>
+          Покупатель указывает точный адрес, подъезд, этаж, квартиру или офис, код домофона и
+          контактный телефон, если эти сведения необходимы для передачи заказа. Покупатель должен
+          оставаться на связи по указанному номеру.
+        </p>
+        <p>
+          Для выполнения доставки Bulka передаёт сервису Яндекс Доставка необходимые сведения: имя
+          получателя, телефон, адрес, маршрут и данные заказа в объёме, нужном для перевозки.
+          Порядок обработки данных также описан в
+          <a href="/privacy">Политике конфиденциальности</a>.
+        </p>
+        <p>
+          Изменить адрес после оформления можно только через поддержку Bulka. После назначения или
+          прибытия курьера изменение адреса может быть недоступно либо потребовать нового расчёта и
+          повторного оформления доставки.
+        </p>
+      </section>
+
+      <section>
+        <h2>4. Стоимость и оплата</h2>
+        <ul>
+          <li>Все цены указываются в казахстанских тенге (₸).</li>
+          <li>
+            Стоимость доставки и итоговая сумма показываются покупателю до подтверждения оплаты.
+          </li>
+          <li>
+            Изменение внутреннего тарифа сервиса Яндекс Доставка после успешной оплаты не изменяет
+            уже оплаченную покупателем сумму.
+          </li>
+          <li>
+            Курьер не должен требовать отдельную оплату, которая не была показана и согласована при
+            оформлении заказа. В такой ситуации необходимо сразу обратиться в Bulka.
+          </li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>5. Срок и получение заказа</h2>
+        <p>
+          Указанное время доставки является ориентировочным. Оно включает приготовление и
+          комплектацию заказа, поиск курьера и дорогу. Время может измениться из-за загрузки
+          пекарни, спроса на курьеров, пробок, погоды и иных обстоятельств вне контроля Bulka.
+        </p>
+        <p>
+          После назначения курьера покупателю могут быть доступны имя и телефон курьера,
+          ориентировочное время прибытия и ссылка для отслеживания — если эти сведения переданы
+          сервисом Яндекс Доставка.
+        </p>
+        <p>
+          Заказ передаётся по указанному адресу получателю или лицу, которое приняло заказ от его
+          имени. Если получатель не отвечает или отсутствует, курьер и Bulka пытаются связаться с
+          ним. Повторная доставка при необходимости оформляется отдельно.
+        </p>
+      </section>
+
+      <section>
+        <h2>6. Отмена и проблемы с доставкой</h2>
+        <p>
+          Для отмены необходимо как можно раньше обратиться в поддержку Bulka. После подтверждения
+          заявки сервисом Яндекс Доставка, назначения курьера или передачи ему заказа отмена может
+          быть платной либо недоступной. Решение и размер возврата зависят от статуса заказа,
+          понесённых расходов и требований законодательства Республики Казахстан.
+        </p>
+        <p>
+          Если заказ не доставлен, повреждён, остыл из-за существенной задержки, имеет неверный
+          состав или неполную комплектацию, сообщите об этом Bulka и укажите номер заказа. Замена,
+          частичный или полный возврат рассматриваются по
+          <a href="/payment-and-refund">Условиям оплаты и возврата</a>.
+        </p>
+      </section>
+
+      <section class="notice">
+        <h2>7. Как обратиться</h2>
+        <p>
+          Подготовьте номер заказа, адрес доставки и телефон, использованный при оформлении.
+          Обращение можно отправить через раздел «Поддержка» или по телефону Bulka.
+        </p>
+        <div class="contacts">
+          <a class="contact" href="tel:+77012772233">
+            <span>Телефон Bulka</span>
+            <strong>+7 701 277 22 33</strong>
+          </a>
+          <a class="contact" href="/payment-and-refund">
+            <span>Оплата и возврат</span>
+            <strong>Открыть условия</strong>
+          </a>
+        </div>
+      </section>
+
+      <footer>
+        <a href="/payment-and-refund">Оплата и возврат</a>
+        <a href="/terms">Условия использования</a>
+        <a href="/privacy">Политика конфиденциальности</a>
+        <span>© 2026 Bulka</span>
+      </footer>
+    </main>
+  </body>
+</html>

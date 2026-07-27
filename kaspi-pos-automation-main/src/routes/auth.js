@@ -204,16 +204,17 @@ async function doFinish(session) {
     'X-Time-Zone': 'GMT+05:00',
     'X-SH': 'url,X-Time-Zone,X-Request-ID,X-Net-Type,X-Emulator,X-Call,X-Platform-Type,X-Locale,X-Time,X-SV',
   };
-  finishHeaders['X-Sign'] = computeXSign(finishUrl, finishHeaders, finishHeaders['X-SH']);
+  const finishBody = JSON.stringify({
+    signed: { sign: signDataPayload(signedDataB64), data: signedDataB64 },
+    guard: { pinHash: DEVICE.pinHash, x509: ecdhX509 },
+    processId: session.processId,
+  });
+  finishHeaders['X-Sign'] = computeXSign(finishUrl, finishHeaders, finishHeaders['X-SH'], finishBody);
 
   const resp = await loggedFetch(finishUrl, {
     method: 'POST',
     headers: finishHeaders,
-    body: JSON.stringify({
-      signed: { sign: signDataPayload(signedDataB64), data: signedDataB64 },
-      guard: { pinHash: DEVICE.pinHash, x509: ecdhX509 },
-      processId: session.processId,
-    }),
+    body: finishBody,
   });
 
   const body = await resp.json();
@@ -235,8 +236,13 @@ async function doFinish(session) {
         console.error('ECDH key agreement failed:', e.message);
       }
     }
+    if (!rawSecret || !vtokenSecret) {
+      throw new Error('Kaspi Pay did not establish a secure session. Start SMS login again.');
+    }
 
-    // Fetch org context
+    // Current Kaspi Pay activates the token during kpentrance/finish. Calling
+    // sign-in-lite again here returns -209 and invalidates an otherwise valid
+    // SMS login, so organization context must follow finish directly.
     const orgUrl = `${KASPI_MTOKEN_URL}/v08/organizations/org-context-otp`;
     const piValue = session.profileId != null ? String(session.profileId) : '';
     const orgHeaders = {
@@ -264,39 +270,41 @@ async function doFinish(session) {
       'X-Request-ID': generateUUID(),
     };
     if (piValue) orgHeaders['X-PI'] = piValue;
-    orgHeaders['X-Sign'] = computeXSign(orgUrl, orgHeaders, orgHeaders['X-SH']);
+    const orgPayload = JSON.stringify({
+      DeviceInformation: {
+        SdkVersion: 'AOTP service',
+        DeviceId: DEVICE.deviceId,
+        ApplicationId: 'kz.kaspi.business',
+        ScreenWidth: APP.screenW,
+        Model: APP.model,
+        ScreenHeight: APP.screenH,
+        DeviceName: APP.deviceName,
+        VersionName: APP.version,
+        BuildRelease: `${APP.platform} ${APP.platformVer}`,
+        Brand: APP.brand,
+        Board: APP.platformVer,
+        Platform: APP.platform,
+        Product: 'Kaspi Pay',
+        frontCameraAvailable: true,
+        VersionCode: APP.build,
+        InstallId: DEVICE.installId,
+      },
+      OrganizationId: 0,
+    });
+    orgHeaders['X-Sign'] = computeXSign(orgUrl, orgHeaders, orgHeaders['X-SH'], orgPayload);
 
     const orgResp = await loggedFetch(orgUrl, {
       method: 'POST',
       headers: orgHeaders,
-      body: JSON.stringify({
-        DeviceInformation: {
-          SdkVersion: 'AOTP service',
-          DeviceId: DEVICE.deviceId,
-          ApplicationId: 'kz.kaspi.business',
-          ScreenWidth: APP.screenW,
-          Model: APP.model,
-          ScreenHeight: APP.screenH,
-          DeviceName: APP.deviceName,
-          VersionName: APP.version,
-          BuildRelease: `${APP.platform} ${APP.platformVer}`,
-          Brand: APP.brand,
-          Board: APP.platformVer,
-          Platform: APP.platform,
-          Product: 'Kaspi Pay',
-          frontCameraAvailable: true,
-          VersionCode: APP.build,
-          InstallId: DEVICE.installId,
-        },
-        OrganizationId: 0,
-      }),
+      body: orgPayload,
     });
 
     const orgBody = await orgResp.json();
 
-    if (orgBody.Data?.Current?.ProfileId) {
-      applyOrgContext(session, orgBody.Data);
+    if (!orgBody.Data?.Current?.ProfileId) {
+      throw new Error('Kaspi Pay did not return an organization profile. Start SMS login again.');
     }
+    applyOrgContext(session, orgBody.Data);
 
     if (vtokenSecret) activateSession(session.tokenSN);
 
@@ -355,32 +363,33 @@ router.post('/refresh', async (req, res) => {
         'url,X-Kb-Client-Ip,X-Time,X-App-Ver,X-SV,X-Locale,X-App-Bld,X-Install-ID,X-Kb-TokenSn,X-S,X-Kb-TokenSnMac,X-Call',
       'X-Request-ID': generateUUID(),
     };
-    liteHeaders['X-Sign'] = computeXSign(liteUrl, liteHeaders, liteHeaders['X-SH']);
+    const litePayload = JSON.stringify({
+      OrganizationId: organizationId || 0,
+      DeviceInformation: {
+        SdkVersion: 'AOTP service',
+        DeviceId: DEVICE.deviceId,
+        ApplicationId: 'kz.kaspi.business',
+        ScreenWidth: APP.screenW,
+        Model: APP.model,
+        ScreenHeight: APP.screenH,
+        DeviceName: APP.deviceName,
+        VersionName: APP.version,
+        BuildRelease: `${APP.platform} ${APP.platformVer}`,
+        Brand: APP.brand,
+        Board: APP.platformVer,
+        Platform: APP.platform,
+        Product: 'Kaspi Pay',
+        frontCameraAvailable: true,
+        VersionCode: APP.build,
+        InstallId: DEVICE.installId,
+      },
+    });
+    liteHeaders['X-Sign'] = computeXSign(liteUrl, liteHeaders, liteHeaders['X-SH'], litePayload);
 
     const resp = await loggedFetch(liteUrl, {
       method: 'POST',
       headers: liteHeaders,
-      body: JSON.stringify({
-        OrganizationId: organizationId || 0,
-        DeviceInformation: {
-          SdkVersion: 'AOTP service',
-          DeviceId: DEVICE.deviceId,
-          ApplicationId: 'kz.kaspi.business',
-          ScreenWidth: APP.screenW,
-          Model: APP.model,
-          ScreenHeight: APP.screenH,
-          DeviceName: APP.deviceName,
-          VersionName: APP.version,
-          BuildRelease: `${APP.platform} ${APP.platformVer}`,
-          Brand: APP.brand,
-          Board: APP.platformVer,
-          Platform: APP.platform,
-          Product: 'Kaspi Pay',
-          frontCameraAvailable: true,
-          VersionCode: APP.build,
-          InstallId: DEVICE.installId,
-        },
-      }),
+      body: litePayload,
     });
 
     const body = await resp.json();
@@ -398,6 +407,9 @@ router.post('/refresh', async (req, res) => {
           console.log('SignInLite: new vtoken activated successfully');
         } catch (e) {
           console.error('SignInLite ECDH failed:', e.message);
+          throw new Error('Kaspi Pay secure session refresh failed. Sign in again by SMS.', {
+            cause: e,
+          });
         }
       }
 
@@ -439,32 +451,33 @@ router.post('/refresh', async (req, res) => {
             'url,X-Kb-Client-Ip,X-Time,X-App-Ver,X-SV,X-Locale,X-App-Bld,X-Install-ID,X-Kb-TokenSn,X-S,X-Kb-TokenSnMac,X-Call',
           'X-Request-ID': generateUUID(),
         };
-        orgHeaders['X-Sign'] = computeXSign(orgUrl, orgHeaders, orgHeaders['X-SH']);
+        const orgPayload = JSON.stringify({
+          OrganizationId: organizationId || session.organizationId || 0,
+          DeviceInformation: {
+            SdkVersion: 'AOTP service',
+            DeviceId: DEVICE.deviceId,
+            ApplicationId: 'kz.kaspi.business',
+            ScreenWidth: APP.screenW,
+            Model: APP.model,
+            ScreenHeight: APP.screenH,
+            DeviceName: APP.deviceName,
+            VersionName: APP.version,
+            BuildRelease: `${APP.platform} ${APP.platformVer}`,
+            Brand: APP.brand,
+            Board: APP.platformVer,
+            Platform: APP.platform,
+            Product: 'Kaspi Pay',
+            frontCameraAvailable: true,
+            VersionCode: APP.build,
+            InstallId: DEVICE.installId,
+          },
+        });
+        orgHeaders['X-Sign'] = computeXSign(orgUrl, orgHeaders, orgHeaders['X-SH'], orgPayload);
 
         const orgResp = await loggedFetch(orgUrl, {
           method: 'POST',
           headers: orgHeaders,
-          body: JSON.stringify({
-            OrganizationId: organizationId || session.organizationId || 0,
-            DeviceInformation: {
-              SdkVersion: 'AOTP service',
-              DeviceId: DEVICE.deviceId,
-              ApplicationId: 'kz.kaspi.business',
-              ScreenWidth: APP.screenW,
-              Model: APP.model,
-              ScreenHeight: APP.screenH,
-              DeviceName: APP.deviceName,
-              VersionName: APP.version,
-              BuildRelease: `${APP.platform} ${APP.platformVer}`,
-              Brand: APP.brand,
-              Board: APP.platformVer,
-              Platform: APP.platform,
-              Product: 'Kaspi Pay',
-              frontCameraAvailable: true,
-              VersionCode: APP.build,
-              InstallId: DEVICE.installId,
-            },
-          }),
+          body: orgPayload,
         });
 
         const orgBody = await orgResp.json();
@@ -477,6 +490,10 @@ router.post('/refresh', async (req, res) => {
         }
       } catch (e) {
         console.error('Refresh org-context-otp error:', e.message);
+      }
+
+      if (!orgContextOk || !session.profileId) {
+        throw new Error('Kaspi Pay did not refresh the organization profile. Sign in again by SMS.');
       }
 
       activateSession(newTokenSN);

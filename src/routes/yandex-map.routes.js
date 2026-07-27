@@ -5,6 +5,7 @@ const router = express.Router();
 const apiKeyPattern = /^[a-zA-Z0-9_-]{20,200}$/;
 
 router.get('/maps/yandex', (_req, res) => {
+  const nonce = res.locals.cspNonce;
   const apiKey = String(process.env.YANDEX_MAPS_API_KEY || '').trim();
   if (!apiKeyPattern.test(apiKey)) {
     return res
@@ -14,30 +15,54 @@ router.get('/maps/yandex', (_req, res) => {
   }
 
   res.set('Cache-Control', 'private, no-store');
+  res.set('Permissions-Policy', 'geolocation=(self)');
   res.type('html').send(`<!doctype html>
 <html lang="ru">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
   <title>Карта доставки Bulka</title>
-  <style>
+  <style nonce="${nonce}">
     html,body,#map{width:100%;height:100%;margin:0;overflow:hidden;background:#f7f2e8}
     body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
     #error{display:none;position:absolute;z-index:20;inset:16px auto auto 16px;max-width:calc(100% - 32px);padding:12px 14px;border-radius:14px;background:#fff;color:#6a351d;box-shadow:0 12px 36px rgba(60,34,23,.18);font-size:14px}
+    #controls{position:absolute;z-index:40;right:16px;bottom:76px;display:flex;flex-direction:column;gap:9px;pointer-events:none}
+    .map-control{width:50px;height:50px;padding:0;border:0;border-radius:50%;display:grid;place-items:center;background:#fff;color:#532814;box-shadow:0 8px 24px rgba(60,34,23,.22);pointer-events:auto;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+    .map-control:active{transform:scale(.96)}
+    .map-control svg{width:25px;height:25px;fill:none;stroke:currentColor;stroke-width:2.25;stroke-linecap:round;stroke-linejoin:round}
+    #locate{width:58px;height:58px;background:#532814;color:#fff}
+    #locate.loading svg{animation:pulse .85s ease-in-out infinite alternate}
+    #map [class*="-copyright"],
+    #map [class*="-map-copyrights-promo"],
+    #map [class*="-gotoymaps"],
+    #map [class*="-gototech"]{display:none!important}
+    @keyframes pulse{to{opacity:.35;transform:scale(.82)}}
   </style>
-  <script src="https://api-maps.yandex.ru/2.1/?apikey=${encodeURIComponent(apiKey)}&lang=ru_RU" onerror="document.getElementById('error').style.display='block'"></script>
+  <script nonce="${nonce}" src="https://api-maps.yandex.ru/2.1/?apikey=${encodeURIComponent(apiKey)}&lang=ru_RU"></script>
 </head>
 <body>
   <div id="map" aria-label="Карта зон доставки Bulka"></div>
   <div id="error" role="alert">Не удалось загрузить Яндекс Карты. Проверьте подключение и настройки API-ключа.</div>
-  <script>
+  <div id="controls" aria-label="Управление картой">
+    <button id="zoom-in" class="map-control" type="button" aria-label="Приблизить"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button id="zoom-out" class="map-control" type="button" aria-label="Отдалить"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+    <button id="locate" class="map-control" type="button" aria-label="Определить моё местоположение"><svg viewBox="0 0 24 24"><path d="m20 4-7.4 16-2.1-6.5L4 11.4 20 4Z"/></svg></button>
+  </div>
+  <script nonce="${nonce}">
     (() => {
       'use strict';
-      const defaults = { center:[43.6532,51.1975], selected:[43.6532,51.1975], zoom:13, mode:'customer', branches:[] };
+      const requestedMode = new URLSearchParams(location.search).get('mode');
+      const defaults = { center:[43.6532,51.1975], selected:[43.6532,51.1975], zoom:13, mode:['admin','dispatch'].includes(requestedMode) ? requestedMode : 'customer', branches:[], couriers:[], deliveryOrders:[] };
       let state = {...defaults};
       let map = null;
       let activeBranchId = null;
       let cameraTimer = 0;
+      let markerRenderTimer = 0;
+      let renderedMarkerBand = -1;
+      let geocodeSequence = 0;
+      const errorBox = document.getElementById('error');
+      const controls = document.getElementById('controls');
+      const locateButton = document.getElementById('locate');
 
       const parse = value => {
         if (typeof value === 'string') { try { return JSON.parse(value); } catch { return null; } }
@@ -51,6 +76,36 @@ router.get('/maps/yandex', (_req, res) => {
         const payload = JSON.stringify(message);
         try { if (window.parent !== window) window.parent.postMessage(payload, location.origin); } catch {}
         try { if (window.BulkaMap && typeof window.BulkaMap.postMessage === 'function') window.BulkaMap.postMessage(payload); } catch {}
+      };
+      const geocodeDetails = geoObject => {
+        if (!geoObject) return {};
+        const localities = typeof geoObject.getLocalities === 'function' ? geoObject.getLocalities() : [];
+        const administrative = typeof geoObject.getAdministrativeAreas === 'function' ? geoObject.getAdministrativeAreas() : [];
+        return {
+          address:typeof geoObject.getAddressLine === 'function' ? String(geoObject.getAddressLine() || '') : '',
+          city:String(localities[0] || administrative[administrative.length - 1] || '')
+        };
+      };
+      const emitSelectedPoint = (coordinates, source = 'map', geoObject = null, extra = {}) => {
+        emit({type:'point',latitude:coordinates[0],longitude:coordinates[1],source,...extra});
+        if (state.mode !== 'admin') return;
+        if (geoObject) {
+          emit({type:'geocode',latitude:coordinates[0],longitude:coordinates[1],source,...geocodeDetails(geoObject)});
+          return;
+        }
+        const sequence = ++geocodeSequence;
+        if (!window.ymaps || typeof ymaps.geocode !== 'function') return;
+        ymaps.geocode(coordinates,{results:1}).then(result => {
+          if (sequence !== geocodeSequence) return;
+          const first = result.geoObjects.get(0);
+          if (first) emit({type:'geocode',latitude:coordinates[0],longitude:coordinates[1],source,...geocodeDetails(first)});
+        }, () => {});
+      };
+      const showError = message => {
+        errorBox.textContent = message;
+        errorBox.style.display = 'block';
+        window.clearTimeout(showError.timer);
+        showError.timer = window.setTimeout(() => { errorBox.style.display = 'none'; }, 5000);
       };
       const haversine = (first, second) => {
         const radians = degrees => degrees * Math.PI / 180;
@@ -71,6 +126,16 @@ router.get('/maps/yandex', (_req, res) => {
           color:/^#[0-9a-f]{6}$/i.test(String(zone.color || '')) ? String(zone.color).toUpperCase() : ['#66BB6A','#29B6F6','#FFD54F','#EC407A','#7E57C2'][zoneIndex % 5]
         })).filter(zone => zone.radiusKm > 0).sort((a,b) => a.radiusKm - b.radiusKm)
       })).filter(branch => branch.point && branch.active);
+      const normalizedCouriers = () => (Array.isArray(state.couriers) ? state.couriers : []).map((courier, index) => ({
+        id:String(courier.id || index), name:String(courier.name || 'Курьер'), phone:String(courier.phone || ''),
+        point:point([courier.latitude,courier.longitude]), status:String(courier.availabilityStatus || 'offline'),
+        activeOrders:Number(courier.activeOrders) || 0
+      })).filter(courier => courier.point);
+      const normalizedDeliveryOrders = () => (Array.isArray(state.deliveryOrders) ? state.deliveryOrders : []).map((order, index) => ({
+        id:String(order.id || index), number:Number(order.number) || 0, address:String(order.deliveryAddress || ''),
+        courierId:order.courierId ? String(order.courierId) : null,
+        point:point([order.deliveryLatitude,order.deliveryLongitude])
+      })).filter(order => order.point);
       const selectedBranch = branches => {
         const selected = point(state.selected) || point(state.center) || defaults.center;
         const explicit = branches.find(branch => branch.id === activeBranchId);
@@ -83,9 +148,24 @@ router.get('/maps/yandex', (_req, res) => {
         const fee = zone.fee === null ? '—' : new Intl.NumberFormat('ru-RU').format(zone.fee) + ' ₸';
         return 'До ' + zone.radiusKm + ' км · ' + fee;
       };
+      const markerBand = zoom => {
+        const value = number(zoom) || defaults.zoom;
+        if (value <= 10) return 0;
+        if (value <= 11) return 1;
+        if (value <= 12) return 2;
+        if (value <= 13) return 3;
+        if (value <= 14) return 4;
+        return 5;
+      };
+      const markerSize = (zoom, isActive) => {
+        const compactSizes = [18,22,28,36,46,56];
+        return compactSizes[markerBand(zoom)] + (isActive ? 4 : 0);
+      };
       const render = () => {
         if (!map) return;
         map.geoObjects.removeAll();
+        const currentZoom = map.getZoom();
+        renderedMarkerBand = markerBand(currentZoom);
         const branches = normalizedBranches();
         const active = selectedBranch(branches);
         if (active) activeBranchId = active.id;
@@ -105,14 +185,18 @@ router.get('/maps/yandex', (_req, res) => {
 
         branches.forEach(branch => {
           const isAdmin = state.mode === 'admin';
+          const isActive = branch.id === activeBranchId;
+          const size = markerSize(currentZoom, isActive);
           const placemark = new ymaps.Placemark(branch.point, {
-            iconCaption:branch.name,
             hintContent:[branch.name,branch.address].filter(Boolean).join(' · '),
             balloonContent:'<strong>' + escapeHtml(branch.name) + '</strong><br>' + escapeHtml(branch.address)
           }, {
-            preset:branch.id === activeBranchId ? 'islands#brownDotIconWithCaption' : 'islands#darkOrangeCircleDotIconWithCaption',
+            iconLayout:'default#image',
+            iconImageHref:'/assets/bulka-map-marker.png',
+            iconImageSize:[size,size],
+            iconImageOffset:[-size / 2,-size * .9],
             draggable:isAdmin,
-            zIndex:400
+            zIndex:isActive ? 450 : 400
           });
           placemark.events.add('click', () => {
             activeBranchId = branch.id;
@@ -122,10 +206,29 @@ router.get('/maps/yandex', (_req, res) => {
           if (isAdmin) placemark.events.add('dragend', () => {
             const coordinates = placemark.geometry.getCoordinates();
             branch.point = coordinates;
-            emit({type:'point',latitude:coordinates[0],longitude:coordinates[1]});
+            emitSelectedPoint(coordinates,'drag');
           });
           map.geoObjects.add(placemark);
         });
+
+        if (state.mode === 'dispatch') {
+          normalizedDeliveryOrders().forEach(order => {
+            const placemark = new ymaps.Placemark(order.point, {
+              iconContent:String(order.number || ''),
+              hintContent:'Заказ №' + order.number + (order.address ? ' · ' + order.address : ''),
+              balloonContent:'<strong>Заказ №' + order.number + '</strong><br>' + escapeHtml(order.address) + '<br>' + (order.courierId ? 'Курьер назначен' : 'Ожидает курьера')
+            }, { preset:order.courierId ? 'islands#orangeStretchyIcon' : 'islands#redStretchyIcon', zIndex:520 });
+            map.geoObjects.add(placemark);
+          });
+          normalizedCouriers().forEach(courier => {
+            const preset = courier.status === 'available' ? 'islands#greenCircleDotIcon' : courier.status === 'busy' ? 'islands#orangeCircleDotIcon' : 'islands#grayCircleDotIcon';
+            const placemark = new ymaps.Placemark(courier.point, {
+              hintContent:courier.name + ' · ' + courier.activeOrders + ' заказов',
+              balloonContent:'<strong>' + escapeHtml(courier.name) + '</strong><br>' + escapeHtml(courier.phone) + '<br>' + escapeHtml(courier.status)
+            }, { preset, zIndex:650 });
+            map.geoObjects.add(placemark);
+          });
+        }
 
         const selected = point(state.selected);
         if (selected && state.mode !== 'admin') {
@@ -136,8 +239,10 @@ router.get('/maps/yandex', (_req, res) => {
       };
       const applyState = next => {
         state = {...state,...next};
+        controls.style.display = 'flex';
         const center = point(state.center) || point(state.selected) || defaults.center;
-        const zoom = Math.max(9,Math.min(19,number(state.zoom) || 13));
+        const minimumZoom = state.mode === 'admin' ? 4 : 9;
+        const zoom = Math.max(minimumZoom,Math.min(19,number(state.zoom) || 13));
         if (map) {
           map.setCenter(center,zoom,{duration:220});
           render();
@@ -149,11 +254,74 @@ router.get('/maps/yandex', (_req, res) => {
         if (!message) return;
         if (message.type === 'state') applyState(message);
         if (message.type === 'move') applyState({center:message.center,selected:message.selected || state.selected,zoom:message.zoom || state.zoom});
-        if (message.type === 'zoom' && map) map.setZoom(Math.max(9,Math.min(19,map.getZoom() + Number(message.delta || 0))),{duration:180});
+        if (message.type === 'zoom' && map) map.setZoom(Math.max(state.mode === 'admin' ? 4 : 9,Math.min(19,map.getZoom() + Number(message.delta || 0))),{duration:180});
+      });
+      document.getElementById('zoom-in').addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (map) map.setZoom(Math.min(19,map.getZoom() + 1),{duration:180});
+      });
+      document.getElementById('zoom-out').addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (map) map.setZoom(Math.max(state.mode === 'admin' ? 4 : 9,map.getZoom() - 1),{duration:180});
+      });
+      locateButton.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!navigator.geolocation) {
+          showError('Определение местоположения не поддерживается браузером.');
+          return;
+        }
+        locateButton.classList.add('loading');
+        locateButton.disabled = true;
+        navigator.geolocation.getCurrentPosition(position => {
+          const coordinates = [position.coords.latitude,position.coords.longitude];
+          state.selected = coordinates;
+          state.center = coordinates;
+          if (map) map.setCenter(coordinates,16,{duration:250});
+          render();
+          emitSelectedPoint(coordinates,'gps',null,{accuracy:position.coords.accuracy});
+          locateButton.classList.remove('loading');
+          locateButton.disabled = false;
+        }, error => {
+          const message = error.code === 1
+            ? 'Разрешите точную геопозицию для bulka.com.kz в настройках Safari.'
+            : error.code === 3
+              ? 'Не удалось быстро определить геопозицию. Попробуйте ещё раз на открытом месте.'
+              : 'Не удалось определить местоположение. Проверьте GPS и интернет.';
+          showError(message);
+          emit({type:'geo-error',code:error.code,message});
+          locateButton.classList.remove('loading');
+          locateButton.disabled = false;
+        }, {enableHighAccuracy:true,maximumAge:0,timeout:20000});
       });
       const init = () => {
         map = new ymaps.Map('map',{center:defaults.center,zoom:defaults.zoom,controls:[],type:'yandex#map'},{suppressMapOpenBlock:true});
         map.behaviors.enable(['drag','dblClickZoom','multiTouch']);
+        if (defaults.mode === 'admin') {
+          const searchControl = new ymaps.control.SearchControl({
+            options:{
+              noPlacemark:true,
+              provider:'yandex#search',
+              placeholderContent:'Найти город или адрес',
+              size:'large',
+              float:'left'
+            }
+          });
+          map.controls.add(searchControl,{float:'left'});
+          searchControl.events.add('resultselect', event => {
+            searchControl.getResult(event.get('index')).then(geoObject => {
+              const coordinates = geoObject?.geometry?.getCoordinates();
+              if (!coordinates) return;
+              state.selected = coordinates;
+              state.center = coordinates;
+              map.setCenter(coordinates,14,{duration:250});
+              emitSelectedPoint(coordinates,'search',geoObject);
+              render();
+            }, () => showError('Не удалось выбрать найденный адрес.'));
+          });
+        }
         map.events.add('click', event => {
           const coordinates = event.get('coords');
           if (state.mode === 'admin') {
@@ -162,7 +330,7 @@ router.get('/maps/yandex', (_req, res) => {
           } else {
             state.selected = coordinates;
           }
-          emit({type:'point',latitude:coordinates[0],longitude:coordinates[1]});
+          emitSelectedPoint(coordinates,'map');
           render();
         });
         map.events.add('boundschange', event => {
@@ -171,6 +339,11 @@ router.get('/maps/yandex', (_req, res) => {
             const center = event.get('newCenter');
             emit({type:'camera',latitude:center[0],longitude:center[1],zoom:event.get('newZoom')});
           },120);
+          const nextBand = markerBand(event.get('newZoom') ?? map.getZoom());
+          if (nextBand !== renderedMarkerBand) {
+            window.clearTimeout(markerRenderTimer);
+            markerRenderTimer = window.setTimeout(render,80);
+          }
         });
         render();
         emit({type:'ready'});

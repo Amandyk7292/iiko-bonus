@@ -1,0 +1,1107 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/png" sizes="660x660" href="/assets/wallet/bulka-wallet-logo.png?v=20260715" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <meta name="theme-color" content="#6b2f13" />
+    <title>Bulka · Курьер</title>
+    <style>
+      :root {
+        font-family:
+          Inter,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          sans-serif;
+        color: #35180d;
+        background: #fff9f0;
+        line-height: 1.45;
+        --brown: #6b2f13;
+        --ink: #35180d;
+        --muted: #79675f;
+        --line: #ead6c2;
+        --cream: #fff4df;
+        --yellow: #ffbf1b;
+        --danger: #a52e25;
+        --success: #247c3e;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: radial-gradient(circle at 100% 0, #fff0d4 0, transparent 34%), #fff9f0;
+      }
+      button,
+      input {
+        font: inherit;
+      }
+      .shell {
+        width: min(100%, 720px);
+        margin: auto;
+        padding: calc(18px + env(safe-area-inset-top)) 16px calc(32px + env(safe-area-inset-bottom));
+      }
+      .head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 18px;
+      }
+      .brand {
+        font:
+          800 28px Georgia,
+          serif;
+        color: var(--brown);
+      }
+      .head-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .pill {
+        max-width: 180px;
+        padding: 8px 12px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        border-radius: 999px;
+        background: #fff;
+        border: 1px solid var(--line);
+        font-size: 13px;
+      }
+      .icon-button {
+        width: 48px;
+        height: 48px;
+        display: grid;
+        place-items: center;
+        padding: 0;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        color: var(--brown);
+        background: #fff;
+        cursor: pointer;
+      }
+      .panel,
+      .hero,
+      .card,
+      .state {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        box-shadow: 0 12px 36px #4d210d0d;
+      }
+      .panel {
+        padding: 22px;
+      }
+      .login {
+        max-width: 470px;
+        margin: 8vh auto 0;
+      }
+      .login h1,
+      .hero h1 {
+        margin: 0 0 7px;
+        font-size: clamp(22px, 6vw, 30px);
+        line-height: 1.15;
+      }
+      .login p,
+      .hero p {
+        margin: 0;
+        color: var(--muted);
+      }
+      .field {
+        display: grid;
+        gap: 7px;
+        margin-top: 18px;
+      }
+      .field label {
+        font-size: 14px;
+        font-weight: 750;
+      }
+      .field input {
+        width: 100%;
+        min-height: 54px;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 0 15px;
+        color: var(--ink);
+        background: #fffdf9;
+        outline: none;
+      }
+      .field input:focus {
+        border-color: #d49427;
+        box-shadow: 0 0 0 3px #ffbf1b2e;
+      }
+      .field input[aria-invalid='true'] {
+        border-color: var(--danger);
+      }
+      .actions {
+        display: grid;
+        gap: 10px;
+        margin-top: 18px;
+      }
+      button,
+      .button {
+        min-height: 50px;
+        border: 0;
+        border-radius: 16px;
+        padding: 12px 16px;
+        font-weight: 750;
+        text-decoration: none;
+        text-align: center;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        cursor: pointer;
+      }
+      .primary {
+        color: var(--ink);
+        background: linear-gradient(135deg, #ffd64b, #ffad0d);
+      }
+      .secondary {
+        color: var(--brown);
+        background: var(--cream);
+        border: 1px solid #eccb98;
+      }
+      .ghost {
+        color: var(--brown);
+        background: #fff;
+        border: 1px solid var(--line);
+      }
+      button:disabled,
+      .button[aria-disabled='true'] {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+      .button[aria-disabled='true'] {
+        pointer-events: none;
+      }
+      .message {
+        min-height: 22px;
+        margin-top: 12px;
+        font-size: 14px;
+      }
+      .message.error {
+        color: var(--danger);
+      }
+      .message.success {
+        color: var(--success);
+      }
+      .auth-flow {
+        display: grid;
+        gap: 14px;
+        margin-top: 18px;
+      }
+      .auth-step {
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 19px;
+        background: #fffaf2;
+      }
+      .step-head {
+        display: flex;
+        align-items: flex-start;
+        gap: 11px;
+        margin-bottom: 14px;
+      }
+      .step-number {
+        width: 30px;
+        height: 30px;
+        flex: none;
+        display: grid;
+        place-items: center;
+        border-radius: 50%;
+        color: #fff;
+        background: var(--brown);
+        font-weight: 800;
+      }
+      .step-copy {
+        display: grid;
+        gap: 2px;
+      }
+      .step-copy strong {
+        font-size: 16px;
+      }
+      .step-copy span {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .identifier-box {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 8px;
+        align-items: center;
+        margin-top: 10px;
+        padding: 10px 10px 10px 13px;
+        border: 1px dashed #d9b78f;
+        border-radius: 14px;
+        background: #fff;
+      }
+      .identifier-code {
+        min-width: 0;
+        overflow-wrap: anywhere;
+        font:
+          700 13px/1.35 ui-monospace,
+          SFMono-Regular,
+          Consolas,
+          monospace;
+        color: var(--brown);
+      }
+      .compact-button {
+        min-height: 44px;
+        padding: 9px 12px;
+        border-radius: 12px;
+        font-size: 13px;
+      }
+      .challenge-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-top: 10px;
+      }
+      .challenge-timer {
+        font-variant-numeric: tabular-nums;
+        color: var(--success);
+        font-weight: 800;
+      }
+      .challenge-timer.expired {
+        color: var(--danger);
+      }
+      .inline-action {
+        min-height: 44px;
+        padding: 8px 10px;
+        color: var(--brown);
+        background: transparent;
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+      .auth-step .field {
+        margin-top: 0;
+      }
+      .hero {
+        padding: 18px;
+        margin-bottom: 16px;
+      }
+      .hero-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .live {
+        color: var(--success);
+      }
+      .live:before {
+        content: '';
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        background: #35a852;
+        border-radius: 50%;
+        margin-right: 7px;
+      }
+      .orders {
+        display: grid;
+        gap: 14px;
+      }
+      .state {
+        padding: 30px 20px;
+        text-align: center;
+        color: var(--muted);
+      }
+      .state.error {
+        color: var(--danger);
+        background: #fff7f6;
+        border-color: #efc6c1;
+      }
+      .card {
+        padding: 18px;
+      }
+      .top {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: flex-start;
+      }
+      .card h2 {
+        font-size: 20px;
+        margin: 0;
+      }
+      .status {
+        flex: none;
+        font-size: 12px;
+        font-weight: 800;
+        padding: 7px 10px;
+        border-radius: 999px;
+        background: #fff2d2;
+        color: #8a5700;
+      }
+      .address {
+        font-size: 18px;
+        font-weight: 750;
+        margin: 16px 0 6px;
+      }
+      .muted {
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .items {
+        padding: 12px 0;
+        margin: 12px 0;
+        border-block: 1px solid #f0e4d8;
+      }
+      .row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        margin: 6px 0;
+      }
+      .card-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 9px;
+        margin-top: 14px;
+      }
+      .toast {
+        position: fixed;
+        left: 50%;
+        bottom: calc(18px + env(safe-area-inset-bottom));
+        z-index: 20;
+        width: min(calc(100% - 32px), 520px);
+        transform: translate(-50%, 24px);
+        padding: 13px 16px;
+        border-radius: 16px;
+        color: #fff;
+        background: #35180dee;
+        box-shadow: 0 14px 40px #0004;
+        opacity: 0;
+        pointer-events: none;
+        transition: 0.2s ease;
+      }
+      .toast.show {
+        opacity: 1;
+        transform: translate(-50%, 0);
+      }
+      dialog {
+        width: min(calc(100% - 24px), 520px);
+        max-height: calc(100vh - 24px);
+        padding: 0;
+        border: 0;
+        border-radius: 26px;
+        color: var(--ink);
+        background: #fff;
+        box-shadow: 0 28px 80px #2b120b55;
+      }
+      dialog::backdrop {
+        background: #2b120b99;
+        backdrop-filter: blur(4px);
+      }
+      .dialog-body {
+        padding: 22px;
+      }
+      .dialog-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .dialog-head h2 {
+        margin: 0;
+        font-size: 23px;
+      }
+      .photo-label {
+        min-height: 116px;
+        margin-top: 18px;
+        display: grid;
+        place-items: center;
+        text-align: center;
+        border: 1.5px dashed #d9b78f;
+        border-radius: 18px;
+        color: var(--brown);
+        background: #fffaf2;
+        cursor: pointer;
+        padding: 16px;
+      }
+      .photo-label input {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        opacity: 0;
+      }
+      .photo-name {
+        display: block;
+        margin-top: 5px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .fine {
+        margin-top: 10px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .hidden {
+        display: none !important;
+      }
+      @media (max-width: 390px) {
+        .shell {
+          padding-inline: 12px;
+        }
+        .card-actions {
+          grid-template-columns: 1fr;
+        }
+        .panel,
+        .card {
+          padding: 16px;
+        }
+        .pill {
+          max-width: 130px;
+        }
+        .identifier-box {
+          grid-template-columns: 1fr;
+        }
+        .compact-button {
+          width: 100%;
+        }
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        button,
+        .button {
+          transition:
+            transform 0.15s ease,
+            opacity 0.15s ease;
+        }
+        button:active,
+        .button:active {
+          transform: scale(0.98);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          scroll-behavior: auto !important;
+          transition: none !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <section id="loginView" class="panel login" aria-labelledby="loginTitle">
+        <div class="brand">Bulka</div>
+        <h1 id="loginTitle">Вход курьера</h1>
+        <p>Используйте номер, который управляющий добавил в список курьеров.</p>
+        <form id="phoneForm" novalidate>
+          <div class="field">
+            <label for="phone">Номер телефона</label>
+            <input
+              id="phone"
+              name="phone"
+              type="tel"
+              inputmode="tel"
+              autocomplete="tel"
+              placeholder="+7 700 000 00 00"
+              required
+            />
+          </div>
+          <div class="actions">
+            <button class="primary" type="submit">Продолжить через WhatsApp</button>
+          </div>
+        </form>
+        <form id="codeForm" class="hidden" novalidate>
+          <div class="auth-flow">
+            <section class="auth-step" aria-labelledby="botStepTitle">
+              <div class="step-head">
+                <span class="step-number" aria-hidden="true">1</span>
+                <span class="step-copy">
+                  <strong id="botStepTitle">Напишите боту</strong>
+                  <span>Откройте WhatsApp и отправьте уже подготовленное сообщение.</span>
+                </span>
+              </div>
+              <a id="whatsappLink" class="button primary" target="_blank" rel="noopener" href="#">
+                <svg
+                  width="21"
+                  height="21"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  aria-hidden="true"
+                >
+                  <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+                  <path d="M8 8h8M8 12h5" />
+                </svg>
+                Открыть WhatsApp
+              </a>
+              <div class="identifier-box">
+                <code id="requestIdentifier" class="identifier-code">код …</code>
+                <button id="copyIdentifier" class="ghost compact-button" type="button">
+                  Скопировать
+                </button>
+              </div>
+              <div class="challenge-meta">
+                <span
+                  >Действует:
+                  <span id="challengeTimer" class="challenge-timer" aria-live="polite"
+                    >05:00</span
+                  ></span
+                >
+                <button id="refreshChallenge" class="inline-action" type="button">
+                  Новый идентификатор
+                </button>
+              </div>
+            </section>
+            <section class="auth-step" aria-labelledby="codeStepTitle">
+              <div class="step-head">
+                <span class="step-number" aria-hidden="true">2</span>
+                <span class="step-copy">
+                  <strong id="codeStepTitle">Введите ответ бота</strong>
+                  <span>Бот пришлёт шестизначный код после вашего сообщения.</span>
+                </span>
+              </div>
+              <div class="field">
+                <label for="code">Код подтверждения</label>
+                <input
+                  id="code"
+                  name="code"
+                  type="text"
+                  inputmode="numeric"
+                  autocomplete="one-time-code"
+                  maxlength="6"
+                  pattern="[0-9]{6}"
+                  placeholder="000000"
+                  required
+                />
+              </div>
+            </section>
+          </div>
+          <div class="actions">
+            <button class="primary" type="submit">Войти</button>
+            <button class="ghost" id="changePhone" type="button">Изменить номер</button>
+          </div>
+        </form>
+        <div id="loginMessage" class="message" role="status" aria-live="polite"></div>
+      </section>
+
+      <section id="appView" class="hidden">
+        <header class="head">
+          <div class="brand">Bulka</div>
+          <div class="head-actions">
+            <div class="pill" id="courierName">Курьер</div>
+            <button class="icon-button" id="logoutButton" type="button" aria-label="Выйти">
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
+              >
+                <path d="M10 17l5-5-5-5M15 12H3M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+              </svg>
+            </button>
+          </div>
+        </header>
+        <section class="hero">
+          <div class="hero-top">
+            <div>
+              <h1>Мои доставки</h1>
+              <p id="locationText">Включите геопозицию перед началом смены.</p>
+            </div>
+          </div>
+          <div class="actions">
+            <button class="primary" id="locationButton" type="button">
+              Начать передачу геопозиции
+            </button>
+          </div>
+        </section>
+        <section id="content" class="state" aria-live="polite">Загружаем заказы…</section>
+      </section>
+    </main>
+
+    <dialog id="proofDialog" aria-labelledby="proofTitle">
+      <form id="proofForm" class="dialog-body" method="dialog">
+        <div class="dialog-head">
+          <div>
+            <h2 id="proofTitle">Подтверждение доставки</h2>
+            <p class="muted">PIN клиента и фото обязательны.</p>
+          </div>
+          <button class="icon-button" id="closeProof" type="button" aria-label="Закрыть">
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              aria-hidden="true"
+            >
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div class="field">
+          <label for="deliveryPin">PIN клиента</label
+          ><input
+            id="deliveryPin"
+            name="pin"
+            type="text"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            maxlength="6"
+            pattern="[0-9]{4,6}"
+            placeholder="0000"
+            required
+          />
+        </div>
+        <label class="photo-label" for="deliveryPhoto">
+          <span
+            ><strong>Сделать или выбрать фото</strong
+            ><span id="photoName" class="photo-name">JPEG, PNG или WebP до 6 МБ</span></span
+          >
+          <input
+            id="deliveryPhoto"
+            name="photo"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            capture="environment"
+            required
+          />
+        </label>
+        <p class="fine">
+          Фото хранится в закрытом архиве и доступно только уполномоченным сотрудникам.
+        </p>
+        <div id="proofMessage" class="message" role="status" aria-live="polite"></div>
+        <div class="actions">
+          <button class="primary" type="submit">Подтвердить передачу</button>
+        </div>
+      </form>
+    </dialog>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <script>
+      (() => {
+        const $ = (selector) => document.querySelector(selector);
+        const loginView = $('#loginView'),
+          appView = $('#appView'),
+          phoneForm = $('#phoneForm'),
+          codeForm = $('#codeForm');
+        const phoneInput = $('#phone'),
+          codeInput = $('#code'),
+          loginMessage = $('#loginMessage');
+        const whatsappLink = $('#whatsappLink'),
+          requestIdentifier = $('#requestIdentifier'),
+          copyIdentifier = $('#copyIdentifier');
+        const challengeTimer = $('#challengeTimer'),
+          refreshChallenge = $('#refreshChallenge');
+        const content = $('#content'),
+          courierName = $('#courierName'),
+          locationText = $('#locationText'),
+          locationButton = $('#locationButton');
+        const proofDialog = $('#proofDialog'),
+          proofForm = $('#proofForm'),
+          proofMessage = $('#proofMessage'),
+          photoInput = $('#deliveryPhoto'),
+          photoName = $('#photoName');
+        let watchId = null,
+          lastSentAt = 0,
+          lastPosition = null,
+          selectedOrderId = '',
+          reloadTimer = null,
+          toastTimer = null;
+        let challengeInterval = null,
+          challengeExpiresAt = 0,
+          challengeText = '',
+          challengeUrl = '',
+          challengeRefreshing = false,
+          challengeRequestId = 0;
+        const esc = (value) =>
+          String(value ?? '').replace(
+            /[&<>'"]/g,
+            (char) =>
+              ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char],
+          );
+        const statusLabels = {
+          assigned: 'Назначен',
+          picked_up: 'Забран',
+          en_route: 'В пути',
+          delivered: 'Доставлен',
+        };
+        const nextActions = {
+          assigned: [
+            ['picked_up', 'Забрал заказ'],
+            ['en_route', 'Выехал к клиенту'],
+          ],
+          picked_up: [['en_route', 'Выехал к клиенту']],
+          en_route: [['delivered', 'Заказ доставлен']],
+        };
+
+        function setMessage(node, text = '', type = '') {
+          node.className = `message ${type}`.trim();
+          node.textContent = text;
+        }
+        function toast(text) {
+          clearTimeout(toastTimer);
+          $('#toast').textContent = text;
+          $('#toast').classList.add('show');
+          toastTimer = setTimeout(() => $('#toast').classList.remove('show'), 3200);
+        }
+        function setBusy(form, busy) {
+          form.querySelectorAll('button,input').forEach((control) => (control.disabled = busy));
+        }
+        function clearChallenge() {
+          challengeRequestId += 1;
+          challengeRefreshing = false;
+          clearInterval(challengeInterval);
+          challengeInterval = null;
+          challengeExpiresAt = 0;
+          challengeText = '';
+          challengeUrl = '';
+          requestIdentifier.textContent = 'код …';
+          challengeTimer.textContent = '05:00';
+          challengeTimer.classList.remove('expired');
+          refreshChallenge.disabled = false;
+          whatsappLink.setAttribute('aria-disabled', 'true');
+          whatsappLink.removeAttribute('href');
+        }
+        function resetLoginFlow() {
+          clearChallenge();
+          codeForm.classList.add('hidden');
+          phoneForm.classList.remove('hidden');
+          codeInput.value = '';
+        }
+        function updateChallengeTimer() {
+          const seconds = Math.max(0, Math.ceil((challengeExpiresAt - Date.now()) / 1000));
+          if (seconds <= 0) {
+            clearInterval(challengeInterval);
+            challengeInterval = null;
+            challengeTimer.textContent = 'Обновляем…';
+            challengeTimer.classList.add('expired');
+            whatsappLink.setAttribute('aria-disabled', 'true');
+            whatsappLink.removeAttribute('href');
+            setMessage(
+              loginMessage,
+              'Пять минут прошло — создаём новый одноразовый идентификатор.',
+              'success',
+            );
+            void requestChallenge(codeForm, { automatic: true });
+            return;
+          }
+          const minutes = String(Math.floor(seconds / 60)).padStart(2, '0');
+          const rest = String(seconds % 60).padStart(2, '0');
+          challengeTimer.textContent = `${minutes}:${rest}`;
+          challengeTimer.classList.remove('expired');
+        }
+        function activateChallenge(body) {
+          clearInterval(challengeInterval);
+          challengeText = `код ${body.requestToken}`;
+          challengeUrl = String(body.whatsappUrl || '');
+          challengeExpiresAt = new Date(body.expiresAt || Date.now() + 300000).getTime();
+          requestIdentifier.textContent = challengeText;
+          whatsappLink.href = challengeUrl;
+          whatsappLink.setAttribute('aria-disabled', 'false');
+          codeForm.classList.remove('hidden');
+          phoneForm.classList.add('hidden');
+          updateChallengeTimer();
+          challengeInterval = setInterval(updateChallengeTimer, 1000);
+        }
+        async function requestChallenge(form, { automatic = false } = {}) {
+          if (challengeRefreshing) return;
+          challengeRefreshing = true;
+          const requestId = ++challengeRequestId;
+          if (automatic) refreshChallenge.disabled = true;
+          else setBusy(form, true);
+          setMessage(loginMessage);
+          try {
+            const body = await request('/api/courier/auth/request', {
+              method: 'POST',
+              body: JSON.stringify({ phone: phoneInput.value }),
+            });
+            if (requestId !== challengeRequestId) return;
+            activateChallenge(body);
+            setMessage(
+              loginMessage,
+              automatic
+                ? 'Идентификатор автоматически обновлён. Откройте WhatsApp и нажмите «Отправить».'
+                : 'WhatsApp сам ничего не отправит: откройте бота и нажмите «Отправить».',
+              'success',
+            );
+          } catch (error) {
+            if (requestId === challengeRequestId) {
+              challengeTimer.textContent = 'Истёк';
+              challengeTimer.classList.add('expired');
+              setMessage(loginMessage, error.message, 'error');
+            }
+          } finally {
+            if (requestId === challengeRequestId) {
+              challengeRefreshing = false;
+              if (automatic) refreshChallenge.disabled = false;
+              else setBusy(form, false);
+            }
+          }
+        }
+        async function request(path, options = {}) {
+          const headers = {
+            ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+            ...(options.headers || {}),
+          };
+          const response = await fetch(path, { ...options, credentials: 'same-origin', headers });
+          const body = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            const error = new Error(body.error || 'Не удалось выполнить запрос');
+            error.status = response.status;
+            error.code = body.code;
+            throw error;
+          }
+          return body;
+        }
+        function showLogin(message = '') {
+          appView.classList.add('hidden');
+          loginView.classList.remove('hidden');
+          clearInterval(reloadTimer);
+          reloadTimer = null;
+          if (watchId !== null) navigator.geolocation?.clearWatch(watchId);
+          watchId = null;
+          resetLoginFlow();
+          if (message) setMessage(loginMessage, message, 'error');
+        }
+        function showApp(courier) {
+          clearChallenge();
+          loginView.classList.add('hidden');
+          appView.classList.remove('hidden');
+          courierName.textContent = courier.name || 'Курьер';
+          if (!reloadTimer) reloadTimer = setInterval(loadOrders, 20000);
+        }
+        const addressData = (raw) => {
+          const address = raw && typeof raw === 'object' ? raw : {};
+          return address.location && typeof address.location === 'object'
+            ? { ...address, ...address.location }
+            : address;
+        };
+        const addressText = (raw) => {
+          const address = addressData(raw);
+          return (
+            [address.address, address.house, address.apartment ? `кв. ${address.apartment}` : '']
+              .filter(Boolean)
+              .join(', ') || 'Адрес не указан'
+          );
+        };
+        const mapUrl = (order) => {
+          const address = addressData(order.deliveryAddress);
+          const lat = Number(order.deliveryLatitude ?? address.latitude),
+            lon = Number(order.deliveryLongitude ?? address.longitude);
+          return Number.isFinite(lat) && Number.isFinite(lon)
+            ? `https://yandex.kz/maps/?rtext=~${lat},${lon}&rtt=auto`
+            : '';
+        };
+        function renderOrders(orders) {
+          if (!orders.length) {
+            content.className = 'state';
+            content.textContent = 'Назначенных доставок пока нет.';
+            return;
+          }
+          content.className = 'orders';
+          content.innerHTML = orders
+            .map((order) => {
+              const actions = (nextActions[order.deliveryStatus] || [])
+                .map(
+                  ([status, label]) =>
+                    `<button class="${status === 'delivered' ? 'primary' : 'secondary'}" data-order="${esc(order.id)}" data-status="${status}" type="button">${label}</button>`,
+                )
+                .join('');
+              const url = mapUrl(order);
+              const items = (order.items || [])
+                .map(
+                  (item) =>
+                    `<div class="row"><span>${esc(item.name || item.productName || 'Позиция')}</span><strong>× ${Number(item.quantity || 1)}</strong></div>`,
+                )
+                .join('');
+              const phone = String(order.customerPhone || '').replace(/[^0-9+]/g, '');
+              return `<article class="card"><div class="top"><h2>Заказ № ${esc(order.number)}</h2><span class="status">${esc(statusLabels[order.deliveryStatus] || order.deliveryStatus)}</span></div><div class="address">${esc(addressText(order.deliveryAddress))}</div>${order.comment ? `<div class="muted">Комментарий: ${esc(order.comment)}</div>` : ''}<div class="items">${items || '<span class="muted">Состав заказа не указан</span>'}</div><div class="card-actions">${url ? `<a class="button secondary" target="_blank" rel="noopener" href="${url}">Открыть маршрут</a>` : ''}${phone ? `<a class="button ghost" href="tel:${esc(phone)}">Позвонить клиенту</a>` : ''}${actions}</div></article>`;
+            })
+            .join('');
+          content
+            .querySelectorAll('[data-order]')
+            .forEach((button) => button.addEventListener('click', () => handleStatus(button)));
+        }
+        async function handleStatus(button) {
+          if (button.dataset.status === 'delivered') {
+            selectedOrderId = button.dataset.order;
+            proofForm.reset();
+            photoName.textContent = 'JPEG, PNG или WebP до 6 МБ';
+            setMessage(proofMessage);
+            proofDialog.showModal();
+            setTimeout(() => $('#deliveryPin').focus(), 50);
+            return;
+          }
+          button.disabled = true;
+          try {
+            await request(
+              `/api/courier/orders/${encodeURIComponent(button.dataset.order)}/status`,
+              { method: 'PATCH', body: JSON.stringify({ status: button.dataset.status }) },
+            );
+            toast('Статус обновлён');
+            await loadOrders();
+          } catch (error) {
+            toast(error.message);
+            button.disabled = false;
+          }
+        }
+        async function loadOrders() {
+          try {
+            const body = await request('/api/courier/orders');
+            courierName.textContent = body.courier.name || 'Курьер';
+            renderOrders(body.orders || []);
+          } catch (error) {
+            if (error.status === 401) showLogin('Сессия завершена. Войдите снова.');
+            else {
+              content.className = 'state error';
+              content.textContent = error.message;
+            }
+          }
+        }
+        phoneForm.addEventListener('submit', async (event) => {
+          event.preventDefault();
+          await requestChallenge(phoneForm);
+        });
+        codeForm.addEventListener('submit', async (event) => {
+          event.preventDefault();
+          setBusy(codeForm, true);
+          setMessage(loginMessage);
+          try {
+            const body = await request('/api/courier/auth/verify', {
+              method: 'POST',
+              body: JSON.stringify({ phone: phoneInput.value, code: codeInput.value }),
+            });
+            showApp(body.courier);
+            await loadOrders();
+          } catch (error) {
+            setMessage(loginMessage, error.message, 'error');
+          } finally {
+            setBusy(codeForm, false);
+          }
+        });
+        refreshChallenge.addEventListener('click', () => requestChallenge(codeForm));
+        copyIdentifier.addEventListener('click', async () => {
+          if (!challengeText) return;
+          try {
+            await navigator.clipboard.writeText(challengeText);
+            toast('Идентификатор скопирован');
+          } catch {
+            setMessage(
+              loginMessage,
+              'Не удалось скопировать. Выделите идентификатор вручную.',
+              'error',
+            );
+          }
+        });
+        whatsappLink.addEventListener('click', (event) => {
+          if (!challengeUrl || whatsappLink.getAttribute('aria-disabled') === 'true')
+            event.preventDefault();
+        });
+        $('#changePhone').addEventListener('click', () => {
+          resetLoginFlow();
+          setMessage(loginMessage);
+          phoneInput.focus();
+        });
+        $('#logoutButton').addEventListener('click', async () => {
+          try {
+            await request('/api/courier/session', { method: 'DELETE' });
+          } catch {}
+          showLogin();
+        });
+        async function sendLocation(position) {
+          lastPosition = position;
+          if (Date.now() - lastSentAt < 10000) return;
+          lastSentAt = Date.now();
+          try {
+            await request('/api/courier/location', {
+              method: 'PATCH',
+              body: JSON.stringify({
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude,
+              }),
+            });
+            locationText.className = 'live';
+            locationText.textContent = `Геопозиция передаётся · точность ${Math.round(position.coords.accuracy)} м`;
+          } catch (error) {
+            if (error.status === 401) showLogin('Сессия завершена. Войдите снова.');
+            else {
+              locationText.className = 'message error';
+              locationText.textContent = error.message;
+            }
+          }
+        }
+        locationButton.addEventListener('click', () => {
+          if (watchId !== null) {
+            navigator.geolocation.clearWatch(watchId);
+            watchId = null;
+            locationButton.textContent = 'Начать передачу геопозиции';
+            locationText.className = '';
+            locationText.textContent = 'Передача геопозиции остановлена.';
+            return;
+          }
+          if (!navigator.geolocation) {
+            locationText.textContent = 'Геопозиция не поддерживается этим браузером.';
+            return;
+          }
+          watchId = navigator.geolocation.watchPosition(
+            sendLocation,
+            (error) => {
+              locationText.className = 'message error';
+              locationText.textContent =
+                error.code === 1
+                  ? 'Разрешите доступ к геопозиции в настройках браузера.'
+                  : 'Не удалось определить геопозицию.';
+            },
+            { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 },
+          );
+          locationButton.textContent = 'Остановить передачу';
+        });
+        $('#closeProof').addEventListener('click', () => proofDialog.close());
+        photoInput.addEventListener('change', () => {
+          photoName.textContent = photoInput.files?.[0]?.name || 'JPEG, PNG или WebP до 6 МБ';
+        });
+        proofForm.addEventListener('submit', async (event) => {
+          event.preventDefault();
+          if (!selectedOrderId) return;
+          setBusy(proofForm, true);
+          setMessage(proofMessage);
+          try {
+            const data = new FormData();
+            data.append('pin', $('#deliveryPin').value);
+            data.append('photo', photoInput.files[0]);
+            if (lastPosition) {
+              data.append('latitude', String(lastPosition.coords.latitude));
+              data.append('longitude', String(lastPosition.coords.longitude));
+            }
+            await request(
+              `/api/courier/orders/${encodeURIComponent(selectedOrderId)}/confirm-delivery`,
+              { method: 'POST', body: data },
+            );
+            proofDialog.close();
+            toast('Доставка подтверждена');
+            await loadOrders();
+          } catch (error) {
+            setMessage(proofMessage, error.message, 'error');
+          } finally {
+            setBusy(proofForm, false);
+          }
+        });
+        (async () => {
+          try {
+            const session = await request('/api/courier/session');
+            showApp(session.courier);
+            await loadOrders();
+          } catch {
+            showLogin();
+          }
+        })();
+      })();
+    </script>
+  </body>
+</html>

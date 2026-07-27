@@ -6,6 +6,9 @@ import { fileURLToPath } from 'url';
 import { KASPI_QRPAY_URL } from './config.js';
 import { signedQrPayHeaders } from './helpers.js';
 import { decryptSecret } from './crypto.js';
+import { clearActiveSession } from './activeSession.js';
+import { isKaspiSessionExpired } from './kaspiResponse.js';
+import { clearGlobalSession, getGlobalSession } from './sessionStorage.js';
 import { getWebhooksByEvent } from './webhookStore.js';
 import { logger } from './logger.js';
 import {
@@ -102,14 +105,19 @@ export const trackPayment = (paymentId, type, sessionHeaders, meta = {}) => {
 // ─── Fetch status from Kaspi (quiet — no loggedFetch) ───
 
 const fetchStatus = async (entry) => {
-  const { paymentId, type, sessionHeaders } = entry;
+  const { paymentId, type } = entry;
+  const sessionHeaders = getGlobalSession();
+
+  if (!sessionHeaders) return { error: 'reauth_required' };
 
   let decryptedSecret;
   try {
     decryptedSecret = decryptSecret(sessionHeaders.vtokenSecret);
   } catch {
-    logger.error('POLLING', `Failed to decrypt session for payment ${paymentId} — session may have expired`);
-    return { error: 'session_expired' };
+    clearActiveSession(sessionHeaders.tokenSN);
+    clearGlobalSession('kaspi_session_decrypt_failed', sessionHeaders);
+    logger.error('POLLING', `Failed to decrypt active Kaspi session for payment ${paymentId}`);
+    return { error: 'reauth_required' };
   }
 
   const session = {
@@ -128,12 +136,21 @@ const fetchStatus = async (entry) => {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 15000);
-    const resp = await fetch(url, {
-      headers: signedQrPayHeaders(url, session),
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
-    const json = await resp.json();
+    let resp;
+    try {
+      resp = await fetch(url, {
+        headers: signedQrPayHeaders(url, session),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+    const json = await resp.json().catch(() => ({}));
+    if (isKaspiSessionExpired(json)) {
+      clearActiveSession(sessionHeaders.tokenSN);
+      clearGlobalSession('kaspi_session_expired', sessionHeaders);
+      return { error: 'reauth_required' };
+    }
     return json;
   } catch (err) {
     logger.error('POLLING', `Error fetching status for ${paymentId}:`, err.message);
@@ -230,6 +247,22 @@ const processRetries = async () => {
 const pollOnce = async () => {
   let changed = false;
 
+  if (!getGlobalSession()) {
+    if (!pollPausedForReauth && trackedPayments.size > 0) {
+      logger.warn(
+        'POLLING',
+        'Kaspi session requires SMS login; pending payments are preserved until reconnection',
+      );
+    }
+    pollPausedForReauth = true;
+    return;
+  }
+
+  if (pollPausedForReauth) {
+    pollPausedForReauth = false;
+    logger.info('POLLING', 'Kaspi session restored; pending payment checks resumed automatically');
+  }
+
   for (const [id, entry] of trackedPayments) {
     // TTL check via expireDate
     if (entry.meta.expireDate) {
@@ -258,21 +291,16 @@ const pollOnce = async () => {
 
     const result = await fetchStatus(entry);
 
-    // Handle session expiration
-    if (result && result.error === 'session_expired') {
-      entry.retryCount++;
-      if (entry.retryCount > 3) {
-        logger.warn('POLLING', `Payment ${id} — session expired, sending session.expired webhook`);
-        sendWebhooks(
-          'payment.failed',
-          buildPayload('payment.failed', entry, {
-            Status: 'SessionExpired',
-            StatusDesc: 'Сессия Kaspi истекла, невозможно проверить статус платежа',
-          }),
+    // A replaced Kaspi session is an integration outage, not a failed client
+    // payment. Preserve every pending operation and resume after SMS login.
+    if (result && result.error === 'reauth_required') {
+      if (!pollPausedForReauth) {
+        logger.warn(
+          'POLLING',
+          'Kaspi session was revoked; pending payments are preserved until reconnection',
         );
-        trackedPayments.delete(id);
-        changed = true;
       }
+      pollPausedForReauth = true;
       continue;
     }
 
@@ -335,6 +363,7 @@ const buildPayload = (event, entry, data) => ({
 
 let pollActive = false;
 let pollTimer = null;
+let pollPausedForReauth = false;
 const POLL_MS = 3000;
 
 const scheduleNext = () => {

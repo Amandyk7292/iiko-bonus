@@ -5,14 +5,22 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   node:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 22
+          node-version: 22.17.0
           cache: npm
           cache-dependency-path: |
             package-lock.json
@@ -23,19 +31,239 @@ jobs:
       - run: npm ci --prefix kaspi-pos-automation-main
       - run: npm run db:migrate:check
       - run: npm run verify
+      - name: Audit JavaScript dependencies
+        run: |
+          npm audit --audit-level=high
+          npm audit --prefix admin-ui --audit-level=high
+          npm audit --prefix kaspi-pos-automation-main --audit-level=high
+      - name: Generate JavaScript SBOMs
+        run: |
+          mkdir -p artifacts/sbom
+          npm sbom --sbom-format cyclonedx > artifacts/sbom/backend.cdx.json
+          npm --prefix admin-ui sbom --sbom-format cyclonedx > artifacts/sbom/admin.cdx.json
+          npm --prefix kaspi-pos-automation-main sbom --sbom-format cyclonedx \
+            > artifacts/sbom/kaspi-pos.cdx.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: node-coverage-and-sbom
+          if-no-files-found: warn
+          path: |
+            admin-ui/coverage
+            artifacts/sbom
+
+  codeql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: github/codeql-action/init@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
+        with:
+          languages: javascript-typescript
+          queries: security-and-quality
+      - uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4.37.3
+
+  admin-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.17.0
+          cache: npm
+          cache-dependency-path: admin-ui/package-lock.json
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - run: npm ci --prefix admin-ui
+      - run: python -m pip install playwright==1.61.0
+      - run: python -m playwright install --with-deps chromium
+      - run: npm --prefix admin-ui run test:e2e
+      - name: Run admin browser QA matrix
+        shell: bash
+        run: |
+          (cd admin-ui && npx vite --host=127.0.0.1 --port=4317) >scratch-admin-vite.log 2>&1 &
+          server_pid=$!
+          trap 'kill $server_pid' EXIT
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4317/admin/ >/dev/null; then break; fi
+            sleep 1
+          done
+          python test/admin_ui_e2e.py http://127.0.0.1:4317/admin/
+          python test/admin_marketing_restore_e2e.py http://127.0.0.1:4317/admin/
+          python test/product_storage_admin_ui_e2e.py http://127.0.0.1:4317/admin/
+          python test/whatsapp_admin_ui_e2e.py http://127.0.0.1:4317/admin/
+          python test/site_access_ui_e2e.py http://127.0.0.1:4317/admin artifacts/site-access
+          python test/whatsapp_voice_operator_e2e.py \
+            http://127.0.0.1:4317/admin/whatsapp-access#operator-voice-ci
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: failure()
+        with:
+          name: admin-e2e-failure
+          if-no-files-found: ignore
+          path: |
+            admin-ui/test-results
+            admin-ui/playwright-report
+            artifacts/*.png
+            scratch-admin-vite.log
 
   flutter:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: BulkaAndroid
     steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          channel: stable
+          node-version: 22.17.0
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            admin-ui/package-lock.json
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: '3.38.5'
           cache: true
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
       - run: flutter pub get
       - run: flutter analyze
-      - run: flutter test
+      - run: flutter test --coverage
+      - name: Enforce Flutter line coverage
+        run: node ../scripts/check-lcov-coverage.js coverage/lcov.info --minimum=50
+      - name: Create ephemeral Android CI signing key
+        shell: bash
+        run: |
+          mkdir -p android/keystore
+          keytool -genkeypair -v \
+            -keystore android/keystore/ci-release.jks \
+            -storepass ci-release-password \
+            -alias bulka-ci \
+            -keypass ci-release-password \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 2 \
+            -dname "CN=Bulka CI, OU=Engineering, O=Bulka, L=Astana, C=KZ"
+          {
+            echo 'storeFile=keystore/ci-release.jks'
+            echo 'storePassword=ci-release-password'
+            echo 'keyAlias=bulka-ci'
+            echo 'keyPassword=ci-release-password'
+          } > android/key.properties
+      - name: Validate native release configuration
+        working-directory: .
+        shell: pwsh
+        run: ./scripts/check-native-release.ps1 -SkipNetwork
+      - run: flutter build apk --debug --dart-define=BULKA_API_BASE_URL=https://bulka.com.kz
+      - name: Compile Android release bundle
+        run: >
+          flutter build appbundle --release
+          --build-number=${{ github.run_number }}
+          --dart-define=BULKA_API_BASE_URL=https://bulka.com.kz
       - run: flutter build web --release --wasm --base-href /app/ --pwa-strategy=none
+      - name: Enforce Flutter web bundle budgets
+        run: node ../scripts/check-build-budgets.js --flutter build/web
+      - name: Generate Flutter dependency inventory
+        run: flutter pub deps --json > build/flutter-dependencies.json
+      - run: python -m pip install playwright==1.61.0
+      - run: python -m playwright install --with-deps chromium
+      - name: Run Flutter browser QA matrix
+        shell: bash
+        run: |
+          mkdir -p ../scratch/qa-web/app
+          cp -R build/web/. ../scratch/qa-web/app/
+          cp -R build/web/. ../scratch/qa-web/
+          cp build/web/firebase-messaging-sw.js ../scratch/qa-web/firebase-messaging-sw.js
+          node ../scripts/qa-static-server.js 4173 ../scratch/qa-web >../scratch/qa-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill $server_pid' EXIT
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4173/app/ >/dev/null; then break; fi
+            sleep 1
+          done
+          for test_file in \
+            ../test/flutter_*_e2e.py \
+            ../test/catalog_filter_placement_e2e.py \
+            ../test/catalog_shelves_ui_e2e.py \
+            ../test/preloader_ui_e2e.py \
+            ../test/story_viewer_ui_e2e.py; do
+            python "$test_file" http://127.0.0.1:4173/app/
+          done
+          python ../test/white_background_ui_e2e.py \
+            http://127.0.0.1:4173/app/ ../scratch/white-background-ci.png
+      - name: Prepare full application browser tests
+        working-directory: .
+        shell: bash
+        run: |
+          npm ci
+          npm ci --prefix admin-ui
+          npm run build
+          mkdir -p public/app
+          cp -R BulkaAndroid/build/web/. public/app/
+      - name: Run backend and legal browser QA
+        working-directory: .
+        shell: bash
+        env:
+          NODE_ENV: test
+          RUN_BOTS: 'false'
+          RUN_BACKGROUND_WORKERS: 'false'
+          KASPI_POS_ENABLED: 'false'
+          PORT: '4320'
+          BULKA_E2E_BASE_URL: http://127.0.0.1:4320
+        run: |
+          node src/server.js >scratch-full-app.log 2>&1 &
+          server_pid=$!
+          node scripts/qa-static-server.js 4321 . >scratch-public-page.log 2>&1 &
+          static_pid=$!
+          trap 'kill $server_pid $static_pid' EXIT
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:4320/healthz >/dev/null &&
+              curl --fail --silent http://127.0.0.1:4321/public/app.html >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          python test/csp_browser_e2e.py http://127.0.0.1:4320
+          python test/forte_compliance_e2e.py
+          python test/guest_legal_profile_e2e.py
+          python test/public_page_e2e.py http://127.0.0.1:4321
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: flutter-qa-and-coverage
+          if-no-files-found: warn
+          path: |
+            BulkaAndroid/coverage/lcov.info
+            BulkaAndroid/build/app/outputs/flutter-apk/app-debug.apk
+            BulkaAndroid/build/app/outputs/bundle/release/app-release.aab
+            BulkaAndroid/build/flutter-dependencies.json
+            scratch/client-qa-*.png
+            scratch/white-background-ci.png
+            scratch/qa-http.log
+            scratch-full-app.log
+            scratch-public-page.log
+
+  flutter-ios:
+    runs-on: macos-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: '3.38.5'
+          cache: true
+      - run: flutter pub get
+        working-directory: BulkaAndroid
+      - name: Compile iOS without signing
+        run: >
+          flutter build ios --release --no-codesign
+          --build-number=${{ github.run_number }}
+          --dart-define=BULKA_API_BASE_URL=https://bulka.com.kz
+        working-directory: BulkaAndroid

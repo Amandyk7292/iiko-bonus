@@ -14,15 +14,23 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       : Durations.extralong1;
 
   final _api = BulkaApiClient();
+  final _appLinks = AppLinks();
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   SharedPreferences? _prefs;
   Timer? _refreshTimer;
+  StreamSubscription<Map<String, dynamic>>? _pushOpenSubscription;
+  StreamSubscription<Map<String, dynamic>>? _customerEventSubscription;
+  StreamSubscription<Uri>? _appLinkSubscription;
   bool _profileRefreshInFlight = false;
+  bool _widgetRefreshInFlight = false;
+  bool _loginRouteOpen = false;
   bool _booting = true;
   String? _savedPhone;
   String? _accessToken;
+  String? _refreshToken;
   String? _registrationToken;
   Customer? _customer;
+  CustomerOrder? _widgetOrder;
   List<BonusTransaction> _transactions = const [];
   int _lastMainTab = 0;
   bool _ordersCompleted = false;
@@ -33,6 +41,19 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _api.setSessionListener(_handleSessionChanged);
+    OrderLiveStatus.attach(_api);
+    _customerEventSubscription = _api.customerEvents.listen(
+      _handleCustomerEvent,
+    );
+    _pushOpenSubscription = PushNotifications.openedOrderEvents.listen((_) {
+      _restoreOrdersScreen = true;
+      if (_savedPhone != null) unawaited(_openCustomerOrders());
+    });
+    if (PushNotifications.takeInitialOpenedOrder() != null) {
+      _restoreOrdersScreen = true;
+    }
+    _appLinkSubscription = _appLinks.uriLinkStream.listen(_handleIncomingLink);
     _bootstrap();
   }
 
@@ -40,6 +61,10 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _refreshTimer?.cancel();
+    _pushOpenSubscription?.cancel();
+    _customerEventSubscription?.cancel();
+    _appLinkSubscription?.cancel();
+    _api.dispose();
     super.dispose();
   }
 
@@ -48,10 +73,47 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     final phone = _savedPhone;
     if (state == AppLifecycleState.resumed && phone != null) {
       unawaited(_refreshProfile(phone));
+      unawaited(PushNotifications.register(_api));
       _startProfileRefresh(phone);
     } else if (state != AppLifecycleState.resumed) {
       _refreshTimer?.cancel();
     }
+  }
+
+  void _handleCustomerEvent(Map<String, dynamic> event) {
+    final type = _asString(event['type']);
+    if (type == 'order.created' ||
+        type == 'order.updated' ||
+        type == 'delivery.updated' ||
+        type == 'order.customer_arrived') {
+      unawaited(_refreshWidgetOrder());
+      return;
+    }
+    if (type != 'loyalty.balance.updated') return;
+    final current = _customer;
+    final phone = _savedPhone;
+    final accessToken = _accessToken;
+    if (current == null || phone == null || accessToken == null) return;
+    final data = _asMap(event['data']);
+    final rawBalance = data['balance'];
+    if (rawBalance is! num) {
+      unawaited(_refreshProfile(phone));
+      return;
+    }
+    final updated = Customer.fromJson({
+      ...current.toJson(),
+      'balance': rawBalance,
+      if (data['totalSpent'] is num) 'total_spent': data['totalSpent'],
+    });
+    if (!mounted) return;
+    setState(() => _customer = updated);
+    unawaited(
+      HomeWidgetSync.update(customer: updated, activeOrder: _widgetOrder),
+    );
+    unawaited(
+      _saveSession(phone, updated, _transactions, accessToken, _refreshToken),
+    );
+    unawaited(_refreshProfile(phone));
   }
 
   Future<void> _bootstrap() async {
@@ -59,16 +121,33 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     // multi-second artificial wait that feels like startup lag.
     final minimumSplashDelay = Future<void>.delayed(_minimumSplashDuration);
     final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('app_theme_mode');
+    await SessionStore.clearLegacyCustomerData(prefs);
     final phone = prefs.getString('phone');
-    final accessToken = prefs.getString('accessToken');
+    final tokens = await SessionStore.readAndMigrate(prefs);
+    var accessToken = tokens.accessToken;
+    var refreshToken = tokens.refreshToken;
     final cachedCustomer = _readCustomer(prefs.getString('customer'));
     final cachedTransactions = _readTransactions(
       prefs.getString('transactions'),
     );
     final savedTab = (prefs.getInt('lastMainTab') ?? 0).clamp(0, 4).toInt();
     final restoreOrdersScreen =
-        prefs.getString('lastAppScreen') == 'customer-orders';
+        prefs.getString('lastAppScreen') == 'customer-orders' ||
+        Uri.base.path == '/orders';
     final ordersCompleted = prefs.getBool('ordersCompleted') ?? false;
+
+    _api.setSession(
+      accessToken: accessToken,
+      refreshToken: refreshToken,
+      cacheScope: phone,
+    );
+    if (kIsWeb && accessToken == null && phone != null) {
+      if (await _api.restoreSession()) {
+        accessToken = _api.accessToken;
+        refreshToken = null;
+      }
+    }
 
     await minimumSplashDelay;
     if (!mounted) return;
@@ -76,18 +155,20 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       _prefs = prefs;
       _savedPhone = accessToken == null ? null : phone;
       _accessToken = accessToken;
-      _customer = cachedCustomer;
-      _transactions = cachedTransactions;
+      _refreshToken = refreshToken;
+      _customer = accessToken == null ? null : cachedCustomer;
+      _transactions = accessToken == null ? const [] : cachedTransactions;
       _lastMainTab = savedTab;
       _restoreOrdersScreen = restoreOrdersScreen;
       _ordersCompleted = ordersCompleted;
       _booting = false;
     });
 
-    _api.setAccessToken(accessToken);
     if (phone != null && accessToken != null) {
+      _api.trackEvent('app_open');
       unawaited(PushNotifications.register(_api));
       await _refreshProfile(phone);
+      unawaited(_refreshWidgetOrder());
       _startProfileRefresh(phone);
       if (_restoreOrdersScreen && _savedPhone != null) {
         WidgetsBinding.instance.addPostFrameCallback(
@@ -122,6 +203,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
           settings: const RouteSettings(name: 'customer-orders'),
           builder: (_) => CustomerOrdersScreen(
             api: _api,
+            cacheScope: _savedPhone ?? 'session',
             initialCompleted: _ordersCompleted,
             onScopeChanged: (value) => unawaited(_saveOrdersScope(value)),
           ),
@@ -131,6 +213,33 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       _ordersRouteOpen = false;
       _restoreOrdersScreen = false;
       await prefs.setString('lastAppScreen', 'main');
+      unawaited(_refreshWidgetOrder());
+    }
+  }
+
+  Future<void> _refreshWidgetOrder() async {
+    final customer = _customer;
+    if (_widgetRefreshInFlight || customer == null || !_api.isAuthenticated) {
+      return;
+    }
+    _widgetRefreshInFlight = true;
+    try {
+      final orders = await _api.getCustomerOrders();
+      final activeOrder = orders.isEmpty ? null : orders.first;
+      _widgetOrder = activeOrder;
+      await HomeWidgetSync.update(
+        customer: _customer ?? customer,
+        activeOrder: activeOrder,
+      );
+      await OrderLiveStatus.sync(activeOrder);
+    } catch (_) {
+      await HomeWidgetSync.update(
+        customer: _customer ?? customer,
+        activeOrder: _widgetOrder,
+      );
+      await OrderLiveStatus.sync(_widgetOrder);
+    } finally {
+      _widgetRefreshInFlight = false;
     }
   }
 
@@ -150,12 +259,16 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
         customer,
         profile.transactions,
         _accessToken!,
+        _refreshToken,
       );
       if (!changed || !mounted) return;
       setState(() {
         _customer = customer;
         _transactions = profile.transactions;
       });
+      unawaited(
+        HomeWidgetSync.update(customer: customer, activeOrder: _widgetOrder),
+      );
     } catch (error) {
       if (error is ApiException && error.statusCode == 401) await _logout();
     } finally {
@@ -171,39 +284,110 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     );
   }
 
-  Future<OtpRequestResult> _requestOtp(String phone, String token) async {
+  Future<String?> _acceptAuthenticatedProfile(
+    String phone,
+    ProfileResponse profile, {
+    String fallbackKey = 'error_login',
+  }) async {
+    if (!profile.exists || profile.customer == null) return fallbackKey.tr;
+    final token = profile.accessToken;
+    final refreshToken = profile.refreshToken;
+    if (token == null || (!kIsWeb && refreshToken == null)) {
+      return 'error_session_missing'.tr;
+    }
+    _accessToken = token;
+    _refreshToken = refreshToken;
+    _api.setSession(
+      accessToken: token,
+      refreshToken: refreshToken,
+      cacheScope: phone,
+    );
+    unawaited(PushNotifications.register(_api));
+    final customer = await _withLatestLoyalty(profile.customer!);
+    await _saveSession(
+      phone,
+      customer,
+      profile.transactions,
+      token,
+      refreshToken,
+    );
+    if (!mounted) return null;
+    setState(() {
+      _savedPhone = phone;
+      _customer = customer;
+      _transactions = profile.transactions;
+    });
+    _startProfileRefresh(phone);
+    unawaited(_refreshWidgetOrder());
+    return null;
+  }
+
+  Future<String?> _loginWithPassword(String phone, String password) async {
     try {
-      return await _api.requestOtp(phone: phone, token: token);
+      final profile = await _api.loginWithPassword(
+        phone: phone,
+        password: password,
+      );
+      return _acceptAuthenticatedProfile(phone, profile);
+    } catch (error) {
+      return _userError(error, 'error_login');
+    }
+  }
+
+  Future<OtpRequestResult> _startPasswordRegistration(
+    String phone,
+    String password,
+    String token,
+  ) async {
+    try {
+      return await _api.startPasswordRegistration(
+        phone: phone,
+        password: password,
+        token: token,
+      );
+    } catch (error) {
+      return OtpRequestResult(error: _userError(error, 'error_register'));
+    }
+  }
+
+  Future<String?> _verifyPasswordRegistration(String phone, String code) async {
+    try {
+      final profile = await _api.verifyOtp(phone: phone, code: code);
+      if (profile.exists || profile.registrationToken == null) {
+        return 'auth_account_exists'.tr;
+      }
+      _registrationToken = profile.registrationToken;
+      return null;
+    } catch (error) {
+      return _userError(error, 'error_invalid_code');
+    }
+  }
+
+  Future<OtpRequestResult> _startPasswordReset(
+    String phone,
+    String token,
+  ) async {
+    try {
+      return await _api.startPasswordReset(phone: phone, token: token);
     } catch (error) {
       return OtpRequestResult(error: _userError(error, 'error_send_code'));
     }
   }
 
-  Future<String?> _verifyOtp(String phone, String code) async {
+  Future<String?> _completePasswordReset(
+    String phone,
+    String code,
+    String password,
+  ) async {
     try {
-      final profile = await _api.verifyOtp(phone: phone, code: code);
-      if (!profile.exists || profile.customer == null) {
-        _registrationToken = profile.registrationToken;
-        if (_registrationToken == null) return 'error_registration_missing'.tr;
-        return 'NEW_USER';
-      }
-      final token = profile.accessToken;
-      if (token == null) return 'error_session_missing'.tr;
-      _accessToken = token;
-      _api.setAccessToken(token);
-      unawaited(PushNotifications.register(_api));
-      final customer = await _withLatestLoyalty(profile.customer!);
-      await _saveSession(phone, customer, profile.transactions, token);
-      if (!mounted) return null;
-      setState(() {
-        _savedPhone = phone;
-        _customer = customer;
-        _transactions = profile.transactions;
-      });
-      _startProfileRefresh(phone);
-      return null;
+      final profile = await _api.completePasswordReset(
+        phone: phone,
+        code: code,
+        password: password,
+      );
+      return _acceptAuthenticatedProfile(phone, profile);
     } catch (error) {
-      return _userError(error, 'error_invalid_code');
+      return _userError(error, 'error_password_reset');
     }
   }
 
@@ -225,25 +409,12 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
         email: email,
         registrationToken: _registrationToken ?? '',
       );
-      if (!profile.exists || profile.customer == null) {
-        return 'error_register'.tr;
-      }
-      final token = profile.accessToken;
-      if (token == null) return 'error_session_missing'.tr;
-      _accessToken = token;
       _registrationToken = null;
-      _api.setAccessToken(token);
-      unawaited(PushNotifications.register(_api));
-      final customer = await _withLatestLoyalty(profile.customer!);
-      await _saveSession(phone, customer, profile.transactions, token);
-      if (!mounted) return null;
-      setState(() {
-        _savedPhone = phone;
-        _customer = customer;
-        _transactions = profile.transactions;
-      });
-      _startProfileRefresh(phone);
-      return null;
+      return _acceptAuthenticatedProfile(
+        phone,
+        profile,
+        fallbackKey: 'error_register',
+      );
     } catch (error) {
       return _userError(error, 'error_register');
     }
@@ -254,6 +425,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     Customer customer,
     List<BonusTransaction> transactions,
     String accessToken,
+    String? refreshToken,
   ) async {
     final prefs = _prefs ?? await SharedPreferences.getInstance();
     final customerJson = jsonEncode(customer.toJson());
@@ -267,9 +439,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     if (prefs.getString('phone') != phone) {
       await prefs.setString('phone', phone);
     }
-    if (prefs.getString('accessToken') != accessToken) {
-      await prefs.setString('accessToken', accessToken);
-    }
+    await SessionStore.write(accessToken, refreshToken);
     if (prefs.getString('customer') != customerJson) {
       await prefs.setString('customer', customerJson);
     }
@@ -294,20 +464,171 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   Future<void> _logout() async {
     _refreshTimer?.cancel();
     await PushNotifications.unregister(_api);
+    await _api.logoutSession();
+    await _clearSession();
+  }
+
+  Future<bool> _requireAuthentication() async {
+    if (_savedPhone != null && _customer != null && _api.isAuthenticated) {
+      return true;
+    }
+    if (_loginRouteOpen) return false;
+    final navigator = _navigatorKey.currentState;
+    if (navigator == null) return false;
+    _loginRouteOpen = true;
+
+    void finishAuthentication() {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final currentNavigator = _navigatorKey.currentState;
+        if (_loginRouteOpen && currentNavigator?.canPop() == true) {
+          currentNavigator!.pop(true);
+        }
+      });
+    }
+
+    try {
+      final authenticated = await navigator.push<bool>(
+        MaterialPageRoute(
+          settings: const RouteSettings(name: 'authentication'),
+          fullscreenDialog: true,
+          builder: (routeContext) => LoginScreen(
+            onClose: () => Navigator.of(routeContext).pop(false),
+            onLogin: (phone, password) async {
+              final result = await _loginWithPassword(phone, password);
+              if (result == null) finishAuthentication();
+              return result;
+            },
+            onStartRegistration: _startPasswordRegistration,
+            onVerifyRegistration: _verifyPasswordRegistration,
+            onStartPasswordReset: _startPasswordReset,
+            onResetPassword: (phone, code, password) async {
+              final result = await _completePasswordReset(
+                phone,
+                code,
+                password,
+              );
+              if (result == null) finishAuthentication();
+              return result;
+            },
+            onRegister:
+                ({
+                  required phone,
+                  required name,
+                  surname,
+                  gender,
+                  birthdate,
+                  email,
+                }) async {
+                  final result = await _registerCustomer(
+                    phone: phone,
+                    name: name,
+                    surname: surname,
+                    gender: gender,
+                    birthdate: birthdate,
+                    email: email,
+                  );
+                  if (result == null) finishAuthentication();
+                  return result;
+                },
+          ),
+        ),
+      );
+      return authenticated == true &&
+          _savedPhone != null &&
+          _customer != null &&
+          _api.isAuthenticated;
+    } finally {
+      _loginRouteOpen = false;
+    }
+  }
+
+  void _handleIncomingLink(Uri uri) {
+    final isBonus = uri.scheme == 'bulka' && uri.host == 'bonus';
+    if (isBonus) {
+      _restoreOrdersScreen = false;
+      _navigatorKey.currentState?.popUntil((route) => route.isFirst);
+      if (mounted) {
+        setState(() => _lastMainTab = 0);
+      } else {
+        _lastMainTab = 0;
+      }
+      unawaited(_saveMainTab(0));
+      return;
+    }
+    final isOrders =
+        uri.path == '/orders' ||
+        (uri.scheme == 'bulka' && uri.host == 'orders');
+    if (isOrders) {
+      _restoreOrdersScreen = true;
+      if (_savedPhone != null) unawaited(_openCustomerOrders());
+      return;
+    }
+
+    final clientUri = uri.scheme == 'bulka'
+        ? Uri(
+            pathSegments: ['', uri.host, ...uri.pathSegments],
+            queryParameters: uri.queryParameters.isEmpty
+                ? null
+                : uri.queryParameters,
+          )
+        : normalizedClientUri(uri);
+    final segments = clientUri.pathSegments
+        .where((segment) => segment.isNotEmpty)
+        .toList();
+    if (segments.isEmpty) return;
+    final tab = switch (segments.first) {
+      'catalog' => 1,
+      'cart' => 2,
+      'promos' => 3,
+      'profile' => 4,
+      _ => null,
+    };
+    if (tab == null) return;
+
+    _restoreOrdersScreen = false;
+    _navigatorKey.currentState?.popUntil((route) => route.isFirst);
+    applyExternalClientRoute(clientUri);
+    if (mounted) {
+      setState(() => _lastMainTab = tab);
+    } else {
+      _lastMainTab = tab;
+    }
+    unawaited(_saveMainTab(tab));
+  }
+
+  Future<void> _handleSessionChanged(
+    String? accessToken,
+    String? refreshToken,
+  ) async {
+    if (accessToken == null || (!kIsWeb && refreshToken == null)) {
+      await _clearSession();
+      return;
+    }
+    _accessToken = accessToken;
+    _refreshToken = refreshToken;
+    await SessionStore.write(accessToken, refreshToken);
+  }
+
+  Future<void> _clearSession() async {
+    _refreshTimer?.cancel();
     final prefs = _prefs ?? await SharedPreferences.getInstance();
-    await prefs.remove('phone');
-    await prefs.remove('customer');
-    await prefs.remove('transactions');
-    await prefs.remove('accessToken');
-    await prefs.remove('lastAppScreen');
-    await prefs.remove('lastMainTab');
-    _api.setAccessToken(null);
+    await SessionStore.clearCustomerData(prefs);
+    await Future.wait([
+      prefs.remove('lastAppScreen'),
+      prefs.remove('lastMainTab'),
+    ]);
+    await SessionStore.clear();
+    await HomeWidgetSync.clear();
+    await OrderLiveStatus.clear(order: _widgetOrder);
+    _api.setSession();
     if (!mounted) return;
     setState(() {
       _savedPhone = null;
       _accessToken = null;
+      _refreshToken = null;
       _registrationToken = null;
       _customer = null;
+      _widgetOrder = null;
       _transactions = const [];
       _lastMainTab = 0;
       _restoreOrdersScreen = false;
@@ -331,7 +652,9 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
+          builder: _buildBulkaAppViewport,
           theme: buildBulkaTheme(),
+          themeMode: ThemeMode.light,
           home: _AppStage(child: _buildHome()),
         );
       },
@@ -340,23 +663,13 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
 
   Widget _buildHome() {
     if (_booting) {
-      if (kIsWeb) return const _WebLoadingSurface();
       return SplashScreen(
         key: const ValueKey('app-stage-boot'),
         text: 'splash_loading'.tr,
       );
     }
-    if (_savedPhone == null) {
-      return LoginScreen(
-        key: const ValueKey('app-stage-login'),
-        onRequestOtp: _requestOtp,
-        onVerifyOtp: _verifyOtp,
-        onRegister: _registerCustomer,
-      );
-    }
     final customer = _customer;
-    if (customer == null) {
-      if (kIsWeb) return const _WebLoadingSurface();
+    if (_savedPhone != null && customer == null) {
       return SplashScreen(
         key: const ValueKey('app-stage-profile-loading'),
         text: 'splash_loading_profile'.tr,
@@ -368,20 +681,15 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       customer: customer,
       transactions: _transactions,
       onLogout: _logout,
-      onRefreshProfile: () => _refreshProfile(_savedPhone!),
+      onRefreshProfile: () async {
+        final phone = _savedPhone;
+        if (phone != null) await _refreshProfile(phone);
+      },
+      onRequireAuth: _requireAuthentication,
       initialTab: _lastMainTab,
       onTabChanged: (tab) => unawaited(_saveMainTab(tab)),
       onOpenOrders: _openCustomerOrders,
     );
-  }
-}
-
-class _WebLoadingSurface extends StatelessWidget {
-  const _WebLoadingSurface();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(backgroundColor: Colors.white);
   }
 }
 
@@ -393,7 +701,7 @@ class _AppStage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ColoredBox(
-      color: Colors.white,
+      color: Theme.of(context).scaffoldBackgroundColor,
       child: BulkaMotionSwitcher(
         duration: BulkaMotion.standard,
         offset: const Offset(0.025, 0),
@@ -424,12 +732,25 @@ class _SplashScreenState extends State<SplashScreen>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1800),
+      duration: const Duration(milliseconds: 4500),
     );
 
-    _scaleAnimation = Tween<double>(begin: 0.985, end: 1.015).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOutSine),
-    );
+    _scaleAnimation = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween<double>(
+          begin: 0.96,
+          end: 1.05,
+        ).chain(CurveTween(curve: Curves.easeInOutSine)),
+        weight: 50,
+      ),
+      TweenSequenceItem(
+        tween: Tween<double>(
+          begin: 1.05,
+          end: 0.96,
+        ).chain(CurveTween(curve: Curves.easeInOutSine)),
+        weight: 50,
+      ),
+    ]).animate(_controller);
   }
 
   @override
@@ -440,9 +761,9 @@ class _SplashScreenState extends State<SplashScreen>
     _reduceMotion = reduceMotion;
     if (_reduceMotion) {
       _controller.stop();
-      _controller.value = 0.5;
-    } else if (!_controller.isAnimating) {
-      _controller.repeat(reverse: true);
+      _controller.value = 0.25;
+    } else if (!kIsWeb && !_controller.isAnimating) {
+      _controller.repeat();
     }
   }
 
@@ -454,25 +775,55 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final panelWidth = min(280.0, max(220.0, size.width - 64));
+    final logoWidth = min(184.0, panelWidth - 52);
     final logo = Image.asset(
       'assets/brand/bulka_logo.png',
-      width: 330,
+      width: logoWidth,
       fit: BoxFit.contain,
       filterQuality: FilterQuality.high,
+      excludeFromSemantics: true,
     );
     return Scaffold(
-      backgroundColor: const Color(0xFFFFB300),
+      backgroundColor: Colors.white,
       body: Semantics(
-        image: true,
+        container: true,
+        liveRegion: true,
         label: widget.text,
-        child: Center(
-          child: _reduceMotion
-              ? logo
-              : RepaintBoundary(
-                  child: ScaleTransition(scale: _scaleAnimation, child: logo),
-                ),
+        child: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: RepaintBoundary(
+                child: _reduceMotion || kIsWeb
+                    ? _SplashLogo(width: panelWidth, child: logo)
+                    : ScaleTransition(
+                        key: const ValueKey('splash-logo-pulse'),
+                        scale: _scaleAnimation,
+                        child: _SplashLogo(width: panelWidth, child: logo),
+                      ),
+              ),
+            ),
+          ),
         ),
       ),
+    );
+  }
+}
+
+class _SplashLogo extends StatelessWidget {
+  const _SplashLogo({required this.width, required this.child});
+
+  final double width;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      key: const ValueKey('splash-clean-logo'),
+      width: width,
+      child: Center(child: child),
     );
   }
 }

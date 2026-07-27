@@ -2,116 +2,170 @@ require('dotenv').config();
 const { auth } = require('google-auth-library');
 const fetch = require('node-fetch');
 
-async function createOrUpdateGoogleWalletClass() {
-  const issuerId = process.env.GOOGLE_ISSUER_ID;
-  const credentialsRaw = process.env.GOOGLE_CREDENTIALS_JSON;
-  
-  // Вы можете поменять CLASS_ID на любой другой (только английские буквы и цифры без пробелов)
-  const classIdSuffix = process.env.GOOGLE_CLASS_ID || 'bulka_loyalty_1';
-  
-  if (!issuerId || !credentialsRaw) {
-    console.error("ОШИБКА: Не заданы GOOGLE_ISSUER_ID или GOOGLE_CREDENTIALS_JSON в .env");
-    console.error("Сначала создайте сервисный аккаунт, получите Issuer ID и добавьте их в .env");
-    process.exit(1);
-  }
+const GOOGLE_WALLET_API = 'https://walletobjects.googleapis.com/walletobjects/v1';
+const GOOGLE_WALLET_SCOPE = 'https://www.googleapis.com/auth/wallet_object.issuer';
 
-  let credentials;
-  try {
-    credentials = JSON.parse(credentialsRaw);
-  } catch (e) {
-    console.error("ОШИБКА: GOOGLE_CREDENTIALS_JSON содержит невалидный JSON.");
-    process.exit(1);
-  }
+function localizedString(defaultLanguage, defaultValue, translations = {}) {
+  return {
+    defaultValue: { language: defaultLanguage, value: defaultValue },
+    translatedValues: Object.entries(translations).map(([language, value]) => ({ language, value })),
+  };
+}
 
-  const classId = `${issuerId}.${classIdSuffix}`;
-  
-  console.log(`Авторизация в Google API...`);
-  
-  const client = auth.fromJSON(credentials);
-  client.scopes = ['https://www.googleapis.com/auth/wallet_object.issuer'];
-  
-  await client.authorize();
-  const token = await client.getAccessToken();
+function walletImage(uri, description) {
+  return {
+    sourceUri: { uri },
+    contentDescription: localizedString('ru', description, {
+      kk: description,
+      en: description,
+    }),
+  };
+}
 
-  console.log(`Создание/обновление класса лояльности: ${classId}...`);
-
-  // Настройка внешнего вида карты (Класса)
-  const loyaltyClass = {
+function buildLoyaltyClass(classId, publicBaseUrl, reviewStatus = 'UNDER_REVIEW') {
+  const assetBase = `${publicBaseUrl}/app/assets/wallet`;
+  return {
     id: classId,
     issuerName: 'Bulka',
-    reviewStatus: 'UNDER_REVIEW', // Для тестирования нормально, потом Google сам переведет в APPROVED (или можно сразу 'UNDER_REVIEW', чтобы опубликовать - нужно запросить доступ в консоли)
+    localizedIssuerName: localizedString('ru', 'Bulka', { kk: 'Bulka', en: 'Bulka' }),
     programName: 'Bulka Bonus',
-    programLogo: {
-      sourceUri: {
-        uri: 'https://cdn-icons-png.flaticon.com/512/3014/3014493.png' // Временная иконка, лучше поменять на ваш реальный логотип (в интернете)
-      }
-    },
-    hexBackgroundColor: '#1e140c',
-    heroImage: {
-      sourceUri: {
-        uri: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?q=80&w=1024&auto=format&fit=crop' // Временная картинка пекарни/хлеба на фоне
-      }
+    localizedProgramName: localizedString('ru', 'Bulka Bonus', {
+      kk: 'Bulka Bonus',
+      en: 'Bulka Bonus',
+    }),
+    programLogo: walletImage(`${assetBase}/bulka-wallet-logo.png`, 'Логотип Bulka'),
+    wideProgramLogo: walletImage(
+      `${assetBase}/bulka-wallet-wide-logo.png`,
+      'Логотип Bulka Bonus',
+    ),
+    heroImage: walletImage(`${assetBase}/bulka-wallet-hero.png`, 'Свежая выпечка Bulka'),
+    hexBackgroundColor: '#1E140C',
+    countryCode: 'KZ',
+    accountNameLabel: 'Гость',
+    localizedAccountNameLabel: localizedString('ru', 'Гость', {
+      kk: 'Қонақ',
+      en: 'Member',
+    }),
+    accountIdLabel: 'Телефон',
+    localizedAccountIdLabel: localizedString('ru', 'Телефон', {
+      kk: 'Телефон',
+      en: 'Phone',
+    }),
+    rewardsTierLabel: 'Статус',
+    localizedRewardsTierLabel: localizedString('ru', 'Статус', {
+      kk: 'Деңгей',
+      en: 'Tier',
+    }),
+    homepageUri: {
+      uri: publicBaseUrl,
+      description: 'Bulka',
     },
     textModulesData: [
       {
         id: 'balance_info',
-        header: 'Как тратить бонусы?',
-        body: '1 бонус = 1 тенге. Оплачивайте бонусами до 50% стоимости заказа.'
-      }
+        header: 'Как использовать бонусы?',
+        body: '1 бонус = 1 ₸. Бонусами можно оплатить до 50% стоимости заказа.',
+      },
     ],
-    locations: [
-      {
-        latitude: 43.238949, // Алматы (для примера, можно поменять на точные координаты)
-        longitude: 76.889709
-      }
-    ]
+    classTemplateInfo: {
+      cardTemplateOverride: {
+        cardRowTemplateInfos: [
+          {
+            twoItems: {
+              startItem: {
+                firstValue: {
+                  fields: [{ fieldPath: 'object.loyaltyPoints.balance' }],
+                },
+              },
+              endItem: {
+                firstValue: {
+                  fields: [{ fieldPath: "object.textModulesData['status']" }],
+                },
+              },
+            },
+          },
+        ],
+      },
+    },
+    securityAnimation: { animationType: 'FOIL_SHIMMER' },
+    reviewStatus,
   };
-
-  try {
-    // Сначала пробуем получить класс (может он уже существует)
-    const getRes = await fetch(`https://walletobjects.googleapis.com/walletobjects/v1/loyaltyClass/${classId}`, {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${token.token}` }
-    });
-
-    if (getRes.ok) {
-      console.log(`Класс уже существует. Обновляем (PUT)...`);
-      const putRes = await fetch(`https://walletobjects.googleapis.com/walletobjects/v1/loyaltyClass/${classId}`, {
-        method: 'PUT',
-        headers: { 
-          Authorization: `Bearer ${token.token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(loyaltyClass)
-      });
-      const putData = await putRes.json();
-      if (!putRes.ok) throw new Error(JSON.stringify(putData));
-      console.log(`Класс успешно обновлен!`);
-    } else {
-      console.log(`Класс не найден. Создаем новый (POST)...`);
-      const postRes = await fetch('https://walletobjects.googleapis.com/walletobjects/v1/loyaltyClass', {
-        method: 'POST',
-        headers: { 
-          Authorization: `Bearer ${token.token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(loyaltyClass)
-      });
-      const postData = await postRes.json();
-      if (!postRes.ok) throw new Error(JSON.stringify(postData));
-      console.log(`Класс успешно создан!`);
-    }
-
-    console.log(`\n======================================================`);
-    console.log(`ГОТОВО! ID вашего класса: ${classIdSuffix}`);
-    console.log(`Пожалуйста, убедитесь, что в файле .env прописано:`);
-    console.log(`GOOGLE_CLASS_ID="${classIdSuffix}"`);
-    console.log(`======================================================\n`);
-
-  } catch (error) {
-    console.error("Ошибка при запросе к Google Wallet API:");
-    console.error(error.message);
-  }
 }
 
-createOrUpdateGoogleWalletClass();
+async function googleWalletClient() {
+  const raw = process.env.GOOGLE_CREDENTIALS_JSON || process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (!raw) throw new Error('GOOGLE_CREDENTIALS_JSON is required');
+  const credentials = JSON.parse(raw);
+  credentials.private_key = String(credentials.private_key || '').replace(/\\n/g, '\n');
+  if (!credentials.client_email || !credentials.private_key) {
+    throw new Error('Google Wallet credentials are incomplete');
+  }
+  const client = auth.fromJSON(credentials);
+  client.scopes = [GOOGLE_WALLET_SCOPE];
+  await client.authorize();
+  const token = await client.getAccessToken();
+  const accessToken = typeof token === 'string' ? token : token?.token;
+  if (!accessToken) throw new Error('Google authorization did not return an access token');
+  return accessToken;
+}
+
+async function requestGoogleWallet(path, accessToken, options = {}) {
+  const response = await fetch(`${GOOGLE_WALLET_API}${path}`, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+      ...options.headers,
+    },
+  });
+  const data = await response.json().catch(() => ({}));
+  return { response, data };
+}
+
+async function createOrUpdateGoogleWalletClass() {
+  const issuerId = String(process.env.GOOGLE_ISSUER_ID || '').trim();
+  const classSuffix = String(process.env.GOOGLE_CLASS_ID || 'bulka_bonus_card').trim();
+  if (!issuerId) throw new Error('GOOGLE_ISSUER_ID is required');
+  const classId = classSuffix.startsWith(`${issuerId}.`)
+    ? classSuffix
+    : `${issuerId}.${classSuffix}`;
+  const publicBaseUrl = String(process.env.PUBLIC_BASE_URL || 'https://bulka.com.kz').replace(
+    /\/$/,
+    '',
+  );
+  if (!/^https:\/\//.test(publicBaseUrl)) throw new Error('PUBLIC_BASE_URL must use HTTPS');
+
+  console.log('Авторизация в Google Wallet API...');
+  const accessToken = await googleWalletClient();
+  const resourcePath = `/loyaltyClass/${encodeURIComponent(classId)}`;
+  const current = await requestGoogleWallet(resourcePath, accessToken);
+
+  let result;
+  if (current.response.ok) {
+    console.log(`Обновление класса ${classId} через PATCH...`);
+    result = await requestGoogleWallet(resourcePath, accessToken, {
+      method: 'PATCH',
+      body: JSON.stringify(buildLoyaltyClass(classId, publicBaseUrl)),
+    });
+  } else if (current.response.status === 404) {
+    console.log(`Создание класса ${classId}...`);
+    result = await requestGoogleWallet('/loyaltyClass', accessToken, {
+      method: 'POST',
+      body: JSON.stringify(buildLoyaltyClass(classId, publicBaseUrl)),
+    });
+  } else {
+    throw new Error(`Google Wallet GET failed: ${JSON.stringify(current.data)}`);
+  }
+
+  if (!result.response.ok) {
+    throw new Error(`Google Wallet update failed: ${JSON.stringify(result.data)}`);
+  }
+  console.log(`Готово: ${result.data.id}; статус проверки: ${result.data.reviewStatus}`);
+}
+
+createOrUpdateGoogleWalletClass().catch((error) => {
+  console.error(error.message);
+  process.exitCode = 1;
+});
+
+module.exports = { buildLoyaltyClass, localizedString };

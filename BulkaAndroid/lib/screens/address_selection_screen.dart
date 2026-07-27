@@ -15,6 +15,7 @@ class _AddressSelectionScreenState extends State<AddressSelectionScreen> {
   String? _selectedId;
   bool _loading = true;
   bool _loadFailed = false;
+  final _navigationGate = _AsyncActionGate();
 
   @override
   void initState() {
@@ -53,35 +54,30 @@ class _AddressSelectionScreenState extends State<AddressSelectionScreen> {
   }
 
   Future<void> _addAddress() async {
-    BulkaMotion.lightImpact();
-    final location = await Navigator.of(context).push<DeliveryLocation>(
-      MaterialPageRoute(builder: (_) => AddressMapScreen(api: widget.api)),
-    );
-    if (!mounted || location == null) return;
+    await _navigationGate.run(() async {
+      BulkaMotion.lightImpact();
+      final address = await Navigator.of(context).push<DeliveryAddress>(
+        MaterialPageRoute(builder: (_) => AddressMapScreen(api: widget.api)),
+      );
+      if (!mounted || address == null) return;
 
-    final address = await Navigator.of(context).push<DeliveryAddress>(
-      MaterialPageRoute(
-        builder: (_) => AddressDetailsScreen(location: location),
-      ),
-    );
-    if (!mounted || address == null) return;
-
-    try {
-      final saved = await _repository.saveAddress(address);
-      if (!mounted) return;
-      setState(() {
-        _addresses = [
-          saved,
-          ..._addresses.where((item) => item.id != saved.id),
-        ];
-        _selectedId = saved.id;
-      });
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
-    }
+      try {
+        final saved = await _repository.saveAddress(address);
+        if (!mounted) return;
+        setState(() {
+          _addresses = [
+            saved,
+            ..._addresses.where((item) => item.id != saved.id),
+          ];
+          _selectedId = saved.id;
+        });
+      } catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
+      }
+    });
   }
 
   Future<void> _selectAddress(String id) async {
@@ -100,45 +96,47 @@ class _AddressSelectionScreenState extends State<AddressSelectionScreen> {
   }
 
   Future<void> _deleteAddress(DeliveryAddress address) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('delete_address_title'.tr),
-        content: Text(
-          'delete_address_body'.trArgs({'address': address.displayAddress}),
+    await _navigationGate.run(() async {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text('delete_address_title'.tr),
+          content: Text(
+            'delete_address_body'.trArgs({'address': address.displayAddress}),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text('cancel_btn'.tr),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              style: TextButton.styleFrom(foregroundColor: _errorRed),
+              child: Text('delete_btn'.tr),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text('cancel_btn'.tr),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            style: TextButton.styleFrom(foregroundColor: _errorRed),
-            child: Text('delete_btn'.tr),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-    try {
-      await _repository.deleteAddress(address.id);
-      if (!mounted) return;
-      final remaining = _addresses
-          .where((item) => item.id != address.id)
-          .toList();
-      setState(() {
-        _addresses = remaining;
-        if (_selectedId == address.id) {
-          _selectedId = remaining.isEmpty ? null : remaining.first.id;
-        }
-      });
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
-    }
+      );
+      if (confirmed != true) return;
+      try {
+        await _repository.deleteAddress(address.id);
+        if (!mounted) return;
+        final remaining = _addresses
+            .where((item) => item.id != address.id)
+            .toList();
+        setState(() {
+          _addresses = remaining;
+          if (_selectedId == address.id) {
+            _selectedId = remaining.isEmpty ? null : remaining.first.id;
+          }
+        });
+      } catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
+      }
+    });
   }
 
   Future<void> _continue() async {
@@ -157,36 +155,33 @@ class _AddressSelectionScreenState extends State<AddressSelectionScreen> {
   @override
   Widget build(BuildContext context) {
     final selected = _selectedId != null;
+    final colors = context.bulkaColors;
+    final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
+        toolbarHeight: BulkaLayout.appBarHeight(context),
+        backgroundColor: scheme.surface,
         centerTitle: true,
         titleSpacing: 0,
         leading: IconButton(
           onPressed: () => Navigator.of(context).pop(),
           icon: const Icon(Icons.chevron_left_rounded, size: 34),
-          color: _cocoa.withValues(alpha: 0.56),
+          color: colors.mutedText,
           tooltip: 'back_tooltip'.tr,
         ),
-        title: Text(
-          'select_address_title'.tr,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            fontFamily: _brandFont,
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
+        title: _BulkaPageTitle('select_address_title'.tr),
         actions: [
-          IconButton(
-            onPressed: _addAddress,
-            icon: const Icon(Icons.add_rounded, size: 32),
-            color: _cocoa.withValues(alpha: 0.48),
-            tooltip: 'add_address'.tr,
+          SizedBox(
+            width: BulkaLayout.appBarSideSlot,
+            child: IconButton(
+              onPressed: _addAddress,
+              icon: const Icon(Icons.add_rounded, size: 32),
+              color: colors.mutedText,
+              tooltip: 'add_address'.tr,
+            ),
           ),
-          const SizedBox(width: 6),
         ],
       ),
       body: SafeArea(
@@ -198,10 +193,10 @@ class _AddressSelectionScreenState extends State<AddressSelectionScreen> {
               padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
               child: Text(
                 'my_addresses'.tr,
-                style: const TextStyle(
-                  color: Colors.black,
+                style: TextStyle(
+                  color: scheme.onSurface,
                   fontFamily: _headingFont,
-                  fontSize: 24,
+                  fontSize: BulkaTypeScale.title,
                   fontWeight: FontWeight.w400,
                 ),
               ),
@@ -251,7 +246,7 @@ class _AddressSelectionScreenState extends State<AddressSelectionScreen> {
                   child: Text(
                     'continue_btn'.tr,
                     style: const TextStyle(
-                      fontSize: 22,
+                      fontSize: BulkaTypeScale.title,
                       fontWeight: FontWeight.w400,
                     ),
                   ),
@@ -298,10 +293,10 @@ class _AddressState extends StatelessWidget {
               Text(
                 title,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: _textDark,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontFamily: _headingFont,
-                  fontSize: 22,
+                  fontSize: BulkaTypeScale.title,
                   fontWeight: FontWeight.w400,
                 ),
               ),
@@ -310,8 +305,8 @@ class _AddressState extends StatelessWidget {
                 subtitle,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: _textDark.withValues(alpha: 0.62),
-                  fontSize: 15,
+                  color: context.bulkaColors.mutedText,
+                  fontSize: BulkaTypeScale.body,
                   height: 1.4,
                 ),
               ),
@@ -346,97 +341,108 @@ class _AddressListTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(26),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(26),
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 96),
-          padding: const EdgeInsets.fromLTRB(22, 16, 16, 16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(26),
-            border: Border.all(color: _almond, width: 1.4),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      address.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.black,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      address.displayAddress,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: _textDark.withValues(alpha: 0.48),
-                        fontSize: 16,
-                        height: 1.18,
-                        fontWeight: FontWeight.w300,
-                      ),
-                    ),
-                  ],
-                ),
+    final colors = context.bulkaColors;
+    final scheme = Theme.of(context).colorScheme;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: '${address.title}. ${address.displayAddress}',
+      child: Material(
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(BulkaRadii.card),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(BulkaRadii.card),
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 96),
+            padding: const EdgeInsets.fromLTRB(22, 16, 16, 16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(BulkaRadii.card),
+              border: Border.all(
+                color: selected ? colors.brandGold : colors.cardBorder,
+                width: 1.4,
               ),
-              const SizedBox(width: 12),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  AnimatedContainer(
-                    duration: BulkaMotion.duration(context, BulkaMotion.fast),
-                    width: 34,
-                    height: 34,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: selected ? const Color(0xFFE3C477) : Colors.white,
-                      border: Border.all(color: _almond),
-                    ),
-                    child: selected
-                        ? const Icon(
-                            Icons.check_rounded,
-                            size: 25,
-                            color: Colors.white,
-                          )
-                        : null,
-                  ),
-                  PopupMenuButton<String>(
-                    tooltip: 'address_actions'.tr,
-                    icon: const Icon(Icons.more_vert_rounded),
-                    onSelected: (value) {
-                      if (value == 'delete') onDelete();
-                    },
-                    itemBuilder: (_) => [
-                      PopupMenuItem(
-                        value: 'delete',
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.delete_outline_rounded,
-                              color: _errorRed,
-                            ),
-                            const SizedBox(width: 10),
-                            Text('delete_btn'.tr),
-                          ],
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        address.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: _headingFont,
+                          color: scheme.onSurface,
+                          fontSize: BulkaTypeScale.titleSmall,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        address.displayAddress,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: colors.mutedText,
+                          fontSize: BulkaTypeScale.body,
+                          height: 1.18,
+                          fontWeight: FontWeight.w300,
                         ),
                       ),
                     ],
                   ),
-                ],
-              ),
-            ],
+                ),
+                const SizedBox(width: 12),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    AnimatedContainer(
+                      duration: BulkaMotion.duration(context, BulkaMotion.fast),
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: selected ? colors.brandGold : scheme.surface,
+                        border: Border.all(color: colors.cardBorder),
+                      ),
+                      child: selected
+                          ? const Icon(
+                              Icons.check_rounded,
+                              size: 25,
+                              color: Colors.white,
+                            )
+                          : null,
+                    ),
+                    PopupMenuButton<String>(
+                      tooltip: 'address_actions'.tr,
+                      icon: const Icon(Icons.more_vert_rounded),
+                      onSelected: (value) {
+                        if (value == 'delete') onDelete();
+                      },
+                      itemBuilder: (_) => [
+                        PopupMenuItem(
+                          value: 'delete',
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.delete_outline_rounded,
+                                color: _errorRed,
+                              ),
+                              const SizedBox(width: 10),
+                              Text('delete_btn'.tr),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),

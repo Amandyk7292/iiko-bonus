@@ -97,8 +97,12 @@ class _KaspiPaymentScreenState extends State<KaspiPaymentScreen> {
         : 'payment_open_kaspi_hint'.tr;
 
     return Scaffold(
-      backgroundColor: context.bulkaColors.surfaceCream,
-      appBar: AppBar(title: Text('payment_title'.tr)),
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        toolbarHeight: BulkaLayout.appBarHeight(context),
+        title: _BulkaPageTitle('payment_title'.tr),
+        actions: const [SizedBox(width: BulkaLayout.appBarSideSlot)],
+      ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -124,8 +128,9 @@ class _KaspiPaymentScreenState extends State<KaspiPaymentScreen> {
                   title,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                    fontSize: 25,
-                    fontWeight: FontWeight.w800,
+                    fontFamily: _headingFont,
+                    fontSize: BulkaTypeScale.titleLarge,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -133,7 +138,7 @@ class _KaspiPaymentScreenState extends State<KaspiPaymentScreen> {
                   message,
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: BulkaTypeScale.body,
                     height: 1.4,
                     color: _textDark.withValues(alpha: 0.72),
                   ),

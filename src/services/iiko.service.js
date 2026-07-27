@@ -47,6 +47,7 @@ class IikoAPI {
     this._menuFetchPromise = null; // Мьютекс: одновременно только 1 запрос меню
     // Stop-list changes must reach checkout quickly without one iiko call per client.
     this._cachedStopIds = null;
+    this._cachedStopSnapshot = null;
     this._stopListExpiresAt = 0;
     this._stopListPromise = null;
     // Счётчик запросов для мониторинга
@@ -330,10 +331,10 @@ class IikoAPI {
     return menuData;
   }
 
-  async getStopListProductIds(organizationId, { strict = false } = {}) {
+  async getStopListSnapshot(organizationId, { strict = false } = {}) {
     // Кэш стоп-листа на 5 минут
-    if (this._cachedStopIds && Date.now() < this._stopListExpiresAt) {
-      return this._cachedStopIds;
+    if (this._cachedStopSnapshot && Date.now() < this._stopListExpiresAt) {
+      return this._cachedStopSnapshot;
     }
     // Мьютекс для стоп-листа
     if (this._stopListPromise) {
@@ -345,7 +346,13 @@ class IikoAPI {
     } catch (error) {
       console.error('Ошибка получения стоп-листа из iiko:', error.message);
       if (strict) throw error;
-      return this._cachedStopIds || new Set();
+      return (
+        this._cachedStopSnapshot || {
+          stopIds: this._cachedStopIds || new Set(),
+          groups: [],
+          fetchedAt: null,
+        }
+      );
     } finally {
       this._stopListPromise = null;
     }
@@ -369,21 +376,35 @@ class IikoAPI {
     }
     const data = await res.json();
     const stopIds = new Set();
-    if (data.terminalGroupStopLists) {
-      for (const group of data.terminalGroupStopLists) {
-        if (group.items) {
-          for (const item of group.items) {
-            if (item.balance <= 0 && item.productId) {
-              stopIds.add(item.productId);
-            }
-          }
-        }
+    const groups = (
+      Array.isArray(data.terminalGroupStopLists) ? data.terminalGroupStopLists : []
+    ).map((group) => {
+      const items = (Array.isArray(group?.items) ? group.items : [])
+        .map((item) => ({
+          productId: String(item?.productId || '').trim(),
+          balance: Number(item?.balance),
+        }))
+        .filter((item) => item.productId && Number.isFinite(item.balance));
+      for (const item of items) {
+        if (item.balance <= 0) stopIds.add(item.productId);
       }
-    }
+      return {
+        organizationId: String(group?.organizationId || '').trim() || null,
+        terminalGroupId: String(group?.terminalGroupId || '').trim() || null,
+        items,
+      };
+    });
+    const snapshot = { stopIds, groups, fetchedAt: new Date().toISOString() };
     this._cachedStopIds = stopIds;
+    this._cachedStopSnapshot = snapshot;
     this._stopListExpiresAt = Date.now() + 30 * 1000;
     console.log(`[iiko] Стоп-лист: ${stopIds.size} позиций, кэш 30 сек`);
-    return stopIds;
+    return snapshot;
+  }
+
+  async getStopListProductIds(organizationId, { strict = false } = {}) {
+    const snapshot = await this.getStopListSnapshot(organizationId, { strict });
+    return snapshot.stopIds;
   }
 
   async createDeliveryOrder(order) {
@@ -483,6 +504,7 @@ class IikoAPI {
     this.cachedMenu = null;
     this.cachedMenuExpiresAt = 0;
     this._cachedStopIds = null;
+    this._cachedStopSnapshot = null;
     this._stopListExpiresAt = 0;
     console.log('[iiko] Кэш меню и стоп-листа сброшен');
   }

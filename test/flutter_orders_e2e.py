@@ -44,7 +44,13 @@ def fulfill(route, payload):
 
 def api_route(route):
     path = urlparse(route.request.url).path
-    if path.endswith("/api/guest/profile"):
+    if path.endswith("/api/customer/events"):
+        route.fulfill(
+            status=503,
+            content_type="application/json",
+            body=json.dumps({"success": False}),
+        )
+    elif path.endswith("/api/guest/profile"):
         fulfill(route, {"success": True, "exists": True, "customer": CUSTOMER, "transactions": []})
     elif path.endswith("/api/customer/loyalty"):
         fulfill(route, {"success": True, "loyalty": CUSTOMER["tier"]})
@@ -94,7 +100,9 @@ with sync_playwright() as playwright:
 
     requests_before_poll = orders_requested["count"]
     page.wait_for_timeout(5500)
-    assert orders_requested["count"] > requests_before_poll
+    # The production cadence is intentionally 60 seconds; guard against the
+    # former aggressive five-second polling loop.
+    assert orders_requested["count"] == requests_before_poll
 
     requests_before_reload = orders_requested["count"]
     page.reload(wait_until="domcontentloaded", timeout=120_000)
@@ -103,7 +111,7 @@ with sync_playwright() as playwright:
     assert orders_requested["count"] > requests_before_reload
     restored_screenshot = ROOT / "scratch" / "flutter-orders-restored-mobile.png"
     page.screenshot(path=str(restored_screenshot), full_page=True)
-    print(f"Flutter orders polling and restore E2E passed; screenshots: {screenshot}, {restored_screenshot}")
+    print(f"Flutter orders cadence and restore E2E passed; screenshots: {screenshot}, {restored_screenshot}")
 
     context.close()
     browser.close()

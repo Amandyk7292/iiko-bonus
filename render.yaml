@@ -12,14 +12,32 @@ services:
         value: production
       - key: PUBLIC_BASE_URL
         value: https://bulka.com.kz
+      - key: APPLE_TEAM_ID
+        value: GKRRT4JU9G
+      - key: APPLE_BUNDLE_ID
+        value: com.bulka.bonus
       - key: ALLOWED_ORIGINS
         value: https://bulka.com.kz
       - key: KASPI_POS_ENABLED
         value: "false"
+      - key: FORTE_ENABLED
+        value: "false"
+      - key: FORTE_TEST_MODE
+        value: "true"
+      - key: FORTE_CHECKOUT_BASE_URL
+        value: https://securepayments.fortebank.com
+      - key: FORTE_GATEWAY_BASE_URL
+        value: https://gateway.fortebank.com
       - key: RUN_BACKGROUND_WORKERS
         value: "false"
       - key: RUN_BOTS
         value: "false"
+      - key: GEMINI_ASSISTANT_ENABLED
+        value: "false"
+      - key: GEMINI_MODEL
+        value: gemini-3.1-flash-lite
+      - key: GEMINI_API_KEY
+        sync: false
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
@@ -52,6 +70,14 @@ services:
         generateValue: true
       - key: KASPI_WEBHOOK_SECRET
         generateValue: true
+      - key: FORTE_SHOP_ID
+        sync: false
+      - key: FORTE_SECRET_KEY
+        sync: false
+      - key: FORTE_WEBHOOK_PUBLIC_KEY
+        sync: false
+      - key: FORTE_MERCHANT_ID
+        sync: false
       - key: IIKO_ORDER_EXPORT_ENABLED
         value: "false"
       - key: TOKEN_SECRET_KEY

@@ -12,14 +12,53 @@ const iikoApi = require('../services/iiko.service');
 const { getStories } = require('../services/story.service');
 const { getNews } = require('../services/news.service');
 const path = require('path');
-const { signCustomerToken, signRegistrationToken } = require('../services/auth.service');
+const { signRegistrationToken } = require('../services/auth.service');
+const {
+  issueCustomerSession,
+  revokeCustomerSession,
+  rotateCustomerSession,
+} = require('../services/customer-session.service');
+const { getBranchAvailability } = require('../services/inventory.service');
 const {
   customerAuthMiddleware,
   registrationAuthMiddleware,
 } = require('../middlewares/customer-auth.middleware');
 const { authRateLimit, publicApiRateLimit } = require('../middlewares/rate-limit.middleware');
-const { updateFcmTokenByCustomerId, getCustomerById } = require('../services/customer.service');
+const {
+  getCustomerById,
+  registerPushTokenByCustomerId,
+  unregisterPushTokenByCustomerId,
+  updateFcmTokenByCustomerId,
+} = require('../services/customer.service');
 const { sendApiError } = require('../utils/http.util');
+const {
+  AUTH_PURPOSES,
+  authenticateCustomerPassword,
+  consumeRegistrationCredentialGrant,
+  createCustomerCredential,
+  createRegistrationCredentialGrant,
+  getCustomerCredential,
+  isEstablishedCustomer,
+  normalizeCustomerPhone,
+  resetCustomerPassword,
+  startCustomerPasswordReset,
+  startCustomerRegistration,
+  validateNewPassword,
+} = require('../services/customer-password-auth.service');
+const {
+  categoryNameKey,
+  filterProductsByVisibleCategories,
+  fulfillmentTypesForProduct,
+  getHiddenCategoryVisibility,
+  normalizeMenuOrderType,
+  productSupportsFulfillmentType,
+} = require('../utils/menu-visibility.util');
+const {
+  clearCustomerSessionCookie,
+  readCustomerRefreshCookie,
+  sendCustomerSession,
+  usesCustomerRefreshCookie,
+} = require('../utils/customer-session-cookie.util');
 
 // --- Helper functions (originally in old index.js) ---
 
@@ -61,6 +100,157 @@ async function getCustomerTierSnapshot(customer) {
   };
 }
 
+async function buildAuthenticatedCustomerPayload(customer, req, res) {
+  const { tier, vipThreshold, isVip, cashbackPercent } = await getCustomerTierSnapshot(customer);
+  const { data: transactions } = await supabase
+    .from('transactions')
+    .select('*')
+    .eq('customer_id', customer.id)
+    .order('timestamp', { ascending: false })
+    .limit(20);
+  const session = sendCustomerSession(req, res, await issueCustomerSession(customer, req));
+  return {
+    success: true,
+    exists: true,
+    ...session,
+    customer: {
+      id: customer.id,
+      last_name: customer.last_name,
+      gender: customer.gender,
+      birth_date: customer.birth_date,
+      email: customer.email,
+      region: customer.region,
+      name: customer.name,
+      phone: customer.phone,
+      balance: customer.balance,
+      total_spent: customer.total_spent,
+      created_at: customer.created_at,
+      isVip,
+      cashbackPercent,
+      vipThreshold,
+      tier,
+    },
+    transactions: transactions || [],
+  };
+}
+
+function sendCustomerAuthError(res, error) {
+  const status = Number(error?.statusCode || 500);
+  if (status >= 400 && status < 500) {
+    return res.status(status).json({
+      success: false,
+      error: error.message,
+      code: error.code || 'CUSTOMER_AUTH_ERROR',
+    });
+  }
+  return sendApiError(res, error, { success: false });
+}
+
+function sendOtpFailure(res, consumed) {
+  if (consumed.status === 'expired') {
+    return res.status(400).json({
+      success: false,
+      error: 'expired',
+      code: 'OTP_EXPIRED',
+      message: 'Код устарел или не был запрошен',
+    });
+  }
+  if (consumed.status === 'attempts_exceeded') {
+    return res.status(429).json({
+      success: false,
+      error: 'attempts_exceeded',
+      code: 'OTP_ATTEMPTS_EXCEEDED',
+      message: 'Запросите новый код',
+    });
+  }
+  if (consumed.status !== 'success') {
+    return res.status(400).json({
+      success: false,
+      error: 'invalid',
+      code: 'INVALID_OTP',
+      message: 'Неверный код',
+    });
+  }
+  return null;
+}
+
+router.post('/api/auth/login', authRateLimit, async (req, res) => {
+  try {
+    const { customer } = await authenticateCustomerPassword(req.body || {});
+    res.json(await buildAuthenticatedCustomerPayload(customer, req, res));
+  } catch (error) {
+    sendCustomerAuthError(res, error);
+  }
+});
+
+router.post('/api/auth/register/start', authRateLimit, async (req, res) => {
+  try {
+    const result = await startCustomerRegistration({
+      phone: req.body?.phone,
+      password: req.body?.password,
+      requestToken: req.body?.token,
+    });
+    res.json({ success: true, ...result });
+  } catch (error) {
+    sendCustomerAuthError(res, error);
+  }
+});
+
+router.post('/api/auth/password-reset/start', authRateLimit, async (req, res) => {
+  try {
+    const result = await startCustomerPasswordReset({
+      phone: req.body?.phone,
+      requestToken: req.body?.token,
+    });
+    res.json({
+      success: true,
+      whatsappPhone: result.whatsappPhone,
+      whatsappUrl: result.whatsappUrl,
+    });
+  } catch (error) {
+    sendCustomerAuthError(res, error);
+  }
+});
+
+router.post('/api/auth/password-reset/complete', authRateLimit, async (req, res) => {
+  try {
+    const phone = normalizeCustomerPhone(req.body?.phone);
+    validateNewPassword(req.body?.password);
+    const code = String(req.body?.code || '').trim();
+    if (!/^\d{4}$/.test(code)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid confirmation code',
+        code: 'INVALID_OTP',
+      });
+    }
+    const consumed = await otpStore.consume(phone, code);
+    const failure = sendOtpFailure(res, consumed);
+    if (failure) return failure;
+    if (consumed.payload?.purpose !== AUTH_PURPOSES.passwordReset) {
+      return res.status(400).json({
+        success: false,
+        error: 'Confirmation code cannot be used for password recovery',
+        code: 'WRONG_OTP_PURPOSE',
+      });
+    }
+
+    const customer = await getCustomerByPhone(phone);
+    const credential = customer ? await getCustomerCredential(customer.id) : null;
+    if (!customer || (!credential && !isEstablishedCustomer(customer))) {
+      return res.status(404).json({
+        success: false,
+        error: 'Customer account was not found',
+        code: 'ACCOUNT_NOT_FOUND',
+      });
+    }
+    await resetCustomerPassword({ customerId: customer.id, password: req.body.password });
+    res.json(await buildAuthenticatedCustomerPayload(customer, req, res));
+  } catch (error) {
+    sendCustomerAuthError(res, error);
+  }
+});
+
 router.post('/api/auth/request-otp', authRateLimit, async (req, res) => {
   try {
     const { token } = req.body;
@@ -101,26 +291,38 @@ router.post('/api/auth/verify-otp', authRateLimit, async (req, res) => {
     if (!phone || !code) return res.status(400).json({ error: 'Phone and code required' });
 
     const consumed = await otpStore.consume(phone, code);
-    if (consumed.status === 'expired') {
-      return res.json({
+    const failure = sendOtpFailure(res, consumed);
+    if (failure) return failure;
+
+    if (consumed.payload?.purpose === AUTH_PURPOSES.passwordReset) {
+      return res.status(400).json({
         success: false,
-        error: 'expired',
-        message: 'Код устарел или не был запрошен',
+        error: 'Confirmation code cannot be used to sign in',
+        code: 'WRONG_OTP_PURPOSE',
       });
-    }
-    if (consumed.status === 'attempts_exceeded') {
-      return res
-        .status(429)
-        .json({ success: false, error: 'attempts_exceeded', message: 'Запросите новый код' });
-    }
-    if (consumed.status !== 'success') {
-      return res.json({ success: false, error: 'invalid', message: 'Неверный код' });
     }
 
     let existingCustomer = await getCustomerByPhone(phone);
-    const isPlaceholder =
-      existingCustomer &&
-      (!existingCustomer.name || ['Гость', 'Новый Гость'].includes(existingCustomer.name));
+    const isPlaceholder = existingCustomer && !isEstablishedCustomer(existingCustomer);
+    if (consumed.payload?.purpose === AUTH_PURPOSES.registration) {
+      const credential = existingCustomer ? await getCustomerCredential(existingCustomer.id) : null;
+      if (credential || isEstablishedCustomer(existingCustomer)) {
+        return res.status(409).json({
+          success: false,
+          error: 'Customer account already exists',
+          code: credential ? 'ACCOUNT_EXISTS' : 'PASSWORD_SETUP_REQUIRED',
+        });
+      }
+      const credentialGrantId = await createRegistrationCredentialGrant({
+        phone,
+        passwordHash: consumed.payload?.passwordHash,
+      });
+      return res.json({
+        success: true,
+        exists: false,
+        registrationToken: signRegistrationToken(phone, { credentialGrantId }),
+      });
+    }
     if (!existingCustomer || isPlaceholder) {
       return res.json({
         success: true,
@@ -129,39 +331,7 @@ router.post('/api/auth/verify-otp', authRateLimit, async (req, res) => {
       });
     }
 
-    const customer = existingCustomer;
-    const { tier, vipThreshold, isVip, cashbackPercent } = await getCustomerTierSnapshot(customer);
-
-    const { data: transactions } = await supabase
-      .from('transactions')
-      .select('*')
-      .eq('customer_id', customer.id)
-      .order('timestamp', { ascending: false })
-      .limit(20);
-
-    res.json({
-      success: true,
-      exists: true,
-      accessToken: signCustomerToken(customer),
-      customer: {
-        id: customer.id,
-        last_name: customer.last_name,
-        gender: customer.gender,
-        birth_date: customer.birth_date,
-        email: customer.email,
-        region: customer.region,
-        name: customer.name,
-        phone: customer.phone,
-        balance: customer.balance,
-        total_spent: customer.total_spent,
-        created_at: customer.created_at,
-        isVip,
-        cashbackPercent,
-        vipThreshold,
-        tier,
-      },
-      transactions: transactions || [],
-    });
+    res.json(await buildAuthenticatedCustomerPayload(existingCustomer, req, res));
   } catch (err) {
     sendApiError(res, err, { success: false });
   }
@@ -176,7 +346,7 @@ router.post('/api/auth/register', authRateLimit, registrationAuthMiddleware, asy
     const fullName = [name, surname].filter(Boolean).join(' ').trim().slice(0, 160);
     if (!fullName) return res.status(400).json({ success: false, error: 'Name required' });
     const existingCustomer = await getCustomerByPhone(phone);
-    if (existingCustomer?.name && !['Гость', 'Новый Гость'].includes(existingCustomer.name)) {
+    if (isEstablishedCustomer(existingCustomer)) {
       return res.status(409).json({ success: false, error: 'Customer is already registered' });
     }
     let customer = existingCustomer || (await getOrCreateCustomerByPhone(phone, fullName));
@@ -192,6 +362,14 @@ router.post('/api/auth/register', authRateLimit, registrationAuthMiddleware, asy
       return res.status(400).json({ success: false, error: 'Invalid gender' });
     }
 
+    if (req.registrationAuth.credentialGrantId) {
+      const passwordHash = await consumeRegistrationCredentialGrant({
+        phone,
+        grantId: req.registrationAuth.credentialGrantId,
+      });
+      await createCustomerCredential({ customerId: customer.id, passwordHash });
+    }
+
     const updateData = { name: fullName };
     if (surname) updateData.last_name = surname;
     if (email) updateData.email = email;
@@ -205,40 +383,30 @@ router.post('/api/auth/register', authRateLimit, registrationAuthMiddleware, asy
     if (updateError) throw updateError;
     Object.assign(customer, updateData);
 
-    const { tier, vipThreshold, isVip, cashbackPercent } = await getCustomerTierSnapshot(customer);
-
-    const { data: transactions } = await supabase
-      .from('transactions')
-      .select('*')
-      .eq('customer_id', customer.id)
-      .order('timestamp', { ascending: false })
-      .limit(20);
-
-    res.json({
-      success: true,
-      exists: true,
-      accessToken: signCustomerToken(customer),
-      customer: {
-        id: customer.id,
-        last_name: customer.last_name,
-        gender: customer.gender,
-        birth_date: customer.birth_date,
-        email: customer.email,
-        region: customer.region,
-        name: customer.name,
-        phone: customer.phone,
-        balance: customer.balance,
-        total_spent: customer.total_spent,
-        created_at: customer.created_at,
-        isVip,
-        cashbackPercent,
-        vipThreshold,
-        tier,
-      },
-      transactions: transactions || [],
-    });
+    res.json(await buildAuthenticatedCustomerPayload(customer, req, res));
   } catch (err) {
-    sendApiError(res, err, { success: false });
+    sendCustomerAuthError(res, err);
+  }
+});
+
+router.post('/api/auth/refresh', authRateLimit, async (req, res) => {
+  try {
+    const rawToken = req.body?.refreshToken || readCustomerRefreshCookie(req);
+    const session = await rotateCustomerSession(rawToken, req);
+    res.json({ success: true, ...sendCustomerSession(req, res, session) });
+  } catch (error) {
+    sendApiError(res, error, { success: false });
+  }
+});
+
+router.post('/api/auth/logout', authRateLimit, async (req, res) => {
+  try {
+    const rawToken = req.body?.refreshToken || readCustomerRefreshCookie(req);
+    await revokeCustomerSession(rawToken);
+    if (usesCustomerRefreshCookie(req)) clearCustomerSessionCookie(req, res);
+    res.json({ success: true });
+  } catch (error) {
+    sendApiError(res, error, { success: false });
   }
 });
 
@@ -248,9 +416,13 @@ router.post(
   customerAuthMiddleware,
   async (req, res) => {
     try {
-      const { fcmToken, language } = req.body;
+      const { fcmToken, language, platform, installationId } = req.body;
       if (!fcmToken) return res.status(400).json({ error: 'fcmToken required' });
-      await updateFcmTokenByCustomerId(req.customerAuth.id, fcmToken, language);
+      await registerPushTokenByCustomerId(req.customerAuth.id, fcmToken, {
+        language,
+        platform,
+        installationId,
+      });
       res.json({ success: true });
     } catch (err) {
       sendApiError(res, err);
@@ -264,7 +436,10 @@ router.delete(
   customerAuthMiddleware,
   async (req, res) => {
     try {
-      await supabase.from('customers').update({ fcm_token: null }).eq('id', req.customerAuth.id);
+      await unregisterPushTokenByCustomerId(req.customerAuth.id, {
+        installationId: req.body?.installationId,
+        fcmToken: req.body?.fcmToken,
+      });
       res.status(204).send();
     } catch (err) {
       sendApiError(res, err);
@@ -280,7 +455,7 @@ router.get(
     try {
       const { data, error } = await supabase
         .from('customer_notifications')
-        .select('id,title,body,type,is_read,created_at')
+        .select('id,title,body,type,payload,is_read,created_at')
         .eq('customer_id', req.customerAuth.id)
         .order('created_at', { ascending: false })
         .limit(100);
@@ -389,6 +564,17 @@ router.post('/api/guest/qr-token', publicApiRateLimit, customerAuthMiddleware, a
 
 router.get('/api/guest/menu', async (req, res) => {
   try {
+    const branchId = String(req.query.branchId || '').trim();
+    const orderType = normalizeMenuOrderType(req.query.orderType || 'pickup');
+    if (!orderType) {
+      return res.status(400).json({ success: false, error: 'Некорректный тип заказа' });
+    }
+    if (
+      branchId &&
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(branchId)
+    ) {
+      return res.status(400).json({ success: false, error: 'Некорректный филиал' });
+    }
     const langHeader = req.headers['accept-language'] || 'ru';
     const lang = langHeader.split(',')[0].split('-')[0].toLowerCase();
 
@@ -399,8 +585,24 @@ router.get('/api/guest/menu', async (req, res) => {
         if (translations[lang]) return translations[lang];
         if (translations['ru']) return translations['ru'];
       }
-      return override[`custom_${fieldName}`] || fallbackName;
+      return override[`custom_${fieldName}`] || override[fieldName] || fallbackName;
     };
+
+    const getStorageConditions = (product) =>
+      (Array.isArray(product?.storage_conditions) ? product.storage_conditions : [])
+        .slice(0, 2)
+        .map((condition) => ({
+          temperature: String(condition?.temperature || '').trim(),
+          durationValue: Number(condition?.duration_value || 0),
+          durationUnit: String(condition?.duration_unit || '').trim(),
+        }))
+        .filter(
+          (condition) =>
+            condition.temperature &&
+            Number.isInteger(condition.durationValue) &&
+            condition.durationValue > 0 &&
+            ['hours', 'days', 'months'].includes(condition.durationUnit),
+        );
 
     const rawMenu = await iikoApi.getMenu({ strict: true });
     const rawGroups = Array.isArray(rawMenu.groups) ? rawMenu.groups : [];
@@ -419,6 +621,37 @@ router.get('/api/guest/menu', async (req, res) => {
 
     const prodOverridesMap = new Map(productOverrides.map((o) => [o.iiko_product_id, o]));
     const catOverridesMap = new Map(categoryOverrides.map((o) => [o.iiko_category_id, o]));
+    const { data: branchSettings, error: branchSettingsError } = branchId
+      ? await supabase
+          .from('bulka_locations')
+          .select('default_preparation_minutes,pickup_enabled,delivery_enabled,preorder_enabled')
+          .eq('id', branchId)
+          .eq('active', true)
+          .maybeSingle()
+      : { data: null, error: null };
+    if (branchSettingsError) throw branchSettingsError;
+    if (branchId && !branchSettings) {
+      return res.status(404).json({ success: false, error: 'Филиал больше недоступен' });
+    }
+    const branchSupportsOrderType =
+      !branchSettings ||
+      (orderType === 'pickup' && branchSettings.pickup_enabled !== false) ||
+      (orderType === 'delivery' && branchSettings.delivery_enabled === true) ||
+      (orderType === 'preorder' && branchSettings.preorder_enabled !== false);
+    if (!branchSupportsOrderType) {
+      return res.status(400).json({
+        success: false,
+        error: 'Выбранный тип заказа в этом филиале временно недоступен',
+      });
+    }
+    const branchPreparationMinutes = Number(branchSettings?.default_preparation_minutes || 15);
+    const branchAvailability = branchId
+      ? await getBranchAvailability(branchId, {
+          sync: true,
+          strict: true,
+          products: rawProducts,
+        })
+      : new Map();
 
     // Categories
     const baseCategories = rawGroups
@@ -433,11 +666,16 @@ router.get('/api/guest/menu', async (req, res) => {
         order: g.order || 0,
       }));
 
+    const { ids: hiddenCategoryIds, names: hiddenCategoryNames } = getHiddenCategoryVisibility(
+      baseCategories,
+      catOverridesMap,
+    );
+
     // Применяем оверрайды к категориям
     const categories = [];
     for (const cat of baseCategories) {
       const override = catOverridesMap.get(cat.id);
-      if (override && override.is_hidden) continue;
+      if (hiddenCategoryIds.has(cat.id)) continue;
 
       categories.push({
         id: cat.id,
@@ -448,15 +686,6 @@ router.get('/api/guest/menu', async (req, res) => {
     }
 
     categories.sort((a, b) => a.order - b.order);
-
-    // Собираем ID скрытых категорий — продукты из них тоже не показываем
-    const hiddenCategoryIds = new Set();
-    for (const cat of baseCategories) {
-      const override = catOverridesMap.get(cat.id);
-      if (override && override.is_hidden) {
-        hiddenCategoryIds.add(cat.id);
-      }
-    }
 
     // Products
     const baseProducts = rawProducts.filter(
@@ -471,6 +700,7 @@ router.get('/api/guest/menu', async (req, res) => {
     for (const p of baseProducts) {
       const override = prodOverridesMap.get(p.id);
       if (override && override.is_hidden) continue;
+      if (!productSupportsFulfillmentType(override, orderType)) continue;
       // Пропускаем продукты из скрытых категорий
       if (hiddenCategoryIds.has(p.parentGroup)) continue;
 
@@ -487,7 +717,11 @@ router.get('/api/guest/menu', async (req, res) => {
         imageUrl = p.imageLinks[0];
       }
 
-      const isStopped = stopIds.has(p.id) || (override && override.is_stop_listed);
+      const inventory = branchAvailability.get(String(p.id));
+      const isStopped =
+        Boolean(override && override.is_stop_listed) ||
+        stopIds.has(p.id) ||
+        (branchId && inventory?.isAvailable === false);
 
       products.push({
         id: p.id,
@@ -498,13 +732,36 @@ router.get('/api/guest/menu', async (req, res) => {
         imageUrl: (override && override.custom_image_url) || imageUrl,
         inStopList: isStopped,
         isAvailable: !isStopped,
-        onlineOrderable: true,
+        availableQuantity: inventory?.availableQuantity ?? null,
+        inStockCount: inventory?.availableQuantity ?? null,
+        onlineOrderable: !isStopped,
+        preparationMinutes: Number(
+          inventory?.preparationMinutes ||
+            override?.preparation_minutes ||
+            branchPreparationMinutes,
+        ),
+        ingredients: getLocalized(override, 'ingredients', ''),
+        allergens: Array.isArray(override?.allergens) ? override.allergens : [],
+        dietaryTags: Array.isArray(override?.dietary_tags) ? override.dietary_tags : [],
+        searchKeywords: Array.isArray(override?.search_keywords) ? override.search_keywords : [],
+        weightGrams: override?.weight_grams == null ? null : Number(override.weight_grams),
+        nutrition: {
+          caloriesKcal: override?.calories_kcal == null ? null : Number(override.calories_kcal),
+          proteinGrams: override?.protein_grams == null ? null : Number(override.protein_grams),
+          fatGrams: override?.fat_grams == null ? null : Number(override.fat_grams),
+          carbsGrams: override?.carbs_grams == null ? null : Number(override.carbs_grams),
+        },
+        storageConditions: getStorageConditions(override),
         sortOrder: (override && override.sort_order) || 0,
+        fulfillmentTypes: fulfillmentTypesForProduct(override),
       });
     }
 
     // Добавляем кастомные товары (добавленные админом вручную)
     for (const cp of customProducts) {
+      if (!productSupportsFulfillmentType(cp, orderType)) continue;
+      // A custom product must not recreate a category that the administrator hid.
+      if (hiddenCategoryNames.has(categoryNameKey(cp.category_name))) continue;
       // Ищем или создаём категорию для кастомного товара
       let cat = categories.find((c) => c.name === cp.category_name);
       let catId;
@@ -520,6 +777,7 @@ router.get('/api/guest/menu', async (req, res) => {
         });
       }
 
+      const inventory = branchAvailability.get(String(cp.id));
       products.push({
         id: cp.id,
         name: cp.name,
@@ -527,27 +785,55 @@ router.get('/api/guest/menu', async (req, res) => {
         price: cp.price,
         categoryId: catId,
         imageUrl: cp.image_url,
-        inStopList: !cp.is_available,
-        isAvailable: cp.is_available,
-        onlineOrderable: true,
+        inStopList: !cp.is_available || inventory?.isAvailable === false,
+        isAvailable: cp.is_available && (inventory?.isAvailable ?? true),
+        availableQuantity: inventory?.availableQuantity ?? null,
+        inStockCount: inventory?.availableQuantity ?? null,
+        onlineOrderable: cp.is_available && (inventory?.isAvailable ?? true),
+        preparationMinutes: Number(
+          inventory?.preparationMinutes || cp.preparation_minutes || branchPreparationMinutes,
+        ),
+        ingredients: getLocalized(cp, 'ingredients', ''),
+        allergens: Array.isArray(cp.allergens) ? cp.allergens : [],
+        dietaryTags: Array.isArray(cp.dietary_tags) ? cp.dietary_tags : [],
+        searchKeywords: Array.isArray(cp.search_keywords) ? cp.search_keywords : [],
+        weightGrams: cp.weight_grams == null ? null : Number(cp.weight_grams),
+        nutrition: {
+          caloriesKcal: cp.calories_kcal == null ? null : Number(cp.calories_kcal),
+          proteinGrams: cp.protein_grams == null ? null : Number(cp.protein_grams),
+          fatGrams: cp.fat_grams == null ? null : Number(cp.fat_grams),
+          carbsGrams: cp.carbs_grams == null ? null : Number(cp.carbs_grams),
+        },
+        storageConditions: getStorageConditions(cp),
         sortOrder: cp.sort_order || 0,
+        fulfillmentTypes: fulfillmentTypesForProduct(cp),
       });
     }
 
+    // Final allowlist prevents orphaned products from leaking when iiko returns a
+    // product for a category that is hidden or absent from the published menu.
+    const publishedProducts = filterProductsByVisibleCategories(categories, products);
+    const publishedCategoryIds = new Set(publishedProducts.map((product) => product.categoryId));
+    const publishedCategories = categories.filter((category) =>
+      publishedCategoryIds.has(category.id),
+    );
+
     // Сортировка товаров (если нужен кастомный порядок)
-    products.sort((a, b) => a.sortOrder - b.sortOrder);
+    publishedProducts.sort((a, b) => a.sortOrder - b.sortOrder);
 
     res.set('Cache-Control', 'private, no-store');
     res.json({
       success: true,
-      categories,
-      products,
+      categories: publishedCategories,
+      products: publishedProducts,
       revision: Math.max(
         0,
         ...productOverrides.map((item) => Date.parse(item.updated_at) || 0),
         ...categoryOverrides.map((item) => Date.parse(item.updated_at) || 0),
         ...customProducts.map((item) => Date.parse(item.updated_at) || 0),
       ),
+      branchId: branchId || null,
+      orderType,
     });
   } catch (error) {
     console.error('Ошибка получения меню:', error);

@@ -1,5 +1,9 @@
 const { supabase } = require('../config/supabase');
+const realtime = require('./realtime.service');
 const crypto = require('crypto');
+const { localDateBoundaryIso } = require('../utils/date.util');
+const { getSecretWalletCardNumber } = require('../utils/wallet-card.util');
+const { queueCustomerLoyaltySync } = require('./loyalty-sync.service');
 
 const customerError = (message, statusCode = 400) =>
   Object.assign(new Error(message), { statusCode });
@@ -12,24 +16,6 @@ const safeHashEquals = (actual, expected) => {
     crypto.timingSafeEqual(actualBuffer, expectedBuffer)
   );
 };
-
-/**
- * Генерирует секретный идентификатор карты для Google/Apple Wallet
- */
-function getSecretWalletCardNumber(customer) {
-  if (!customer?.id || !customer?.phone) {
-    throw new Error('A valid customer is required to generate a wallet card number');
-  }
-  const secret = process.env.BULKA_SECRET;
-  if (!secret) throw new Error('BULKA_SECRET is required');
-  const hash = crypto
-    .createHmac('sha256', secret)
-    .update(`${customer.id}:${customer.phone}`)
-    .digest('hex')
-    .slice(0, 16)
-    .toUpperCase();
-  return `CARD-${customer.id}-${hash}`;
-}
 
 /**
  * Получение клиента по номеру телефона
@@ -128,6 +114,7 @@ async function updateCustomerBalance(customerId, amountChange) {
 
   if (error) throw new Error('Error updating balance atomically: ' + error.message);
   if (!data || data.length === 0) throw new Error('Customer not found');
+  queueCustomerLoyaltySync(customerId);
   return data[0];
 }
 
@@ -140,6 +127,7 @@ async function applyLoyaltyTransaction({
   realMoneyPaid,
   activationDelayDays = 0,
   items = null,
+  branchId = null,
 }) {
   if (!customerId || !orderId) {
     const validationError = new Error('customerId and orderId are required');
@@ -176,13 +164,26 @@ async function applyLoyaltyTransaction({
     throw transactionError;
   }
   if (!data) throw new Error('Empty loyalty transaction result');
-  return Array.isArray(data) ? data[0] : data;
+  if (branchId) {
+    const { error: branchError } = await supabase
+      .from('transactions')
+      .update({ branch_id: branchId })
+      .eq('customer_id', customerId)
+      .eq('order_id', String(orderId))
+      .is('branch_id', null);
+    if (branchError) throw new Error('Could not scope loyalty transaction to branch');
+  }
+  const result = Array.isArray(data) ? data[0] : data;
+  if (!result?.duplicate) queueCustomerLoyaltySync(customerId);
+  return result;
 }
 
 async function activatePendingBonuses() {
   const { data, error } = await supabase.rpc('activate_pending_bonus_transactions');
   if (error) throw new Error('Error activating pending bonuses: ' + error.message);
-  return data || { activated_count: 0, activated_amount: 0 };
+  const result = data || { activated_count: 0, activated_amount: 0 };
+  for (const customerId of result.customer_ids || []) queueCustomerLoyaltySync(customerId);
+  return result;
 }
 
 /**
@@ -198,11 +199,28 @@ async function logTransaction(transactionData) {
       order_total: transactionData.orderTotal || null,
       description: transactionData.description || null,
       items: transactionData.items || null,
+      branch_id: transactionData.branchId || null,
     },
   ]);
 
   if (error) {
     console.error('Error logging transaction:', error.message);
+  } else {
+    realtime.publish(
+      'transaction.created',
+      {
+        customerId: transactionData.customerId,
+        orderId: transactionData.orderId,
+        type: transactionData.type,
+        amount: transactionData.amount,
+        branchId: transactionData.branchId || null,
+      },
+      {
+        customerId: transactionData.customerId,
+        includeAdmins: Boolean(transactionData.branchId),
+        branchId: transactionData.branchId || null,
+      },
+    );
   }
 
   // Обновляем total_spent при покупке (даже если клиент расплачивается бонусами, мы можем добавлять к total_spent только реально потраченные деньги)
@@ -228,11 +246,28 @@ async function logTransaction(transactionData) {
 // ФУНКЦИИ ДЛЯ CRM И АДМИН-ПАНЕЛИ
 // ==========================================
 
-async function getAllCustomers({ page = 1, pageSize = 50, search = '' } = {}) {
+async function getAllCustomers({ page = 1, pageSize = 50, search = '', branchIds = null } = {}) {
   const safePage = Math.max(1, Number.parseInt(page, 10) || 1);
   const safePageSize = Math.min(100, Math.max(10, Number.parseInt(pageSize, 10) || 50));
-  let query = supabase.from('customers').select('*', { count: 'exact' });
   const cleanSearch = String(search).trim().replace(/[,()]/g, ' ').slice(0, 100);
+  const scopedBranches = Array.isArray(branchIds) ? branchIds.map(String).filter(Boolean) : [];
+  if (scopedBranches.length) {
+    const { data, error } = await supabase.rpc('admin_scoped_customers', {
+      p_branch_ids: scopedBranches,
+      p_search: cleanSearch,
+      p_limit: safePageSize,
+      p_offset: (safePage - 1) * safePageSize,
+    });
+    if (error) throw new Error(error.message);
+    const result = Array.isArray(data) ? data[0] : data || {};
+    return {
+      customers: Array.isArray(result.customers) ? result.customers : [],
+      total: Number(result.total || 0),
+      page: safePage,
+      pageSize: safePageSize,
+    };
+  }
+  let query = supabase.from('customers').select('*', { count: 'exact' });
   if (cleanSearch) query = query.or(`name.ilike.%${cleanSearch}%,phone.ilike.%${cleanSearch}%`);
   const from = (safePage - 1) * safePageSize;
   const { data, error, count } = await query
@@ -242,17 +277,85 @@ async function getAllCustomers({ page = 1, pageSize = 50, search = '' } = {}) {
   return { customers: data || [], total: count || 0, page: safePage, pageSize: safePageSize };
 }
 
-async function getTransactions() {
-  const { data, error } = await supabase
-    .from('transactions')
-    .select('*, customers(phone, name)')
+async function getTransactions({
+  branchIds = null,
+  page = 1,
+  pageSize = 50,
+  search = '',
+  dateFrom = '',
+  dateTo = '',
+  type = '',
+} = {}) {
+  const safePage = Math.max(1, Number.parseInt(page, 10) || 1);
+  const safePageSize = Math.min(100, Math.max(10, Number.parseInt(pageSize, 10) || 50));
+  const needle = String(search || '')
+    .trim()
+    .replace(/[%_,()]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .slice(0, 100);
+  let query = supabase.from('transactions').select('*, customers(phone, name)', { count: 'exact' });
+  const scopedBranches = Array.isArray(branchIds) ? branchIds.map(String).filter(Boolean) : [];
+  if (scopedBranches.length) query = query.in('branch_id', scopedBranches);
+  const startAt = localDateBoundaryIso(dateFrom);
+  const endAt = localDateBoundaryIso(dateTo, { nextDay: true });
+  if (startAt) query = query.gte('timestamp', startAt);
+  if (endAt) query = query.lt('timestamp', endAt);
+  if (
+    type &&
+    [
+      'deposit',
+      'pending_deposit',
+      'withdrawal',
+      'manual_deposit',
+      'manual_withdrawal',
+      'manual',
+      'expiration',
+      'refund_reversal',
+      'refund_bonus_restore',
+      'cancelled_deposit',
+      'order',
+    ].includes(String(type))
+  ) {
+    query = query.eq('type', String(type));
+  }
+  if (needle) {
+    const { data: matchedCustomers, error: customerError } = await supabase
+      .from('customers')
+      .select('id')
+      .or(`name.ilike.%${needle}%,phone.ilike.%${needle}%`)
+      .limit(200);
+    if (customerError) throw new Error(customerError.message);
+    const predicates = [
+      `order_id.ilike.%${needle}%`,
+      `description.ilike.%${needle}%`,
+      ...((matchedCustomers || []).length
+        ? [`customer_id.in.(${matchedCustomers.map((customer) => customer.id).join(',')})`]
+        : []),
+    ];
+    query = query.or(predicates.join(','));
+  }
+  const from = (safePage - 1) * safePageSize;
+  const { data, error, count } = await query
     .order('timestamp', { ascending: false })
-    .limit(100);
+    .range(from, from + safePageSize - 1);
   if (error) throw new Error(error.message);
-  return data;
+  return {
+    transactions: data || [],
+    total: count || 0,
+    page: safePage,
+    pageSize: safePageSize,
+  };
 }
 
-async function getStats() {
+async function getStats({ branchIds = null } = {}) {
+  const scopedBranches = Array.isArray(branchIds) ? branchIds.map(String).filter(Boolean) : [];
+  if (scopedBranches.length) {
+    const { data, error } = await supabase.rpc('get_admin_stats_scoped', {
+      p_branch_ids: scopedBranches,
+    });
+    if (error) throw new Error(error.message);
+    return Array.isArray(data) ? data[0] : data;
+  }
   const { data: aggregate, error: aggregateError } = await supabase.rpc('get_admin_stats');
   if (!aggregateError && aggregate) return aggregate;
 
@@ -317,13 +420,30 @@ async function getStats() {
   };
 }
 
-async function addManualBonus(customerId, amount, reason) {
-  const { data, error } = await supabase.rpc('apply_manual_bonus', {
+async function addManualBonus(customerId, amount, reason, { branchId = null } = {}) {
+  const { data, error } = await supabase.rpc('apply_manual_bonus_scoped', {
     p_customer_id: customerId,
     p_amount_change: amount,
     p_reason: reason || null,
+    p_branch_id: branchId,
   });
   if (error) throw new Error(error.message);
+  realtime.publish(
+    'transaction.created',
+    {
+      customerId,
+      type: Number(amount) >= 0 ? 'manual_deposit' : 'manual_withdrawal',
+      amount: Math.abs(Number(amount)),
+      branchId,
+    },
+    {
+      customerId,
+      includeAdmins: true,
+      branchId,
+      roles: branchId ? undefined : ['owner', 'admin'],
+    },
+  );
+  queueCustomerLoyaltySync(customerId);
   return data;
 }
 
@@ -439,7 +559,7 @@ async function searchCustomers(query) {
 
 async function updateCustomerInfo(
   customerId,
-  { name, last_name, gender, email, region, birth_date, phone, balance, total_spent },
+  { name, last_name, gender, email, region, birth_date, phone },
 ) {
   const updates = {};
   if (name !== undefined && name !== null) updates.name = name;
@@ -449,23 +569,86 @@ async function updateCustomerInfo(
   if (region !== undefined) updates.region = region;
   if (birth_date !== undefined) updates.birth_date = birth_date || null;
   if (phone !== undefined && phone !== null) updates.phone = phone;
-  if (balance !== undefined && balance !== null) updates.balance = Number(balance);
-  if (total_spent !== undefined && total_spent !== null) updates.total_spent = Number(total_spent);
-
   const { error } = await supabase.from('customers').update(updates).eq('id', customerId);
   if (error) throw new Error(error.message);
+  if (['name', 'phone'].some((key) => key in updates)) {
+    queueCustomerLoyaltySync(customerId);
+  }
+}
+
+const PUSH_SCHEMA_MISSING_CODES = new Set(['42P01', '42883', 'PGRST202', 'PGRST205']);
+
+const isMissingPushSchemaError = (error) =>
+  Boolean(error && PUSH_SCHEMA_MISSING_CODES.has(String(error.code || '')));
+
+async function registerPushTokenByCustomerId(
+  customerId,
+  fcmToken,
+  { language = null, platform = 'unknown', installationId = null } = {},
+) {
+  const token = String(fcmToken || '').trim();
+  const deviceId = String(installationId || `legacy:${customerId}`).trim();
+  if (!customerId || token.length < 20 || token.length > 4096) {
+    throw customerError('Некорректный push-токен');
+  }
+  if (!/^[A-Za-z0-9._:-]{8,160}$/.test(deviceId)) {
+    throw customerError('Некорректный идентификатор установки');
+  }
+
+  const normalizedPlatform = ['android', 'ios', 'web'].includes(
+    String(platform || '').toLowerCase(),
+  )
+    ? String(platform).toLowerCase()
+    : 'unknown';
+  const normalizedLanguage = String(language || '').toLowerCase();
+  const { error } = await supabase.rpc('register_customer_push_token', {
+    p_customer_id: customerId,
+    p_token: token,
+    p_platform: normalizedPlatform,
+    p_installation_id: deviceId,
+    p_language: normalizedLanguage || null,
+  });
+  if (!error) return true;
+  if (!isMissingPushSchemaError(error)) throw new Error(error.message);
+
+  // Keep older databases usable during a rolling deployment. The migration
+  // upgrades this legacy single-token column to per-installation rows.
+  const updates = { fcm_token: token };
+  if (['ru', 'kk', 'kz', 'en'].includes(normalizedLanguage)) {
+    updates.preferred_language = normalizedLanguage === 'kz' ? 'kk' : normalizedLanguage;
+  }
+  const { error: fallbackError } = await supabase
+    .from('customers')
+    .update(updates)
+    .eq('id', customerId);
+  if (fallbackError) throw new Error(fallbackError.message);
+  return true;
+}
+
+async function unregisterPushTokenByCustomerId(
+  customerId,
+  { installationId = null, fcmToken = null } = {},
+) {
+  if (!customerId) return false;
+  const deviceId = String(installationId || `legacy:${customerId}`).trim();
+  const token = String(fcmToken || '').trim() || null;
+  const { error } = await supabase.rpc('unregister_customer_push_token', {
+    p_customer_id: customerId,
+    p_installation_id: deviceId,
+    p_token: token,
+  });
+  if (!error) return true;
+  if (!isMissingPushSchemaError(error)) throw new Error(error.message);
+
+  let query = supabase.from('customers').update({ fcm_token: null }).eq('id', customerId);
+  if (token) query = query.eq('fcm_token', token);
+  const { error: fallbackError } = await query;
+  if (fallbackError) throw new Error(fallbackError.message);
+  return true;
 }
 
 async function updateFcmTokenByCustomerId(customerId, fcmToken, language = null) {
-  if (!customerId || !fcmToken) return false;
-  const updates = { fcm_token: fcmToken };
-  if (language && ['ru', 'kk', 'kz', 'en'].includes(String(language).toLowerCase())) {
-    const norm = String(language).toLowerCase() === 'kz' ? 'kk' : String(language).toLowerCase();
-    updates.preferred_language = norm;
-  }
-  const { error } = await supabase.from('customers').update(updates).eq('id', customerId);
-  if (error) throw new Error(error.message);
-  return true;
+  return registerPushTokenByCustomerId(customerId, fcmToken, { language });
 }
 
 /**
@@ -518,6 +701,7 @@ async function checkAndExpireInactiveBonuses(inactivityDays = 90) {
         if (!updateErr && Number(expired) > 0) {
           expiredCount++;
           totalExpiredAmount += Number(expired);
+          queueCustomerLoyaltySync(c.id);
         }
       }
     }
@@ -587,14 +771,15 @@ async function checkAndNotifyInactiveCustomers(inactivityDays = 30, expirationDa
 
         try {
           const { sendMessage } = require('./telegram.service');
-          const { sendPushNotification } = require('./push.service');
+          const { sendPushToCustomer } = require('./push.service');
           if (c.telegram_id) await sendMessage(c.telegram_id, message).catch(() => {});
-          if (c.fcm_token)
-            await sendPushNotification(
-              c.fcm_token,
-              'Мы скучаем! Ваши бонусы скоро сгорят',
-              `На счету ${c.balance} бонусов, они сгорят через ${daysLeft} дней. Загляните к нам за кофе!`,
-            ).catch(() => {});
+          await sendPushToCustomer(
+            c.id,
+            'Мы скучаем! Ваши бонусы скоро сгорят',
+            `На счету ${c.balance} бонусов, они сгорят через ${daysLeft} дней. Загляните к нам за кофе!`,
+            {},
+            c.fcm_token,
+          ).catch(() => {});
 
           await logTransaction({
             customerId: c.id,
@@ -617,17 +802,8 @@ async function checkAndNotifyInactiveCustomers(inactivityDays = 30, expirationDa
   return { notifiedCount, totalNotifiedBalance };
 }
 
-/**
- * Удаление клиента и всех его транзакций
- */
-async function deleteCustomer(customerId) {
-  const { error } = await supabase.from('customers').delete().eq('id', customerId);
-  if (error) throw new Error(error.message);
-  return true;
-}
-
 async function checkAndNotifyBirthdays(settings = {}) {
-  const { sendPushNotification } = require('./push.service');
+  const { sendPushToCustomer } = require('./push.service');
   const now = new Date();
   const currentMonth = now.getMonth() + 1; // 1-12
   const currentDay = now.getDate();
@@ -662,13 +838,15 @@ async function checkAndNotifyBirthdays(settings = {}) {
     }
 
     if (bMonth === currentMonth && bDay === currentDay) {
-      if (c.fcm_token) {
-        await sendPushNotification(
-          c.fcm_token,
-          'С днём рождения!',
-          settings.bonus_birthday?.message ||
-            'Поздравляем с днём рождения! Заходите к нам за праздничным кофе и выпечкой!',
-        );
+      const pushResult = await sendPushToCustomer(
+        c.id,
+        'С днём рождения!',
+        settings.bonus_birthday?.message ||
+          'Поздравляем с днём рождения! Заходите к нам за праздничным кофе и выпечкой!',
+        {},
+        c.fcm_token,
+      );
+      if (pushResult.delivered > 0) {
         notifiedCount++;
       }
     }
@@ -704,7 +882,8 @@ module.exports = {
   addManualBonus,
   checkAndExpireInactiveBonuses,
   checkAndNotifyInactiveCustomers,
-  deleteCustomer,
+  registerPushTokenByCustomerId,
+  unregisterPushTokenByCustomerId,
   updateFcmTokenByCustomerId,
   getSecretWalletCardNumber,
   applyLoyaltyTransaction,

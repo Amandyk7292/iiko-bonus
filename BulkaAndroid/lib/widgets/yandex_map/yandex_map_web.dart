@@ -15,6 +15,8 @@ class YandexMapView extends StatefulWidget {
     required this.selectedPoint,
     required this.zoom,
     required this.branches,
+    required this.semanticLabel,
+    required this.unavailableLabel,
     this.onTap,
     this.onCameraChanged,
     this.interactive = true,
@@ -26,6 +28,8 @@ class YandexMapView extends StatefulWidget {
   final LatLng? selectedPoint;
   final double zoom;
   final List<YandexMapBranch> branches;
+  final String semanticLabel;
+  final String unavailableLabel;
   final YandexMapTap? onTap;
   final YandexCameraChanged? onCameraChanged;
   final bool interactive;
@@ -46,7 +50,8 @@ class _YandexMapViewState extends State<YandexMapView> {
     _viewType = 'bulka-yandex-map-${identityHashCode(this)}';
     _frame = web.HTMLIFrameElement()
       ..src = yandexMapUrl
-      ..title = 'Карта зон доставки Bulka'
+      ..title = widget.semanticLabel
+      ..allow = 'geolocation'
       ..style.width = '100%'
       ..style.height = '100%'
       ..style.border = '0'
@@ -90,6 +95,9 @@ class _YandexMapViewState extends State<YandexMapView> {
   @override
   void didUpdateWidget(covariant YandexMapView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.semanticLabel != widget.semanticLabel) {
+      _frame.title = widget.semanticLabel;
+    }
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller.removeListener(_sendCommand);
       widget.controller.addListener(_sendCommand);

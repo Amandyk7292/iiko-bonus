@@ -10,30 +10,51 @@ class AddressMapScreen extends StatefulWidget {
 }
 
 class _AddressMapScreenState extends State<AddressMapScreen> {
-  static const _defaultPoint = LatLng(43.6532, 51.1975);
+  static const _defaultPoint = LatLng(51.1282, 71.4304);
 
   late final BulkaApiClient _api;
+  final _formKey = GlobalKey<FormState>();
   final _mapController = YandexMapController();
-  final _searchController = TextEditingController();
+  final _titleController = TextEditingController();
+  final _houseController = TextEditingController();
+  final _entranceController = TextEditingController();
+  final _floorController = TextEditingController();
+  final _apartmentController = TextEditingController();
+  final _commentController = TextEditingController();
   LatLng _point = _defaultPoint;
   double _zoom = 14.5;
   List<BakeryLocation> _locations = const [];
   String _address = '';
-  String _city = 'Aktau';
+  String _city = 'Астана';
   bool _addressResolved = false;
   bool _resolving = false;
   bool _locating = false;
   bool _pointSelected = false;
   bool _locationsLoaded = false;
   bool _locationsFailed = false;
-  double? _locationAccuracyMeters;
+  Timer? _locateOnOpenTimer;
 
   @override
   void initState() {
     super.initState();
     _api = widget.api ?? BulkaApiClient();
+    _titleController.text = 'house_label'.tr;
     _address = 'map_select_point'.tr;
     unawaited(_loadLocations());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scheduleLocateOnOpen();
+    });
+  }
+
+  void _scheduleLocateOnOpen() {
+    // Let the route finish its first frame before Safari displays the native
+    // permission prompt. If the customer already touched the map, preserve
+    // that explicit choice instead of moving the pin underneath them.
+    _locateOnOpenTimer?.cancel();
+    _locateOnOpenTimer = Timer(const Duration(milliseconds: 250), () {
+      if (!mounted || _pointSelected) return;
+      unawaited(_goToMyLocation());
+    });
   }
 
   Future<void> _loadLocations() async {
@@ -58,72 +79,44 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
 
   @override
   void dispose() {
+    _locateOnOpenTimer?.cancel();
     _mapController.dispose();
-    _searchController.dispose();
+    _titleController.dispose();
+    _houseController.dispose();
+    _entranceController.dispose();
+    _floorController.dispose();
+    _apartmentController.dispose();
+    _commentController.dispose();
     super.dispose();
-  }
-
-  Future<void> _search(String value) async {
-    final query = value.trim();
-    if (query.isEmpty) return;
-    setState(() => _resolving = true);
-    try {
-      final items = await _api.searchDeliveryAddress(query);
-      if (!mounted) return;
-      if (items.isEmpty) {
-        _showLocationError('map_search_not_found'.tr);
-        return;
-      }
-      final item = _asMap(items.first);
-      final lat = _asDouble(item['latitude']);
-      final lon = _asDouble(item['longitude']);
-      if (lat == 0 || lon == 0) {
-        _showLocationError('map_search_not_found'.tr);
-        return;
-      }
-      final nextPoint = LatLng(lat, lon);
-      setState(() {
-        _address = _cleanAddress(
-          _asString(item['address'] ?? item['displayName'], fallback: query),
-        );
-        _city = _asString(item['city'], fallback: _city);
-        _addressResolved = true;
-        _pointSelected = true;
-        _locationAccuracyMeters = null;
-      });
-      _moveMap(nextPoint, 16);
-    } catch (_) {
-      if (mounted) _showLocationError('map_search_failed'.tr);
-    } finally {
-      if (mounted) setState(() => _resolving = false);
-    }
   }
 
   Future<void> _goToMyLocation() async {
     if (_locating) return;
     setState(() => _locating = true);
     try {
-      final serviceEnabled = await Geolocator.isLocationServiceEnabled()
-          .timeout(const Duration(seconds: 3), onTimeout: () => false);
-      if (!serviceEnabled) {
-        _showLocationError('geo_disabled'.tr);
-        return;
-      }
+      if (!kIsWeb) {
+        final serviceEnabled = await Geolocator.isLocationServiceEnabled()
+            .timeout(const Duration(seconds: 3), onTimeout: () => false);
+        if (!serviceEnabled) {
+          _showLocationError('geo_disabled'.tr);
+          return;
+        }
 
-      var permission = await Geolocator.checkPermission().timeout(
-        const Duration(seconds: 3),
-        onTimeout: () => LocationPermission.denied,
-      );
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission().timeout(
-          const Duration(seconds: 8),
+        var permission = await Geolocator.checkPermission().timeout(
+          const Duration(seconds: 3),
           onTimeout: () => LocationPermission.denied,
         );
-      }
-      if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever) {
-        _showLocationError('geo_permission'.tr);
-        return;
+        if (permission == LocationPermission.denied) {
+          permission = await Geolocator.requestPermission().timeout(
+            const Duration(seconds: 8),
+            onTimeout: () => LocationPermission.denied,
+          );
+        }
+        if (permission == LocationPermission.denied ||
+            permission == LocationPermission.deniedForever) {
+          _showLocationError('geo_permission'.tr);
+          return;
+        }
       }
 
       final locationSettings = kIsWeb
@@ -141,6 +134,8 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
       ).timeout(const Duration(seconds: 16));
       if (!mounted) return;
       _applyPosition(position);
+    } on PermissionDeniedException {
+      _showLocationError('geo_permission'.tr);
     } on TimeoutException {
       _showLocationError('geo_timeout'.tr);
     } catch (_) {
@@ -152,9 +147,8 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
 
   void _applyPosition(Position position) {
     final point = LatLng(position.latitude, position.longitude);
-    _locationAccuracyMeters = position.accuracy;
     _moveMap(point, 16);
-    _setPoint(point, preserveAccuracy: true);
+    _setPoint(point);
     if (position.accuracy > 250) {
       _showLocationError(
         'geo_low_accuracy'.trArgs({'meters': position.accuracy.round()}),
@@ -214,13 +208,12 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
     }
   }
 
-  void _setPoint(LatLng point, {bool preserveAccuracy = false}) {
+  void _setPoint(LatLng point) {
     setState(() {
       _point = point;
       _address = 'map_resolving'.tr;
       _addressResolved = false;
       _pointSelected = true;
-      if (!preserveAccuracy) _locationAccuracyMeters = null;
     });
     _mapController.move(point, _zoom, selected: point);
     unawaited(_reverseGeocode(point));
@@ -265,6 +258,43 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
     );
   }
 
+  String? _requiredField(String? value) {
+    if ((value ?? '').trim().isEmpty) return 'required_field'.tr;
+    return null;
+  }
+
+  String? _emptyToNull(String value) {
+    final trimmed = value.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  void _saveAddress() {
+    if (!_canConfirm) {
+      final message = !_pointSelected || !_addressResolved
+          ? 'map_select_point'.tr
+          : _resolving || !_locationsLoaded
+          ? 'map_delivery_checking'.tr
+          : _locationsFailed
+          ? 'map_delivery_check_failed'.tr
+          : 'map_delivery_outside_zone'.tr;
+      _showLocationError(message);
+      return;
+    }
+    if (!_formKey.currentState!.validate()) return;
+    Navigator.of(context).pop(
+      DeliveryAddress(
+        id: DateTime.now().microsecondsSinceEpoch.toString(),
+        title: _titleController.text.trim(),
+        location: _selectedLocation(),
+        house: _houseController.text.trim(),
+        entrance: _emptyToNull(_entranceController.text),
+        floor: _emptyToNull(_floorController.text),
+        apartment: _emptyToNull(_apartmentController.text),
+        courierComment: _emptyToNull(_commentController.text),
+      ),
+    );
+  }
+
   ({BakeryLocation branch, DeliveryZone zone, double distanceKm})?
   get _deliveryMatch {
     if (!_pointSelected || !_locationsLoaded || _locationsFailed) return null;
@@ -304,328 +334,197 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
       !_locationsFailed &&
       _deliveryMatch != null;
 
-  Widget _deliveryStatus() {
-    if (!_pointSelected) {
-      return _DeliveryStatusCard(
-        icon: Icons.touch_app_rounded,
-        title: 'map_delivery_select_point'.tr,
-        color: _cocoa,
-      );
-    }
-    if (!_locationsLoaded) {
-      return _DeliveryStatusCard(
-        icon: Icons.sync_rounded,
-        title: 'map_delivery_checking'.tr,
-        color: _caramel,
-        loading: true,
-      );
-    }
-    if (_locationsFailed) {
-      return _DeliveryStatusCard(
-        icon: Icons.cloud_off_rounded,
-        title: 'map_delivery_check_failed'.tr,
-        color: _errorRed,
-        actionLabel: 'retry_btn'.tr,
-        onAction: _loadLocations,
-      );
-    }
-    final match = _deliveryMatch;
-    if (match == null) {
-      return _DeliveryStatusCard(
-        icon: Icons.location_off_rounded,
-        title: 'map_delivery_outside_zone'.tr,
-        subtitle: 'map_delivery_outside_hint'.tr,
-        color: _errorRed,
-      );
-    }
-    return _DeliveryStatusCard(
-      icon: Icons.check_circle_rounded,
-      title: 'map_delivery_available'.trArgs({'branch': match.branch.name}),
-      subtitle: 'map_delivery_tariff'.trArgs({
-        'fee': formatGroupedNumber(match.zone.fee.toDouble()),
-        'distance': match.distanceKm.toStringAsFixed(1),
-      }),
-      color: const Color(0xFF2E7D32),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
+    final colors = context.bulkaColors;
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
+        toolbarHeight: BulkaLayout.appBarHeight(context),
         centerTitle: true,
         titleSpacing: 0,
-        backgroundColor: Colors.white,
+        backgroundColor: scheme.surface,
         leading: IconButton(
           onPressed: () => Navigator.of(context).pop(),
           icon: const Icon(Icons.chevron_left_rounded, size: 34),
-          color: _cocoa.withValues(alpha: 0.56),
+          color: colors.mutedText,
           tooltip: 'back_tooltip'.tr,
         ),
-        title: Text(
-          'locations_title'.tr,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            fontFamily: _brandFont,
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
+        title: _BulkaPageTitle('delivery_address_title'.tr),
+        actions: const [SizedBox(width: BulkaLayout.appBarSideSlot)],
       ),
       body: SafeArea(
         top: false,
-        child: Column(
-          children: [
-            Expanded(
-              child: Stack(
-                children: [
-                  YandexMapView(
-                    controller: _mapController,
-                    center: _point,
-                    selectedPoint: _pointSelected ? _point : null,
-                    zoom: _zoom,
-                    branches: _mapBranches,
-                    onCameraChanged: (_, zoom) => _zoom = zoom,
-                    onTap: _setPoint,
-                  ),
-                  Positioned(
-                    left: 16,
-                    top: 14,
-                    right: 16,
-                    child: _MapSearchField(
-                      controller: _searchController,
-                      onSubmitted: _search,
-                    ),
-                  ),
-                  Positioned(
-                    right: 24,
-                    bottom: 22,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _MapRoundButton(
-                          icon: Icons.add_rounded,
-                          tooltip: 'map_zoom_in'.tr,
-                          onTap: () => _zoomBy(1),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final compact = constraints.maxHeight < 700;
+            final mapHeight = min(
+              360.0,
+              max(245.0, constraints.maxHeight * 0.42),
+            );
+            const sheetOverlap = 20.0;
+            return Stack(
+              children: [
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  right: 0,
+                  height: mapHeight,
+                  child: Stack(
+                    children: [
+                      YandexMapView(
+                        controller: _mapController,
+                        center: _point,
+                        selectedPoint: _pointSelected ? _point : null,
+                        zoom: _zoom,
+                        branches: _mapBranches,
+                        semanticLabel: 'map_delivery_zones_title'.tr,
+                        unavailableLabel: 'map_unavailable'.tr,
+                        onCameraChanged: (_, zoom) => _zoom = zoom,
+                        onTap: _setPoint,
+                      ),
+                      if (!kIsWeb)
+                        Positioned(
+                          right: 18,
+                          bottom: sheetOverlap + 14,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _MapRoundButton(
+                                icon: Icons.add_rounded,
+                                tooltip: 'map_zoom_in'.tr,
+                                onTap: () => _zoomBy(1),
+                              ),
+                              const SizedBox(height: 8),
+                              _MapRoundButton(
+                                icon: Icons.remove_rounded,
+                                tooltip: 'map_zoom_out'.tr,
+                                onTap: () => _zoomBy(-1),
+                              ),
+                              const SizedBox(height: 10),
+                              _MapRoundButton(
+                                icon: Icons.near_me_rounded,
+                                tooltip: 'map_my_location'.tr,
+                                filled: true,
+                                loading: _locating,
+                                onTap: _goToMyLocation,
+                              ),
+                            ],
+                          ),
                         ),
-                        const SizedBox(height: 10),
-                        _MapRoundButton(
-                          icon: Icons.remove_rounded,
-                          tooltip: 'map_zoom_out'.tr,
-                          onTap: () => _zoomBy(-1),
-                        ),
-                        const SizedBox(height: 14),
-                        _MapRoundButton(
-                          icon: Icons.near_me_rounded,
-                          tooltip: 'map_my_location'.tr,
-                          filled: true,
-                          loading: _locating,
-                          onTap: _goToMyLocation,
+                    ],
+                  ),
+                ),
+                Positioned(
+                  left: 0,
+                  top: mapHeight - sheetOverlap,
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: scheme.surface,
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(BulkaRadii.card),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.1),
+                          blurRadius: 24,
+                          offset: const Offset(0, -8),
                         ),
                       ],
                     ),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 26),
-              color: Colors.white,
-              child: Column(
-                children: [
-                  BulkaMotionSwitcher(
-                    duration: BulkaMotion.fast,
-                    offset: const Offset(0, 0.12),
-                    scale: 0.98,
-                    child: _resolving
-                        ? const SizedBox(
-                            key: ValueKey('loading-address'),
-                            height: 32,
-                            width: 32,
-                            child: CircularProgressIndicator(strokeWidth: 2.4),
-                          )
-                        : Text(
-                            _address,
-                            key: ValueKey(_address),
-                            textAlign: TextAlign.center,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.black,
-                              fontFamily: _headingFont,
-                              fontSize: 24,
-                              height: 1.08,
-                              fontWeight: FontWeight.w400,
+                    child: Form(
+                      key: _formKey,
+                      child: Padding(
+                        key: const ValueKey('delivery-address-form'),
+                        padding: EdgeInsets.fromLTRB(
+                          16,
+                          compact ? 12 : 16,
+                          16,
+                          12 + BulkaLayout.safeBottomInset(context),
+                        ),
+                        child: Column(
+                          children: [
+                            _BulkaTextField(
+                              label: 'address_title_label'.tr,
+                              controller: _titleController,
+                              validator: _requiredField,
                             ),
-                          ),
-                  ),
-                  if (_locationAccuracyMeters != null &&
-                      _locationAccuracyMeters! <= 250) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      'geo_accuracy'.trArgs({
-                        'meters': _locationAccuracyMeters!.round(),
-                      }),
-                      style: TextStyle(
-                        color: _textDark.withValues(alpha: 0.55),
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 14),
-                  _deliveryStatus(),
-                  const SizedBox(height: 18),
-                  const Divider(height: 1),
-                  const SizedBox(height: 18),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 58,
-                    child: GradientButton(
-                      onPressed: _canConfirm
-                          ? () => Navigator.of(context).pop(_selectedLocation())
-                          : null,
-                      child: Text(
-                        _pointSelected &&
-                                _locationsLoaded &&
-                                !_locationsFailed &&
-                                _deliveryMatch == null
-                            ? 'map_delivery_unavailable_short'.tr
-                            : 'confirm_btn'.tr,
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w400,
+                            SizedBox(height: compact ? 8 : 10),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: _BulkaTextField(
+                                    label: 'house_label'.tr,
+                                    controller: _houseController,
+                                    validator: _requiredField,
+                                    compact: true,
+                                    hintText: '—',
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: _BulkaTextField(
+                                    label: 'entrance_label'.tr,
+                                    controller: _entranceController,
+                                    keyboardType: TextInputType.number,
+                                    compact: true,
+                                    hintText: '—',
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: _BulkaTextField(
+                                    label: 'floor_label'.tr,
+                                    controller: _floorController,
+                                    keyboardType: TextInputType.number,
+                                    compact: true,
+                                    hintText: '—',
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: _BulkaTextField(
+                                    label: 'apartment_label'.tr,
+                                    controller: _apartmentController,
+                                    compact: true,
+                                    hintText: '—',
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: compact ? 8 : 10),
+                            _BulkaTextField(
+                              label: 'courier_comment_label'.tr,
+                              controller: _commentController,
+                              minLines: compact ? 1 : 2,
+                              maxLines: 2,
+                            ),
+                            SizedBox(height: compact ? 8 : 12),
+                            GradientButton(
+                              onPressed: _saveAddress,
+                              height: compact ? 48 : 52,
+                              child: Text(
+                                'save_address_btn'.tr,
+                                style: const TextStyle(
+                                  fontSize: BulkaTypeScale.body,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _DeliveryStatusCard extends StatelessWidget {
-  const _DeliveryStatusCard({
-    required this.icon,
-    required this.title,
-    required this.color,
-    this.subtitle,
-    this.loading = false,
-    this.actionLabel,
-    this.onAction,
-  });
-
-  final IconData icon;
-  final String title;
-  final String? subtitle;
-  final Color color;
-  final bool loading;
-  final String? actionLabel;
-  final VoidCallback? onAction;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      liveRegion: true,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withValues(alpha: 0.24)),
-        ),
-        child: Row(
-          children: [
-            if (loading)
-              SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.2,
-                  color: color,
                 ),
-              )
-            else
-              Icon(icon, color: color, size: 24),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      color: color,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle!,
-                      style: TextStyle(
-                        color: _textDark.withValues(alpha: 0.68),
-                        fontSize: 13,
-                        height: 1.25,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            if (onAction != null && actionLabel != null)
-              TextButton(onPressed: onAction, child: Text(actionLabel!)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _MapSearchField extends StatelessWidget {
-  const _MapSearchField({required this.controller, required this.onSubmitted});
-
-  final TextEditingController controller;
-  final ValueChanged<String> onSubmitted;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      elevation: 10,
-      shadowColor: Colors.black.withValues(alpha: 0.12),
-      borderRadius: BorderRadius.circular(18),
-      child: TextField(
-        controller: controller,
-        textInputAction: TextInputAction.search,
-        onSubmitted: onSubmitted,
-        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w400),
-        decoration: InputDecoration(
-          hintText: 'search_hint'.tr,
-          hintStyle: TextStyle(
-            color: _textDark.withValues(alpha: 0.42),
-            fontSize: 20,
-            fontWeight: FontWeight.w300,
-          ),
-          prefixIcon: Icon(
-            Icons.search_rounded,
-            color: _cocoa.withValues(alpha: 0.36),
-            size: 30,
-          ),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 18,
-            vertical: 20,
-          ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -649,10 +548,12 @@ class _MapRoundButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final colors = context.bulkaColors;
     return Tooltip(
       message: tooltip,
       child: Material(
-        color: filled ? _cocoa : Colors.white,
+        color: filled ? colors.brandGold : scheme.surface,
         shape: const CircleBorder(),
         elevation: 8,
         shadowColor: Colors.black.withValues(alpha: 0.16),
@@ -672,17 +573,114 @@ class _MapRoundButton extends StatelessWidget {
                     padding: const EdgeInsets.all(16),
                     child: CircularProgressIndicator(
                       strokeWidth: 2.4,
-                      color: filled ? Colors.white : _cocoa,
+                      color: filled ? _textDark : colors.brandBrown,
                     ),
                   )
                 : Icon(
                     icon,
-                    color: filled ? Colors.white : _cocoa,
+                    color: filled ? _textDark : colors.brandBrown,
                     size: filled ? 30 : 26,
                   ),
           ),
         ),
       ),
+    );
+  }
+}
+
+class _BulkaTextField extends StatelessWidget {
+  const _BulkaTextField({
+    required this.label,
+    required this.controller,
+    this.validator,
+    this.keyboardType,
+    this.minLines = 1,
+    this.maxLines = 1,
+    this.compact = false,
+    this.hintText,
+  });
+
+  final String label;
+  final TextEditingController controller;
+  final FormFieldValidator<String>? validator;
+  final TextInputType? keyboardType;
+  final int minLines;
+  final int maxLines;
+  final bool compact;
+  final String? hintText;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.bulkaColors;
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          maxLines: 2,
+          softWrap: true,
+          overflow: TextOverflow.visible,
+          style: TextStyle(
+            color: scheme.onSurface,
+            fontFamily: _headingFont,
+            fontSize: compact ? 12.5 : 16,
+            height: 1.2,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: controller,
+          validator: validator,
+          keyboardType: keyboardType,
+          minLines: minLines,
+          maxLines: maxLines,
+          textInputAction: maxLines > 1
+              ? TextInputAction.newline
+              : TextInputAction.next,
+          style: const TextStyle(
+            fontSize: BulkaTypeScale.body,
+            fontWeight: FontWeight.w500,
+          ),
+          decoration: InputDecoration(
+            hintText: hintText ?? 'input_hint'.tr,
+            hintStyle: TextStyle(
+              color: colors.mutedText,
+              fontSize: compact ? 13 : 15,
+              fontWeight: FontWeight.w500,
+            ),
+            filled: true,
+            fillColor: Colors.white,
+            isDense: true,
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: compact ? 8 : 16,
+              vertical: compact ? 12 : (maxLines > 1 ? 13 : 15),
+            ),
+            errorMaxLines: 3,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(BulkaRadii.control),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(BulkaRadii.control),
+              borderSide: BorderSide(color: colors.cardBorder),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(BulkaRadii.control),
+              borderSide: BorderSide(color: colors.brandGold, width: 1.2),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(BulkaRadii.control),
+              borderSide: const BorderSide(color: _errorRed),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(BulkaRadii.control),
+              borderSide: const BorderSide(color: _errorRed, width: 1.2),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

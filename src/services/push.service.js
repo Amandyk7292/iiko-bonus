@@ -1,6 +1,7 @@
 const { initializeApp, cert } = require('firebase-admin/app');
 const { getMessaging } = require('firebase-admin/messaging');
 const { supabase } = require('../config/supabase');
+const { notificationAllowed } = require('./notification-preferences.service');
 
 let initialized = false;
 let messagingInstance = null;
@@ -43,51 +44,180 @@ function initFirebase() {
 
 initFirebase();
 
+function getPushStatus() {
+  return {
+    configured: Boolean(
+      String(
+        process.env.FIREBASE_SERVICE_ACCOUNT || process.env.GOOGLE_CREDENTIALS_JSON || '',
+      ).trim(),
+    ),
+    initialized,
+  };
+}
+
+const INVALID_TOKEN_CODES = new Set([
+  'messaging/invalid-registration-token',
+  'messaging/registration-token-not-registered',
+]);
+const PUSH_SCHEMA_MISSING_CODES = new Set(['42P01', '42883', 'PGRST202', 'PGRST205']);
+
+function normalizePushData(data = {}) {
+  return Object.fromEntries(
+    Object.entries(data)
+      .filter(([, value]) => value !== undefined && value !== null)
+      .map(([key, value]) => [
+        String(key),
+        typeof value === 'string'
+          ? value
+          : typeof value === 'object'
+            ? JSON.stringify(value)
+            : String(value),
+      ]),
+  );
+}
+
+function webPushLink(data) {
+  const publicBase = String(process.env.PUBLIC_BASE_URL || 'https://bulka.com.kz').replace(
+    /\/$/,
+    '',
+  );
+  const candidate = String(data.deepLink || `${publicBase}/app/`).trim();
+  if (/^https:\/\//i.test(candidate)) return candidate;
+  if (candidate.startsWith('/')) return `${publicBase}${candidate}`;
+  return `${publicBase}/app/`;
+}
+
+async function removeInvalidPushToken(fcmToken) {
+  try {
+    const { error } = await supabase.rpc('remove_invalid_customer_push_token', {
+      p_token: fcmToken,
+    });
+    if (!error) return;
+    if (!PUSH_SCHEMA_MISSING_CODES.has(String(error.code || ''))) throw error;
+    const { error: fallbackError } = await supabase
+      .from('customers')
+      .update({ fcm_token: null })
+      .eq('fcm_token', fcmToken);
+    if (fallbackError) throw fallbackError;
+  } catch (error) {
+    console.error('Failed to remove invalid push token:', error.message);
+  }
+}
+
 async function sendPushNotification(fcmToken, title, body, data = {}) {
-  if (!fcmToken) return false;
+  const token = String(fcmToken || '').trim();
+  if (!token) return false;
   if (!initialized || !messagingInstance) {
     initFirebase();
   }
   if (!initialized || !messagingInstance) {
-    console.log('[PUSH PREVIEW] Уведомление не отправлено: Firebase не настроен. Токен:', fcmToken);
+    console.log('[PUSH PREVIEW] Уведомление не отправлено: Firebase не настроен.');
     return false;
   }
   try {
+    const normalizedData = {
+      ...normalizePushData(data),
+      click_action: 'FLUTTER_NOTIFICATION_CLICK',
+    };
+    const isOrderStatus = ['order', 'delivery'].includes(normalizedData.type);
+    const closedStatuses = new Set(['completed', 'cancelled', 'delivered']);
+    const closedOrder =
+      closedStatuses.has(String(normalizedData.orderStatus || '').toLowerCase()) ||
+      closedStatuses.has(String(normalizedData.deliveryStatus || '').toLowerCase());
     const message = {
-      token: fcmToken,
+      token,
       notification: {
         title: String(title),
         body: String(body),
       },
-      data: {
-        ...data,
-        click_action: 'FLUTTER_NOTIFICATION_CLICK',
-      },
+      data: normalizedData,
       android: {
-        priority: 'high',
+        priority: isOrderStatus ? 'normal' : 'high',
         notification: {
-          sound: 'default',
-          channelId: 'bulka_bonus_notifications',
-          priority: 'high',
-          defaultSound: true,
+          ...(isOrderStatus
+            ? {
+                channelId: 'bulka_order_status',
+                priority: 'default',
+                sticky: !closedOrder,
+                tag: normalizedData.orderId
+                  ? `bulka-order-${normalizedData.orderId}`
+                  : 'bulka-active-order',
+              }
+            : {
+                sound: 'default',
+                channelId: 'bulka_bonus_notifications',
+                priority: 'high',
+                defaultSound: true,
+              }),
         },
       },
       apns: {
         payload: {
           aps: {
             sound: 'default',
-            badge: 1,
+            contentAvailable: true,
           },
+        },
+      },
+      webpush: {
+        notification: {
+          icon: '/icons/Icon-192.png',
+          badge: '/icons/Icon-192.png',
+        },
+        fcmOptions: {
+          link: webPushLink(normalizedData),
         },
       },
     };
     const response = await messagingInstance.send(message);
-    console.log('Successfully sent push notification to Android:', response);
+    console.log('Successfully sent push notification:', response);
     return true;
   } catch (error) {
     console.error('Error sending push notification:', error.message);
+    if (INVALID_TOKEN_CODES.has(String(error.code || ''))) {
+      await removeInvalidPushToken(token);
+    }
     return false;
   }
+}
+
+async function getCustomerPushTokens(customerId, fallbackToken = null) {
+  const tokens = new Set();
+  if (customerId) {
+    const { data, error } = await supabase
+      .from('customer_push_tokens')
+      .select('token')
+      .eq('customer_id', customerId)
+      .order('last_seen_at', { ascending: false });
+    if (!error) {
+      for (const row of data || []) {
+        const token = String(row.token || '').trim();
+        if (token) tokens.add(token);
+      }
+    } else if (!PUSH_SCHEMA_MISSING_CODES.has(String(error.code || ''))) {
+      console.error('Failed to read customer push tokens:', error.message);
+    }
+  }
+  const fallback = String(fallbackToken || '').trim();
+  if (fallback) tokens.add(fallback);
+  return [...tokens];
+}
+
+async function sendPushToCustomer(customerId, title, body, data = {}, fallbackToken = null) {
+  if (!(await notificationAllowed(customerId, data))) {
+    return { attempted: 0, delivered: 0, failed: 0, skipped: 'preferences' };
+  }
+  const tokens = await getCustomerPushTokens(customerId, fallbackToken);
+  if (!tokens.length) return { attempted: 0, delivered: 0, failed: 0 };
+  const results = await Promise.all(
+    tokens.map((token) => sendPushNotification(token, title, body, data)),
+  );
+  const delivered = results.filter(Boolean).length;
+  return {
+    attempted: tokens.length,
+    delivered,
+    failed: tokens.length - delivered,
+  };
 }
 
 async function notifyBonusChange({
@@ -108,50 +238,91 @@ async function notifyBonusChange({
       ? 'en'
       : 'ru';
 
-  let title;
-  let body;
-
-  if (isOrder) {
-    if (lang === 'kk') {
+  const baseCopy = (copyLanguage) => {
+    let title;
+    let body;
+    if (isOrder && copyLanguage === 'kk') {
       title = 'Тапсырыс рәсімделді!';
       body = `Есепшот: ${total} ₸.`;
       if (discount > 0) body += ` Жұмсалды: ${discount} б.`;
       if (earnedBonus > 0) body += ` Қосылды: +${earnedBonus} б.`;
       body += ` Баланс: ${balance} б.`;
-    } else if (lang === 'en') {
+    } else if (isOrder && copyLanguage === 'en') {
       title = 'Order completed!';
       body = `Bill: ${total} ₸.`;
       if (discount > 0) body += ` Spent: ${discount} b.`;
       if (earnedBonus > 0) body += ` Earned: +${earnedBonus} b.`;
       body += ` Balance: ${balance} b.`;
-    } else {
+    } else if (isOrder) {
       title = 'Ваш заказ оформлен!';
       body = `Счет: ${total} ₸.`;
       if (discount > 0) body += ` Списано: ${discount} б.`;
       if (earnedBonus > 0) body += ` Начислено: +${earnedBonus} б.`;
       body += ` Баланс: ${balance} б.`;
-    }
-  } else {
-    const isPositive = Number(amount) >= 0;
-    const absAmount = Math.abs(Number(amount));
-    if (lang === 'kk') {
-      title = isPositive ? 'Бонустар қосылды' : 'Бонустар жұмсалды';
-      body = isPositive
-        ? `Сізге +${absAmount} бонус қосылды! Ағымдағы баланс: ${balance} бон.`
-        : `${absAmount} бонус есептен шығарылды. Ағымдағы баланс: ${balance} бон.`;
-      if (reason) body += ` (Себебі: ${reason})`;
-    } else if (lang === 'en') {
-      title = isPositive ? 'Bonuses earned' : 'Bonuses spent';
-      body = isPositive
-        ? `You received +${absAmount} bonuses! Current balance: ${balance} bon.`
-        : `${absAmount} bonuses redeemed. Current balance: ${balance} bon.`;
-      if (reason) body += ` (Reason: ${reason})`;
     } else {
-      title = isPositive ? 'Начисление бонусов' : 'Списание бонусов';
-      body = isPositive
-        ? `Вам начислено +${absAmount} бонусов! Текущий баланс: ${balance} бон.`
-        : `Списано ${absAmount} бонусов. Текущий баланс: ${balance} бон.`;
-      if (reason) body += ` (Причина: ${reason})`;
+      const isPositive = Number(amount) >= 0;
+      const absAmount = Math.abs(Number(amount));
+      if (copyLanguage === 'kk') {
+        title = isPositive ? 'Бонустар қосылды' : 'Бонустар жұмсалды';
+        body = isPositive
+          ? `Сізге +${absAmount} бонус қосылды! Ағымдағы баланс: ${balance} бон.`
+          : `${absAmount} бонус есептен шығарылды. Ағымдағы баланс: ${balance} бон.`;
+        if (reason) body += ` (Себебі: ${reason})`;
+      } else if (copyLanguage === 'en') {
+        title = isPositive ? 'Bonuses earned' : 'Bonuses spent';
+        body = isPositive
+          ? `You received +${absAmount} bonuses! Current balance: ${balance} bon.`
+          : `${absAmount} bonuses redeemed. Current balance: ${balance} bon.`;
+        if (reason) body += ` (Reason: ${reason})`;
+      } else {
+        title = isPositive ? 'Начисление бонусов' : 'Списание бонусов';
+        body = isPositive
+          ? `Вам начислено +${absAmount} бонусов! Текущий баланс: ${balance} бон.`
+          : `Списано ${absAmount} бонусов. Текущий баланс: ${balance} бон.`;
+        if (reason) body += ` (Причина: ${reason})`;
+      }
+    }
+    return { title, body };
+  };
+
+  const copies = Object.fromEntries(
+    ['ru', 'kk', 'en'].map((copyLanguage) => [copyLanguage, baseCopy(copyLanguage)]),
+  );
+  let { title, body } = copies[lang];
+
+  if (!isOrder && Number(amount) > 0) {
+    try {
+      const { data: automation, error } = await supabase
+        .from('marketing_automations')
+        .select('active,title_translations,body_translations')
+        .eq('trigger_type', 'bonus_awarded')
+        .maybeSingle();
+      if (!error && automation) {
+        if (automation.active === false)
+          return { title: null, body: null, savedNotificationId: '' };
+        const render = (value) =>
+          String(value || '')
+            .replaceAll('{{amount}}', String(Math.abs(Number(amount))))
+            .replaceAll('{{balance}}', String(Number(balance || 0)))
+            .replaceAll('{{reason}}', String(reason || ''));
+        for (const copyLanguage of ['ru', 'kk', 'en']) {
+          copies[copyLanguage] = {
+            title: render(
+              automation.title_translations?.[copyLanguage] ||
+                automation.title_translations?.ru ||
+                copies[copyLanguage].title,
+            ),
+            body: render(
+              automation.body_translations?.[copyLanguage] ||
+                automation.body_translations?.ru ||
+                copies[copyLanguage].body,
+            ),
+          };
+        }
+        ({ title, body } = copies[lang]);
+      }
+    } catch (automationError) {
+      console.error('Failed to read bonus automation:', automationError.message);
     }
   }
 
@@ -165,6 +336,19 @@ async function notifyBonusChange({
           title: String(title).slice(0, 160),
           body: String(body).slice(0, 2000),
           type: 'bonus',
+          payload: {
+            messageKey: Number(amount) >= 0 && !isOrder ? 'bonus_awarded' : 'bonus_change',
+            amount: Number(amount || 0),
+            balance: Number(balance || 0),
+            i18n: {
+              titles: Object.fromEntries(
+                Object.entries(copies).map(([code, copy]) => [code, copy.title]),
+              ),
+              bodies: Object.fromEntries(
+                Object.entries(copies).map(([code, copy]) => [code, copy.body]),
+              ),
+            },
+          },
         })
         .select('id')
         .single();
@@ -174,18 +358,28 @@ async function notifyBonusChange({
     }
   }
 
-  if (fcmToken) {
-    await sendPushNotification(fcmToken, title, body, {
-      notificationId: String(savedNotificationId || ''),
-      type: 'bonus',
-    });
+  if (customerId || fcmToken) {
+    await sendPushToCustomer(
+      customerId,
+      title,
+      body,
+      {
+        notificationId: String(savedNotificationId || ''),
+        type: 'bonus',
+        balance: Number(balance || 0),
+      },
+      fcmToken,
+    );
   }
 
   return { title, body, savedNotificationId };
 }
 
 module.exports = {
+  getCustomerPushTokens,
   sendPushNotification,
+  sendPushToCustomer,
   notifyBonusChange,
+  getPushStatus,
   initFirebase,
 };

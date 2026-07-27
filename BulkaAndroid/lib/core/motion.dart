@@ -10,6 +10,7 @@ abstract final class BulkaMotion {
   static const Curve enterCurve = Easing.emphasizedDecelerate;
   static const Curve exitCurve = Easing.standardAccelerate;
   static const Curve standardCurve = Easing.standard;
+  static const Curve movementCurve = Cubic(0.77, 0, 0.175, 1);
 
   static bool reduced(BuildContext context) {
     return MediaQuery.maybeDisableAnimationsOf(context) ?? false;
@@ -151,41 +152,116 @@ class BulkaPressScale extends StatefulWidget {
     required this.child,
     this.enabled = true,
     this.pressedScale = 0.985,
+    this.pressedOpacity = 0.96,
     super.key,
   });
 
   final Widget child;
   final bool enabled;
   final double pressedScale;
+  final double pressedOpacity;
 
   @override
   State<BulkaPressScale> createState() => _BulkaPressScaleState();
 }
 
-class _BulkaPressScaleState extends State<BulkaPressScale> {
+class _BulkaPressScaleState extends State<BulkaPressScale>
+    with SingleTickerProviderStateMixin {
+  // Critically damped springs keep the press instant and the release smooth
+  // without decorative bounce. Retargeting the live controller preserves
+  // velocity when a finger changes direction mid-gesture.
+  static const _pressSpring = SpringDescription(
+    mass: 1,
+    stiffness: 950,
+    damping: 62,
+  );
+  static const _releaseSpring = SpringDescription(
+    mass: 1,
+    stiffness: 520,
+    damping: 46,
+  );
+
+  late final AnimationController _scaleController =
+      AnimationController.unbounded(vsync: this, value: 1);
   bool _pressed = false;
 
   void _setPressed(bool value) {
     if (!widget.enabled || _pressed == value) return;
-    setState(() => _pressed = value);
+    _pressed = value;
+    _animateTo(value ? widget.pressedScale : 1);
+  }
+
+  void _animateTo(double target) {
+    if (BulkaMotion.reduced(context)) {
+      _scaleController.value = 1;
+      return;
+    }
+    _scaleController.animateWith(
+      SpringSimulation(
+        target < _scaleController.value ? _pressSpring : _releaseSpring,
+        _scaleController.value,
+        target,
+        _scaleController.velocity,
+      ),
+    );
+  }
+
+  void _handlePointerMove(PointerMoveEvent event) {
+    final renderObject = context.findRenderObject();
+    if (renderObject is! RenderBox) return;
+    _setPressed(
+      (Offset.zero & renderObject.size).contains(event.localPosition),
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (BulkaMotion.reduced(context)) {
+      _pressed = false;
+      _scaleController.value = 1;
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant BulkaPressScale oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.enabled && oldWidget.enabled) {
+      _pressed = false;
+      _animateTo(1);
+    }
+  }
+
+  @override
+  void dispose() {
+    _scaleController.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final reduced = BulkaMotion.reduced(context);
-    final pressed = !reduced && _pressed;
     return Listener(
+      behavior: HitTestBehavior.translucent,
       onPointerDown: (_) => _setPressed(true),
+      onPointerMove: _handlePointerMove,
       onPointerUp: (_) => _setPressed(false),
       onPointerCancel: (_) => _setPressed(false),
-      child: AnimatedScale(
-        scale: pressed ? widget.pressedScale : 1,
-        duration: BulkaMotion.duration(
-          context,
-          pressed ? BulkaMotion.press : BulkaMotion.fast,
-        ),
-        curve: pressed ? Easing.standard : BulkaMotion.enterCurve,
+      child: AnimatedBuilder(
+        animation: _scaleController,
         child: widget.child,
+        builder: (context, child) {
+          final scale = _scaleController.value;
+          final range = 1 - widget.pressedScale;
+          final pressProgress = range <= 0
+              ? 0.0
+              : ((1 - scale) / range).clamp(0.0, 1.0);
+          final opacity = 1 - pressProgress * (1 - widget.pressedOpacity);
+          return Transform.scale(
+            scale: scale,
+            transformHitTests: false,
+            child: Opacity(opacity: opacity, child: child),
+          );
+        },
       ),
     );
   }

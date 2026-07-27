@@ -28,6 +28,8 @@
 		<string>LaunchScreen</string>
 		<key>UIMainStoryboardFile</key>
 		<string>Main</string>
+		<key>UIUserInterfaceStyle</key>
+		<string>Light</string>
 		<key>UISupportedInterfaceOrientations</key>
 		<array>
 			<string>UIInterfaceOrientationPortrait</string>
@@ -45,6 +47,12 @@
 		<true/>
 		<key>UIApplicationSupportsIndirectInputEvents</key>
 		<true/>
+		<key>NSSupportsLiveActivities</key>
+		<true/>
+		<key>NSSupportsLiveActivitiesFrequentUpdates</key>
+		<true/>
+		<key>FlutterDeepLinkingEnabled</key>
+		<false/>
 		<key>UIBackgroundModes</key>
 		<array>
 			<string>remote-notification</string>
@@ -56,6 +64,8 @@
 		</array>
 		<key>NSLocationWhenInUseUsageDescription</key>
 		<string>Доступ к геолокации необходим для определения расстояния до ближайших пекарен Bulka, отображения их на карте и удобного выбора точки самовывоза.</string>
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>Доступ к фотографиям нужен, чтобы прикрепить пример оформления торта или выпечки.</string>
 		<key>ITSAppUsesNonExemptEncryption</key>
 		<false/>
 		<key>CFBundleURLTypes</key>

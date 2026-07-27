@@ -1,3 +1,4 @@
 "CFBundleDisplayName" = "Bulka Bakery";
 "CFBundleName" = "Bulka Bakery";
 "NSLocationWhenInUseUsageDescription" = "Your location helps us show nearby Bulka bakeries and choose a pickup point.";
+"NSPhotoLibraryUsageDescription" = "Photo access lets you attach a cake or pastry design reference.";

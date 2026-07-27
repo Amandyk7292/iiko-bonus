@@ -1,5 +1,75 @@
 part of '../main.dart';
 
+/// Prevents a rapid second tap from starting the same asynchronous UI action
+/// while the first route, dialog, sheet, or request is still active.
+class _AsyncActionGate {
+  bool _active = false;
+
+  Future<void> run(Future<void> Function() action) async {
+    if (_active) return;
+    _active = true;
+    try {
+      await action();
+    } finally {
+      _active = false;
+    }
+  }
+}
+
+final ValueNotifier<Uri> clientRouteNotifier = ValueNotifier<Uri>(
+  currentClientUri(),
+);
+
+Uri normalizedClientUri(Uri uri) {
+  final path = uri.path.isEmpty ? '/' : uri.path;
+  return Uri(
+    path: path,
+    queryParameters: uri.queryParameters.isEmpty ? null : uri.queryParameters,
+    fragment: uri.fragment.isEmpty ? null : uri.fragment,
+  );
+}
+
+void publishClientRoute(Uri uri, {bool replace = false}) {
+  if (!kIsWeb) return;
+  final normalized = normalizedClientUri(uri);
+  final current = normalizedClientUri(clientRouteNotifier.value);
+  if (current.toString() == normalized.toString()) return;
+  if (replace) {
+    replaceClientUri(normalized);
+  } else {
+    pushClientUri(normalized);
+  }
+  clientRouteNotifier.value = normalized;
+}
+
+void applyExternalClientRoute(Uri uri) {
+  final normalized = normalizedClientUri(uri);
+  if (normalizedClientUri(clientRouteNotifier.value).toString() ==
+      normalized.toString()) {
+    return;
+  }
+  clientRouteNotifier.value = normalized;
+}
+
+String formatUiInteger(BuildContext context, int value) {
+  return MaterialLocalizations.of(context).formatDecimal(value);
+}
+
+String formatUiDate(BuildContext context, DateTime value) {
+  return MaterialLocalizations.of(context).formatShortDate(value.toLocal());
+}
+
+String formatUiTime(BuildContext context, DateTime value) {
+  return MaterialLocalizations.of(context).formatTimeOfDay(
+    TimeOfDay.fromDateTime(value.toLocal()),
+    alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
+  );
+}
+
+String formatUiDateTime(BuildContext context, DateTime value) {
+  return '${formatUiDate(context, value)} · ${formatUiTime(context, value)}';
+}
+
 double distanceBetweenCoordinatesKm({
   required double firstLatitude,
   required double firstLongitude,
@@ -19,12 +89,14 @@ double distanceBetweenCoordinatesKm({
 }
 
 InputDecoration _inputDecoration({
+  required BuildContext context,
   required String label,
   String? prefix,
   String? helper,
   String? error,
   IconData? icon,
 }) {
+  final colors = context.bulkaColors;
   return InputDecoration(
     labelText: label,
     prefixText: prefix,
@@ -36,34 +108,35 @@ InputDecoration _inputDecoration({
     contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
     prefixIcon: icon == null ? null : Icon(icon, color: _caramel),
     labelStyle: TextStyle(
-      color: error == null ? _textDark.withValues(alpha: 0.62) : _errorRed,
+      color: error == null ? colors.mutedText : colors.danger,
     ),
     helperStyle: TextStyle(
-      color: _textDark.withValues(alpha: 0.5),
-      fontSize: 12,
+      color: colors.mutedText,
+      fontSize: BulkaTypeScale.caption,
     ),
-    prefixStyle: const TextStyle(
-      color: _textDark,
-      fontSize: 18,
+    prefixStyle: TextStyle(
+      fontFamily: _headingFont,
+      color: Theme.of(context).colorScheme.onSurface,
+      fontSize: BulkaTypeScale.titleSmall,
       fontWeight: FontWeight.w700,
       letterSpacing: 0.5,
       height: 1.25,
     ),
     enabledBorder: OutlineInputBorder(
-      borderSide: BorderSide(color: _almond.withValues(alpha: 0.8)),
-      borderRadius: BorderRadius.circular(18),
+      borderSide: BorderSide(color: colors.cardBorder),
+      borderRadius: BorderRadius.circular(BulkaRadii.control),
     ),
     focusedBorder: OutlineInputBorder(
-      borderSide: const BorderSide(color: _caramel, width: 2),
-      borderRadius: BorderRadius.circular(18),
+      borderSide: BorderSide(color: colors.brandGold, width: 2),
+      borderRadius: BorderRadius.circular(BulkaRadii.control),
     ),
     errorBorder: OutlineInputBorder(
       borderSide: const BorderSide(color: _errorRed),
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(BulkaRadii.control),
     ),
     focusedErrorBorder: OutlineInputBorder(
       borderSide: const BorderSide(color: _errorRed, width: 2),
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(BulkaRadii.control),
     ),
   );
 }
@@ -85,8 +158,13 @@ Future<void> _openTelegram(BuildContext context) async {
 Future<void> _openExternalUrl(
   BuildContext context,
   Uri uri,
-  String error,
-) async {
+  String error, {
+  bool sameWindowOnWeb = false,
+}) async {
+  if (sameWindowOnWeb && kIsWeb) {
+    navigateCurrentWindow(uri);
+    return;
+  }
   final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
   if (!opened && context.mounted) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));

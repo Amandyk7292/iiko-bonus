@@ -9,10 +9,12 @@ import historyRoutes from './src/routes/history.js';
 import refundRoutes from './src/routes/refund.js';
 import sessionRoutes from './src/routes/session.js';
 import { startPolling } from './src/polling.js';
-import { getGlobalSession } from './src/sessionStorage.js';
+import { clearGlobalSession, getGlobalSession } from './src/sessionStorage.js';
 import { decryptSecret } from './src/crypto.js';
 import { signedQrPayHeaders } from './src/helpers.js';
 import { requireInternalApi } from './src/internalAuth.js';
+import { clearActiveSession, inactiveSessionResponse } from './src/activeSession.js';
+import { isKaspiSessionExpired } from './src/kaspiResponse.js';
 import 'dotenv/config';
 
 const app = express();
@@ -32,6 +34,10 @@ app.use('/api/history', historyRoutes);
 app.use('/api/refund', refundRoutes);
 app.use('/api/session', sessionRoutes);
 
+app.get('/api/payment/availability', (_req, res) => {
+  res.json({ success: true, available: Boolean(getGlobalSession()) });
+});
+
 app.get('/api/payment/check/:id', async (req, res) => {
   try {
     if (!/^[A-Za-z0-9-]{1,100}$/.test(String(req.params.id || ''))) {
@@ -39,14 +45,16 @@ app.get('/api/payment/check/:id', async (req, res) => {
     }
     const globalSession = getGlobalSession();
     if (!globalSession) {
-      return res.json({ success: false, error: 'no_session', kaspiStatus: null });
+      return res.status(401).json({ success: false, ...inactiveSessionResponse(), kaspiStatus: null });
     }
 
     let decrypted;
     try {
       decrypted = decryptSecret(globalSession.vtokenSecret);
     } catch {
-      return res.json({ success: false, error: 'decrypt_failed', kaspiStatus: null });
+      clearActiveSession(globalSession.tokenSN);
+      clearGlobalSession('kaspi_session_decrypt_failed', globalSession);
+      return res.status(401).json({ success: false, ...inactiveSessionResponse(), kaspiStatus: null });
     }
 
     const session = {
@@ -66,10 +74,21 @@ app.get('/api/payment/check/:id', async (req, res) => {
         const headers = signedQrPayHeaders(url, session);
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 8000);
-        const resp = await fetch(url, { headers, signal: controller.signal });
-        clearTimeout(timer);
+        let resp;
+        try {
+          resp = await fetch(url, { headers, signal: controller.signal });
+        } finally {
+          clearTimeout(timer);
+        }
 
-        const json = await resp.json();
+        const json = await resp.json().catch(() => ({}));
+        if (isKaspiSessionExpired(json)) {
+          clearActiveSession(globalSession.tokenSN);
+          clearGlobalSession('kaspi_session_expired', globalSession);
+          return res
+            .status(401)
+            .json({ success: false, ...inactiveSessionResponse(), kaspiStatus: null });
+        }
         const status = json?.Data?.Status || null;
 
         console.log(

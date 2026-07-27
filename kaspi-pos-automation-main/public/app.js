@@ -66,6 +66,7 @@ const forceKaspiLogin = (message) => {
 
 const isKaspiLoginRequired = (resp, data) =>
   resp.status === 401 ||
+  data?.code === 'KASPI_REAUTH_REQUIRED' ||
   data?.code === 'KASPI_SESSION_REPLACED' ||
   [12, -101001, 401].includes(Number(data?.StatusCode)) ||
   [12, -101001, 401].includes(Number(data?.ResultCode)) ||

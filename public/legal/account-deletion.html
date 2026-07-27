@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <link rel="icon" type="image/png" sizes="660x660" href="/assets/wallet/bulka-wallet-logo.png?v=20260715">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>Удаление аккаунта — Bulka</title>
+  <style>
+    :root{color-scheme:light;--ink:#52230f;--accent:#ffb20d;--paper:#fffaf3;--line:#ead8c4;--danger:#b42318}*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{width:min(620px,calc(100% - 32px));margin:32px auto;padding:28px;border:1px solid var(--line);border-radius:28px;background:#fff;box-shadow:0 18px 60px rgba(82,35,15,.08)}h1{margin:0 0 8px;font-size:clamp(28px,7vw,40px);line-height:1.08}p{margin:8px 0 20px;color:#785b4e}label{display:block;margin:18px 0 7px;font-weight:700}input{width:100%;min-height:54px;padding:0 16px;border:1px solid var(--line);border-radius:16px;background:#fffdfa;font:inherit;color:var(--ink)}button,a.button{display:flex;width:100%;min-height:54px;margin-top:16px;align-items:center;justify-content:center;border:0;border-radius:18px;background:linear-gradient(135deg,#ffd344,var(--accent));color:var(--ink);font:700 17px/1 system-ui;text-decoration:none;cursor:pointer}button.danger{background:var(--danger);color:#fff}button:disabled{opacity:.55;cursor:wait}.hidden{display:none}.status{margin-top:18px;padding:14px 16px;border-radius:14px;background:#fff3cf}.status.error{background:#fee4e2;color:#912018}.fine{font-size:13px;color:#8b7468}.back{display:inline-block;margin-bottom:20px;color:var(--ink)}.languages{display:flex;gap:8px;justify-content:flex-end;margin:-4px 0 16px}.languages a{padding:5px 9px;border:1px solid var(--line);border-radius:999px;color:var(--ink);text-decoration:none}.languages a[aria-current="page"]{background:#fff3cf;font-weight:700}
+  </style>
+</head>
+<body>
+<main
+  data-request-error="Не удалось выполнить запрос"
+  data-code-hint="Получите код в WhatsApp, затем введите его здесь."
+  data-confirm="Удалить аккаунт и персональные данные без возможности восстановления?"
+  data-not-found="Аккаунт с этим номером не найден."
+  data-success="Аккаунт Bulka удалён. Вы можете закрыть эту страницу."
+>
+  <nav class="languages" aria-label="Язык">
+    <a href="/account-deletion" lang="ru" aria-current="page">RU</a>
+    <a href="/kk/account-deletion" lang="kk">KK</a>
+    <a href="/en/account-deletion" lang="en">EN</a>
+  </nav>
+  <a class="back" href="/privacy">← Политика конфиденциальности</a>
+  <h1>Удаление аккаунта Bulka</h1>
+  <p>Подтвердите номер одноразовым кодом. После подтверждения профиль и связанные персональные данные будут удалены или обезличены. Обязательные платёжные записи могут храниться в сроки, установленные законом.</p>
+  <section id="phoneStep">
+    <label for="phone">Номер телефона</label>
+    <input id="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+7 700 000 00 00">
+    <button id="requestButton" type="button">Получить код</button>
+  </section>
+  <section id="codeStep" class="hidden">
+    <a id="whatsappLink" class="button hidden" target="_blank" rel="noopener">Открыть WhatsApp и получить код</a>
+    <label for="code">Код подтверждения</label>
+    <input id="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000">
+    <button id="deleteButton" class="danger" type="button">Удалить аккаунт навсегда</button>
+  </section>
+  <div id="status" class="status hidden" role="status" aria-live="polite"></div>
+  <p class="fine">Если вы не можете подтвердить номер, обратитесь в поддержку: <a href="https://t.me/bulkawallet_bot">@bulkawallet_bot</a>.</p>
+</main>
+<script src="/assets/legal/account-deletion.js?v=20260725" defer></script>
+</body>
+</html>

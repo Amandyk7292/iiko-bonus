@@ -3,8 +3,27 @@ const kaspiService = require('../services/kaspi.service');
 const { priceOrder } = require('../services/order.service');
 const { getCitiesWithPoints } = require('../services/location.service');
 const { normalizeOrderType, validateCheckout } = require('../services/checkout.service');
-const checkoutRequests = new Map();
+const { forecastOrderEta } = require('../services/eta.service');
+const { SingleFlight } = require('../utils/single-flight.util');
+const {
+  attachOrderReservations,
+  commitOrderReservations,
+  releaseCheckoutRequest,
+  reserveCheckout,
+} = require('../services/inventory.service');
+const checkoutRequests = new SingleFlight();
 const publicError = (error, fallback) => (error.statusCode ? error.message : fallback);
+
+const availability = async (_req, res) => {
+  const available = await kaspiService.availability();
+  res.json({
+    success: true,
+    available,
+    ...(!available && {
+      message: 'Kaspi Pay временно недоступен. Мы уже восстанавливаем подключение.',
+    }),
+  });
+};
 
 const createPayment = async (req, res) => {
   try {
@@ -20,58 +39,86 @@ const createPayment = async (req, res) => {
     const cities = await getCitiesWithPoints({ throwOnError: true });
     const checkout = validateCheckout(req.body, cities);
     const requestKey = `${customerId}:${checkoutId}`;
-    let request = checkoutRequests.get(requestKey);
-    if (!request) {
-      request = (async () => {
-        const pricing = await priceOrder(items, promoCode, { deliveryFee: checkout.deliveryFee });
-        if (pricing.subtotal < checkout.deliveryMinimumOrder) {
-          const error = new Error(
-            `Минимальная сумма доставки — ${checkout.deliveryMinimumOrder.toLocaleString('ru-RU')} ₸`,
-          );
-          error.statusCode = 400;
-          throw error;
-        }
-        return kaspiService.createInvoice(phone, pricing, customerId, {
+    const result = await checkoutRequests.run(requestKey, async () => {
+      const pricing = await priceOrder(items, promoCode, {
+        deliveryFee: checkout.deliveryFee,
+        branchId: checkout.branchId,
+        customerId,
+        orderType: checkout.orderType,
+      });
+      if (pricing.subtotal < checkout.deliveryMinimumOrder) {
+        const error = new Error(
+          `Минимальная сумма доставки — ${checkout.deliveryMinimumOrder.toLocaleString('ru-RU')} ₸`,
+        );
+        error.statusCode = 400;
+        throw error;
+      }
+      await reserveCheckout({
+        customerId,
+        requestId: checkoutId,
+        branchId: checkout.branchId,
+        items: pricing.canonicalItems,
+        orderType: checkout.orderType,
+        scheduledAt: checkout.scheduledAt,
+      });
+      try {
+        const result = await kaspiService.createInvoice(phone, pricing, customerId, {
           ...checkout,
           requestId: checkoutId,
         });
-      })();
-      checkoutRequests.set(requestKey, request);
-    }
-    let result;
-    try {
-      result = await request;
-    } finally {
-      if (checkoutRequests.get(requestKey) === request) checkoutRequests.delete(requestKey);
-    }
+        const order = await kaspiService.existingRequest(customerId, checkoutId);
+        if (order?.id) {
+          await attachOrderReservations(customerId, checkoutId, order.id);
+          if (order.status === 'paid') await commitOrderReservations(order.id);
+        }
+        return result;
+      } catch (error) {
+        const order = await kaspiService.existingRequest(customerId, checkoutId).catch(() => null);
+        if (!order) {
+          await releaseCheckoutRequest(customerId, checkoutId).catch((releaseError) =>
+            console.error('Не удалось освободить резерв оформления:', releaseError.message),
+          );
+        }
+        throw error;
+      }
+    });
     res.json(result);
   } catch (error) {
     console.error('Ошибка createPayment:', error);
-    res
-      .status(error.statusCode || 500)
-      .json({ error: publicError(error, 'Не удалось создать счет на оплату') });
+    res.status(error.statusCode || 500).json({
+      error: publicError(error, 'Не удалось создать счет на оплату'),
+      ...(error.code && { code: error.code }),
+      ...(typeof error.retryable === 'boolean' && { retryable: error.retryable }),
+    });
   }
 };
 
 const quotePayment = async (req, res) => {
   try {
-    let deliveryFee = 0;
-    let deliveryMinimumOrder = 0;
-    const requestedType = normalizeOrderType(
-      req.body?.orderType ?? req.body?.fulfillmentType ?? 'pickup',
-    );
-    if (requestedType === 'delivery') {
-      const cities = await getCitiesWithPoints({ throwOnError: true });
-      const checkout = validateCheckout(req.body, cities);
-      deliveryFee = checkout.deliveryFee;
-      deliveryMinimumOrder = checkout.deliveryMinimumOrder;
-    }
-    const pricing = await priceOrder(req.body?.items, req.body?.promoCode, { deliveryFee });
+    normalizeOrderType(req.body?.orderType ?? req.body?.fulfillmentType ?? 'pickup');
+    const cities = await getCitiesWithPoints({ throwOnError: true });
+    const checkout = validateCheckout(req.body, cities);
+    const deliveryFee = checkout.deliveryFee;
+    const deliveryMinimumOrder = checkout.deliveryMinimumOrder;
+    const pricing = await priceOrder(req.body?.items, req.body?.promoCode, {
+      deliveryFee,
+      branchId: checkout.branchId,
+      customerId: req.customerAuth.id,
+      orderType: checkout.orderType,
+    });
     if (pricing.subtotal < deliveryMinimumOrder) {
       return res.status(400).json({
         error: `Минимальная сумма доставки — ${deliveryMinimumOrder.toLocaleString('ru-RU')} ₸`,
       });
     }
+    const eta = await forecastOrderEta({
+      branchId: checkout.branchId,
+      orderType: checkout.orderType,
+      scheduledAt: checkout.scheduledAt,
+      preparationMinutes: pricing.preparationMinutes,
+      deliveryAddress: checkout.deliveryAddress,
+      deliveryZone: checkout.deliveryZone,
+    });
     res.json({
       success: true,
       subtotal: pricing.subtotal,
@@ -79,6 +126,9 @@ const quotePayment = async (req, res) => {
       deliveryFee: pricing.deliveryFee,
       total: pricing.total,
       promoCode: pricing.promoCode,
+      branchId: checkout.branchId,
+      deliveryZone: checkout.deliveryZone,
+      eta,
     });
   } catch (error) {
     res
@@ -209,6 +259,7 @@ const handleWebhook = async (req, res) => {
 };
 
 module.exports = {
+  availability,
   createPayment,
   quotePayment,
   checkStatus,

@@ -15,16 +15,16 @@ Future<String?> showLanguageBottomSheet(
       return StatefulBuilder(
         builder: (context, setModalState) {
           final colors = context.bulkaColors;
-          final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
-
           return SafeArea(
             top: false,
             child: Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(BulkaRadii.card),
+                ),
               ),
-              padding: EdgeInsets.fromLTRB(24, 12, 24, 24 + bottomInset),
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -33,7 +33,7 @@ Future<String?> showLanguageBottomSheet(
                     height: 4,
                     decoration: BoxDecoration(
                       color: colors.cardBorder,
-                      borderRadius: BorderRadius.circular(999),
+                      borderRadius: BorderRadius.circular(BulkaRadii.pill),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -44,10 +44,10 @@ Future<String?> showLanguageBottomSheet(
                         child: Text(
                           'select_lang_title'.tr,
                           textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: _textDark,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurface,
                             fontFamily: _headingFont,
-                            fontSize: 20,
+                            fontSize: BulkaTypeScale.title,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -76,24 +76,32 @@ Future<String?> showLanguageBottomSheet(
                       ),
                     ),
                   const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () => Navigator.pop(context, tempCode),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: colors.goldSoft,
-                        foregroundColor: _textDark,
-                        elevation: 0,
-                        minimumSize: const Size.fromHeight(52),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(22),
+                  BulkaPressScale(
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          BulkaMotion.selection();
+                          Navigator.pop(context, tempCode);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: colors.goldSoft,
+                          foregroundColor: _textDark,
+                          elevation: 0,
+                          minimumSize: const Size.fromHeight(52),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              BulkaRadii.card,
+                            ),
+                          ),
                         ),
-                      ),
-                      child: Text(
-                        'apply_btn'.tr,
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
+                        child: Text(
+                          'apply_btn'.tr,
+                          style: const TextStyle(
+                            fontFamily: _headingFont,
+                            fontSize: BulkaTypeScale.body,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ),
@@ -122,39 +130,47 @@ class _LanguageOption extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.bulkaColors;
-    return Semantics(
-      button: true,
-      selected: selected,
-      inMutuallyExclusiveGroup: true,
-      label: AppLang.languageName(code),
-      child: Material(
-        color: selected ? colors.surfaceCream : Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            constraints: const BoxConstraints(minHeight: 52),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    AppLang.languageName(code),
-                    style: TextStyle(
-                      color: selected ? colors.brandBrown : _textDark,
-                      fontSize: 16,
-                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+    final scheme = Theme.of(context).colorScheme;
+    return BulkaPressScale(
+      child: Semantics(
+        button: true,
+        selected: selected,
+        inMutuallyExclusiveGroup: true,
+        label: AppLang.languageName(code),
+        child: Material(
+          color: selected ? colors.surfaceCream : Colors.transparent,
+          borderRadius: BorderRadius.circular(BulkaRadii.control),
+          child: InkWell(
+            onTap: () {
+              BulkaMotion.selection();
+              onTap();
+            },
+            borderRadius: BorderRadius.circular(BulkaRadii.control),
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 52),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      AppLang.languageName(code),
+                      style: TextStyle(
+                        color: selected ? colors.brandBrown : scheme.onSurface,
+                        fontSize: BulkaTypeScale.body,
+                        fontWeight: selected
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                      ),
                     ),
                   ),
-                ),
-                Icon(
-                  selected
-                      ? Icons.radio_button_checked_rounded
-                      : Icons.radio_button_unchecked_rounded,
-                  color: selected ? colors.brandBrown : colors.cardBorder,
-                ),
-              ],
+                  Icon(
+                    selected
+                        ? Icons.radio_button_checked_rounded
+                        : Icons.radio_button_unchecked_rounded,
+                    color: selected ? colors.brandBrown : colors.cardBorder,
+                  ),
+                ],
+              ),
             ),
           ),
         ),

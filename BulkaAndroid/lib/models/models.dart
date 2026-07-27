@@ -10,6 +10,29 @@ class OtpRequestResult {
   bool get isSuccess => error == null;
 }
 
+class FulfillmentSlot {
+  const FulfillmentSlot({
+    required this.startsAt,
+    required this.endsAt,
+    required this.capacity,
+    required this.remaining,
+  });
+
+  final DateTime startsAt;
+  final DateTime endsAt;
+  final int capacity;
+  final int remaining;
+
+  factory FulfillmentSlot.fromJson(Map<String, dynamic> json) {
+    return FulfillmentSlot(
+      startsAt: DateTime.parse(_asString(json['startsAt'])).toLocal(),
+      endsAt: DateTime.parse(_asString(json['endsAt'])).toLocal(),
+      capacity: _asInt(json['capacity']),
+      remaining: _asInt(json['remaining']),
+    );
+  }
+}
+
 class ProfileResponse {
   const ProfileResponse({
     required this.success,
@@ -19,6 +42,8 @@ class ProfileResponse {
     this.error,
     this.message,
     this.accessToken,
+    this.refreshToken,
+    this.refreshExpiresAt,
     this.registrationToken,
   });
 
@@ -29,6 +54,8 @@ class ProfileResponse {
   final String? error;
   final String? message;
   final String? accessToken;
+  final String? refreshToken;
+  final String? refreshExpiresAt;
   final String? registrationToken;
 
   factory ProfileResponse.fromJson(Map<String, dynamic> json) {
@@ -47,6 +74,8 @@ class ProfileResponse {
       error: _nullableString(json['error']),
       message: _nullableString(json['message']),
       accessToken: _nullableString(json['accessToken']),
+      refreshToken: _nullableString(json['refreshToken']),
+      refreshExpiresAt: _nullableString(json['refreshExpiresAt']),
       registrationToken: _nullableString(json['registrationToken']),
     );
   }
@@ -419,12 +448,31 @@ class CustomerOrder {
     required this.items,
     required this.earnedBonus,
     required this.createdAt,
+    required this.fulfillmentType,
+    required this.deliveryStatus,
     this.pickupTime,
     this.comment,
     this.cancellationReason,
     this.refundStatus,
     this.refundAmount,
     this.refundedAt,
+    this.estimatedDeliveryAt,
+    this.promisedReadyAt,
+    this.etaMinAt,
+    this.etaMaxAt,
+    this.etaConfidence,
+    this.etaUpdatedAt,
+    this.routeDistanceKm,
+    this.preparationMinutes,
+    this.trackingCode,
+    this.trackingUrl,
+    this.deliveryProvider,
+    this.providerDeliveryStatus,
+    this.providerDeliveryPrice,
+    this.deliveryPin,
+    this.customerArrivedAt,
+    this.courier,
+    this.receiptUrl,
   });
 
   final String id;
@@ -438,12 +486,31 @@ class CustomerOrder {
   final List<Map<String, dynamic>> items;
   final int earnedBonus;
   final DateTime createdAt;
+  final String fulfillmentType;
+  final String deliveryStatus;
   final DateTime? pickupTime;
   final String? comment;
   final String? cancellationReason;
   final String? refundStatus;
   final int? refundAmount;
   final DateTime? refundedAt;
+  final DateTime? estimatedDeliveryAt;
+  final DateTime? promisedReadyAt;
+  final DateTime? etaMinAt;
+  final DateTime? etaMaxAt;
+  final String? etaConfidence;
+  final DateTime? etaUpdatedAt;
+  final double? routeDistanceKm;
+  final int? preparationMinutes;
+  final String? trackingCode;
+  final String? trackingUrl;
+  final String? deliveryProvider;
+  final String? providerDeliveryStatus;
+  final int? providerDeliveryPrice;
+  final String? deliveryPin;
+  final DateTime? customerArrivedAt;
+  final OrderCourier? courier;
+  final String? receiptUrl;
 
   factory CustomerOrder.fromJson(Map<String, dynamic> json) {
     final rawItems = json['items'];
@@ -462,12 +529,302 @@ class CustomerOrder {
       earnedBonus: _asDouble(json['earnedBonus']).round(),
       createdAt:
           DateTime.tryParse(_asString(json['createdAt'])) ?? DateTime.now(),
+      fulfillmentType: _asString(
+        json['fulfillmentType'] ?? json['orderType'],
+        fallback: 'pickup',
+      ),
+      deliveryStatus: _asString(json['deliveryStatus'], fallback: 'unassigned'),
       pickupTime: DateTime.tryParse(_asString(json['pickupTime'])),
       comment: _nullableString(json['comment']),
       cancellationReason: _nullableString(json['cancellationReason']),
       refundStatus: _nullableString(json['refundStatus']),
       refundAmount: _nullableInt(json['refundAmount']),
       refundedAt: DateTime.tryParse(_asString(json['refundedAt'])),
+      estimatedDeliveryAt: DateTime.tryParse(
+        _asString(json['estimatedDeliveryAt']),
+      ),
+      promisedReadyAt: DateTime.tryParse(_asString(json['promisedReadyAt'])),
+      etaMinAt: DateTime.tryParse(_asString(json['etaMinAt'])),
+      etaMaxAt: DateTime.tryParse(_asString(json['etaMaxAt'])),
+      etaConfidence: _nullableString(json['etaConfidence']),
+      etaUpdatedAt: DateTime.tryParse(_asString(json['etaUpdatedAt'])),
+      routeDistanceKm: json['routeDistanceKm'] == null
+          ? null
+          : _asDouble(json['routeDistanceKm']),
+      preparationMinutes: _nullableInt(json['preparationMinutes']),
+      trackingCode: _nullableString(json['trackingCode']),
+      trackingUrl: _nullableString(json['trackingUrl']),
+      deliveryProvider: _nullableString(json['deliveryProvider']),
+      providerDeliveryStatus: _nullableString(json['providerDeliveryStatus']),
+      providerDeliveryPrice: _nullableInt(json['providerDeliveryPrice']),
+      deliveryPin: _nullableString(json['deliveryPin']),
+      customerArrivedAt: DateTime.tryParse(
+        _asString(json['customerArrivedAt']),
+      ),
+      receiptUrl: _nullableString(json['receiptUrl']),
+      courier: _asMap(json['courier']).isEmpty
+          ? null
+          : OrderCourier.fromJson(_asMap(json['courier'])),
+    );
+  }
+
+  DateTime? get eta => fulfillmentType == 'delivery'
+      ? estimatedDeliveryAt ?? promisedReadyAt
+      : promisedReadyAt ?? pickupTime;
+
+  bool get isClosed =>
+      orderStatus == 'completed' ||
+      orderStatus == 'cancelled' ||
+      deliveryStatus == 'delivered';
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'number': number,
+    'paymentStatus': paymentStatus,
+    'orderStatus': orderStatus,
+    'amount': amount,
+    'subtotal': subtotal,
+    'discount': discount,
+    'branch': branch,
+    'items': items,
+    'earnedBonus': earnedBonus,
+    'createdAt': createdAt.toUtc().toIso8601String(),
+    'fulfillmentType': fulfillmentType,
+    'deliveryStatus': deliveryStatus,
+    'pickupTime': pickupTime?.toUtc().toIso8601String(),
+    'comment': comment,
+    'cancellationReason': cancellationReason,
+    'refundStatus': refundStatus,
+    'refundAmount': refundAmount,
+    'refundedAt': refundedAt?.toUtc().toIso8601String(),
+    'estimatedDeliveryAt': estimatedDeliveryAt?.toUtc().toIso8601String(),
+    'promisedReadyAt': promisedReadyAt?.toUtc().toIso8601String(),
+    'etaMinAt': etaMinAt?.toUtc().toIso8601String(),
+    'etaMaxAt': etaMaxAt?.toUtc().toIso8601String(),
+    'etaConfidence': etaConfidence,
+    'etaUpdatedAt': etaUpdatedAt?.toUtc().toIso8601String(),
+    'routeDistanceKm': routeDistanceKm,
+    'preparationMinutes': preparationMinutes,
+    'trackingCode': trackingCode,
+    'trackingUrl': trackingUrl,
+    'deliveryProvider': deliveryProvider,
+    'providerDeliveryStatus': providerDeliveryStatus,
+    'providerDeliveryPrice': providerDeliveryPrice,
+    'deliveryPin': deliveryPin,
+    'customerArrivedAt': customerArrivedAt?.toUtc().toIso8601String(),
+    'receiptUrl': receiptUrl,
+    'courier': courier?.toJson(),
+  };
+}
+
+class OrderCourier {
+  const OrderCourier({
+    required this.id,
+    required this.name,
+    required this.phone,
+    this.vehicle,
+    this.latitude,
+    this.longitude,
+    this.locationUpdatedAt,
+  });
+
+  final String id;
+  final String name;
+  final String phone;
+  final String? vehicle;
+  final double? latitude;
+  final double? longitude;
+  final DateTime? locationUpdatedAt;
+
+  factory OrderCourier.fromJson(Map<String, dynamic> json) => OrderCourier(
+    id: _asString(json['id']),
+    name: _asString(json['name']),
+    phone: _asString(json['phone']),
+    vehicle: _nullableString(json['vehicle']),
+    latitude: _nullableDouble(json['latitude']),
+    longitude: _nullableDouble(json['longitude']),
+    locationUpdatedAt: DateTime.tryParse(_asString(json['locationUpdatedAt'])),
+  );
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'phone': phone,
+    'vehicle': vehicle,
+    'latitude': latitude,
+    'longitude': longitude,
+    'locationUpdatedAt': locationUpdatedAt?.toUtc().toIso8601String(),
+  };
+}
+
+class NotificationPreferences {
+  const NotificationPreferences({
+    this.ordersEnabled = true,
+    this.bonusEnabled = true,
+    this.promosEnabled = true,
+    this.supportEnabled = true,
+    this.quietHoursEnabled = false,
+    this.quietStart = '22:00',
+    this.quietEnd = '08:00',
+    this.timezone = 'Asia/Aqtau',
+  });
+
+  final bool ordersEnabled;
+  final bool bonusEnabled;
+  final bool promosEnabled;
+  final bool supportEnabled;
+  final bool quietHoursEnabled;
+  final String quietStart;
+  final String quietEnd;
+  final String timezone;
+
+  factory NotificationPreferences.fromJson(Map<String, dynamic> json) =>
+      NotificationPreferences(
+        ordersEnabled: json['ordersEnabled'] != false,
+        bonusEnabled: json['bonusEnabled'] != false,
+        promosEnabled: json['promosEnabled'] != false,
+        supportEnabled: json['supportEnabled'] != false,
+        quietHoursEnabled: json['quietHoursEnabled'] == true,
+        quietStart: _asString(json['quietStart'], fallback: '22:00'),
+        quietEnd: _asString(json['quietEnd'], fallback: '08:00'),
+        timezone: _asString(json['timezone'], fallback: 'Asia/Aqtau'),
+      );
+
+  NotificationPreferences copyWith({
+    bool? ordersEnabled,
+    bool? bonusEnabled,
+    bool? promosEnabled,
+    bool? supportEnabled,
+    bool? quietHoursEnabled,
+    String? quietStart,
+    String? quietEnd,
+    String? timezone,
+  }) => NotificationPreferences(
+    ordersEnabled: ordersEnabled ?? this.ordersEnabled,
+    bonusEnabled: bonusEnabled ?? this.bonusEnabled,
+    promosEnabled: promosEnabled ?? this.promosEnabled,
+    supportEnabled: supportEnabled ?? this.supportEnabled,
+    quietHoursEnabled: quietHoursEnabled ?? this.quietHoursEnabled,
+    quietStart: quietStart ?? this.quietStart,
+    quietEnd: quietEnd ?? this.quietEnd,
+    timezone: timezone ?? this.timezone,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'ordersEnabled': ordersEnabled,
+    'bonusEnabled': bonusEnabled,
+    'promosEnabled': promosEnabled,
+    'supportEnabled': supportEnabled,
+    'quietHoursEnabled': quietHoursEnabled,
+    'quietStart': quietStart,
+    'quietEnd': quietEnd,
+    'timezone': timezone,
+  };
+}
+
+class SupportAttachment {
+  const SupportAttachment({required this.path, this.url});
+  final String path;
+  final String? url;
+
+  factory SupportAttachment.fromJson(Map<String, dynamic> json) =>
+      SupportAttachment(
+        path: _asString(json['path']),
+        url: _nullableString(json['url']),
+      );
+}
+
+class SupportRequest {
+  const SupportRequest({
+    required this.id,
+    required this.category,
+    required this.message,
+    required this.status,
+    required this.refundRequested,
+    required this.attachments,
+    required this.createdAt,
+    this.orderId,
+    this.orderNumber,
+    this.resolution,
+  });
+
+  final String id;
+  final String? orderId;
+  final int? orderNumber;
+  final String category;
+  final String message;
+  final String status;
+  final bool refundRequested;
+  final List<SupportAttachment> attachments;
+  final String? resolution;
+  final DateTime createdAt;
+
+  factory SupportRequest.fromJson(Map<String, dynamic> json) => SupportRequest(
+    id: _asString(json['id']),
+    orderId: _nullableString(json['orderId']),
+    orderNumber: _nullableInt(json['orderNumber']),
+    category: _asString(json['category'], fallback: 'other'),
+    message: _asString(json['message']),
+    status: _asString(json['status'], fallback: 'new'),
+    refundRequested: json['refundRequested'] == true,
+    attachments: (json['attachments'] as List? ?? const [])
+        .map((item) => SupportAttachment.fromJson(_asMap(item)))
+        .toList(),
+    resolution: _nullableString(json['resolution']),
+    createdAt:
+        DateTime.tryParse(_asString(json['createdAt'])) ?? DateTime.now(),
+  );
+}
+
+class SupportMessage {
+  const SupportMessage({
+    required this.id,
+    required this.requestId,
+    required this.senderType,
+    required this.body,
+    required this.attachments,
+    required this.createdAt,
+  });
+
+  final String id;
+  final String requestId;
+  final String senderType;
+  final String body;
+  final List<SupportAttachment> attachments;
+  final DateTime createdAt;
+
+  bool get fromCustomer => senderType == 'customer';
+
+  factory SupportMessage.fromJson(Map<String, dynamic> json) => SupportMessage(
+    id: _asString(json['id']),
+    requestId: _asString(json['requestId']),
+    senderType: _asString(json['senderType'], fallback: 'system'),
+    body: _asString(json['body']),
+    attachments: (json['attachments'] as List? ?? const [])
+        .map((item) => SupportAttachment.fromJson(_asMap(item)))
+        .toList(),
+    createdAt:
+        DateTime.tryParse(_asString(json['createdAt'])) ?? DateTime.now(),
+  );
+}
+
+class SupportThread {
+  const SupportThread({required this.request, required this.messages});
+
+  final SupportRequest request;
+  final List<SupportMessage> messages;
+
+  factory SupportThread.fromJson(Map<String, dynamic> json) {
+    final request = _asMap(json['request']);
+    final messages = json['messages'];
+    if (request.isEmpty || messages is! List) {
+      throw ApiException('error_network'.tr);
+    }
+    return SupportThread(
+      request: SupportRequest.fromJson(request),
+      messages: messages
+          .map((item) => SupportMessage.fromJson(_asMap(item)))
+          .toList(),
     );
   }
 }
@@ -484,6 +841,10 @@ class PromoStory {
     this.sortOrder = 0,
     this.description,
     this.duration = 15,
+    this.localizedTitles = const {},
+    this.localizedDescriptions = const {},
+    this.localizedCoverUrls = const {},
+    this.localizedContentUrls = const {},
   });
 
   final int id;
@@ -496,11 +857,33 @@ class PromoStory {
   final int sortOrder;
   final String? description;
   final int duration;
+  final Map<String, String> localizedTitles;
+  final Map<String, String> localizedDescriptions;
+  final Map<String, String> localizedCoverUrls;
+  final Map<String, String> localizedContentUrls;
+
+  String get localizedTitle => _localizedValue(title, localizedTitles);
+  String? get localizedDescription {
+    final value = _localizedValue(description ?? '', localizedDescriptions);
+    return value.isEmpty ? null : value;
+  }
+
+  String get localizedImageUrl => _localizedValue(imageUrl, localizedCoverUrls);
+  String get localizedContentUrl =>
+      _localizedValue(contentUrl, localizedContentUrls);
+  String get localizedGroupTitle =>
+      _localizedValue(groupTitle, localizedTitles);
+  String get localizedGroupCoverUrl =>
+      _localizedValue(groupCoverUrl, localizedCoverUrls);
 
   factory PromoStory.fromJson(Map<String, dynamic> json) {
     final image = _asString(json['coverUrl'] ?? json['cover_url']);
     final id = _asInt(json['id']);
     final title = _asString(json['title']);
+    final localizedTitles = _nestedLocalizedValues(json, 'title');
+    final localizedDescriptions = _nestedLocalizedValues(json, 'description');
+    final localizedCoverUrls = _nestedLocalizedValues(json, 'coverUrl');
+    final localizedContentUrls = _nestedLocalizedValues(json, 'contentUrl');
     return PromoStory(
       id: id,
       title: title,
@@ -526,6 +909,10 @@ class PromoStory {
       sortOrder: _asInt(json['sortOrder'] ?? json['sort_order']),
       description: _nullableString(json['description']),
       duration: _asInt(json['duration'], fallback: 15),
+      localizedTitles: localizedTitles,
+      localizedDescriptions: localizedDescriptions,
+      localizedCoverUrls: localizedCoverUrls,
+      localizedContentUrls: localizedContentUrls,
     );
   }
 
@@ -540,6 +927,12 @@ class PromoStory {
     'sortOrder': sortOrder,
     'description': description,
     'duration': duration,
+    'i18n': _localizedContentJson(
+      titles: localizedTitles,
+      descriptions: localizedDescriptions,
+      imageUrls: localizedCoverUrls,
+      contentUrls: localizedContentUrls,
+    ),
   };
 }
 
@@ -550,6 +943,9 @@ class NewsItem {
     required this.imageUrl,
     this.createdAt,
     this.description,
+    this.localizedTitles = const {},
+    this.localizedDescriptions = const {},
+    this.localizedImageUrls = const {},
   });
 
   final int id;
@@ -557,6 +953,16 @@ class NewsItem {
   final String imageUrl;
   final String? createdAt;
   final String? description;
+  final Map<String, String> localizedTitles;
+  final Map<String, String> localizedDescriptions;
+  final Map<String, String> localizedImageUrls;
+
+  String get localizedTitle => _localizedValue(title, localizedTitles);
+  String get localizedImageUrl => _localizedValue(imageUrl, localizedImageUrls);
+  String? get localizedDescription {
+    final value = _localizedValue(description ?? '', localizedDescriptions);
+    return value.isEmpty ? null : value;
+  }
 
   factory NewsItem.fromJson(Map<String, dynamic> json) {
     return NewsItem(
@@ -567,6 +973,9 @@ class NewsItem {
       ),
       createdAt: _nullableString(json['created_at'] ?? json['createdAt']),
       description: _nullableString(json['description']),
+      localizedTitles: _nestedLocalizedValues(json, 'title'),
+      localizedDescriptions: _nestedLocalizedValues(json, 'description'),
+      localizedImageUrls: _nestedLocalizedValues(json, 'imageUrl'),
     );
   }
 
@@ -576,6 +985,106 @@ class NewsItem {
     'imageUrl': imageUrl,
     'createdAt': createdAt,
     'description': description,
+    'i18n': _localizedContentJson(
+      titles: localizedTitles,
+      descriptions: localizedDescriptions,
+      imageUrls: localizedImageUrls,
+    ),
+  };
+}
+
+class AppContactAction {
+  const AppContactAction({
+    required this.id,
+    required this.type,
+    required this.labels,
+    required this.target,
+    required this.iconKey,
+  });
+
+  final String id;
+  final String type;
+  final Map<String, String> labels;
+  final String target;
+  final String iconKey;
+
+  factory AppContactAction.fromJson(Map<String, dynamic> json) {
+    final rawLabels = _asMap(json['labels']);
+    return AppContactAction(
+      id: _asString(json['id']),
+      type: _asString(json['type']),
+      labels: {
+        'ru': _asString(rawLabels['ru']),
+        'kk': _asString(rawLabels['kk']),
+        'en': _asString(rawLabels['en']),
+      },
+      target: _asString(json['target']),
+      iconKey: _asString(json['iconKey'], fallback: 'link'),
+    );
+  }
+
+  String labelFor(String language) {
+    final localized = labels[language]?.trim() ?? '';
+    if (localized.isNotEmpty) return localized;
+    return labels['ru']?.trim() ?? '';
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'type': type,
+    'labels': labels,
+    'target': target,
+    'iconKey': iconKey,
+  };
+}
+
+class AppContactCard {
+  const AppContactCard({
+    required this.id,
+    required this.displayMode,
+    required this.titles,
+    required this.iconKey,
+    required this.actions,
+  });
+
+  final String id;
+  final String displayMode;
+  final Map<String, String> titles;
+  final String iconKey;
+  final List<AppContactAction> actions;
+
+  bool get isCompact => displayMode == 'compact';
+
+  factory AppContactCard.fromJson(Map<String, dynamic> json) {
+    final rawTitles = _asMap(json['titles']);
+    return AppContactCard(
+      id: _asString(json['id']),
+      displayMode: _asString(json['displayMode'], fallback: 'standard'),
+      titles: {
+        'ru': _asString(rawTitles['ru']),
+        'kk': _asString(rawTitles['kk']),
+        'en': _asString(rawTitles['en']),
+      },
+      iconKey: _asString(json['iconKey'], fallback: 'bulka'),
+      actions: (json['actions'] as List? ?? const [])
+          .map((item) => AppContactAction.fromJson(_asMap(item)))
+          .where((action) => action.id.isNotEmpty)
+          .toList(growable: false),
+    );
+  }
+
+  String titleFor(String language) {
+    final localized = titles[language]?.trim() ?? '';
+    if (localized.isNotEmpty) return localized;
+    return titles['ru']?.trim() ?? '';
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'displayMode': displayMode,
+    'titles': titles,
+    'iconKey': iconKey,
+    'actions': actions.map((action) => action.toJson()).toList(),
   };
 }
 
@@ -587,6 +1096,7 @@ class AppNotification {
     required this.createdAt,
     required this.isRead,
     this.type = 'broadcast',
+    this.payload = const {},
   });
 
   final String id;
@@ -595,6 +1105,107 @@ class AppNotification {
   final String createdAt;
   final bool isRead;
   final String type;
+  final Map<String, dynamic> payload;
+
+  String titleFor(String language) {
+    return _payloadTranslation('titles', language) ??
+        _systemTranslation('title', language) ??
+        title;
+  }
+
+  String bodyFor(String language) {
+    return _payloadTranslation('bodies', language) ??
+        _systemTranslation('body', language) ??
+        body;
+  }
+
+  String? _payloadTranslation(String field, String language) {
+    final normalizedLanguage = AppLang.supportedCodes.contains(language)
+        ? language
+        : 'ru';
+    final i18n = _asMap(payload['i18n']);
+    final values = _asMap(
+      i18n[field] ??
+          payload[field] ??
+          payload[field == 'titles' ? 'titleTranslations' : 'bodyTranslations'],
+    );
+    final localized = _asString(
+      values[normalizedLanguage] ?? values['ru'],
+    ).trim();
+    return localized.isEmpty ? null : localized;
+  }
+
+  String? _systemTranslation(String field, String language) {
+    final messageKey = _systemMessageKey;
+    if (messageKey == null) return null;
+    final translationKey = 'notification_${messageKey}_$field';
+    if (!_appTranslations.containsKey(translationKey)) return null;
+    final arguments = <String, Object?>{};
+    if (messageKey.startsWith('order_')) {
+      final orderNumber = _orderNumber;
+      if (field == 'body' && orderNumber.isEmpty) return null;
+      arguments['number'] = orderNumber;
+    }
+    return localizedAppText(
+      translationKey,
+      language: language,
+      arguments: arguments,
+    );
+  }
+
+  String? get _systemMessageKey {
+    final explicit = _asString(
+      payload['messageKey'] ?? payload['notificationKey'],
+    ).trim();
+    const supported = {
+      'bonus_awarded',
+      'order_accepted',
+      'order_preparing',
+      'order_ready',
+      'order_completed',
+      'order_cancelled',
+      'order_refunded',
+    };
+    if (supported.contains(explicit)) return explicit;
+
+    final normalizedTitle = title.trim().toLowerCase();
+    const legacyTitles = {
+      'начислены бонусы': 'bonus_awarded',
+      'бонустар қосылды': 'bonus_awarded',
+      'bonuses earned': 'bonus_awarded',
+      'заказ принят': 'order_accepted',
+      'тапсырыс қабылданды': 'order_accepted',
+      'order accepted': 'order_accepted',
+      'заказ готовится': 'order_preparing',
+      'тапсырыс дайындалып жатыр': 'order_preparing',
+      'order is being prepared': 'order_preparing',
+      'заказ готов': 'order_ready',
+      'тапсырыс дайын': 'order_ready',
+      'order is ready': 'order_ready',
+      'заказ выдан': 'order_completed',
+      'заказ завершён': 'order_completed',
+      'тапсырыс табысталды': 'order_completed',
+      'order collected': 'order_completed',
+      'заказ отменён': 'order_cancelled',
+      'тапсырыс тоқтатылды': 'order_cancelled',
+      'order cancelled': 'order_cancelled',
+      'заказ отменён, деньги возвращены': 'order_refunded',
+      'тапсырыс тоқтатылды, ақша қайтарылды': 'order_refunded',
+      'order cancelled and refunded': 'order_refunded',
+    };
+    return legacyTitles[normalizedTitle];
+  }
+
+  String get _orderNumber {
+    final fromPayload = _asString(
+      payload['orderNumber'] ?? payload['order_number'],
+    ).trim();
+    if (fromPayload.isNotEmpty) return fromPayload;
+    return RegExp(
+          r'[#№]\s*([A-Za-zА-Яа-я0-9-]+)',
+        ).firstMatch('$title $body')?.group(1) ??
+        '';
+  }
 
   factory AppNotification.fromJson(Map<String, dynamic> json) =>
       AppNotification(
@@ -602,6 +1213,7 @@ class AppNotification {
         title: _asString(json['title']),
         body: _asString(json['body']),
         type: _asString(json['type'], fallback: 'broadcast'),
+        payload: _asMap(json['payload']),
         createdAt: _asString(json['created_at'] ?? json['createdAt']),
         isRead: json['is_read'] == true || json['isRead'] == true,
       );
@@ -622,8 +1234,14 @@ class DeliveryLocation {
 
   String get localizedCity {
     final normalized = city.trim().toLowerCase();
-    if ({'aktau', 'актау', 'ақтау'}.contains(normalized)) {
-      return 'city_aktau'.tr;
+    if ({
+      'astana',
+      'астана',
+      'nur-sultan',
+      'нур-султан',
+      'нұр-сұлтан',
+    }.contains(normalized)) {
+      return 'city_astana'.tr;
     }
     return city;
   }
@@ -951,6 +1569,59 @@ Map<String, String> _localizedLabels(
     }
   }
   return Map<String, String>.unmodifiable(result);
+}
+
+Map<String, String> _nestedLocalizedValues(
+  Map<String, dynamic> json,
+  String field,
+) {
+  final result = Map<String, String>.from(_localizedLabels(json, field));
+  final i18n = _asMap(json['i18n']);
+  for (final code in AppLang.supportedCodes) {
+    final backendCode = code == 'kk' ? 'kz' : code;
+    final localized = _asMap(i18n[backendCode]);
+    final value = _asString(
+      localized[field] ?? (field == 'imageUrl' ? localized['imageurl'] : null),
+    ).trim();
+    if (value.isNotEmpty) result[code] = value;
+  }
+  final kazakh = _asString(json['${field}_kz'] ?? json['${field}Kz']).trim();
+  if (kazakh.isNotEmpty) result['kk'] = kazakh;
+  return Map<String, String>.unmodifiable(result);
+}
+
+String _localizedValue(String fallback, Map<String, String> values) {
+  final current = values[AppLang.current]?.trim() ?? '';
+  if (current.isNotEmpty) return current;
+  final russian = values['ru']?.trim() ?? '';
+  if (russian.isNotEmpty) return russian;
+  if (fallback.trim().isNotEmpty) return fallback.trim();
+  for (final code in const ['kk', 'en']) {
+    final value = values[code]?.trim() ?? '';
+    if (value.isNotEmpty) return value;
+  }
+  return '';
+}
+
+Map<String, dynamic> _localizedContentJson({
+  required Map<String, String> titles,
+  required Map<String, String> descriptions,
+  required Map<String, String> imageUrls,
+  Map<String, String> contentUrls = const {},
+}) {
+  final result = <String, dynamic>{};
+  for (final code in AppLang.supportedCodes) {
+    final values = <String, String>{
+      if (titles[code]?.isNotEmpty == true) 'title': titles[code]!,
+      if (descriptions[code]?.isNotEmpty == true)
+        'description': descriptions[code]!,
+      if (imageUrls[code]?.isNotEmpty == true) 'imageUrl': imageUrls[code]!,
+      if (contentUrls[code]?.isNotEmpty == true)
+        'contentUrl': contentUrls[code]!,
+    };
+    if (values.isNotEmpty) result[code == 'kk' ? 'kz' : code] = values;
+  }
+  return result;
 }
 
 String _localizedFallback(Object? raw, Map<String, String> names) {

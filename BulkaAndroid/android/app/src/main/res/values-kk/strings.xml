@@ -1,4 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Bulka наубайханасы</string>
+    <string name="widget_description">Bulka балансы және ағымдағы тапсырыс</string>
+    <string name="widget_loyalty">Адалдық</string>
+    <string name="widget_balance_label">Баланс</string>
+    <string name="widget_no_active_order">Белсенді тапсырыс жоқ</string>
+    <string name="widget_order_number">№%1$d тапсырыс</string>
+    <string name="widget_status_with_eta">%1$s · %2$s-ге</string>
+    <string name="widget_signed_out_title">Сіздің Bulka картаңыз</string>
+    <string name="widget_signed_out_body">Баланс көру үшін жүйеге кіріңіз</string>
+    <string name="widget_status_received">Тапсырыс қабылданды</string>
+    <string name="widget_status_confirmed">Тапсырыс расталды</string>
+    <string name="widget_status_preparing">Дайындалып жатыр</string>
+    <string name="widget_status_ready">Алып кетуге дайын</string>
+    <string name="widget_status_handed_over">Тапсырыс берілді</string>
+    <string name="widget_status_on_the_way">Курьер жолда</string>
+    <string name="widget_status_delivered">Жеткізілді</string>
+    <string name="widget_status_cancelled">Бас тартылды</string>
+    <string name="widget_status_active">Тапсырыс белсенді</string>
+    <string name="widget_accessibility_signed_out">Bulka. Балансты көру үшін жүйеге кіріңіз.</string>
+    <string name="widget_accessibility_balance">Bulka балансы: %1$s. Ашу үшін басыңыз.</string>
+    <string name="widget_accessibility_order">Bulka балансы: %1$s. №%2$d тапсырыс: %3$s. Ашу үшін басыңыз.</string>
+    <string name="notification_channel_general_name">Bulka хабарландырулары</string>
+    <string name="notification_channel_general_description">Акциялар, бонустар және тапсырыс мәртебелері</string>
+    <string name="notification_channel_order_name">Тапсырыс мәртебесі</string>
+    <string name="notification_channel_order_description">Белсенді тапсырыстың тұрақты мәртебесі</string>
+    <string name="order_notification_updating">Тапсырыс жаңартылып жатыр</string>
+    <string name="order_notification_eta">%1$s-ге</string>
+    <string name="order_notification_title">№%1$d тапсырыс</string>
+    <string name="order_notification_private_title">Bulka тапсырысы жаңартылды</string>
+    <string name="order_notification_private_body">Толық ақпаратты көру үшін телефонды құлыптан ашыңыз</string>
 </resources>

@@ -17,7 +17,8 @@ export const isActiveSession = (tokenSN) => {
   return false;
 };
 
-export const inactiveSessionResponse = (error = 'Эта сессия больше не активна. Был выполнен новый вход — войдите заново в этом профиле.') => ({
-  error,
-  code: 'KASPI_SESSION_REPLACED',
+export const inactiveSessionResponse = () => ({
+  error: 'Kaspi Pay требует повторного входа администратора.',
+  code: 'KASPI_REAUTH_REQUIRED',
+  retryable: false,
 });

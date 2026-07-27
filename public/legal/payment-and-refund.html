@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#ffffff" />
+    <meta
+      name="description"
+      content="Условия оплаты заказов Bulka, отмены заказа и возврата денежных средств."
+    />
+    <meta name="robots" content="index,follow" />
+    <link rel="canonical" href="https://bulka.com.kz/payment-and-refund" />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="660x660"
+      href="/assets/wallet/bulka-wallet-logo.png?v=20260715"
+    />
+    <title>Условия оплаты и возврата — Bulka</title>
+    <style>
+      @font-face {
+        font-family: Montserrat;
+        src: url('/app/assets/assets/fonts/Montserrat-Regular.ttf') format('truetype');
+        font-weight: 400;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: Montserrat;
+        src: url('/app/assets/assets/fonts/Montserrat-SemiBold.ttf') format('truetype');
+        font-weight: 600;
+        font-display: swap;
+      }
+      :root {
+        color-scheme: light;
+        --page: #ffffff;
+        --surface: #fffaf2;
+        --text: #3b2117;
+        --muted: #74665e;
+        --accent: #ffb914;
+        --accent-soft: #fff1c9;
+        --border: #eadcc8;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        min-width: 320px;
+        margin: 0;
+        background: var(--page);
+        color: var(--text);
+        font-family:
+          Montserrat,
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
+        font-size: 16px;
+        line-height: 1.65;
+      }
+      main {
+        width: min(100%, 860px);
+        margin: 0 auto;
+        padding: 28px 20px 72px;
+      }
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        margin-bottom: 42px;
+      }
+      .brand {
+        width: 124px;
+        height: auto;
+      }
+      .back,
+      a {
+        color: var(--text);
+        text-underline-offset: 3px;
+      }
+      h1,
+      h2 {
+        margin-top: 0;
+        line-height: 1.2;
+      }
+      h1 {
+        max-width: 19ch;
+        margin-bottom: 14px;
+        font-size: clamp(2rem, 6vw, 3.5rem);
+        font-weight: 600;
+        letter-spacing: -0.035em;
+      }
+      h2 {
+        margin-bottom: 12px;
+        font-size: clamp(1.18rem, 3vw, 1.45rem);
+        font-weight: 600;
+      }
+      p,
+      ul,
+      ol {
+        margin: 0;
+      }
+      ul,
+      ol {
+        padding-left: 1.3em;
+      }
+      li + li {
+        margin-top: 8px;
+      }
+      .updated {
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+      .summary {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin: 32px 0;
+      }
+      .summary div {
+        min-height: 112px;
+        padding: 18px;
+        border-radius: 18px;
+        background: var(--accent-soft);
+      }
+      .summary strong,
+      .summary span {
+        display: block;
+      }
+      .summary strong {
+        margin-bottom: 5px;
+        font-size: 1.05rem;
+        font-weight: 600;
+      }
+      .summary span {
+        color: var(--muted);
+        font-size: 0.88rem;
+        line-height: 1.45;
+      }
+      section {
+        margin: 14px 0;
+        padding: clamp(20px, 4vw, 28px);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        background: #ffffff;
+      }
+      section p + p,
+      section p + ul,
+      section p + ol,
+      section ul + p,
+      section ol + p {
+        margin-top: 14px;
+      }
+      .notice {
+        border-color: #f0c45e;
+        background: #fffbef;
+      }
+      .payment-logos {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 18px;
+      }
+      .payment-mark {
+        min-height: 74px;
+        display: grid;
+        place-items: center;
+        padding: 12px;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background: #ffffff;
+        color: var(--text);
+        text-decoration: none;
+      }
+      .payment-mark svg {
+        display: block;
+        width: 100%;
+        max-width: 150px;
+        height: 42px;
+      }
+      .forte-official-logo {
+        display: block;
+        width: 148px;
+        height: 70px;
+        background-image: url('/assets/legal/forte-logo.png');
+        background-position: -41px -123px;
+        background-repeat: no-repeat;
+        background-size: 1003px 497px;
+      }
+      .payment-mark:focus-visible {
+        outline: 3px solid rgba(255, 185, 20, 0.55);
+        outline-offset: 2px;
+      }
+      .contacts {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 16px;
+      }
+      .contact {
+        padding: 16px;
+        border-radius: 14px;
+        background: var(--surface);
+        text-decoration: none;
+      }
+      .contact span,
+      .contact strong {
+        display: block;
+      }
+      .contact span {
+        margin-bottom: 3px;
+        color: var(--muted);
+        font-size: 0.78rem;
+      }
+      .contact strong {
+        overflow-wrap: anywhere;
+        font-weight: 600;
+      }
+      footer {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 22px;
+        padding: 24px 4px 0;
+        color: var(--muted);
+        font-size: 0.86rem;
+      }
+      @media (max-width: 680px) {
+        main {
+          padding: 20px 16px 56px;
+        }
+        .topbar {
+          margin-bottom: 30px;
+        }
+        .brand {
+          width: 104px;
+        }
+        .summary,
+        .contacts,
+        .payment-logos {
+          grid-template-columns: 1fr;
+        }
+        .summary div {
+          min-height: 0;
+        }
+      }
+      @media print {
+        main {
+          width: 100%;
+          padding: 0;
+        }
+        .back {
+          display: none;
+        }
+        section,
+        .summary div {
+          break-inside: avoid;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div class="topbar">
+          <img
+            class="brand"
+            src="/assets/wallet/bulka-wallet-wide-logo.png?v=20260715"
+            alt="Bulka — семейная пекарня"
+          />
+          <a class="back" href="/">Вернуться в магазин</a>
+        </div>
+        <h1>Условия оплаты и возврата</h1>
+        <p class="updated">Редакция от 25 июля 2026 года</p>
+      </header>
+
+      <div class="summary" aria-label="Краткие условия">
+        <div>
+          <strong>Валюта — тенге</strong>
+          <span>Полная сумма заказа и доставки показывается до перехода к оплате.</span>
+        </div>
+        <div>
+          <strong>Безопасная оплата</strong>
+          <span>Данные банковской карты вводятся на защищённой странице банка.</span>
+        </div>
+        <div>
+          <strong>Возврат на карту</strong>
+          <span>Деньги возвращаются тем же способом, которым был оплачен заказ.</span>
+        </div>
+      </div>
+
+      <section>
+        <h2>1. Общие положения</h2>
+        <p>
+          Настоящие условия распространяются на заказы в интернет-магазине Bulka по адресу
+          <a href="https://bulka.com.kz/">bulka.com.kz</a>. Наименование продавца и его реквизиты
+          указываются в платёжном и фискальном документе по заказу. Оформляя и оплачивая заказ,
+          покупатель подтверждает выбранные товары, филиал, способ получения, адрес, время и
+          итоговую стоимость.
+        </p>
+      </section>
+
+      <section>
+        <h2>2. Приём платежей</h2>
+        <ul>
+          <li>Все цены и расчёты указаны в казахстанских тенге (₸).</li>
+          <li>
+            Доступные способы оплаты отображаются при оформлении заказа. Можно оплатить через Kaspi
+            Pay либо банковской картой Visa или Mastercard, если карточный способ доступен в момент
+            оформления.
+          </li>
+          <li>
+            Карточный платёж обрабатывает АО «ForteBank» на своей защищённой платёжной странице.
+            Bulka получает только результат операции и данные, необходимые для формирования чека.
+          </li>
+          <li>Bulka не получает и не хранит полный номер карты, срок её действия и код CVC/CVV.</li>
+          <li>
+            Заказ считается оплаченным после получения сервером подтверждённого успешного статуса от
+            банка. При отказе банка деньги не считаются принятыми.
+          </li>
+          <li>
+            Если после оплаты статус заказа не обновился, не оплачивайте его повторно — обратитесь в
+            поддержку и сообщите номер заказа.
+          </li>
+        </ul>
+        <div class="payment-logos" aria-label="Платёжные системы и банк-эквайер">
+          <a
+            class="payment-mark"
+            href="https://forte.kz/"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="ForteBank — перейти на официальный сайт"
+          >
+            <span class="forte-official-logo" aria-hidden="true"></span>
+          </a>
+          <div class="payment-mark" aria-label="Visa">
+            <svg viewBox="0 0 150 48" role="img" aria-labelledby="visa-title">
+              <title id="visa-title">Visa</title>
+              <text
+                x="18"
+                y="35"
+                fill="#1434cb"
+                font-family="Arial,sans-serif"
+                font-size="36"
+                font-style="italic"
+                font-weight="800"
+              >
+                VISA
+              </text>
+            </svg>
+          </div>
+          <div class="payment-mark" aria-label="Mastercard">
+            <svg viewBox="0 0 170 48" role="img" aria-labelledby="mastercard-title">
+              <title id="mastercard-title">Mastercard</title>
+              <circle cx="39" cy="24" r="19" fill="#eb001b"></circle>
+              <circle cx="61" cy="24" r="19" fill="#f79e1b"></circle>
+              <path d="M50 8.7a19 19 0 0 1 0 30.6 19 19 0 0 1 0-30.6Z" fill="#ff5f00"></path>
+              <text
+                x="88"
+                y="29"
+                fill="#111111"
+                font-family="Arial,sans-serif"
+                font-size="14"
+                font-weight="700"
+              >
+                mastercard
+              </text>
+            </svg>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>3. Как проходит оплата картой и 3‑D Secure</h2>
+        <ol>
+          <li>Проверьте состав заказа, филиал, способ получения и итоговую сумму в тенге.</li>
+          <li>Выберите «Банковская карта» и перейдите на защищённую страницу ForteBank.</li>
+          <li>
+            Введите реквизиты карты только на странице банка. Адрес защищённой страницы должен
+            начинаться с <strong>https://</strong>.
+          </li>
+          <li>
+            При запросе 3‑D Secure подтвердите операцию одноразовым кодом, push-уведомлением или
+            другим способом вашего банка. Никому не сообщайте код подтверждения.
+          </li>
+          <li>
+            После успешной авторизации вернитесь в Bulka и дождитесь статуса «Оплачено». Торговый
+            чек появится в деталях заказа и будет отправлен на номер клиента через WhatsApp.
+          </li>
+        </ol>
+        <p>
+          Если страница закрылась, код не пришёл или банк отклонил операцию, проверьте доступный
+          лимит, правильность реквизитов и интернет-соединение. Не повторяйте оплату, пока не
+          убедитесь, что списания не было. При списании без подтверждённого заказа обратитесь в
+          Bulka и банк-эмитент, указав номер заказа, сумму и время операции.
+        </p>
+        <p>
+          ForteBank обрабатывает карточные данные по требованиям PCI DSS; для дополнительной
+          проверки используется технология 3‑D Secure.
+        </p>
+      </section>
+
+      <section>
+        <h2>4. Отмена заказа</h2>
+        <p>
+          Покупатель может запросить отмену через поддержку Bulka. Возможность отмены зависит от
+          текущего статуса: начал ли филиал приготовление, передан ли заказ курьеру или уже выдан
+          покупателю.
+        </p>
+        <p>
+          Если Bulka не может выполнить оплаченный заказ из-за отсутствия товара, технической ошибки
+          либо невозможности приготовления или доставки, покупателю предлагается замена, изменение
+          заказа либо полный возврат уплаченной суммы — по выбору покупателя и в пределах требований
+          законодательства Республики Казахстан.
+        </p>
+      </section>
+
+      <section>
+        <h2>5. Возврат товара и претензии по качеству</h2>
+        <p>
+          Если получен не тот товар, нарушена комплектация, товар повреждён, имеет истёкший срок
+          годности или не соответствует заявленному качеству, сообщите об этом Bulka как можно
+          скорее. Для проверки потребуются номер заказа, контактный телефон, описание проблемы и,
+          при наличии, фотографии.
+        </p>
+        <p>
+          После проверки покупателю предоставляется предусмотренное законом решение: замена,
+          соразмерное уменьшение цены, частичный либо полный возврат. Порядок возврата пищевой
+          продукции надлежащего качества определяется с учётом её свойств и законодательства
+          Республики Казахстан. Эти условия не ограничивают законные права потребителя.
+        </p>
+      </section>
+
+      <section>
+        <h2>6. Порядок возврата денежных средств</h2>
+        <ol>
+          <li>Обратитесь в поддержку и сообщите номер заказа, телефон и причину обращения.</li>
+          <li>Bulka проверит оплату, состав заказа, его статус и обстоятельства обращения.</li>
+          <li>
+            Ответ на письменную претензию предоставляется в срок, установленный законодательством
+            Республики Казахстан, — не позднее 10 календарных дней.
+          </li>
+          <li>
+            После одобрения полный или частичный возврат оформляется на тот же платёжный инструмент,
+            которым был оплачен заказ. Возврат на другую карту или наличными вместо карточного
+            платежа не производится.
+          </li>
+          <li>
+            Срок фактического зачисления после оформления возврата зависит от банка-эмитента и
+            платёжной системы. Bulka сообщит о выполнении возврата по обращению покупателя.
+          </li>
+        </ol>
+      </section>
+
+      <section class="notice">
+        <h2>7. Как обратиться</h2>
+        <p>
+          Подготовьте номер заказа и телефон, использованный при оформлении. Обращение можно
+          отправить через раздел «Поддержка» в личном кабинете, по телефону или электронной почте.
+        </p>
+        <div class="contacts">
+          <a class="contact" href="tel:+77012772233">
+            <span>Телефон Bulka</span>
+            <strong>+7 701 277 22 33</strong>
+          </a>
+          <a class="contact" href="https://bulka.com.kz/">
+            <span>Интернет-магазин</span>
+            <strong>https://bulka.com.kz/</strong>
+          </a>
+          <a class="contact" href="mailto:bulka.kazakhstan@mail.ru">
+            <span>Электронная почта</span>
+            <strong>bulka.kazakhstan@mail.ru</strong>
+          </a>
+        </div>
+      </section>
+
+      <footer>
+        <a href="/delivery-terms">Условия доставки</a>
+        <a href="/company-details">Реквизиты компании</a>
+        <a href="/terms">Условия использования</a>
+        <a href="/privacy">Политика конфиденциальности</a>
+        <span>© 2026 Bulka</span>
+      </footer>
+    </main>
+  </body>
+</html>
