@@ -6,7 +6,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $remoteScriptSource = Join-Path $PSScriptRoot 'configure-forte-widget-vps.sh'
-$remoteScript = '/tmp/configure-forte-widget-vps.sh'
+$remoteScript = "/tmp/configure-forte-widget-vps-$PID.sh"
 $exitCode = 1
 
 if ($StatusFile) {
