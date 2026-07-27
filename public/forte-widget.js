@@ -83,7 +83,17 @@
   closeButton.addEventListener('click', () => leave('cancelled'));
   backButton.addEventListener('click', () => leave('failed'));
 
+  let openTimeout;
+  let widgetObserver;
+
+  const stopWaiting = () => {
+    window.clearTimeout(openTimeout);
+    widgetObserver?.disconnect();
+  };
+
   const showError = () => {
+    stopWaiting();
+    state.hidden = false;
     state.classList.add('error');
     title.textContent = text.error;
     message.textContent = text.errorHint;
@@ -122,7 +132,28 @@
       token,
       closeWidget: finish,
     });
-    gateway.createWidget();
+
+    widgetObserver = new MutationObserver(() => {
+      for (const frame of document.querySelectorAll('iframe')) {
+        if (frame.dataset.bulkaWidgetObserved === 'true') continue;
+        frame.dataset.bulkaWidgetObserved = 'true';
+        frame.addEventListener(
+          'load',
+          () => {
+            stopWaiting();
+            state.hidden = true;
+          },
+          { once: true },
+        );
+      }
+    });
+    widgetObserver.observe(document.body, { childList: true, subtree: true });
+    openTimeout = window.setTimeout(showError, 15000);
+
+    const widgetResult = gateway.createWidget();
+    if (widgetResult && typeof widgetResult.catch === 'function') {
+      widgetResult.catch(showError);
+    }
   } catch {
     showError();
   }

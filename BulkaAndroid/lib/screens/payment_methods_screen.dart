@@ -164,15 +164,6 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 36),
                   children: [
-                    Text(
-                      'payment_methods_description'.tr,
-                      style: TextStyle(
-                        color: colors.mutedText,
-                        fontSize: BulkaTypeScale.body,
-                        height: 1.45,
-                      ),
-                    ),
-                    const SizedBox(height: 18),
                     SizedBox(
                       width: double.infinity,
                       child: GradientButton(

@@ -379,6 +379,9 @@ app.get('/assets/forte-widget.js', (_req, res) => {
   res.type('application/javascript').sendFile(path.join(process.cwd(), 'public/forte-widget.js'));
 });
 app.get('/payments/forte-widget', (_req, res) => {
+  // Forte renders its card form in a cross-origin iframe. Keep COEP enabled
+  // globally, but do not require the bank document to opt into our policy.
+  res.removeHeader('Cross-Origin-Embedder-Policy');
   res.set({
     'Cache-Control': 'private, no-store',
     'Referrer-Policy': 'no-referrer',

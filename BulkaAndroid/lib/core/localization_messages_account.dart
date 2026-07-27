@@ -63,14 +63,6 @@ const Map<String, Map<String, String>> _accountTranslations = {
     'kk': 'Сақталған карталар',
     'en': 'Saved cards',
   },
-  'payment_methods_description': {
-    'ru':
-        'Привяжите карту один раз и выбирайте её при следующих покупках. Bulka хранит только защищённый токен ForteBank и последние 4 цифры — не номер карты и не CVV. Для проверки банк может временно списать 30 ₸ и автоматически вернуть.',
-    'kk':
-        'Картаны бір рет байланыстырып, келесі сатып алуларда таңдаңыз. Bulka карта нөмірі мен CVV-ді емес, тек ForteBank қорғалған токенін және соңғы 4 санды сақтайды. Тексеру үшін банк 30 ₸ уақытша есептен шығарып, автоматты түрде қайтара алады.',
-    'en':
-        'Link a card once and select it for future purchases. Bulka stores only a ForteBank token and the last 4 digits—not the card number or CVV. The bank may temporarily debit 30 KZT for verification and automatically return it.',
-  },
   'payment_methods_add': {
     'ru': 'Добавить карту',
     'kk': 'Карта қосу',

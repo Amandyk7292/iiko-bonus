@@ -82,6 +82,7 @@ test('admin and Flutter CSP remove general-purpose script evaluation', async (t)
   const clientCsp = client.headers.get('content-security-policy') || '';
   const clientScriptPolicy = clientCsp.match(/(?:^|;\s*)script-src ([^;]+)/)?.[1] || '';
   assert.equal(client.status, 200);
+  assert.equal(client.headers.get('cross-origin-embedder-policy'), 'credentialless');
   assert.match(clientScriptPolicy, /sha256-/);
   assert.match(clientScriptPolicy, /'wasm-unsafe-eval'/);
   assert.doesNotMatch(clientScriptPolicy, /(?:^|\s)'unsafe-eval'(?:\s|$)/);
@@ -105,6 +106,7 @@ test('Forte widget shell is private, pinned to official hosts and never reflects
   assert.equal(response.status, 200);
   assert.match(response.headers.get('cache-control') || '', /no-store/);
   assert.equal(response.headers.get('referrer-policy'), 'no-referrer');
+  assert.equal(response.headers.get('cross-origin-embedder-policy'), null);
   assert.doesNotMatch(html, new RegExp(leakedToken));
   assert.match(html, /https:\/\/js\.fortebank\.com\/widget\/be_gateway\.js/);
   assert.match(csp, /script-src 'self' https:\/\/js\.fortebank\.com/);
