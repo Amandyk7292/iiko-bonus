@@ -222,7 +222,7 @@ test('card binding waits for a transaction webhook when checkout succeeds first'
   assert.equal(resolveCardSetupStatus('failed', false), 'failed');
 });
 
-test('Forte card binding uses the documented zero amount and recurring contract', async () => {
+test('Forte card binding uses the bank-approved oneclick contract', async () => {
   const requests = [];
   const service = new ForteWidgetService({
     env,
@@ -255,8 +255,9 @@ test('Forte card binding uses the documented zero amount and recurring contract'
   assert.equal(body.checkout.transaction_type, 'authorization');
   assert.equal(body.checkout.order.amount, 0);
   assert.equal(body.checkout.order.currency, 'KZT');
-  assert.deepEqual(body.checkout.order.additional_data.contract, ['card_on_file', 'recurring']);
-  assert.equal(body.checkout.order.additional_data.card_on_file.initiator, 'customer');
+  assert.deepEqual(body.checkout.order.additional_data, {
+    contract: ['oneclick'],
+  });
   assert.equal(body.checkout.settings.language, 'ru');
   assert.equal(
     body.checkout.settings.return_url,

@@ -760,8 +760,7 @@ class ForteWidgetService {
           tracking_id: trackingId,
           expired_at: expiresAt,
           additional_data: {
-            contract: ['card_on_file', 'recurring'],
-            card_on_file: { initiator: 'customer' },
+            contract: ['oneclick'],
           },
         },
         settings: {
