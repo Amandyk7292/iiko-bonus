@@ -252,7 +252,7 @@ test('Forte card binding uses the bank-approved oneclick contract', async () => 
   assert.equal(request.options.headers.RequestID, operationId);
   assert.match(request.options.headers.Authorization, /^Basic /);
   const body = JSON.parse(request.options.body);
-  assert.equal(body.checkout.transaction_type, 'authorization');
+  assert.equal(body.checkout.transaction_type, 'payment');
   assert.equal(body.checkout.order.amount, 0);
   assert.equal(body.checkout.order.currency, 'KZT');
   assert.deepEqual(body.checkout.order.additional_data, {
