@@ -412,10 +412,24 @@ test('Forte card binding accepts the direct transaction API refund response', as
 
 test('Forte order refund accepts the direct transaction API response', async () => {
   const refundId = '817615f9-b35f-4eb4-9f6d-777f2236bb25';
+  const requests = [];
   const service = new ForteWidgetService({
     env,
-    fetchImpl: async () =>
-      response({
+    fetchImpl: async (url, options) => {
+      requests.push({ url, options });
+      if (requests.length === 1) {
+        return response({
+          uid: refundId,
+          type: 'refund',
+          status: 'incomplete',
+          code: 'P.9999',
+          transaction: {
+            status: 'incomplete',
+          },
+        });
+      }
+      assert.equal(url, `https://gateway.fortebank.com/transactions/${refundId}`);
+      return response({
         uid: refundId,
         type: 'refund',
         status: 'successful',
@@ -423,7 +437,8 @@ test('Forte order refund accepts the direct transaction API response', async () 
           auth_code: '123456',
           status: 'successful',
         },
-      }),
+      });
+    },
   });
   const result = await service.refundPayment(
     {
@@ -436,6 +451,7 @@ test('Forte order refund accepts the direct transaction API response', async () 
   assert.equal(result.reference, refundId);
   assert.equal(result.requestId, refundRequestId);
   assert.equal(result.operation, 'refund');
+  assert.equal(requests.length, 2);
 });
 
 test('unknown verification refund remains retryable for reconciliation', async () => {

@@ -1155,6 +1155,30 @@ class ForteWidgetService {
     );
   }
 
+  async resolveRefundTransaction(response, body) {
+    let transaction = transactionFromApiResponse(body) || {};
+    let reference = cleanText(transaction.uid || transaction.id, 160);
+    const status = () => String(transaction.status || '').toLowerCase();
+    if (response.ok && UUID_PATTERN.test(reference) && status() !== 'successful') {
+      try {
+        const detail = await this.request(`/transactions/${encodeURIComponent(reference)}`, {
+          base: 'transaction',
+          apiVersion: 3,
+        });
+        if (detail.response.ok) {
+          const current = transactionFromApiResponse(detail.body);
+          if (current) {
+            transaction = current;
+            reference = cleanText(transaction.uid || transaction.id, 160);
+          }
+        }
+      } catch {
+        // Keep the original response uncertain and let reconciliation retry safely.
+      }
+    }
+    return { reference, status: status(), transaction };
+  }
+
   async refundCardSetupPayment(setup, providerTransactionId) {
     const config = this.assertConfigured();
     const amount = Number(setup?.amount);
@@ -1185,16 +1209,14 @@ class ForteWidgetService {
         },
       },
     });
-    const transaction = transactionFromApiResponse(body) || {};
-    const reference = cleanText(transaction.uid || transaction.id, 100);
-    if (
-      response.ok &&
-      UUID_PATTERN.test(reference) &&
-      String(transaction.status || '').toLowerCase() === 'successful'
-    ) {
+    const { reference, status } = await this.resolveRefundTransaction(response, body);
+    if (response.ok && UUID_PATTERN.test(reference) && status === 'successful') {
       return { reference, requestId };
     }
-    if (response.status >= 400 && response.status < 500) {
+    if (
+      (response.status >= 400 && response.status < 500) ||
+      ['failed', 'declined', 'rejected', 'expired', 'cancelled'].includes(status)
+    ) {
       throw widgetError(
         'ForteBank отклонил возврат проверочного платежа',
         409,
@@ -1615,16 +1637,14 @@ class ForteWidgetService {
         },
       },
     });
-    const transaction = transactionFromApiResponse(body) || {};
-    const reference = cleanText(transaction.uid || transaction.id, 160);
-    if (
-      response.ok &&
-      reference &&
-      String(transaction.status || '').toLowerCase() === 'successful'
-    ) {
+    const { reference, status } = await this.resolveRefundTransaction(response, body);
+    if (response.ok && reference && status === 'successful') {
       return { reference, response: body, requestId, operation: 'refund' };
     }
-    if (response.status >= 400 && response.status < 500) {
+    if (
+      (response.status >= 400 && response.status < 500) ||
+      ['failed', 'declined', 'rejected', 'expired', 'cancelled'].includes(status)
+    ) {
       throw widgetError('ForteBank отклонил возврат', 409, 'FORTE_WIDGET_REFUND_REJECTED', {
         requestId,
       });
