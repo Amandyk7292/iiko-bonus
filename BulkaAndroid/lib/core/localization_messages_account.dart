@@ -73,6 +73,11 @@ const Map<String, Map<String, String>> _accountTranslations = {
     'kk': 'Картаны байланыстыру мүмкін болмады.',
     'en': 'Could not link the card.',
   },
+  'payment_methods_limit_reached': {
+    'ru': 'Можно сохранить не более 3 карт.',
+    'kk': '3 картадан артық сақтауға болмайды.',
+    'en': 'You can save up to 3 cards.',
+  },
   'payment_methods_empty': {
     'ru': 'Сохранённых карт пока нет.',
     'kk': 'Сақталған карта жоқ.',

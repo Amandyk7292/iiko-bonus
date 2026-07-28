@@ -8,6 +8,7 @@ const {
   CARD_SETUP_AMOUNT,
   CARD_SETUP_AMOUNT_MINOR,
   ForteWidgetService,
+  MAX_SAVED_PAYMENT_METHODS,
   buildWidgetLaunchUrl,
   decryptProviderToken,
   encryptProviderToken,
@@ -57,6 +58,27 @@ test('Forte checkout fallback keeps reconciliation and webhooks configured', () 
   assert.equal(service.availability(), true);
   assert.equal(service.checkoutAvailability(), false);
   assert.doesNotThrow(() => service.assertCheckoutAvailable());
+});
+
+test('card setup stops before Forte when three cards are already saved', async () => {
+  let gatewayCalled = false;
+  const service = new ForteWidgetService({
+    env,
+    fetchImpl: async () => {
+      gatewayCalled = true;
+      return response({});
+    },
+  });
+  service.listPaymentMethods = async () =>
+    Array.from({ length: MAX_SAVED_PAYMENT_METHODS }, (_, index) => ({
+      id: `saved-card-${index + 1}`,
+    }));
+
+  await assert.rejects(
+    () => service.createCardSetup('517615f9-b35f-4eb4-9f6d-777f2236bb25', '+77478180616', 'ru'),
+    (error) => error.statusCode === 409 && error.code === 'FORTE_WIDGET_PAYMENT_METHOD_LIMIT',
+  );
+  assert.equal(gatewayCalled, false);
 });
 
 test('Forte checkout availability detects an explicitly empty provider response', () => {
@@ -672,6 +694,20 @@ test('saved-card migration encrypts provider tokens and keeps tables service-onl
     /revoke all on table public\.customer_payment_method_setups from public, anon, authenticated/i,
   );
   assert.doesNotMatch(sql, /^\s*(card_number|cvc|cvv|pan_number)\s+[a-z]/im);
+
+  const limitSql = fs.readFileSync(
+    path.join(
+      __dirname,
+      '..',
+      'supabase',
+      'migrations',
+      '20260728171000_saved_payment_method_limit.sql',
+    ),
+    'utf8',
+  );
+  assert.match(limitSql, /v_active_count\s*>=\s*3/i);
+  assert.match(limitSql, /pg_advisory_xact_lock/i);
+  assert.match(limitSql, /customer_payment_methods_enforce_limit/i);
 
   const refundSql = fs.readFileSync(
     path.join(

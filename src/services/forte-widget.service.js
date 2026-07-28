@@ -12,6 +12,7 @@ const FORTE_PAYMENT_METHOD = 'forte_card';
 const FORTE_WIDGET_INTEGRATION = 'forte_widget';
 const CARD_SETUP_AMOUNT = 30;
 const CARD_SETUP_AMOUNT_MINOR = 3000;
+const MAX_SAVED_PAYMENT_METHODS = 3;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PROVIDER_TOKEN_PATTERN = /^[A-Za-z0-9._~-]{16,512}$/;
 const FINAL_PAYMENT_STATUSES = new Set(['paid', 'failed', 'expired', 'refunded']);
@@ -580,6 +581,18 @@ class ForteWidgetService {
     }));
   }
 
+  async assertPaymentMethodCapacity(customerId) {
+    const methods = await this.listPaymentMethods(customerId);
+    if (methods.length >= MAX_SAVED_PAYMENT_METHODS) {
+      throw widgetError(
+        'Можно сохранить не более 3 карт',
+        409,
+        'FORTE_WIDGET_PAYMENT_METHOD_LIMIT',
+      );
+    }
+    return methods.length;
+  }
+
   async revokePaymentMethod(customerId, methodId) {
     if (!UUID_PATTERN.test(String(methodId || ''))) {
       throw widgetError('Некорректная карта', 400, 'FORTE_WIDGET_INVALID_PAYMENT_METHOD');
@@ -654,6 +667,9 @@ class ForteWidgetService {
       .eq('token_fingerprint', fingerprint)
       .maybeSingle();
     if (existingError) throw existingError;
+    if (!existing || existing.status !== 'active') {
+      await this.assertPaymentMethodCapacity(customerId);
+    }
     const id = existing?.id || crypto.randomUUID();
     const tokenCiphertext = encryptProviderToken(
       card.token,
@@ -1072,6 +1088,7 @@ class ForteWidgetService {
     if (!normalizedPhone) {
       throw widgetError('Некорректный номер телефона', 400, 'FORTE_WIDGET_INVALID_PHONE');
     }
+    await this.assertPaymentMethodCapacity(customerId);
     const operationId = crypto.randomUUID();
     const providerCheckout = await this.createProviderCheckout({
       amountMinor: CARD_SETUP_AMOUNT_MINOR,
@@ -1709,6 +1726,7 @@ module.exports.ForteWidgetService = ForteWidgetService;
 module.exports.FORTE_WIDGET_INTEGRATION = FORTE_WIDGET_INTEGRATION;
 module.exports.CARD_SETUP_AMOUNT = CARD_SETUP_AMOUNT;
 module.exports.CARD_SETUP_AMOUNT_MINOR = CARD_SETUP_AMOUNT_MINOR;
+module.exports.MAX_SAVED_PAYMENT_METHODS = MAX_SAVED_PAYMENT_METHODS;
 module.exports.buildWidgetLaunchUrl = buildWidgetLaunchUrl;
 module.exports.decryptProviderToken = decryptProviderToken;
 module.exports.encryptProviderToken = encryptProviderToken;

@@ -507,6 +507,10 @@ void main() {
       ),
       findsOneWidget,
     );
+    expect(
+      find.byKey(const ValueKey('checkout-add-saved-card')),
+      findsOneWidget,
+    );
     expect(find.text('Kaspi Pay'), findsNothing);
     expect(find.text('Оплатить картой'), findsNothing);
     expect(tester.takeException(), isNull);
@@ -563,6 +567,94 @@ void main() {
     expect(find.text('Оплатить картой'), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'checkout switches between three saved cards and enforces limit',
+    (tester) async {
+      final cart = CartProvider()
+        ..addItem(
+          productId: 'product-three-cards',
+          name: 'Плюшка',
+          price: 500,
+          imageUrl: '',
+        );
+      final api = _ThreeSavedCardsApiClient()
+        ..setSession(accessToken: 'test-access', refreshToken: 'test-refresh');
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildBulkaTheme(),
+          home: ChangeNotifierProvider.value(
+            value: cart,
+            child: MainShell(
+              api: api,
+              customer: _testCustomer,
+              transactions: _testTransactions,
+              initialTab: 2,
+              onLogout: () async {},
+              onRefreshProfile: () async {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Оформить заказ'));
+      await tester.pumpAndSettle();
+
+      final firstCard = find.byKey(
+        const ValueKey(
+          'checkout-saved-card-31f0d793-0102-4d2f-a5a1-744d12cffe7c',
+        ),
+      );
+      final secondCard = find.byKey(
+        const ValueKey(
+          'checkout-saved-card-41f0d793-0102-4d2f-a5a1-744d12cffe7d',
+        ),
+      );
+      await tester.scrollUntilVisible(
+        secondCard,
+        420,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(
+          of: firstCard,
+          matching: find.byIcon(Icons.check_circle_rounded),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: secondCard,
+          matching: find.byIcon(Icons.radio_button_unchecked_rounded),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(secondCard);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(
+          of: secondCard,
+          matching: find.byIcon(Icons.check_circle_rounded),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('checkout-add-saved-card')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('checkout-saved-cards-limit')),
+        findsOneWidget,
+      );
+      expect(find.text('Можно сохранить не более 3 карт.'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('rapid time taps request slots and open the picker only once', (
     tester,
@@ -2100,6 +2192,36 @@ class _FakeBulkaApiClient extends BulkaApiClient {
 class _NoSavedCardsApiClient extends _FakeBulkaApiClient {
   @override
   Future<List<Map<String, dynamic>>> getFortePaymentMethods() async => const [];
+}
+
+class _ThreeSavedCardsApiClient extends _FakeBulkaApiClient {
+  @override
+  Future<List<Map<String, dynamic>>> getFortePaymentMethods() async => const [
+    {
+      'id': '31f0d793-0102-4d2f-a5a1-744d12cffe7c',
+      'brand': 'visa',
+      'lastFour': '1328',
+      'expMonth': 9,
+      'expYear': 2030,
+      'isDefault': true,
+    },
+    {
+      'id': '41f0d793-0102-4d2f-a5a1-744d12cffe7d',
+      'brand': 'mastercard',
+      'lastFour': '5678',
+      'expMonth': 10,
+      'expYear': 2031,
+      'isDefault': false,
+    },
+    {
+      'id': '51f0d793-0102-4d2f-a5a1-744d12cffe7e',
+      'brand': 'visa',
+      'lastFour': '9012',
+      'expMonth': 11,
+      'expYear': 2032,
+      'isDefault': false,
+    },
+  ];
 }
 
 class _OutsideDeliveryApiClient extends _FakeBulkaApiClient {

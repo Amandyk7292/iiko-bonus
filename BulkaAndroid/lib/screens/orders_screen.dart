@@ -903,6 +903,16 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
 
   Future<void> _addPaymentMethod() async {
     if (_addingPaymentMethod || _isSubmitting) return;
+    if (_savedPaymentMethods.length >= _maximumSavedPaymentMethods) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('payment_methods_limit_reached'.tr)),
+      );
+      return;
+    }
+    final previousMethodIds = _savedPaymentMethods
+        .map((method) => (method['id'] ?? '').toString())
+        .where((id) => id.isNotEmpty)
+        .toSet();
     setState(() => _addingPaymentMethod = true);
     try {
       final result = await widget.api.createForteCardSetup();
@@ -924,12 +934,24 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       );
       if (saved == true) {
         await _loadPaymentMethods();
+        if (!mounted) return;
+        String? addedMethodId;
+        for (final method in _savedPaymentMethods) {
+          final id = (method['id'] ?? '').toString();
+          if (id.isNotEmpty && !previousMethodIds.contains(id)) {
+            addedMethodId = id;
+            break;
+          }
+        }
+        if (addedMethodId != null) {
+          setState(() => _selectedPaymentMethodId = addedMethodId);
+        }
       }
-    } catch (_) {
+    } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('payment_methods_add_error'.tr)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_paymentMethodAddErrorMessage(error))),
+        );
       }
     } finally {
       if (mounted) setState(() => _addingPaymentMethod = false);

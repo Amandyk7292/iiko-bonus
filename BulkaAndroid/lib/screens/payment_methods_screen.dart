@@ -133,6 +133,12 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
 
   Future<void> _addCard() async {
     if (_adding || _busyMethodId != null) return;
+    if (_methods.length >= _maximumSavedPaymentMethods) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('payment_methods_limit_reached'.tr)),
+      );
+      return;
+    }
     setState(() => _adding = true);
     try {
       final result = await widget.api.createForteCardSetup();
@@ -156,11 +162,11 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
         await widget.api.isFortePaymentAvailable();
         await _load();
       }
-    } catch (_) {
+    } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('payment_methods_add_error'.tr)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_paymentMethodAddErrorMessage(error))),
+        );
       }
     } finally {
       if (mounted) setState(() => _adding = false);
@@ -218,6 +224,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = context.bulkaColors;
+    final reachedLimit = _methods.length >= _maximumSavedPaymentMethods;
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -271,11 +278,35 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: GradientButton(
-                        onPressed: _adding ? null : _addCard,
+                        onPressed: _adding || reachedLimit ? null : _addCard,
                         loading: _adding,
                         child: Text('payment_methods_add'.tr),
                       ),
                     ),
+                    if (reachedLimit) ...[
+                      const SizedBox(height: 10),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.info_outline_rounded,
+                            size: 20,
+                            color: colors.brandBrown,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'payment_methods_limit_reached'.tr,
+                              style: TextStyle(
+                                color: colors.mutedText,
+                                fontSize: BulkaTypeScale.bodySmall,
+                                height: 1.35,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 20),
                     if (_error != null)
                       _PaymentMethodsEmpty(

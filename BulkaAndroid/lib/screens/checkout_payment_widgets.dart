@@ -1,5 +1,15 @@
 part of '../main.dart';
 
+const int _maximumSavedPaymentMethods = 3;
+
+String _paymentMethodAddErrorMessage(Object error) {
+  if (error is ApiException &&
+      error.code == 'FORTE_WIDGET_PAYMENT_METHOD_LIMIT') {
+    return 'payment_methods_limit_reached'.tr;
+  }
+  return 'payment_methods_add_error'.tr;
+}
+
 class _CheckoutDetails {
   const _CheckoutDetails({
     required this.checkoutId,
@@ -107,18 +117,89 @@ class _CheckoutSavedCards extends StatelessWidget {
       );
     }
 
+    final canAdd = methods.length < _maximumSavedPaymentMethods;
     return Column(
-      children: methods.map((method) {
-        final id = (method['id'] ?? '').toString();
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: _CheckoutSavedCardTile(
-            method: method,
-            selected: selectedMethodId == id,
-            onTap: () => onSelect(id),
+      children: [
+        ...methods.map((method) {
+          final id = (method['id'] ?? '').toString();
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: _CheckoutSavedCardTile(
+              method: method,
+              selected: selectedMethodId == id,
+              onTap: () => onSelect(id),
+            ),
+          );
+        }),
+        if (canAdd)
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: OutlinedButton.icon(
+              key: const ValueKey('checkout-add-saved-card'),
+              onPressed: adding ? null : onAdd,
+              icon: adding
+                  ? const SizedBox.square(
+                      dimension: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.add_card_rounded),
+              label: Text(
+                'payment_methods_add'.tr,
+                style: const TextStyle(
+                  fontFamily: _headingFont,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          )
+        else
+          _CheckoutSavedCardsLimitNotice(
+            key: const ValueKey('checkout-saved-cards-limit'),
           ),
-        );
-      }).toList(),
+      ],
+    );
+  }
+}
+
+class _CheckoutSavedCardsLimitNotice extends StatelessWidget {
+  const _CheckoutSavedCardsLimitNotice({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.bulkaColors;
+    return Semantics(
+      liveRegion: true,
+      child: Container(
+        width: double.infinity,
+        constraints: const BoxConstraints(minHeight: 48),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: colors.surfaceCream,
+          borderRadius: BorderRadius.circular(BulkaRadii.control),
+          border: Border.all(color: colors.cardBorder),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.info_outline_rounded,
+              color: colors.brandBrown,
+              size: 22,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'payment_methods_limit_reached'.tr,
+                style: TextStyle(
+                  color: colors.mutedText,
+                  fontSize: BulkaTypeScale.bodySmall,
+                  height: 1.3,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
