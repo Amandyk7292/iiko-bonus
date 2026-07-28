@@ -58,4 +58,18 @@ describe('admin production invariants', () => {
       expect(existsSync(resolve(root, 'public/assets/product_marks', mark)), mark).toBe(true);
     }
   });
+
+  it('uses the backend analytics event names in the checkout funnel', () => {
+    const analyticsPage = readFileSync(resolve(root, 'src/pages/AnalyticsPage.tsx'), 'utf8');
+    const analyticsService = readFileSync(
+      resolve(root, '../src/services/analytics-event.service.js'),
+      'utf8',
+    );
+    for (const eventName of ['checkout_start', 'payment_created']) {
+      expect(analyticsPage, eventName).toContain(`'${eventName}'`);
+      expect(analyticsService, eventName).toContain(`'${eventName}'`);
+    }
+    expect(analyticsPage).not.toContain("'checkout_started'");
+    expect(analyticsPage).not.toContain("'payment_started'");
+  });
 });

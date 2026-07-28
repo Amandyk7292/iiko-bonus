@@ -449,6 +449,7 @@ class KaspiService {
       delivery_longitude: checkout.deliveryAddress?.longitude ?? null,
       additional_phone: checkout.additionalPhone,
       comment: checkout.comment,
+      substitution_preference: checkout.substitutionPreference,
       fulfillment_status: 'pending',
       preparation_minutes: preparationMinutes,
       ...etaDatabaseFields(resolvedEta, checkout.orderType),

@@ -34,11 +34,13 @@ void main() {
       scheduledAt: '2026-07-28T16:00:00.000Z',
       checkoutId: '31f0d793-0102-4d2f-a5a1-744d12cffe7c',
       savedPaymentMethodId: '86d95454-7866-414d-a3f1-8f85cef12391',
+      substitutionPreference: 'replace_with_approval',
     );
 
     expect(
       requestBody?['savedPaymentMethodId'],
       '86d95454-7866-414d-a3f1-8f85cef12391',
     );
+    expect(requestBody?['substitutionPreference'], 'replace_with_approval');
   });
 }

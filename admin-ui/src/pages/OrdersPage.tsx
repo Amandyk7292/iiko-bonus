@@ -368,6 +368,14 @@ export default function OrdersPage() {
                           .map((item) => `${item.name || t('orders.item')} ×${item.quantity || 1}`)
                           .join(', ') || '—'}
                       </small>
+                      <div className="substitution-preference">
+                        <strong>{t('orders.substitutionLabel')}</strong>
+                        <span>
+                          {t(
+                            `orders.substitution.${order.substitutionPreference || 'call_customer'}`,
+                          )}
+                        </span>
+                      </div>
                       {order.customerArrivedAt && (
                         <div className="customer-arrived-alert">
                           <MapPin size={15} aria-hidden="true" />

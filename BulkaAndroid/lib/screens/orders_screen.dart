@@ -160,6 +160,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
       additionalPhone: details.additionalPhone,
       promoCode: details.promoCode,
       comment: details.comment,
+      substitutionPreference: details.substitutionPreference,
     );
     final operationId = (result['operationId'] ?? '').toString();
     if (operationId.isEmpty) {
@@ -826,6 +827,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   int _branchTimezoneOffsetMinutes = 300;
   int _quoteRevision = 0;
   String _checkoutId = _newCheckoutId();
+  String _substitutionPreference = 'call_customer';
 
   bool get _isPreorder => _orderType == _OrderType.preorder;
   bool get _usesDelivery =>
@@ -992,6 +994,9 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
     _promoController.text = prefs.getString(_draftKey('checkout_promo')) ?? '';
     _commentController.text =
         prefs.getString(_draftKey('checkout_comment')) ?? '';
+    final savedSubstitutionPreference =
+        prefs.getString(_draftKey('checkout_substitution_preference')) ??
+        'call_customer';
     setState(() {
       _branch = savedBranch;
       _branchId = prefs.getString('selected_bakery_location_id');
@@ -1004,6 +1009,14 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         (location) => location.active && location.deliveryEnabled,
       );
       _deliveryAvailabilityChecked = locationsLoaded;
+      _substitutionPreference =
+          const {
+            'remove_refund',
+            'call_customer',
+            'replace_with_approval',
+          }.contains(savedSubstitutionPreference)
+          ? savedSubstitutionPreference
+          : 'call_customer';
     });
     if (parsedScheduledAt != null) {
       await _restoreScheduledSlot(parsedScheduledAt);
@@ -1137,6 +1150,10 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       prefs.setString(_draftKey('checkout_phone'), _phoneController.text),
       prefs.setString(_draftKey('checkout_promo'), _promoController.text),
       prefs.setString(_draftKey('checkout_comment'), _commentController.text),
+      prefs.setString(
+        _draftKey('checkout_substitution_preference'),
+        _substitutionPreference,
+      ),
       if (_scheduledSlot == null)
         prefs.remove(_draftKey('checkout_scheduled_at'))
       else
@@ -1572,6 +1589,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
           additionalPhone: _phoneController.text.trim(),
           promoCode: _promoController.text.trim(),
           comment: _commentController.text.trim(),
+          substitutionPreference: _substitutionPreference,
         ),
       );
       if (mounted && completed) {
@@ -1581,6 +1599,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
           prefs.remove(_draftKey('checkout_phone')),
           prefs.remove(_draftKey('checkout_promo')),
           prefs.remove(_draftKey('checkout_comment')),
+          prefs.remove(_draftKey('checkout_substitution_preference')),
           prefs.remove(_draftKey('checkout_preorder_fulfillment')),
         ]);
         if (mounted) Navigator.pop(context, true);
@@ -1752,6 +1771,24 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
                 onTap: _isSelectingTime ? null : _selectScheduledTime,
                 loading: _isSelectingTime,
               ),
+            const SizedBox(height: 28),
+            _CheckoutLabel('checkout_substitution_title'.tr, required: true),
+            const SizedBox(height: 6),
+            Text(
+              'checkout_substitution_hint'.tr,
+              style: TextStyle(
+                color: context.bulkaColors.mutedText,
+                fontSize: BulkaTypeScale.bodySmall,
+              ),
+            ),
+            const SizedBox(height: 12),
+            _CheckoutSubstitutionPreference(
+              value: _substitutionPreference,
+              onChanged: (value) {
+                setState(() => _substitutionPreference = value);
+                _saveDraft();
+              },
+            ),
             const SizedBox(height: 28),
             _CheckoutLabel('payment_methods_title'.tr, required: true),
             const SizedBox(height: 12),

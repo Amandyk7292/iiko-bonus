@@ -144,6 +144,81 @@ const Map<String, Map<String, String>> _orderAndPaymentTranslations = {
         'Келгеніңізді хабарлау мүмкін болмады. Тапсырысты жаңартып, қайталап көріңіз.',
     'en': 'Could not report your arrival. Refresh the order and try again.',
   },
+  'order_cancel_action': {
+    'ru': 'Отменить заказ',
+    'kk': 'Тапсырыстан бас тарту',
+    'en': 'Cancel order',
+  },
+  'order_cancel_title': {
+    'ru': 'Отменить заказ?',
+    'kk': 'Тапсырыстан бас тартасыз ба?',
+    'en': 'Cancel this order?',
+  },
+  'order_cancel_body': {
+    'ru':
+        'Заказ ещё не принят в работу. Мы отменим его, освободим товары и автоматически отправим возврат исходным способом оплаты. Срок зачисления зависит от банка.',
+    'kk':
+        'Тапсырыс әлі жұмысқа қабылданбады. Біз оны тоқтатып, тауар қорын босатамыз және ақшаны бастапқы төлем тәсілімен автоматты түрде қайтарамыз. Түсу мерзімі банкке байланысты.',
+    'en':
+        'The order has not been accepted yet. We will cancel it, release the items, and automatically refund the original payment method. Posting time depends on the bank.',
+  },
+  'order_cancel_confirm': {
+    'ru': 'Отменить и вернуть деньги',
+    'kk': 'Тоқтатып, ақшаны қайтару',
+    'en': 'Cancel and refund',
+  },
+  'order_cancel_success': {
+    'ru': 'Заказ отменён. Возврат отправлен исходным способом оплаты.',
+    'kk': 'Тапсырыс тоқтатылды. Қайтарым бастапқы төлем тәсілімен жіберілді.',
+    'en':
+        'Order cancelled. The refund was sent to the original payment method.',
+  },
+  'order_cancel_error': {
+    'ru': 'Не удалось отменить заказ. Обновите его и попробуйте ещё раз.',
+    'kk': 'Тапсырысты тоқтату мүмкін болмады. Оны жаңартып, қайталап көріңіз.',
+    'en': 'Could not cancel the order. Refresh it and try again.',
+  },
+  'refund_stage_processing': {
+    'ru': 'Оформляем возврат',
+    'kk': 'Қайтарымды рәсімдеп жатырмыз',
+    'en': 'Preparing refund',
+  },
+  'refund_stage_processing_hint': {
+    'ru': 'Запрос передан платёжной системе.',
+    'kk': 'Сұрау төлем жүйесіне жіберілді.',
+    'en': 'The request has been sent to the payment provider.',
+  },
+  'refund_stage_checking': {
+    'ru': 'Проверяем с банком',
+    'kk': 'Банкпен тексеріп жатырмыз',
+    'en': 'Checking with the bank',
+  },
+  'refund_stage_checking_hint': {
+    'ru':
+        'Ответ банка задерживается. Повторно деньги не списываем и проверяем операцию.',
+    'kk':
+        'Банктің жауабы кешігуде. Ақша қайта алынбайды, операцияны тексеріп жатырмыз.',
+    'en':
+        'The bank response is delayed. We are checking the operation without charging again.',
+  },
+  'refund_stage_sent': {
+    'ru': 'Отправлен на карту',
+    'kk': 'Картаға жіберілді',
+    'en': 'Sent to the card',
+  },
+  'refund_stage_attention': {
+    'ru': 'Нужна проверка возврата',
+    'kk': 'Қайтарымды тексеру қажет',
+    'en': 'Refund needs review',
+  },
+  'refund_stage_attention_hint': {
+    'ru':
+        'Мы не получили подтверждение возврата. Напишите в поддержку — заказ и номер операции уже сохранены.',
+    'kk':
+        'Қайтарым расталмады. Қолдауға жазыңыз — тапсырыс пен операция нөмірі сақталған.',
+    'en':
+        'We did not receive refund confirmation. Contact support; the order and operation number are saved.',
+  },
   'order_details_title': {
     'ru': 'Заказ №{number}',
     'kk': '№{number} тапсырыс',

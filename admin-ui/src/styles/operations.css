@@ -17,6 +17,84 @@
   position: relative;
 }
 
+.realtime-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  border: 1px solid #e3d9cc;
+  border-radius: 12px;
+  background: #fff;
+  padding: 6px 11px;
+}
+
+.realtime-status-dot {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #8f8176;
+  box-shadow: 0 0 0 4px rgb(143 129 118 / 12%);
+}
+
+.realtime-status-online .realtime-status-dot {
+  background: #2e8b57;
+  box-shadow: 0 0 0 4px rgb(46 139 87 / 13%);
+}
+
+.realtime-status-connecting .realtime-status-dot,
+.realtime-status-reconnecting .realtime-status-dot {
+  background: #b87919;
+  box-shadow: 0 0 0 4px rgb(184 121 25 / 14%);
+  animation: realtime-pulse 1.25s ease-in-out infinite;
+}
+
+.realtime-status-offline .realtime-status-dot {
+  background: #b44335;
+  box-shadow: 0 0 0 4px rgb(180 67 53 / 13%);
+}
+
+.realtime-status-copy {
+  display: grid;
+  gap: 1px;
+  line-height: 1.1;
+}
+
+.realtime-status-copy strong {
+  color: #3d342e;
+  font-size: 12px;
+}
+
+.realtime-status-copy small {
+  color: #887a6f;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.substitution-preference {
+  display: grid;
+  gap: 2px;
+  margin-top: 8px;
+  border-left: 3px solid #d3a044;
+  border-radius: 0 8px 8px 0;
+  background: #fff8e9;
+  color: #5f4326;
+  padding: 7px 9px;
+  font-size: 11px;
+}
+
+.substitution-preference strong {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+@keyframes realtime-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
 .topbar-branch-select {
   display: grid;
   gap: 2px;
@@ -1247,6 +1325,10 @@
 }
 
 @media (max-width: 680px) {
+  .realtime-status-copy small {
+    display: none;
+  }
+
   .topbar-branch-select {
     order: 3;
     width: 100%;

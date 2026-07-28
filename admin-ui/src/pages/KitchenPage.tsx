@@ -8,9 +8,27 @@ import { useAdminRealtimeEvents } from '../lib/admin-realtime';
 import { useI18n } from '../lib/i18n';
 
 const columns = [
-  { status: 'queued', titleKey: 'kitchen.columnQueued', icon: Clock3, actionKey: 'kitchen.actionStart', next: 'preparing' },
-  { status: 'preparing', titleKey: 'kitchen.columnPreparing', icon: ChefHat, actionKey: 'kitchen.actionReady', next: 'ready' },
-  { status: 'ready', titleKey: 'kitchen.columnReady', icon: CheckCircle2, actionKey: 'kitchen.actionHandoff', next: 'handed_over' },
+  {
+    status: 'queued',
+    titleKey: 'kitchen.columnQueued',
+    icon: Clock3,
+    actionKey: 'kitchen.actionStart',
+    next: 'preparing',
+  },
+  {
+    status: 'preparing',
+    titleKey: 'kitchen.columnPreparing',
+    icon: ChefHat,
+    actionKey: 'kitchen.actionReady',
+    next: 'ready',
+  },
+  {
+    status: 'ready',
+    titleKey: 'kitchen.columnReady',
+    icon: CheckCircle2,
+    actionKey: 'kitchen.actionHandoff',
+    next: 'handed_over',
+  },
 ];
 
 const elapsedMinutes = (value?: string | null) => {
@@ -29,18 +47,20 @@ export default function KitchenPage() {
   const [preparationMinutes, setPreparationMinutes] = useState('30');
   const [, setTick] = useState(0);
 
-  const load = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true);
-    try {
-      setOrders((await api.getKitchenOrders()).orders ?? []);
-      setError('');
-    } catch (caught) {
-      if (!silent)
-        setError(caught instanceof Error ? caught.message : t('kitchen.loadError'));
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  }, [t]);
+  const load = useCallback(
+    async (silent = false) => {
+      if (!silent) setLoading(true);
+      try {
+        setOrders((await api.getKitchenOrders()).orders ?? []);
+        setError('');
+      } catch (caught) {
+        if (!silent) setError(caught instanceof Error ? caught.message : t('kitchen.loadError'));
+      } finally {
+        if (!silent) setLoading(false);
+      }
+    },
+    [t],
+  );
 
   useEffect(() => {
     void load();
@@ -61,11 +81,7 @@ export default function KitchenPage() {
     [load],
   );
 
-  const persistUpdate = async (
-    order: any,
-    next: string,
-    minutes?: number,
-  ) => {
+  const persistUpdate = async (order: any, next: string, minutes?: number) => {
     setSaving(order.id);
     try {
       await api.updateKitchenStatus(order.id, next, minutes);
@@ -162,7 +178,14 @@ export default function KitchenPage() {
                       >
                         <div className="kitchen-ticket-head">
                           <strong>№{order.number}</strong>
-                          <span>{elapsedMinutes(order.kitchenStartedAt || order.createdAt) == null ? '—' : t('kitchen.elapsed', { count: elapsedMinutes(order.kitchenStartedAt || order.createdAt) ?? 0 })}</span>
+                          <span>
+                            {elapsedMinutes(order.kitchenStartedAt || order.createdAt) == null
+                              ? '—'
+                              : t('kitchen.elapsed', {
+                                  count:
+                                    elapsedMinutes(order.kitchenStartedAt || order.createdAt) ?? 0,
+                                })}
+                          </span>
                         </div>
                         <p>{order.branch || t('kitchen.branch')}</p>
                         <ul>
@@ -176,6 +199,14 @@ export default function KitchenPage() {
                           ))}
                         </ul>
                         {order.comment && <blockquote>{order.comment}</blockquote>}
+                        <div className="substitution-preference">
+                          <strong>{t('orders.substitutionLabel')}</strong>
+                          <span>
+                            {t(
+                              `orders.substitution.${order.substitutionPreference || 'call_customer'}`,
+                            )}
+                          </span>
+                        </div>
                         {order.customerArrivedAt && (
                           <div className="customer-arrived-alert">
                             <CheckCircle2 size={16} aria-hidden="true" />
@@ -188,7 +219,11 @@ export default function KitchenPage() {
                         <div className="kitchen-time">
                           <Clock3 aria-hidden="true" size={15} />
                           {order.promisedReadyAt ? (
-                            <>{t('kitchen.readyBy', { time: formatDate(order.promisedReadyAt, { timeStyle: 'short' }) })}</>
+                            <>
+                              {t('kitchen.readyBy', {
+                                time: formatDate(order.promisedReadyAt, { timeStyle: 'short' }),
+                              })}
+                            </>
                           ) : (
                             t('kitchen.noPromisedTime')
                           )}

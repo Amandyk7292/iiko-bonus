@@ -430,6 +430,7 @@ class CustomerOrder {
     this.paymentProvider = 'kaspi',
     this.pickupTime,
     this.comment,
+    this.substitutionPreference = 'call_customer',
     this.cancellationReason,
     this.refundStatus,
     this.refundAmount,
@@ -469,6 +470,7 @@ class CustomerOrder {
   final String deliveryStatus;
   final DateTime? pickupTime;
   final String? comment;
+  final String substitutionPreference;
   final String? cancellationReason;
   final String? refundStatus;
   final int? refundAmount;
@@ -516,6 +518,10 @@ class CustomerOrder {
       deliveryStatus: _asString(json['deliveryStatus'], fallback: 'unassigned'),
       pickupTime: DateTime.tryParse(_asString(json['pickupTime'])),
       comment: _nullableString(json['comment']),
+      substitutionPreference: _asString(
+        json['substitutionPreference'],
+        fallback: 'call_customer',
+      ),
       cancellationReason: _nullableString(json['cancellationReason']),
       refundStatus: _nullableString(json['refundStatus']),
       refundAmount: _nullableInt(json['refundAmount']),
@@ -557,6 +563,11 @@ class CustomerOrder {
       orderStatus == 'cancelled' ||
       deliveryStatus == 'delivered';
 
+  bool get canCancel =>
+      paymentStatus == 'paid' &&
+      orderStatus == 'new' &&
+      (refundStatus == null || refundStatus!.isEmpty);
+
   Map<String, dynamic> toJson() => {
     'id': id,
     'number': number,
@@ -574,6 +585,7 @@ class CustomerOrder {
     'deliveryStatus': deliveryStatus,
     'pickupTime': pickupTime?.toUtc().toIso8601String(),
     'comment': comment,
+    'substitutionPreference': substitutionPreference,
     'cancellationReason': cancellationReason,
     'refundStatus': refundStatus,
     'refundAmount': refundAmount,

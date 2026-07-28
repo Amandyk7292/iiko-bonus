@@ -177,6 +177,46 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'kk': 'Пікіріңізді жазыңыз',
     'en': 'Add a comment',
   },
+  'checkout_substitution_title': {
+    'ru': 'Если товара не будет',
+    'kk': 'Тауар болмаса',
+    'en': 'If an item is unavailable',
+  },
+  'checkout_substitution_hint': {
+    'ru': 'Выберите, как поступить с отсутствующей позицией.',
+    'kk': 'Жоқ позициямен не істеу керегін таңдаңыз.',
+    'en': 'Choose what should happen to an unavailable item.',
+  },
+  'checkout_substitution_remove_refund': {
+    'ru': 'Убрать позицию и вернуть деньги',
+    'kk': 'Позицияны алып тастап, ақшаны қайтару',
+    'en': 'Remove it and refund the amount',
+  },
+  'checkout_substitution_remove_refund_hint': {
+    'ru': 'Вернём стоимость этой позиции тем же способом оплаты.',
+    'kk': 'Осы позицияның құнын бастапқы төлем тәсілімен қайтарамыз.',
+    'en': 'We will refund that item to the original payment method.',
+  },
+  'checkout_substitution_call_customer': {
+    'ru': 'Позвонить мне',
+    'kk': 'Маған қоңырау шалу',
+    'en': 'Call me',
+  },
+  'checkout_substitution_call_customer_hint': {
+    'ru': 'Сотрудник уточнит решение по телефону.',
+    'kk': 'Қызметкер шешімді телефон арқылы нақтылайды.',
+    'en': 'A team member will confirm the choice by phone.',
+  },
+  'checkout_substitution_replace_approval': {
+    'ru': 'Заменить после согласования',
+    'kk': 'Келісілгеннен кейін ауыстыру',
+    'en': 'Replace it after approval',
+  },
+  'checkout_substitution_replace_approval_hint': {
+    'ru': 'Ничего не заменяем без вашего подтверждения.',
+    'kk': 'Сіздің растауыңызсыз ештеңе ауыстырылмайды.',
+    'en': 'Nothing will be replaced without your approval.',
+  },
   'checkout_subtotal': {
     'ru': 'Сумма заказа',
     'kk': 'Тапсырыс сомасы',

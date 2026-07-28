@@ -22,6 +22,7 @@ const normalize = (order) => ({
   branch: order.branch_name || '',
   items: Array.isArray(order.cart_items) ? order.cart_items : [],
   comment: order.comment || null,
+  substitutionPreference: order.substitution_preference || 'call_customer',
   fulfillmentType: order.fulfillment_type,
   fulfillmentStatus: order.fulfillment_status,
   kitchenStatus: order.kitchen_status || 'queued',

@@ -1,5 +1,6 @@
 import {
   Bell,
+  CreditCard,
   ClipboardList,
   Headphones,
   LogOut,
@@ -61,8 +62,10 @@ export default function Topbar({
   const { t } = useI18n();
   const location = useLocation();
   const navigate = useNavigate();
-  const { summary, soundEnabled, setSoundEnabled } = useAdminRealtime();
+  const { summary, connectionStatus, lastUpdatedAt, soundEnabled, setSoundEnabled } =
+    useAdminRealtime();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [statusClock, setStatusClock] = useState(() => Date.now());
   const notificationsRef = useRef<HTMLDivElement>(null);
   const page = routeKeys[location.pathname] ?? 'operations';
   const counts = summary?.counts;
@@ -85,6 +88,21 @@ export default function Topbar({
     return () => document.removeEventListener('pointerdown', close);
   }, [notificationsOpen]);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => setStatusClock(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const realtimeLabel = t(`realtime.${connectionStatus}`);
+  const minutesSinceUpdate =
+    lastUpdatedAt == null ? null : Math.max(0, Math.floor((statusClock - lastUpdatedAt) / 60_000));
+  const updatedLabel =
+    minutesSinceUpdate == null
+      ? ''
+      : minutesSinceUpdate < 1
+        ? t('realtime.updatedNow')
+        : t('realtime.updatedMinutes', { count: minutesSinceUpdate });
+
   const openTask = (path: string) => {
     setNotificationsOpen(false);
     navigate(path);
@@ -92,6 +110,13 @@ export default function Topbar({
 
   const notificationItems = counts
     ? [
+        {
+          key: 'payments',
+          label: t('notifications.paymentIssues'),
+          value: counts.paymentIssues,
+          path: '/orders?payment=failed',
+          icon: CreditCard,
+        },
         {
           key: 'orders',
           label: 'Новые оплаченные заказы',
@@ -169,6 +194,24 @@ export default function Topbar({
               ))}
             </select>
           </label>
+        )}
+        {!operatorMode && (
+          <div
+            className={`realtime-status realtime-status-${connectionStatus}`}
+            role="status"
+            aria-live="polite"
+            title={
+              lastUpdatedAt
+                ? `${realtimeLabel}. ${new Date(lastUpdatedAt).toLocaleString()}`
+                : realtimeLabel
+            }
+          >
+            <span className="realtime-status-dot" aria-hidden="true" />
+            <span className="realtime-status-copy">
+              <strong>{realtimeLabel}</strong>
+              {updatedLabel && <small>{updatedLabel}</small>}
+            </span>
+          </div>
         )}
         {!operatorMode && (
           <div className="topbar-notifications" ref={notificationsRef}>

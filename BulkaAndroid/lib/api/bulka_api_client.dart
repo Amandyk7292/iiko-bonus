@@ -420,6 +420,7 @@ class BulkaApiClient {
     String? additionalPhone,
     String? promoCode,
     String? comment,
+    String substitutionPreference = 'call_customer',
   }) async {
     final json = await _post('/api/customer/kaspi-pay/create', {
       'items': cartItems,
@@ -434,6 +435,7 @@ class BulkaApiClient {
       'additionalPhone': additionalPhone,
       'promoCode': promoCode,
       'comment': comment,
+      'substitutionPreference': substitutionPreference,
     });
     if (json['success'] != true) {
       throw ApiException(_messageFrom(json, 'error_kaspi_payment'.tr));
@@ -497,6 +499,7 @@ class BulkaApiClient {
     String? additionalPhone,
     String? promoCode,
     String? comment,
+    String substitutionPreference = 'call_customer',
   }) async {
     final json = await _post('/api/customer/forte-pay/create', {
       'items': cartItems,
@@ -512,6 +515,7 @@ class BulkaApiClient {
       'additionalPhone': additionalPhone,
       'promoCode': promoCode,
       'comment': comment,
+      'substitutionPreference': substitutionPreference,
       'language': AppLang.current,
     });
     if (json['success'] != true) {
@@ -736,6 +740,21 @@ class BulkaApiClient {
     final order = _asMap(json['order']);
     if (json['success'] != true || order.isEmpty) {
       throw ApiException(_messageFrom(json, 'orders_arrival_error'.tr));
+    }
+    return CustomerOrder.fromJson(order);
+  }
+
+  Future<CustomerOrder> cancelCustomerOrder(String orderId) async {
+    final json = await _post(
+      '/api/customer/orders/${Uri.encodeComponent(orderId)}/cancel',
+      const {},
+    );
+    final order = _asMap(json['order']);
+    if (json['success'] != true || order.isEmpty) {
+      throw ApiException(
+        _messageFrom(json, 'order_cancel_error'.tr),
+        code: _asString(json['code']),
+      );
     }
     return CustomerOrder.fromJson(order);
   }

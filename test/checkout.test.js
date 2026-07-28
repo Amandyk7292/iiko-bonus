@@ -3,6 +3,7 @@ const test = require('node:test');
 
 const {
   isPointInPolygon,
+  normalizeSubstitutionPreference,
   normalizeSchedule,
   validateCheckout,
 } = require('../src/services/checkout.service');
@@ -13,6 +14,7 @@ const {
 } = require('../src/services/kaspi.service');
 const {
   canMarkCustomerArrived,
+  canCustomerCancelOrder,
   normalizeOrder,
   safeUnknownRefundRequestId,
 } = require('../src/services/customer-order.service');
@@ -62,6 +64,16 @@ const env = {
   PREORDER_MIN_LEAD_MINUTES: '120',
 };
 
+test('checkout validates and stores the missing-item substitution preference', () => {
+  assert.equal(normalizeSubstitutionPreference(), 'call_customer');
+  assert.equal(normalizeSubstitutionPreference('remove_refund'), 'remove_refund');
+  assert.equal(normalizeSubstitutionPreference('replace_with_approval'), 'replace_with_approval');
+  assert.throws(
+    () => normalizeSubstitutionPreference('replace_without_approval'),
+    /Некорректное правило замены/,
+  );
+});
+
 test('unknown refund reuses its request ID only inside Forte idempotency window', () => {
   const now = Date.parse('2026-07-28T12:00:00.000Z');
   const requestId = '317615f9-b35f-4eb4-9f6d-777f2236bb25';
@@ -87,6 +99,19 @@ test('unknown refund reuses its request ID only inside Forte idempotency window'
     ),
     null,
   );
+});
+
+test('customer cancellation is limited to a paid order before work starts', () => {
+  const order = {
+    status: 'paid',
+    fulfillment_status: 'pending',
+    refund_status: null,
+  };
+  assert.equal(canCustomerCancelOrder(order), true);
+  assert.equal(canCustomerCancelOrder({ ...order, fulfillment_status: 'new' }), true);
+  assert.equal(canCustomerCancelOrder({ ...order, fulfillment_status: 'accepted' }), false);
+  assert.equal(canCustomerCancelOrder({ ...order, status: 'pending' }), false);
+  assert.equal(canCustomerCancelOrder({ ...order, refund_status: 'processing' }), false);
 });
 
 test('pickup checkout validates a real branch and normalizes Aktau local time to UTC', () => {

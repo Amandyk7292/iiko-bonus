@@ -29,6 +29,7 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
   bool _loading = true;
   bool _refreshInFlight = false;
   String? _arrivalInFlight;
+  String? _cancellationInFlight;
   String? _error;
   List<CustomerOrder> _orders = const [];
   bool _usingOfflineCache = false;
@@ -387,6 +388,59 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
     }
   }
 
+  Future<void> _cancelOrder(CustomerOrder order) async {
+    if (_cancellationInFlight != null || !order.canCancel) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('order_cancel_title'.tr),
+        content: Text('order_cancel_body'.tr),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text('cancel_btn'.tr),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: FilledButton.styleFrom(backgroundColor: _errorRed),
+            child: Text('order_cancel_confirm'.tr),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _cancellationInFlight = order.id);
+    try {
+      final updated = await widget.api.cancelCustomerOrder(order.id);
+      if (!mounted) return;
+      setState(() {
+        _orders = [
+          for (final item in _orders)
+            if (item.id == updated.id) updated else item,
+        ];
+      });
+      await BulkaMotion.confirm();
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('order_cancel_success'.tr)));
+        await _load(silent: true);
+      }
+    } catch (error) {
+      if (!mounted) return;
+      final message = localizeErrorMessage(
+        error,
+        fallbackKey: 'order_cancel_error',
+      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+      await _load(silent: true);
+    } finally {
+      if (mounted) setState(() => _cancellationInFlight = null);
+    }
+  }
+
   Future<void> _openDetails(CustomerOrder order) async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
@@ -507,8 +561,10 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
           onRepeat: () => _repeatOrder(_orders[index]),
           onReview: () => _reviewOrder(_orders[index]),
           onArrived: () => _markArrived(_orders[index]),
+          onCancel: () => _cancelOrder(_orders[index]),
           onOpen: () => _openDetails(_orders[index]),
           arrivalLoading: _arrivalInFlight == _orders[index].id,
+          cancellationLoading: _cancellationInFlight == _orders[index].id,
         ),
       ),
     );
@@ -703,21 +759,122 @@ class _OrdersEmptyState extends StatelessWidget {
   }
 }
 
+class _RefundProgressCard extends StatelessWidget {
+  const _RefundProgressCard({required this.order});
+
+  final CustomerOrder order;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = order.paymentStatus == 'refunded'
+        ? 'succeeded'
+        : (order.refundStatus ?? 'processing');
+    final (titleKey, hintKey, icon, color) = switch (status) {
+      'succeeded' => (
+        'refund_stage_sent',
+        order.paymentProvider == 'forte'
+            ? 'orders_card_refund_notice'
+            : 'orders_kaspi_refund_notice',
+        Icons.check_circle_rounded,
+        context.bulkaColors.success,
+      ),
+      'unknown' => (
+        'refund_stage_checking',
+        'refund_stage_checking_hint',
+        Icons.sync_rounded,
+        context.bulkaColors.warning,
+      ),
+      'failed' => (
+        'refund_stage_attention',
+        'refund_stage_attention_hint',
+        Icons.error_outline_rounded,
+        _errorRed,
+      ),
+      _ => (
+        'refund_stage_processing',
+        'refund_stage_processing_hint',
+        Icons.hourglass_top_rounded,
+        context.bulkaColors.warning,
+      ),
+    };
+    final title = titleKey.tr;
+    final hint = hintKey.tr;
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      label: '$title. $hint',
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(BulkaRadii.control),
+          border: Border.all(color: color.withValues(alpha: 0.35)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: color),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontFamily: _headingFont,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    hint,
+                    style: TextStyle(
+                      color: context.bulkaColors.mutedText,
+                      fontSize: BulkaTypeScale.bodySmall,
+                    ),
+                  ),
+                  if (status == 'succeeded') ...[
+                    const SizedBox(height: 7),
+                    Text(
+                      '${_formatCartMoney(order.refundAmount ?? order.amount)} ₸',
+                      style: TextStyle(
+                        color: color,
+                        fontFamily: _headingFont,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _CustomerOrderCard extends StatelessWidget {
   const _CustomerOrderCard({
     required this.order,
     required this.onRepeat,
     required this.onReview,
     required this.onArrived,
+    required this.onCancel,
     required this.onOpen,
     required this.arrivalLoading,
+    required this.cancellationLoading,
   });
   final CustomerOrder order;
   final VoidCallback onRepeat;
   final VoidCallback onReview;
   final VoidCallback onArrived;
+  final VoidCallback onCancel;
   final VoidCallback onOpen;
   final bool arrivalLoading;
+  final bool cancellationLoading;
 
   String _date(BuildContext context, DateTime value) =>
       formatUiDate(context, value);
@@ -1001,25 +1158,10 @@ class _CustomerOrderCard extends StatelessWidget {
             value: '${_formatCartMoney(order.amount)} ₸',
             strong: true,
           ),
-          if (order.paymentStatus == 'refunded')
-            _OrderInfoRow(
-              label: 'orders_refund'.tr,
-              value:
-                  '${_formatCartMoney(order.refundAmount ?? order.amount)} ₸',
-              valueColor: _successGreen,
-              strong: true,
-            ),
-          if (order.paymentStatus == 'refunded') ...[
+          if (order.refundStatus?.isNotEmpty == true ||
+              order.paymentStatus == 'refunded') ...[
             const SizedBox(height: 8),
-            Text(
-              order.paymentProvider == 'forte'
-                  ? 'orders_card_refund_notice'.tr
-                  : 'orders_kaspi_refund_notice'.tr,
-              style: TextStyle(
-                color: colors.mutedText,
-                fontSize: BulkaTypeScale.bodySmall,
-              ),
-            ),
+            _RefundProgressCard(order: order),
           ],
           if (order.cancellationReason?.isNotEmpty == true) ...[
             const SizedBox(height: 10),
@@ -1094,6 +1236,27 @@ class _CustomerOrderCard extends StatelessWidget {
                   ),
                 ),
               ),
+          ],
+          if (order.canCancel) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: cancellationLoading ? null : onCancel,
+                icon: cancellationLoading
+                    ? const SizedBox.square(
+                        dimension: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.cancel_outlined),
+                label: Text('order_cancel_action'.tr),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
+                  foregroundColor: _errorRed,
+                  side: const BorderSide(color: _errorRed),
+                ),
+              ),
+            ),
           ],
           const SizedBox(height: 10),
           SizedBox(

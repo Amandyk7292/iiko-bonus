@@ -18,9 +18,12 @@ export interface AdminRealtimeEvent {
 }
 
 type RealtimeListener = (event: AdminRealtimeEvent) => void;
+export type AdminRealtimeStatus = 'connecting' | 'online' | 'reconnecting' | 'offline';
 
 interface AdminRealtimeValue {
   summary: OperationsSummary | null;
+  connectionStatus: AdminRealtimeStatus;
+  lastUpdatedAt: number | null;
   refreshSummary: () => Promise<void>;
   subscribe: (types: string[], listener: RealtimeListener) => () => void;
   soundEnabled: boolean;
@@ -100,6 +103,8 @@ export function AdminRealtimeProvider({
   children: ReactNode;
 }) {
   const [summary, setSummary] = useState<OperationsSummary | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<AdminRealtimeStatus>('connecting');
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
   const [soundEnabled, setSoundEnabledState] = useState(
     () => localStorage.getItem('adminOrderSoundEnabled') === 'true',
   );
@@ -122,6 +127,7 @@ export function AdminRealtimeProvider({
           Array.isArray(response.orders)
         ) {
           setSummary(response);
+          setLastUpdatedAt(Date.now());
         }
       })
       .catch(() => undefined)
@@ -160,10 +166,18 @@ export function AdminRealtimeProvider({
   useEffect(() => {
     const params = new URLSearchParams();
     if (branchId) params.set('scopeBranchId', branchId);
+    setConnectionStatus('connecting');
     const source = new EventSource(
       `/admin/api/events${params.size ? `?${params.toString()}` : ''}`,
       { withCredentials: true },
     );
+    source.onopen = () => {
+      setConnectionStatus('online');
+      setLastUpdatedAt(Date.now());
+    };
+    source.onerror = () => {
+      setConnectionStatus(source.readyState === EventSource.CLOSED ? 'offline' : 'reconnecting');
+    };
     const handlers = new Map<string, EventListener>();
     for (const type of EVENT_TYPES) {
       const handler: EventListener = (rawEvent) => {
@@ -174,6 +188,8 @@ export function AdminRealtimeProvider({
         } catch {
           return;
         }
+        setLastUpdatedAt(Date.now());
+        if (type === 'connected') setConnectionStatus('online');
         for (const subscription of listenersRef.current) {
           if (subscription.types.has(type)) subscription.listener(event);
         }
@@ -191,6 +207,8 @@ export function AdminRealtimeProvider({
     }
     return () => {
       for (const [type, handler] of handlers) source.removeEventListener(type, handler);
+      source.onopen = null;
+      source.onerror = null;
       source.close();
     };
   }, [branchId, scheduleSummaryRefresh, soundEnabled]);
@@ -213,12 +231,22 @@ export function AdminRealtimeProvider({
   const value = useMemo(
     () => ({
       summary,
+      connectionStatus,
+      lastUpdatedAt,
       refreshSummary,
       subscribe,
       soundEnabled,
       setSoundEnabled,
     }),
-    [refreshSummary, setSoundEnabled, soundEnabled, subscribe, summary],
+    [
+      connectionStatus,
+      lastUpdatedAt,
+      refreshSummary,
+      setSoundEnabled,
+      soundEnabled,
+      subscribe,
+      summary,
+    ],
   );
 
   return <AdminRealtimeContext.Provider value={value}>{children}</AdminRealtimeContext.Provider>;

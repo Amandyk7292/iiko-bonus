@@ -16,14 +16,44 @@ export class ApiError extends Error {
   status: number;
   code?: string;
   details?: unknown;
+  requestId?: string;
 
-  constructor(message: string, status: number, code?: string, details?: unknown) {
+  constructor(
+    message: string,
+    status: number,
+    code?: string,
+    details?: unknown,
+    requestId?: string,
+  ) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
     this.details = details;
+    this.requestId = requestId;
   }
+}
+
+type ApiErrorPayload = {
+  error?: string;
+  message?: string;
+  code?: string;
+  details?: unknown;
+  requestId?: string;
+};
+
+export function adminApiErrorMessage(payload: ApiErrorPayload, status: number) {
+  const rawMessage = String(payload.error || payload.message || '').trim();
+  const requestId = String(payload.requestId || '').trim();
+  if (status >= 500 || rawMessage === 'Internal Server Error') {
+    return [
+      'Не удалось выполнить действие. Повторите попытку.',
+      requestId ? `Если ошибка повторится, сообщите поддержке код запроса: ${requestId}.` : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
+  }
+  return rawMessage || `Ошибка запроса (${status})`;
 }
 
 export interface LocalizedText {
@@ -113,6 +143,7 @@ export interface AdminOrder {
   } | null;
   pickupTime?: string | null;
   comment?: string | null;
+  substitutionPreference?: 'remove_refund' | 'call_customer' | 'replace_with_approval' | string;
   items: Array<{ name?: string; quantity?: number; price?: number }>;
   earnedBonus: number;
   refundStatus?: string | null;
@@ -531,8 +562,8 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   } catch (error) {
     throw new ApiError(
       error instanceof Error && error.name === 'AbortError'
-        ? 'Request timed out'
-        : 'Network request failed',
+        ? 'Сервер не ответил вовремя. Повторите попытку.'
+        : 'Нет связи с сервером. Проверьте интернет и повторите попытку.',
       0,
       'NETWORK_ERROR',
     );
@@ -541,18 +572,18 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   }
 
   if (!response.ok) {
-    const errorData: { error?: string; message?: string; code?: string; details?: unknown } =
-      await parseResponse<{ error?: string; message?: string; code?: string; details?: unknown }>(
-        response,
-      ).catch(() => ({}));
+    const errorData = await parseResponse<ApiErrorPayload>(response).catch(
+      (): ApiErrorPayload => ({}),
+    );
     if (response.status === 401) {
       window.dispatchEvent(new Event('unauthorized'));
     }
     throw new ApiError(
-      errorData.error || errorData.message || `HTTP ${response.status}`,
+      adminApiErrorMessage(errorData, response.status),
       response.status,
       errorData.code,
       errorData.details,
+      errorData.requestId,
     );
   }
 

@@ -27,6 +27,7 @@ const ORDER_FIELDS = [
   'delivery_address',
   'delivery_fee',
   'comment',
+  'substitution_preference',
   'cart_items',
   'earned_bonus',
   'bonus_awarded_at',
@@ -182,6 +183,7 @@ const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
         : null,
     deliveryFee: Number(order.delivery_fee || 0),
     comment: order.comment || null,
+    substitutionPreference: order.substitution_preference || 'call_customer',
     items: Array.isArray(order.cart_items) ? order.cart_items : [],
     earnedBonus: Number(order.earned_bonus || 0),
     refundStatus: order.refund_status || null,
@@ -262,6 +264,12 @@ function canMarkCustomerArrived(order) {
   if (!['pickup', 'preorder'].includes(order.fulfillment_type || 'pickup')) return false;
   const status = order.fulfillment_status === 'pending' ? 'new' : order.fulfillment_status;
   return status === 'ready';
+}
+
+function canCustomerCancelOrder(order) {
+  if (!order || order.status !== 'paid') return false;
+  const status = order.fulfillment_status === 'pending' ? 'new' : order.fulfillment_status;
+  return status === 'new' && !order.refund_status;
 }
 
 async function markCustomerArrived(customerId, orderId) {
@@ -506,7 +514,11 @@ async function markRefundFailure(order, error) {
     .eq('refund_status', 'processing');
 }
 
-async function cancelPaidOrder(current, cancellationReason) {
+async function cancelPaidOrder(
+  current,
+  cancellationReason,
+  { allowedFulfillmentStatuses = [], cancelBeforeRefund = false } = {},
+) {
   const currentStatus =
     current.fulfillment_status === 'pending' ? 'new' : current.fulfillment_status;
   if (current.status === 'refunded' && currentStatus === 'cancelled') {
@@ -521,6 +533,16 @@ async function cancelPaidOrder(current, cancellationReason) {
   }
   if (current.status !== 'paid') {
     throw httpError(409, 'Возврат доступен только для оплаченного заказа');
+  }
+  const allowedStatuses = Array.isArray(allowedFulfillmentStatuses)
+    ? allowedFulfillmentStatuses.map(String).filter(Boolean)
+    : [];
+  if (allowedStatuses.length && !allowedStatuses.includes(String(current.fulfillment_status))) {
+    throw refundError(
+      409,
+      'Отменить заказ самостоятельно можно только до принятия в работу',
+      'CUSTOMER_ORDER_CANCELLATION_CLOSED',
+    );
   }
   const reason = String(cancellationReason || '')
     .trim()
@@ -560,11 +582,13 @@ async function cancelPaidOrder(current, cancellationReason) {
       refund_requested_at: retryRequestId ? current.refund_requested_at : requestedAt,
       refund_error: null,
       cancellation_reason: reason || null,
+      ...(cancelBeforeRefund && { fulfillment_status: 'cancelled', fulfilled_at: null }),
       last_error: null,
       refund_request_id: refundRequestId,
     })
     .eq('id', current.id)
     .eq('status', 'paid');
+  if (allowedStatuses.length) claim = claim.in('fulfillment_status', allowedStatuses);
   claim = current.refund_status
     ? claim.eq('refund_status', current.refund_status)
     : claim.is('refund_status', null);
@@ -575,6 +599,27 @@ async function cancelPaidOrder(current, cancellationReason) {
       409,
       'Состояние заказа изменилось. Обновите список перед возвратом.',
       'PAYMENT_REFUND_CONFLICT',
+    );
+  }
+
+  if (cancelBeforeRefund) {
+    await releaseOrderReservations(claimed.id).catch((error) =>
+      console.error('Не удалось освободить резерв отменённого заказа:', error.message),
+    );
+    realtime.publish(
+      'order.updated',
+      {
+        orderId: claimed.id,
+        orderNumber: claimed.order_number,
+        paymentStatus: claimed.status,
+        orderStatus: claimed.fulfillment_status,
+        refundStatus: claimed.refund_status,
+      },
+      {
+        customerId: claimed.customer_id,
+        includeAdmins: true,
+        branchId: claimed.branch_id,
+      },
     );
   }
 
@@ -661,6 +706,46 @@ async function cancelPaidOrder(current, cancellationReason) {
   return normalizeOrder(finalOrder);
 }
 
+async function cancelCustomerOrder(customerId, orderId) {
+  const { data: current, error } = await supabase
+    .from('kaspi_orders')
+    .select('*,payment_receipts(id,language)')
+    .eq('id', orderId)
+    .eq('customer_id', customerId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!current) throw httpError(404, 'Заказ не найден');
+  if (
+    current.fulfillment_status === 'cancelled' &&
+    current.cancellation_reason === 'Отменено клиентом'
+  ) {
+    if (
+      current.status === 'refunded' ||
+      ['processing', 'unknown'].includes(current.refund_status)
+    ) {
+      return normalizeOrder(current);
+    }
+    if (current.refund_status === 'failed') {
+      throw refundError(
+        409,
+        'Заказ отменён, но возврат требует проверки. Напишите в поддержку.',
+        'PAYMENT_REFUND_FAILED',
+      );
+    }
+  }
+  if (!canCustomerCancelOrder(current)) {
+    throw refundError(
+      409,
+      'Отменить заказ самостоятельно можно только до принятия в работу',
+      'CUSTOMER_ORDER_CANCELLATION_CLOSED',
+    );
+  }
+  return cancelPaidOrder(current, 'Отменено клиентом', {
+    allowedFulfillmentStatuses: ['pending', 'new'],
+    cancelBeforeRefund: true,
+  });
+}
+
 async function updateAdminOrderStatus(
   id,
   nextStatus,
@@ -715,13 +800,13 @@ async function updateAdminOrderStatus(
     fulfilled_at: nextStatus === 'completed' ? new Date().toISOString() : null,
     last_error: null,
   };
-  const { data, error } = await supabase
+  let updateQuery = supabase
     .from('kaspi_orders')
     .update(updates)
     .eq('id', id)
-    .eq('fulfillment_status', current.fulfillment_status)
-    .select('*')
-    .maybeSingle();
+    .eq('fulfillment_status', current.fulfillment_status);
+  updateQuery = updateQuery.or('refund_status.is.null,refund_status.not.in.(processing,unknown)');
+  const { data, error } = await updateQuery.select('*').maybeSingle();
   if (error) throw error;
   if (!data) throw httpError(409, 'Статус уже изменён. Обновите список.');
   await notifyOrderStatus(data).catch((error) =>
@@ -751,7 +836,9 @@ module.exports = {
   listAdminOrders,
   listCustomerOrders,
   canMarkCustomerArrived,
+  canCustomerCancelOrder,
   markCustomerArrived,
+  cancelCustomerOrder,
   notifyOrderStatus,
   safeUnknownRefundRequestId,
   updateAdminOrderStatus,

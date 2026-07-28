@@ -28,6 +28,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
   Timer? _clock;
   bool _refreshing = false;
   bool _arrivalLoading = false;
+  bool _cancellationLoading = false;
   DateTime _now = DateTime.now();
 
   @override
@@ -168,6 +169,54 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
       ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
     } finally {
       if (mounted) setState(() => _arrivalLoading = false);
+    }
+  }
+
+  Future<void> _cancelOrder() async {
+    if (_cancellationLoading || !_order.canCancel) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('order_cancel_title'.tr),
+        content: Text('order_cancel_body'.tr),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text('cancel_btn'.tr),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: FilledButton.styleFrom(backgroundColor: _errorRed),
+            child: Text('order_cancel_confirm'.tr),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _cancellationLoading = true);
+    try {
+      final updated = await widget.api.cancelCustomerOrder(_order.id);
+      if (!mounted) return;
+      setState(() => _order = updated);
+      widget.onOrderChanged(updated);
+      await BulkaMotion.confirm();
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('order_cancel_success'.tr)));
+      }
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            localizeErrorMessage(error, fallbackKey: 'order_cancel_error'),
+          ),
+        ),
+      );
+      await _reload();
+    } finally {
+      if (mounted) setState(() => _cancellationLoading = false);
     }
   }
 
@@ -331,6 +380,11 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
             ),
             const SizedBox(height: 16),
             _OrderTimeline(order: _order),
+            if (_order.refundStatus?.isNotEmpty == true ||
+                _order.paymentStatus == 'refunded') ...[
+              const SizedBox(height: 16),
+              _RefundProgressCard(order: _order),
+            ],
             if (_order.trackingUrl?.isNotEmpty == true) ...[
               const SizedBox(height: 16),
               SizedBox(
@@ -485,6 +539,24 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
                 label: Text('order_receipt'.tr),
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size.fromHeight(52),
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
+            if (_order.canCancel) ...[
+              OutlinedButton.icon(
+                onPressed: _cancellationLoading ? null : _cancelOrder,
+                icon: _cancellationLoading
+                    ? const SizedBox.square(
+                        dimension: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.cancel_outlined),
+                label: Text('order_cancel_action'.tr),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(52),
+                  foregroundColor: _errorRed,
+                  side: const BorderSide(color: _errorRed),
                 ),
               ),
               const SizedBox(height: 10),

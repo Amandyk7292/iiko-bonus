@@ -15,6 +15,7 @@ class _CheckoutDetails {
     required this.checkoutId,
     required this.orderType,
     required this.scheduledAt,
+    required this.substitutionPreference,
     this.savedPaymentMethodId,
     this.preorderFulfillmentType,
     this.branch,
@@ -28,6 +29,7 @@ class _CheckoutDetails {
   final String checkoutId;
   final _OrderType orderType;
   final String scheduledAt;
+  final String substitutionPreference;
   final String? savedPaymentMethodId;
   final String? preorderFulfillmentType;
   final String? branch;
@@ -36,6 +38,141 @@ class _CheckoutDetails {
   final String? additionalPhone;
   final String? promoCode;
   final String? comment;
+}
+
+class _CheckoutSubstitutionPreference extends StatelessWidget {
+  const _CheckoutSubstitutionPreference({
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    const options = [
+      (
+        value: 'remove_refund',
+        titleKey: 'checkout_substitution_remove_refund',
+        hintKey: 'checkout_substitution_remove_refund_hint',
+        icon: Icons.remove_shopping_cart_outlined,
+      ),
+      (
+        value: 'call_customer',
+        titleKey: 'checkout_substitution_call_customer',
+        hintKey: 'checkout_substitution_call_customer_hint',
+        icon: Icons.phone_outlined,
+      ),
+      (
+        value: 'replace_with_approval',
+        titleKey: 'checkout_substitution_replace_approval',
+        hintKey: 'checkout_substitution_replace_approval_hint',
+        icon: Icons.swap_horiz_rounded,
+      ),
+    ];
+    return Column(
+      children: [
+        for (var index = 0; index < options.length; index++) ...[
+          _CheckoutSubstitutionOption(
+            value: options[index].value,
+            selected: value == options[index].value,
+            title: options[index].titleKey.tr,
+            hint: options[index].hintKey.tr,
+            icon: options[index].icon,
+            onTap: () => onChanged(options[index].value),
+          ),
+          if (index != options.length - 1) const SizedBox(height: 8),
+        ],
+      ],
+    );
+  }
+}
+
+class _CheckoutSubstitutionOption extends StatelessWidget {
+  const _CheckoutSubstitutionOption({
+    required this.value,
+    required this.selected,
+    required this.title,
+    required this.hint,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String value;
+  final bool selected;
+  final String title;
+  final String hint;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.bulkaColors;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: title,
+      hint: hint,
+      child: Material(
+        color: selected
+            ? colors.brandGold.withValues(alpha: 0.12)
+            : colors.surfaceCream,
+        borderRadius: BorderRadius.circular(BulkaRadii.control),
+        child: InkWell(
+          key: ValueKey('checkout-substitution-$value'),
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(BulkaRadii.control),
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 64),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(BulkaRadii.control),
+              border: Border.all(
+                color: selected ? colors.brandGold : colors.cardBorder,
+                width: selected ? 1.5 : 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(icon, color: colors.brandBrown),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontFamily: _headingFont,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        hint,
+                        style: TextStyle(
+                          color: colors.mutedText,
+                          fontSize: BulkaTypeScale.caption,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Icon(
+                  selected
+                      ? Icons.radio_button_checked_rounded
+                      : Icons.radio_button_off_rounded,
+                  color: selected ? colors.brandGold : colors.mutedText,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _CheckoutSavedCards extends StatelessWidget {

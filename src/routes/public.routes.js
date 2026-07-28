@@ -390,6 +390,7 @@ router.get('/api/customer/profile/export', publicController.exportProfile);
 router.get('/api/customer/loyalty', tierController.getCustomerLoyalty);
 router.get('/api/customer/orders', orderController.listCustomer);
 router.post('/api/customer/orders/:id/arrived', orderController.markArrived);
+router.post('/api/customer/orders/:id/cancel', orderController.cancelCustomer);
 router.get('/api/customer/events', (req, res) =>
   realtime.openStream(req, res, { customerId: req.customerAuth.id }),
 );

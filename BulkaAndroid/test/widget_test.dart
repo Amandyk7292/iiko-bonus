@@ -1263,6 +1263,43 @@ void main() {
     semantics.dispose();
   });
 
+  testWidgets('new paid order can be cancelled with an automatic refund', (
+    tester,
+  ) async {
+    final api = _CancellationApiClient();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildBulkaTheme(),
+        home: ChangeNotifierProvider(
+          create: (_) => CartProvider(),
+          child: CustomerOrdersScreen(api: api),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Отменить заказ'));
+    await tester.tap(find.text('Отменить заказ'));
+    await tester.pumpAndSettle();
+    expect(find.text('Отменить заказ?'), findsOneWidget);
+    expect(
+      find.textContaining('автоматически отправим возврат'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Отменить и вернуть деньги'));
+    await tester.pumpAndSettle();
+
+    expect(api.cancellationCalls, 1);
+    expect(api.order.refundStatus, 'succeeded');
+    expect(find.text('Отменить заказ'), findsNothing);
+    await tester.tap(find.text('Завершённые'));
+    await tester.pumpAndSettle();
+    expect(find.text('Отправлен на карту'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('ETA range remains readable and announced at 200 percent text', (
     tester,
   ) async {
@@ -2315,6 +2352,45 @@ class _ArrivalApiClient extends _FakeBulkaApiClient {
   }
 }
 
+class _CancellationApiClient extends _FakeBulkaApiClient {
+  int cancellationCalls = 0;
+  CustomerOrder order = _newPaidOrder;
+
+  @override
+  Future<List<CustomerOrder>> getCustomerOrders({
+    bool completed = false,
+  }) async {
+    if (completed) return order.isClosed ? [order] : const [];
+    return order.isClosed ? const [] : [order];
+  }
+
+  @override
+  Future<CustomerOrder> cancelCustomerOrder(String orderId) async {
+    cancellationCalls++;
+    order = CustomerOrder(
+      id: order.id,
+      number: order.number,
+      paymentStatus: 'refunded',
+      paymentProvider: 'forte',
+      orderStatus: 'cancelled',
+      amount: order.amount,
+      subtotal: order.subtotal,
+      discount: order.discount,
+      branch: order.branch,
+      items: order.items,
+      earnedBonus: order.earnedBonus,
+      createdAt: order.createdAt,
+      fulfillmentType: order.fulfillmentType,
+      deliveryStatus: order.deliveryStatus,
+      cancellationReason: 'Отменено клиентом',
+      refundStatus: 'succeeded',
+      refundAmount: order.amount,
+      refundedAt: DateTime.utc(2026, 7, 28, 12),
+    );
+    return order;
+  }
+}
+
 final _readyPickupOrder = CustomerOrder(
   id: 'ready-order',
   number: 100124,
@@ -2329,6 +2405,25 @@ final _readyPickupOrder = CustomerOrder(
   ],
   earnedBonus: 120,
   createdAt: DateTime.utc(2026, 7, 16, 10),
+  fulfillmentType: 'pickup',
+  deliveryStatus: 'unassigned',
+);
+
+final _newPaidOrder = CustomerOrder(
+  id: 'new-paid-order',
+  number: 100125,
+  paymentStatus: 'paid',
+  paymentProvider: 'forte',
+  orderStatus: 'new',
+  amount: 2400,
+  subtotal: 2400,
+  discount: 0,
+  branch: 'Bulka, 17-й микрорайон',
+  items: const [
+    {'id': 'croissant', 'name': 'Круассан', 'quantity': 2, 'price': 1200},
+  ],
+  earnedBonus: 120,
+  createdAt: DateTime.utc(2026, 7, 28, 10),
   fulfillmentType: 'pickup',
   deliveryStatus: 'unassigned',
 );
