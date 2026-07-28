@@ -587,11 +587,16 @@ async function publicAuthRequest<T>(endpoint: string, data: Record<string, unkno
 
 export const api = {
   login: async (username: string, password: string, code: string) => {
+    const normalizedCode = code.trim();
     const response = await fetch(`${BASE_URL}/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       credentials: 'same-origin',
-      body: JSON.stringify({ username, password, code }),
+      body: JSON.stringify({
+        username,
+        password,
+        ...(normalizedCode ? { code: normalizedCode } : {}),
+      }),
     }).catch(() => {
       throw new ApiError('Network request failed', 0, 'NETWORK_ERROR');
     });

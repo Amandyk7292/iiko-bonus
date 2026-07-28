@@ -11,11 +11,14 @@ const adminLoginBodySchema = z
   .object({
     username: z.string().trim().toLowerCase().min(1).max(160).default('admin'),
     password: z.string().min(1).max(512),
-    code: z
-      .string()
-      .trim()
-      .regex(/^\d{6}$/)
-      .optional(),
+    code: z.preprocess(
+      (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+      z
+        .string()
+        .trim()
+        .regex(/^\d{6}$/)
+        .optional(),
+    ),
   })
   .strict();
 
