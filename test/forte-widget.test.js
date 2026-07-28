@@ -102,6 +102,36 @@ test('Forte checkout availability detects an explicitly empty provider response'
   );
 });
 
+test('Forte checkout is available before the customer starts the card gateway', () => {
+  assert.deepEqual(
+    widgetCheckoutAvailability({
+      checkout: {
+        status: 'error',
+        message: 'Gateway response not found.',
+        payment_method: { types: ['credit_card'] },
+        shop: { brands: ['visa', 'master'] },
+      },
+    }),
+    {
+      available: true,
+      availableMethods: ['credit_card', 'visa', 'master'],
+      message: 'Gateway response not found.',
+      providerStatus: 'error',
+    },
+  );
+  assert.equal(
+    widgetCheckoutAvailability({
+      checkout: {
+        status: 'error',
+        message: 'Gateway response not found.',
+        payment_method: { types: [] },
+        shop: { brands: [] },
+      },
+    }).available,
+    false,
+  );
+});
+
 test('Forte widget launch keeps the payment token out of the query string', () => {
   const url = new URL(
     buildWidgetLaunchUrl({

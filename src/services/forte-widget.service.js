@@ -207,11 +207,15 @@ const widgetCheckoutAvailability = (payload = {}) => {
     ? checkout.shop.brands.map((value) => cleanText(value, 40).toLowerCase())
     : null;
   const availableMethods = [...(methodTypes || []), ...(shopBrands || [])].filter(Boolean);
-  const explicitError =
-    ['error', 'failed', 'rejected', 'declined'].includes(status) ||
-    /gateway response not found|no available payment methods|нет доступных (?:способов|методов) оплаты|қолжетімді төлем (?:тәсілдері|әдістері) жоқ/i.test(
+  const gatewayHasNotStarted =
+    /gateway response not found/i.test(message) && availableMethods.length > 0;
+  const noPaymentMethods =
+    /no available payment methods|нет доступных (?:способов|методов) оплаты|қолжетімді төлем (?:тәсілдері|әдістері) жоқ/i.test(
       message,
     );
+  const explicitError =
+    noPaymentMethods ||
+    (['error', 'failed', 'rejected', 'declined'].includes(status) && !gatewayHasNotStarted);
   const declaredMethodCollections = [methodTypes, shopBrands].filter(Array.isArray);
   const explicitEmpty =
     declaredMethodCollections.length > 0 &&
