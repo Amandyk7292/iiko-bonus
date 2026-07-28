@@ -125,9 +125,10 @@ const Map<String, Map<String, String>> _accountTranslations = {
     'en': 'Link card',
   },
   'card_setup_hint': {
-    'ru': 'Подтвердите привязку на защищённой форме ForteBank.',
-    'kk': 'ForteBank қорғалған нысанында байланыстыруды растаңыз.',
-    'en': 'Confirm the link on the secure ForteBank form.',
+    'ru': 'Банк спишет 30 ₸ для проверки и сразу вернёт.',
+    'kk': 'Банк тексеру үшін 30 ₸ алып, бірден қайтарады.',
+    'en':
+        'The bank will charge 30 ₸ for verification and refund it immediately.',
   },
   'card_setup_verifying': {
     'ru': 'Проверяем карту',
@@ -135,9 +136,9 @@ const Map<String, Map<String, String>> _accountTranslations = {
     'en': 'Verifying card',
   },
   'card_setup_verifying_hint': {
-    'ru': 'Подождите подтверждения ForteBank.',
-    'kk': 'ForteBank растауын күтіңіз.',
-    'en': 'Waiting for confirmation from ForteBank.',
+    'ru': 'Сохраняем карту и возвращаем 30 ₸.',
+    'kk': 'Картаны сақтап, 30 ₸ қайтарып жатырмыз.',
+    'en': 'Saving the card and refunding 30 ₸.',
   },
   'card_setup_success': {
     'ru': 'Карта сохранена',
@@ -145,9 +146,9 @@ const Map<String, Map<String, String>> _accountTranslations = {
     'en': 'Card saved',
   },
   'card_setup_success_hint': {
-    'ru': 'Теперь её можно выбирать при следующих покупках.',
-    'kk': 'Енді оны келесі сатып алуларда таңдауға болады.',
-    'en': 'You can now select it for future purchases.',
+    'ru': 'Карта сохранена, возврат 30 ₸ отправлен.',
+    'kk': 'Карта сақталды, 30 ₸ қайтарылды.',
+    'en': 'Card saved and the 30 ₸ refund was sent.',
   },
   'card_setup_failed': {
     'ru': 'Карта не сохранена',

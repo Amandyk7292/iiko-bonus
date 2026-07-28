@@ -152,7 +152,7 @@ test('canonical receipt migration never stores full PAN or CVV', () => {
 
 test('guest profile exposes every public legal page', () => {
   const source = fs.readFileSync(
-    path.join(root, 'BulkaAndroid', 'lib', 'shell', 'main_shell.dart'),
+    path.join(root, 'BulkaAndroid', 'lib', 'screens', 'legal_documents_screen.dart'),
     'utf8',
   );
   for (const slug of [
@@ -163,8 +163,9 @@ test('guest profile exposes every public legal page', () => {
     'delivery-terms',
     'company-details',
   ]) {
-    assert.match(source, new RegExp(`bulkaLegalPageUri\\('${slug}'\\)`));
+    assert.match(source, new RegExp(`slug:\\s*'${slug}'`));
   }
+  assert.match(source, /bulkaLegalPageUri\(slug\)/);
 
   const localization = fs.readFileSync(
     path.join(root, 'BulkaAndroid', 'lib', 'core', 'localization.dart'),

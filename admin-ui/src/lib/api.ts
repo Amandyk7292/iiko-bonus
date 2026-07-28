@@ -86,6 +86,7 @@ export interface AdminOrder {
   id: string;
   number: number;
   paymentStatus: string;
+  paymentProvider?: 'kaspi' | 'forte' | string;
   orderStatus: string;
   amount: number;
   subtotal: number;
@@ -587,25 +588,19 @@ async function publicAuthRequest<T>(endpoint: string, data: Record<string, unkno
 
 export const api = {
   login: async (username: string, password: string, code: string) => {
-    const normalizedCode = code.trim();
+    const loginData = { username, password, ...(code.trim() && { code: code.trim() }) };
     const response = await fetch(`${BASE_URL}/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       credentials: 'same-origin',
-      body: JSON.stringify({
-        username,
-        password,
-        ...(normalizedCode ? { code: normalizedCode } : {}),
-      }),
+      body: JSON.stringify(loginData),
     }).catch(() => {
       throw new ApiError('Network request failed', 0, 'NETWORK_ERROR');
     });
     if (!response.ok) {
-      const errorData: { error?: string } = await parseResponse<{ error?: string }>(response).catch(
-        () => ({}),
-      );
+      const errorData = await parseResponse<{ error?: string }>(response).catch(() => null);
       throw new ApiError(
-        errorData.error || 'Invalid credentials',
+        errorData?.error || 'Invalid credentials',
         response.status,
         response.status === 401 ? 'AUTH_INVALID' : 'AUTH_CONFIG',
       );

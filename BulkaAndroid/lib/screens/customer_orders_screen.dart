@@ -1009,6 +1009,18 @@ class _CustomerOrderCard extends StatelessWidget {
               valueColor: _successGreen,
               strong: true,
             ),
+          if (order.paymentStatus == 'refunded') ...[
+            const SizedBox(height: 8),
+            Text(
+              order.paymentProvider == 'forte'
+                  ? 'orders_card_refund_notice'.tr
+                  : 'orders_kaspi_refund_notice'.tr,
+              style: TextStyle(
+                color: colors.mutedText,
+                fontSize: BulkaTypeScale.bodySmall,
+              ),
+            ),
+          ],
           if (order.cancellationReason?.isNotEmpty == true) ...[
             const SizedBox(height: 10),
             Text(

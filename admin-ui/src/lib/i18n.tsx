@@ -73,8 +73,7 @@ const messages: Record<Locale, Record<string, string>> = {
     'auth.byPhone': 'По телефону',
     'auth.byPassword': 'По паролю',
     'auth.phone': 'Номер телефона',
-    'auth.whatsappInstruction':
-      'Откройте WhatsApp, отправьте подготовленное сообщение и получите код.',
+    'auth.whatsappInstruction': 'Откройте WhatsApp, отправьте подготовленное сообщение и получите код.',
     'auth.openWhatsApp': 'Открыть WhatsApp',
     'auth.phoneCode': 'Код из WhatsApp',
     'auth.changePhone': 'Изменить номер',
@@ -129,7 +128,8 @@ const messages: Record<Locale, Record<string, string>> = {
     'page.whatsapp.title': 'WhatsApp и ИИ-ассистент',
     'page.whatsapp.subtitle': 'Переписки, память и знания консультанта Bulka',
     'contacts.intro': 'Создавайте общие карточки и любые кнопки связи без выпуска новой версии приложения.',
-    'contacts.publicHint': 'Активные карточки доступны гостям. Изменения появятся после обновления данных в приложении.',
+    'contacts.publicHint':
+      'Активные карточки доступны гостям. Изменения появятся после обновления данных в приложении.',
     'contacts.addCard': 'Добавить карточку',
     'contacts.loading': 'Загрузка контактов…',
     'contacts.empty': 'Карточек пока нет',
@@ -351,8 +351,7 @@ const messages: Record<Locale, Record<string, string>> = {
     'tiers.previewCashback': '{{percent}}% кэшбэк',
     'tiers.validationNames': 'Заполните название на русском, казахском и английском.',
     'tiers.validationCode': 'Введите системный код латиницей.',
-    'tiers.validationNumbers':
-      'Порог не может быть отрицательным, а кэшбэк должен быть от 0 до 100%.',
+    'tiers.validationNumbers': 'Порог не может быть отрицательным, а кэшбэк должен быть от 0 до 100%.',
     'tiers.baselineHint': 'Минимум один активный базовый уровень с порогом 0 обязателен.',
     'content.ru': 'RU',
     'content.kk': 'KZ',
@@ -367,8 +366,7 @@ const messages: Record<Locale, Record<string, string>> = {
     'stories.emptyHint': 'Создайте первый баннер, чтобы показать его в мобильном приложении.',
     'stories.createTitle': 'Создать баннер акции',
     'stories.editTitle': 'Редактировать акцию',
-    'stories.formHint':
-      'Обязательны заголовок и два изображения RU. Пустые поля KZ и EN используют RU-версию.',
+    'stories.formHint': 'Обязательны заголовок и два изображения RU. Пустые поля KZ и EN используют RU-версию.',
     'stories.promoTitle': 'Заголовок акции',
     'stories.promoDescription': 'Описание акции',
     'stories.fallbackText': 'Если оставить пустым, клиент увидит текст RU.',
@@ -416,11 +414,9 @@ const messages: Record<Locale, Record<string, string>> = {
     'locations.createCity': 'Создать город',
     'locations.cityCreated': 'Город создан. Теперь добавьте первую точку',
     'locations.cityCreateStep': 'Шаг 1 · Создайте город',
-    'locations.cityCreateHint':
-      'Введите название и выберите центр города через поиск или нажатием на карту.',
+    'locations.cityCreateHint': 'Введите название и выберите центр города через поиск или нажатием на карту.',
     'locations.cityMapTitle': 'Центр города на карте',
-    'locations.cityMapHint':
-      'Найдите город в строке поиска на карте, затем уточните положение метки.',
+    'locations.cityMapHint': 'Найдите город в строке поиска на карте, затем уточните положение метки.',
     'locations.cityCoordinatesRequired': 'Выберите центр города на карте.',
     'locations.editCity': 'Редактировать город',
     'locations.cityName': 'Название города',
@@ -428,10 +424,8 @@ const messages: Record<Locale, Record<string, string>> = {
     'locations.createPoint': 'Создать филиал',
     'locations.pointCreated': 'Филиал создан',
     'locations.pointCreateStep': 'Шаг 2 · Добавьте точку внутри города',
-    'locations.pointCreateHint':
-      'Выберите город, укажите название и адрес, затем поставьте точную метку.',
-    'locations.pointMapHint':
-      'Карта открыта на городе {{city}}. Найдите адрес или нажмите на нужное здание.',
+    'locations.pointCreateHint': 'Выберите город, укажите название и адрес, затем поставьте точную метку.',
+    'locations.pointMapHint': 'Карта открыта на городе {{city}}. Найдите адрес или нажмите на нужное здание.',
     'locations.mapPointSelected': 'Точка выбрана',
     'locations.mapPointRequired': 'Поставьте метку на карте',
     'locations.defaultZoneHint':
@@ -450,8 +444,7 @@ const messages: Record<Locale, Record<string, string>> = {
     'locations.deletePointBody': 'Филиал будет удалён безвозвратно.',
     'locations.latitude': 'Широта',
     'locations.longitude': 'Долгота',
-    'locations.allLanguagesValidation':
-      'Заполните обязательные поля на русском, казахском и английском.',
+    'locations.allLanguagesValidation': 'Заполните обязательные поля на русском, казахском и английском.',
     'locations.saved': 'Локация сохранена',
     'locations.fulfillmentIntro':
       'Настройте доступность филиалов, способы получения, расписание и реальные правила доставки.',
@@ -475,8 +468,7 @@ const messages: Record<Locale, Record<string, string>> = {
     'locations.deliveryFee': 'Стоимость, ₸',
     'locations.deliveryMinimum': 'Минимальный заказ, ₸',
     'locations.deliveryValuesInvalid': 'Проверьте числовые параметры доставки.',
-    'locations.deliveryRulesRequired':
-      'Для включения доставки заполните радиус, стоимость и минимальную сумму.',
+    'locations.deliveryRulesRequired': 'Для включения доставки заполните радиус, стоимость и минимальную сумму.',
     'locations.hoursInvalid': 'Введите время в формате ЧЧ:ММ.',
     'locations.coordinatesInvalid': 'Выберите корректную точку филиала на карте.',
     'locations.mapManagement': 'Точка на карте',
@@ -494,8 +486,7 @@ const messages: Record<Locale, Record<string, string>> = {
     'locations.bulkOverwriteHint':
       'Настройте тарифы один раз. Они заменят зоны у всех активных филиалов; индивидуальные исключения останутся доступны в настройках точки.',
     'locations.bulkEnableDelivery': 'Также включить доставку во всех активных филиалах',
-    'locations.bulkEnableDeliveryHint':
-      'Если выключено, текущий статус доставки каждой точки сохранится.',
+    'locations.bulkEnableDeliveryHint': 'Если выключено, текущий статус доставки каждой точки сохранится.',
     'locations.bulkApply': 'Применить к {{count}} филиалам',
     'locations.bulkConfirmTitle': 'Применить общие зоны доставки?',
     'locations.bulkConfirmBody':
@@ -517,10 +508,10 @@ const messages: Record<Locale, Record<string, string>> = {
     'orders.emptyHint': 'После оплаты Kaspi заказ появится здесь.',
     'orders.changeStatus': 'Изменить статус',
     'orders.statusSaved': 'Статус заказа обновлён',
-    'orders.cancelReasonPrompt': 'Причина отмены (необязательно)',
+    'orders.cancelReasonPrompt': 'Причина отмены (увидит клиент)',
     'orders.refundConfirm':
-      'Отменить заказ и вернуть клиенту {{amount}} ₸ через Kaspi? Действие нельзя отменить.',
-    'orders.refundSucceeded': 'Заказ отменён, возврат Kaspi выполнен',
+      'Отменить заказ и вернуть клиенту {{amount}} ₸ на исходный способ оплаты? Зачисление на карту зависит от банка клиента.',
+    'orders.refundSucceeded': 'Заказ отменён, возврат отправлен через исходный способ оплаты',
     'payment.pending': 'Ожидает',
     'payment.paid': 'Оплачен',
     'payment.refunded': 'Возвращён',
@@ -758,7 +749,8 @@ const messages: Record<Locale, Record<string, string>> = {
     'access.ipListEmptyHint': 'Добавьте IP, которым разрешён вход на сайт.',
     'access.scopeHint': 'Админ-панель, мобильное API, страницы документов и интеграции iiko/Kaspi не блокируются.',
     'access.saveSiteAccess': 'Сохранить доступ',
-    'access.accountsHint': 'Учётных записей: {{count}}. Владелец имеет полный доступ; сотрудники входят по номеру и коду WhatsApp и видят только назначенные филиалы.',
+    'access.accountsHint':
+      'Учётных записей: {{count}}. Владелец имеет полный доступ; сотрудники входят по номеру и коду WhatsApp и видят только назначенные филиалы.',
     'access.noAccounts': 'Учётных записей пока нет',
     'access.whatsappLogin': 'Вход по WhatsApp-коду',
     'access.staffName': 'Имя сотрудника',
@@ -773,8 +765,7 @@ const messages: Record<Locale, Record<string, string>> = {
     'access.loginHint': 'Для входа сотрудник выберет «По телефону» и получит одноразовый код через WhatsApp.',
     'access.adding': 'Добавление…',
     'inventory.heading': 'Остатки и стоп-лист',
-    'inventory.intro':
-      'Каждый филиал получает собственный остаток. Оплаченные и ожидающие заказы резервируют товар.',
+    'inventory.intro': 'Каждый филиал получает собственный остаток. Оплаченные и ожидающие заказы резервируют товар.',
     'inventory.sync': 'Синхронизировать с iiko',
     'inventory.syncing': 'Синхронизация…',
     'inventory.synced': 'Остатки синхронизированы',
@@ -794,8 +785,7 @@ const messages: Record<Locale, Record<string, string>> = {
     'inventory.reservationHint':
       'Резерв создаётся при выставлении счёта и освобождается при отмене или истечении оплаты.',
     'couriers.heading': 'Команда доставки',
-    'couriers.intro':
-      'Добавляйте курьеров, назначайте их на оплаченные заказы и управляйте доступностью.',
+    'couriers.intro': 'Добавляйте курьеров, назначайте их на оплаченные заказы и управляйте доступностью.',
     'couriers.add': 'Добавить курьера',
     'couriers.edit': 'Редактировать курьера',
     'couriers.empty': 'Курьеров пока нет',
@@ -831,8 +821,7 @@ const messages: Record<Locale, Record<string, string>> = {
     'security.heading': 'Безопасность админ-панели',
     'security.intro': 'Проверяйте роли, двухфакторную защиту и действия администраторов.',
     'security.protected': 'Усиленная защита включена',
-    'security.protectedHint':
-      'Используются отдельные администраторы, роли и обязательный одноразовый код.',
+    'security.protectedHint': 'Используются отдельные администраторы, роли и обязательный одноразовый код.',
     'security.actionRequired': 'Нужно включить MFA',
     'security.mfaHint':
       'Сейчас сохранён старый одиночный вход. Создайте ADMIN_USERS_JSON и включите ADMIN_REQUIRE_MFA после привязки приложения-аутентификатора.',
@@ -857,14 +846,12 @@ const messages: Record<Locale, Record<string, string>> = {
     'deliveryStatus.delivered': 'Доставлен',
     'deliveryStatus.cancelled': 'Доставка отменена',
     'locations.slotCapacity': 'Слоты и вместимость',
-    'locations.slotCapacityHint':
-      'Сервер перестаёт показывать слот после достижения лимита заказов.',
+    'locations.slotCapacityHint': 'Сервер перестаёт показывать слот после достижения лимита заказов.',
     'locations.slotMinutes': 'Длина слота, минут',
     'locations.pickupCapacity': 'Самовывоз: заказов на слот',
     'locations.preorderCapacity': 'Предзаказ: заказов на слот',
     'locations.deliveryCapacity': 'Доставка: заказов на слот',
-    'locations.capacityInvalid':
-      'Длина слота должна быть 15–240 минут, вместимость — 1–500 заказов.',
+    'locations.capacityInvalid': 'Длина слота должна быть 15–240 минут, вместимость — 1–500 заказов.',
     'locations.slotSummary': '{{minutes}} мин · до {{capacity}} заказов',
     'analytics.orders30': 'Оплаченные заказы за 30 дней',
     'analytics.activeOrders': 'Активных сейчас: {{count}}',
@@ -1007,8 +994,10 @@ const messages: Record<Locale, Record<string, string>> = {
     'page.contacts.subtitle': 'Мобильді қолданбадағы байланыс карталары',
     'page.whatsapp.title': 'WhatsApp және ЖИ-ассистент',
     'page.whatsapp.subtitle': 'Bulka кеңесшісінің хаттары, жадысы және білімі',
-    'contacts.intro': 'Қолданбаның жаңа нұсқасын шығармай-ақ ортақ карталар мен кез келген байланыс батырмаларын жасаңыз.',
-    'contacts.publicHint': 'Белсенді карталар қонақтарға қолжетімді. Өзгерістер қолданба деректерді жаңартқанда көрінеді.',
+    'contacts.intro':
+      'Қолданбаның жаңа нұсқасын шығармай-ақ ортақ карталар мен кез келген байланыс батырмаларын жасаңыз.',
+    'contacts.publicHint':
+      'Белсенді карталар қонақтарға қолжетімді. Өзгерістер қолданба деректерді жаңартқанда көрінеді.',
     'contacts.addCard': 'Карта қосу',
     'contacts.loading': 'Байланыстар жүктелуде…',
     'contacts.empty': 'Әзірге карталар жоқ',
@@ -1211,8 +1200,7 @@ const messages: Record<Locale, Record<string, string>> = {
     'tiers.createTitle': 'Жаңа кэшбэк деңгейі',
     'tiers.editTitle': 'Деңгейді өңдеу',
     'tiers.deleteTitle': 'Деңгейді жою керек пе?',
-    'tiers.deleteBody':
-      '«{{name}}» деңгейі жойылады. Оның клиенттерге тағайындалмағанын тексеріңіз.',
+    'tiers.deleteBody': '«{{name}}» деңгейі жойылады. Оның клиенттерге тағайындалмағанын тексеріңіз.',
     'tiers.toggleTitle': 'Деңгей қолжетімділігін өзгерту керек пе?',
     'tiers.saved': 'Деңгей сақталды',
     'tiers.deleted': 'Деңгей жойылды',
@@ -1240,8 +1228,7 @@ const messages: Record<Locale, Record<string, string>> = {
     'stories.emptyHint': 'Мобильді қосымшада көрсету үшін алғашқы баннерді құрыңыз.',
     'stories.createTitle': 'Акция баннерін құру',
     'stories.editTitle': 'Акцияны өңдеу',
-    'stories.formHint':
-      'RU тақырыбы мен екі RU суреті міндетті. Бос KZ және EN өрістері RU нұсқасын пайдаланады.',
+    'stories.formHint': 'RU тақырыбы мен екі RU суреті міндетті. Бос KZ және EN өрістері RU нұсқасын пайдаланады.',
     'stories.promoTitle': 'Акция тақырыбы',
     'stories.promoDescription': 'Акция сипаттамасы',
     'stories.fallbackText': 'Бос қалдырылса, клиент RU мәтінін көреді.',
@@ -1289,11 +1276,9 @@ const messages: Record<Locale, Record<string, string>> = {
     'locations.createCity': 'Қала құру',
     'locations.cityCreated': 'Қала құрылды. Енді алғашқы нүктені қосыңыз',
     'locations.cityCreateStep': '1-қадам · Қала құрыңыз',
-    'locations.cityCreateHint':
-      'Атауын енгізіп, іздеу немесе картаны басу арқылы қала орталығын таңдаңыз.',
+    'locations.cityCreateHint': 'Атауын енгізіп, іздеу немесе картаны басу арқылы қала орталығын таңдаңыз.',
     'locations.cityMapTitle': 'Картадағы қала орталығы',
-    'locations.cityMapHint':
-      'Картадан қаланы іздеп, содан кейін белгінің орнын нақтылаңыз.',
+    'locations.cityMapHint': 'Картадан қаланы іздеп, содан кейін белгінің орнын нақтылаңыз.',
     'locations.cityCoordinatesRequired': 'Картадан қала орталығын таңдаңыз.',
     'locations.editCity': 'Қаланы өңдеу',
     'locations.cityName': 'Қала атауы',
@@ -1301,10 +1286,8 @@ const messages: Record<Locale, Record<string, string>> = {
     'locations.createPoint': 'Филиал құру',
     'locations.pointCreated': 'Филиал құрылды',
     'locations.pointCreateStep': '2-қадам · Қала ішінде нүкте қосыңыз',
-    'locations.pointCreateHint':
-      'Қаланы таңдап, атауы мен мекенжайын енгізіңіз, содан кейін нақты белгіні қойыңыз.',
-    'locations.pointMapHint':
-      'Карта {{city}} қаласында ашылды. Мекенжайды іздеңіз немесе қажетті ғимаратты басыңыз.',
+    'locations.pointCreateHint': 'Қаланы таңдап, атауы мен мекенжайын енгізіңіз, содан кейін нақты белгіні қойыңыз.',
+    'locations.pointMapHint': 'Карта {{city}} қаласында ашылды. Мекенжайды іздеңіз немесе қажетті ғимаратты басыңыз.',
     'locations.mapPointSelected': 'Нүкте таңдалды',
     'locations.mapPointRequired': 'Картаға белгі қойыңыз',
     'locations.defaultZoneHint':
@@ -1323,8 +1306,7 @@ const messages: Record<Locale, Record<string, string>> = {
     'locations.deletePointBody': 'Филиал қайтарымсыз жойылады.',
     'locations.latitude': 'Ендік',
     'locations.longitude': 'Бойлық',
-    'locations.allLanguagesValidation':
-      'Міндетті өрістерді орысша, қазақша және ағылшынша толтырыңыз.',
+    'locations.allLanguagesValidation': 'Міндетті өрістерді орысша, қазақша және ағылшынша толтырыңыз.',
     'locations.saved': 'Мекенжай сақталды',
     'locations.fulfillmentIntro':
       'Филиал қолжетімділігін, тапсырысты алу тәсілдерін, кестені және нақты жеткізу ережелерін баптаңыз.',
@@ -1342,14 +1324,12 @@ const messages: Record<Locale, Record<string, string>> = {
     'locations.opensAt': 'Ашылу',
     'locations.closesAt': 'Жабылу',
     'locations.deliveryRules': 'Жеткізу ережелері',
-    'locations.deliveryRulesHint':
-      'Жеткізу радиус, құны және ең төменгі сома толтырылғаннан кейін ғана қосылады.',
+    'locations.deliveryRulesHint': 'Жеткізу радиус, құны және ең төменгі сома толтырылғаннан кейін ғана қосылады.',
     'locations.deliveryRadius': 'Радиус, км',
     'locations.deliveryFee': 'Құны, ₸',
     'locations.deliveryMinimum': 'Ең төменгі тапсырыс, ₸',
     'locations.deliveryValuesInvalid': 'Жеткізудің сандық параметрлерін тексеріңіз.',
-    'locations.deliveryRulesRequired':
-      'Жеткізуді қосу үшін радиус, құны және ең төменгі соманы толтырыңыз.',
+    'locations.deliveryRulesRequired': 'Жеткізуді қосу үшін радиус, құны және ең төменгі соманы толтырыңыз.',
     'locations.hoursInvalid': 'Уақытты СС:ММ форматында енгізіңіз.',
     'locations.coordinatesInvalid': 'Картадан филиалдың дұрыс нүктесін таңдаңыз.',
     'locations.mapManagement': 'Картадағы нүкте',
@@ -1389,10 +1369,10 @@ const messages: Record<Locale, Record<string, string>> = {
     'orders.emptyHint': 'Kaspi төлемінен кейін тапсырыс осында шығады.',
     'orders.changeStatus': 'Күйді өзгерту',
     'orders.statusSaved': 'Тапсырыс күйі жаңартылды',
-    'orders.cancelReasonPrompt': 'Бас тарту себебі (міндетті емес)',
+    'orders.cancelReasonPrompt': 'Бас тарту себебі (клиент көреді)',
     'orders.refundConfirm':
-      'Тапсырысты тоқтатып, клиентке Kaspi арқылы {{amount}} ₸ қайтару керек пе? Әрекетті кері қайтару мүмкін емес.',
-    'orders.refundSucceeded': 'Тапсырыс тоқтатылды, Kaspi қайтарымы орындалды',
+      'Тапсырысты тоқтатып, клиентке {{amount}} ₸ бастапқы төлем тәсіліне қайтару керек пе? Картаға түсу мерзімі клиенттің банкіне байланысты.',
+    'orders.refundSucceeded': 'Тапсырыс тоқтатылды, қайтарым бастапқы төлем тәсілі арқылы жіберілді',
     'payment.pending': 'Күтуде',
     'payment.paid': 'Төленді',
     'payment.refunded': 'Қайтарылды',
@@ -1624,7 +1604,8 @@ const messages: Record<Locale, Record<string, string>> = {
     'access.ipListEmptyHint': 'Сайтқа кіруге рұқсат етілген IP қосыңыз.',
     'access.scopeHint': 'Әкімші панелі, мобильді API, құжат беттері және iiko/Kaspi интеграциялары бұғатталмайды.',
     'access.saveSiteAccess': 'Кіруді сақтау',
-    'access.accountsHint': 'Тіркелгілер: {{count}}. Иесі толық құқыққа ие; қызметкерлер нөмір және WhatsApp коды арқылы кіріп, тек тағайындалған филиалдарды көреді.',
+    'access.accountsHint':
+      'Тіркелгілер: {{count}}. Иесі толық құқыққа ие; қызметкерлер нөмір және WhatsApp коды арқылы кіріп, тек тағайындалған филиалдарды көреді.',
     'access.noAccounts': 'Тіркелгілер әлі жоқ',
     'access.whatsappLogin': 'WhatsApp коды арқылы кіру',
     'access.staffName': 'Қызметкердің аты',
@@ -1639,8 +1620,7 @@ const messages: Record<Locale, Record<string, string>> = {
     'access.loginHint': 'Қызметкер кіру үшін «Телефон арқылы» тәсілін таңдап, WhatsApp арқылы бір реттік код алады.',
     'access.adding': 'Қосылуда…',
     'inventory.heading': 'Қалдықтар және стоп-лист',
-    'inventory.intro':
-      'Әр филиалдың жеке қалдығы бар. Төленген және күтіп тұрған тапсырыстар тауарды резервтейді.',
+    'inventory.intro': 'Әр филиалдың жеке қалдығы бар. Төленген және күтіп тұрған тапсырыстар тауарды резервтейді.',
     'inventory.sync': 'iiko-мен синхрондау',
     'inventory.syncing': 'Синхрондалуда…',
     'inventory.synced': 'Қалдықтар синхрондалды',
@@ -1817,8 +1797,7 @@ const messages: Record<Locale, Record<string, string>> = {
     'auth.byPhone': 'By phone',
     'auth.byPassword': 'By password',
     'auth.phone': 'Phone number',
-    'auth.whatsappInstruction':
-      'Open WhatsApp, send the prepared message, and receive your sign-in code.',
+    'auth.whatsappInstruction': 'Open WhatsApp, send the prepared message, and receive your sign-in code.',
     'auth.openWhatsApp': 'Open WhatsApp',
     'auth.phoneCode': 'WhatsApp code',
     'auth.changePhone': 'Change number',
@@ -2025,15 +2004,13 @@ const messages: Record<Locale, Record<string, string>> = {
     'customers.totalPurchases': 'Total purchases (₸)',
     'customers.bonusTitle': 'Bonus adjustment',
     'customers.bonusAmount': 'Bonus amount',
-    'customers.bonusAmountHint':
-      'A positive number credits bonuses; a negative number debits them.',
+    'customers.bonusAmountHint': 'A positive number credits bonuses; a negative number debits them.',
     'customers.reason': 'Reason',
     'customers.reasonPlaceholder': 'Administrator adjustment',
     'customers.reasonRequired': 'Enter an adjustment reason of at least 5 characters',
     'customers.bonusSaved': 'Customer balance updated',
     'customers.deleteTitle': 'Delete customer?',
-    'customers.deleteBody':
-      'The customer and their entire transaction history will be permanently deleted.',
+    'customers.deleteBody': 'The customer and their entire transaction history will be permanently deleted.',
     'customers.notifyTitle': 'Send reminders?',
     'customers.notifyBody': 'Inactive guests with a positive balance will receive a notification.',
     'customers.notified': 'Reminders sent: {{count}}.',
@@ -2076,8 +2053,7 @@ const messages: Record<Locale, Record<string, string>> = {
     'tiers.createTitle': 'New cashback tier',
     'tiers.editTitle': 'Edit tier',
     'tiers.deleteTitle': 'Delete tier?',
-    'tiers.deleteBody':
-      'Tier “{{name}}” will be deleted. Make sure it is not assigned to customers.',
+    'tiers.deleteBody': 'Tier “{{name}}” will be deleted. Make sure it is not assigned to customers.',
     'tiers.toggleTitle': 'Change tier availability?',
     'tiers.saved': 'Tier saved',
     'tiers.deleted': 'Tier deleted',
@@ -2090,8 +2066,7 @@ const messages: Record<Locale, Record<string, string>> = {
     'tiers.previewCashback': '{{percent}}% cashback',
     'tiers.validationNames': 'Enter the name in Russian, Kazakh, and English.',
     'tiers.validationCode': 'Enter the system code using Latin characters.',
-    'tiers.validationNumbers':
-      'The threshold cannot be negative and cashback must be between 0% and 100%.',
+    'tiers.validationNumbers': 'The threshold cannot be negative and cashback must be between 0% and 100%.',
     'tiers.baselineHint': 'At least one active baseline tier with a zero threshold is required.',
     'content.ru': 'RU',
     'content.kk': 'KZ',
@@ -2106,8 +2081,7 @@ const messages: Record<Locale, Record<string, string>> = {
     'stories.emptyHint': 'Create the first banner to show it in the mobile app.',
     'stories.createTitle': 'Create promotion banner',
     'stories.editTitle': 'Edit promotion',
-    'stories.formHint':
-      'The RU title and both RU images are required. Empty KZ and EN fields use the RU version.',
+    'stories.formHint': 'The RU title and both RU images are required. Empty KZ and EN fields use the RU version.',
     'stories.promoTitle': 'Promotion title',
     'stories.promoDescription': 'Promotion description',
     'stories.fallbackText': 'Leave blank to show the RU text to customers.',
@@ -2155,11 +2129,9 @@ const messages: Record<Locale, Record<string, string>> = {
     'locations.createCity': 'Create city',
     'locations.cityCreated': 'City created. Now add its first location',
     'locations.cityCreateStep': 'Step 1 · Create a city',
-    'locations.cityCreateHint':
-      'Enter a name and choose the city centre using map search or a map click.',
+    'locations.cityCreateHint': 'Enter a name and choose the city centre using map search or a map click.',
     'locations.cityMapTitle': 'City centre on the map',
-    'locations.cityMapHint':
-      'Find the city using map search, then fine-tune the marker position.',
+    'locations.cityMapHint': 'Find the city using map search, then fine-tune the marker position.',
     'locations.cityCoordinatesRequired': 'Select the city centre on the map.',
     'locations.editCity': 'Edit city',
     'locations.cityName': 'City name',
@@ -2167,14 +2139,11 @@ const messages: Record<Locale, Record<string, string>> = {
     'locations.createPoint': 'Create branch',
     'locations.pointCreated': 'Branch created',
     'locations.pointCreateStep': 'Step 2 · Add a location inside the city',
-    'locations.pointCreateHint':
-      'Choose the city, enter the branch name and address, then place the exact marker.',
-    'locations.pointMapHint':
-      'The map is centred on {{city}}. Search for the address or click the building.',
+    'locations.pointCreateHint': 'Choose the city, enter the branch name and address, then place the exact marker.',
+    'locations.pointMapHint': 'The map is centred on {{city}}. Search for the address or click the building.',
     'locations.mapPointSelected': 'Location selected',
     'locations.mapPointRequired': 'Place a marker on the map',
-    'locations.defaultZoneHint':
-      'A starter 5 km delivery zone will be created. You can adjust it after saving.',
+    'locations.defaultZoneHint': 'A starter 5 km delivery zone will be created. You can adjust it after saving.',
     'locations.editPoint': 'Edit branch',
     'locations.pointName': 'Branch name',
     'locations.exactAddress': 'Exact address',
@@ -2189,16 +2158,14 @@ const messages: Record<Locale, Record<string, string>> = {
     'locations.deletePointBody': 'The branch will be permanently deleted.',
     'locations.latitude': 'Latitude',
     'locations.longitude': 'Longitude',
-    'locations.allLanguagesValidation':
-      'Complete the required fields in Russian, Kazakh, and English.',
+    'locations.allLanguagesValidation': 'Complete the required fields in Russian, Kazakh, and English.',
     'locations.saved': 'Location saved',
     'locations.fulfillmentIntro':
       'Configure branch availability, fulfilment methods, opening hours, and real delivery rules.',
     'locations.cityFilter': 'Show branches by city',
     'locations.allCities': 'All cities',
     'locations.cityFilterSummary': 'Showing {{shown}} of {{total}} branches',
-    'locations.syncHint':
-      'Branches will appear after the Bulka location directory is synchronized.',
+    'locations.syncHint': 'Branches will appear after the Bulka location directory is synchronized.',
     'locations.services': 'Fulfilment',
     'locations.hours': 'Opening hours',
     'locations.settings': 'Branch settings',
@@ -2209,14 +2176,12 @@ const messages: Record<Locale, Record<string, string>> = {
     'locations.opensAt': 'Opens',
     'locations.closesAt': 'Closes',
     'locations.deliveryRules': 'Delivery rules',
-    'locations.deliveryRulesHint':
-      'Delivery can be enabled only after radius, fee, and minimum order are configured.',
+    'locations.deliveryRulesHint': 'Delivery can be enabled only after radius, fee, and minimum order are configured.',
     'locations.deliveryRadius': 'Radius, km',
     'locations.deliveryFee': 'Fee, ₸',
     'locations.deliveryMinimum': 'Minimum order, ₸',
     'locations.deliveryValuesInvalid': 'Check the numeric delivery settings.',
-    'locations.deliveryRulesRequired':
-      'Set radius, fee, and minimum order before enabling delivery.',
+    'locations.deliveryRulesRequired': 'Set radius, fee, and minimum order before enabling delivery.',
     'locations.hoursInvalid': 'Enter time in HH:MM format.',
     'locations.coordinatesInvalid': 'Select a valid branch point on the map.',
     'locations.mapManagement': 'Map location',
@@ -2256,10 +2221,10 @@ const messages: Record<Locale, Record<string, string>> = {
     'orders.emptyHint': 'A Kaspi-paid order will appear here.',
     'orders.changeStatus': 'Change status',
     'orders.statusSaved': 'Order status updated',
-    'orders.cancelReasonPrompt': 'Cancellation reason (optional)',
+    'orders.cancelReasonPrompt': 'Cancellation reason (visible to the customer)',
     'orders.refundConfirm':
-      'Cancel the order and refund {{amount}} ₸ through Kaspi? This action cannot be undone.',
-    'orders.refundSucceeded': 'Order cancelled and Kaspi refund completed',
+      'Cancel the order and refund {{amount}} ₸ to the original payment method? Card posting time depends on the customer’s bank.',
+    'orders.refundSucceeded': 'Order cancelled and refund submitted to the original payment method',
     'payment.pending': 'Pending',
     'payment.paid': 'Paid',
     'payment.refunded': 'Refunded',
@@ -2491,7 +2456,8 @@ const messages: Record<Locale, Record<string, string>> = {
     'access.ipListEmptyHint': 'Add IP addresses that may open the site.',
     'access.scopeHint': 'The admin panel, mobile API, document pages, and iiko/Kaspi integrations are not blocked.',
     'access.saveSiteAccess': 'Save access',
-    'access.accountsHint': 'Accounts: {{count}}. The owner has full access; staff sign in with a phone number and WhatsApp code and see only assigned branches.',
+    'access.accountsHint':
+      'Accounts: {{count}}. The owner has full access; staff sign in with a phone number and WhatsApp code and see only assigned branches.',
     'access.noAccounts': 'No accounts yet',
     'access.whatsappLogin': 'Sign in with a WhatsApp code',
     'access.staffName': 'Staff member name',
@@ -2562,8 +2528,7 @@ const messages: Record<Locale, Record<string, string>> = {
     'security.heading': 'Admin panel security',
     'security.intro': 'Review roles, two-factor protection, and administrator actions.',
     'security.protected': 'Enhanced protection enabled',
-    'security.protectedHint':
-      'Separate administrators, roles, and a required one-time code are in use.',
+    'security.protectedHint': 'Separate administrators, roles, and a required one-time code are in use.',
     'security.actionRequired': 'MFA must be enabled',
     'security.mfaHint':
       'Legacy single-admin login is still active. Configure ADMIN_USERS_JSON and enable ADMIN_REQUIRE_MFA after pairing an authenticator.',
@@ -2665,8 +2630,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
             messages.ru['common.unknown'],
           vars,
         ),
-      formatNumber: (number, options) =>
-        new Intl.NumberFormat(localeTags[locale], options).format(Number(number) || 0),
+      formatNumber: (number, options) => new Intl.NumberFormat(localeTags[locale], options).format(Number(number) || 0),
       formatDate: (date, options) => {
         const parsed = date instanceof Date ? date : new Date(date);
         if (Number.isNaN(parsed.getTime())) return '—';

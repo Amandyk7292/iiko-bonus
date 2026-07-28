@@ -30,7 +30,7 @@ test('Kaspi refund sends the stored operation and exact order amount', async (t)
                   code: 'KASPI_REAUTH_REQUIRED',
                   retryable: false,
                 }
-            : { StatusCode: 0, Data: { ReturnOperationId: 987654 } },
+              : { StatusCode: 0, Data: { ReturnOperationId: 987654 } },
         ),
       );
     });
@@ -94,6 +94,8 @@ test('refunded order remains visible with refund metadata', () => {
     status: 'refunded',
     fulfillment_status: 'cancelled',
     amount: 2500,
+    payment_method: 'forte_card',
+    provider_payment_system: 'forte_widget',
     refund_status: 'succeeded',
     refund_amount: 2500,
     refunded_at: '2026-07-13T12:00:00.000Z',
@@ -102,5 +104,6 @@ test('refunded order remains visible with refund metadata', () => {
 
   assert.equal(normalized.paymentStatus, 'refunded');
   assert.equal(normalized.orderStatus, 'cancelled');
+  assert.equal(normalized.paymentProvider, 'forte');
   assert.equal(normalized.refundAmount, 2500);
 });

@@ -147,14 +147,17 @@ const Map<String, Map<String, String>> _locationTranslations = {
     'en': 'Order #{number} was cancelled.',
   },
   'notification_order_refunded_title': {
-    'ru': 'Заказ отменён, деньги возвращены',
-    'kk': 'Тапсырыс тоқтатылды, ақша қайтарылды',
-    'en': 'Order cancelled and refunded',
+    'ru': 'Заказ отменён, возврат отправлен',
+    'kk': 'Тапсырыс тоқтатылды, қайтарым жіберілді',
+    'en': 'Order cancelled, refund submitted',
   },
   'notification_order_refunded_body': {
-    'ru': 'Возврат по заказу №{number} оформлен.',
-    'kk': '№{number} тапсырыс бойынша ақша қайтару рәсімделді.',
-    'en': 'The refund for order #{number} has been processed.',
+    'ru':
+        'Возврат по заказу №{number} отправлен. Срок зачисления зависит от банка.',
+    'kk':
+        '№{number} тапсырыс бойынша қайтарым жіберілді. Түсу мерзімі банкке байланысты.',
+    'en':
+        'The refund for order #{number} was submitted. Posting time depends on the bank.',
   },
   'bakery_selected': {
     'ru': 'Выбрана локация: {name}',

@@ -427,6 +427,7 @@ class CustomerOrder {
     required this.createdAt,
     required this.fulfillmentType,
     required this.deliveryStatus,
+    this.paymentProvider = 'kaspi',
     this.pickupTime,
     this.comment,
     this.cancellationReason,
@@ -455,6 +456,7 @@ class CustomerOrder {
   final String id;
   final int number;
   final String paymentStatus;
+  final String paymentProvider;
   final String orderStatus;
   final int amount;
   final int subtotal;
@@ -495,6 +497,7 @@ class CustomerOrder {
       id: _asString(json['id']),
       number: _asInt(json['number']),
       paymentStatus: _asString(json['paymentStatus']),
+      paymentProvider: _asString(json['paymentProvider'], fallback: 'kaspi'),
       orderStatus: _asString(json['orderStatus']),
       amount: _asDouble(json['amount']).round(),
       subtotal: _asDouble(json['subtotal']).round(),
@@ -558,6 +561,7 @@ class CustomerOrder {
     'id': id,
     'number': number,
     'paymentStatus': paymentStatus,
+    'paymentProvider': paymentProvider,
     'orderStatus': orderStatus,
     'amount': amount,
     'subtotal': subtotal,
@@ -1169,6 +1173,9 @@ class AppNotification {
       'заказ отменён, деньги возвращены': 'order_refunded',
       'тапсырыс тоқтатылды, ақша қайтарылды': 'order_refunded',
       'order cancelled and refunded': 'order_refunded',
+      'заказ отменён, возврат отправлен': 'order_refunded',
+      'тапсырыс тоқтатылды, қайтарым жіберілді': 'order_refunded',
+      'order cancelled, refund submitted': 'order_refunded',
     };
     return legacyTitles[normalizedTitle];
   }

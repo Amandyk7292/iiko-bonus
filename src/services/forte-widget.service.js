@@ -10,6 +10,8 @@ const CHECKOUT_API_ORIGIN = 'https://securepayments.fortebank.com';
 const TRANSACTION_API_ORIGIN = 'https://gateway.fortebank.com';
 const FORTE_PAYMENT_METHOD = 'forte_card';
 const FORTE_WIDGET_INTEGRATION = 'forte_widget';
+const CARD_SETUP_AMOUNT = 30;
+const CARD_SETUP_AMOUNT_MINOR = 3000;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PROVIDER_TOKEN_PATTERN = /^[A-Za-z0-9._~-]{16,512}$/;
 const FINAL_PAYMENT_STATUSES = new Set(['paid', 'failed', 'expired', 'refunded']);
@@ -1000,6 +1002,7 @@ class ForteWidgetService {
       integration: FORTE_WIDGET_INTEGRATION,
       purpose: 'card-setup',
       operationId: String(setup.id),
+      verificationAmount: Number(setup.amount || 0),
       redirectUrl: buildWidgetLaunchUrl({
         publicBaseUrl: config.publicBaseUrl,
         token,
@@ -1019,7 +1022,7 @@ class ForteWidgetService {
     }
     const operationId = crypto.randomUUID();
     const providerCheckout = await this.createProviderCheckout({
-      amountMinor: 0,
+      amountMinor: CARD_SETUP_AMOUNT_MINOR,
       customerId,
       phone: normalizedPhone,
       language,
@@ -1040,6 +1043,9 @@ class ForteWidgetService {
       status: 'pending',
       provider_status: 'created',
       payment_test: config.test,
+      amount: CARD_SETUP_AMOUNT,
+      refund_status: 'pending',
+      refund_request_id: crypto.randomUUID(),
       expires_at: providerCheckout.expiresAt,
     };
     const { data, error } = await this.db
@@ -1088,12 +1094,71 @@ class ForteWidgetService {
     this.validateCheckout(
       {
         operation_id: setup.id,
-        amount: 0,
+        amount: Number(setup.amount || 0),
         payment_test: setup.payment_test,
       },
       normalized,
       expectedToken,
       options,
+    );
+  }
+
+  async refundCardSetupPayment(setup, providerTransactionId) {
+    const config = this.assertConfigured();
+    const amount = Number(setup?.amount);
+    const requestId = String(setup?.refund_request_id || '');
+    if (
+      !Number.isFinite(amount) ||
+      amount <= 0 ||
+      !UUID_PATTERN.test(requestId) ||
+      !UUID_PATTERN.test(String(providerTransactionId || ''))
+    ) {
+      throw widgetError(
+        'Не удалось подготовить возврат проверочного платежа',
+        409,
+        'FORTE_WIDGET_CARD_SETUP_REFUND_INVALID',
+      );
+    }
+    const { response, body } = await this.request('/transactions/refunds', {
+      base: 'transaction',
+      apiVersion: 3,
+      method: 'POST',
+      requestId,
+      body: {
+        request: {
+          parent_uid: String(providerTransactionId),
+          amount: toMinorUnits(amount),
+          reason: 'Возврат проверочного платежа привязки карты Bulka',
+          additional_data: { referer: config.publicBaseUrl },
+        },
+      },
+    });
+    const transaction = body?.transaction || {};
+    const reference = cleanText(transaction.uid || transaction.id, 100);
+    if (
+      response.ok &&
+      UUID_PATTERN.test(reference) &&
+      String(transaction.status || '').toLowerCase() === 'successful'
+    ) {
+      return { reference, requestId };
+    }
+    if (response.status >= 400 && response.status < 500) {
+      throw widgetError(
+        'ForteBank отклонил возврат проверочного платежа',
+        409,
+        'FORTE_WIDGET_CARD_SETUP_REFUND_REJECTED',
+        { requestId },
+      );
+    }
+    throw widgetError(
+      'ForteBank не подтвердил возврат проверочного платежа. Выполняется сверка.',
+      502,
+      'FORTE_WIDGET_CARD_SETUP_REFUND_UNKNOWN',
+      {
+        refundUncertain: true,
+        refundReference: UUID_PATTERN.test(reference) ? reference : undefined,
+        requestId,
+      },
     );
   }
 
@@ -1107,8 +1172,65 @@ class ForteWidgetService {
       allowMissingShop,
     });
     const providerStatus = mapWidgetStatus(normalized);
+    const requiresRefund = providerStatus === 'paid' && Number(setup.amount) > 0;
+    let currentSetup = setup;
+    let refundResult = null;
+
+    if (requiresRefund && setup.refund_status !== 'succeeded') {
+      const { data: processingSetup, error: processingError } = await this.db
+        .from('customer_payment_method_setups')
+        .update({
+          refund_status: 'processing',
+          refund_error: null,
+          provider_transaction_id: normalized.providerTransactionId || null,
+        })
+        .eq('id', setup.id)
+        .eq('customer_id', setup.customer_id)
+        .eq('provider', FORTE_WIDGET_INTEGRATION)
+        .select('*')
+        .maybeSingle();
+      if (processingError) throw processingError;
+      currentSetup = processingSetup || {
+        ...setup,
+        refund_status: 'processing',
+        refund_error: null,
+        provider_transaction_id: normalized.providerTransactionId || null,
+      };
+      try {
+        refundResult = await this.refundCardSetupPayment(
+          currentSetup,
+          normalized.providerTransactionId,
+        );
+      } catch (refundError) {
+        const refundStatus = refundError.refundUncertain ? 'unknown' : 'failed';
+        const { error: refundSaveError } = await this.db
+          .from('customer_payment_method_setups')
+          .update({
+            status: 'pending',
+            provider_status: 'successful_refund_pending',
+            provider_transaction_id: normalized.providerTransactionId || null,
+            refund_status: refundStatus,
+            refund_transaction_id: refundError.refundReference || null,
+            refund_error: cleanText(refundError.code || refundError.message, 255),
+          })
+          .eq('id', setup.id)
+          .eq('customer_id', setup.customer_id)
+          .eq('provider', FORTE_WIDGET_INTEGRATION);
+        if (refundSaveError) {
+          console.error(
+            `Не удалось сохранить состояние возврата привязки ${setup.id}:`,
+            refundSaveError.message,
+          );
+        }
+        throw refundError;
+      }
+    }
+
+    const refundSucceeded =
+      !requiresRefund || currentSetup.refund_status === 'succeeded' || Boolean(refundResult);
     const hasReusableToken =
       providerStatus === 'paid' &&
+      refundSucceeded &&
       Boolean(normalized.card.token) &&
       /^\d{4}$/.test(normalized.card.lastFour);
     const nextStatus = resolveCardSetupStatus(providerStatus, hasReusableToken);
@@ -1123,12 +1245,21 @@ class ForteWidgetService {
         status: nextStatus,
         checkout_token_ciphertext: FINAL_PAYMENT_STATUSES.has(nextStatus)
           ? null
-          : setup.checkout_token_ciphertext,
+          : currentSetup.checkout_token_ciphertext,
         provider_status:
           providerStatus === 'paid' && !hasReusableToken
             ? 'successful_awaiting_card_token'
             : normalized.status || normalized.transactionStatus || nextStatus,
         provider_transaction_id: normalized.providerTransactionId || null,
+        refund_status:
+          providerStatus === 'failed' || providerStatus === 'expired'
+            ? 'not_required'
+            : refundResult
+              ? 'succeeded'
+              : currentSetup.refund_status || 'not_required',
+        refund_transaction_id:
+          refundResult?.reference || currentSetup.refund_transaction_id || null,
+        refund_error: refundResult ? null : currentSetup.refund_error || null,
         completed_at: FINAL_PAYMENT_STATUSES.has(nextStatus) ? new Date().toISOString() : null,
       })
       .eq('id', setup.id)
@@ -1370,6 +1501,9 @@ class ForteWidgetService {
       );
       return { ignored: true };
     }
+    if (FINAL_PAYMENT_STATUSES.has(setup.status)) {
+      return { ignored: true, status: setup.status };
+    }
     const expectedToken = decryptProviderToken(
       setup.checkout_token_ciphertext,
       'card-setup',
@@ -1455,13 +1589,34 @@ class ForteWidgetService {
         console.error(`Не удалось сверить ForteBank Widget заказ ${order.id}:`, syncError.message);
       }
     }
-    return (data || []).length;
+    const { data: setups, error: setupError } = await this.db
+      .from('customer_payment_method_setups')
+      .select('*')
+      .eq('provider', FORTE_WIDGET_INTEGRATION)
+      .eq('status', 'pending')
+      .gte('created_at', cutoff)
+      .order('created_at', { ascending: true })
+      .limit(50);
+    if (setupError) throw setupError;
+    for (const setup of setups || []) {
+      try {
+        await this.syncCardSetup(setup);
+      } catch (syncError) {
+        console.error(
+          `Не удалось сверить привязку карты ForteBank ${setup.id}:`,
+          syncError.message,
+        );
+      }
+    }
+    return (data || []).length + (setups || []).length;
   }
 }
 
 module.exports = new ForteWidgetService();
 module.exports.ForteWidgetService = ForteWidgetService;
 module.exports.FORTE_WIDGET_INTEGRATION = FORTE_WIDGET_INTEGRATION;
+module.exports.CARD_SETUP_AMOUNT = CARD_SETUP_AMOUNT;
+module.exports.CARD_SETUP_AMOUNT_MINOR = CARD_SETUP_AMOUNT_MINOR;
 module.exports.buildWidgetLaunchUrl = buildWidgetLaunchUrl;
 module.exports.decryptProviderToken = decryptProviderToken;
 module.exports.encryptProviderToken = encryptProviderToken;

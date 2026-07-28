@@ -550,6 +550,7 @@ export default function OrdersPage() {
               className="input-classic"
               rows={4}
               maxLength={500}
+              required
               value={cancellationReason}
               onChange={(event) => setCancellationReason(event.target.value)}
               autoFocus

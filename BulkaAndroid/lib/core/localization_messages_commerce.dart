@@ -472,6 +472,16 @@ const Map<String, Map<String, String>> _commerceTranslations = {
   },
   'orders_total': {'ru': 'Итоговая цена', 'kk': 'Жалпы баға', 'en': 'Total'},
   'orders_refund': {'ru': 'Возвращено', 'kk': 'Қайтарылды', 'en': 'Refunded'},
+  'orders_card_refund_notice': {
+    'ru': 'Возврат отправлен на карту. Срок зачисления зависит от банка.',
+    'kk': 'Қайтарым картаға жіберілді. Түсу мерзімі банкке байланысты.',
+    'en': 'The refund was sent to the card. Posting time depends on the bank.',
+  },
+  'orders_kaspi_refund_notice': {
+    'ru': 'Возврат выполнен через Kaspi Pay.',
+    'kk': 'Қайтарым Kaspi Pay арқылы орындалды.',
+    'en': 'The refund was completed through Kaspi Pay.',
+  },
   'orders_cancel_reason': {
     'ru': 'Причина отмены',
     'kk': 'Бас тарту себебі',

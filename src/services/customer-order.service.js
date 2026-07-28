@@ -13,6 +13,8 @@ const ORDER_FIELDS = [
   'order_number',
   'status',
   'fulfillment_status',
+  'payment_method',
+  'provider_payment_system',
   'amount',
   'subtotal',
   'discount_amount',
@@ -143,6 +145,7 @@ const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
       order.status === 'refunded' || order.refund_status === 'succeeded'
         ? 'refunded'
         : order.status,
+    paymentProvider: order.payment_method === 'forte_card' ? 'forte' : 'kaspi',
     orderStatus: normalizedOrderStatus(order),
     amount: Number(order.amount || 0),
     subtotal: Number(order.subtotal ?? order.amount ?? 0),
@@ -344,6 +347,12 @@ async function notifyOrderStatus(order) {
   if (!order.customer_id) return;
   const number = order.order_number;
   const refundAmount = Number(order.refund_amount || order.amount || 0).toLocaleString('ru-RU');
+  const cancellationReason = String(order.cancellation_reason || '').trim();
+  const cancellationReasonByLanguage = {
+    ru: cancellationReason ? ` Причина: ${cancellationReason}.` : '',
+    kk: cancellationReason ? ` Себебі: ${cancellationReason}.` : '',
+    en: cancellationReason ? ` Reason: ${cancellationReason}.` : '',
+  };
   const cancellationSuffix = order.cancellation_reason ? `: ${order.cancellation_reason}` : '.';
   const copiesByLanguage = {
     ru: {
@@ -354,8 +363,10 @@ async function notifyOrderStatus(order) {
       cancelled:
         order.status === 'refunded'
           ? [
-              'Заказ отменён, деньги возвращены',
-              `Возврат ${refundAmount} ₸ по заказу №${number} оформлен.`,
+              'Заказ отменён, возврат отправлен',
+              order.payment_method === 'forte_card'
+                ? `Возврат ${refundAmount} ₸ по заказу №${number} отправлен на карту. Срок зачисления зависит от банка карты.${cancellationReasonByLanguage.ru}`
+                : `Возврат ${refundAmount} ₸ по заказу №${number} оформлен через Kaspi Pay.${cancellationReasonByLanguage.ru}`,
             ]
           : ['Заказ отменён', `Заказ №${number} отменён${cancellationSuffix}`],
     },
@@ -367,8 +378,10 @@ async function notifyOrderStatus(order) {
       cancelled:
         order.status === 'refunded'
           ? [
-              'Тапсырыс тоқтатылды, ақша қайтарылды',
-              `№${number} тапсырыс бойынша ${refundAmount} ₸ қайтару рәсімделді.`,
+              'Тапсырыс тоқтатылды, қайтарым жіберілді',
+              order.payment_method === 'forte_card'
+                ? `№${number} тапсырыс бойынша ${refundAmount} ₸ картаға қайтаруға жіберілді. Түсу мерзімі картаны шығарған банкке байланысты.${cancellationReasonByLanguage.kk}`
+                : `№${number} тапсырыс бойынша ${refundAmount} ₸ Kaspi Pay арқылы қайтарылды.${cancellationReasonByLanguage.kk}`,
             ]
           : ['Тапсырыс тоқтатылды', `№${number} тапсырыс тоқтатылды${cancellationSuffix}`],
     },
@@ -380,8 +393,10 @@ async function notifyOrderStatus(order) {
       cancelled:
         order.status === 'refunded'
           ? [
-              'Order cancelled and refunded',
-              `The ${refundAmount} ₸ refund for order #${number} has been processed.`,
+              'Order cancelled, refund submitted',
+              order.payment_method === 'forte_card'
+                ? `The ${refundAmount} ₸ refund for order #${number} was sent to the card. Posting time depends on the card issuer.${cancellationReasonByLanguage.en}`
+                : `The ${refundAmount} ₸ refund for order #${number} was processed through Kaspi Pay.${cancellationReasonByLanguage.en}`,
             ]
           : ['Order cancelled', `Order #${number} was cancelled${cancellationSuffix}`],
     },
@@ -488,27 +503,34 @@ async function cancelPaidOrder(current, cancellationReason) {
   if (current.status !== 'paid') {
     throw httpError(409, 'Возврат доступен только для оплаченного заказа');
   }
+  const reason = String(cancellationReason || '')
+    .trim()
+    .slice(0, 500);
+  if (!reason) {
+    throw refundError(
+      400,
+      'Укажите причину отмены — клиент увидит её вместе с сообщением о возврате',
+      'CANCELLATION_REASON_REQUIRED',
+    );
+  }
   if (current.refund_status === 'processing') {
-    throw refundError(409, 'Возврат по заказу уже выполняется', 'KASPI_REFUND_PROCESSING');
+    throw refundError(409, 'Возврат по заказу уже выполняется', 'PAYMENT_REFUND_PROCESSING');
   }
   if (current.refund_status === 'unknown') {
     throw refundError(
       409,
-      'Результат предыдущего возврата неизвестен. Проверьте операцию в Kaspi Pay.',
-      'KASPI_REFUND_UNKNOWN',
+      `Результат предыдущего возврата неизвестен. Проверьте операцию в ${paymentProviderName(current)}.`,
+      'PAYMENT_REFUND_UNKNOWN',
     );
   }
   if (current.refund_status && !['failed', 'partial'].includes(current.refund_status)) {
     throw refundError(
       409,
       'Текущее состояние возврата не позволяет повтор',
-      'KASPI_REFUND_CONFLICT',
+      'PAYMENT_REFUND_CONFLICT',
     );
   }
 
-  const reason = String(cancellationReason || '')
-    .trim()
-    .slice(0, 500);
   const requestedAt = new Date().toISOString();
   const refundRequestId = crypto.randomUUID();
   let claim = supabase
@@ -532,7 +554,7 @@ async function cancelPaidOrder(current, cancellationReason) {
     throw refundError(
       409,
       'Состояние заказа изменилось. Обновите список перед возвратом.',
-      'KASPI_REFUND_CONFLICT',
+      'PAYMENT_REFUND_CONFLICT',
     );
   }
 
@@ -540,7 +562,7 @@ async function cancelPaidOrder(current, cancellationReason) {
   try {
     const remainingRefund = Number(claimed.amount) - Number(claimed.partially_refunded_amount || 0);
     if (!Number.isFinite(remainingRefund) || remainingRefund <= 0) {
-      throw refundError(409, 'Заказ уже полностью возвращён', 'KASPI_REFUND_CONFLICT');
+      throw refundError(409, 'Заказ уже полностью возвращён', 'PAYMENT_REFUND_CONFLICT');
     }
     refund = await refundPaymentForOrder(claimed, remainingRefund, {
       reason,
@@ -654,7 +676,10 @@ async function updateAdminOrderStatus(
   }
   if (current.status !== 'paid') throw httpError(409, 'Статус неоплаченного заказа менять нельзя');
   if (['processing', 'unknown'].includes(current.refund_status)) {
-    throw httpError(409, 'Нельзя изменить заказ, пока проверяется возврат Kaspi');
+    throw httpError(
+      409,
+      `Нельзя изменить заказ, пока проверяется возврат через ${paymentProviderName(current)}`,
+    );
   }
   if (nextStatus === currentStatus) return normalizeOrder(current);
   if (!(STATUS_TRANSITIONS[currentStatus] || []).includes(nextStatus)) {
