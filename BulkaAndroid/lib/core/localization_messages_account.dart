@@ -130,10 +130,9 @@ const Map<String, Map<String, String>> _accountTranslations = {
     'en': 'Link card',
   },
   'card_setup_hint': {
-    'ru': 'Банк спишет 30 ₸ для проверки и сразу вернёт.',
-    'kk': 'Банк тексеру үшін 30 ₸ алып, бірден қайтарады.',
-    'en':
-        'The bank will charge 30 ₸ for verification and refund it immediately.',
+    'ru': 'На странице банка включите «Сохранить карту».',
+    'kk': 'Банк бетінде «Картаны сақтау» опциясын қосыңыз.',
+    'en': 'Turn on “Save card” on the bank page.',
   },
   'card_setup_verifying': {
     'ru': 'Проверяем карту',
@@ -155,6 +154,11 @@ const Map<String, Map<String, String>> _accountTranslations = {
     'kk': 'Карта сақталды, 30 ₸ қайтарылды.',
     'en': 'Card saved and the 30 ₸ refund was sent.',
   },
+  'card_setup_saved_refund_pending': {
+    'ru': 'Карта сохранена. Возврат 30 ₸ обрабатывается банком.',
+    'kk': 'Карта сақталды. 30 ₸ қайтаруды банк өңдеп жатыр.',
+    'en': 'Card saved. The bank is processing the 30 ₸ refund.',
+  },
   'card_setup_failed': {
     'ru': 'Карта не сохранена',
     'kk': 'Карта сақталмады',
@@ -175,11 +179,11 @@ const Map<String, Map<String, String>> _accountTranslations = {
   },
   'card_setup_token_missing': {
     'ru':
-        '30 ₸ возвращены, но банк не передал токен карты. Повторите добавление карты.',
+        'Карта не сохранена. Повторите и включите «Сохранить карту» на странице банка.',
     'kk':
-        '30 ₸ қайтарылды, бірақ банк карта токенін жібермеді. Картаны қайта қосыңыз.',
+        'Карта сақталмады. Қайталап, банк бетінде «Картаны сақтау» опциясын қосыңыз.',
     'en':
-        'The 30 ₸ was refunded, but the bank did not return a card token. Add the card again.',
+        'The card was not saved. Try again and turn on “Save card” on the bank page.',
   },
   'support_message': {
     'ru': 'Напишите нам в Telegram — мы поможем.',

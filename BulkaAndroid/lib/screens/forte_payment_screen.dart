@@ -129,6 +129,8 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
   bool _embeddedCheckoutVisible = false;
   bool _checkoutReturned = false;
   bool _cancelledByCustomer = false;
+  bool _cardSaved = false;
+  String? _refundStatus;
   int _loadingProgress = 0;
 
   Uri? get _checkoutUri {
@@ -167,11 +169,16 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
           ? await widget.api.checkForteCardSetupStatus(widget.operationId)
           : await widget.api.checkFortePaymentStatus(widget.operationId);
       if (!mounted) return;
-      final status = (result['paymentStatus'] ?? result['status'] ?? 'pending')
-          .toString()
-          .toLowerCase();
+      final providerStatus =
+          (result['paymentStatus'] ?? result['status'] ?? 'pending')
+              .toString()
+              .toLowerCase();
+      final cardSaved = widget.cardSetup && result['cardSaved'] == true;
+      final status = cardSaved ? 'paid' : providerStatus;
       setState(() {
         _paymentStatus = status;
+        _cardSaved = cardSaved;
+        _refundStatus = result['refundStatus']?.toString().toLowerCase();
         if (status == 'paid') _cancelledByCustomer = false;
         _statusError = null;
       });
@@ -319,7 +326,9 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
         : 'payment_confirm'.tr;
     final message = widget.cardSetup
         ? paid
-              ? 'card_setup_success_hint'.tr
+              ? _cardSaved && _refundStatus != 'succeeded'
+                    ? 'card_setup_saved_refund_pending'.tr
+                    : 'card_setup_success_hint'.tr
               : terminalFailure
               ? 'card_setup_failed_hint'.tr
               : verifying

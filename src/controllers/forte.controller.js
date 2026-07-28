@@ -252,6 +252,9 @@ const checkCardSetupStatus = async (req, res) => {
       status: setup.status || 'pending',
       paymentStatus: setup.status || 'pending',
       purpose: 'card-setup',
+      cardSaved:
+        setup.status === 'paid' || String(setup.provider_status || '').includes('card_saved'),
+      refundStatus: setup.refund_status || null,
     });
   } catch (error) {
     return res

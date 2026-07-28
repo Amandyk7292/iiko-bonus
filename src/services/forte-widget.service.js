@@ -262,9 +262,9 @@ const localizedWidgetText = (language) => {
       en: 'Return to Bulka',
     }[normalized],
     saveCard: {
-      ru: 'Сохранить карту для следующих покупок',
-      kk: 'Келесі сатып алулар үшін картаны сақтау',
-      en: 'Save card for future purchases',
+      ru: 'Сохранить карту',
+      kk: 'Картаны сақтау',
+      en: 'Save card',
     }[normalized],
     saveCardHint: {
       ru: 'Bulka сохранит только защищённый токен банка и последние 4 цифры.',
@@ -773,14 +773,13 @@ class ForteWidgetService {
           button_next_text: localized.returnButton,
           language: localized.language,
           save_card_toggle: {
-            // "Добавить карту" is already an explicit customer action. Keeping
-            // Forte's optional consent toggle visible allowed the verification
-            // payment to succeed without issuing a oneclick token when the
-            // customer missed the second toggle.
-            display: purpose !== 'card-setup',
-            customer_contract: purpose !== 'card-setup',
+            // Forte issues the oneclick token only after this bank-controlled
+            // consent toggle is enabled by the customer. Hiding it is treated
+            // by the provider as a refusal, even in the dedicated card flow.
+            display: true,
+            customer_contract: true,
+            text: localized.saveCard,
             ...(purpose !== 'card-setup' && {
-              text: localized.saveCard,
               hint: localized.saveCardHint,
             }),
           },
@@ -871,6 +870,42 @@ class ForteWidgetService {
       scheduledAt: order.scheduled_at || null,
       orderId: order.id == null ? undefined : String(order.id),
     };
+  }
+
+  async hydrateProviderCard(normalized) {
+    const providerTransactionId = String(normalized?.providerTransactionId || '');
+    const hasCompleteCard =
+      Boolean(normalized?.card?.token) && /^\d{4}$/.test(String(normalized?.card?.lastFour || ''));
+    if (
+      hasCompleteCard ||
+      mapWidgetStatus(normalized) !== 'paid' ||
+      !UUID_PATTERN.test(providerTransactionId)
+    ) {
+      return normalized;
+    }
+    try {
+      const { response, body } = await this.request(
+        `/transactions/${encodeURIComponent(providerTransactionId)}`,
+        {
+          base: 'transaction',
+          apiVersion: 3,
+        },
+      );
+      if (!response.ok) return normalized;
+      const transaction = normalizeWidgetCheckout(body);
+      return {
+        ...normalized,
+        card: {
+          token: transaction.card.token || normalized.card.token,
+          brand: transaction.card.brand || normalized.card.brand,
+          lastFour: transaction.card.lastFour || normalized.card.lastFour,
+          expMonth: transaction.card.expMonth || normalized.card.expMonth,
+          expYear: transaction.card.expYear || normalized.card.expYear,
+        },
+      };
+    } catch {
+      return normalized;
+    }
   }
 
   async createCheckout(phone, pricing, customerId, checkout = {}, options = {}) {
@@ -1172,8 +1207,13 @@ class ForteWidgetService {
     });
     const providerStatus = mapWidgetStatus(normalized);
     const requiresRefund = providerStatus === 'paid' && Number(setup.amount) > 0;
+    const hasReusableToken =
+      providerStatus === 'paid' &&
+      Boolean(normalized.card.token) &&
+      /^\d{4}$/.test(normalized.card.lastFour);
     let currentSetup = setup;
     let refundResult = null;
+    let cardSaved = false;
 
     if (requiresRefund && setup.refund_status !== 'succeeded') {
       const { data: processingSetup, error: processingError } = await this.db
@@ -1201,12 +1241,22 @@ class ForteWidgetService {
           normalized.providerTransactionId,
         );
       } catch (refundError) {
+        if (hasReusableToken) {
+          try {
+            await this.savePaymentMethod(setup.customer_id, normalized.card);
+            cardSaved = true;
+          } catch (saveError) {
+            console.error('Не удалось сохранить токен карты ForteBank:', saveError.message);
+          }
+        }
         const refundStatus = refundError.refundUncertain ? 'unknown' : 'failed';
         const { error: refundSaveError } = await this.db
           .from('customer_payment_method_setups')
           .update({
             status: 'pending',
-            provider_status: 'successful_refund_pending',
+            provider_status: cardSaved
+              ? 'successful_card_saved_refund_pending'
+              : 'successful_refund_pending',
             provider_transaction_id: normalized.providerTransactionId || null,
             refund_status: refundStatus,
             refund_transaction_id: refundError.refundReference || null,
@@ -1227,16 +1277,11 @@ class ForteWidgetService {
 
     const refundSucceeded =
       !requiresRefund || currentSetup.refund_status === 'succeeded' || Boolean(refundResult);
-    const hasReusableToken =
-      providerStatus === 'paid' &&
-      refundSucceeded &&
-      Boolean(normalized.card.token) &&
-      /^\d{4}$/.test(normalized.card.lastFour);
-    const nextStatus = resolveCardSetupStatus(providerStatus, hasReusableToken);
-
-    if (hasReusableToken) {
+    if (hasReusableToken && refundSucceeded) {
       await this.savePaymentMethod(setup.customer_id, normalized.card);
+      cardSaved = true;
     }
+    const nextStatus = resolveCardSetupStatus(providerStatus, cardSaved);
 
     const { data, error } = await this.db
       .from('customer_payment_method_setups')
@@ -1299,8 +1344,9 @@ class ForteWidgetService {
         { retryable: response.status >= 500 },
       );
     }
-    const normalized = normalizeWidgetCheckout(body);
+    let normalized = normalizeWidgetCheckout(body);
     this.validateCardSetup(setup, normalized, token);
+    normalized = await this.hydrateProviderCard(normalized);
     return { setup, normalized, token };
   }
 
@@ -1438,8 +1484,9 @@ class ForteWidgetService {
         { retryable: response.status >= 500 },
       );
     }
-    const normalized = normalizeWidgetCheckout(body);
+    let normalized = normalizeWidgetCheckout(body);
     this.validateCheckout(order, normalized, token);
+    normalized = await this.hydrateProviderCard(normalized);
     return { order, normalized, token };
   }
 
@@ -1484,7 +1531,11 @@ class ForteWidgetService {
         `${order.id}:${order.operation_id}`,
         this.env,
       );
-      return this.applyProviderCheckout(order, normalized, expectedToken, {
+      this.validateCheckout(order, normalized, expectedToken, {
+        allowMissingShop: true,
+      });
+      const hydrated = await this.hydrateProviderCard(normalized);
+      return this.applyProviderCheckout(order, hydrated, expectedToken, {
         allowMissingShop: true,
       });
     } catch (error) {
@@ -1509,7 +1560,11 @@ class ForteWidgetService {
       `${setup.customer_id}:${setup.id}`,
       this.env,
     );
-    return this.applyProviderCardSetup(setup, normalized, expectedToken, {
+    this.validateCardSetup(setup, normalized, expectedToken, {
+      allowMissingShop: true,
+    });
+    const hydrated = await this.hydrateProviderCard(normalized);
+    return this.applyProviderCardSetup(setup, hydrated, expectedToken, {
       allowMissingShop: true,
     });
   }

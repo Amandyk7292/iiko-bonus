@@ -51,6 +51,8 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
       });
     }
     var status = 'pending';
+    var cardSaved = false;
+    String? refundStatus;
     try {
       for (var attempt = 0; attempt < 10; attempt++) {
         final result = await widget.api.checkForteCardSetupStatus(
@@ -59,7 +61,11 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
         status = (result['paymentStatus'] ?? result['status'] ?? 'pending')
             .toString()
             .toLowerCase();
-        if (const {'paid', 'failed', 'expired'}.contains(status)) break;
+        cardSaved = result['cardSaved'] == true;
+        refundStatus = result['refundStatus']?.toString().toLowerCase();
+        if (cardSaved || const {'paid', 'failed', 'expired'}.contains(status)) {
+          break;
+        }
         await Future<void>.delayed(const Duration(seconds: 2));
       }
       await _load();
@@ -67,7 +73,9 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            status == 'paid'
+            cardSaved && refundStatus != 'succeeded'
+                ? 'card_setup_saved_refund_pending'.tr
+                : status == 'paid'
                 ? 'card_setup_success_hint'.tr
                 : status == 'pending'
                 ? 'card_setup_token_missing'.tr
