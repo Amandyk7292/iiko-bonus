@@ -852,56 +852,12 @@ class _GuestProfileScreen extends StatelessWidget {
                   ),
                   Divider(height: 1, indent: 60, color: colors.cardBorder),
                   _ProfileMenuItem(
-                    icon: Icons.privacy_tip_outlined,
-                    title: 'legal_privacy'.tr,
-                    onTap: () => launchUrl(
-                      bulkaLegalPageUri('privacy'),
-                      mode: LaunchMode.platformDefault,
-                    ),
-                  ),
-                  Divider(height: 1, indent: 60, color: colors.cardBorder),
-                  _ProfileMenuItem(
-                    icon: Icons.description_outlined,
-                    title: 'legal_public_offer'.tr,
-                    onTap: () => launchUrl(
-                      bulkaLegalPageUri('public-offer'),
-                      mode: LaunchMode.platformDefault,
-                    ),
-                  ),
-                  Divider(height: 1, indent: 60, color: colors.cardBorder),
-                  _ProfileMenuItem(
-                    icon: Icons.gavel_outlined,
-                    title: 'legal_terms'.tr,
-                    onTap: () => launchUrl(
-                      bulkaLegalPageUri('terms'),
-                      mode: LaunchMode.platformDefault,
-                    ),
-                  ),
-                  Divider(height: 1, indent: 60, color: colors.cardBorder),
-                  _ProfileMenuItem(
-                    icon: Icons.payments_outlined,
-                    title: 'legal_payment_refund'.tr,
-                    onTap: () => launchUrl(
-                      bulkaLegalPageUri('payment-and-refund'),
-                      mode: LaunchMode.platformDefault,
-                    ),
-                  ),
-                  Divider(height: 1, indent: 60, color: colors.cardBorder),
-                  _ProfileMenuItem(
-                    icon: Icons.local_shipping_outlined,
-                    title: 'legal_delivery_terms'.tr,
-                    onTap: () => launchUrl(
-                      bulkaLegalPageUri('delivery-terms'),
-                      mode: LaunchMode.platformDefault,
-                    ),
-                  ),
-                  Divider(height: 1, indent: 60, color: colors.cardBorder),
-                  _ProfileMenuItem(
                     icon: Icons.account_balance_outlined,
-                    title: 'legal_company_details'.tr,
-                    onTap: () => launchUrl(
-                      bulkaLegalPageUri('company-details'),
-                      mode: LaunchMode.platformDefault,
+                    title: 'legal_documents_title'.tr,
+                    onTap: () => Navigator.of(context).push<void>(
+                      MaterialPageRoute(
+                        builder: (_) => const LegalDocumentsScreen(),
+                      ),
                     ),
                   ),
                 ],

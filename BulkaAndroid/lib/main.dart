@@ -72,6 +72,7 @@ part 'screens/notification_settings_screen.dart';
 part 'screens/kaspi_payment_screen.dart';
 part 'screens/forte_payment_screen.dart';
 part 'screens/notifications_screen.dart';
+part 'screens/legal_documents_screen.dart';
 part 'screens/profile_screen.dart';
 part 'screens/payment_methods_screen.dart';
 part 'screens/promos_screen.dart';

@@ -6,6 +6,7 @@ from playwright.sync_api import sync_playwright
 
 BASE_URL = os.environ.get("BULKA_E2E_BASE_URL", "http://127.0.0.1:3000").rstrip("/")
 ARTIFACTS_DIR = Path(__file__).resolve().parents[1] / "artifacts"
+DOCUMENTS_ENTRY = "Документы и условия"
 EXPECTED_LABELS = (
     "Публичная оферта",
     "Условия оплаты и возврата",
@@ -55,20 +56,33 @@ with sync_playwright() as playwright:
         accessibility_switch.evaluate("(element) => element.click()")
         page.wait_for_timeout(1_000)
 
-    label_text = semantic_text(page)
-    missing = [label for label in EXPECTED_LABELS if label not in label_text]
-    if missing:
+    profile_text = semantic_text(page)
+    if DOCUMENTS_ENTRY not in profile_text:
         page.mouse.move(200, 650)
         page.mouse.wheel(0, 760)
         page.wait_for_timeout(2_000)
-        label_text = semantic_text(page)
-        missing = [label for label in EXPECTED_LABELS if label not in label_text]
+        profile_text = semantic_text(page)
+
+    assert DOCUMENTS_ENTRY in profile_text, "Guest profile is missing documents entry"
+    assert not any(
+        label in profile_text for label in EXPECTED_LABELS
+    ), "Legal documents must be grouped under one profile entry"
+
+    documents_entry = page.locator(
+        f'[aria-label*="{DOCUMENTS_ENTRY}"], flt-semantics:has-text("{DOCUMENTS_ENTRY}")'
+    )
+    assert documents_entry.count(), "Documents entry is not clickable"
+    documents_entry.last.click(force=True)
+    page.wait_for_timeout(1_000)
+
+    label_text = semantic_text(page)
+    missing = [label for label in EXPECTED_LABELS if label not in label_text]
 
     ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
     screenshot = ARTIFACTS_DIR / "production-guest-legal-profile.png"
     page.screenshot(path=str(screenshot), full_page=True)
 
-    assert not missing, f"Guest profile is missing legal entries: {missing}"
+    assert not missing, f"Documents page is missing legal entries: {missing}"
     assert not browser_errors, browser_errors
     context.close()
     browser.close()

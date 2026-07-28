@@ -191,12 +191,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await _navigationGate.run(widget.onOpenOrders);
   }
 
-  Future<void> _openExternal(Uri uri) async {
-    await _navigationGate.run(() async {
-      await launchUrl(uri, mode: LaunchMode.platformDefault);
-    });
-  }
-
   Future<void> _openContact() async {
     await _navigationGate.run(() => _openTelegram(context));
   }
@@ -545,69 +539,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       color: Color(0xFFF3F3F3),
                     ),
                     _ProfileMenuItem(
-                      icon: Icons.privacy_tip_outlined,
-                      title: 'legal_privacy'.tr,
-                      onTap: () => _openExternal(bulkaLegalPageUri('privacy')),
-                    ),
-                    const Divider(
-                      height: 1,
-                      indent: 60,
-                      endIndent: 20,
-                      color: Color(0xFFF3F3F3),
-                    ),
-                    _ProfileMenuItem(
-                      icon: Icons.description_outlined,
-                      title: 'legal_public_offer'.tr,
-                      onTap: () =>
-                          _openExternal(bulkaLegalPageUri('public-offer')),
-                    ),
-                    const Divider(
-                      height: 1,
-                      indent: 60,
-                      endIndent: 20,
-                      color: Color(0xFFF3F3F3),
-                    ),
-                    _ProfileMenuItem(
-                      icon: Icons.gavel_outlined,
-                      title: 'legal_terms'.tr,
-                      onTap: () => _openExternal(bulkaLegalPageUri('terms')),
-                    ),
-                    const Divider(
-                      height: 1,
-                      indent: 60,
-                      endIndent: 20,
-                      color: Color(0xFFF3F3F3),
-                    ),
-                    _ProfileMenuItem(
-                      icon: Icons.payments_outlined,
-                      title: 'legal_payment_refund'.tr,
-                      onTap: () => _openExternal(
-                        bulkaLegalPageUri('payment-and-refund'),
-                      ),
-                    ),
-                    const Divider(
-                      height: 1,
-                      indent: 60,
-                      endIndent: 20,
-                      color: Color(0xFFF3F3F3),
-                    ),
-                    _ProfileMenuItem(
-                      icon: Icons.local_shipping_outlined,
-                      title: 'legal_delivery_terms'.tr,
-                      onTap: () =>
-                          _openExternal(bulkaLegalPageUri('delivery-terms')),
-                    ),
-                    const Divider(
-                      height: 1,
-                      indent: 60,
-                      endIndent: 20,
-                      color: Color(0xFFF3F3F3),
-                    ),
-                    _ProfileMenuItem(
                       icon: Icons.account_balance_outlined,
-                      title: 'legal_company_details'.tr,
+                      title: 'legal_documents_title'.tr,
                       onTap: () =>
-                          _openExternal(bulkaLegalPageUri('company-details')),
+                          _openPage((_) => const LegalDocumentsScreen()),
                     ),
                     const Divider(
                       height: 1,

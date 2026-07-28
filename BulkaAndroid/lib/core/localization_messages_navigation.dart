@@ -54,6 +54,16 @@ const Map<String, Map<String, String>> _navigationAndProfileTranslations = {
     'en': 'Contact us',
   },
   'menu_info': {'ru': 'Информация', 'kk': 'Ақпарат', 'en': 'Information'},
+  'legal_documents_title': {
+    'ru': 'Документы и условия',
+    'kk': 'Құжаттар мен шарттар',
+    'en': 'Documents and terms',
+  },
+  'legal_open_error': {
+    'ru': 'Не удалось открыть документ. Попробуйте ещё раз.',
+    'kk': 'Құжатты ашу мүмкін болмады. Қайталап көріңіз.',
+    'en': 'Could not open the document. Please try again.',
+  },
   'legal_privacy': {
     'ru': 'Политика конфиденциальности',
     'kk': 'Құпиялылық саясаты',
