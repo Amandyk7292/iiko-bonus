@@ -44,7 +44,10 @@ const {
   adminCsrfMiddleware,
   adminMutationRoleMiddleware,
 } = require('./middlewares/auth.middleware');
-const { requestBodySafetyMiddleware } = require('./middlewares/validation.middleware');
+const {
+  apiEnvelopeValidationMiddleware,
+  requestBodySafetyMiddleware,
+} = require('./middlewares/validation.middleware');
 
 const app = express();
 validateRuntimeConfig();
@@ -126,6 +129,7 @@ app.use(
 );
 app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 app.use(requestBodySafetyMiddleware);
+app.use(apiEnvelopeValidationMiddleware);
 
 app.locals.kaspiReady = process.env.KASPI_POS_ENABLED !== 'true';
 let embeddedKaspiApp = null;
@@ -477,7 +481,7 @@ app.use((err, req, res, _next) => {
   const response = {
     error:
       statusCode >= 500
-        ? 'Internal Server Error'
+        ? 'Не удалось выполнить действие. Повторите попытку.'
         : err.expose === false
           ? 'Request failed'
           : err.message || 'Request failed',

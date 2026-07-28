@@ -1,4 +1,11 @@
-import { AlertTriangle, CheckCircle2, MessageSquareText, RefreshCw, Search, Star } from 'lucide-react';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  MessageSquareText,
+  RefreshCw,
+  Search,
+  Star,
+} from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from '../lib/router';
 import PageState from '../components/PageState';
@@ -106,7 +113,9 @@ export default function ReviewsPage() {
       <div className="page-actions-row">
         <div>
           <h2 className="content-heading">Отзывы клиентов</h2>
-          <p className="page-help">Проверяйте оценки, жалобы на блюда и скрывайте некорректные отзывы.</p>
+          <p className="page-help">
+            Проверяйте оценки, жалобы на блюда и скрывайте некорректные отзывы.
+          </p>
         </div>
         <button
           className="btn-outline px-5 inline-flex items-center gap-2"
@@ -127,11 +136,13 @@ export default function ReviewsPage() {
             <Search aria-hidden="true" size={18} />
             <input
               id="review-search"
+              name="reviewSearch"
               type="search"
               className="input-classic"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Номер заказа или текст отзыва"
+              autoComplete="off"
             />
           </div>
         </div>
@@ -189,8 +200,8 @@ export default function ReviewsPage() {
                 </span>
               </header>
               <p className="review-customer">
-                {review.customers?.name || t('reviews.customer')} ·{' '}
-                {review.customers?.phone || '—'} · {formatDate(review.created_at)}
+                {review.customers?.name || t('reviews.customer')} · {review.customers?.phone || '—'}{' '}
+                · {formatDate(review.created_at)}
               </p>
               {review.comment && <blockquote>{review.comment}</blockquote>}
               {(review.order_review_items || []).map((item: any) => (

@@ -361,8 +361,6 @@ export default function MenuPage() {
     }
   };
 
-  // Открытие модалки редактирования товара iiko
-  // Открытие модалки редактирования товара iiko
   const openEditModal = (product: IikoProduct) => {
     const override = productOverrides[product.id];
     setEditingProduct(product);
@@ -864,19 +862,26 @@ export default function MenuPage() {
           aria-labelledby="menu-tab-products"
           className="space-y-4"
         >
-          {/* Фильтры */}
           <div className="flex flex-col sm:flex-row gap-4 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
             <div className="relative flex-1">
+              <label className="sr-only" htmlFor="menu-product-search">
+                Поиск блюда по названию
+              </label>
               <Search
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
                 size={18}
+                aria-hidden="true"
               />
               <input
-                type="text"
+                id="menu-product-search"
+                name="menuProductSearch"
+                type="search"
                 placeholder="Поиск блюда по названию…"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm"
+                autoComplete="off"
+                spellCheck="false"
+                className="w-full pl-10 pr-4 py-2 bg-gray-50 rounded-xl border border-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 text-sm"
               />
             </div>
             <SelectControl

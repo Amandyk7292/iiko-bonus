@@ -65,9 +65,14 @@ describe('admin production invariants', () => {
       resolve(root, '../src/services/analytics-event.service.js'),
       'utf8',
     );
-    for (const eventName of ['checkout_start', 'payment_created']) {
-      expect(analyticsPage, eventName).toContain(`'${eventName}'`);
-      expect(analyticsService, eventName).toContain(`'${eventName}'`);
+    for (const eventName of [
+      'checkout_start',
+      'payment_created',
+      'payment_failed',
+      'payment_cancelled',
+    ]) {
+      expect(analyticsPage, eventName).toContain(eventName);
+      expect(analyticsService, eventName).toContain(eventName);
     }
     expect(analyticsPage).not.toContain("'checkout_started'");
     expect(analyticsPage).not.toContain("'payment_started'");

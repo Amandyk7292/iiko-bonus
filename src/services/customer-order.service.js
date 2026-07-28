@@ -158,6 +158,29 @@ const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
         locationUpdatedAt: order.couriers.location_updated_at || null,
       }
     : null;
+  const substitutions = (order.order_substitution_requests || []).map((request) => ({
+    id: String(request.id),
+    orderId: String(order.id),
+    lineKey: request.line_key,
+    productId: request.product_id,
+    productName: request.product_name,
+    quantity: Number(request.quantity || 0),
+    action: request.action,
+    status: request.status,
+    replacementProductId: request.replacement_product_id || null,
+    replacementProductName: request.replacement_product_name || null,
+    note: request.note || null,
+    error: request.error || null,
+    refundId: request.refund_id || null,
+    createdAt: request.created_at,
+    updatedAt: request.updated_at,
+    respondedAt: request.responded_at || null,
+    completedAt: request.completed_at || null,
+  }));
+  const latestSubstitutionUpdate = substitutions.reduce(
+    (latest, request) => (request.updatedAt > latest ? request.updatedAt : latest),
+    '',
+  );
   return {
     id: order.id,
     number: Number(order.order_number),
@@ -184,6 +207,7 @@ const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
     deliveryFee: Number(order.delivery_fee || 0),
     comment: order.comment || null,
     substitutionPreference: order.substitution_preference || 'call_customer',
+    substitutions,
     items: Array.isArray(order.cart_items) ? order.cart_items : [],
     earnedBonus: Number(order.earned_bonus || 0),
     refundStatus: order.refund_status || null,
@@ -213,7 +237,10 @@ const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
     cancellationReason: order.cancellation_reason || null,
     receiptUrl: orderReceiptUrl(order),
     createdAt: order.created_at,
-    updatedAt: order.updated_at,
+    updatedAt:
+      latestSubstitutionUpdate > String(order.updated_at || '')
+        ? latestSubstitutionUpdate
+        : order.updated_at,
     ...(order.customers
       ? {
           customer: {
@@ -227,6 +254,8 @@ const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
 
 const DELIVERY_JOB_FIELDS =
   'delivery_jobs(id,provider,provider_status,internal_status,provider_price,currency,tracking_url,courier_name,courier_phone,courier_transport_type,courier_car_model,courier_car_number,courier_car_color,eta_minutes,created_at,updated_at)';
+const SUBSTITUTION_FIELDS =
+  'order_substitution_requests(id,line_key,product_id,product_name,quantity,action,status,replacement_product_id,replacement_product_name,note,error,refund_id,created_at,updated_at,responded_at,completed_at)';
 
 async function listCustomerOrders(customerId, { scope = 'active', page = 1, pageSize = 30 } = {}) {
   const safePage = Math.max(1, Number.parseInt(page, 10) || 1);
@@ -234,7 +263,7 @@ async function listCustomerOrders(customerId, { scope = 'active', page = 1, page
   let query = supabase
     .from('kaspi_orders')
     .select(
-      `${ORDER_FIELDS},payment_receipts(id,language),couriers(id,name,phone,vehicle,current_latitude,current_longitude,location_updated_at),${DELIVERY_JOB_FIELDS}`,
+      `${ORDER_FIELDS},payment_receipts(id,language),couriers(id,name,phone,vehicle,current_latitude,current_longitude,location_updated_at),${DELIVERY_JOB_FIELDS},${SUBSTITUTION_FIELDS}`,
       { count: 'exact' },
     )
     .eq('customer_id', customerId)
@@ -330,7 +359,7 @@ async function listAdminOrders({
   let query = supabase
     .from('kaspi_orders')
     .select(
-      `${ORDER_FIELDS},customers(name,phone),payment_receipts(id,language),couriers(id,name,phone,vehicle,current_latitude,current_longitude,location_updated_at),${DELIVERY_JOB_FIELDS}`,
+      `${ORDER_FIELDS},customers(name,phone),payment_receipts(id,language),couriers(id,name,phone,vehicle,current_latitude,current_longitude,location_updated_at),${DELIVERY_JOB_FIELDS},${SUBSTITUTION_FIELDS}`,
       { count: 'exact' },
     );
 

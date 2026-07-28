@@ -4,6 +4,8 @@ import {
   Camera,
   LoaderCircle,
   MapPin,
+  PackageSearch,
+  Phone,
   RefreshCw,
   RotateCcw,
   Search,
@@ -13,7 +15,13 @@ import PageState from '../components/PageState';
 import Modal from '../components/Modal';
 import SelectControl from '../components/SelectControl';
 import { useFeedback } from '../components/Feedback';
-import { api, type AdminOrder, type Courier, type DeliveryProof } from '../lib/api';
+import {
+  api,
+  type AdminOrder,
+  type Courier,
+  type DeliveryProof,
+  type OrderSubstitution,
+} from '../lib/api';
 import { useAdminRealtimeEvents } from '../lib/admin-realtime';
 import { useI18n } from '../lib/i18n';
 
@@ -26,6 +34,7 @@ const deliveryTransitions: Record<string, string[]> = {
   delivered: [],
   cancelled: [],
 };
+type SubstitutionOptions = Awaited<ReturnType<typeof api.getSubstitutionOptions>>['options'];
 
 export default function OrdersPage() {
   const { t, formatDate, formatNumber } = useI18n();
@@ -49,6 +58,14 @@ export default function OrdersPage() {
   const [proofLoading, setProofLoading] = useState(false);
   const [cancellationOrder, setCancellationOrder] = useState<AdminOrder | null>(null);
   const [cancellationReason, setCancellationReason] = useState('');
+  const [substitutionOrder, setSubstitutionOrder] = useState<AdminOrder | null>(null);
+  const [substitutionOptions, setSubstitutionOptions] = useState<SubstitutionOptions | null>(null);
+  const [substitutionLineKey, setSubstitutionLineKey] = useState('');
+  const [substitutionQuantity, setSubstitutionQuantity] = useState(1);
+  const [substitutionAction, setSubstitutionAction] =
+    useState<OrderSubstitution['action']>('call_customer');
+  const [replacementProductId, setReplacementProductId] = useState('');
+  const [substitutionNote, setSubstitutionNote] = useState('');
   const pageSize = 50;
 
   const load = useCallback(
@@ -98,7 +115,7 @@ export default function OrdersPage() {
   }, []);
 
   useAdminRealtimeEvents(
-    ['order.created', 'order.updated', 'order.customer_arrived'],
+    ['order.created', 'order.updated', 'order.customer_arrived', 'order.substitution_updated'],
     () => {
       if (document.visibilityState === 'visible') void load(true);
     },
@@ -227,6 +244,74 @@ export default function OrdersPage() {
     }
   };
 
+  const openSubstitution = async (order: AdminOrder) => {
+    setSubstitutionOrder(order);
+    setSubstitutionOptions(null);
+    setSubstitutionLineKey('');
+    setSubstitutionQuantity(1);
+    setReplacementProductId('');
+    setSubstitutionNote('');
+    setSubstitutionAction(
+      ['remove_refund', 'call_customer', 'replace_with_approval'].includes(
+        String(order.substitutionPreference),
+      )
+        ? (order.substitutionPreference as OrderSubstitution['action'])
+        : 'call_customer',
+    );
+    try {
+      const result = await api.getSubstitutionOptions(order.id);
+      setSubstitutionOptions(result.options);
+      const firstLine = result.options.lines.find((line) => line.refundableQuantity > 0);
+      if (firstLine) setSubstitutionLineKey(firstLine.lineKey);
+    } catch (caught) {
+      setSubstitutionOrder(null);
+      toast(caught instanceof Error ? caught.message : t('common.error'), 'error');
+    }
+  };
+
+  const submitSubstitution = async () => {
+    if (!substitutionOrder || !substitutionLineKey || savingId) return;
+    if (substitutionAction === 'replace_with_approval' && !replacementProductId) {
+      toast(t('orders.substitutionWorkflow.selectReplacement'), 'error');
+      return;
+    }
+    setSavingId(substitutionOrder.id);
+    try {
+      await api.createSubstitution(substitutionOrder.id, {
+        lineKey: substitutionLineKey,
+        quantity: substitutionQuantity,
+        action: substitutionAction,
+        ...(replacementProductId && { replacementProductId }),
+        ...(substitutionNote.trim() && { note: substitutionNote.trim() }),
+      });
+      const phone = substitutionOrder.customer?.phone;
+      setSubstitutionOrder(null);
+      await load(true);
+      toast(t('orders.substitutionWorkflow.saved'));
+      if (substitutionAction === 'call_customer' && phone) {
+        window.location.href = `tel:${phone.replace(/[^\d+]/g, '')}`;
+      }
+    } catch (caught) {
+      toast(caught instanceof Error ? caught.message : t('common.error'), 'error');
+    } finally {
+      setSavingId('');
+    }
+  };
+
+  const completeSubstitution = async (order: AdminOrder, requestId: string) => {
+    if (savingId) return;
+    setSavingId(order.id);
+    try {
+      await api.completeSubstitution(order.id, requestId);
+      await load(true);
+      toast(t('orders.substitutionWorkflow.completed'));
+    } catch (caught) {
+      toast(caught instanceof Error ? caught.message : t('common.error'), 'error');
+    } finally {
+      setSavingId('');
+    }
+  };
+
   const openDeliveryProof = async (order: AdminOrder) => {
     setProofLoading(true);
     setDeliveryProof(null);
@@ -241,6 +326,10 @@ export default function OrdersPage() {
       setProofLoading(false);
     }
   };
+
+  const selectedSubstitutionLine = substitutionOptions?.lines.find(
+    (line) => line.lineKey === substitutionLineKey,
+  );
 
   if (loading && orders.length === 0) return <PageState type="loading" />;
   if (error && orders.length === 0)
@@ -279,6 +368,7 @@ export default function OrdersPage() {
             <Search aria-hidden="true" size={18} />
             <input
               id="order-search"
+              name="orderSearch"
               type="search"
               className="input-classic"
               value={search}
@@ -376,6 +466,51 @@ export default function OrdersPage() {
                           )}
                         </span>
                       </div>
+                      {order.paymentStatus === 'paid' &&
+                        !['completed', 'cancelled'].includes(order.orderStatus) && (
+                          <button
+                            type="button"
+                            className="text-button-refund"
+                            onClick={() => void openSubstitution(order)}
+                            disabled={savingId === order.id}
+                          >
+                            <PackageSearch size={14} aria-hidden="true" />
+                            {t('orders.substitutionWorkflow.missingItem')}
+                          </button>
+                        )}
+                      {(order.substitutions || []).length > 0 && (
+                        <div
+                          className="substitution-workflow-list"
+                          aria-label={t('orders.substitutionWorkflow.history')}
+                        >
+                          {(order.substitutions || []).map((request) => (
+                            <div
+                              className={`substitution-workflow status-${request.status}`}
+                              key={request.id}
+                            >
+                              <span>
+                                {request.productName} ×{request.quantity}
+                                {request.replacementProductName
+                                  ? ` → ${request.replacementProductName}`
+                                  : ''}
+                              </span>
+                              <small>
+                                {t(`orders.substitutionWorkflow.status.${request.status}`)}
+                              </small>
+                              {['contacting', 'approved'].includes(request.status) && (
+                                <button
+                                  type="button"
+                                  className="text-button-refund"
+                                  onClick={() => void completeSubstitution(order, request.id)}
+                                  disabled={savingId === order.id}
+                                >
+                                  {t('orders.substitutionWorkflow.markCompleted')}
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       {order.customerArrivedAt && (
                         <div className="customer-arrived-alert">
                           <MapPin size={15} aria-hidden="true" />
@@ -675,6 +810,167 @@ export default function OrdersPage() {
                 >
                   {savingId ? <LoaderCircle className="spin" size={17} /> : <RotateCcw size={17} />}
                   Вернуть выбранное
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </Modal>
+      <Modal
+        open={Boolean(substitutionOrder)}
+        onClose={() => !savingId && setSubstitutionOrder(null)}
+        title={t('orders.substitutionWorkflow.title')}
+        description={
+          substitutionOrder
+            ? t('orders.substitutionWorkflow.description', {
+                order: substitutionOrder.number,
+              })
+            : undefined
+        }
+        size="md"
+      >
+        <div className="modal-body form-stack">
+          {!substitutionOptions ? (
+            <PageState compact type="loading" />
+          ) : (
+            <>
+              <div className="field-group">
+                <label className="field-label" htmlFor="substitution-line">
+                  {t('orders.substitutionWorkflow.item')}
+                </label>
+                <SelectControl
+                  id="substitution-line"
+                  value={substitutionLineKey}
+                  onChange={(value) => {
+                    setSubstitutionLineKey(value);
+                    setSubstitutionQuantity(1);
+                  }}
+                  options={substitutionOptions.lines
+                    .filter((line) => line.refundableQuantity > 0)
+                    .map((line) => ({
+                      value: line.lineKey,
+                      label: `${line.name} · ${line.refundableQuantity}`,
+                    }))}
+                />
+              </div>
+              <div className="field-group">
+                <label className="field-label" htmlFor="substitution-quantity">
+                  {t('orders.substitutionWorkflow.quantity')}
+                </label>
+                <input
+                  id="substitution-quantity"
+                  name="substitutionQuantity"
+                  className="input-classic"
+                  type="number"
+                  min="1"
+                  max={selectedSubstitutionLine?.refundableQuantity || 1}
+                  value={substitutionQuantity}
+                  onChange={(event) =>
+                    setSubstitutionQuantity(
+                      Math.max(
+                        1,
+                        Math.min(
+                          selectedSubstitutionLine?.refundableQuantity || 1,
+                          Number(event.target.value) || 1,
+                        ),
+                      ),
+                    )
+                  }
+                />
+              </div>
+              <fieldset className="substitution-action-fieldset">
+                <legend className="field-label">{t('orders.substitutionWorkflow.action')}</legend>
+                {(
+                  [
+                    'remove_refund',
+                    'call_customer',
+                    'replace_with_approval',
+                  ] as OrderSubstitution['action'][]
+                ).map((action) => (
+                  <label className="substitution-action-option" key={action}>
+                    <input
+                      type="radio"
+                      name="substitutionAction"
+                      value={action}
+                      checked={substitutionAction === action}
+                      onChange={() => setSubstitutionAction(action)}
+                    />
+                    <span>{t(`orders.substitution.${action}`)}</span>
+                  </label>
+                ))}
+              </fieldset>
+              {substitutionAction === 'replace_with_approval' && (
+                <div className="field-group">
+                  <label className="field-label" htmlFor="substitution-replacement">
+                    {t('orders.substitutionWorkflow.replacement')}
+                  </label>
+                  <SelectControl
+                    id="substitution-replacement"
+                    value={replacementProductId}
+                    onChange={setReplacementProductId}
+                    options={[
+                      {
+                        value: '',
+                        label: t('orders.substitutionWorkflow.selectReplacement'),
+                      },
+                      ...substitutionOptions.replacements
+                        .filter((item) => item.productId !== selectedSubstitutionLine?.productId)
+                        .map((item) => ({
+                          value: item.productId,
+                          label: `${item.productName}${
+                            item.availableQuantity == null ? '' : ` · ${item.availableQuantity}`
+                          }`,
+                        })),
+                    ]}
+                  />
+                </div>
+              )}
+              <div className="field-group">
+                <label className="field-label" htmlFor="substitution-note">
+                  {t('orders.substitutionWorkflow.note')}
+                </label>
+                <textarea
+                  id="substitution-note"
+                  name="substitutionNote"
+                  className="input-classic"
+                  rows={3}
+                  maxLength={500}
+                  value={substitutionNote}
+                  onChange={(event) => setSubstitutionNote(event.target.value)}
+                />
+              </div>
+              {substitutionAction === 'remove_refund' && (
+                <div className="inline-alert inline-alert-warning" role="alert">
+                  {t('orders.substitutionWorkflow.refundWarning')}
+                </div>
+              )}
+              <div className="modal-actions" aria-live="polite">
+                <button
+                  className="btn-outline px-5"
+                  type="button"
+                  onClick={() => setSubstitutionOrder(null)}
+                  disabled={Boolean(savingId)}
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  className={
+                    substitutionAction === 'remove_refund'
+                      ? 'btn-danger px-5 inline-flex items-center gap-2'
+                      : 'btn-primary px-5 inline-flex items-center gap-2'
+                  }
+                  type="button"
+                  onClick={() => void submitSubstitution()}
+                  disabled={!substitutionLineKey || Boolean(savingId)}
+                >
+                  {savingId ? (
+                    <LoaderCircle className="spin" size={17} aria-hidden="true" />
+                  ) : substitutionAction === 'call_customer' ? (
+                    <Phone size={17} aria-hidden="true" />
+                  ) : (
+                    <PackageSearch size={17} aria-hidden="true" />
+                  )}
+                  {t('common.confirm')}
                 </button>
               </div>
             </>

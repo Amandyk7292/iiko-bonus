@@ -191,11 +191,13 @@ export default function InventoryPage() {
             <Search aria-hidden="true" size={18} />
             <input
               id="inventory-search"
+              name="inventorySearch"
               className="input-classic"
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder={t('inventory.search')}
+              autoComplete="off"
             />
           </div>
         </div>

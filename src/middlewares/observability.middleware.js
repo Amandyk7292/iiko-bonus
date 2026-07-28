@@ -39,7 +39,8 @@ const safeErrorResponseMiddleware = (req, res, next) => {
         );
       }
       return originalJson({
-        error: 'Internal Server Error',
+        success: false,
+        error: 'Не удалось выполнить действие. Повторите попытку.',
         code: body.code || 'INTERNAL_ERROR',
         requestId: req.id,
       });

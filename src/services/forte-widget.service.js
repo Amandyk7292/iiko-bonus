@@ -1499,9 +1499,19 @@ class ForteWidgetService {
     }
     let updatedOrder = updatedMetadata;
     if (nextStatus !== 'pending') {
+      const providerStatus = String(
+        normalized.status || normalized.transactionStatus || nextStatus,
+      );
       updatedOrder =
-        (await this.orderService.updateOrderStatus(order.operation_id, nextStatus)) ||
-        updatedMetadata;
+        (await this.orderService.updateOrderStatus(order.operation_id, nextStatus, {
+          type:
+            nextStatus === 'failed' && /cancel/i.test(providerStatus)
+              ? 'payment_cancelled'
+              : nextStatus === 'expired'
+                ? 'payment_cancelled'
+                : undefined,
+          providerStatus,
+        })) || updatedMetadata;
     }
     if (nextStatus === 'paid') {
       if (normalized.card.token) {

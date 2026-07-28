@@ -178,6 +178,74 @@ const Map<String, Map<String, String>> _orderAndPaymentTranslations = {
     'kk': 'Тапсырысты тоқтату мүмкін болмады. Оны жаңартып, қайталап көріңіз.',
     'en': 'Could not cancel the order. Refresh it and try again.',
   },
+  'substitution_approval_title': {
+    'ru': 'Подтвердите замену',
+    'kk': 'Ауыстыруды растаңыз',
+    'en': 'Approve replacement',
+  },
+  'substitution_offer_body': {
+    'ru': 'Предлагаем заменить «{from}» на «{to}». Цена заказа не изменится.',
+    'kk':
+        '«{from}» тауарын «{to}» тауарына ауыстыруды ұсынамыз. Тапсырыс бағасы өзгермейді.',
+    'en':
+        'We suggest replacing “{from}” with “{to}”. The order price will not change.',
+  },
+  'substitution_item_body': {
+    'ru': 'Обрабатываем «{item}», количество: {quantity}.',
+    'kk': '«{item}» өңделуде, саны: {quantity}.',
+    'en': 'Processing “{item}”, quantity: {quantity}.',
+  },
+  'substitution_approve': {
+    'ru': 'Согласен',
+    'kk': 'Келісемін',
+    'en': 'Approve',
+  },
+  'substitution_reject': {
+    'ru': 'Не заменять',
+    'kk': 'Ауыстырмау',
+    'en': 'Do not replace',
+  },
+  'substitution_reject_title': {
+    'ru': 'Отказаться от замены?',
+    'kk': 'Ауыстырудан бас тартасыз ба?',
+    'en': 'Reject replacement?',
+  },
+  'substitution_reject_body': {
+    'ru': 'Сотрудник увидит отказ и свяжется с вами для другого решения.',
+    'kk': 'Қызметкер бас тартуды көріп, басқа шешім үшін сізбен хабарласады.',
+    'en':
+        'The team will see your response and contact you about another option.',
+  },
+  'substitution_approved_title': {
+    'ru': 'Замена согласована',
+    'kk': 'Ауыстыру келісілді',
+    'en': 'Replacement approved',
+  },
+  'substitution_rejected_title': {
+    'ru': 'Вы отказались от замены',
+    'kk': 'Сіз ауыстырудан бас тарттыңыз',
+    'en': 'Replacement rejected',
+  },
+  'substitution_processing_title': {
+    'ru': 'Решаем вопрос с товаром',
+    'kk': 'Тауар мәселесін шешудеміз',
+    'en': 'Resolving item issue',
+  },
+  'substitution_approved_message': {
+    'ru': 'Спасибо, замена подтверждена.',
+    'kk': 'Рақмет, ауыстыру расталды.',
+    'en': 'Thank you. Replacement approved.',
+  },
+  'substitution_rejected_message': {
+    'ru': 'Отказ отправлен сотруднику.',
+    'kk': 'Бас тарту қызметкерге жіберілді.',
+    'en': 'Your response was sent to the team.',
+  },
+  'substitution_response_error': {
+    'ru': 'Не удалось отправить ответ. Обновите заказ и попробуйте снова.',
+    'kk': 'Жауапты жіберу мүмкін болмады. Тапсырысты жаңартып, қайталаңыз.',
+    'en': 'Could not send your response. Refresh the order and try again.',
+  },
   'refund_stage_processing': {
     'ru': 'Оформляем возврат',
     'kk': 'Қайтарымды рәсімдеп жатырмыз',

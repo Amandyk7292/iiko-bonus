@@ -16,11 +16,7 @@ import { useSearchParams } from '../lib/router';
 import PageState from '../components/PageState';
 import SelectControl from '../components/SelectControl';
 import { useFeedback } from '../components/Feedback';
-import {
-  api,
-  type SupportMessage,
-  type SupportRequest,
-} from '../lib/api';
+import { api, type SupportMessage, type SupportRequest } from '../lib/api';
 import { useAdminRealtimeEvents } from '../lib/admin-realtime';
 import { useI18n } from '../lib/i18n';
 import {
@@ -221,8 +217,7 @@ export default function SupportPage() {
   const changeStatus = async (nextStatus: string) => {
     if (!detail || saving) return;
     const closing =
-      CLOSED_SUPPORT_STATUSES.has(nextStatus) &&
-      !CLOSED_SUPPORT_STATUSES.has(detail.status);
+      CLOSED_SUPPORT_STATUSES.has(nextStatus) && !CLOSED_SUPPORT_STATUSES.has(detail.status);
     const resolution = closing ? publicSupportDraft(reply, internal) : '';
     if (closing && !canCloseSupportRequest(messages, reply, internal)) {
       toast(
@@ -322,11 +317,13 @@ export default function SupportPage() {
             <Search aria-hidden="true" size={18} />
             <input
               id="support-search"
+              name="supportSearch"
               className="input-classic"
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Номер заказа или текст обращения"
+              autoComplete="off"
             />
           </div>
         </div>
@@ -383,7 +380,9 @@ export default function SupportPage() {
                 >
                   <span className="support-request-topline">
                     <strong>{request.customer?.name || 'Клиент Bulka'}</strong>
-                    <time dateTime={request.lastMessageAt}>{formatDate(request.lastMessageAt)}</time>
+                    <time dateTime={request.lastMessageAt}>
+                      {formatDate(request.lastMessageAt)}
+                    </time>
                   </span>
                   <span className="support-request-meta">
                     {request.orderNumber ? `Заказ №${request.orderNumber}` : 'Общий вопрос'}
@@ -449,9 +448,7 @@ export default function SupportPage() {
                     {detail.branch ? ` · ${detail.branch}` : ''}
                   </p>
                 </div>
-                <span
-                  className={`status-pill ${detail.overdue ? 'status-danger' : 'status-info'}`}
-                >
+                <span className={`status-pill ${detail.overdue ? 'status-danger' : 'status-info'}`}>
                   {detail.overdue ? 'SLA нарушен' : statusLabels[detail.status]}
                 </span>
               </header>

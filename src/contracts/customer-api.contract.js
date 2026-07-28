@@ -158,7 +158,44 @@ const liveActivityDeleteBodySchema = z
     message: 'Укажите activityId или orderId',
   });
 
+const analyticsEventSchema = z
+  .object({
+    eventId: z.string().trim().uuid().optional(),
+    type: z.enum([
+      'app_open',
+      'catalog_view',
+      'product_view',
+      'add_to_cart',
+      'remove_from_cart',
+      'checkout_start',
+      'checkout_quote',
+      'payment_created',
+      'payment_paid',
+      'payment_failed',
+      'payment_cancelled',
+      'search',
+      'promotion_view',
+    ]),
+    occurredAt: z.iso.datetime({ offset: true }).optional(),
+    productId: resourceIdSchema.optional(),
+    categoryId: resourceIdSchema.optional(),
+    branchId: z.string().trim().uuid().optional(),
+    orderId: z.string().trim().uuid().optional(),
+    properties: z
+      .record(z.string().max(40), z.union([z.string(), z.number(), z.boolean(), z.null()]))
+      .optional()
+      .default({}),
+  })
+  .strict();
+
+const analyticsEventsBodySchema = z
+  .object({
+    events: z.array(analyticsEventSchema).min(1).max(20),
+  })
+  .strict();
+
 module.exports = {
+  analyticsEventsBodySchema,
   courierAuthRequestBodySchema,
   courierAuthVerifyBodySchema,
   courierConfirmDeliveryBodySchema,

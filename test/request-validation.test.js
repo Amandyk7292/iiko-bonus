@@ -18,8 +18,13 @@ const {
   fortePaymentMethodParamsSchema,
   profileUpdateBodySchema,
   supportCreateBodySchema,
+  analyticsEventsBodySchema,
 } = require('../src/contracts/customer-api.contract');
 const {
+  orderSubstitutionCreateBodySchema,
+} = require('../src/contracts/order-substitution.contract');
+const {
+  apiEnvelopeValidationMiddleware,
   requestBodySafetyMiddleware,
   validateRequest,
 } = require('../src/middlewares/validation.middleware');
@@ -163,4 +168,72 @@ test('global request body guard rejects unsafe keys and excessive nesting', () =
     depthError = error;
   });
   assert.equal(depthError.code, 'REQUEST_BODY_TOO_DEEP');
+});
+
+test('analytics and substitution contracts reject forged workflow fields', () => {
+  assert.equal(
+    analyticsEventsBodySchema.safeParse({
+      events: [
+        {
+          eventId: customerId,
+          type: 'checkout_start',
+          branchId: customerId,
+          properties: { items: 2 },
+        },
+      ],
+    }).success,
+    true,
+  );
+  assert.equal(
+    analyticsEventsBodySchema.safeParse({
+      events: [{ type: 'payment_magic', branchId: 'not-a-uuid' }],
+    }).success,
+    false,
+  );
+  assert.equal(
+    orderSubstitutionCreateBodySchema.safeParse({
+      lineKey: 'bun:0',
+      quantity: 1,
+      action: 'replace_with_approval',
+    }).success,
+    false,
+  );
+  assert.equal(
+    orderSubstitutionCreateBodySchema.safeParse({
+      lineKey: 'bun:0',
+      quantity: 1,
+      action: 'replace_with_approval',
+      replacementProductId: 'croissant',
+      refundAmount: 1000000,
+    }).success,
+    false,
+  );
+});
+
+test('baseline API envelope applies Zod validation to untyped JSON routes', () => {
+  const valid = {
+    path: '/api/example',
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    query: { page: '1' },
+    body: { safe: true },
+  };
+  let validError;
+  apiEnvelopeValidationMiddleware(valid, {}, (error) => {
+    validError = error;
+  });
+  assert.equal(validError, undefined);
+
+  const invalid = {
+    path: '/admin/api/example',
+    method: 'GET',
+    headers: {},
+    query: { nested: { unsafe: true } },
+    body: undefined,
+  };
+  let invalidError;
+  apiEnvelopeValidationMiddleware(invalid, {}, (error) => {
+    invalidError = error;
+  });
+  assert.equal(invalidError.code, 'QUERY_VALIDATION_ERROR');
 });

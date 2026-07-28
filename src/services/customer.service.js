@@ -349,15 +349,47 @@ async function getTransactions({
 
 async function getStats({ branchIds = null } = {}) {
   const scopedBranches = Array.isArray(branchIds) ? branchIds.map(String).filter(Boolean) : [];
+  const attachFunnel = async (stats) => {
+    const { data, error } = await supabase.rpc('get_app_funnel', {
+      p_branch_ids: scopedBranches.length ? scopedBranches : null,
+    });
+    if (error) {
+      console.warn('Не удалось получить уникальную воронку приложения:', error.message);
+      return stats;
+    }
+    const payload = Array.isArray(data) ? data[0] : data;
+    const funnel = payload?.funnel && typeof payload.funnel === 'object' ? payload.funnel : {};
+    const funnelStartEvent = payload?.funnelStartEvent || 'app_open';
+    const steps = [
+      funnelStartEvent,
+      ...(funnelStartEvent === 'app_open' ? ['catalog_view'] : []),
+      'add_to_cart',
+      'checkout_start',
+      'payment_created',
+      'payment_paid',
+    ];
+    const funnelConversions = {};
+    steps.forEach((eventType, index) => {
+      if (index === 0) {
+        funnelConversions[eventType] = Number(funnel[eventType] || 0) > 0 ? 100 : 0;
+        return;
+      }
+      const previous = Number(funnel[steps[index - 1]] || 0);
+      const current = Number(funnel[eventType] || 0);
+      funnelConversions[eventType] =
+        previous > 0 ? Math.round((current / previous) * 1000) / 10 : 0;
+    });
+    return { ...stats, funnel, funnelConversions, funnelStartEvent };
+  };
   if (scopedBranches.length) {
     const { data, error } = await supabase.rpc('get_admin_stats_scoped', {
       p_branch_ids: scopedBranches,
     });
     if (error) throw new Error(error.message);
-    return Array.isArray(data) ? data[0] : data;
+    return attachFunnel(Array.isArray(data) ? data[0] : data);
   }
   const { data: aggregate, error: aggregateError } = await supabase.rpc('get_admin_stats');
-  if (!aggregateError && aggregate) return aggregate;
+  if (!aggregateError && aggregate) return attachFunnel(aggregate);
 
   const { data: customers } = await supabase
     .from('customers')
@@ -407,7 +439,7 @@ async function getStats({ branchIds = null } = {}) {
   const bonusPaymentPercent =
     totalGrossRevenue > 0 ? ((totalBurned / totalGrossRevenue) * 100).toFixed(1) : '0.0';
 
-  return {
+  return attachFunnel({
     totalCustomers: customers ? customers.length : 0,
     newCustomersLast30Days,
     totalSales: totalSpent,
@@ -417,7 +449,7 @@ async function getStats({ branchIds = null } = {}) {
     burnedLast30Days,
     bonusPaymentPercent,
     currentLiabilities: totalIssued,
-  };
+  });
 }
 
 async function addManualBonus(customerId, amount, reason, { branchId = null } = {}) {

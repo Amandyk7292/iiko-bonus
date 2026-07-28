@@ -40,10 +40,12 @@ const notificationPreferences = require('../services/notification-preferences.se
 const support = require('../services/support.service');
 const liveActivity = require('../services/live-activity.service');
 const contactCenter = require('../services/contact-center.service');
+const { respondToSubstitution } = require('../services/order-substitution.service');
 const { optimizeUploadedImage } = require('../utils/image.util');
 const { validateRequest } = require('../middlewares/validation.middleware');
 const {
   courierAuthRequestBodySchema,
+  analyticsEventsBodySchema,
   courierAuthVerifyBodySchema,
   courierConfirmDeliveryBodySchema,
   courierLocationBodySchema,
@@ -60,6 +62,10 @@ const {
   supportMessageBodySchema,
   supportRequestParamsSchema,
 } = require('../contracts/customer-api.contract');
+const {
+  orderSubstitutionRequestParamsSchema,
+  orderSubstitutionResponseBodySchema,
+} = require('../contracts/order-substitution.contract');
 
 const referenceUpload = multer({
   storage: multer.memoryStorage(),
@@ -391,6 +397,30 @@ router.get('/api/customer/loyalty', tierController.getCustomerLoyalty);
 router.get('/api/customer/orders', orderController.listCustomer);
 router.post('/api/customer/orders/:id/arrived', orderController.markArrived);
 router.post('/api/customer/orders/:id/cancel', orderController.cancelCustomer);
+router.post(
+  '/api/customer/orders/:id/substitutions/:requestId/respond',
+  validateRequest({
+    params: orderSubstitutionRequestParamsSchema,
+    body: orderSubstitutionResponseBodySchema,
+  }),
+  async (req, res) => {
+    try {
+      const substitution = await respondToSubstitution(
+        req.customerAuth.id,
+        req.params.id,
+        req.params.requestId,
+        req.body.approved,
+      );
+      res.json({ success: true, substitution });
+    } catch (error) {
+      res.status(error.statusCode || 500).json({
+        success: false,
+        error: error.message,
+        ...(error.code && { code: error.code }),
+      });
+    }
+  },
+);
 router.get('/api/customer/events', (req, res) =>
   realtime.openStream(req, res, { customerId: req.customerAuth.id }),
 );
@@ -513,14 +543,18 @@ router.delete(
     }
   },
 );
-router.post('/api/customer/analytics/events', async (req, res) => {
-  try {
-    const count = await recordCustomerEvents(req.customerAuth.id, req.body?.events, req);
-    res.status(202).json({ success: true, accepted: count });
-  } catch (error) {
-    res.status(error.statusCode || 500).json({ success: false, error: error.message });
-  }
-});
+router.post(
+  '/api/customer/analytics/events',
+  validateRequest({ body: analyticsEventsBodySchema }),
+  async (req, res) => {
+    try {
+      const count = await recordCustomerEvents(req.customerAuth.id, req.body.events, req);
+      res.status(202).json({ success: true, accepted: count });
+    } catch (error) {
+      res.status(error.statusCode || 500).json({ success: false, error: error.message });
+    }
+  },
+);
 router.get('/api/customer/favorites', async (req, res) => {
   try {
     res.json({

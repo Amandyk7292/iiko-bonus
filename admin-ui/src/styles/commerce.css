@@ -672,6 +672,32 @@
 .refund-quantity {
   min-height: var(--touch-minimum);
 }
+.substitution-action-fieldset {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.substitution-action-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--touch-minimum);
+  padding: 10px 12px;
+  border: 1px solid var(--sagi-border);
+  border-radius: var(--radius-medium);
+  cursor: pointer;
+}
+.substitution-action-option:has(input:checked) {
+  border-color: var(--sagi-gold);
+  background: #fff8e9;
+}
+.substitution-action-option input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--sagi-caramel);
+}
 .delivery-proof {
   display: grid;
   gap: 16px;

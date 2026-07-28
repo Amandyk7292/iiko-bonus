@@ -89,6 +89,43 @@
   text-transform: uppercase;
 }
 
+.substitution-workflow-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.substitution-workflow {
+  display: grid;
+  gap: 2px;
+  padding: 7px 9px;
+  border: 1px solid var(--sagi-border);
+  border-radius: 9px;
+  background: #fff;
+  font-size: 11px;
+}
+
+.substitution-workflow small {
+  color: var(--sagi-muted);
+}
+
+.substitution-workflow.status-awaiting_customer,
+.substitution-workflow.status-contacting {
+  border-color: #e3bd70;
+  background: #fffaf0;
+}
+
+.substitution-workflow.status-approved {
+  border-color: #8ac6a2;
+  background: #f2fbf5;
+}
+
+.substitution-workflow.status-failed,
+.substitution-workflow.status-rejected {
+  border-color: #e8b2aa;
+  background: #fff5f3;
+}
+
 @keyframes realtime-pulse {
   50% {
     opacity: 0.45;

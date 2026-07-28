@@ -29,16 +29,21 @@ test('sendApiError never exposes internal diagnostics and returns request ID', (
   const res = responseDouble(req);
   safeErrorResponseMiddleware(req, res, () => {});
 
-  sendApiError(res, Object.assign(new Error('database password was rejected'), {
-    code: 'DATABASE_FAILURE',
-  }), {
-    success: false,
-    details: 'private diagnostics',
-  });
+  sendApiError(
+    res,
+    Object.assign(new Error('database password was rejected'), {
+      code: 'DATABASE_FAILURE',
+    }),
+    {
+      success: false,
+      details: 'private diagnostics',
+    },
+  );
 
   assert.equal(res.statusCode, 500);
   assert.deepEqual(res.body, {
-    error: 'Internal Server Error',
+    success: false,
+    error: 'Не удалось выполнить действие. Повторите попытку.',
     code: 'DATABASE_FAILURE',
     requestId: 'request-api-error-500',
   });

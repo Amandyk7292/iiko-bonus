@@ -21,7 +21,7 @@ ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Le
 export default function AnalyticsPage() {
   const { t, formatNumber } = useI18n();
   const reduceMotion = useReducedMotion();
-  const [stats, setStats] = useState<Record<string, number> | null>(null);
+  const [stats, setStats] = useState<Record<string, any> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -51,6 +51,24 @@ export default function AnalyticsPage() {
   const topProducts = Array.isArray(stats.topProducts) ? stats.topProducts : [];
   const funnel: Record<string, number> =
     stats.funnel && typeof stats.funnel === 'object' ? stats.funnel : {};
+  const funnelConversions: Record<string, number> =
+    stats.funnelConversions && typeof stats.funnelConversions === 'object'
+      ? stats.funnelConversions
+      : {};
+  const funnelStartEvent = stats.funnelStartEvent === 'catalog_view' ? 'catalog_view' : 'app_open';
+  const funnelSteps: Array<[string, string]> = [
+    [
+      funnelStartEvent,
+      funnelStartEvent === 'catalog_view' ? 'analytics.funnelCatalog' : 'analytics.funnelOpen',
+    ],
+    ...(funnelStartEvent === 'app_open'
+      ? ([['catalog_view', 'analytics.funnelCatalog']] as Array<[string, string]>)
+      : []),
+    ['add_to_cart', 'analytics.funnelCart'],
+    ['checkout_start', 'analytics.funnelCheckout'],
+    ['payment_created', 'analytics.funnelPayment'],
+    ['payment_paid', 'analytics.funnelPaid'],
+  ];
   const bonusData = {
     labels: [t('analytics.issued'), t('analytics.redeemed')],
     datasets: [
@@ -314,21 +332,34 @@ export default function AnalyticsPage() {
         </article>
         <article className="card funnel-card">
           <h2>{t('analytics.funnel')}</h2>
-          <p>{t('analytics.last30Days')}</p>
+          <p>{t('analytics.uniqueSessions')}</p>
           <ol>
-            {[
-              ['app_open', 'analytics.funnelOpen'],
-              ['catalog_view', 'analytics.funnelCatalog'],
-              ['add_to_cart', 'analytics.funnelCart'],
-              ['checkout_start', 'analytics.funnelCheckout'],
-              ['payment_created', 'analytics.funnelPayment'],
-            ].map(([key, label]) => (
+            {funnelSteps.map(([key, label]) => (
               <li key={key}>
                 <span>{t(label)}</span>
-                <strong>{formatNumber(Number(funnel[key] || 0))}</strong>
+                <div className="funnel-value">
+                  <strong>{formatNumber(Number(funnel[key] || 0))}</strong>
+                  <small>
+                    {t('analytics.funnelConversion', {
+                      percent: formatNumber(Number(funnelConversions[key] || 0), {
+                        maximumFractionDigits: 1,
+                      }),
+                    })}
+                  </small>
+                </div>
               </li>
             ))}
           </ol>
+          <dl className="funnel-payment-outcomes">
+            <div>
+              <dt>{t('analytics.paymentFailed')}</dt>
+              <dd>{formatNumber(Number(funnel.payment_failed || 0))}</dd>
+            </div>
+            <div>
+              <dt>{t('analytics.paymentCancelled')}</dt>
+              <dd>{formatNumber(Number(funnel.payment_cancelled || 0))}</dd>
+            </div>
+          </dl>
         </article>
       </section>
     </div>

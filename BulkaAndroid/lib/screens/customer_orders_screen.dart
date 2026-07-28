@@ -30,6 +30,7 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
   bool _refreshInFlight = false;
   String? _arrivalInFlight;
   String? _cancellationInFlight;
+  String? _substitutionInFlight;
   String? _error;
   List<CustomerOrder> _orders = const [];
   bool _usingOfflineCache = false;
@@ -53,7 +54,8 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
       if (type == 'order.created' ||
           type == 'order.updated' ||
           type == 'delivery.updated' ||
-          type == 'order.customer_arrived') {
+          type == 'order.customer_arrived' ||
+          type == 'order.substitution_updated') {
         unawaited(_load(silent: true));
       }
     });
@@ -441,6 +443,64 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
     }
   }
 
+  Future<void> _respondToSubstitution(
+    CustomerOrder order,
+    OrderSubstitution request,
+    bool approved,
+  ) async {
+    if (_substitutionInFlight != null ||
+        request.status != 'awaiting_customer') {
+      return;
+    }
+    if (!approved) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text('substitution_reject_title'.tr),
+          content: Text('substitution_reject_body'.tr),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text('cancel_btn'.tr),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text('substitution_reject'.tr),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+    }
+    setState(() => _substitutionInFlight = request.id);
+    try {
+      await widget.api.respondToOrderSubstitution(
+        orderId: order.id,
+        requestId: request.id,
+        approved: approved,
+      );
+      if (!mounted) return;
+      await _load(silent: true);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            approved
+                ? 'substitution_approved_message'.tr
+                : 'substitution_rejected_message'.tr,
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
+    } finally {
+      if (mounted) setState(() => _substitutionInFlight = null);
+    }
+  }
+
   Future<void> _openDetails(CustomerOrder order) async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
@@ -562,9 +622,12 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
           onReview: () => _reviewOrder(_orders[index]),
           onArrived: () => _markArrived(_orders[index]),
           onCancel: () => _cancelOrder(_orders[index]),
+          onSubstitutionResponse: (request, approved) =>
+              _respondToSubstitution(_orders[index], request, approved),
           onOpen: () => _openDetails(_orders[index]),
           arrivalLoading: _arrivalInFlight == _orders[index].id,
           cancellationLoading: _cancellationInFlight == _orders[index].id,
+          substitutionInFlight: _substitutionInFlight,
         ),
       ),
     );
@@ -759,6 +822,118 @@ class _OrdersEmptyState extends StatelessWidget {
   }
 }
 
+class _SubstitutionRequestCard extends StatelessWidget {
+  const _SubstitutionRequestCard({
+    required this.request,
+    required this.loading,
+    required this.onRespond,
+  });
+
+  final OrderSubstitution request;
+  final bool loading;
+  final ValueChanged<bool> onRespond;
+
+  @override
+  Widget build(BuildContext context) {
+    final awaiting = request.status == 'awaiting_customer';
+    final approved = request.status == 'approved';
+    final rejected = request.status == 'rejected';
+    final color = approved
+        ? context.bulkaColors.success
+        : rejected || request.status == 'failed'
+        ? _errorRed
+        : context.bulkaColors.warning;
+    final title = awaiting
+        ? 'substitution_approval_title'.tr
+        : approved
+        ? 'substitution_approved_title'.tr
+        : rejected
+        ? 'substitution_rejected_title'.tr
+        : 'substitution_processing_title'.tr;
+    final replacement = request.replacementProductName;
+    final description = replacement?.isNotEmpty == true
+        ? 'substitution_offer_body'.trArgs({
+            'from': request.productName,
+            'to': replacement!,
+          })
+        : 'substitution_item_body'.trArgs({
+            'item': request.productName,
+            'quantity': request.quantity,
+          });
+    return Semantics(
+      container: true,
+      liveRegion: awaiting,
+      label: '$title. $description',
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(BulkaRadii.control),
+          border: Border.all(color: color.withValues(alpha: 0.35)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.swap_horiz_rounded, color: color),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontFamily: _headingFont,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 7),
+            Text(description),
+            if (request.note?.isNotEmpty == true) ...[
+              const SizedBox(height: 5),
+              Text(
+                request.note!,
+                style: TextStyle(
+                  color: context.bulkaColors.mutedText,
+                  fontSize: BulkaTypeScale.bodySmall,
+                ),
+              ),
+            ],
+            if (awaiting) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: loading ? null : () => onRespond(false),
+                      child: Text('substitution_reject'.tr),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: loading ? null : () => onRespond(true),
+                      child: loading
+                          ? const SizedBox.square(
+                              dimension: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Text('substitution_approve'.tr),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _RefundProgressCard extends StatelessWidget {
   const _RefundProgressCard({required this.order});
 
@@ -863,18 +1038,23 @@ class _CustomerOrderCard extends StatelessWidget {
     required this.onReview,
     required this.onArrived,
     required this.onCancel,
+    required this.onSubstitutionResponse,
     required this.onOpen,
     required this.arrivalLoading,
     required this.cancellationLoading,
+    required this.substitutionInFlight,
   });
   final CustomerOrder order;
   final VoidCallback onRepeat;
   final VoidCallback onReview;
   final VoidCallback onArrived;
   final VoidCallback onCancel;
+  final void Function(OrderSubstitution request, bool approved)
+  onSubstitutionResponse;
   final VoidCallback onOpen;
   final bool arrivalLoading;
   final bool cancellationLoading;
+  final String? substitutionInFlight;
 
   String _date(BuildContext context, DateTime value) =>
       formatUiDate(context, value);
@@ -1158,6 +1338,22 @@ class _CustomerOrderCard extends StatelessWidget {
             value: '${_formatCartMoney(order.amount)} ₸',
             strong: true,
           ),
+          ...order.substitutions
+              .where(
+                (request) =>
+                    !['completed', 'cancelled'].contains(request.status),
+              )
+              .map(
+                (request) => Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: _SubstitutionRequestCard(
+                    request: request,
+                    loading: substitutionInFlight == request.id,
+                    onRespond: (approved) =>
+                        onSubstitutionResponse(request, approved),
+                  ),
+                ),
+              ),
           if (order.refundStatus?.isNotEmpty == true ||
               order.paymentStatus == 'refunded') ...[
             const SizedBox(height: 8),

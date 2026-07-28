@@ -577,7 +577,7 @@ class KaspiService {
   /**
    * Обновление статуса заказа (вызывается из вебхука)
    */
-  async updateOrderStatus(operationId, newStatus) {
+  async updateOrderStatus(operationId, newStatus, analytics = {}) {
     const normalizedStatus = String(newStatus || '');
     const { data: current, error: readError } = await supabase
       .from('kaspi_orders')
@@ -610,6 +610,18 @@ class KaspiService {
       } else if (['failed', 'expired'].includes(data.status)) {
         await releaseOrderReservations(data.id).catch((error) =>
           console.error('Не удалось освободить резерв заказа:', error.message),
+        );
+        await recordSystemEvent(data.customer_id, {
+          type:
+            analytics.type || (data.status === 'expired' ? 'payment_cancelled' : 'payment_failed'),
+          orderId: data.id,
+          branchId: data.branch_id,
+          properties: {
+            paymentMethod: data.payment_method || 'kaspi',
+            providerStatus: String(analytics.providerStatus || data.status).slice(0, 120),
+          },
+        }).catch((eventError) =>
+          console.error('Не удалось записать аналитику неуспешной оплаты:', eventError.message),
         );
       }
       realtime.publish(
@@ -645,21 +657,25 @@ class KaspiService {
       await this.recordPaidOrder(operationId);
       return 'paid';
     }
-    if (
-      [
-        'RemotePaymentCanceled',
-        'RemotePaymentRejected',
-        'CancelledByUser',
-        'ProcessingFailed',
-        'Rejected',
-        'Error',
-      ].includes(status)
-    ) {
-      await this.updateOrderStatus(operationId, 'failed');
+    if (['RemotePaymentCanceled', 'CancelledByUser'].includes(status)) {
+      await this.updateOrderStatus(operationId, 'failed', {
+        type: 'payment_cancelled',
+        providerStatus: status,
+      });
+      return 'failed';
+    }
+    if (['RemotePaymentRejected', 'ProcessingFailed', 'Rejected', 'Error'].includes(status)) {
+      await this.updateOrderStatus(operationId, 'failed', {
+        type: 'payment_failed',
+        providerStatus: status,
+      });
       return 'failed';
     }
     if (['Expired', 'QrTokenDiscarded'].includes(status)) {
-      await this.updateOrderStatus(operationId, 'expired');
+      await this.updateOrderStatus(operationId, 'expired', {
+        type: 'payment_cancelled',
+        providerStatus: status,
+      });
       return 'expired';
     }
     return 'pending';

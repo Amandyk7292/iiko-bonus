@@ -51,7 +51,8 @@ test('error guard strips internal 500 details in every runtime and adds request 
   });
 
   assert.deepEqual(res.body, {
-    error: 'Internal Server Error',
+    success: false,
+    error: 'Не удалось выполнить действие. Повторите попытку.',
     code: 'INTERNAL_ERROR',
     requestId: 'request-guard-1234',
   });

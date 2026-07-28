@@ -264,6 +264,35 @@
   color: #74350f;
   font-weight: 800;
 }
+.funnel-value {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+}
+.funnel-value small {
+  color: var(--sagi-muted);
+  font-size: 11px;
+}
+.funnel-payment-outcomes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  margin: 14px 0 0;
+}
+.funnel-payment-outcomes > div {
+  padding: 10px 13px;
+  border: 1px solid #f2c9c4;
+  border-radius: var(--radius-medium);
+  background: #fff5f3;
+}
+.funnel-payment-outcomes dt {
+  color: var(--sagi-muted);
+  font-size: 12px;
+}
+.funnel-payment-outcomes dd {
+  margin: 4px 0 0;
+  font-weight: 800;
+}
 
 @media (max-width: 900px) {
   .analytics-detail-grid {

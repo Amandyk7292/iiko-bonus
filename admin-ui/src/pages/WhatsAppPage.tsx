@@ -1047,10 +1047,14 @@ export default function WhatsAppPage({ role = 'viewer' }: { role?: string }) {
               <label className="input-with-icon" aria-label="Поиск диалогов">
                 <Search aria-hidden="true" size={17} />
                 <input
+                  id="whatsapp-conversation-search"
+                  name="whatsappConversationSearch"
+                  type="search"
                   className="input-classic"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
                   placeholder="Имя или телефон"
+                  autoComplete="off"
                 />
               </label>
               <div className="whatsapp-filter-row" role="group" aria-label="Фильтр статуса">

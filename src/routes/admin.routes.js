@@ -93,6 +93,7 @@ const {
 } = require('../services/voice-note.service');
 const { getOperationsSummary } = require('../services/operations-dashboard.service');
 const { registerPaymentIntegrationAdminRoutes } = require('./admin/payment-integration.routes');
+const { registerOrderSubstitutionAdminRoutes } = require('./admin/order-substitution.routes');
 
 const allowedImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const upload = multer({
@@ -361,6 +362,7 @@ router.get('/admin/api/operations/summary', async (req, res) => {
   }
 });
 registerPaymentIntegrationAdminRoutes(router);
+registerOrderSubstitutionAdminRoutes(router, { assertOrderAccess });
 router.get('/admin/api/whatsapp/status', async (req, res) => {
   try {
     const settings = await getAssistantSettings({ allowFallback: true });
@@ -1212,7 +1214,6 @@ router.post('/admin/api/orders/:id/partial-refund', async (req, res) => {
     });
   }
 });
-
 router.get('/admin/api/dispatch', async (req, res) => {
   try {
     const state = await dispatchService.listDispatchState({ branchIds: scopedBranchIds(req) });

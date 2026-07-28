@@ -22,6 +22,7 @@ class BulkaApiClient {
        _onSessionChanged = onSessionChanged;
 
   final http.Client _client;
+  final String _analyticsSessionId = _newAnalyticsId();
   Future<void> Function(String? accessToken, String? refreshToken)?
   _onSessionChanged;
   String? _accessToken;
@@ -91,6 +92,7 @@ class BulkaApiClient {
       if (json) 'Content-Type': 'application/json',
       if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
       'Accept-Language': AppLang.current,
+      'X-Bulka-Session': _analyticsSessionId,
       if (kIsWeb) 'X-Bulka-Session-Transport': 'cookie',
     };
   }
@@ -759,6 +761,26 @@ class BulkaApiClient {
     return CustomerOrder.fromJson(order);
   }
 
+  Future<OrderSubstitution> respondToOrderSubstitution({
+    required String orderId,
+    required String requestId,
+    required bool approved,
+  }) async {
+    final json = await _post(
+      '/api/customer/orders/${Uri.encodeComponent(orderId)}/substitutions/'
+      '${Uri.encodeComponent(requestId)}/respond',
+      {'approved': approved},
+    );
+    final substitution = _asMap(json['substitution']);
+    if (json['success'] != true || substitution.isEmpty) {
+      throw ApiException(
+        _messageFrom(json, 'substitution_response_error'.tr),
+        code: _asString(json['code']),
+      );
+    }
+    return OrderSubstitution.fromJson(substitution);
+  }
+
   Future<Map<String, dynamic>> getProductOptions(String productId) async {
     final json = await _get(
       '/api/public/product-options?ids=${Uri.encodeQueryComponent(productId)}',
@@ -1069,6 +1091,7 @@ class BulkaApiClient {
     unawaited(
       recordAnalyticsEvents([
         {
+          'eventId': _newAnalyticsId(),
           'type': type,
           'occurredAt': DateTime.now().toUtc().toIso8601String(),
           if (productId?.isNotEmpty == true) 'productId': productId,
@@ -1079,6 +1102,18 @@ class BulkaApiClient {
         },
       ]).catchError((_) {}),
     );
+  }
+
+  static String _newAnalyticsId() {
+    final random = Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    final hex = bytes
+        .map((value) => value.toRadixString(16).padLeft(2, '0'))
+        .join();
+    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
+        '${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
   }
 
   Future<void> logoutSession() async {
