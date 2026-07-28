@@ -271,7 +271,8 @@ test('Forte card binding uses the bank-approved oneclick contract and amount', a
     body.checkout.settings.cancel_url,
     `https://bulka.com.kz/profile?payment=forte&setup=${operationId}&status=cancelled`,
   );
-  assert.equal(body.checkout.settings.save_card_toggle.customer_contract, true);
+  assert.equal(body.checkout.settings.save_card_toggle.display, false);
+  assert.equal(body.checkout.settings.save_card_toggle.customer_contract, false);
   assert.deepEqual(body.checkout.payment_method.types, ['credit_card']);
   assert.deepEqual(body.checkout.payment_method.excluded_brands, ['apple_pay']);
 });

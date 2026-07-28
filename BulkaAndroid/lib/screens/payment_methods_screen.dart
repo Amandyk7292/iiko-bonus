@@ -15,11 +15,76 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
   String? _error;
   String? _busyMethodId;
   bool _adding = false;
+  bool _reconcilingReturn = false;
 
   @override
   void initState() {
     super.initState();
-    unawaited(_load());
+    final cardSetupReturn = forteCardSetupReturnFromUri(currentClientUri());
+    if (cardSetupReturn == null) {
+      unawaited(_load());
+    } else {
+      _reconcilingReturn = true;
+      publishClientRoute(Uri(path: '/profile'), replace: true);
+      unawaited(_reconcileCardSetupReturn(cardSetupReturn));
+    }
+  }
+
+  Future<void> _reconcileCardSetupReturn(
+    ({String operationId, ForteCheckoutReturn outcome}) cardSetupReturn,
+  ) async {
+    if (cardSetupReturn.outcome == ForteCheckoutReturn.cancelled) {
+      _reconcilingReturn = false;
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('card_setup_cancelled'.tr)));
+      }
+      return;
+    }
+
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
+    var status = 'pending';
+    try {
+      for (var attempt = 0; attempt < 10; attempt++) {
+        final result = await widget.api.checkForteCardSetupStatus(
+          cardSetupReturn.operationId,
+        );
+        status = (result['paymentStatus'] ?? result['status'] ?? 'pending')
+            .toString()
+            .toLowerCase();
+        if (const {'paid', 'failed', 'expired'}.contains(status)) break;
+        await Future<void>.delayed(const Duration(seconds: 2));
+      }
+      await _load();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            status == 'paid'
+                ? 'card_setup_success_hint'.tr
+                : status == 'pending'
+                ? 'card_setup_token_missing'.tr
+                : 'card_setup_failed_hint'.tr,
+          ),
+        ),
+      );
+    } catch (_) {
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('card_setup_token_missing'.tr)));
+      }
+    } finally {
+      if (mounted) setState(() => _reconcilingReturn = false);
+    }
   }
 
   Future<void> _load() async {
@@ -159,7 +224,38 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
           color: colors.brandGold,
           onRefresh: _load,
           child: _loading
-              ? const Center(child: CircularProgressIndicator())
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(28),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(),
+                        if (_reconcilingReturn) ...[
+                          const SizedBox(height: 20),
+                          Text(
+                            'card_setup_verifying'.tr,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontFamily: _headingFont,
+                              fontSize: BulkaTypeScale.title,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'card_setup_verifying_hint'.tr,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: colors.mutedText,
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                )
               : ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 36),

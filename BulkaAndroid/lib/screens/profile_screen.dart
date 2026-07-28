@@ -27,6 +27,18 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final _navigationGate = _AsyncActionGate();
 
+  @override
+  void initState() {
+    super.initState();
+    if (forteCardSetupReturnFromUri(currentClientUri()) != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          unawaited(_openPage((_) => PaymentMethodsScreen(api: widget.api)));
+        }
+      });
+    }
+  }
+
   String get _langCode {
     return AppLang.shortLabel(AppLang.current);
   }

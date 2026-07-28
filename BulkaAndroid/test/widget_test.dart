@@ -490,24 +490,77 @@ void main() {
       findsOneWidget,
     );
 
-    final cardPayment = find.text('Оплатить картой');
+    final savedCardLabel = find.text('VISA •••• 1328');
     await tester.scrollUntilVisible(
-      cardPayment,
+      savedCardLabel,
       420,
       scrollable: find.byType(Scrollable).last,
     );
     await tester.pumpAndSettle();
 
-    final kaspiCard = find.byKey(const ValueKey('checkout-payment-kaspi'));
-    final bankCard = find.byKey(const ValueKey('checkout-payment-card'));
-    expect(kaspiCard, findsOneWidget);
-    expect(bankCard, findsOneWidget);
-    expect(find.text('ForteBank'), findsNothing);
-    expect(tester.getTopLeft(kaspiCard).dy, tester.getTopLeft(bankCard).dy);
+    expect(savedCardLabel, findsOneWidget);
     expect(
-      tester.getRect(kaspiCard).right,
-      lessThan(tester.getRect(bankCard).left),
+      find.byKey(
+        const ValueKey(
+          'checkout-saved-card-31f0d793-0102-4d2f-a5a1-744d12cffe7c',
+        ),
+      ),
+      findsOneWidget,
     );
+    expect(find.text('Kaspi Pay'), findsNothing);
+    expect(find.text('Оплатить картой'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('checkout offers card linking when no saved card exists', (
+    tester,
+  ) async {
+    final cart = CartProvider()
+      ..addItem(
+        productId: 'product-without-card',
+        name: 'Плюшка',
+        price: 500,
+        imageUrl: '',
+      );
+    final api = _NoSavedCardsApiClient()
+      ..setSession(accessToken: 'test-access', refreshToken: 'test-refresh');
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildBulkaTheme(),
+        home: ChangeNotifierProvider.value(
+          value: cart,
+          child: MainShell(
+            api: api,
+            customer: _testCustomer,
+            transactions: _testTransactions,
+            initialTab: 2,
+            onLogout: () async {},
+            onRefreshProfile: () async {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Оформить заказ'));
+    await tester.pumpAndSettle();
+
+    final addCard = find.text('Добавить карту');
+    await tester.scrollUntilVisible(
+      addCard,
+      420,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('checkout-saved-cards-empty')),
+      findsOneWidget,
+    );
+    expect(find.text('Сохранённых карт пока нет.'), findsOneWidget);
+    expect(addCard, findsOneWidget);
+    expect(find.text('Kaspi Pay'), findsNothing);
+    expect(find.text('Оплатить картой'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -1949,6 +2002,21 @@ class _FakeBulkaApiClient extends BulkaApiClient {
   final List<DeliveryAddress> _addresses = [];
 
   @override
+  Future<bool> isFortePaymentAvailable() async => true;
+
+  @override
+  Future<List<Map<String, dynamic>>> getFortePaymentMethods() async => const [
+    {
+      'id': '31f0d793-0102-4d2f-a5a1-744d12cffe7c',
+      'brand': 'visa',
+      'lastFour': '1328',
+      'expMonth': 9,
+      'expYear': 2030,
+      'isDefault': true,
+    },
+  ];
+
+  @override
   Future<Map<String, dynamic>> getReferral() async => const {
     'code': 'BULKA-TEST',
   };
@@ -2027,6 +2095,11 @@ class _FakeBulkaApiClient extends BulkaApiClient {
   Future<void> deleteCustomerAddress(String id) async {
     _addresses.removeWhere((address) => address.id == id);
   }
+}
+
+class _NoSavedCardsApiClient extends _FakeBulkaApiClient {
+  @override
+  Future<List<Map<String, dynamic>>> getFortePaymentMethods() async => const [];
 }
 
 class _OutsideDeliveryApiClient extends _FakeBulkaApiClient {

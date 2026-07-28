@@ -3,6 +3,27 @@ part of '../main.dart';
 enum ForteCheckoutReturn { cancelled, completed }
 
 @visibleForTesting
+({String operationId, ForteCheckoutReturn outcome})?
+forteCardSetupReturnFromUri(Uri uri) {
+  final path = uri.path.replaceFirst(RegExp(r'/+$'), '');
+  if (path != '/profile') return null;
+  final outcome = forteCheckoutReturnFromUri(uri);
+  if (outcome == null) return null;
+  final operationId = uri.queryParameters.entries
+      .where((entry) => entry.key.toLowerCase() == 'setup')
+      .map((entry) => entry.value)
+      .firstOrNull;
+  if (operationId == null ||
+      !RegExp(
+        r'^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        caseSensitive: false,
+      ).hasMatch(operationId)) {
+    return null;
+  }
+  return (operationId: operationId, outcome: outcome);
+}
+
+@visibleForTesting
 bool supportsEmbeddedForteCheckout({
   required bool isWeb,
   required TargetPlatform platform,

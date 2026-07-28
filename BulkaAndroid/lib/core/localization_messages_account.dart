@@ -78,6 +78,11 @@ const Map<String, Map<String, String>> _accountTranslations = {
     'kk': 'Сақталған карта жоқ.',
     'en': 'No saved cards yet.',
   },
+  'payment_methods_loading': {
+    'ru': 'Загружаем сохранённые карты…',
+    'kk': 'Сақталған карталар жүктелуде…',
+    'en': 'Loading saved cards…',
+  },
   'payment_methods_default': {
     'ru': 'Основная',
     'kk': 'Негізгі',
@@ -156,9 +161,25 @@ const Map<String, Map<String, String>> _accountTranslations = {
     'en': 'Card not saved',
   },
   'card_setup_failed_hint': {
-    'ru': 'Деньги не списаны. Попробуйте ещё раз или выберите другую карту.',
-    'kk': 'Ақша алынбады. Қайталап көріңіз немесе басқа картаны таңдаңыз.',
-    'en': 'No payment was taken. Try again or use another card.',
+    'ru':
+        'Карта не сохранена. Если списывались 30 ₸, банк вернёт их автоматически.',
+    'kk':
+        'Карта сақталмады. Егер 30 ₸ алынған болса, банк оны автоматты түрде қайтарады.',
+    'en':
+        'The card was not saved. If 30 ₸ was charged, the bank will refund it automatically.',
+  },
+  'card_setup_cancelled': {
+    'ru': 'Добавление карты отменено.',
+    'kk': 'Карта қосу тоқтатылды.',
+    'en': 'Card linking was cancelled.',
+  },
+  'card_setup_token_missing': {
+    'ru':
+        '30 ₸ возвращены, но банк не передал токен карты. Повторите добавление карты.',
+    'kk':
+        '30 ₸ қайтарылды, бірақ банк карта токенін жібермеді. Картаны қайта қосыңыз.',
+    'en':
+        'The 30 ₸ was refunded, but the bank did not return a card token. Add the card again.',
   },
   'support_message': {
     'ru': 'Напишите нам в Telegram — мы поможем.',

@@ -773,17 +773,16 @@ class ForteWidgetService {
           button_next_text: localized.returnButton,
           language: localized.language,
           save_card_toggle: {
-            display: true,
-            customer_contract: true,
-            text:
-              purpose === 'card-setup'
-                ? {
-                    ru: 'Согласен привязать карту к профилю Bulka',
-                    kk: 'Картаны Bulka профиліне байланыстыруға келісемін',
-                    en: 'I agree to link this card to my Bulka profile',
-                  }[localized.language]
-                : localized.saveCard,
-            hint: localized.saveCardHint,
+            // "Добавить карту" is already an explicit customer action. Keeping
+            // Forte's optional consent toggle visible allowed the verification
+            // payment to succeed without issuing a oneclick token when the
+            // customer missed the second toggle.
+            display: purpose !== 'card-setup',
+            customer_contract: purpose !== 'card-setup',
+            ...(purpose !== 'card-setup' && {
+              text: localized.saveCard,
+              hint: localized.saveCardHint,
+            }),
           },
           another_card_toggle: { display: true },
           agreement_toggle: {

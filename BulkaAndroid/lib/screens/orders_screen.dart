@@ -147,62 +147,36 @@ class _OrdersScreenState extends State<OrdersScreen> {
     final items = cart.items.values
         .map((item) => item.toOrderPayload())
         .toList();
-    final result = details.paymentMethod == _CheckoutPaymentMethod.forte
-        ? await widget.api.createFortePayment(
-            cartItems: items,
-            orderType: details.orderType.wireValue,
-            preorderFulfillmentType: details.preorderFulfillmentType,
-            branch: details.branch,
-            branchId: details.branchId,
-            scheduledAt: details.scheduledAt,
-            deliveryAddress: details.deliveryAddress,
-            checkoutId: details.checkoutId,
-            additionalPhone: details.additionalPhone,
-            promoCode: details.promoCode,
-            comment: details.comment,
-          )
-        : await widget.api.createKaspiPayment(
-            cartItems: items,
-            orderType: details.orderType.wireValue,
-            preorderFulfillmentType: details.preorderFulfillmentType,
-            branch: details.branch,
-            branchId: details.branchId,
-            scheduledAt: details.scheduledAt,
-            deliveryAddress: details.deliveryAddress,
-            checkoutId: details.checkoutId,
-            additionalPhone: details.additionalPhone,
-            promoCode: details.promoCode,
-            comment: details.comment,
-          );
+    final result = await widget.api.createFortePayment(
+      cartItems: items,
+      orderType: details.orderType.wireValue,
+      preorderFulfillmentType: details.preorderFulfillmentType,
+      branch: details.branch,
+      branchId: details.branchId,
+      scheduledAt: details.scheduledAt,
+      deliveryAddress: details.deliveryAddress,
+      checkoutId: details.checkoutId,
+      savedPaymentMethodId: details.savedPaymentMethodId,
+      additionalPhone: details.additionalPhone,
+      promoCode: details.promoCode,
+      comment: details.comment,
+    );
     final operationId = (result['operationId'] ?? '').toString();
     if (operationId.isEmpty) {
       throw ApiException('checkout_operation_missing'.tr);
     }
-    final forteRedirectUrl =
-        details.paymentMethod == _CheckoutPaymentMethod.forte
-        ? (result['redirectUrl'] ?? '').toString()
-        : null;
-    if (details.paymentMethod == _CheckoutPaymentMethod.forte &&
-        forteRedirectUrl!.isEmpty) {
+    final forteRedirectUrl = (result['redirectUrl'] ?? '').toString();
+    if (forteRedirectUrl.isEmpty) {
       throw ApiException('forte_checkout_invalid'.tr);
     }
     if (!mounted) return false;
     final paid = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) {
-          if (details.paymentMethod == _CheckoutPaymentMethod.forte) {
-            return FortePaymentScreen(
-              api: widget.api,
-              operationId: operationId,
-              redirectUrl: forteRedirectUrl!,
-            );
-          }
-          return KaspiPaymentScreen(
-            api: widget.api,
-            operationId: operationId,
-            qrToken: result['qrToken']?.toString(),
-          );
-        },
+        builder: (_) => FortePaymentScreen(
+          api: widget.api,
+          operationId: operationId,
+          redirectUrl: forteRedirectUrl,
+        ),
       ),
     );
     if (paid == true) cart.clear();
@@ -839,10 +813,12 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   bool _isSelectingBranch = false;
   bool _isSelectingAddress = false;
   bool _isSelectingTime = false;
-  bool? _kaspiAvailable;
   bool? _forteAvailable;
-  String? _forteSavedCardLabel;
-  _CheckoutPaymentMethod _paymentMethod = _CheckoutPaymentMethod.kaspi;
+  List<Map<String, dynamic>> _savedPaymentMethods = const [];
+  String? _selectedPaymentMethodId;
+  bool _paymentMethodsLoading = true;
+  bool _addingPaymentMethod = false;
+  String? _paymentMethodsError;
   int _discount = 0;
   int _deliveryFee = 0;
   int? _quotedTotal;
@@ -867,40 +843,97 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
     _promoController.addListener(_saveDraft);
     _commentController.addListener(_saveDraft);
     unawaited(_loadCheckoutPreferences());
-    unawaited(_loadPaymentAvailability());
+    unawaited(_loadPaymentMethods());
   }
 
   bool get _selectedPaymentAvailable =>
-      _paymentMethod == _CheckoutPaymentMethod.kaspi
-      ? _kaspiAvailable == true
-      : _forteAvailable == true;
+      _forteAvailable == true &&
+      !_paymentMethodsLoading &&
+      _selectedPaymentMethodId != null;
 
-  Future<void> _loadPaymentAvailability() async {
+  Future<void> _loadPaymentMethods() async {
     if (mounted) {
       setState(() {
-        _kaspiAvailable = null;
-        _forteAvailable = null;
+        _paymentMethodsLoading = true;
+        _paymentMethodsError = null;
       });
     }
-    final availability = await Future.wait<bool>([
-      widget.api.isKaspiPaymentAvailable().catchError((_) => true),
-      widget.api.isFortePaymentAvailable().catchError((_) => true),
-    ]);
-    if (!mounted) return;
-    setState(() {
-      _kaspiAvailable = availability[0];
-      _forteAvailable = availability[1];
-      _forteSavedCardLabel = widget.api.forteSavedCardLabel;
-      if (_paymentMethod == _CheckoutPaymentMethod.kaspi &&
-          _kaspiAvailable != true &&
-          _forteAvailable == true) {
-        _paymentMethod = _CheckoutPaymentMethod.forte;
-      } else if (_paymentMethod == _CheckoutPaymentMethod.forte &&
-          _forteAvailable != true &&
-          _kaspiAvailable == true) {
-        _paymentMethod = _CheckoutPaymentMethod.kaspi;
+    try {
+      final available = await widget.api.isFortePaymentAvailable();
+      final methods = available
+          ? await widget.api.getFortePaymentMethods()
+          : const <Map<String, dynamic>>[];
+      if (!mounted) return;
+      final validMethods = methods
+          .where((method) => (method['id'] ?? '').toString().isNotEmpty)
+          .toList();
+      final validIds = validMethods
+          .map((method) => (method['id'] ?? '').toString())
+          .toSet();
+      var selectedId = _selectedPaymentMethodId;
+      if (!validIds.contains(selectedId)) {
+        Map<String, dynamic>? preferred;
+        for (final method in validMethods) {
+          if (method['isDefault'] == true) {
+            preferred = method;
+            break;
+          }
+        }
+        selectedId = preferred != null
+            ? preferred['id']?.toString()
+            : validMethods.isEmpty
+            ? null
+            : validMethods.first['id']?.toString();
       }
-    });
+      setState(() {
+        _forteAvailable = available;
+        _savedPaymentMethods = validMethods;
+        _selectedPaymentMethodId = selectedId;
+        _paymentMethodsLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _forteAvailable = false;
+        _paymentMethodsLoading = false;
+        _paymentMethodsError = 'payment_methods_load_error'.tr;
+      });
+    }
+  }
+
+  Future<void> _addPaymentMethod() async {
+    if (_addingPaymentMethod || _isSubmitting) return;
+    setState(() => _addingPaymentMethod = true);
+    try {
+      final result = await widget.api.createForteCardSetup();
+      final operationId = (result['operationId'] ?? '').toString();
+      final redirectUrl = (result['redirectUrl'] ?? '').toString();
+      if (operationId.isEmpty || redirectUrl.isEmpty) {
+        throw ApiException('payment_methods_add_error'.tr);
+      }
+      if (!mounted) return;
+      final saved = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(
+          builder: (_) => FortePaymentScreen(
+            api: widget.api,
+            operationId: operationId,
+            redirectUrl: redirectUrl,
+            cardSetup: true,
+          ),
+        ),
+      );
+      if (saved == true) {
+        await _loadPaymentMethods();
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('payment_methods_add_error'.tr)));
+      }
+    } finally {
+      if (mounted) setState(() => _addingPaymentMethod = false);
+    }
   }
 
   Future<void> _loadCheckoutPreferences() async {
@@ -1464,15 +1497,9 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
 
   Future<void> _submit() async {
     if (!_selectedPaymentAvailable) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _paymentMethod == _CheckoutPaymentMethod.kaspi
-                ? 'checkout_kaspi_unavailable'.tr
-                : 'checkout_forte_unavailable'.tr,
-          ),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('checkout_forte_unavailable'.tr)));
       return;
     }
     if (!_usesDelivery && _branch.trim().isEmpty) {
@@ -1512,7 +1539,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         _CheckoutDetails(
           checkoutId: _checkoutId,
           orderType: _orderType,
-          paymentMethod: _paymentMethod,
+          savedPaymentMethodId: _selectedPaymentMethodId,
           preorderFulfillmentType: _isPreorder
               ? _preorderFulfillment.wireValue
               : null,
@@ -1704,54 +1731,20 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
                 loading: _isSelectingTime,
               ),
             const SizedBox(height: 28),
-            _CheckoutLabel('checkout_payment_method'.tr, required: true),
+            _CheckoutLabel('payment_methods_title'.tr, required: true),
             const SizedBox(height: 12),
-            IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    child: _CheckoutPaymentCard(
-                      cardKey: const ValueKey('checkout-payment-kaspi'),
-                      title: 'Kaspi Pay',
-                      subtitle: 'checkout_kaspi_card_hint'.tr,
-                      visual: _CheckoutPaymentVisual.kaspi,
-                      available: _kaspiAvailable,
-                      selected: _paymentMethod == _CheckoutPaymentMethod.kaspi,
-                      onTap: () {
-                        if (_kaspiAvailable == true) {
-                          setState(
-                            () => _paymentMethod = _CheckoutPaymentMethod.kaspi,
-                          );
-                        } else {
-                          unawaited(_loadPaymentAvailability());
-                        }
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _CheckoutPaymentCard(
-                      cardKey: const ValueKey('checkout-payment-card'),
-                      title: 'checkout_card_payment_title'.tr,
-                      subtitle:
-                          _forteSavedCardLabel ?? 'checkout_forte_card_hint'.tr,
-                      visual: _CheckoutPaymentVisual.bankCard,
-                      available: _forteAvailable,
-                      selected: _paymentMethod == _CheckoutPaymentMethod.forte,
-                      onTap: () {
-                        if (_forteAvailable == true) {
-                          setState(
-                            () => _paymentMethod = _CheckoutPaymentMethod.forte,
-                          );
-                        } else {
-                          unawaited(_loadPaymentAvailability());
-                        }
-                      },
-                    ),
-                  ),
-                ],
-              ),
+            _CheckoutSavedCards(
+              methods: _savedPaymentMethods,
+              selectedMethodId: _selectedPaymentMethodId,
+              loading: _paymentMethodsLoading,
+              adding: _addingPaymentMethod,
+              available: _forteAvailable,
+              error: _paymentMethodsError,
+              onSelect: (methodId) {
+                setState(() => _selectedPaymentMethodId = methodId);
+              },
+              onAdd: () => unawaited(_addPaymentMethod()),
+              onRetry: () => unawaited(_loadPaymentMethods()),
             ),
             const SizedBox(height: 28),
             _CheckoutLabel('checkout_comment'.tr),
