@@ -749,7 +749,7 @@ class ForteWidgetService {
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
     const body = {
       checkout: {
-        transaction_type: 'payment',
+        transaction_type: purpose === 'card-setup' ? 'authorization' : 'payment',
         attempts: 3,
         iframe: true,
         test: config.test,
