@@ -109,11 +109,22 @@ test('Forte widget shell is private, pinned to official hosts and never reflects
   assert.equal(response.headers.get('cross-origin-embedder-policy'), null);
   assert.doesNotMatch(html, new RegExp(leakedToken));
   assert.match(html, /https:\/\/js\.fortebank\.com\/widget\/be_gateway\.js/);
-  assert.match(html, /\/assets\/forte-widget\.js\?v=2/);
-  assert.match(html, /\/assets\/forte-widget\.css\?v=2/);
+  assert.match(html, /\/assets\/forte-widget\.js\?v=3/);
+  assert.match(html, /\/assets\/forte-widget\.css\?v=3/);
+  assert.match(html, /class="phone-frame"/);
+  assert.match(html, /class="phone-screen"/);
   assert.match(csp, /script-src 'self' https:\/\/js\.fortebank\.com/);
   assert.match(csp, /frame-src https:\/\/securepayments\.fortebank\.com/);
   assert.doesNotMatch(csp, /script-src[^;]*unsafe-eval/);
+
+  const styleResponse = await fetch(
+    `http://127.0.0.1:${server.address().port}/assets/forte-widget.css?v=3`,
+  );
+  const styles = await styleResponse.text();
+  assert.equal(styleResponse.status, 200);
+  assert.match(styles, /@media \(min-width: 900px\)/);
+  assert.match(styles, /--phone-screen-width/);
+  assert.match(styles, /\.payment-widget-app:not\(\.payment-widget-app_full\)/);
 });
 
 test('payment and refund policy is publicly available as a stable HTML page', async (t) => {
