@@ -220,6 +220,34 @@ test('Forte transaction webhooks expose tracking, checkout and reusable card tok
   );
 });
 
+test('Forte transaction API root response keeps transaction and saved-card fields', () => {
+  const cardToken = 'c'.repeat(64);
+  const normalized = normalizeWidgetCheckout({
+    uid: providerTransactionId,
+    status: 'successful',
+    amount: CARD_SETUP_AMOUNT_MINOR,
+    currency: 'KZT',
+    tracking_id: operationId,
+    type: 'payment',
+    payment_method: {
+      token: cardToken,
+      brand: 'visa',
+      last_4: '4321',
+      exp_month: 8,
+      exp_year: 2031,
+    },
+    transaction: {
+      auth_code: '123456',
+      status: 'successful',
+    },
+  });
+  assert.equal(normalized.providerTransactionId, providerTransactionId);
+  assert.equal(normalized.trackingId, operationId);
+  assert.equal(normalized.card.token, cardToken);
+  assert.equal(normalized.card.lastFour, '4321');
+  assert.equal(mapWidgetStatus(normalized), 'paid');
+});
+
 test('card binding waits for a transaction webhook when checkout succeeds first', () => {
   assert.equal(resolveCardSetupStatus('paid', false), 'pending');
   assert.equal(resolveCardSetupStatus('paid', true), 'paid');
@@ -284,10 +312,7 @@ test('Forte card binding reads a reusable token from transaction details', async
   const service = new ForteWidgetService({
     env,
     fetchImpl: async (url) => {
-      assert.equal(
-        url,
-        `https://gateway.fortebank.com/transactions/${providerTransactionId}`,
-      );
+      assert.equal(url, `https://gateway.fortebank.com/transactions/${providerTransactionId}`);
       return response({
         transaction: {
           uid: providerTransactionId,
@@ -357,6 +382,60 @@ test('Forte card binding refunds the verification payment idempotently', async (
   assert.equal(body.request.parent_uid, providerTransactionId);
   assert.equal(body.request.amount, CARD_SETUP_AMOUNT_MINOR);
   assert.match(body.request.reason, /привязки карты Bulka/);
+});
+
+test('Forte card binding accepts the direct transaction API refund response', async () => {
+  const refundId = '417615f9-b35f-4eb4-9f6d-777f2236bb25';
+  const service = new ForteWidgetService({
+    env,
+    fetchImpl: async () =>
+      response({
+        uid: refundId,
+        type: 'refund',
+        status: 'successful',
+        transaction: {
+          auth_code: '123456',
+          status: 'successful',
+        },
+      }),
+  });
+  const result = await service.refundCardSetupPayment(
+    {
+      amount: CARD_SETUP_AMOUNT,
+      refund_request_id: refundRequestId,
+    },
+    providerTransactionId,
+  );
+  assert.equal(result.reference, refundId);
+  assert.equal(result.requestId, refundRequestId);
+});
+
+test('Forte order refund accepts the direct transaction API response', async () => {
+  const refundId = '817615f9-b35f-4eb4-9f6d-777f2236bb25';
+  const service = new ForteWidgetService({
+    env,
+    fetchImpl: async () =>
+      response({
+        uid: refundId,
+        type: 'refund',
+        status: 'successful',
+        transaction: {
+          auth_code: '123456',
+          status: 'successful',
+        },
+      }),
+  });
+  const result = await service.refundPayment(
+    {
+      provider_payment_system: 'forte_widget',
+      provider_transaction_id: providerTransactionId,
+    },
+    70,
+    { idempotencyKey: refundRequestId, reason: 'Нет в наличии' },
+  );
+  assert.equal(result.reference, refundId);
+  assert.equal(result.requestId, refundRequestId);
+  assert.equal(result.operation, 'refund');
 });
 
 test('unknown verification refund remains retryable for reconciliation', async () => {

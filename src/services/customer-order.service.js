@@ -63,6 +63,8 @@ const ORDER_FIELDS = [
 
 const ORDER_STATUSES = ['new', 'accepted', 'preparing', 'ready', 'completed', 'cancelled'];
 const CLOSED_STATUSES = ['completed', 'cancelled'];
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const SAFE_REFUND_RETRY_WINDOW_MS = 23 * 60 * 60 * 1000;
 const STATUS_TRANSITIONS = {
   new: ['accepted', 'preparing', 'ready', 'completed', 'cancelled'],
   accepted: ['preparing', 'ready', 'completed', 'cancelled'],
@@ -76,6 +78,23 @@ const httpError = (statusCode, message) => Object.assign(new Error(message), { s
 
 const refundError = (statusCode, message, code) =>
   Object.assign(new Error(message), { statusCode, code });
+
+const safeUnknownRefundRequestId = (order, now = Date.now()) => {
+  if (order?.refund_status !== 'unknown') return null;
+  const requestId = String(order?.refund_request_id || '');
+  const requestedAt = Date.parse(String(order?.refund_requested_at || ''));
+  const age = Number(now) - requestedAt;
+  if (
+    !UUID_PATTERN.test(requestId) ||
+    !Number.isFinite(requestedAt) ||
+    !Number.isFinite(age) ||
+    age < 0 ||
+    age >= SAFE_REFUND_RETRY_WINDOW_MS
+  ) {
+    return null;
+  }
+  return requestId;
+};
 
 const latestExternalDelivery = (order) =>
   Array.isArray(order?.delivery_jobs)
@@ -516,14 +535,15 @@ async function cancelPaidOrder(current, cancellationReason) {
   if (current.refund_status === 'processing') {
     throw refundError(409, 'Возврат по заказу уже выполняется', 'PAYMENT_REFUND_PROCESSING');
   }
-  if (current.refund_status === 'unknown') {
+  const retryRequestId = safeUnknownRefundRequestId(current);
+  if (current.refund_status === 'unknown' && !retryRequestId) {
     throw refundError(
       409,
-      `Результат предыдущего возврата неизвестен. Проверьте операцию в ${paymentProviderName(current)}.`,
+      `Безопасный срок повтора истёк. Проверьте возврат в ${paymentProviderName(current)} и свяжитесь с администратором.`,
       'PAYMENT_REFUND_UNKNOWN',
     );
   }
-  if (current.refund_status && !['failed', 'partial'].includes(current.refund_status)) {
+  if (current.refund_status && !['failed', 'partial', 'unknown'].includes(current.refund_status)) {
     throw refundError(
       409,
       'Текущее состояние возврата не позволяет повтор',
@@ -532,12 +552,12 @@ async function cancelPaidOrder(current, cancellationReason) {
   }
 
   const requestedAt = new Date().toISOString();
-  const refundRequestId = crypto.randomUUID();
+  const refundRequestId = retryRequestId || crypto.randomUUID();
   let claim = supabase
     .from('kaspi_orders')
     .update({
       refund_status: 'processing',
-      refund_requested_at: requestedAt,
+      refund_requested_at: retryRequestId ? current.refund_requested_at : requestedAt,
       refund_error: null,
       cancellation_reason: reason || null,
       last_error: null,
@@ -733,5 +753,6 @@ module.exports = {
   canMarkCustomerArrived,
   markCustomerArrived,
   notifyOrderStatus,
+  safeUnknownRefundRequestId,
   updateAdminOrderStatus,
 };

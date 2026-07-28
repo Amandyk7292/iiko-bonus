@@ -169,11 +169,29 @@ const transactionFromCheckout = (checkout = {}) =>
   checkout?.gateway_response?.charge ||
   null;
 
+const transactionFromApiResponse = (payload = {}) => {
+  if (payload?.uid || (payload?.id && payload?.type)) return payload;
+  return payload?.transaction || null;
+};
+
 const normalizeWidgetCheckout = (payload = {}) => {
   const checkout = payload?.checkout || payload || {};
-  const transaction = payload?.transaction || transactionFromCheckout(checkout) || {};
+  const transaction =
+    transactionFromApiResponse(payload) || transactionFromCheckout(checkout) || {};
+  const paymentMethodCard =
+    transaction?.payment_method &&
+    typeof transaction.payment_method === 'object' &&
+    !Array.isArray(transaction.payment_method.types)
+      ? transaction.payment_method
+      : null;
   const card =
-    transaction?.credit_card || transaction?.card || checkout?.credit_card || checkout?.card || {};
+    transaction?.credit_card ||
+    transaction?.card ||
+    transaction?.payment_method?.credit_card ||
+    paymentMethodCard ||
+    checkout?.credit_card ||
+    checkout?.card ||
+    {};
   return {
     token: normalizeProviderToken(checkout.token || transaction?.additional_data?.vendor?.token),
     shopId: String(checkout.shop_id ?? checkout?.shop?.id ?? '').trim(),
@@ -1167,7 +1185,7 @@ class ForteWidgetService {
         },
       },
     });
-    const transaction = body?.transaction || {};
+    const transaction = transactionFromApiResponse(body) || {};
     const reference = cleanText(transaction.uid || transaction.id, 100);
     if (
       response.ok &&
@@ -1597,7 +1615,7 @@ class ForteWidgetService {
         },
       },
     });
-    const transaction = body?.transaction || {};
+    const transaction = transactionFromApiResponse(body) || {};
     const reference = cleanText(transaction.uid || transaction.id, 160);
     if (
       response.ok &&

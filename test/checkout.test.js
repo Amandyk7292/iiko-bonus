@@ -14,6 +14,7 @@ const {
 const {
   canMarkCustomerArrived,
   normalizeOrder,
+  safeUnknownRefundRequestId,
 } = require('../src/services/customer-order.service');
 const { slotHorizonDays, timezoneOffsetMinutes } = require('../src/services/slot.service');
 
@@ -60,6 +61,33 @@ const env = {
   ORDER_MIN_LEAD_MINUTES: '10',
   PREORDER_MIN_LEAD_MINUTES: '120',
 };
+
+test('unknown refund reuses its request ID only inside Forte idempotency window', () => {
+  const now = Date.parse('2026-07-28T12:00:00.000Z');
+  const requestId = '317615f9-b35f-4eb4-9f6d-777f2236bb25';
+  assert.equal(
+    safeUnknownRefundRequestId(
+      {
+        refund_status: 'unknown',
+        refund_request_id: requestId,
+        refund_requested_at: '2026-07-28T11:31:40.000Z',
+      },
+      now,
+    ),
+    requestId,
+  );
+  assert.equal(
+    safeUnknownRefundRequestId(
+      {
+        refund_status: 'unknown',
+        refund_request_id: requestId,
+        refund_requested_at: '2026-07-27T12:30:00.000Z',
+      },
+      now,
+    ),
+    null,
+  );
+});
 
 test('pickup checkout validates a real branch and normalizes Aktau local time to UTC', () => {
   const checkout = validateCheckout(
