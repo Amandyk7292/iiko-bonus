@@ -15,6 +15,12 @@
 
 .topbar-actions {
   position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 10px;
+  min-width: 0;
+  margin-left: auto;
 }
 
 .realtime-status {
@@ -1317,6 +1323,28 @@
 }
 
 @media (max-width: 1180px) {
+  .sagi-topbar {
+    flex-wrap: wrap;
+  }
+
+  .topbar-title-wrap {
+    flex: 1 1 240px;
+  }
+
+  .topbar-actions {
+    flex: 0 1 auto;
+  }
+
+  .topbar-logout {
+    width: 44px;
+    min-width: 44px;
+    padding: 0;
+  }
+
+  .topbar-logout span {
+    display: none;
+  }
+
   .operations-metric-grid,
   .integration-health-grid,
   .payment-provider-grid,
@@ -1366,20 +1394,7 @@
 }
 
 @media (max-width: 680px) {
-  .realtime-status {
-    gap: 6px;
-    padding: 5px 8px;
-  }
-
-  .realtime-status-copy small {
-    max-width: 116px;
-    overflow: hidden;
-    font-size: 9px;
-    text-overflow: ellipsis;
-  }
-
   .topbar-branch-select {
-    order: 3;
     width: 100%;
   }
 

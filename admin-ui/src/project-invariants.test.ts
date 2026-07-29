@@ -47,6 +47,16 @@ describe('admin production invariants', () => {
     expect(orders).toContain("{ value: 'issues', label: t('payment.issues') }");
   });
 
+  it('keeps the topbar focused on operational actions', () => {
+    const topbar = readFileSync(resolve(root, 'src/components/Topbar.tsx'), 'utf8');
+    expect(topbar).toContain('<AdminGlobalSearch />');
+    expect(topbar).toContain('topbar-branch-select');
+    expect(topbar).toContain('topbar-notifications');
+    expect(topbar).toContain('topbar-logout');
+    expect(topbar).not.toContain('LanguageSelect');
+    expect(topbar).not.toContain('realtime-status');
+  });
+
   it('ships every locally referenced font and product mark', () => {
     const assets = [
       'GolosText-Regular.ttf',

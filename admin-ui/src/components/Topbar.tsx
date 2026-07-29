@@ -16,7 +16,6 @@ import { api, type AdminScopeLocation } from '../lib/api';
 import { useAdminRealtime } from '../lib/admin-realtime';
 import { useI18n } from '../lib/i18n';
 import AdminGlobalSearch from './AdminGlobalSearch';
-import LanguageSelect from './LanguageSelect';
 
 const routeKeys: Record<string, string> = {
   '/operations': 'operations',
@@ -62,10 +61,8 @@ export default function Topbar({
 }) {
   const { t } = useI18n();
   const location = useLocation();
-  const { summary, connectionStatus, lastUpdatedAt, soundEnabled, setSoundEnabled } =
-    useAdminRealtime();
+  const { summary, soundEnabled, setSoundEnabled } = useAdminRealtime();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [statusClock, setStatusClock] = useState(() => Date.now());
   const notificationsRef = useRef<HTMLDivElement>(null);
   const notificationsButtonRef = useRef<HTMLButtonElement>(null);
   const page = routeKeys[location.pathname] ?? 'operations';
@@ -97,21 +94,6 @@ export default function Topbar({
       document.removeEventListener('keydown', closeWithKeyboard);
     };
   }, [notificationsOpen]);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setStatusClock(Date.now()), 30_000);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  const realtimeLabel = t(`realtime.${connectionStatus}`);
-  const minutesSinceUpdate =
-    lastUpdatedAt == null ? null : Math.max(0, Math.floor((statusClock - lastUpdatedAt) / 60_000));
-  const updatedLabel =
-    minutesSinceUpdate == null
-      ? ''
-      : minutesSinceUpdate < 1
-        ? t('realtime.updatedNow')
-        : t('realtime.updatedMinutes', { count: minutesSinceUpdate });
 
   const notificationItems = counts
     ? [
@@ -202,25 +184,6 @@ export default function Topbar({
           </label>
         )}
         {!operatorMode && (
-          <div
-            className={`realtime-status realtime-status-${connectionStatus}`}
-            role="status"
-            aria-live="polite"
-            aria-atomic="true"
-            title={
-              lastUpdatedAt
-                ? `${realtimeLabel}. ${new Date(lastUpdatedAt).toLocaleString()}`
-                : realtimeLabel
-            }
-          >
-            <span className="realtime-status-dot" aria-hidden="true" />
-            <span className="realtime-status-copy">
-              <strong>{realtimeLabel}</strong>
-              {updatedLabel && <small>{updatedLabel}</small>}
-            </span>
-          </div>
-        )}
-        {!operatorMode && (
           <div className="topbar-notifications" ref={notificationsRef}>
             <button
               ref={notificationsButtonRef}
@@ -295,7 +258,6 @@ export default function Topbar({
             )}
           </div>
         )}
-        <LanguageSelect compact />
         <button
           type="button"
           onClick={() => void api.logout()}
