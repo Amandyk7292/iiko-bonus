@@ -1,10 +1,16 @@
 part of '../main.dart';
 
 class OrderSupportScreen extends StatefulWidget {
-  const OrderSupportScreen({required this.api, this.initialOrder, super.key});
+  const OrderSupportScreen({
+    required this.api,
+    this.initialOrder,
+    this.initialRequestId,
+    super.key,
+  });
 
   final BulkaApiClient api;
   final CustomerOrder? initialOrder;
+  final String? initialRequestId;
 
   @override
   State<OrderSupportScreen> createState() => _OrderSupportScreenState();
@@ -22,6 +28,7 @@ class _OrderSupportScreenState extends State<OrderSupportScreen> {
   List<SupportRequest> _requests = const [];
   StreamSubscription<Map<String, dynamic>>? _events;
   Timer? _reloadTimer;
+  bool _initialThreadOpened = false;
 
   @override
   void initState() {
@@ -59,6 +66,22 @@ class _OrderSupportScreenState extends State<OrderSupportScreen> {
                   .toList();
         _error = null;
       });
+      final initialRequestId = widget.initialRequestId?.trim() ?? '';
+      if (!_initialThreadOpened && initialRequestId.isNotEmpty) {
+        SupportRequest? requested;
+        for (final request in _requests) {
+          if (request.id == initialRequestId) {
+            requested = request;
+            break;
+          }
+        }
+        if (requested != null) {
+          _initialThreadOpened = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) unawaited(_openThread(requested!));
+          });
+        }
+      }
     } catch (error) {
       if (mounted) setState(() => _error = localizeErrorMessage(error));
     } finally {
@@ -87,9 +110,7 @@ class _OrderSupportScreenState extends State<OrderSupportScreen> {
       setState(() => _images = [..._images, ...selected].take(3).toList());
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
+      showApiErrorSnackBar(context, error);
     }
   }
 
@@ -134,9 +155,7 @@ class _OrderSupportScreenState extends State<OrderSupportScreen> {
       }
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
+      showApiErrorSnackBar(context, error);
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -588,9 +607,7 @@ class _SupportThreadScreenState extends State<_SupportThreadScreen> {
       await BulkaMotion.confirm();
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
+      showApiErrorSnackBar(context, error);
     } finally {
       if (mounted) setState(() => _sending = false);
     }

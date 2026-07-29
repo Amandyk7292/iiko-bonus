@@ -444,6 +444,25 @@ const Map<String, Map<String, String>> _orderAndPaymentTranslations = {
     'en': 'Could not open the merchant receipt',
   },
   'order_repeat': {'ru': 'Повторить', 'kk': 'Қайталау', 'en': 'Reorder'},
+  'order_repeat_cart_title': {
+    'ru': 'В корзине уже есть товары',
+    'kk': 'Себетте тауарлар бар',
+    'en': 'Your cart already has items',
+  },
+  'order_repeat_cart_message': {
+    'ru': 'Заменить корзину прошлым заказом или добавить товары к текущим?',
+    'kk':
+        'Себетті алдыңғы тапсырыспен ауыстыру немесе тауарларды қазіргілерге қосу керек пе?',
+    'en':
+        'Replace the cart with the previous order or add its items to the current cart?',
+  },
+  'order_repeat_replace': {'ru': 'Заменить', 'kk': 'Ауыстыру', 'en': 'Replace'},
+  'order_repeat_merge': {'ru': 'Объединить', 'kk': 'Біріктіру', 'en': 'Merge'},
+  'order_repeat_empty': {
+    'ru': 'В этом заказе нет доступных для повтора товаров.',
+    'kk': 'Бұл тапсырыста қайталауға болатын тауарлар жоқ.',
+    'en': 'This order has no items available to reorder.',
+  },
   'order_review': {'ru': 'Оценить', 'kk': 'Бағалау', 'en': 'Review'},
   'orders_refresh': {
     'ru': 'Обновить заказ',

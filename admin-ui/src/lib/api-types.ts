@@ -142,6 +142,70 @@ export interface InventoryItem {
   bulka_locations?: { name?: string; address?: string } | null;
 }
 
+export interface PartialRefundLine {
+  lineKey: string;
+  productId: string;
+  name: string;
+  quantity: number;
+  unitAmount: number;
+  refundableQuantity: number;
+  refundedQuantity: number;
+  refundedAmount: number;
+  imageUrl?: string | null;
+  configuration?: unknown;
+  modifiers?: unknown[];
+}
+
+export interface PartialRefundAdjustment {
+  spentBonusRestored: number;
+  earnedBonusReversed: number;
+}
+
+export interface PartialRefundPreview {
+  amount: number;
+  remainingAfter: number;
+  currency: 'KZT';
+  items: Array<{
+    lineKey: string;
+    quantity: number;
+    amount: number;
+  }>;
+  adjustment: PartialRefundAdjustment;
+}
+
+export interface PartialRefundOptions {
+  orderId: string;
+  orderNumber: number;
+  paidAmount: number;
+  alreadyRefunded: number;
+  remainingAmount: number;
+  deliveryFee: number;
+  deliveryFeeRefunded: boolean;
+  lines: PartialRefundLine[];
+  /**
+   * Set by the server after POST /orders/:id/partial-refund-preview is available.
+   * The admin client must never derive the payable/refundable amount itself.
+   */
+  previewSupported?: boolean;
+}
+
+export interface PartialRefundResult {
+  id: string;
+  orderId: string;
+  amount: number;
+  status: string;
+  reference?: string | null;
+  adjustment?: PartialRefundAdjustment | null;
+  items?: Array<{
+    line_key: string;
+    product_id: string;
+    product_name: string;
+    quantity: number;
+    unit_amount: number;
+    refund_amount: number;
+  }>;
+}
+
 export interface Courier {
   id: string;
   name: string;
@@ -484,11 +548,23 @@ export interface SiteAccessResponse {
 
 export interface AuditLog {
   id: string;
+  admin_subject?: string | null;
   admin_username?: string | null;
   admin_role?: string | null;
+  action?: string | null;
+  action_code?: string | null;
   method: string;
   path: string;
   status_code?: number | null;
+  outcome?: 'success' | 'rejected' | 'server_error' | string | null;
+  request_id?: string | null;
+  target_type?: string | null;
+  target_id?: string | null;
+  branch_id?: string | null;
+  reason?: string | null;
+  amount_change?: number | null;
+  context?: Record<string, unknown> | null;
+  ip_hash?: string | null;
   ip?: string | null;
   user_agent?: string | null;
   created_at: string;

@@ -4,7 +4,11 @@ const realtime = require('./realtime.service');
 const { sendPushToCustomer } = require('./push.service');
 const { releaseOrderReservations } = require('./inventory.service');
 const { queueCustomerLoyaltySync } = require('./loyalty-sync.service');
-const { paymentProviderName, refundPaymentForOrder } = require('./payment-gateway.service');
+const {
+  paymentProviderName,
+  reconcileRefundForOrder,
+  refundPaymentForOrder,
+} = require('./payment-gateway.service');
 
 const refundError = (message, statusCode = 400, code = 'PARTIAL_REFUND_INVALID') =>
   Object.assign(new Error(message), { statusCode, code });
@@ -66,6 +70,7 @@ async function getRefundOptions(orderId) {
   return {
     orderId: String(order.id),
     orderNumber: Number(order.order_number || 0),
+    previewSupported: true,
     paidAmount: Number(order.amount || 0),
     alreadyRefunded: Number(order.partially_refunded_amount || order.refund_amount || 0),
     remainingAmount: Math.max(
@@ -183,12 +188,154 @@ function calculateRefund(order, requested, alreadyRefunded) {
   return { amount: refundAmount, records: positiveRecords };
 }
 
+const roundMoney = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+
+function buildRefundPreview(order, calculated, financials = {}) {
+  const alreadyRefunded = Number(order.partially_refunded_amount || order.refund_amount || 0);
+  const totalAfter = Math.min(
+    Number(order.amount || 0),
+    alreadyRefunded + Number(calculated.amount || 0),
+  );
+  const eligiblePaid = Math.max(
+    0,
+    Number(order.subtotal ?? order.amount ?? 0) - Number(order.discount_amount || 0),
+  );
+  const ratio = eligiblePaid > 0 ? Math.min(1, totalAfter / eligiblePaid) : 0;
+  const targetEarned =
+    totalAfter >= Number(order.amount || 0)
+      ? Number(order.earned_bonus || 0)
+      : roundMoney(Number(order.earned_bonus || 0) * ratio);
+  const targetSpent =
+    totalAfter >= Number(order.amount || 0)
+      ? Number(financials.originalSpent || 0)
+      : roundMoney(Number(financials.originalSpent || 0) * ratio);
+  return {
+    amount: Number(calculated.amount),
+    remainingAfter: Math.max(0, Number(order.amount || 0) - totalAfter),
+    items: calculated.records.map((item) => ({
+      lineKey: item.line_key,
+      productId: item.product_id,
+      name: item.product_name,
+      quantity: item.quantity,
+      amount: item.refund_amount,
+    })),
+    adjustment: {
+      spentBonusRestored: Math.max(
+        0,
+        roundMoney(targetSpent - Number(financials.priorSpentRestored || 0)),
+      ),
+      earnedBonusReversed: Math.max(
+        0,
+        roundMoney(targetEarned - Number(financials.priorEarnedReversed || 0)),
+      ),
+    },
+    currency: 'KZT',
+  };
+}
+
+async function previewPartialRefund(orderId, payload = {}) {
+  const order = await readOrder(orderId);
+  if (order.status !== 'paid') {
+    throw refundError('Возврат доступен только для оплаченного заказа', 409);
+  }
+  if (['processing', 'unknown'].includes(order.refund_status)) {
+    throw refundError('По заказу уже проверяется возврат', 409, 'REFUND_IN_PROGRESS');
+  }
+  const alreadyRefunded = await successfulRefundedQuantities(order.id);
+  const calculated = calculateRefund(order, payload.items, alreadyRefunded);
+  const originalOrderId = `kaspi:${order.operation_id}`;
+  const [transactionsResult, adjustmentsResult] = await Promise.all([
+    order.customer_id
+      ? supabase
+          .from('transactions')
+          .select('amount')
+          .eq('customer_id', order.customer_id)
+          .eq('order_id', originalOrderId)
+          .eq('type', 'withdrawal')
+      : Promise.resolve({ data: [], error: null }),
+    supabase
+      .from('order_partial_refund_adjustments')
+      .select('earned_bonus_reversed,spent_bonus_restored')
+      .eq('order_id', order.id),
+  ]);
+  if (transactionsResult.error) throw transactionsResult.error;
+  if (adjustmentsResult.error) throw adjustmentsResult.error;
+  const sum = (rows, field) =>
+    (rows || []).reduce((total, row) => total + Number(row?.[field] || 0), 0);
+  return buildRefundPreview(order, calculated, {
+    originalSpent: sum(transactionsResult.data, 'amount'),
+    priorSpentRestored: sum(adjustmentsResult.data, 'spent_bonus_restored'),
+    priorEarnedReversed: sum(adjustmentsResult.data, 'earned_bonus_reversed'),
+  });
+}
+
 async function applyRefundAdjustments(refundId) {
   const { data, error } = await supabase.rpc('apply_partial_refund_adjustments', {
     p_refund_id: refundId,
   });
   if (error) throw error;
+  const { error: markerError } = await supabase
+    .from('order_partial_refunds')
+    .update({
+      adjustments_applied_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', refundId)
+    .eq('status', 'succeeded');
+  if (markerError) throw markerError;
   return Array.isArray(data) ? data[0] : data;
+}
+
+async function markRefundUnknown(refund, error, reference = null, requestId = null) {
+  const { error: saveError } = await supabase.rpc('mark_partial_refund_unknown', {
+    p_refund_id: refund.id,
+    p_error: String(error?.message || error || 'Результат возврата требует сверки').slice(0, 1000),
+    p_provider_reference: String(reference || error?.refundReference || '').slice(0, 160) || null,
+    p_provider_request_id: requestId || error?.requestId || refund.id,
+  });
+  if (saveError) throw saveError;
+}
+
+async function completeRefundRecord(refund, reference = null) {
+  const { data, error } = await supabase.rpc('complete_partial_refund', {
+    p_refund_id: refund.id,
+    p_kaspi_reference: reference || refund.provider_reference || refund.kaspi_reference || null,
+  });
+  if (error) throw error;
+  return Array.isArray(data) ? data[0] : data;
+}
+
+async function findSubstitutionForRefund(refund) {
+  const { data, error } = await supabase
+    .from('order_substitution_requests')
+    .select('id,order_id,status')
+    .eq('id', refund.idempotency_key)
+    .eq('order_id', refund.order_id)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+async function resumeSubstitutionAfterRefund(refund) {
+  const request = await findSubstitutionForRefund(refund);
+  if (!request || request.status !== 'processing') return;
+  const { error } = await supabase.rpc('complete_order_substitution_execution', {
+    p_order_id: refund.order_id,
+    p_request_id: request.id,
+    p_refund_id: refund.id,
+  });
+  if (error) throw error;
+}
+
+async function abortSubstitutionAfterDecline(refund, message) {
+  const request = await findSubstitutionForRefund(refund);
+  if (!request || request.status !== 'processing') return;
+  const { error } = await supabase.rpc('abort_order_substitution_execution', {
+    p_order_id: refund.order_id,
+    p_request_id: request.id,
+    p_error: String(message || 'Банк отклонил возврат').slice(0, 1000),
+  });
+  if (error) throw error;
 }
 
 async function notifyRefund(order, amount) {
@@ -291,7 +438,7 @@ async function createPartialRefund(orderId, payload = {}, requestedBy = 'admin')
     return {
       ...refund,
       duplicate: true,
-      inProgress: refund.status === 'processing',
+      inProgress: ['processing', 'unknown'].includes(refund.status),
       adjustment: refund.status === 'succeeded' ? await applyRefundAdjustments(refund.id) : null,
     };
   }
@@ -320,45 +467,58 @@ async function createPartialRefund(orderId, payload = {}, requestedBy = 'admin')
     const failureMessage = String(
       error.message || `${paymentProviderName(order)} не подтвердил возврат`,
     ).slice(0, 1000);
-    const { error: failureSaveError } = await supabase.rpc('fail_partial_refund', {
-      p_refund_id: refund.id,
-      p_error: failureMessage,
-      p_result_unknown: error.refundUncertain === true,
-    });
+    let failureSaveError;
+    if (error.refundUncertain === true) {
+      try {
+        await markRefundUnknown(refund, error);
+      } catch (saveError) {
+        failureSaveError = saveError;
+      }
+    } else {
+      const result = await supabase.rpc('fail_partial_refund', {
+        p_refund_id: refund.id,
+        p_error: failureMessage,
+        p_result_unknown: false,
+      });
+      failureSaveError = result.error;
+    }
     if (failureSaveError) {
       console.error(
         'Не удалось сохранить состояние частичного возврата:',
         failureSaveError.message,
       );
     }
-    throw refundError(
+    const publicError = refundError(
       error.message || `${paymentProviderName(order)} не подтвердил возврат`,
       error.statusCode || 502,
       error.code || 'PAYMENT_PARTIAL_REFUND_FAILED',
     );
+    if (error.refundUncertain === true) publicError.preserveSubstitutionExecution = true;
+    throw publicError;
   }
 
-  const { data: completedOrder, error: completionError } = await supabase.rpc(
-    'complete_partial_refund',
-    { p_refund_id: refund.id, p_kaspi_reference: gatewayRefund.reference || null },
-  );
-  if (completionError) {
-    await supabase
-      .from('kaspi_orders')
-      .update({
-        refund_status: 'unknown',
-        refund_error: `${paymentProviderName(order)} подтвердил возврат, но база не обновилась`,
-        last_error: 'Результат частичного возврата требует ручной сверки',
-      })
-      .eq('id', order.id)
-      .eq('refund_status', 'processing');
-    throw refundError(
+  let finalOrder;
+  try {
+    finalOrder = await completeRefundRecord(refund, gatewayRefund.reference || null);
+  } catch (_completionError) {
+    try {
+      await markRefundUnknown(
+        refund,
+        new Error(`${paymentProviderName(order)} подтвердил возврат, но база не обновилась`),
+        gatewayRefund.reference || null,
+        gatewayRefund.requestId || refund.id,
+      );
+    } catch (saveError) {
+      console.error('Не удалось поставить возврат в очередь сверки:', saveError.message);
+    }
+    const publicError = refundError(
       `${paymentProviderName(order)} подтвердил возврат, но база не обновилась. Проверьте операцию.`,
       500,
       'PAYMENT_REFUND_DB_CONFLICT',
     );
+    publicError.preserveSubstitutionExecution = true;
+    throw publicError;
   }
-  const finalOrder = Array.isArray(completedOrder) ? completedOrder[0] : completedOrder;
   let adjustment;
   try {
     adjustment = await applyRefundAdjustments(refund.id);
@@ -400,10 +560,231 @@ async function createPartialRefund(orderId, payload = {}, requestedBy = 'admin')
   };
 }
 
+async function reconcilePartialRefundRecord(refund, dependencies) {
+  let decision;
+  try {
+    decision = await dependencies.resolve(refund);
+  } catch (error) {
+    decision = {
+      status: 'pending',
+      reference: refund.provider_reference || null,
+      requestId: refund.provider_request_id || refund.id,
+      message: error.message,
+    };
+  }
+
+  if (decision?.status === 'confirmed') {
+    const completed = await dependencies.complete(refund, decision);
+    const adjustment = await dependencies.applyAdjustments(refund, completed, decision);
+    if (dependencies.afterConfirmed) {
+      await dependencies.afterConfirmed(refund, completed, adjustment, decision);
+    }
+    return { status: 'confirmed', completed, adjustment, decision };
+  }
+
+  if (decision?.status === 'declined') {
+    const declined = await dependencies.decline(refund, decision);
+    if (dependencies.afterDeclined) {
+      await dependencies.afterDeclined(refund, declined, decision);
+    }
+    return { status: 'declined', declined, decision };
+  }
+
+  await dependencies.defer(refund, decision || { status: 'pending' });
+  return { status: 'pending', decision };
+}
+
+async function deferUnknownRefund(refund, decision = {}) {
+  const attempts = Number(refund.reconciliation_attempts || 0) + 1;
+  const delayMinutes = Math.min(30, Math.max(1, 2 ** Math.min(attempts - 1, 5)));
+  const now = new Date();
+  const requestId = String(decision.requestId || refund.provider_request_id || refund.id);
+  const providerRequestId = /^[0-9a-f-]{36}$/i.test(requestId) ? requestId : refund.id;
+  const { error } = await supabase
+    .from('order_partial_refunds')
+    .update({
+      provider_reference:
+        String(decision.reference || refund.provider_reference || '').slice(0, 160) || null,
+      provider_request_id: providerRequestId,
+      error: String(
+        decision.message || refund.error || 'Банк ещё не подтвердил результат возврата',
+      ).slice(0, 1000),
+      reconciliation_attempts: attempts,
+      last_reconciled_at: now.toISOString(),
+      next_reconcile_at: new Date(now.getTime() + delayMinutes * 60 * 1000).toISOString(),
+      updated_at: now.toISOString(),
+    })
+    .eq('id', refund.id)
+    .eq('status', 'unknown');
+  if (error) throw error;
+}
+
+async function afterConfirmedRefund(refund, finalOrder, _adjustment, decision) {
+  const order = refund.order;
+  if (order?.customer_id) queueCustomerLoyaltySync(order.customer_id);
+  await resumeSubstitutionAfterRefund(refund).catch((error) =>
+    console.error('Не удалось завершить замену после сверки возврата:', error.message),
+  );
+  if (finalOrder?.status === 'refunded') {
+    await releaseOrderReservations(finalOrder.id).catch((error) =>
+      console.error('Не удалось освободить резерв после сверки возврата:', error.message),
+    );
+  }
+  await notifyRefund(finalOrder || order, refund.amount).catch((error) =>
+    console.error('Не удалось уведомить о сверенном возврате:', error.message),
+  );
+  realtime.publish(
+    'order.updated',
+    {
+      orderId: order.id,
+      orderNumber: order.order_number,
+      refundStatus: finalOrder?.refund_status || 'partial',
+      refundAmount: finalOrder?.refund_amount || refund.amount,
+      refundReference: decision.reference || null,
+    },
+    { customerId: order.customer_id, includeAdmins: true, branchId: order.branch_id },
+  );
+}
+
+async function reconcileUnknownPartialRefunds({ limit = 25 } = {}) {
+  const now = new Date().toISOString();
+  const batchLimit = Math.max(1, Math.min(100, Number(limit) || 25));
+  const staleProcessingCutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+  const [{ data: readyUnknown, error }, { data: staleProcessing, error: staleProcessingError }] =
+    await Promise.all([
+      supabase
+        .from('order_partial_refunds')
+        .select('*')
+        .eq('status', 'unknown')
+        .or(`next_reconcile_at.is.null,next_reconcile_at.lte.${now}`)
+        .order('created_at', { ascending: true })
+        .limit(batchLimit),
+      supabase
+        .from('order_partial_refunds')
+        .select('*')
+        .eq('status', 'processing')
+        .lte('created_at', staleProcessingCutoff)
+        .order('created_at', { ascending: true })
+        .limit(batchLimit),
+    ]);
+  if (error) throw error;
+  if (staleProcessingError) throw staleProcessingError;
+
+  const unknownRefunds = [...(readyUnknown || [])];
+  for (const refund of staleProcessing || []) {
+    try {
+      await markRefundUnknown(
+        refund,
+        new Error('Операция возврата не завершилась за отведённое время'),
+        refund.provider_reference || null,
+        refund.provider_request_id || refund.id,
+      );
+      unknownRefunds.push({ ...refund, status: 'unknown' });
+    } catch (staleError) {
+      console.error(
+        `Не удалось перевести зависший возврат ${refund.id} в сверку:`,
+        staleError.message,
+      );
+    }
+  }
+
+  let processed = 0;
+  for (const refund of unknownRefunds) {
+    try {
+      const order = await readOrder(refund.order_id);
+      const { data: succeeded, error: succeededError } = await supabase
+        .from('order_partial_refunds')
+        .select('amount')
+        .eq('order_id', refund.order_id)
+        .eq('status', 'succeeded');
+      if (succeededError) throw succeededError;
+      const knownSucceededAmount = (succeeded || []).reduce(
+        (total, row) => total + Number(row.amount || 0),
+        0,
+      );
+      const record = { ...refund, order };
+      await reconcilePartialRefundRecord(record, {
+        resolve: (current) =>
+          reconcileRefundForOrder(current.order, current, { knownSucceededAmount }),
+        complete: (current, decision) => completeRefundRecord(current, decision.reference || null),
+        applyAdjustments: (current) => applyRefundAdjustments(current.id),
+        afterConfirmed: afterConfirmedRefund,
+        decline: async (current, decision) => {
+          const { data, error: declineError } = await supabase.rpc('decline_partial_refund', {
+            p_refund_id: current.id,
+            p_error: String(decision.message || 'Банк отклонил возврат').slice(0, 1000),
+          });
+          if (declineError) throw declineError;
+          return Array.isArray(data) ? data[0] : data;
+        },
+        afterDeclined: async (current, _declined, decision) => {
+          await abortSubstitutionAfterDecline(current, decision.message).catch((abortError) =>
+            console.error(
+              'Не удалось отменить подготовленную замену после отказа банка:',
+              abortError.message,
+            ),
+          );
+        },
+        defer: deferUnknownRefund,
+      });
+      processed += 1;
+    } catch (refundError) {
+      await deferUnknownRefund(refund, {
+        status: 'pending',
+        message: refundError.message,
+      }).catch((saveError) =>
+        console.error(
+          `Не удалось отложить сверку частичного возврата ${refund.id}:`,
+          saveError.message,
+        ),
+      );
+      console.error(`Не удалось сверить частичный возврат ${refund.id}:`, refundError.message);
+    }
+  }
+
+  const { data: adjustmentRows, error: adjustmentReadError } = await supabase
+    .from('order_partial_refunds')
+    .select('*')
+    .eq('status', 'succeeded')
+    .is('adjustments_applied_at', null)
+    .order('completed_at', { ascending: true })
+    .limit(batchLimit);
+  if (adjustmentReadError) throw adjustmentReadError;
+  for (const refund of adjustmentRows || []) {
+    try {
+      const order = await readOrder(refund.order_id);
+      await applyRefundAdjustments(refund.id);
+      if (order.customer_id) queueCustomerLoyaltySync(order.customer_id);
+      await resumeSubstitutionAfterRefund(refund).catch((resumeError) =>
+        console.error('Не удалось завершить замену после финансовой сверки:', resumeError.message),
+      );
+      if (order.status === 'refunded') {
+        await releaseOrderReservations(order.id).catch((releaseError) =>
+          console.error(
+            'Не удалось освободить резерв после финансовой сверки:',
+            releaseError.message,
+          ),
+        );
+      }
+      processed += 1;
+    } catch (adjustmentError) {
+      console.error(
+        `Не удалось восстановить перерасчёт возврата ${refund.id}:`,
+        adjustmentError.message,
+      );
+    }
+  }
+  return processed;
+}
+
 module.exports = {
+  buildRefundPreview,
   calculateRefund,
   createPartialRefund,
   getRefundOptions,
   lineKeyFor,
   applyRefundAdjustments,
+  previewPartialRefund,
+  reconcilePartialRefundRecord,
+  reconcileUnknownPartialRefunds,
 };

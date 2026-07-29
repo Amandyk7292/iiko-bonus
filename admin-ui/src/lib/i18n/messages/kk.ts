@@ -502,6 +502,14 @@ const kk: Record<string, string> = {
   'orders.refundConfirm':
     'Тапсырысты тоқтатып, клиентке {{amount}} ₸ бастапқы төлем тәсіліне қайтару керек пе? Картаға түсу мерзімі клиенттің банкіне байланысты.',
   'orders.refundSucceeded': 'Тапсырыс тоқтатылды, қайтарым бастапқы төлем тәсілі арқылы жіберілді',
+  'orders.calculatingRefund': 'Қайтарымның нақты сомасы есептелуде…',
+  'orders.refundNow': 'Қайтарылатын сома',
+  'orders.remainingAfterRefund': 'Қолжетімді қалдық',
+  'orders.bonusAdjustment': 'Бонустар: қайтару / шегеру',
+  'orders.serverCalculatesRefund':
+    'Нақты сома мен бонус түзетуін растау кезінде сервер есептейді.',
+  'orders.refundPreviewUnavailable': 'Қайтарымды есептеу мүмкін болмады. Деректерді жаңартыңыз.',
+  'orders.waitForRefundPreview': 'Қайтарымның нақты есебін күтіңіз.',
   'orders.substitutionLabel': 'Тауар болмаса',
   'orders.substitution.remove_refund': 'Позицияны алып тастап, ақшаны қайтару',
   'orders.substitution.call_customer': 'Клиентке қоңырау шалу',
@@ -805,6 +813,15 @@ const kk: Record<string, string> = {
   'inventory.emptyHint': 'Филиал қалдықтарын жасау үшін iiko синхрондауын іске қосыңыз.',
   'inventory.reservationHint':
     'Резерв шот жасалғанда қойылады және төлем тоқтатылғанда не мерзімі өткенде босатылады.',
+  'inventory.unsaved': 'Сақталмаған өзгерістер бар',
+  'inventory.serverConflict': 'Қалдық серверде өзгерді',
+  'inventory.useServer': 'Сервер нұсқасын алу',
+  'inventory.keepMine': 'Менікін сақтау',
+  'inventory.unsavedNavigation':
+    'Сақталмаған қалдықтар бар. Парақтан шығып, өзгерістерді жоғалтасыз ба?',
+  'inventory.unsavedBranch':
+    'Филиалды ауыстырғанда сақталмаған қалдықтар жоғалады.',
+  'inventory.discardAndContinue': 'Тастау және жалғастыру',
   'couriers.heading': 'Жеткізу тобы',
   'couriers.intro': 'Курьерлерді қосып, төленген тапсырыстарға тағайындаңыз.',
   'couriers.add': 'Курьер қосу',
@@ -855,6 +872,22 @@ const kk: Record<string, string> = {
   'security.result': 'Нәтиже',
   'security.ip': 'IP',
   'security.noAudit': 'Аудит жазбалары әлі жоқ',
+  'security.filters': 'Әрекеттер журналының сүзгілері',
+  'security.searchPlaceholder': 'Әкімші, жол, сұрау коды…',
+  'security.method': 'Әдіс',
+  'security.allMethods': 'Барлық әдістер',
+  'security.allResults': 'Барлық нәтижелер',
+  'security.success': 'Сәтті',
+  'security.rejected': 'Қабылданбады',
+  'security.serverError': 'Сервер қатесі',
+  'security.requestId': 'Сұрау коды',
+  'security.openDetails': 'Жазба мәліметтерін ашу',
+  'security.auditDetails': 'Әрекет мәліметтері',
+  'security.path': 'API жолы',
+  'security.target': 'Нысан',
+  'security.reason': 'Себеп',
+  'security.previousPage': 'Артқа',
+  'security.nextPage': 'Әрі қарай',
   'orders.delivery': 'Жеткізу',
   'orders.customerArrived': 'Клиент келді',
   'orders.assignCourier': 'Курьер тағайындау',
@@ -911,6 +944,17 @@ const kk: Record<string, string> = {
   'realtime.offline': 'Байланыс жоқ',
   'realtime.updatedNow': 'Қазір жаңартылды',
   'realtime.updatedMinutes': '{{count}} мин бұрын жаңартылды',
+  'support.sentToOriginal': 'Жауап бастапқы өтінішке жіберілді',
+  'support.switchDraftTitle': 'Басқа өтінішке өту керек пе?',
+  'support.switchDraftBody':
+    'Мәтін жіберілмеді. Жоба ағымдағы өтініште сақталады.',
+  'support.switchDraftConfirm': 'Өту',
+  'whatsapp.switchDraftTitle': 'Басқа диалогқа өту керек пе?',
+  'whatsapp.switchDraftBody':
+    'Хабарлама жіберілмеді. Жоба ағымдағы клиентте сақталады.',
+  'whatsapp.switchDraftConfirm': 'Өту',
+  'whatsapp.recipientMismatch':
+    'Сервер жауабы басқа диалогқа тиесілі. Хабарлама жобада қалды.',
 };
 
 export default kk;

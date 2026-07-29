@@ -9,6 +9,8 @@
     "lint": "eslint src/**/*.js",
     "lint:fix": "eslint src/**/*.js --fix",
     "check:structure": "node scripts/check-source-size.js",
+    "check:contracts": "node scripts/check-api-contract-coverage.js --minimum=35 --minimum-percentage=21.8",
+    "check:secrets": "node scripts/check-secrets.js",
     "check:migration-safety": "node scripts/check-migration-safety.js",
     "check:bundle-admin": "node scripts/check-build-budgets.js --admin admin-ui/dist",
     "test": "node --require ./test/test-env.cjs --test test/*.test.js",
@@ -19,7 +21,7 @@
     "wallet:google:setup": "node scripts/setup-google-wallet.js",
     "build:admin": "npm --prefix admin-ui run build",
     "build": "npm run build:admin",
-    "verify": "npm run lint && npm run check:structure && npm run check:migration-safety && npm run test:coverage && npm run build && npm run check:bundle-admin && npm --prefix admin-ui run lint && npm --prefix admin-ui run test:coverage && npm --prefix kaspi-pos-automation-main run lint && npm --prefix kaspi-pos-automation-main test"
+    "verify": "npm run check:secrets && npm run check:contracts && npm run lint && npm run check:structure && npm run check:migration-safety && npm run test:coverage && npm run build && npm run check:bundle-admin && npm --prefix admin-ui run lint && npm --prefix admin-ui run test:coverage && npm --prefix kaspi-pos-automation-main run lint && npm --prefix kaspi-pos-automation-main test"
   },
   "dependencies": {
     "@parse/node-apn": "^8.1.0",

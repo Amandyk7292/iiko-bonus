@@ -148,7 +148,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
         throw ApiException('payment_methods_add_error'.tr);
       }
       if (!mounted) return;
-      final saved = await Navigator.of(context).push<bool>(
+      final setupResult = await Navigator.of(context).push<FortePaymentResult>(
         MaterialPageRoute(
           builder: (_) => FortePaymentScreen(
             api: widget.api,
@@ -158,7 +158,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
           ),
         ),
       );
-      if (saved == true) {
+      if (setupResult?.paid == true) {
         await widget.api.isFortePaymentAvailable();
         await _load();
       }

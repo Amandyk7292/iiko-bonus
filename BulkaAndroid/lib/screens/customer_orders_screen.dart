@@ -1,5 +1,7 @@
 part of '../main.dart';
 
+enum _RepeatCartAction { replace, merge, cancel }
+
 class CustomerOrdersScreen extends StatefulWidget {
   const CustomerOrdersScreen({
     required this.api,
@@ -7,6 +9,7 @@ class CustomerOrdersScreen extends StatefulWidget {
     this.onScopeChanged,
     this.cacheScope = 'session',
     this.paymentReturnNotice,
+    this.initialOrderId,
     super.key,
   });
 
@@ -15,6 +18,7 @@ class CustomerOrdersScreen extends StatefulWidget {
   final ValueChanged<bool>? onScopeChanged;
   final String cacheScope;
   final PaymentReturnNotice? paymentReturnNotice;
+  final String? initialOrderId;
 
   @override
   State<CustomerOrdersScreen> createState() => _CustomerOrdersScreenState();
@@ -35,6 +39,7 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
   List<CustomerOrder> _orders = const [];
   bool _usingOfflineCache = false;
   PaymentReturnNotice? _paymentReturnNotice;
+  String? _pendingInitialOrderId;
 
   String get _cacheKey =>
       'customer_orders_cache_${widget.cacheScope}_${_completed ? 'completed' : 'active'}';
@@ -44,6 +49,7 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
     super.initState();
     _completed = widget.initialCompleted;
     _paymentReturnNotice = widget.paymentReturnNotice;
+    _pendingInitialOrderId = widget.initialOrderId?.trim();
     WidgetsBinding.instance.addObserver(this);
     _startRefreshTimer();
     _pushOrderSubscription = PushNotifications.orderEvents.listen(
@@ -114,6 +120,7 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
         _error = null;
         _usingOfflineCache = false;
       });
+      _scheduleInitialOrderOpen();
     } catch (_) {
       if (!mounted) return;
       final restored = await _restoreCache();
@@ -163,8 +170,10 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
     try {
       final items = await widget.api.reorder(order.id);
       if (!mounted) return;
-      final cart = context.read<CartProvider>()..clear();
+      final rebuiltItems = <CartItem>[];
       for (final item in items) {
+        final productId = _asString(item['id']);
+        if (productId.isEmpty) continue;
         final configuration = item['configuration'] is Map
             ? Map<String, dynamic>.from(item['configuration'])
             : null;
@@ -174,28 +183,79 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
                   .map((value) => Map<String, dynamic>.from(value))
                   .toList()
             : <Map<String, dynamic>>[];
-        final quantity = _asInt(item['quantity'], fallback: 1);
+        final quantity = _asInt(
+          item['quantity'],
+          fallback: 1,
+        ).clamp(1, CartProvider.maxItemQuantity).toInt();
+        final basePrice = _asInt(item['basePrice'] ?? item['price']);
+        final price = _asInt(item['price']);
         if (configuration != null || modifiers.isNotEmpty) {
-          cart.addConfiguredItem(
-            productId: _asString(item['id']),
-            name: _asString(item['name']),
-            basePrice: _asInt(item['basePrice'] ?? item['price']),
-            unitPrice: _asInt(item['price']),
-            imageUrl: _asString(item['imageUrl']),
-            configuration: configuration,
-            modifiers: modifiers,
-            quantity: quantity,
+          rebuiltItems.add(
+            CartItem(
+              id: productId,
+              cartKey: CartProvider.configuredCartKey(
+                productId,
+                configuration,
+                modifiers,
+              ),
+              name: _asString(item['name']),
+              basePrice: basePrice,
+              price: price,
+              imageUrl: _asString(item['imageUrl']),
+              configuration: configuration,
+              modifiers: modifiers,
+              quantity: quantity,
+            ),
           );
         } else {
-          cart.addItem(
-            productId: _asString(item['id']),
-            name: _asString(item['name']),
-            price: _asInt(item['price']),
-            imageUrl: _asString(item['imageUrl']),
+          rebuiltItems.add(
+            CartItem(
+              id: productId,
+              name: _asString(item['name']),
+              basePrice: basePrice,
+              price: price,
+              imageUrl: _asString(item['imageUrl']),
+              quantity: quantity,
+            ),
           );
-          cart.setQuantity(_asString(item['id']), quantity);
         }
       }
+      if (rebuiltItems.isEmpty) {
+        throw ApiException('order_repeat_empty'.tr);
+      }
+
+      final cart = context.read<CartProvider>();
+      var action = _RepeatCartAction.replace;
+      if (cart.items.isNotEmpty) {
+        action =
+            await showDialog<_RepeatCartAction>(
+              context: context,
+              builder: (dialogContext) => AlertDialog(
+                title: Text('order_repeat_cart_title'.tr),
+                content: Text('order_repeat_cart_message'.tr),
+                actions: [
+                  TextButton(
+                    onPressed: () =>
+                        Navigator.pop(dialogContext, _RepeatCartAction.cancel),
+                    child: Text('cancel_btn'.tr),
+                  ),
+                  OutlinedButton(
+                    onPressed: () =>
+                        Navigator.pop(dialogContext, _RepeatCartAction.merge),
+                    child: Text('order_repeat_merge'.tr),
+                  ),
+                  FilledButton(
+                    onPressed: () =>
+                        Navigator.pop(dialogContext, _RepeatCartAction.replace),
+                    child: Text('order_repeat_replace'.tr),
+                  ),
+                ],
+              ),
+            ) ??
+            _RepeatCartAction.cancel;
+      }
+      if (!mounted || action == _RepeatCartAction.cancel) return;
+
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('selected_order_type', order.fulfillmentType);
       final preorderFulfillmentKey = customerPreferenceKey(
@@ -215,15 +275,45 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
       }
       await prefs.remove('selected_bakery_location_id');
       if (!mounted) return;
+
+      if (action == _RepeatCartAction.merge) {
+        cart.mergeItems(rebuiltItems);
+      } else {
+        cart.replaceWithItems(rebuiltItems);
+      }
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('order_added_to_cart'.tr)));
       Navigator.of(context).pop();
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
+      showApiErrorSnackBar(context, error);
+    }
+  }
+
+  void _scheduleInitialOrderOpen() {
+    final id = _pendingInitialOrderId;
+    if (id == null || id.isEmpty || !mounted) return;
+    CustomerOrder? match;
+    for (final order in _orders) {
+      if (order.id == id) {
+        match = order;
+        break;
+      }
+    }
+    if (match != null) {
+      _pendingInitialOrderId = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_openDetails(match!));
+      });
+      return;
+    }
+    if (!_completed) {
+      Future<void>.delayed(Duration.zero, () {
+        if (mounted && _pendingInitialOrderId == id) _selectTab(true);
+      });
+    } else {
+      _pendingInitialOrderId = null;
     }
   }
 
@@ -345,9 +435,7 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
       }
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
+        showApiErrorSnackBar(context, error);
       }
     } finally {
       comment.dispose();
@@ -390,13 +478,11 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
       ).showSnackBar(SnackBar(content: Text('orders_arrival_sent'.tr)));
     } catch (error) {
       if (!mounted) return;
-      final message = localizeErrorMessage(
+      showApiErrorSnackBar(
+        context,
         error,
         fallbackKey: 'orders_arrival_error',
       );
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
     } finally {
       if (mounted) setState(() => _arrivalInFlight = null);
     }
@@ -442,13 +528,11 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
       }
     } catch (error) {
       if (!mounted) return;
-      final message = localizeErrorMessage(
+      showApiErrorSnackBar(
+        context,
         error,
         fallbackKey: 'order_cancel_error',
       );
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
       await _load(silent: true);
     } finally {
       if (mounted) setState(() => _cancellationInFlight = null);
@@ -505,9 +589,7 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
+      showApiErrorSnackBar(context, error);
     } finally {
       if (mounted) setState(() => _substitutionInFlight = null);
     }

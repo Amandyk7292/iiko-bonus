@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
 const now = '2026-07-22T10:00:00.000Z';
@@ -16,6 +17,15 @@ const conversation = {
   lastOperatorMessageAt: null,
   createdAt: now,
   updatedAt: now,
+};
+const secondConversation = {
+  ...conversation,
+  id: '44444444-4444-4444-8444-444444444444',
+  chatJid: '77007654321@s.whatsapp.net',
+  phone: '+7 700 765 43 21',
+  displayName: 'Второй клиент',
+  unreadCount: 0,
+  lastMessagePreview: 'Второй диалог',
 };
 
 test('protected operator link opens only chats and allows a reply', async ({ page }) => {
@@ -68,13 +78,19 @@ test('protected operator link opens only chats and allows a reply', async ({ pag
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ success: true, conversations: [conversation], total: 1, unread: 1 }),
+        body: JSON.stringify({
+          success: true,
+          conversations: [conversation, secondConversation],
+          total: 2,
+          unread: 1,
+        }),
       });
     }
     if (path.endsWith('/messages') && request.method() === 'POST') {
       const text = String(body?.text || '');
       replies.push(text);
-      const updated = { ...conversation, assistantEnabled: false, unreadCount: 0 };
+      const target = path.includes(secondConversation.id) ? secondConversation : conversation;
+      const updated = { ...target, assistantEnabled: false, unreadCount: 0 };
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -83,7 +99,7 @@ test('protected operator link opens only chats and allows a reply', async ({ pag
           conversation: updated,
           message: {
             id: '22222222-2222-4222-8222-222222222222',
-            conversationId: conversation.id,
+            conversationId: target.id,
             whatsappMessageId: 'wa-1',
             direction: 'outbound',
             senderType: 'operator',
@@ -94,29 +110,39 @@ test('protected operator link opens only chats and allows a reply', async ({ pag
         }),
       });
     }
-    if (path.endsWith(`/${conversation.id}`) && request.method() === 'PATCH') {
+    const target = path.endsWith(`/${secondConversation.id}`) ? secondConversation : conversation;
+    if (
+      (path.endsWith(`/${conversation.id}`) || path.endsWith(`/${secondConversation.id}`)) &&
+      request.method() === 'PATCH'
+    ) {
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ success: true, conversation: { ...conversation, unreadCount: 0 } }),
+        body: JSON.stringify({ success: true, conversation: { ...target, unreadCount: 0 } }),
       });
     }
-    if (path.endsWith(`/${conversation.id}`)) {
+    if (path.endsWith(`/${conversation.id}`) || path.endsWith(`/${secondConversation.id}`)) {
+      if (target.id === conversation.id) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
           success: true,
-          conversation,
+          conversation: target,
           memories: [],
           messages: [
             {
               id: '33333333-3333-4333-8333-333333333333',
-              conversationId: conversation.id,
+              conversationId: target.id,
               whatsappMessageId: 'wa-in-1',
               direction: 'inbound',
               senderType: 'customer',
-              content: 'Здравствуйте, есть ли круассаны?',
+              content:
+                target.id === conversation.id
+                  ? 'Здравствуйте, есть ли круассаны?'
+                  : 'Сообщение второго клиента',
               deliveryStatus: 'received',
               createdAt: now,
             },
@@ -138,11 +164,42 @@ test('protected operator link opens only chats and allows a reply', async ({ pag
   await expect(page.getByText('Память клиента')).toHaveCount(0);
   await expect(page.locator('.sagi-sidebar')).toHaveCount(0);
 
-  await page.locator('.whatsapp-conversation-item').click();
+  const conversationItems = page.locator('.whatsapp-conversation-item');
+  await conversationItems.nth(1).click();
+  await expect(page.locator('.whatsapp-chat-person').getByText('Второй клиент')).toBeVisible();
+  await page.waitForTimeout(300);
+  await expect(page.locator('.whatsapp-chat-person').getByText('Второй клиент')).toBeVisible();
+
+  await conversationItems.first().click();
   const reply = page.getByLabel('Ответ клиенту');
   await expect(reply).toBeEnabled();
+  await reply.fill('Черновик первого клиента');
+  await conversationItems.nth(1).click();
+  const warning = page.getByRole('alertdialog');
+  await expect(warning).toContainText('Черновик останется');
+  await warning.getByRole('button', { name: 'Отмена' }).click();
+  await expect(warning).toBeHidden();
+  await expect(reply).toHaveValue('Черновик первого клиента');
+
+  await conversationItems.nth(1).click();
+  const confirmedWarning = page.getByRole('alertdialog');
+  await expect(confirmedWarning).toBeVisible();
+  await confirmedWarning.getByRole('button', { name: 'Перейти' }).click();
+  await expect(page.getByLabel('Ответ клиенту')).toHaveValue('');
+  await conversationItems.first().click();
+  await expect(page.getByLabel('Ответ клиенту')).toHaveValue('Черновик первого клиента');
   await reply.fill('Здравствуйте! Да, круассаны есть.');
   await page.getByRole('button', { name: 'Отправить сообщение' }).click();
   await expect(page.getByText('Здравствуйте! Да, круассаны есть.')).toBeVisible();
   expect(replies).toEqual(['Здравствуйте! Да, круассаны есть.']);
+
+  const accessibility = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .disableRules(['color-contrast'])
+    .analyze();
+  expect(
+    accessibility.violations.filter((violation) =>
+      ['critical', 'serious'].includes(violation.impact || ''),
+    ),
+  ).toEqual([]);
 });

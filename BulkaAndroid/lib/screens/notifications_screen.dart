@@ -5,12 +5,14 @@ class NotificationsScreen extends StatefulWidget {
     required this.api,
     this.onRequireAuth,
     this.onOpenTab,
+    this.onOpenOrders,
     super.key,
   });
 
   final BulkaApiClient api;
   final Future<bool> Function()? onRequireAuth;
   final ValueChanged<int>? onOpenTab;
+  final Future<void> Function(String? orderId)? onOpenOrders;
 
   @override
   State<NotificationsScreen> createState() => _NotificationsScreenState();
@@ -78,13 +80,33 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     final target = resolveNotificationTarget(notification);
     if (!mounted) return;
     switch (target.kind) {
+      case NotificationTargetKind.order:
       case NotificationTargetKind.orders:
+        final orderId = target.kind == NotificationTargetKind.order
+            ? target.resourceId
+            : null;
+        if (widget.onOpenOrders != null) {
+          Navigator.of(context).pop();
+          await widget.onOpenOrders!(orderId);
+        } else {
+          await Navigator.of(context).push<void>(
+            MaterialPageRoute(
+              builder: (_) => CustomerOrdersScreen(
+                api: widget.api,
+                initialOrderId: orderId,
+              ),
+            ),
+          );
+        }
+        return;
+      case NotificationTargetKind.cart:
         if (widget.onOpenTab != null) {
           Navigator.of(context).pop();
           widget.onOpenTab!(2);
         } else {
           await _reloadNotifications();
         }
+        return;
       case NotificationTargetKind.promos:
         if (widget.onOpenTab != null) {
           Navigator.of(context).pop();
@@ -94,21 +116,31 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             MaterialPageRoute(builder: (_) => PromosScreen(api: widget.api)),
           );
         }
+        return;
       case NotificationTargetKind.support:
         await Navigator.of(context).push<void>(
           MaterialPageRoute(
-            builder: (_) => OrderSupportScreen(api: widget.api),
+            builder: (_) => OrderSupportScreen(
+              api: widget.api,
+              initialRequestId: target.resourceId,
+            ),
           ),
         );
         if (mounted) await _reloadNotifications();
+        return;
       case NotificationTargetKind.external:
         final uri = target.uri;
         if (uri != null) {
           await _openExternalUrl(context, uri, 'contact_open_error'.tr);
         }
         if (mounted) await _reloadNotifications();
+        return;
+      case NotificationTargetKind.notifications:
+        await _reloadNotifications();
+        return;
       case NotificationTargetKind.none:
         await _reloadNotifications();
+        return;
     }
   }
 

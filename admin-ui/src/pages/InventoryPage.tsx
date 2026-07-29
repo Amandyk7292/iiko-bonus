@@ -1,5 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { LoaderCircle, RefreshCw, Save, Search, Warehouse } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  CircleAlert,
+  LoaderCircle,
+  RefreshCw,
+  RotateCcw,
+  Save,
+  Search,
+  Warehouse,
+} from 'lucide-react';
 import PageState from '../components/PageState';
 import SelectControl from '../components/SelectControl';
 import { useFeedback } from '../components/Feedback';
@@ -7,38 +15,85 @@ import { api, type InventoryItem } from '../lib/api';
 import { useAdminRealtimeEvents } from '../lib/admin-realtime';
 import { canMutateInventory } from '../lib/admin-permissions';
 import { useI18n } from '../lib/i18n';
-import { useSearchParams } from '../lib/router';
-
-type Draft = { quantity: string; stopped: boolean };
+import { useLocation, useNavigationBlocker, useSearchParams } from '../lib/router';
+import {
+  inventoryDraftFromItem,
+  inventoryDraftsEqual,
+  inventoryItemKey,
+  mergeInventoryDrafts,
+  type InventoryConflicts,
+  type InventoryDraft,
+} from '../lib/inventory-drafts';
 
 const cleanIntegerDraft = (value: string) => value.replace(/^0+(?=\d)/, '');
 
 export default function InventoryPage({ role = 'viewer' }: { role?: string }) {
   const { t, formatDate } = useI18n();
-  const { toast } = useFeedback();
+  const { toast, confirm } = useFeedback();
   const inventoryMutationsAllowed = canMutateInventory(role);
   const [params, setParams] = useSearchParams();
+  const location = useLocation();
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [branches, setBranches] = useState<Array<{ id: string; name: string; active: boolean }>>(
     [],
   );
   const branchId = params.get('branch') || '';
   const [search, setSearch] = useState(params.get('search') || '');
-  const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  const [drafts, setDrafts] = useState<Record<string, InventoryDraft>>({});
+  const [dirtyKeys, setDirtyKeys] = useState<Set<string>>(() => new Set());
+  const [conflicts, setConflicts] = useState<InventoryConflicts>({});
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [savingId, setSavingId] = useState('');
   const [error, setError] = useState('');
+  const itemsRef = useRef<InventoryItem[]>([]);
+  const branchIdRef = useRef(branchId);
+  branchIdRef.current = branchId;
+  const draftBranchRef = useRef(branchId);
+  const loadSequenceRef = useRef(0);
+  const draftsRef = useRef<Record<string, InventoryDraft>>({});
+  const dirtyKeysRef = useRef<Set<string>>(new Set());
+  const conflictsRef = useRef<InventoryConflicts>({});
+
+  const replaceDraftState = useCallback(
+    (
+      nextDrafts: Record<string, InventoryDraft>,
+      nextDirtyKeys: Set<string>,
+      nextConflicts: InventoryConflicts,
+    ) => {
+      draftsRef.current = nextDrafts;
+      dirtyKeysRef.current = nextDirtyKeys;
+      conflictsRef.current = nextConflicts;
+      setDrafts(nextDrafts);
+      setDirtyKeys(nextDirtyKeys);
+      setConflicts(nextConflicts);
+    },
+    [],
+  );
 
   const load = useCallback(
     async (silent = false) => {
+      const requestedBranchId = branchId;
+      const sequence = ++loadSequenceRef.current;
       if (!silent) setLoading(true);
       try {
         const [inventory, locations] = await Promise.all([
           api.getInventory(branchId),
           api.getFulfillmentLocations(),
         ]);
-        setItems(inventory.inventory ?? []);
+        if (branchIdRef.current !== requestedBranchId || sequence !== loadSequenceRef.current) {
+          return;
+        }
+        const nextItems = inventory.inventory ?? [];
+        const merged = mergeInventoryDrafts({
+          previousItems: itemsRef.current,
+          nextItems,
+          drafts: draftsRef.current,
+          dirtyKeys: dirtyKeysRef.current,
+          conflicts: conflictsRef.current,
+        });
+        itemsRef.current = nextItems;
+        setItems(nextItems);
         setBranches(
           (locations.locations ?? []).map((location) => ({
             id: String(location.id),
@@ -46,30 +101,64 @@ export default function InventoryPage({ role = 'viewer' }: { role?: string }) {
             active: location.active !== false,
           })),
         );
-        setDrafts(
-          Object.fromEntries(
-            (inventory.inventory ?? []).map((item) => [
-              `${item.branch_id}:${item.product_id}`,
-              {
-                quantity: item.source_quantity == null ? '' : String(item.source_quantity),
-                stopped: item.manual_stop,
-              },
-            ]),
-          ),
-        );
+        replaceDraftState(merged.drafts, new Set(dirtyKeysRef.current), merged.conflicts);
         setError('');
       } catch (caught) {
-        if (!silent) setError(caught instanceof Error ? caught.message : t('common.loadError'));
+        if (
+          !silent &&
+          branchIdRef.current === requestedBranchId &&
+          sequence === loadSequenceRef.current
+        ) {
+          setError(caught instanceof Error ? caught.message : t('common.loadError'));
+        }
       } finally {
-        if (!silent) setLoading(false);
+        if (branchIdRef.current === requestedBranchId && sequence === loadSequenceRef.current) {
+          setLoading(false);
+        }
       }
     },
-    [branchId, t],
+    [branchId, replaceDraftState, t],
   );
+
+  useEffect(() => {
+    if (draftBranchRef.current === branchId) return;
+    draftBranchRef.current = branchId;
+    loadSequenceRef.current += 1;
+    itemsRef.current = [];
+    setItems([]);
+    replaceDraftState({}, new Set(), {});
+    setError('');
+    setLoading(true);
+  }, [branchId, replaceDraftState]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  const hasDirtyRows = dirtyKeys.size > 0;
+
+  useEffect(() => {
+    if (!hasDirtyRows) return;
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warnBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', warnBeforeUnload);
+    };
+  }, [hasDirtyRows]);
+
+  useNavigationBlocker(hasDirtyRows, (nextLocation) => {
+    if (dirtyKeysRef.current.size === 0) return true;
+    const nextBranchId = new URLSearchParams(nextLocation.search).get('branch') || '';
+    if (nextLocation.pathname === location.pathname && nextBranchId === branchId) return true;
+    return window.confirm(
+      nextLocation.pathname === location.pathname
+        ? t('inventory.unsavedBranch')
+        : t('inventory.unsavedNavigation'),
+    );
+  });
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const next = new URLSearchParams(window.location.search);
@@ -101,18 +190,28 @@ export default function InventoryPage({ role = 'viewer' }: { role?: string }) {
       : items;
   }, [items, search]);
 
-  const setDraft = (item: InventoryItem, patch: Partial<Draft>) => {
-    const key = `${item.branch_id}:${item.product_id}`;
-    setDrafts((current) => ({
-      ...current,
-      [key]: { ...(current[key] ?? { quantity: '', stopped: false }), ...patch },
-    }));
+  const setDraft = (item: InventoryItem, patch: Partial<InventoryDraft>) => {
+    const key = inventoryItemKey(item);
+    const nextDraft = {
+      ...(draftsRef.current[key] ?? inventoryDraftFromItem(item)),
+      ...patch,
+    };
+    const nextDrafts = { ...draftsRef.current, [key]: nextDraft };
+    const nextDirtyKeys = new Set(dirtyKeysRef.current);
+    const nextConflicts = { ...conflictsRef.current };
+    if (inventoryDraftsEqual(nextDraft, inventoryDraftFromItem(item))) {
+      nextDirtyKeys.delete(key);
+      delete nextConflicts[key];
+    } else {
+      nextDirtyKeys.add(key);
+    }
+    replaceDraftState(nextDrafts, nextDirtyKeys, nextConflicts);
   };
 
-  const save = async (item: InventoryItem) => {
+  const save = async (item: InventoryItem, explicitDraft?: InventoryDraft) => {
     if (!inventoryMutationsAllowed) return;
-    const key = `${item.branch_id}:${item.product_id}`;
-    const draft = drafts[key];
+    const key = inventoryItemKey(item);
+    const draft = explicitDraft ?? draftsRef.current[key];
     if (!draft || savingId) return;
     const quantity = draft.quantity.trim() === '' ? null : Number(draft.quantity);
     if (quantity != null && (!Number.isInteger(quantity) || quantity < 0 || quantity > 100000)) {
@@ -133,12 +232,57 @@ export default function InventoryPage({ role = 'viewer' }: { role?: string }) {
             : value,
         ),
       );
+      itemsRef.current = itemsRef.current.map((value) =>
+        value.branch_id === item.branch_id && value.product_id === item.product_id
+          ? result.inventory
+          : value,
+      );
+      const nextDrafts = {
+        ...draftsRef.current,
+        [key]: inventoryDraftFromItem(result.inventory),
+      };
+      const nextDirtyKeys = new Set(dirtyKeysRef.current);
+      nextDirtyKeys.delete(key);
+      const nextConflicts = { ...conflictsRef.current };
+      delete nextConflicts[key];
+      replaceDraftState(nextDrafts, nextDirtyKeys, nextConflicts);
       toast(t('inventory.saved'));
     } catch (caught) {
       toast(caught instanceof Error ? caught.message : t('common.error'), 'error');
     } finally {
       setSavingId('');
     }
+  };
+
+  const acceptServerVersion = (item: InventoryItem) => {
+    const key = inventoryItemKey(item);
+    const serverDraft = conflictsRef.current[key];
+    if (!serverDraft) return;
+    const nextDrafts = { ...draftsRef.current, [key]: serverDraft };
+    const nextDirtyKeys = new Set(dirtyKeysRef.current);
+    nextDirtyKeys.delete(key);
+    const nextConflicts = { ...conflictsRef.current };
+    delete nextConflicts[key];
+    replaceDraftState(nextDrafts, nextDirtyKeys, nextConflicts);
+  };
+
+  const changeBranch = async (value: string) => {
+    if (
+      hasDirtyRows &&
+      !(await confirm({
+        title: t('common.unsavedTitle'),
+        body: t('inventory.unsavedBranch'),
+        confirmLabel: t('inventory.discardAndContinue'),
+        destructive: true,
+      }))
+    ) {
+      return;
+    }
+    if (hasDirtyRows) replaceDraftState({}, new Set(), {});
+    const next = new URLSearchParams(params);
+    if (value) next.set('branch', value);
+    else next.delete('branch');
+    setParams(next);
   };
 
   const sync = async () => {
@@ -218,12 +362,7 @@ export default function InventoryPage({ role = 'viewer' }: { role?: string }) {
           <SelectControl
             id="inventory-branch"
             value={branchId}
-            onChange={(value) => {
-              const next = new URLSearchParams(params);
-              if (value) next.set('branch', value);
-              else next.delete('branch');
-              setParams(next);
-            }}
+            onChange={(value) => void changeBranch(value)}
             options={[
               { value: '', label: t('inventory.allBranches') },
               ...branches.map((branch) => ({
@@ -256,16 +395,26 @@ export default function InventoryPage({ role = 'viewer' }: { role?: string }) {
               </thead>
               <tbody>
                 {visibleItems.map((item) => {
-                  const key = `${item.branch_id}:${item.product_id}`;
+                  const key = inventoryItemKey(item);
                   const draft = drafts[key] ?? {
                     quantity: '',
                     stopped: item.manual_stop,
                   };
                   return (
-                    <tr key={key}>
+                    <tr className={conflicts[key] ? 'inventory-row-conflict' : ''} key={key}>
                       <td data-label={t('inventory.product')}>
                         <strong>{item.product_name || item.product_id}</strong>
                         <small className="table-secondary">{item.product_id}</small>
+                        {conflicts[key] ? (
+                          <small className="inventory-conflict-message" role="alert">
+                            <CircleAlert aria-hidden="true" size={14} />
+                            {t('inventory.serverConflict')}
+                          </small>
+                        ) : dirtyKeys.has(key) ? (
+                          <small className="inventory-dirty-message" role="status">
+                            {t('inventory.unsaved')}
+                          </small>
+                        ) : null}
                       </td>
                       <td data-label={t('inventory.branch')}>
                         {item.bulka_locations?.name ||
@@ -315,19 +464,46 @@ export default function InventoryPage({ role = 'viewer' }: { role?: string }) {
                       <td data-label={t('common.actions')}>
                         <div className="row-actions justify-end">
                           {inventoryMutationsAllowed ? (
-                            <button
-                              type="button"
-                              className="icon-button"
-                              onClick={() => void save(item)}
-                              disabled={savingId === key}
-                              aria-label={t('common.save')}
-                            >
-                              {savingId === key ? (
-                                <LoaderCircle className="spin" size={17} aria-hidden="true" />
-                              ) : (
-                                <Save aria-hidden="true" size={17} />
-                              )}
-                            </button>
+                            conflicts[key] ? (
+                              <>
+                                <button
+                                  type="button"
+                                  className="btn-outline compact-button"
+                                  onClick={() => acceptServerVersion(item)}
+                                  disabled={savingId === key}
+                                >
+                                  <RotateCcw aria-hidden="true" size={15} />
+                                  {t('inventory.useServer')}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-classic compact-button"
+                                  onClick={() => void save(item, draft)}
+                                  disabled={savingId === key}
+                                >
+                                  {savingId === key ? (
+                                    <LoaderCircle className="spin" size={15} aria-hidden="true" />
+                                  ) : (
+                                    <Save aria-hidden="true" size={15} />
+                                  )}
+                                  {t('inventory.keepMine')}
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                type="button"
+                                className="icon-button"
+                                onClick={() => void save(item)}
+                                disabled={savingId === key || !dirtyKeys.has(key)}
+                                aria-label={t('common.save')}
+                              >
+                                {savingId === key ? (
+                                  <LoaderCircle className="spin" size={17} aria-hidden="true" />
+                                ) : (
+                                  <Save aria-hidden="true" size={17} />
+                                )}
+                              </button>
+                            )
                           ) : (
                             <span className="table-secondary" aria-label={t('inventory.readOnly')}>
                               —

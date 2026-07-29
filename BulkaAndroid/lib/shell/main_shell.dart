@@ -11,6 +11,7 @@ class MainShell extends StatefulWidget {
     this.initialTab = 0,
     this.onTabChanged,
     this.onOpenOrders,
+    this.onOpenOrder,
     super.key,
   });
 
@@ -23,6 +24,7 @@ class MainShell extends StatefulWidget {
   final int initialTab;
   final ValueChanged<int>? onTabChanged;
   final Future<void> Function()? onOpenOrders;
+  final Future<void> Function(String? orderId)? onOpenOrder;
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -188,6 +190,7 @@ class _MainShellState extends State<MainShell> {
         onRequireAuth: _requireAuth,
         onOpenCatalog: _openCatalogFor,
         onOpenNotificationTab: _changeTab,
+        onOpenOrders: widget.onOpenOrder,
       ),
       CatalogScreen(
         key: _catalogKey,
@@ -205,6 +208,7 @@ class _MainShellState extends State<MainShell> {
         transactions: widget.transactions,
         onExplore: () => _changeTab(1),
         onRequireAuth: _requireAuth,
+        onOpenOrders: widget.onOpenOrders,
       ),
       PromosScreen(key: const PageStorageKey('promos-tab'), api: widget.api),
       if (customer == null)

@@ -41,6 +41,7 @@ part 'core/catalog_search.dart';
 part 'core/home_widget_sync.dart';
 part 'core/favorite_store.dart';
 part 'core/localization.dart';
+part 'core/localization_error_helpers.dart';
 part 'core/localization_messages_navigation.dart';
 part 'core/localization_messages_states.dart';
 part 'core/localization_messages_commerce.dart';
@@ -83,6 +84,7 @@ part 'screens/rewards_screen.dart';
 part 'screens/personal_data_screen.dart';
 part 'screens/locations_screen.dart';
 part 'screens/catalog_screen.dart';
+part 'screens/catalog_models.dart';
 part 'screens/catalog_widgets.dart';
 part 'screens/catalog_filter_screen.dart';
 part 'screens/catalog_categories_screen.dart';
@@ -103,24 +105,105 @@ Widget _buildBulkaAppViewport(BuildContext _, Widget? child) {
   return BulkaDesktopPhoneViewport(child: child ?? const SizedBox.shrink());
 }
 
-void main() {
-  WidgetsFlutterBinding.ensureInitialized();
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-      statusBarBrightness: Brightness.light,
-      systemNavigationBarColor: _milkyBackground,
-      systemNavigationBarIconBrightness: Brightness.dark,
-      systemNavigationBarDividerColor: Colors.transparent,
-      systemNavigationBarContrastEnforced: false,
-    ),
+@immutable
+class BulkaErrorReport {
+  const BulkaErrorReport({
+    required this.source,
+    required this.errorType,
+    required this.stackTrace,
+  });
+
+  final String source;
+  final String errorType;
+  final StackTrace stackTrace;
+}
+
+typedef BulkaErrorReporter = FutureOr<void> Function(BulkaErrorReport report);
+
+BulkaErrorReporter? _bulkaErrorReporter;
+
+@visibleForTesting
+void configureBulkaErrorReporter(BulkaErrorReporter? reporter) {
+  _bulkaErrorReporter = reporter;
+}
+
+void _reportUnhandledError(
+  Object error,
+  StackTrace stackTrace, {
+  required String source,
+}) {
+  final report = BulkaErrorReport(
+    source: source,
+    errorType: error.runtimeType.toString(),
+    stackTrace: stackTrace,
   );
-  runApp(
-    ChangeNotifierProvider(
-      create: (_) => CartProvider(),
-      child: const _BulkaBootstrap(),
-    ),
+  final reporter = _bulkaErrorReporter;
+  if (reporter != null) {
+    try {
+      final result = reporter(report);
+      if (result is Future<void>) {
+        unawaited(
+          result.catchError((Object reporterError, StackTrace reporterStack) {
+            debugPrint(
+              'Bulka error reporter unavailable: '
+              '${reporterError.runtimeType}',
+            );
+            debugPrintStack(stackTrace: reporterStack);
+          }),
+        );
+      }
+      return;
+    } catch (reporterError, reporterStack) {
+      debugPrint(
+        'Bulka error reporter unavailable: ${reporterError.runtimeType}',
+      );
+      debugPrintStack(stackTrace: reporterStack);
+    }
+  }
+  // Do not print exception messages here: network/provider messages can
+  // contain customer data. The error type and stack are enough for the local
+  // debug fallback; production reporters receive the same PII-free envelope.
+  debugPrint('Unhandled Bulka $source error: ${error.runtimeType}');
+  debugPrintStack(stackTrace: stackTrace);
+}
+
+void main() {
+  runZonedGuarded(
+    () {
+      WidgetsFlutterBinding.ensureInitialized();
+      FlutterError.onError = (details) {
+        if (kDebugMode) FlutterError.presentError(details);
+        _reportUnhandledError(
+          details.exception,
+          details.stack ?? StackTrace.current,
+          source: 'flutter',
+        );
+      };
+      ui.PlatformDispatcher.instance.onError = (error, stackTrace) {
+        _reportUnhandledError(error, stackTrace, source: 'platform');
+        return true;
+      };
+      SystemChrome.setSystemUIOverlayStyle(
+        const SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.dark,
+          statusBarBrightness: Brightness.light,
+          systemNavigationBarColor: _milkyBackground,
+          systemNavigationBarIconBrightness: Brightness.dark,
+          systemNavigationBarDividerColor: Colors.transparent,
+          systemNavigationBarContrastEnforced: false,
+        ),
+      );
+      runApp(
+        ChangeNotifierProvider(
+          create: (_) => CartProvider(),
+          child: const _BulkaBootstrap(),
+        ),
+      );
+    },
+    (error, stackTrace) {
+      _reportUnhandledError(error, stackTrace, source: 'zone');
+    },
   );
 }
 

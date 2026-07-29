@@ -1,3 +1,4 @@
+const crypto = require('node:crypto');
 const fetch = require('node-fetch');
 const { supabase } = require('../config/supabase');
 const {
@@ -140,6 +141,20 @@ const paymentResponse = (order) => ({
   orderId: order.id == null ? undefined : String(order.id),
 });
 
+const stableJson = (value) => {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value);
+};
+
+const paymentCreationFingerprint = (payload) =>
+  crypto.createHash('sha256').update(stableJson(payload), 'utf8').digest('hex');
+
 const fetchJson = async (url, options = {}, timeoutMs = 15000) => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -196,6 +211,132 @@ class KaspiService {
     return data;
   }
 
+  async claimPaymentCreation(customerId, requestId, amount, fingerprint, orderPayload) {
+    const { data, error } = await supabase.rpc('claim_payment_creation', {
+      p_provider: 'kaspi',
+      p_customer_id: customerId,
+      p_client_request_id: requestId,
+      p_amount: amount,
+      p_request_fingerprint: fingerprint,
+      p_order_payload: orderPayload,
+    });
+    if (error) throw error;
+    const claim = Array.isArray(data) ? data[0] : data;
+    if (!claim?.id || !claim?.status) throw new Error('Некорректный ответ блокировки оплаты');
+    return claim;
+  }
+
+  async updatePaymentCreationClaim(claimId, updates) {
+    const { error } = await supabase
+      .from('payment_creation_claims')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', claimId)
+      .eq('provider', 'kaspi');
+    if (error) throw error;
+  }
+
+  creationConflict(claim) {
+    const status = String(claim?.status || '');
+    if (status === 'fingerprint_mismatch') {
+      return Object.assign(
+        new Error('Этот идентификатор оформления уже использован другим заказом'),
+        {
+          statusCode: 409,
+          code: 'PAYMENT_REQUEST_ALREADY_USED',
+        },
+      );
+    }
+    if (status === 'creating') {
+      return Object.assign(new Error('Счёт уже создаётся. Подождите и проверьте заказ.'), {
+        statusCode: 409,
+        code: 'KASPI_CREATE_IN_PROGRESS',
+        retryable: true,
+      });
+    }
+    if (status === 'customer_active_unknown') {
+      return Object.assign(
+        new Error(
+          'Предыдущая оплата ещё проверяется. Новый счёт не создан во избежание двойной оплаты.',
+        ),
+        {
+          statusCode: 409,
+          code: 'KASPI_CUSTOMER_PAYMENT_UNRESOLVED',
+          retryable: true,
+        },
+      );
+    }
+    return Object.assign(
+      new Error(
+        'Состояние создания счёта проверяется. Новый счёт не создан во избежание двойной оплаты.',
+      ),
+      {
+        statusCode: 409,
+        code: 'KASPI_CREATE_RECOVERY_REQUIRED',
+        retryable: true,
+      },
+    );
+  }
+
+  async recoverPaymentCreationClaims({ limit = 25 } = {}) {
+    const { data, error } = await supabase
+      .from('payment_creation_claims')
+      .select('*')
+      .eq('provider', 'kaspi')
+      .in('status', ['provider_created', 'unknown'])
+      .not('provider_operation_id', 'is', null)
+      .is('order_id', null)
+      .order('created_at', { ascending: true })
+      .limit(Math.min(100, Math.max(1, Number(limit) || 25)));
+    if (error) throw error;
+    let recovered = 0;
+    for (const claim of data || []) {
+      try {
+        let order = await this.existingRequest(claim.customer_id, claim.client_request_id);
+        if (!order) {
+          const record = {
+            ...(claim.order_payload || {}),
+            operation_id: String(claim.provider_operation_id),
+          };
+          const { data: inserted, error: insertError } = await supabase
+            .from('kaspi_orders')
+            .insert([record])
+            .select('*')
+            .single();
+          if (insertError) {
+            order = await this.existingRequest(claim.customer_id, claim.client_request_id);
+            if (!order) throw insertError;
+          } else {
+            order = inserted;
+          }
+        }
+        await this.updatePaymentCreationClaim(claim.id, {
+          status: 'completed',
+          order_id: order.id,
+          completed_at: new Date().toISOString(),
+          last_error: null,
+        });
+        const { attachOrderReservations } = require('./inventory.service');
+        const { attachPromotionReservation } = require('./commerce-marketing.service');
+        await attachOrderReservations(claim.customer_id, claim.client_request_id, order.id).catch(
+          () => undefined,
+        );
+        if (order.promo_code) {
+          await attachPromotionReservation(
+            claim.customer_id,
+            claim.client_request_id,
+            order.id,
+          ).catch(() => undefined);
+        }
+        recovered += 1;
+      } catch (claimError) {
+        await this.updatePaymentCreationClaim(claim.id, {
+          last_error: String(claimError.message || 'recovery failed').slice(0, 1000),
+        }).catch(() => undefined);
+      }
+    }
+    return recovered;
+  }
+
   /**
    * Отправляет запрос на микросервис Kaspi для создания счета
    */
@@ -245,6 +386,49 @@ class KaspiService {
     }
     comment = comment.slice(0, 500);
 
+    const creationFingerprint = paymentCreationFingerprint({
+      customerId,
+      requestId: checkout.requestId,
+      phone: normalizedPhone,
+      amount,
+      cartItems,
+      branchId: checkout.branchId,
+      orderType: checkout.orderType,
+      preorderFulfillmentType: checkout.preorderFulfillmentType,
+      scheduledAt: checkout.scheduledAt,
+      deliveryAddress: checkout.deliveryAddress,
+      promoCode: pricing.promoCode || null,
+    });
+    const draftOrderRecord = this.orderRecord({
+      customerId,
+      operationId: null,
+      normalizedPhone,
+      pricing,
+      cartItems,
+      checkout,
+      paymentMethod: 'invoice',
+      eta,
+    });
+    let creationClaim;
+    try {
+      creationClaim = await this.claimPaymentCreation(
+        customerId,
+        checkout.requestId,
+        amount,
+        creationFingerprint,
+        draftOrderRecord,
+      );
+    } catch (error) {
+      throw new Error('Не удалось заблокировать повторное создание счёта: ' + error.message, {
+        cause: error,
+      });
+    }
+    if (creationClaim.status === 'completed') {
+      const completedOrder = await this.existingRequest(customerId, checkout.requestId);
+      if (completedOrder) return paymentResponse(completedOrder);
+    }
+    if (creationClaim.status !== 'claimed') throw this.creationConflict(creationClaim);
+
     let invoiceResult;
     try {
       invoiceResult = await fetchJson(`${KASPI_URL}/api/invoice/create`, {
@@ -257,6 +441,10 @@ class KaspiService {
         }),
       });
     } catch (error) {
+      await this.updatePaymentCreationClaim(creationClaim.id, {
+        status: 'unknown',
+        last_error: String(error.message || 'Kaspi response missing').slice(0, 1000),
+      }).catch(() => undefined);
       throw Object.assign(
         new Error('Ответ Kaspi не получен. Проверьте счета в Kaspi Pay перед повтором.'),
         { statusCode: 502, code: 'KASPI_CREATE_UNKNOWN', cause: error },
@@ -264,8 +452,18 @@ class KaspiService {
     }
 
     const { response, body: data } = invoiceResult;
-    if (isKaspiReauthRequired(response, data)) throw kaspiReauthError();
+    if (isKaspiReauthRequired(response, data)) {
+      await this.updatePaymentCreationClaim(creationClaim.id, {
+        status: 'failed_safe',
+        last_error: 'Kaspi session requires authentication',
+      }).catch(() => undefined);
+      throw kaspiReauthError();
+    }
     if (!response.ok) {
+      await this.updatePaymentCreationClaim(creationClaim.id, {
+        status: 'unknown',
+        last_error: kaspiErrorMessage(data, `Kaspi returned ${response.status}`).slice(0, 1000),
+      }).catch(() => undefined);
       throw Object.assign(
         new Error(kaspiErrorMessage(data, 'Kaspi не подтвердил создание счёта.')),
         { statusCode: 502, code: 'KASPI_CREATE_UNKNOWN' },
@@ -275,6 +473,11 @@ class KaspiService {
     let operationId = data?.Data?.Id || data?.Data?.QrOperationId;
     const invoiceCodes = kaspiResultCodes(data);
     if (operationId && invoiceCodes.some((value) => Number(value) !== 0)) {
+      await this.updatePaymentCreationClaim(creationClaim.id, {
+        status: 'unknown',
+        provider_operation_id: String(operationId),
+        last_error: 'Kaspi returned an operation ID with a rejection code',
+      }).catch(() => undefined);
       throw Object.assign(
         new Error('Kaspi вернул противоречивый статус. Проверьте счет в Kaspi Pay.'),
         { statusCode: 502, code: 'KASPI_CREATE_UNKNOWN' },
@@ -286,12 +489,20 @@ class KaspiService {
       const explicitlyRejected =
         resultCodes.length > 0 && resultCodes.some((value) => Number(value) !== 0);
       if (!explicitlyRejected) {
+        await this.updatePaymentCreationClaim(creationClaim.id, {
+          status: 'unknown',
+          last_error: 'Kaspi response did not contain an operation ID or an explicit rejection',
+        }).catch(() => undefined);
         throw Object.assign(
           new Error('Kaspi не вернул номер счёта. Проверьте Kaspi Pay перед повтором.'),
           { statusCode: 502, code: 'KASPI_CREATE_UNKNOWN' },
         );
       }
       if (process.env.KASPI_QR_FALLBACK_ENABLED === 'false') {
+        await this.updatePaymentCreationClaim(creationClaim.id, {
+          status: 'failed_safe',
+          last_error: kaspiErrorMessage(data, 'Kaspi rejected invoice').slice(0, 1000),
+        }).catch(() => undefined);
         throw Object.assign(new Error(kaspiErrorMessage(data, 'Kaspi отклонил удалённый счёт.')), {
           statusCode: 409,
           code: 'KASPI_INVOICE_REJECTED',
@@ -306,6 +517,10 @@ class KaspiService {
           body: JSON.stringify({ amount, comment }),
         });
       } catch (error) {
+        await this.updatePaymentCreationClaim(creationClaim.id, {
+          status: 'unknown',
+          last_error: String(error.message || 'Kaspi QR response missing').slice(0, 1000),
+        }).catch(() => undefined);
         throw Object.assign(new Error('Ответ Kaspi QR не получен. Повторите попытку позже.'), {
           statusCode: 502,
           code: 'KASPI_QR_CREATE_UNKNOWN',
@@ -314,6 +529,13 @@ class KaspiService {
       }
 
       if (!qrResult.response.ok) {
+        await this.updatePaymentCreationClaim(creationClaim.id, {
+          status: 'unknown',
+          last_error: kaspiErrorMessage(
+            qrResult.body,
+            `Kaspi QR returned ${qrResult.response.status}`,
+          ).slice(0, 1000),
+        }).catch(() => undefined);
         throw Object.assign(
           new Error(kaspiErrorMessage(qrResult.body, 'Kaspi QR временно недоступен.')),
           { statusCode: 502, code: 'KASPI_QR_CREATE_FAILED' },
@@ -325,33 +547,83 @@ class KaspiService {
       const qrToken = qrData?.Data?.QrToken;
 
       if (!qrData.Data || !operationId || !qrToken || !isKaspiSuccess(qrData)) {
+        await this.updatePaymentCreationClaim(creationClaim.id, {
+          status: 'unknown',
+          last_error: 'Kaspi QR response did not contain a confirmed operation',
+        }).catch(() => undefined);
         throw Object.assign(new Error('Не удалось получить QR-код от Kaspi'), {
           statusCode: 502,
           code: 'KASPI_QR_CREATE_FAILED',
         });
       }
 
+      const qrOrderRecord = this.orderRecord({
+        customerId,
+        operationId,
+        normalizedPhone,
+        pricing,
+        cartItems,
+        checkout,
+        paymentMethod: 'qr',
+        qrToken,
+        eta,
+      });
+      try {
+        await this.updatePaymentCreationClaim(creationClaim.id, {
+          status: 'provider_created',
+          provider_operation_id: String(operationId),
+          order_payload: qrOrderRecord,
+          last_error: null,
+        });
+      } catch (claimError) {
+        throw Object.assign(
+          new Error(
+            'QR создан, но его состояние не сохранено. Проверьте Kaspi Pay перед повтором.',
+          ),
+          {
+            statusCode: 502,
+            code: 'KASPI_QR_CREATE_UNKNOWN',
+            cause: claimError,
+          },
+        );
+      }
       const { data: savedOrder, error } = await supabase
         .from('kaspi_orders')
-        .insert([
-          this.orderRecord({
-            customerId,
-            operationId,
-            normalizedPhone,
-            pricing,
-            cartItems,
-            checkout,
-            paymentMethod: 'qr',
-            qrToken,
-            eta,
-          }),
-        ])
+        .insert([qrOrderRecord])
         .select('id')
         .single();
 
       if (error) {
         const raced = await this.existingRequest(customerId, checkout.requestId).catch(() => null);
-        if (raced && raced.payment_method !== 'forte_card') return paymentResponse(raced);
+        if (raced && raced.payment_method !== 'forte_card') {
+          await this.updatePaymentCreationClaim(creationClaim.id, {
+            status: 'completed',
+            order_id: raced.id,
+            completed_at: new Date().toISOString(),
+          }).catch(() => undefined);
+          return paymentResponse(raced);
+        }
+        let providerCancelled = false;
+        try {
+          await this.cancelInvoice(operationId);
+          providerCancelled = true;
+          await this.updatePaymentCreationClaim(creationClaim.id, {
+            status: 'failed_safe',
+            last_error: 'Provider QR was cancelled after local save failed',
+          });
+        } catch (cancelError) {
+          console.error('Не удалось отменить несохранённый QR Kaspi:', cancelError.message);
+        }
+        if (!providerCancelled) {
+          throw Object.assign(
+            new Error('QR создан, но заказ восстанавливается. Не создавайте повторную оплату.'),
+            {
+              statusCode: 503,
+              code: 'KASPI_CREATE_RECOVERY_REQUIRED',
+              cause: error,
+            },
+          );
+        }
         if (raced) {
           throw Object.assign(new Error('Это оформление уже связано с оплатой ForteBank'), {
             statusCode: 409,
@@ -360,6 +632,14 @@ class KaspiService {
         }
         throw new Error('Не удалось сохранить заказ: ' + error.message);
       }
+      await this.updatePaymentCreationClaim(creationClaim.id, {
+        status: 'completed',
+        order_id: savedOrder.id,
+        completed_at: new Date().toISOString(),
+        last_error: null,
+      }).catch((claimError) =>
+        console.error('Не удалось завершить блокировку QR Kaspi:', claimError.message),
+      );
 
       await recordSystemEvent(customerId, {
         type: 'payment_created',
@@ -385,34 +665,80 @@ class KaspiService {
       };
     }
 
+    const invoiceOrderRecord = this.orderRecord({
+      customerId,
+      operationId,
+      normalizedPhone,
+      pricing,
+      cartItems,
+      checkout,
+      paymentMethod: 'invoice',
+      eta,
+    });
+    try {
+      await this.updatePaymentCreationClaim(creationClaim.id, {
+        status: 'provider_created',
+        provider_operation_id: String(operationId),
+        order_payload: invoiceOrderRecord,
+        last_error: null,
+      });
+    } catch (claimError) {
+      throw Object.assign(
+        new Error(
+          'Счёт создан, но его состояние не сохранено. Проверьте Kaspi Pay перед повтором.',
+        ),
+        {
+          statusCode: 502,
+          code: 'KASPI_CREATE_UNKNOWN',
+          cause: claimError,
+        },
+      );
+    }
     const { data: savedOrder, error } = await supabase
       .from('kaspi_orders')
-      .insert([
-        this.orderRecord({
-          customerId,
-          operationId,
-          normalizedPhone,
-          pricing,
-          cartItems,
-          checkout,
-          paymentMethod: 'invoice',
-          eta,
-        }),
-      ])
+      .insert([invoiceOrderRecord])
       .select('id')
       .single();
 
     if (error) {
       const raced = await this.existingRequest(customerId, checkout.requestId).catch(() => null);
       if (raced?.operation_id === String(operationId) && raced?.payment_method !== 'forte_card') {
+        await this.updatePaymentCreationClaim(creationClaim.id, {
+          status: 'completed',
+          order_id: raced.id,
+          completed_at: new Date().toISOString(),
+        }).catch(() => undefined);
         return paymentResponse(raced);
       }
+      let providerCancelled = false;
       try {
         await this.cancelInvoice(operationId);
+        providerCancelled = true;
+        await this.updatePaymentCreationClaim(creationClaim.id, {
+          status: 'failed_safe',
+          last_error: 'Provider invoice was cancelled after local save failed',
+        });
       } catch (cancelError) {
         console.error('Не удалось отменить несохранённый счёт Kaspi:', cancelError.message);
       }
-      if (raced && raced.payment_method !== 'forte_card') return paymentResponse(raced);
+      if (!providerCancelled) {
+        throw Object.assign(
+          new Error('Счёт создан, но заказ восстанавливается. Не создавайте повторную оплату.'),
+          {
+            statusCode: 503,
+            code: 'KASPI_CREATE_RECOVERY_REQUIRED',
+            cause: error,
+          },
+        );
+      }
+      if (raced && raced.payment_method !== 'forte_card') {
+        await this.updatePaymentCreationClaim(creationClaim.id, {
+          status: 'completed',
+          order_id: raced.id,
+          completed_at: new Date().toISOString(),
+        }).catch(() => undefined);
+        return paymentResponse(raced);
+      }
       if (raced) {
         throw Object.assign(new Error('Это оформление уже связано с оплатой ForteBank'), {
           statusCode: 409,
@@ -421,6 +747,14 @@ class KaspiService {
       }
       throw new Error('Не удалось сохранить заказ: ' + error.message);
     }
+    await this.updatePaymentCreationClaim(creationClaim.id, {
+      status: 'completed',
+      order_id: savedOrder.id,
+      completed_at: new Date().toISOString(),
+      last_error: null,
+    }).catch((claimError) =>
+      console.error('Не удалось завершить блокировку счёта Kaspi:', claimError.message),
+    );
 
     await recordSystemEvent(customerId, {
       type: 'payment_created',
@@ -473,7 +807,7 @@ class KaspiService {
       });
     return {
       customer_id: customerId,
-      operation_id: String(operationId),
+      operation_id: operationId == null ? null : String(operationId),
       phone: normalizedPhone,
       amount: pricing.total,
       status: 'pending',
@@ -596,6 +930,87 @@ class KaspiService {
         refundUncertain: true,
       },
     );
+  }
+
+  async reconcileRefund(order, refund, { knownSucceededAmount = 0 } = {}) {
+    const cleanOperationId = String(order?.operation_id || '').trim();
+    if (!/^\d{1,100}$/.test(cleanOperationId)) {
+      throw Object.assign(new Error('Некорректный идентификатор операции Kaspi'), {
+        statusCode: 409,
+        code: 'KASPI_REFUND_INVALID_OPERATION',
+      });
+    }
+
+    const { response, body } = await fetchJson(`${KASPI_URL}/api/history/details`, {
+      method: 'POST',
+      headers: this.internalHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ id: cleanOperationId, operationMethod: 0 }),
+    });
+    if (isKaspiReauthRequired(response, body)) throw kaspiReauthError();
+    if (!response.ok) {
+      throw Object.assign(new Error(kaspiErrorMessage(body, 'Kaspi не вернул историю возврата')), {
+        statusCode: response.status >= 400 && response.status < 500 ? 409 : 502,
+        code: 'KASPI_REFUND_RECONCILIATION_FAILED',
+        retryable: response.status >= 500,
+      });
+    }
+
+    const returns = Array.isArray(body?.Data?.Returns) ? body.Data.Returns : [];
+    const cleanReference = String(
+      refund?.provider_reference || refund?.kaspi_reference || '',
+    ).trim();
+    const normalized = returns.map((entry) => {
+      const reference = String(
+        entry?.ReturnOperationId || entry?.OperationId || entry?.Id || entry?.QrOperationId || '',
+      ).trim();
+      const amount = Number(
+        String(entry?.Amount ?? entry?.ReturnAmount ?? 0)
+          .replace(/\s/g, '')
+          .replace(',', '.'),
+      );
+      const status = String(
+        entry?.StatusDescription || entry?.Status || entry?.State || entry?.Result || '',
+      )
+        .trim()
+        .toLowerCase();
+      const declined = /(fail|declin|reject|cancel|error|отклон|отмен|ошиб)/i.test(status);
+      return { reference, amount, status, declined };
+    });
+
+    if (cleanReference) {
+      const exact = normalized.find((entry) => entry.reference === cleanReference);
+      if (exact?.declined) {
+        return {
+          status: 'declined',
+          reference: exact.reference,
+          message: exact.status || 'Kaspi отклонил возврат',
+        };
+      }
+      if (exact) return { status: 'confirmed', reference: exact.reference };
+    }
+
+    const confirmedReturns = normalized.filter(
+      (entry) => !entry.declined && Number.isFinite(entry.amount) && entry.amount > 0,
+    );
+    const providerReturnedAmount = confirmedReturns.reduce(
+      (total, entry) => total + entry.amount,
+      0,
+    );
+    const expectedReturnedAmount = Number(knownSucceededAmount || 0) + Number(refund?.amount || 0);
+    if (
+      expectedReturnedAmount > 0 &&
+      providerReturnedAmount + Number.EPSILON >= expectedReturnedAmount
+    ) {
+      const matching = [...confirmedReturns]
+        .reverse()
+        .find((entry) => entry.amount === Number(refund?.amount || 0));
+      return {
+        status: 'confirmed',
+        reference: matching?.reference || cleanReference || null,
+      };
+    }
+
+    return { status: 'pending', reference: cleanReference || null };
   }
 
   async reverseOrderLoyalty(order) {
@@ -729,32 +1144,35 @@ class KaspiService {
     return 'pending';
   }
 
-  async reconcileOrders() {
-    const staleRefundCutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-    const { error: staleRefundError } = await supabase
-      .from('kaspi_orders')
-      .update({
-        refund_status: 'unknown',
-        refund_error: 'Сервер был перезапущен во время возврата. Проверьте операцию в Kaspi Pay.',
-        last_error: 'Результат возврата требует проверки в Kaspi Pay',
-      })
-      .eq('refund_status', 'processing')
-      .or('payment_method.is.null,payment_method.neq.forte_card')
-      .lt('refund_requested_at', staleRefundCutoff);
-    if (staleRefundError) throw staleRefundError;
-
+  async reconcileOrders({ syncKaspiPending = process.env.KASPI_POS_ENABLED === 'true' } = {}) {
     const pendingWindowMs = pendingReconciliationWindowMs();
     const pendingCutoff = new Date(Date.now() - pendingWindowMs).toISOString();
-    const pendingWindowHours = Math.max(1, Math.round(pendingWindowMs / (60 * 60 * 1000)));
-    const stalePendingMessage = `Автоматическая проверка остановлена спустя ${pendingWindowHours} ч. Проверьте платеж вручную в Kaspi Pay.`;
-    const { error: stalePendingError } = await supabase
-      .from('kaspi_orders')
-      .update({ last_error: stalePendingMessage })
-      .eq('status', 'pending')
-      .or('payment_method.is.null,payment_method.neq.forte_card')
-      .lt('created_at', pendingCutoff)
-      .is('last_error', null);
-    if (stalePendingError) throw stalePendingError;
+    if (syncKaspiPending) {
+      const staleRefundCutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      const { error: staleRefundError } = await supabase
+        .from('kaspi_orders')
+        .update({
+          refund_status: 'unknown',
+          refund_error: 'Сервер был перезапущен во время возврата. Проверьте операцию в Kaspi Pay.',
+          last_error: 'Результат возврата требует проверки в Kaspi Pay',
+        })
+        .eq('refund_status', 'processing')
+        .or('payment_method.is.null,payment_method.in.(invoice,qr)')
+        .lt('refund_requested_at', staleRefundCutoff);
+      if (staleRefundError) throw staleRefundError;
+
+      const pendingWindowHours = Math.max(1, Math.round(pendingWindowMs / (60 * 60 * 1000)));
+      const stalePendingMessage = `Автоматическая проверка остановлена спустя ${pendingWindowHours} ч. Проверьте платеж вручную в Kaspi Pay.`;
+      const { error: stalePendingError } = await supabase
+        .from('kaspi_orders')
+        .update({ last_error: stalePendingMessage })
+        .eq('status', 'pending')
+        .or('payment_method.is.null,payment_method.in.(invoice,qr)')
+        .lt('created_at', pendingCutoff)
+        .is('last_error', null);
+      if (stalePendingError) throw stalePendingError;
+      await this.recoverPaymentCreationClaims();
+    }
 
     const [
       { data: paidPendingOrders, error: paidPendingError },
@@ -794,14 +1212,16 @@ class KaspiService {
         .is('bonus_reversed_at', null)
         .order('updated_at', { ascending: false })
         .limit(RECONCILIATION_BATCH_SIZE),
-      supabase
-        .from('kaspi_orders')
-        .select('*')
-        .eq('status', 'pending')
-        .or('payment_method.is.null,payment_method.neq.forte_card')
-        .gte('created_at', pendingCutoff)
-        .order('created_at', { ascending: false })
-        .limit(RECONCILIATION_BATCH_SIZE),
+      syncKaspiPending
+        ? supabase
+            .from('kaspi_orders')
+            .select('*')
+            .eq('status', 'pending')
+            .or('payment_method.is.null,payment_method.in.(invoice,qr)')
+            .gte('created_at', pendingCutoff)
+            .order('created_at', { ascending: false })
+            .limit(RECONCILIATION_BATCH_SIZE)
+        : Promise.resolve({ data: [], error: null }),
       supabase
         .from('kaspi_orders')
         .select('*')

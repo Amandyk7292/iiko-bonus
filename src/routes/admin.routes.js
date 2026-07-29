@@ -42,7 +42,6 @@ const {
 } = require('../services/courier.service');
 const { normalizeOrder } = require('../services/customer-order.service');
 const { getProductOptions, saveProductOptions } = require('../services/product-options.service');
-const { createPartialRefund, getRefundOptions } = require('../services/partial-refund.service');
 const dispatchService = require('../services/dispatch.service');
 const yandexDelivery = require('../services/yandex-delivery.service');
 const kitchenService = require('../services/kitchen.service');
@@ -57,6 +56,11 @@ const {
 } = require('../utils/admin-scope.util');
 const { normalizeKazakhstanPhone } = require('../utils/phone.util');
 const { optimizeUploadedImage } = require('../utils/image.util');
+const { validateRequest } = require('../middlewares/validation.middleware');
+const {
+  kitchenStatusBodySchema,
+  orderParamsSchema,
+} = require('../contracts/backend-safety.contract');
 const { registerCustomerAdminRoutes } = require('./admin/customer.routes');
 const { registerContactCenterAdminRoutes } = require('./admin/contact-center.routes');
 const { registerAdminAuthRoutes } = require('./admin/auth.routes');
@@ -94,6 +98,7 @@ const {
 const { getOperationsSummary } = require('../services/operations-dashboard.service');
 const { registerPaymentIntegrationAdminRoutes } = require('./admin/payment-integration.routes');
 const { registerOrderSubstitutionAdminRoutes } = require('./admin/order-substitution.routes');
+const { registerBackendSafetyAdminRoutes } = require('./admin/backend-safety.routes');
 
 const allowedImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const upload = multer({
@@ -363,6 +368,7 @@ router.get('/admin/api/operations/summary', async (req, res) => {
 });
 registerPaymentIntegrationAdminRoutes(router);
 registerOrderSubstitutionAdminRoutes(router, { assertOrderAccess });
+registerBackendSafetyAdminRoutes(router, { assertOrderAccess });
 router.get('/admin/api/whatsapp/status', async (req, res) => {
   try {
     const settings = await getAssistantSettings({ allowFallback: true });
@@ -666,18 +672,6 @@ router.put('/admin/api/site-access', async (req, res) => {
       ...(error.code && { code: error.code }),
     });
   }
-});
-router.get('/admin/api/audit-logs', async (req, res) => {
-  const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
-  const pageSize = Math.min(100, Math.max(10, Number.parseInt(req.query.pageSize, 10) || 50));
-  const from = (page - 1) * pageSize;
-  const { data, error, count } = await supabase
-    .from('admin_audit_logs')
-    .select('*', { count: 'exact' })
-    .order('created_at', { ascending: false })
-    .range(from, from + pageSize - 1);
-  if (error) return res.status(500).json({ success: false, error: error.message });
-  return res.json({ success: true, logs: data || [], total: count || 0, page, pageSize });
 });
 router.post('/admin/api/settings', adminAuthMiddleware, adminController.updateSettingsHandler);
 
@@ -1190,30 +1184,6 @@ router.put('/admin/api/menu/product-options/:productId', async (req, res) => {
   }
 });
 
-router.get('/admin/api/orders/:id/refund-options', async (req, res) => {
-  try {
-    await assertOrderAccess(req, req.params.id);
-    res.json({ success: true, refund: await getRefundOptions(req.params.id) });
-  } catch (error) {
-    res.status(error.statusCode || 500).json({ success: false, error: error.message });
-  }
-});
-router.post('/admin/api/orders/:id/partial-refund', async (req, res) => {
-  try {
-    if (!['admin', 'owner', 'branch_manager'].includes(req.admin.role)) {
-      return res.status(403).json({ success: false, error: 'Недостаточно прав для возврата' });
-    }
-    await assertOrderAccess(req, req.params.id);
-    const refund = await createPartialRefund(req.params.id, req.body, req.admin.sub);
-    res.json({ success: true, refund });
-  } catch (error) {
-    res.status(error.statusCode || 500).json({
-      success: false,
-      error: error.message,
-      ...(error.code && { code: error.code }),
-    });
-  }
-});
 router.get('/admin/api/dispatch', async (req, res) => {
   try {
     const state = await dispatchService.listDispatchState({ branchIds: scopedBranchIds(req) });
@@ -1375,22 +1345,29 @@ router.get('/admin/api/kitchen', async (req, res) => {
     res.status(error.statusCode || 500).json({ success: false, error: error.message });
   }
 });
-router.patch('/admin/api/kitchen/:id/status', async (req, res) => {
-  try {
-    await assertOrderAccess(req, req.params.id);
-    res.json({
-      success: true,
-      order: await kitchenService.updateKitchenStatus(
-        req.params.id,
-        req.body?.status,
-        req.body?.preparationMinutes,
-        { branchIds: scopedBranchIds(req) },
-      ),
-    });
-  } catch (error) {
-    res.status(error.statusCode || 500).json({ success: false, error: error.message });
-  }
-});
+router.patch(
+  '/admin/api/kitchen/:id/status',
+  validateRequest({ params: orderParamsSchema, body: kitchenStatusBodySchema }),
+  async (req, res) => {
+    try {
+      await assertOrderAccess(req, req.params.id);
+      res.json({
+        success: true,
+        order: await kitchenService.updateKitchenStatus(
+          req.params.id,
+          req.body?.status,
+          req.body?.preparationMinutes,
+          {
+            branchIds: scopedBranchIds(req),
+            cancellationReason: req.body?.cancellationReason,
+          },
+        ),
+      });
+    } catch (error) {
+      res.status(error.statusCode || 500).json({ success: false, error: error.message });
+    }
+  },
+);
 
 router.get('/admin/api/reviews', async (req, res) => {
   try {

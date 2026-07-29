@@ -2,6 +2,22 @@ part of '../main.dart';
 
 const int _maximumSavedPaymentMethods = 3;
 
+enum _CheckoutSubmissionState { completed, failed, pending }
+
+@immutable
+class _CheckoutSubmissionResult {
+  const _CheckoutSubmissionResult(this.state, {this.openOrders = false});
+
+  const _CheckoutSubmissionResult.completed()
+    : state = _CheckoutSubmissionState.completed,
+      openOrders = false;
+
+  final _CheckoutSubmissionState state;
+  final bool openOrders;
+}
+
+enum _CheckoutRouteResult { completed, openOrders }
+
 String _paymentMethodAddErrorMessage(Object error) {
   if (error is ApiException &&
       error.code == 'FORTE_WIDGET_PAYMENT_METHOD_LIMIT') {
@@ -268,6 +284,33 @@ class _CheckoutSavedCards extends StatelessWidget {
             ),
           );
         }),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Semantics(
+            label: 'checkout_saved_card_oneclick_hint'.tr,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.info_outline_rounded,
+                  size: 18,
+                  color: colors.mutedText,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'checkout_saved_card_oneclick_hint'.tr,
+                    style: TextStyle(
+                      color: colors.mutedText,
+                      fontSize: BulkaTypeScale.caption,
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
         if (canAdd)
           SizedBox(
             width: double.infinity,

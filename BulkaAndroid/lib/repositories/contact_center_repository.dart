@@ -2,12 +2,22 @@ part of '../main.dart';
 
 const _contactCenterCacheKey = 'contact_center_cache_v1';
 
-enum NotificationTargetKind { none, orders, promos, support, external }
+enum NotificationTargetKind {
+  none,
+  order,
+  orders,
+  cart,
+  promos,
+  support,
+  notifications,
+  external,
+}
 
 class NotificationTarget {
-  const NotificationTarget(this.kind, {this.uri});
+  const NotificationTarget(this.kind, {this.resourceId, this.uri});
 
   final NotificationTargetKind kind;
+  final String? resourceId;
   final Uri? uri;
 }
 
@@ -25,14 +35,47 @@ Uri? _safeHttpsUri(String raw) {
 }
 
 NotificationTarget resolveNotificationTarget(AppNotification notification) {
-  final payload = notification.payload;
+  return resolveNotificationPayload(
+    notification.payload,
+    fallbackType: notification.type,
+  );
+}
+
+NotificationTarget resolveNotificationPayload(
+  Map<String, dynamic> payload, {
+  String fallbackType = '',
+}) {
   final destination = _asString(
     payload['destination'] ?? payload['route'] ?? payload['screen'],
-    fallback: notification.type,
+    fallback: fallbackType,
   ).toLowerCase();
 
-  if (payload['orderId'] != null || destination.contains('order')) {
+  final supportId = _asString(
+    payload['supportId'] ??
+        payload['support_id'] ??
+        payload['requestId'] ??
+        payload['threadId'],
+  ).trim();
+  if (supportId.isNotEmpty || destination.contains('support')) {
+    return NotificationTarget(
+      NotificationTargetKind.support,
+      resourceId: supportId.isEmpty ? null : supportId,
+    );
+  }
+  final orderId = _asString(payload['orderId'] ?? payload['order_id']).trim();
+  if (orderId.isNotEmpty) {
+    return NotificationTarget(
+      NotificationTargetKind.order,
+      resourceId: orderId,
+    );
+  }
+  if (destination.contains('order')) {
     return const NotificationTarget(NotificationTargetKind.orders);
+  }
+  if (destination.contains('cart') ||
+      destination.contains('basket') ||
+      fallbackType.toLowerCase().contains('abandoned_cart')) {
+    return const NotificationTarget(NotificationTargetKind.cart);
   }
   if (payload['promotionId'] != null ||
       payload['promoId'] != null ||
@@ -40,16 +83,17 @@ NotificationTarget resolveNotificationTarget(AppNotification notification) {
       destination.contains('story')) {
     return const NotificationTarget(NotificationTargetKind.promos);
   }
-  if (payload['supportId'] != null || destination.contains('support')) {
-    return const NotificationTarget(NotificationTargetKind.support);
-  }
-
   final uri = _safeHttpsUri(
     _asString(payload['url'] ?? payload['externalUrl']),
   );
-  return uri == null
-      ? const NotificationTarget(NotificationTargetKind.none)
-      : NotificationTarget(NotificationTargetKind.external, uri: uri);
+  if (uri != null) {
+    return NotificationTarget(NotificationTargetKind.external, uri: uri);
+  }
+  if (destination.contains('notification') ||
+      fallbackType.toLowerCase() == 'broadcast') {
+    return const NotificationTarget(NotificationTargetKind.notifications);
+  }
+  return const NotificationTarget(NotificationTargetKind.none);
 }
 
 Uri? contactActionUri(AppContactAction action) {

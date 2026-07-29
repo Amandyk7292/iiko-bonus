@@ -2,6 +2,120 @@ part of '../main.dart';
 
 enum ForteCheckoutReturn { cancelled, completed }
 
+enum FortePaymentOutcome { paid, failed, pending }
+
+@immutable
+class FortePaymentResult {
+  const FortePaymentResult({
+    required this.outcome,
+    required this.operationId,
+    this.checkoutId,
+    this.openOrders = false,
+  });
+
+  final FortePaymentOutcome outcome;
+  final String operationId;
+  final String? checkoutId;
+  final bool openOrders;
+
+  bool get paid => outcome == FortePaymentOutcome.paid;
+}
+
+@immutable
+class PendingForteOperation {
+  const PendingForteOperation({
+    required this.operationId,
+    required this.checkoutId,
+    required this.createdAt,
+  });
+
+  final String operationId;
+  final String checkoutId;
+  final DateTime createdAt;
+
+  Map<String, dynamic> toJson() => {
+    'operationId': operationId,
+    'checkoutId': checkoutId,
+    'createdAt': createdAt.toUtc().toIso8601String(),
+  };
+
+  static PendingForteOperation? fromJson(Map<String, dynamic> json) {
+    final operationId = _asString(json['operationId']).trim();
+    final checkoutId = _asString(json['checkoutId']).trim();
+    final createdAt = DateTime.tryParse(_asString(json['createdAt']));
+    if (operationId.isEmpty || checkoutId.isEmpty || createdAt == null) {
+      return null;
+    }
+    return PendingForteOperation(
+      operationId: operationId,
+      checkoutId: checkoutId,
+      createdAt: createdAt,
+    );
+  }
+}
+
+abstract final class PendingForteOperationStore {
+  static String _key(BulkaApiClient api) {
+    final scope = (api.sessionCacheScope ?? 'session').replaceAll(
+      RegExp(r'[^A-Za-z0-9._-]'),
+      '_',
+    );
+    return 'pending_forte_operation_v1_$scope';
+  }
+
+  static Future<PendingForteOperation?> load(BulkaApiClient api) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_key(api));
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      final value = PendingForteOperation.fromJson(_asMap(jsonDecode(raw)));
+      if (value == null ||
+          DateTime.now().difference(value.createdAt).abs() >
+              const Duration(days: 2)) {
+        await clear(api);
+        return null;
+      }
+      return value;
+    } catch (_) {
+      await clear(api);
+      return null;
+    }
+  }
+
+  static Future<void> save(
+    BulkaApiClient api, {
+    required String operationId,
+    required String checkoutId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _key(api),
+      jsonEncode(
+        PendingForteOperation(
+          operationId: operationId,
+          checkoutId: checkoutId,
+          createdAt: DateTime.now(),
+        ).toJson(),
+      ),
+    );
+  }
+
+  static Future<void> clear(BulkaApiClient api) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_key(api));
+  }
+}
+
+@visibleForTesting
+bool isTerminalForteFailure(String status) => const {
+  'failed',
+  'expired',
+  'cancelled',
+  'canceled',
+  'declined',
+  'voided',
+}.contains(status.toLowerCase());
+
 @visibleForTesting
 ({String operationId, ForteCheckoutReturn outcome})?
 forteCardSetupReturnFromUri(Uri uri) {
@@ -105,14 +219,19 @@ class FortePaymentScreen extends StatefulWidget {
     required this.api,
     required this.operationId,
     required this.redirectUrl,
+    this.checkoutId,
     this.cardSetup = false,
+    this.statusTimeout = const Duration(minutes: 30),
     super.key,
   });
 
   final BulkaApiClient api;
   final String operationId;
   final String redirectUrl;
+  final String? checkoutId;
   final bool cardSetup;
+  @visibleForTesting
+  final Duration statusTimeout;
 
   @override
   State<FortePaymentScreen> createState() => _FortePaymentScreenState();
@@ -120,7 +239,7 @@ class FortePaymentScreen extends StatefulWidget {
 
 class _FortePaymentScreenState extends State<FortePaymentScreen> {
   Timer? _timer;
-  final DateTime _deadline = DateTime.now().add(const Duration(minutes: 30));
+  late final DateTime _deadline;
   String _paymentStatus = 'pending';
   String? _checkoutError;
   String? _statusError;
@@ -128,10 +247,12 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
   bool _opening = false;
   bool _embeddedCheckoutVisible = false;
   bool _checkoutReturned = false;
-  bool _cancelledByCustomer = false;
   bool _cardSaved = false;
   String? _refundStatus;
   int _loadingProgress = 0;
+
+  bool get _paid => _paymentStatus == 'paid';
+  bool get _terminalFailure => isTerminalForteFailure(_paymentStatus);
 
   Uri? get _checkoutUri {
     final uri = Uri.tryParse(widget.redirectUrl);
@@ -146,6 +267,7 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
   @override
   void initState() {
     super.initState();
+    _deadline = DateTime.now().add(widget.statusTimeout);
     _timer = Timer.periodic(
       const Duration(seconds: 3),
       (_) => unawaited(_checkStatus()),
@@ -163,7 +285,7 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
       setState(() => _statusError = 'payment_timeout'.tr);
       return;
     }
-    _checking = true;
+    setState(() => _checking = true);
     try {
       final result = widget.cardSetup
           ? await widget.api.checkForteCardSetupStatus(widget.operationId)
@@ -179,16 +301,18 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
         _paymentStatus = status;
         _cardSaved = cardSaved;
         _refundStatus = result['refundStatus']?.toString().toLowerCase();
-        if (status == 'paid') _cancelledByCustomer = false;
         _statusError = null;
       });
-      if (['paid', 'failed', 'expired'].contains(_paymentStatus)) {
+      if (_paid || _terminalFailure) {
         _timer?.cancel();
+        if (!widget.cardSetup) {
+          unawaited(PendingForteOperationStore.clear(widget.api));
+        }
       }
     } catch (_) {
       // Temporary network failures are retried until the deadline.
     } finally {
-      _checking = false;
+      if (mounted) setState(() => _checking = false);
     }
   }
 
@@ -263,10 +387,63 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
       _opening = false;
       _loadingProgress = 100;
       _checkoutError = null;
-      _cancelledByCustomer = result == ForteCheckoutReturn.cancelled;
     });
-    if (_cancelledByCustomer) _timer?.cancel();
     unawaited(_checkStatus());
+  }
+
+  FortePaymentResult _result({
+    required FortePaymentOutcome outcome,
+    bool openOrders = false,
+  }) => FortePaymentResult(
+    outcome: outcome,
+    operationId: widget.operationId,
+    checkoutId: widget.checkoutId,
+    openOrders: openOrders,
+  );
+
+  void _finish({bool openOrders = false}) {
+    final outcome = _paid
+        ? FortePaymentOutcome.paid
+        : _terminalFailure
+        ? FortePaymentOutcome.failed
+        : FortePaymentOutcome.pending;
+    Navigator.of(
+      context,
+    ).pop(_result(outcome: outcome, openOrders: openOrders));
+  }
+
+  Future<void> _requestClose() async {
+    if (_paid || _terminalFailure) {
+      _finish();
+      return;
+    }
+    final shouldClose =
+        await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: Text('forte_payment_close_confirm_title'.tr),
+            content: Text('forte_payment_close_confirm_hint'.tr),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: Text('cancel_btn'.tr),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: Text('close_tooltip'.tr),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    if (!mounted || !shouldClose) return;
+    setState(() {
+      _checkoutReturned = true;
+      _embeddedCheckoutVisible = false;
+      _opening = false;
+    });
+    await _checkStatus();
+    if (mounted) _finish();
   }
 
   void _handleEmbeddedReady() {
@@ -301,11 +478,8 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final paid = _paymentStatus == 'paid';
-    final terminalFailure =
-        _cancelledByCustomer ||
-        _paymentStatus == 'failed' ||
-        _paymentStatus == 'expired';
+    final paid = _paid;
+    final terminalFailure = _terminalFailure;
     final verifying = _checkoutReturned && !paid && !terminalFailure;
     final showEmbeddedCheckout =
         _embeddedCheckoutVisible && !paid && !terminalFailure;
@@ -322,7 +496,7 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
         : terminalFailure
         ? 'payment_failed'.tr
         : verifying
-        ? 'forte_payment_verifying_title'.tr
+        ? 'forte_payment_pending_title'.tr
         : 'payment_confirm'.tr;
     final message = widget.cardSetup
         ? paid
@@ -339,217 +513,252 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
         : terminalFailure
         ? 'payment_not_charged'.tr
         : verifying
-        ? 'forte_payment_verifying_hint'.tr
+        ? 'forte_payment_pending_hint'.tr
         : 'forte_payment_hint'.tr;
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        toolbarHeight: BulkaLayout.appBarHeight(context),
-        leading: IconButton(
-          tooltip: 'close_tooltip'.tr,
-          icon: const Icon(Icons.close_rounded),
-          onPressed: () => Navigator.pop(context, false),
-        ),
-        title: _FortePaymentAppBarTitle(
-          title: widget.cardSetup
-              ? 'payment_methods_add'.tr
-              : 'forte_payment_title'.tr,
-        ),
-        actions: const [SizedBox(width: BulkaLayout.appBarSideSlot)],
-        bottom: showEmbeddedCheckout
-            ? PreferredSize(
-                preferredSize: const Size.fromHeight(38),
-                child: Semantics(
-                  label: 'forte_secure_page'.tr,
-                  child: Container(
-                    key: const ValueKey('forte-secure-page-header'),
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFFF8EA),
-                      border: Border(
-                        top: BorderSide(color: _almond.withValues(alpha: 0.55)),
-                        bottom: BorderSide(
-                          color: _almond.withValues(alpha: 0.75),
-                        ),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.lock_outline_rounded,
-                          size: 17,
-                          color: _successGreen,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'forte_secure_page'.tr,
-                          style: const TextStyle(
-                            fontFamily: _descriptionFont,
-                            fontSize: BulkaTypeScale.caption,
-                            fontWeight: FontWeight.w600,
-                            color: _textDark,
+    return PopScope(
+      canPop: paid || terminalFailure,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) unawaited(_requestClose());
+      },
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          toolbarHeight: BulkaLayout.appBarHeight(context),
+          leading: IconButton(
+            tooltip: 'close_tooltip'.tr,
+            icon: const Icon(Icons.close_rounded),
+            onPressed: _requestClose,
+          ),
+          title: _FortePaymentAppBarTitle(
+            title: widget.cardSetup
+                ? 'payment_methods_add'.tr
+                : 'forte_payment_title'.tr,
+          ),
+          actions: const [SizedBox(width: BulkaLayout.appBarSideSlot)],
+          bottom: showEmbeddedCheckout
+              ? PreferredSize(
+                  preferredSize: const Size.fromHeight(38),
+                  child: Semantics(
+                    label: 'forte_secure_page'.tr,
+                    child: Container(
+                      key: const ValueKey('forte-secure-page-header'),
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFF8EA),
+                        border: Border(
+                          top: BorderSide(
+                            color: _almond.withValues(alpha: 0.55),
+                          ),
+                          bottom: BorderSide(
+                            color: _almond.withValues(alpha: 0.75),
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                ),
-              )
-            : null,
-      ),
-      body: showEmbeddedCheckout
-          ? SafeArea(
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: ForteCheckoutWebView(
-                      key: ValueKey('forte-webview-${widget.operationId}'),
-                      initialUri: _checkoutUri!,
-                      acceptLanguage: forteCheckoutAcceptLanguage(
-                        AppLang.current,
                       ),
-                      semanticLabel: 'forte_secure_page'.tr,
-                      isReturnUri: (uri) =>
-                          forteCheckoutReturnFromUri(uri) != null,
-                      onReturn: _handleCheckoutReturn,
-                      onProgress: (progress) {
-                        if (mounted && progress != _loadingProgress) {
-                          setState(() => _loadingProgress = progress);
-                        }
-                      },
-                      onReady: _handleEmbeddedReady,
-                      onUnavailable: _handleEmbeddedUnavailable,
-                      openExternalUri: _openExternalCheckoutUri,
-                      onExternalOpenFailed: _showExternalOpenError,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.lock_outline_rounded,
+                            size: 17,
+                            color: _successGreen,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'forte_secure_page'.tr,
+                            style: const TextStyle(
+                              fontFamily: _descriptionFont,
+                              fontSize: BulkaTypeScale.caption,
+                              fontWeight: FontWeight.w600,
+                              color: _textDark,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  if (_loadingProgress < 100)
-                    Align(
-                      alignment: Alignment.topCenter,
-                      child: Semantics(
-                        liveRegion: true,
-                        label: 'forte_payment_loading'.tr,
-                        value: _loadingProgress <= 0
-                            ? null
-                            : '$_loadingProgress%',
-                        child: LinearProgressIndicator(
+                )
+              : null,
+        ),
+        body: showEmbeddedCheckout
+            ? SafeArea(
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: ForteCheckoutWebView(
+                        key: ValueKey('forte-webview-${widget.operationId}'),
+                        initialUri: _checkoutUri!,
+                        acceptLanguage: forteCheckoutAcceptLanguage(
+                          AppLang.current,
+                        ),
+                        semanticLabel: 'forte_secure_page'.tr,
+                        isReturnUri: (uri) =>
+                            forteCheckoutReturnFromUri(uri) != null,
+                        onReturn: _handleCheckoutReturn,
+                        onProgress: (progress) {
+                          if (mounted && progress != _loadingProgress) {
+                            setState(() => _loadingProgress = progress);
+                          }
+                        },
+                        onReady: _handleEmbeddedReady,
+                        onUnavailable: _handleEmbeddedUnavailable,
+                        openExternalUri: _openExternalCheckoutUri,
+                        onExternalOpenFailed: _showExternalOpenError,
+                      ),
+                    ),
+                    if (_loadingProgress < 100)
+                      Align(
+                        alignment: Alignment.topCenter,
+                        child: Semantics(
+                          liveRegion: true,
+                          label: 'forte_payment_loading'.tr,
                           value: _loadingProgress <= 0
                               ? null
-                              : _loadingProgress / 100,
-                          minHeight: 3,
-                          color: _bulkaYellow,
-                          backgroundColor: const Color(0xFFFFF1D0),
+                              : '$_loadingProgress%',
+                          child: LinearProgressIndicator(
+                            value: _loadingProgress <= 0
+                                ? null
+                                : _loadingProgress / 100,
+                            minHeight: 3,
+                            color: _bulkaYellow,
+                            backgroundColor: const Color(0xFFFFF1D0),
+                          ),
                         ),
                       ),
-                    ),
-                ],
-              ),
-            )
-          : SafeArea(
-              child: Center(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(28),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Semantics(
-                        container: true,
-                        liveRegion: true,
-                        label: '$title. $message',
-                        excludeSemantics: true,
-                        child: Column(
-                          children: [
-                            Icon(
-                              paid
-                                  ? Icons.check_circle_rounded
-                                  : terminalFailure
-                                  ? Icons.error_outline_rounded
-                                  : Icons.credit_card_rounded,
-                              color: paid
-                                  ? _successGreen
-                                  : terminalFailure
-                                  ? _errorRed
-                                  : _bulkaYellow,
-                              size: 88,
-                            ),
-                            const SizedBox(height: 24),
-                            Text(
-                              title,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontFamily: _headingFont,
-                                fontSize: BulkaTypeScale.titleLarge,
-                                fontWeight: FontWeight.w700,
+                  ],
+                ),
+              )
+            : SafeArea(
+                child: Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(28),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Semantics(
+                          container: true,
+                          liveRegion: true,
+                          label: '$title. $message',
+                          excludeSemantics: true,
+                          child: Column(
+                            children: [
+                              Icon(
+                                paid
+                                    ? Icons.check_circle_rounded
+                                    : terminalFailure
+                                    ? Icons.error_outline_rounded
+                                    : Icons.credit_card_rounded,
+                                color: paid
+                                    ? _successGreen
+                                    : terminalFailure
+                                    ? _errorRed
+                                    : _bulkaYellow,
+                                size: 88,
                               ),
+                              const SizedBox(height: 24),
+                              Text(
+                                title,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontFamily: _headingFont,
+                                  fontSize: BulkaTypeScale.titleLarge,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                message,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontSize: BulkaTypeScale.body,
+                                  height: 1.4,
+                                  color: _textDark.withValues(alpha: 0.72),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (!paid && !terminalFailure) ...[
+                          const SizedBox(height: 28),
+                          if (_checking)
+                            const CircularProgressIndicator(
+                              color: _bulkaYellow,
                             ),
-                            const SizedBox(height: 12),
-                            Text(
-                              message,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontSize: BulkaTypeScale.body,
-                                height: 1.4,
-                                color: _textDark.withValues(alpha: 0.72),
+                          if (!verifying) ...[
+                            const SizedBox(height: 24),
+                            SizedBox(
+                              width: double.infinity,
+                              child: GradientButton(
+                                onPressed: _opening ? null : _startCheckout,
+                                loading: _opening,
+                                child: Text('forte_payment_open'.tr),
                               ),
                             ),
                           ],
-                        ),
-                      ),
-                      if (!paid && !terminalFailure) ...[
-                        const SizedBox(height: 28),
-                        const CircularProgressIndicator(color: _bulkaYellow),
-                        if (!verifying) ...[
-                          const SizedBox(height: 24),
+                          if (verifying) ...[
+                            SizedBox(
+                              width: double.infinity,
+                              child: GradientButton(
+                                onPressed: _checking
+                                    ? null
+                                    : () => unawaited(_checkStatus()),
+                                loading: _checking,
+                                child: Text('forte_payment_check_status'.tr),
+                              ),
+                            ),
+                            if (!widget.cardSetup) ...[
+                              const SizedBox(height: 10),
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton(
+                                  onPressed: () => _finish(openOrders: true),
+                                  child: Text('forte_payment_my_orders'.tr),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ],
+                        if ((_checkoutError ?? _statusError) != null) ...[
+                          const SizedBox(height: 18),
+                          Semantics(
+                            liveRegion: true,
+                            label: (_checkoutError ?? _statusError)!,
+                            excludeSemantics: true,
+                            child: Text(
+                              (_checkoutError ?? _statusError)!,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(color: _errorRed),
+                            ),
+                          ),
+                        ],
+                        if (_checkoutError != null &&
+                            _supportsEmbeddedCheckout) ...[
+                          const SizedBox(height: 10),
+                          TextButton(
+                            onPressed: _opening ? null : _openHostedCheckout,
+                            child: Text('forte_payment_open_external'.tr),
+                          ),
+                        ],
+                        if (paid || terminalFailure) ...[
+                          const SizedBox(height: 28),
                           SizedBox(
                             width: double.infinity,
                             child: GradientButton(
-                              onPressed: _opening ? null : _startCheckout,
-                              loading: _opening,
-                              child: Text('forte_payment_open'.tr),
+                              onPressed: _finish,
+                              child: Text(
+                                paid
+                                    ? 'payment_done'.tr
+                                    : 'payment_back_cart'.tr,
+                              ),
                             ),
                           ),
                         ],
                       ],
-                      if ((_checkoutError ?? _statusError) != null) ...[
-                        const SizedBox(height: 18),
-                        Semantics(
-                          liveRegion: true,
-                          label: (_checkoutError ?? _statusError)!,
-                          excludeSemantics: true,
-                          child: Text(
-                            (_checkoutError ?? _statusError)!,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(color: _errorRed),
-                          ),
-                        ),
-                      ],
-                      if (_checkoutError != null &&
-                          _supportsEmbeddedCheckout) ...[
-                        const SizedBox(height: 10),
-                        TextButton(
-                          onPressed: _opening ? null : _openHostedCheckout,
-                          child: Text('forte_payment_open_external'.tr),
-                        ),
-                      ],
-                      if (paid || terminalFailure) ...[
-                        const SizedBox(height: 28),
-                        SizedBox(
-                          width: double.infinity,
-                          child: GradientButton(
-                            onPressed: () => Navigator.pop(context, paid),
-                            child: Text(
-                              paid ? 'payment_done'.tr : 'payment_back_cart'.tr,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
+                    ),
                   ),
                 ),
               ),
-            ),
+      ),
     );
   }
 }

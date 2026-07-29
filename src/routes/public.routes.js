@@ -46,6 +46,8 @@ const { validateRequest } = require('../middlewares/validation.middleware');
 const {
   courierAuthRequestBodySchema,
   analyticsEventsBodySchema,
+  checkoutPaymentBodySchema,
+  checkoutQuoteBodySchema,
   courierAuthVerifyBodySchema,
   courierConfirmDeliveryBodySchema,
   courierLocationBodySchema,
@@ -720,8 +722,16 @@ router.patch('/api/customer/addresses/:id/default', addressController.setDefault
 // Kaspi Pay endpoints
 const kaspiController = require('../controllers/kaspi.controller');
 router.get('/api/customer/kaspi-pay/availability', kaspiController.availability);
-router.post('/api/customer/kaspi-pay/create', kaspiController.createPayment);
-router.post('/api/customer/kaspi-pay/quote', kaspiController.quotePayment);
+router.post(
+  '/api/customer/kaspi-pay/create',
+  validateRequest({ body: checkoutPaymentBodySchema }),
+  kaspiController.createPayment,
+);
+router.post(
+  '/api/customer/kaspi-pay/quote',
+  validateRequest({ body: checkoutQuoteBodySchema }),
+  kaspiController.quotePayment,
+);
 router.get('/api/customer/kaspi-pay/status/:operationId', kaspiController.checkStatus);
 
 // Kaspi Webhook (должен быть открытым)
@@ -730,8 +740,16 @@ router.post('/webhooks/kaspi', webhookRateLimit, kaspiController.handleWebhook);
 // ForteBank PaymentGateway: HPP redirect plus server-side status polling.
 const forteController = require('../controllers/forte.controller');
 router.get('/api/customer/forte-pay/availability', forteController.availability);
-router.post('/api/customer/forte-pay/create', forteController.createPayment);
-router.post('/api/customer/forte-pay/quote', forteController.quotePayment);
+router.post(
+  '/api/customer/forte-pay/create',
+  validateRequest({ body: checkoutPaymentBodySchema }),
+  forteController.createPayment,
+);
+router.post(
+  '/api/customer/forte-pay/quote',
+  validateRequest({ body: checkoutQuoteBodySchema }),
+  forteController.quotePayment,
+);
 router.get('/api/customer/forte-pay/status/:operationId', forteController.checkStatus);
 router.get('/api/customer/forte-pay/methods', forteController.listPaymentMethods);
 router.post(

@@ -7,7 +7,7 @@ const {
   validateBuilder,
   validateModifierGroups,
 } = require('../src/services/product-options.service');
-const { calculateRefund } = require('../src/services/partial-refund.service');
+const { buildRefundPreview, calculateRefund } = require('../src/services/partial-refund.service');
 const { distanceKm, etaMinutesForKm } = require('../src/services/dispatch.service');
 const { ROLE_AREAS } = require('../src/middlewares/auth.middleware');
 const { cleanPhone } = require('../src/services/courier.service');
@@ -17,6 +17,18 @@ const {
   matchesPromotionAudience,
   savePromotion,
 } = require('../src/services/commerce-marketing.service');
+
+test('refund options advertise partial-refund preview support', () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'services', 'partial-refund.service.js'),
+    'utf8',
+  );
+  const getOptionsSource = source.slice(
+    source.indexOf('async function getRefundOptions'),
+    source.indexOf('function calculateRefund'),
+  );
+  assert.match(getOptionsSource, /previewSupported:\s*true/);
+});
 
 test('cake builder validates required variants and calculates trusted delta', () => {
   const configuration = {
@@ -272,6 +284,53 @@ test('discount rounding is allocated globally across different refund lines', ()
 
   assert.deepEqual([first.amount, second.amount], [99, 100]);
   assert.equal(first.amount + second.amount, order.amount);
+});
+
+test('partial refund preview shows the remaining payment and loyalty adjustment without mutation', () => {
+  const preview = buildRefundPreview(
+    {
+      amount: 1000,
+      subtotal: 1000,
+      discount_amount: 100,
+      partially_refunded_amount: 100,
+      earned_bonus: 90,
+    },
+    {
+      amount: 350,
+      records: [
+        {
+          line_key: 'line-a',
+          product_id: 'a',
+          product_name: 'Товар',
+          quantity: 1,
+          refund_amount: 350,
+        },
+      ],
+    },
+    {
+      originalSpent: 200,
+      priorSpentRestored: 20,
+      priorEarnedReversed: 10,
+    },
+  );
+  assert.deepEqual(preview, {
+    amount: 350,
+    remainingAfter: 550,
+    items: [
+      {
+        lineKey: 'line-a',
+        productId: 'a',
+        name: 'Товар',
+        quantity: 1,
+        amount: 350,
+      },
+    ],
+    adjustment: {
+      spentBonusRestored: 80,
+      earnedBonusReversed: 35,
+    },
+    currency: 'KZT',
+  });
 });
 
 test('dispatch distance and ETA are bounded and deterministic', () => {

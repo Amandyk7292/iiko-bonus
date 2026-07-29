@@ -169,12 +169,11 @@ void main() {
             payload: payload,
           );
 
-      expect(
-        resolveNotificationTarget(
-          notification('order_status', {'orderId': 'order-1'}),
-        ).kind,
-        NotificationTargetKind.orders,
+      final exactOrder = resolveNotificationTarget(
+        notification('order_status', {'orderId': 'order-1'}),
       );
+      expect(exactOrder.kind, NotificationTargetKind.order);
+      expect(exactOrder.resourceId, 'order-1');
       expect(
         resolveNotificationTarget(
           notification('broadcast', {'destination': 'promos'}),
@@ -197,7 +196,7 @@ void main() {
         resolveNotificationTarget(
           notification('broadcast', {'url': 'javascript:alert(1)'}),
         ).kind,
-        NotificationTargetKind.none,
+        NotificationTargetKind.notifications,
       );
     },
   );

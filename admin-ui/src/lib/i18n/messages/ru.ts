@@ -515,6 +515,14 @@ const ru: Record<string, string> = {
   'orders.refundConfirm':
     'Отменить заказ и вернуть клиенту {{amount}} ₸ на исходный способ оплаты? Зачисление на карту зависит от банка клиента.',
   'orders.refundSucceeded': 'Заказ отменён, возврат отправлен через исходный способ оплаты',
+  'orders.calculatingRefund': 'Рассчитываем точную сумму возврата…',
+  'orders.refundNow': 'Будет возвращено',
+  'orders.remainingAfterRefund': 'Останется доступно',
+  'orders.bonusAdjustment': 'Бонусы: вернуть / сторнировать',
+  'orders.serverCalculatesRefund':
+    'Точную сумму и корректировку бонусов рассчитывает сервер при подтверждении.',
+  'orders.refundPreviewUnavailable': 'Не удалось рассчитать возврат. Обновите данные.',
+  'orders.waitForRefundPreview': 'Дождитесь точного расчёта возврата.',
   'orders.substitutionLabel': 'Если товара нет',
   'orders.substitution.remove_refund': 'Убрать позицию и вернуть деньги',
   'orders.substitution.call_customer': 'Позвонить клиенту',
@@ -825,6 +833,15 @@ const ru: Record<string, string> = {
   'inventory.emptyHint': 'Нажмите «Синхронизировать с iiko», чтобы создать остатки по филиалам.',
   'inventory.reservationHint':
     'Резерв создаётся при выставлении счёта и освобождается при отмене или истечении оплаты.',
+  'inventory.unsaved': 'Есть несохранённые изменения',
+  'inventory.serverConflict': 'Остаток изменился на сервере',
+  'inventory.useServer': 'Взять серверный',
+  'inventory.keepMine': 'Сохранить мой',
+  'inventory.unsavedNavigation':
+    'Есть несохранённые остатки. Уйти со страницы и потерять изменения?',
+  'inventory.unsavedBranch':
+    'При смене филиала несохранённые остатки будут потеряны.',
+  'inventory.discardAndContinue': 'Сбросить и продолжить',
   'couriers.heading': 'Команда доставки',
   'couriers.intro':
     'Добавляйте курьеров, назначайте их на оплаченные заказы и управляйте доступностью.',
@@ -877,6 +894,22 @@ const ru: Record<string, string> = {
   'security.result': 'Результат',
   'security.ip': 'IP',
   'security.noAudit': 'Записей аудита пока нет',
+  'security.filters': 'Фильтры журнала действий',
+  'security.searchPlaceholder': 'Администратор, путь, код запроса…',
+  'security.method': 'Метод',
+  'security.allMethods': 'Все методы',
+  'security.allResults': 'Все результаты',
+  'security.success': 'Успешно',
+  'security.rejected': 'Отклонено',
+  'security.serverError': 'Ошибка сервера',
+  'security.requestId': 'Код запроса',
+  'security.openDetails': 'Открыть детали записи',
+  'security.auditDetails': 'Детали действия',
+  'security.path': 'Путь API',
+  'security.target': 'Объект',
+  'security.reason': 'Причина',
+  'security.previousPage': 'Назад',
+  'security.nextPage': 'Далее',
   'orders.delivery': 'Доставка',
   'orders.customerArrived': 'Клиент приехал',
   'orders.assignCourier': 'Назначить курьера',
@@ -933,6 +966,17 @@ const ru: Record<string, string> = {
   'realtime.offline': 'Нет связи',
   'realtime.updatedNow': 'Обновлено сейчас',
   'realtime.updatedMinutes': 'Обновлено {{count}} мин назад',
+  'support.sentToOriginal': 'Ответ отправлен в исходное обращение',
+  'support.switchDraftTitle': 'Перейти к другому обращению?',
+  'support.switchDraftBody':
+    'Текст не отправлен. Черновик останется у текущего обращения.',
+  'support.switchDraftConfirm': 'Перейти',
+  'whatsapp.switchDraftTitle': 'Перейти к другому диалогу?',
+  'whatsapp.switchDraftBody':
+    'Сообщение не отправлено. Черновик останется у текущего клиента.',
+  'whatsapp.switchDraftConfirm': 'Перейти',
+  'whatsapp.recipientMismatch':
+    'Ответ сервера относится к другому диалогу. Сообщение оставлено в черновике.',
 };
 
 export default ru;

@@ -95,6 +95,15 @@ const createPayment = async (req, res) => {
         }
         return result;
       } catch (error) {
+        const creationStateMustBePreserved = new Set([
+          'KASPI_CREATE_IN_PROGRESS',
+          'KASPI_CREATE_RECOVERY_REQUIRED',
+          'KASPI_CREATE_UNKNOWN',
+          'KASPI_QR_CREATE_UNKNOWN',
+          'KASPI_QR_CREATE_FAILED',
+        ]).has(error.code);
+        if (creationStateMustBePreserved) throw error;
+
         const order = await kaspiService.existingRequest(customerId, checkoutId).catch(() => null);
         await Promise.allSettled([
           releaseCheckoutRequest(customerId, checkoutId),

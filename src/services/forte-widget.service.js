@@ -43,7 +43,15 @@ const normalizeProviderToken = (value) => {
   return PROVIDER_TOKEN_PATTERN.test(token) ? token : '';
 };
 
-const tokenEncryptionKey = (env = process.env) => {
+const tokenKeyId = (secret, explicitId = '') => {
+  const requested = String(explicitId || '').trim();
+  if (requested && /^[A-Za-z0-9_-]{4,40}$/.test(requested)) return requested;
+  return crypto.createHash('sha256').update(secret, 'utf8').digest('hex').slice(0, 12);
+};
+
+const tokenEncryptionKey = (secret) => crypto.createHash('sha256').update(secret, 'utf8').digest();
+
+const tokenEncryptionKeyring = (env = process.env) => {
   const secret = String(env.FORTE_WIDGET_TOKEN_KEY || '').trim();
   if (secret.length < 32) {
     throw widgetError(
@@ -52,7 +60,69 @@ const tokenEncryptionKey = (env = process.env) => {
       'FORTE_WIDGET_TOKEN_ENCRYPTION_UNAVAILABLE',
     );
   }
-  return crypto.createHash('sha256').update(secret, 'utf8').digest();
+  const current = {
+    id: tokenKeyId(secret, env.FORTE_WIDGET_TOKEN_KEY_ID),
+    key: tokenEncryptionKey(secret),
+  };
+  const previous = [];
+  const previousSecret = String(env.FORTE_WIDGET_TOKEN_PREVIOUS_KEY || '').trim();
+  if (previousSecret) {
+    if (previousSecret.length < 32) {
+      throw widgetError(
+        'Предыдущий ключ шифрования токенов ForteBank некорректен',
+        503,
+        'FORTE_WIDGET_TOKEN_ENCRYPTION_UNAVAILABLE',
+      );
+    }
+    previous.push({
+      id: tokenKeyId(previousSecret, env.FORTE_WIDGET_TOKEN_PREVIOUS_KEY_ID),
+      key: tokenEncryptionKey(previousSecret),
+    });
+  }
+  const serialized = String(env.FORTE_WIDGET_TOKEN_PREVIOUS_KEYS || '').trim();
+  if (serialized) {
+    let parsed;
+    try {
+      parsed = JSON.parse(serialized);
+    } catch {
+      throw widgetError(
+        'Набор предыдущих ключей ForteBank должен быть JSON-объектом',
+        503,
+        'FORTE_WIDGET_TOKEN_ENCRYPTION_UNAVAILABLE',
+      );
+    }
+    if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
+      throw widgetError(
+        'Набор предыдущих ключей ForteBank должен быть JSON-объектом',
+        503,
+        'FORTE_WIDGET_TOKEN_ENCRYPTION_UNAVAILABLE',
+      );
+    }
+    for (const [id, value] of Object.entries(parsed)) {
+      const candidate = String(value || '').trim();
+      if (!/^[A-Za-z0-9_-]{4,40}$/.test(id) || candidate.length < 32) {
+        throw widgetError(
+          'Набор предыдущих ключей ForteBank содержит некорректную запись',
+          503,
+          'FORTE_WIDGET_TOKEN_ENCRYPTION_UNAVAILABLE',
+        );
+      }
+      previous.push({ id, key: tokenEncryptionKey(candidate) });
+    }
+  }
+  const keys = new Map();
+  for (const entry of [current, ...previous]) {
+    const retained = keys.get(entry.id);
+    if (retained && !crypto.timingSafeEqual(retained, entry.key)) {
+      throw widgetError(
+        `Идентификатор ключа ForteBank «${entry.id}» назначен разным ключам`,
+        503,
+        'FORTE_WIDGET_TOKEN_ENCRYPTION_UNAVAILABLE',
+      );
+    }
+    if (!retained) keys.set(entry.id, entry.key);
+  }
+  return { current, keys, all: [...keys.values()] };
 };
 
 const providerTokenAad = (scope, ownerId) =>
@@ -64,11 +134,13 @@ const encryptProviderToken = (token, scope, ownerId, env = process.env) => {
     throw widgetError('ForteBank вернул некорректный токен', 502, 'FORTE_WIDGET_INVALID_TOKEN');
   }
   const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv('aes-256-gcm', tokenEncryptionKey(env), iv);
+  const keyring = tokenEncryptionKeyring(env);
+  const cipher = crypto.createCipheriv('aes-256-gcm', keyring.current.key, iv);
   cipher.setAAD(providerTokenAad(scope, ownerId));
   const ciphertext = Buffer.concat([cipher.update(normalized, 'utf8'), cipher.final()]);
   return [
-    'v1',
+    'v2',
+    keyring.current.id,
     iv.toString('base64url'),
     cipher.getAuthTag().toString('base64url'),
     ciphertext.toString('base64url'),
@@ -77,23 +149,45 @@ const encryptProviderToken = (token, scope, ownerId, env = process.env) => {
 
 const decryptProviderToken = (envelope, scope, ownerId, env = process.env) => {
   try {
-    const [version, ivValue, tagValue, ciphertextValue, extra] = String(envelope || '').split('.');
-    if (version !== 'v1' || !ivValue || !tagValue || !ciphertextValue || extra) {
+    const parts = String(envelope || '').split('.');
+    const version = parts[0];
+    const keyring = tokenEncryptionKeyring(env);
+    let candidateKeys;
+    let ivValue;
+    let tagValue;
+    let ciphertextValue;
+    if (version === 'v2' && parts.length === 5) {
+      const key = keyring.keys.get(parts[1]);
+      if (!key) throw new Error('Unknown token key');
+      candidateKeys = [key];
+      [, , ivValue, tagValue, ciphertextValue] = parts;
+    } else if (version === 'v1' && parts.length === 4) {
+      // Legacy envelopes do not carry a key ID. Try the current key first,
+      // then retained rotation keys.
+      candidateKeys = keyring.all;
+      [, ivValue, tagValue, ciphertextValue] = parts;
+    } else {
       throw new Error('Invalid token envelope');
     }
-    const decipher = crypto.createDecipheriv(
-      'aes-256-gcm',
-      tokenEncryptionKey(env),
-      Buffer.from(ivValue, 'base64url'),
-    );
-    decipher.setAAD(providerTokenAad(scope, ownerId));
-    decipher.setAuthTag(Buffer.from(tagValue, 'base64url'));
-    const token = Buffer.concat([
-      decipher.update(Buffer.from(ciphertextValue, 'base64url')),
-      decipher.final(),
-    ]).toString('utf8');
-    if (!normalizeProviderToken(token)) throw new Error('Invalid decrypted token');
-    return token;
+    for (const key of candidateKeys) {
+      try {
+        const decipher = crypto.createDecipheriv(
+          'aes-256-gcm',
+          key,
+          Buffer.from(ivValue, 'base64url'),
+        );
+        decipher.setAAD(providerTokenAad(scope, ownerId));
+        decipher.setAuthTag(Buffer.from(tagValue, 'base64url'));
+        const token = Buffer.concat([
+          decipher.update(Buffer.from(ciphertextValue, 'base64url')),
+          decipher.final(),
+        ]).toString('utf8');
+        if (normalizeProviderToken(token)) return token;
+      } catch {
+        // Continue through retained keys for legacy v1 envelopes.
+      }
+    }
+    throw new Error('Invalid decrypted token');
   } catch (error) {
     if (error?.code === 'FORTE_WIDGET_TOKEN_ENCRYPTION_UNAVAILABLE') throw error;
     throw widgetError(
@@ -513,6 +607,30 @@ class ForteWidgetService {
         ? 'Карты доступны, списания не было'
         : availability.message || 'Банк не вернул доступные карты',
       errorCode: availability.available ? null : 'FORTE_WIDGET_NO_PAYMENT_METHODS',
+    };
+  }
+
+  async probeConnection() {
+    this.assertConfigured();
+    const { response } = await this.request('/ctp/api/checkouts/bulka-capability-probe', {
+      method: 'GET',
+    });
+    const available = response.status < 500 && ![401, 403, 429].includes(Number(response.status));
+    return {
+      available,
+      message: available
+        ? 'API Widget отвечает; платёжная сессия не создавалась'
+        : response.status === 429
+          ? 'Forte Widget временно ограничил частоту запросов'
+          : 'Forte Widget не подтвердил доступ',
+      errorCode: available
+        ? null
+        : response.status === 429
+          ? 'FORTE_WIDGET_PROBE_RATE_LIMITED'
+          : 'FORTE_WIDGET_CAPABILITY_UNAVAILABLE',
+      availableMethods: [],
+      providerStatus: String(response.status),
+      readOnly: true,
     };
   }
 
@@ -1653,20 +1771,29 @@ class ForteWidgetService {
     }
     const requestId = String(idempotencyKey || crypto.randomUUID());
     const amountMinor = toMinorUnits(amount);
-    const { response, body } = await this.request('/transactions/refunds', {
-      base: 'transaction',
-      apiVersion: 3,
-      method: 'POST',
-      requestId,
-      body: {
-        request: {
-          parent_uid: order.provider_transaction_id,
-          amount: amountMinor,
-          reason: cleanText(reason, 255) || 'Возврат по заказу Bulka',
-          additional_data: { referer: config.publicBaseUrl },
+    let refundResult;
+    try {
+      refundResult = await this.request('/transactions/refunds', {
+        base: 'transaction',
+        apiVersion: 3,
+        method: 'POST',
+        requestId,
+        body: {
+          request: {
+            parent_uid: order.provider_transaction_id,
+            amount: amountMinor,
+            reason: cleanText(reason, 255) || 'Возврат по заказу Bulka',
+            additional_data: { referer: config.publicBaseUrl },
+          },
         },
-      },
-    });
+      });
+    } catch (error) {
+      error.refundUncertain = true;
+      error.code = 'FORTE_WIDGET_REFUND_UNKNOWN';
+      error.requestId = requestId;
+      throw error;
+    }
+    const { response, body } = refundResult;
     const { reference, status } = await this.resolveRefundTransaction(response, body);
     if (response.ok && reference && status === 'successful') {
       return { reference, response: body, requestId, operation: 'refund' };
@@ -1677,6 +1804,10 @@ class ForteWidgetService {
     ) {
       throw widgetError('ForteBank отклонил возврат', 409, 'FORTE_WIDGET_REFUND_REJECTED', {
         requestId,
+        refundReference: reference || undefined,
+        refundDeclinedExplicit: ['failed', 'declined', 'rejected', 'expired', 'cancelled'].includes(
+          status,
+        ),
       });
     }
     throw widgetError(
@@ -1743,6 +1874,7 @@ module.exports.MAX_SAVED_PAYMENT_METHODS = MAX_SAVED_PAYMENT_METHODS;
 module.exports.buildWidgetLaunchUrl = buildWidgetLaunchUrl;
 module.exports.decryptProviderToken = decryptProviderToken;
 module.exports.encryptProviderToken = encryptProviderToken;
+module.exports.tokenEncryptionKeyring = tokenEncryptionKeyring;
 module.exports.localizedWidgetText = localizedWidgetText;
 module.exports.mapWidgetStatus = mapWidgetStatus;
 module.exports.normalizeWidgetCheckout = normalizeWidgetCheckout;

@@ -305,13 +305,23 @@ async function createPriceDifferenceRefund(order, request, amount, requestedBy) 
       idempotencyKey: claimed.id,
     });
   } catch (failure) {
-    await supabase.rpc('fail_partial_refund', {
-      p_refund_id: claimed.id,
-      p_error: String(
-        failure.message || `${paymentProviderName(order)} не подтвердил возврат`,
-      ).slice(0, 1000),
-      p_result_unknown: failure.refundUncertain === true,
-    });
+    const failureMessage = String(
+      failure.message || `${paymentProviderName(order)} не подтвердил возврат`,
+    ).slice(0, 1000);
+    if (failure.refundUncertain === true) {
+      await supabase.rpc('mark_partial_refund_unknown', {
+        p_refund_id: claimed.id,
+        p_error: failureMessage,
+        p_provider_reference: String(failure.refundReference || '').slice(0, 160) || null,
+        p_provider_request_id: failure.requestId || claimed.id,
+      });
+    } else {
+      await supabase.rpc('fail_partial_refund', {
+        p_refund_id: claimed.id,
+        p_error: failureMessage,
+        p_result_unknown: false,
+      });
+    }
     if (failure.refundUncertain === true) failure.preserveSubstitutionExecution = true;
     throw failure;
   }
@@ -321,14 +331,12 @@ async function createPriceDifferenceRefund(order, request, amount, requestedBy) 
     p_kaspi_reference: gatewayRefund.reference || null,
   });
   if (completionError) {
-    await supabase
-      .from('kaspi_orders')
-      .update({
-        refund_status: 'unknown',
-        refund_error: `${paymentProviderName(order)} подтвердил возврат, но база не обновилась`,
-        last_error: 'Возврат разницы замены требует ручной сверки',
-      })
-      .eq('id', order.id);
+    await supabase.rpc('mark_partial_refund_unknown', {
+      p_refund_id: claimed.id,
+      p_error: `${paymentProviderName(order)} подтвердил возврат, но база не обновилась`,
+      p_provider_reference: gatewayRefund.reference || null,
+      p_provider_request_id: gatewayRefund.requestId || claimed.id,
+    });
     completionError.preserveSubstitutionExecution = true;
     throw completionError;
   }

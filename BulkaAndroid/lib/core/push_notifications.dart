@@ -20,25 +20,32 @@ abstract final class PushNotifications {
   static final StreamController<Map<String, dynamic>> _orderEventController =
       StreamController<Map<String, dynamic>>.broadcast();
   static final StreamController<Map<String, dynamic>>
-  _openedOrderEventController =
+  _openedTargetEventController =
       StreamController<Map<String, dynamic>>.broadcast();
   static StreamSubscription<RemoteMessage>? _openedSubscription;
-  static Map<String, dynamic>? _pendingOpenedOrder;
+  static Map<String, dynamic>? _pendingOpenedTarget;
 
   static Stream<Map<String, dynamic>> get orderEvents =>
       _orderEventController.stream;
-  static Stream<Map<String, dynamic>> get openedOrderEvents =>
-      _openedOrderEventController.stream;
+  static Stream<Map<String, dynamic>> get openedTargets =>
+      _openedTargetEventController.stream;
 
-  static Map<String, dynamic>? takeInitialOpenedOrder() {
-    final value = _pendingOpenedOrder;
-    _pendingOpenedOrder = null;
+  static Map<String, dynamic>? takeInitialOpenedTarget() {
+    final value = _pendingOpenedTarget;
+    _pendingOpenedTarget = null;
     return value;
   }
 
+  static NotificationTarget _target(Map<String, dynamic> data) =>
+      resolveNotificationPayload(data, fallbackType: _asString(data['type']));
+
+  static bool _isActionable(Map<String, dynamic> data) =>
+      _target(data).kind != NotificationTargetKind.none;
+
   static bool _opensOrders(Map<String, dynamic> data) {
-    final type = data['type']?.toString();
-    return type == 'order' || type == 'delivery' || type == 'refund';
+    final kind = _target(data).kind;
+    return kind == NotificationTargetKind.order ||
+        kind == NotificationTargetKind.orders;
   }
 
   static String get _platform {
@@ -103,9 +110,7 @@ abstract final class PushNotifications {
           _handleOpenedMessage,
         );
         final initial = await FirebaseMessaging.instance.getInitialMessage();
-        if (initial != null && _opensOrders(initial.data)) {
-          _pendingOpenedOrder = Map<String, dynamic>.from(initial.data);
-        }
+        if (initial != null) _publishOpenedTarget(initial.data);
         return;
       } catch (error) {
         _ready = false;
@@ -120,9 +125,23 @@ abstract final class PushNotifications {
 
   static StreamSubscription<RemoteMessage>? _messageSubscription;
 
+  static void _publishOpenedTarget(Map<String, dynamic> data) {
+    if (!_isActionable(data)) return;
+    final payload = Map<String, dynamic>.from(data);
+    if (_openedTargetEventController.hasListener) {
+      _openedTargetEventController.add(payload);
+    } else {
+      _pendingOpenedTarget = payload;
+    }
+  }
+
+  @visibleForTesting
+  static void publishOpenedTargetForTesting(Map<String, dynamic> data) {
+    _publishOpenedTarget(data);
+  }
+
   static void _handleOpenedMessage(RemoteMessage message) {
-    if (!_opensOrders(message.data)) return;
-    _openedOrderEventController.add(Map<String, dynamic>.from(message.data));
+    _publishOpenedTarget(message.data);
   }
 
   static Future<void> register(BulkaApiClient api) async {
@@ -181,6 +200,7 @@ abstract final class PushNotifications {
       final notification = message.notification;
       final title = notification?.title ?? message.data['title'];
       final body = notification?.body ?? message.data['body'];
+      final actionable = _isActionable(message.data);
       if (title != null && title.toString().isNotEmpty) {
         if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -229,6 +249,15 @@ abstract final class PushNotifications {
               ],
             ),
             duration: const Duration(seconds: 4),
+            action: actionable
+                ? SnackBarAction(
+                    label: 'notification_open_hint'.tr,
+                    textColor: const Color(0xFFFFD36A),
+                    onPressed: () => _openedTargetEventController.add(
+                      Map<String, dynamic>.from(message.data),
+                    ),
+                  )
+                : null,
           ),
         );
       }

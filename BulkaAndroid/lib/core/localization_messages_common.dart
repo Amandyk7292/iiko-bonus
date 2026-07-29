@@ -143,4 +143,15 @@ const Map<String, Map<String, String>> _commonTranslations = {
     'kk': 'E-mail мекенжайын тексеріңіз',
     'en': 'Check the email address',
   },
+  'support_code': {
+    'ru': 'Код для поддержки: {code}',
+    'kk': 'Қолдау қызметіне арналған код: {code}',
+    'en': 'Support code: {code}',
+  },
+  'copy_support_code': {'ru': 'Копировать', 'kk': 'Көшіру', 'en': 'Copy'},
+  'support_code_copied': {
+    'ru': 'Код скопирован',
+    'kk': 'Код көшірілді',
+    'en': 'Code copied',
+  },
 };

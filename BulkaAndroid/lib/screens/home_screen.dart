@@ -10,6 +10,7 @@ class HomeScreen extends StatefulWidget {
     required this.onRequireAuth,
     required this.onOpenCatalog,
     this.onOpenNotificationTab,
+    this.onOpenOrders,
     super.key,
   });
 
@@ -21,6 +22,7 @@ class HomeScreen extends StatefulWidget {
   final Future<bool> Function() onRequireAuth;
   final Future<void> Function(String orderType) onOpenCatalog;
   final ValueChanged<int>? onOpenNotificationTab;
+  final Future<void> Function(String? orderId)? onOpenOrders;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -221,6 +223,7 @@ class _HomeScreenState extends State<HomeScreen> {
             api: widget.api,
             onRequireAuth: widget.onRequireAuth,
             onOpenTab: widget.onOpenNotificationTab,
+            onOpenOrders: widget.onOpenOrders,
           ),
         ),
       );

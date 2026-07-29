@@ -11,8 +11,8 @@ import {
   Send,
   UserCheck,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from '../lib/router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useNavigationBlocker, useSearchParams } from '../lib/router';
 import PageState from '../components/PageState';
 import SelectControl from '../components/SelectControl';
 import { useFeedback } from '../components/Feedback';
@@ -63,10 +63,18 @@ function slaText(request: SupportRequest) {
   return `Осталось ${Math.ceil(minutes / 60)} ч.`;
 }
 
+type SupportDraft = {
+  text: string;
+  internal: boolean;
+};
+
+const emptySupportDraft = (): SupportDraft => ({ text: '', internal: false });
+
 export default function SupportPage() {
-  const { formatDate } = useI18n();
-  const { toast } = useFeedback();
+  const { formatDate, t } = useI18n();
+  const { toast, confirm } = useFeedback();
   const [params, setParams] = useSearchParams();
+  const location = useLocation();
   const queue = params.get('queue') || 'new';
   const status = params.get('status') || '';
   const priority = params.get('priority') || '';
@@ -77,13 +85,43 @@ export default function SupportPage() {
   const [total, setTotal] = useState(0);
   const [detail, setDetail] = useState<SupportRequest | null>(null);
   const [messages, setMessages] = useState<SupportMessage[]>([]);
-  const [reply, setReply] = useState('');
-  const [internal, setInternal] = useState(false);
+  const [drafts, setDrafts] = useState<Record<string, SupportDraft>>({});
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const selectedIdRef = useRef(selectedId);
+  const detailRequestRef = useRef<{ controller: AbortController; sequence: number } | null>(null);
+  const detailSequenceRef = useRef(0);
   const pageSize = 30;
+  const draft = drafts[selectedId] ?? emptySupportDraft();
+  const reply = draft.text;
+  const internal = draft.internal;
+  const supportDraftDirty = useMemo(
+    () => Object.values(drafts).some((value) => value.text.trim()),
+    [drafts],
+  );
+
+  const setCurrentDraft = useCallback(
+    (patch: Partial<SupportDraft>) => {
+      const targetId = selectedIdRef.current;
+      if (!targetId) return;
+      setDrafts((current) => ({
+        ...current,
+        [targetId]: { ...(current[targetId] ?? emptySupportDraft()), ...patch },
+      }));
+    },
+    [],
+  );
+
+  const clearDraft = useCallback((id: string) => {
+    setDrafts((current) => {
+      if (!current[id]) return current;
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+  }, []);
 
   const updateParams = useCallback(
     (updates: Record<string, string | number | null>) => {
@@ -132,22 +170,40 @@ export default function SupportPage() {
   );
 
   const loadDetail = useCallback(async (id: string, silent = false) => {
+    detailRequestRef.current?.controller.abort();
+    const controller = new AbortController();
+    const sequence = ++detailSequenceRef.current;
+    detailRequestRef.current = { controller, sequence };
     if (!id) {
       setDetail(null);
       setMessages([]);
+      setDetailLoading(false);
       return;
     }
-    if (!silent) setDetailLoading(true);
+    if (!silent) {
+      setDetailLoading(true);
+      setDetail(null);
+      setMessages([]);
+    }
     try {
-      const response = await api.getSupportRequest(id);
+      const response = await api.getSupportRequest(id, controller.signal);
+      if (
+        controller.signal.aborted ||
+        sequence !== detailSequenceRef.current ||
+        selectedIdRef.current !== id ||
+        response.request.id !== id
+      ) {
+        return;
+      }
       setDetail(response.request);
       setMessages(response.messages);
+      setError('');
     } catch (caught) {
-      if (!silent) {
+      if (!controller.signal.aborted && !silent && sequence === detailSequenceRef.current) {
         setError(caught instanceof Error ? caught.message : 'Не удалось открыть обращение');
       }
     } finally {
-      if (!silent) setDetailLoading(false);
+      if (!silent && sequence === detailSequenceRef.current) setDetailLoading(false);
     }
   }, []);
 
@@ -156,8 +212,26 @@ export default function SupportPage() {
   }, [loadList]);
 
   useEffect(() => {
+    selectedIdRef.current = selectedId;
     void loadDetail(selectedId);
+    return () => detailRequestRef.current?.controller.abort();
   }, [loadDetail, selectedId]);
+
+  useEffect(() => {
+    if (!supportDraftDirty) return;
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warnBeforeUnload);
+    return () => window.removeEventListener('beforeunload', warnBeforeUnload);
+  }, [supportDraftDirty]);
+
+  useNavigationBlocker(
+    supportDraftDirty,
+    (nextLocation) =>
+      nextLocation.pathname === location.pathname || window.confirm(t('common.unsavedBody')),
+  );
 
   useAdminRealtimeEvents(
     ['support.created', 'support.updated'],
@@ -180,6 +254,13 @@ export default function SupportPage() {
     request: SupportRequest;
     messages?: SupportMessage[];
   }) => {
+    if (
+      response.request.id !== selectedIdRef.current ||
+      response.request.id !== selectedId
+    ) {
+      await loadList(true);
+      return;
+    }
     setDetail(response.request);
     if (response.messages) setMessages(response.messages);
     await loadList(true);
@@ -215,7 +296,7 @@ export default function SupportPage() {
   };
 
   const changeStatus = async (nextStatus: string) => {
-    if (!detail || saving) return;
+    if (!detail || detail.id !== selectedId || saving) return;
     const closing =
       CLOSED_SUPPORT_STATUSES.has(nextStatus) && !CLOSED_SUPPORT_STATUSES.has(detail.status);
     const resolution = closing ? publicSupportDraft(reply, internal) : '';
@@ -235,8 +316,7 @@ export default function SupportPage() {
         resolution: resolution || undefined,
       });
       if (resolution) {
-        setReply('');
-        setInternal(false);
+        clearDraft(detail.id);
       }
       await refreshDetail({ request: response.request });
       await loadDetail(detail.id, true);
@@ -249,19 +329,44 @@ export default function SupportPage() {
   };
 
   const sendMessage = async () => {
-    if (!detail || !reply.trim() || saving) return;
+    if (!detail || detail.id !== selectedId || !reply.trim() || saving) return;
+    const targetId = detail.id;
+    const targetText = reply.trim();
+    const targetInternal = internal;
     setSaving(true);
     try {
-      const response = await api.sendSupportMessage(detail.id, reply.trim(), internal);
-      setReply('');
-      setInternal(false);
+      const response = await api.sendSupportMessage(targetId, targetText, targetInternal);
+      if (
+        selectedIdRef.current !== targetId ||
+        response.request.id !== targetId
+      ) {
+        toast(t('support.sentToOriginal'));
+        return;
+      }
+      clearDraft(targetId);
       await refreshDetail(response);
-      toast(internal ? 'Внутренняя заметка сохранена' : 'Ответ отправлен клиенту');
+      toast(targetInternal ? 'Внутренняя заметка сохранена' : 'Ответ отправлен клиенту');
     } catch (caught) {
       toast(caught instanceof Error ? caught.message : 'Не удалось отправить ответ', 'error');
     } finally {
       setSaving(false);
     }
+  };
+
+  const selectRequest = async (id: string) => {
+    if (id === selectedId || saving) return;
+    if (
+      reply.trim() &&
+      !(await confirm({
+        title: t('support.switchDraftTitle'),
+        body: t('support.switchDraftBody'),
+        confirmLabel: t('support.switchDraftConfirm'),
+      }))
+    ) {
+      return;
+    }
+    selectedIdRef.current = id;
+    updateParams({ request: id });
   };
 
   if (loading && !requests.length) {
@@ -376,7 +481,7 @@ export default function SupportPage() {
                   type="button"
                   className={`${request.id === selectedId ? 'is-selected' : ''} ${request.overdue ? 'is-overdue' : ''}`}
                   key={request.id}
-                  onClick={() => updateParams({ request: request.id })}
+                  onClick={() => void selectRequest(request.id)}
                 >
                   <span className="support-request-topline">
                     <strong>{request.customer?.name || 'Клиент Bulka'}</strong>
@@ -462,9 +567,12 @@ export default function SupportPage() {
 
               <div className="support-controls">
                 <div className="field-group">
-                  <label className="field-label">Приоритет</label>
+                  <label className="field-label" htmlFor="support-detail-priority">
+                    Приоритет
+                  </label>
                   <SelectControl
                     compact
+                    id="support-detail-priority"
                     value={detail.priority}
                     disabled={saving}
                     onChange={(value) => void changePriority(value)}
@@ -475,9 +583,12 @@ export default function SupportPage() {
                   />
                 </div>
                 <div className="field-group">
-                  <label className="field-label">Статус</label>
+                  <label className="field-label" htmlFor="support-detail-status">
+                    Статус
+                  </label>
                   <SelectControl
                     compact
+                    id="support-detail-status"
                     value={detail.status}
                     disabled={saving}
                     onChange={(value) => void changeStatus(value)}
@@ -546,7 +657,9 @@ export default function SupportPage() {
                   rows={4}
                   maxLength={4000}
                   value={reply}
-                  onChange={(event) => setReply(event.target.value)}
+                  name="supportReply"
+                  autoComplete="off"
+                  onChange={(event) => setCurrentDraft({ text: event.target.value })}
                   placeholder={
                     internal
                       ? 'Эту заметку увидят только сотрудники'
@@ -558,22 +671,22 @@ export default function SupportPage() {
                     <input
                       type="checkbox"
                       checked={internal}
-                      onChange={(event) => setInternal(event.target.checked)}
+                      onChange={(event) => setCurrentDraft({ internal: event.target.checked })}
                     />
                     <span>Только для сотрудников</span>
                   </label>
                   <button
                     type="button"
                     className="btn-classic inline-flex items-center gap-2 px-5"
-                    disabled={saving || !reply.trim()}
+                    disabled={saving || detail.id !== selectedId || !reply.trim()}
                     onClick={() => void sendMessage()}
                   >
                     {saving ? (
-                      <LoaderCircle className="spin" size={17} />
+                      <LoaderCircle aria-hidden="true" className="spin" size={17} />
                     ) : internal ? (
-                      <CheckCircle2 size={17} />
+                      <CheckCircle2 aria-hidden="true" size={17} />
                     ) : (
-                      <Send size={17} />
+                      <Send aria-hidden="true" size={17} />
                     )}
                     {internal ? 'Сохранить заметку' : 'Отправить ответ'}
                   </button>

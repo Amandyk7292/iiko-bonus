@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   BadgeCheck,
   Camera,
@@ -21,6 +21,8 @@ import {
   type Courier,
   type DeliveryProof,
   type OrderSubstitution,
+  type PartialRefundOptions,
+  type PartialRefundPreview,
 } from '../lib/api';
 import { useAdminRealtimeEvents } from '../lib/admin-realtime';
 import {
@@ -58,7 +60,11 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
   const [savingId, setSavingId] = useState('');
   const [couriers, setCouriers] = useState<Courier[]>([]);
   const [refundOrder, setRefundOrder] = useState<AdminOrder | null>(null);
-  const [refundData, setRefundData] = useState<any | null>(null);
+  const [refundData, setRefundData] = useState<PartialRefundOptions | null>(null);
+  const [refundPreview, setRefundPreview] = useState<PartialRefundPreview | null>(null);
+  const [refundPreviewLoading, setRefundPreviewLoading] = useState(false);
+  const [refundPreviewError, setRefundPreviewError] = useState('');
+  const refundPreviewRequestRef = useRef<AbortController | null>(null);
   const [refundQuantities, setRefundQuantities] = useState<Record<string, number>>({});
   const [refundReason, setRefundReason] = useState('');
   const [deliveryProof, setDeliveryProof] = useState<DeliveryProof | null>(null);
@@ -74,6 +80,53 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
   const [replacementProductId, setReplacementProductId] = useState('');
   const [substitutionNote, setSubstitutionNote] = useState('');
   const pageSize = 50;
+
+  useEffect(() => {
+    refundPreviewRequestRef.current?.abort();
+    if (!refundOrder || !refundData?.previewSupported) {
+      setRefundPreview(null);
+      setRefundPreviewLoading(false);
+      setRefundPreviewError('');
+      return;
+    }
+    const items = Object.entries(refundQuantities)
+      .filter(([, quantity]) => quantity > 0)
+      .map(([lineKey, quantity]) => ({ lineKey, quantity }));
+    if (!items.length) {
+      setRefundPreview(null);
+      setRefundPreviewLoading(false);
+      setRefundPreviewError('');
+      return;
+    }
+
+    const controller = new AbortController();
+    refundPreviewRequestRef.current = controller;
+    const timer = window.setTimeout(async () => {
+      setRefundPreviewLoading(true);
+      setRefundPreviewError('');
+      try {
+        const response = await api.previewPartialRefund(
+          refundOrder.id,
+          { items, ...(refundReason.trim() && { reason: refundReason.trim() }) },
+          controller.signal,
+        );
+        if (!controller.signal.aborted) setRefundPreview(response.preview);
+      } catch (caught) {
+        if (!controller.signal.aborted) {
+          setRefundPreview(null);
+          setRefundPreviewError(
+            caught instanceof Error ? caught.message : t('orders.refundPreviewUnavailable'),
+          );
+        }
+      } finally {
+        if (!controller.signal.aborted) setRefundPreviewLoading(false);
+      }
+    }, 300);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [refundData?.previewSupported, refundOrder, refundQuantities, refundReason, t]);
 
   const load = useCallback(
     async (silent = false) => {
@@ -215,6 +268,8 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
     setRefundData(null);
     setRefundQuantities({});
     setRefundReason('');
+    setRefundPreview(null);
+    setRefundPreviewError('');
     try {
       setRefundData((await api.getRefundOptions(order.id)).refund);
     } catch (caught) {
@@ -230,6 +285,10 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
       .map(([lineKey, quantity]) => ({ lineKey, quantity }));
     if (!items.length) {
       toast('Выберите позиции для возврата', 'error');
+      return;
+    }
+    if (refundData?.previewSupported && (!refundPreview || refundPreviewLoading)) {
+      toast(t('orders.waitForRefundPreview'), 'error');
       return;
     }
     setSavingId(refundOrder.id);
@@ -781,7 +840,7 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
                 </div>
               </div>
               <div className="refund-lines">
-                {refundData.lines.map((line: any) => (
+                {refundData.lines.map((line) => (
                   <label
                     className={`refund-line ${line.refundableQuantity <= 0 ? 'is-disabled' : ''}`}
                     key={line.lineKey}
@@ -797,6 +856,7 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
                       aria-label={`Количество ${line.name}`}
                       className="input-classic refund-quantity"
                       type="number"
+                      name={`refundQuantity-${line.lineKey}`}
                       min="0"
                       max={line.refundableQuantity}
                       value={refundQuantities[line.lineKey] || 0}
@@ -814,10 +874,46 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
                   </label>
                 ))}
               </div>
+              <div className="refund-preview" aria-live="polite" aria-atomic="true">
+                {refundPreviewLoading ? (
+                  <div className="inline-alert inline-alert-info" role="status">
+                    <LoaderCircle aria-hidden="true" className="spin" size={17} />
+                    {t('orders.calculatingRefund')}
+                  </div>
+                ) : refundPreview ? (
+                  <div className="refund-summary refund-preview-summary" role="status">
+                    <div>
+                      <span>{t('orders.refundNow')}</span>
+                      <strong>{formatNumber(refundPreview.amount)} ₸</strong>
+                    </div>
+                    <div>
+                      <span>{t('orders.remainingAfterRefund')}</span>
+                      <strong>{formatNumber(refundPreview.remainingAfter)} ₸</strong>
+                    </div>
+                    <div>
+                      <span>{t('orders.bonusAdjustment')}</span>
+                      <strong>
+                        +{formatNumber(refundPreview.adjustment.spentBonusRestored)} / −
+                        {formatNumber(refundPreview.adjustment.earnedBonusReversed)}
+                      </strong>
+                    </div>
+                  </div>
+                ) : refundPreviewError ? (
+                  <div className="inline-alert inline-alert-error" role="alert">
+                    {refundPreviewError}
+                  </div>
+                ) : (
+                  <div className="inline-alert inline-alert-info" role="note">
+                    {t('orders.serverCalculatesRefund')}
+                  </div>
+                )}
+              </div>
               <label className="field-group">
                 <span className="field-label">Причина возврата</span>
                 <textarea
                   className="input-classic"
+                  name="refundReason"
+                  autoComplete="off"
                   maxLength={500}
                   value={refundReason}
                   onChange={(event) => setRefundReason(event.target.value)}
@@ -841,9 +937,16 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
                   className="btn-danger px-5 inline-flex items-center gap-2"
                   type="button"
                   onClick={() => void submitPartialRefund()}
-                  disabled={Boolean(savingId)}
+                  disabled={
+                    Boolean(savingId) ||
+                    Boolean(refundData.previewSupported && (!refundPreview || refundPreviewLoading))
+                  }
                 >
-                  {savingId ? <LoaderCircle className="spin" size={17} /> : <RotateCcw size={17} />}
+                  {savingId ? (
+                    <LoaderCircle aria-hidden="true" className="spin" size={17} />
+                  ) : (
+                    <RotateCcw aria-hidden="true" size={17} />
+                  )}
                   Вернуть выбранное
                 </button>
               </div>

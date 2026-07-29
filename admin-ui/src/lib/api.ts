@@ -64,6 +64,38 @@ const responseRequestId = (response: Response) =>
       '',
   ).trim();
 
+const REQUEST_TIMEOUT_MS = 30000;
+
+export function composeRequestAbortSignal(
+  callerSignal?: AbortSignal | null,
+  timeoutMs = REQUEST_TIMEOUT_MS,
+) {
+  const controller = new AbortController();
+  let timedOut = false;
+  let cleanedUp = false;
+  const abortFromCaller = () => controller.abort();
+
+  if (callerSignal?.aborted) controller.abort();
+  else callerSignal?.addEventListener('abort', abortFromCaller, { once: true });
+
+  const timeout = window.setTimeout(() => {
+    if (controller.signal.aborted) return;
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+
+  return {
+    signal: controller.signal,
+    didTimeout: () => timedOut,
+    cleanup: () => {
+      if (cleanedUp) return;
+      cleanedUp = true;
+      window.clearTimeout(timeout);
+      callerSignal?.removeEventListener('abort', abortFromCaller);
+    },
+  };
+}
+
 import type {
   LocalizedText,
   LoyaltyTier,
@@ -77,6 +109,9 @@ import type {
   OrderSubstitution,
   AdminOrder,
   InventoryItem,
+  PartialRefundOptions,
+  PartialRefundPreview,
+  PartialRefundResult,
   Courier,
   CourierActivity,
   DeliveryProof,
@@ -115,6 +150,9 @@ export type {
   OrderSubstitution,
   AdminOrder,
   InventoryItem,
+  PartialRefundOptions,
+  PartialRefundPreview,
+  PartialRefundResult,
   Courier,
   CourierActivity,
   DeliveryProof,
@@ -177,25 +215,24 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   }
 
   let response: Response;
-  const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 30000);
+  const requestAbort = composeRequestAbortSignal(options.signal);
   try {
     response = await fetch(`${BASE_URL}${endpoint}`, {
       ...options,
       headers,
       credentials: 'same-origin',
-      signal: options.signal ?? controller.signal,
+      signal: requestAbort.signal,
     });
   } catch (error) {
     throw new ApiError(
-      error instanceof Error && error.name === 'AbortError'
+      requestAbort.didTimeout() || (error instanceof Error && error.name === 'AbortError')
         ? 'Сервер не ответил вовремя. Повторите попытку.'
         : 'Нет связи с сервером. Проверьте интернет и повторите попытку.',
       0,
       'NETWORK_ERROR',
     );
   } finally {
-    window.clearTimeout(timeout);
+    requestAbort.cleanup();
   }
 
   if (!response.ok) {
@@ -374,7 +411,21 @@ export const api = {
       json('PATCH', { status }),
     ),
   getRefundOptions: (id: string) =>
-    request<{ success: boolean; refund: any }>(`/orders/${encodeURIComponent(id)}/refund-options`),
+    request<{ success: boolean; refund: PartialRefundOptions }>(
+      `/orders/${encodeURIComponent(id)}/refund-options`,
+    ),
+  previewPartialRefund: (
+    id: string,
+    data: {
+      reason?: string;
+      items: Array<{ lineKey: string; quantity: number }>;
+    },
+    signal?: AbortSignal,
+  ) =>
+    request<{ success: boolean; preview: PartialRefundPreview }>(
+      `/orders/${encodeURIComponent(id)}/partial-refund-preview`,
+      { ...json('POST', data), signal },
+    ),
   partialRefund: (
     id: string,
     data: {
@@ -383,7 +434,7 @@ export const api = {
       items: Array<{ lineKey: string; quantity: number }>;
     },
   ) =>
-    request<{ success: boolean; refund: any }>(
+    request<{ success: boolean; refund: PartialRefundResult }>(
       `/orders/${encodeURIComponent(id)}/partial-refund`,
       json('POST', data),
     ),
@@ -480,7 +531,10 @@ export const api = {
       '/whatsapp/settings',
       json('PUT', data),
     ),
-  getWhatsAppConversations: ({ search = '', status = '', page = 1, pageSize = 50 } = {}) => {
+  getWhatsAppConversations: (
+    { search = '', status = '', page = 1, pageSize = 50 } = {},
+    signal?: AbortSignal,
+  ) => {
     const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
     if (search.trim()) params.set('search', search.trim());
     if (status) params.set('status', status);
@@ -491,15 +545,15 @@ export const api = {
       unread: number;
       page: number;
       pageSize: number;
-    }>(`/whatsapp/conversations${params.size ? `?${params}` : ''}`);
+    }>(`/whatsapp/conversations${params.size ? `?${params}` : ''}`, { signal });
   },
-  getWhatsAppConversation: (id: string) =>
+  getWhatsAppConversation: (id: string, signal?: AbortSignal) =>
     request<{
       success: boolean;
       conversation: WhatsAppConversation;
       messages: WhatsAppMessage[];
       memories: WhatsAppMemory[];
-    }>(`/whatsapp/conversations/${encodeURIComponent(id)}`),
+    }>(`/whatsapp/conversations/${encodeURIComponent(id)}`, { signal }),
   updateWhatsAppConversation: (
     id: string,
     data: Partial<Pick<WhatsAppConversation, 'status' | 'assistantEnabled' | 'displayName'>> & {
@@ -771,12 +825,12 @@ export const api = {
       pageSize: number;
     }>(`/support?${params}`);
   },
-  getSupportRequest: (id: string) =>
+  getSupportRequest: (id: string, signal?: AbortSignal) =>
     request<{
       success: boolean;
       request: SupportRequest;
       messages: SupportMessage[];
-    }>(`/support/${encodeURIComponent(id)}`),
+    }>(`/support/${encodeURIComponent(id)}`, { signal }),
   updateSupportRequest: (
     id: string,
     data: {
@@ -828,10 +882,29 @@ export const api = {
     request<SiteAccessResponse>('/site-access', json('PUT', data)),
 
   getSecurityStatus: () => request<SecurityStatus & { success: boolean }>('/security/status'),
-  getAuditLogs: ({ page = 1, pageSize = 50 } = {}) =>
+  getAuditLogs: ({
+    page = 1,
+    pageSize = 50,
+    search = '',
+    method = '',
+    outcome = '',
+  }: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    method?: string;
+    outcome?: string;
+  } = {}) => {
+    const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    if (search.trim()) params.set('search', search.trim());
+    if (method) params.set('method', method);
+    if (outcome) params.set('outcome', outcome);
+    return (
     request<{ success: boolean; logs: AuditLog[]; total: number; page: number; pageSize: number }>(
-      `/audit-logs?page=${page}&pageSize=${pageSize}`,
-    ),
+        `/audit-logs?${params}`,
+      )
+    );
+  },
 
   uploadPhoto: (base64: string, filename: string) =>
     request<{ success: boolean; url?: string }>(

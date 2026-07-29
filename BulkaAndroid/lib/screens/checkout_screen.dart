@@ -30,7 +30,8 @@ class _CheckoutScreen extends StatefulWidget {
   final BulkaApiClient api;
   final int total;
   final List<Map<String, dynamic>> cartItems;
-  final Future<bool> Function(_CheckoutDetails details) onSubmit;
+  final Future<_CheckoutSubmissionResult> Function(_CheckoutDetails details)
+  onSubmit;
 
   @override
   State<_CheckoutScreen> createState() => _CheckoutScreenState();
@@ -165,7 +166,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         throw ApiException('payment_methods_add_error'.tr);
       }
       if (!mounted) return;
-      final saved = await Navigator.of(context).push<bool>(
+      final setupResult = await Navigator.of(context).push<FortePaymentResult>(
         MaterialPageRoute(
           builder: (_) => FortePaymentScreen(
             api: widget.api,
@@ -175,7 +176,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
           ),
         ),
       );
-      if (saved == true) {
+      if (setupResult?.paid == true) {
         await _loadPaymentMethods();
         if (!mounted) return;
         String? addedMethodId;
@@ -643,9 +644,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       }
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
+      showApiErrorSnackBar(context, error);
     } finally {
       if (mounted) setState(() => _isSelectingTime = false);
     }
@@ -736,9 +735,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       }
     } catch (error) {
       if (mounted && revision == _quoteRevision) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
+        showApiErrorSnackBar(context, error);
       }
     } finally {
       if (mounted && revision == _quoteRevision) {
@@ -838,7 +835,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         if (mounted) setState(() => _isSubmitting = false);
         return;
       }
-      final completed = await widget.onSubmit(
+      final result = await widget.onSubmit(
         _CheckoutDetails(
           checkoutId: _checkoutId,
           orderType: _orderType,
@@ -856,7 +853,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
           substitutionPreference: _substitutionPreference,
         ),
       );
-      if (mounted && completed) {
+      if (mounted && result.state == _CheckoutSubmissionState.completed) {
         final prefs = await SharedPreferences.getInstance();
         await Future.wait([
           prefs.remove(_draftKey('checkout_scheduled_at')),
@@ -866,19 +863,25 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
           prefs.remove(_draftKey('checkout_substitution_preference')),
           prefs.remove(_draftKey('checkout_preorder_fulfillment')),
         ]);
-        if (mounted) Navigator.pop(context, true);
+        if (mounted) Navigator.pop(context, _CheckoutRouteResult.completed);
       }
-      if (mounted && !completed) {
+      if (mounted &&
+          result.state == _CheckoutSubmissionState.pending &&
+          result.openOrders) {
+        Navigator.pop(context, _CheckoutRouteResult.openOrders);
+        return;
+      }
+      if (mounted && result.state != _CheckoutSubmissionState.completed) {
         setState(() {
           _isSubmitting = false;
-          _checkoutId = _newCheckoutId();
+          if (result.state == _CheckoutSubmissionState.failed) {
+            _checkoutId = _newCheckoutId();
+          }
         });
       }
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
+      showApiErrorSnackBar(context, error);
       setState(() => _isSubmitting = false);
     }
   }

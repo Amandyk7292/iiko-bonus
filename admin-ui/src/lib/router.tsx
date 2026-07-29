@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type AnchorHTMLAttributes,
   type MouseEvent,
@@ -18,24 +19,46 @@ type NavigateOptions = {
   state?: unknown;
 };
 
-type RouterLocation = {
+export type RouterLocation = {
   pathname: string;
   search: string;
   hash: string;
   state: unknown;
 };
 
+type NavigationAction = 'push' | 'replace' | 'pop';
+type NavigationBlocker = (nextLocation: RouterLocation, action: NavigationAction) => boolean;
+
 type RouterContextValue = {
   basename: string;
   location: RouterLocation;
   navigate: (to: string | number, options?: NavigateOptions) => void;
+  registerBlocker: (blocker: NavigationBlocker) => () => void;
 };
 
 const RouterContext = createContext<RouterContextValue | null>(null);
+const ROUTER_HISTORY_INDEX = '__bulkaAdminRouterIndex';
+const ROUTER_USER_STATE = '__bulkaAdminRouterState';
 
 const normalizeBasename = (value: string) => {
   const normalized = `/${String(value || '').replace(/^\/+|\/+$/g, '')}`;
   return normalized === '/' ? '' : normalized;
+};
+
+const historyIndex = (state: unknown) => {
+  if (!state || typeof state !== 'object') return null;
+  const value = (state as Record<string, unknown>)[ROUTER_HISTORY_INDEX];
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+};
+
+const withHistoryIndex = (state: unknown, index: number) => {
+  if (state && typeof state === 'object' && !Array.isArray(state)) {
+    return { ...(state as Record<string, unknown>), [ROUTER_HISTORY_INDEX]: index };
+  }
+  return {
+    [ROUTER_HISTORY_INDEX]: index,
+    [ROUTER_USER_STATE]: state ?? null,
+  };
 };
 
 const readLocation = (basename: string): RouterLocation => {
@@ -60,13 +83,79 @@ export function BrowserRouter({
   children: ReactNode;
 }) {
   const base = useMemo(() => normalizeBasename(basename), [basename]);
-  const [location, setLocation] = useState<RouterLocation>(() => readLocation(base));
+  const blockersRef = useRef(new Set<NavigationBlocker>());
+  const historyIndexRef = useRef(0);
+  const restoringPopRef = useRef(false);
+  const [location, setLocation] = useState<RouterLocation>(() => {
+    const existingIndex = historyIndex(window.history.state);
+    historyIndexRef.current = existingIndex ?? 0;
+    if (existingIndex == null) {
+      window.history.replaceState(
+        withHistoryIndex(window.history.state, historyIndexRef.current),
+        '',
+        window.location.href,
+      );
+    }
+    return readLocation(base);
+  });
+  const locationRef = useRef(location);
+  locationRef.current = location;
+
+  const navigationAllowed = useCallback(
+    (nextLocation: RouterLocation, action: NavigationAction) =>
+      Array.from(blockersRef.current).every((blocker) => blocker(nextLocation, action)),
+    [],
+  );
+
+  const registerBlocker = useCallback((blocker: NavigationBlocker) => {
+    blockersRef.current.add(blocker);
+    return () => {
+      blockersRef.current.delete(blocker);
+    };
+  }, []);
 
   useEffect(() => {
-    const handlePopState = () => setLocation(readLocation(base));
+    const handlePopState = () => {
+      const nextLocation = readLocation(base);
+      const nextIndex = historyIndex(window.history.state);
+      if (restoringPopRef.current) {
+        restoringPopRef.current = false;
+        if (nextIndex != null) historyIndexRef.current = nextIndex;
+        locationRef.current = nextLocation;
+        setLocation(nextLocation);
+        return;
+      }
+      if (!navigationAllowed(nextLocation, 'pop')) {
+        const currentLocation = locationRef.current;
+        const currentIndex = historyIndexRef.current;
+        if (nextIndex != null && nextIndex !== currentIndex) {
+          restoringPopRef.current = true;
+          window.history.go(currentIndex - nextIndex);
+          return;
+        }
+        const currentUrl = `${base}${currentLocation.pathname}${currentLocation.search}${currentLocation.hash}`;
+        window.history.pushState(
+          withHistoryIndex(currentLocation.state, currentIndex),
+          '',
+          currentUrl,
+        );
+        return;
+      }
+      const acceptedIndex = nextIndex ?? historyIndexRef.current + 1;
+      if (nextIndex == null) {
+        window.history.replaceState(
+          withHistoryIndex(window.history.state, acceptedIndex),
+          '',
+          window.location.href,
+        );
+      }
+      historyIndexRef.current = acceptedIndex;
+      locationRef.current = nextLocation;
+      setLocation(nextLocation);
+    };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [base]);
+  }, [base, navigationAllowed]);
 
   const navigate = useCallback(
     (to: string | number, options: NavigateOptions = {}) => {
@@ -81,16 +170,33 @@ export function BrowserRouter({
         window.location.origin,
       );
       const nextUrl = `${target.pathname}${target.search}${target.hash}`;
-      if (options.replace) window.history.replaceState(options.state ?? null, '', nextUrl);
-      else window.history.pushState(options.state ?? null, '', nextUrl);
-      setLocation(readLocation(base));
+      const targetPathname =
+        base && (target.pathname === base || target.pathname.startsWith(`${base}/`))
+          ? target.pathname.slice(base.length) || '/'
+          : target.pathname;
+      const nextLocation: RouterLocation = {
+        pathname: targetPathname,
+        search: target.search,
+        hash: target.hash,
+        state: options.state ?? null,
+      };
+      const action = options.replace ? 'replace' : 'push';
+      if (!navigationAllowed(nextLocation, action)) return;
+      const nextIndex = options.replace ? historyIndexRef.current : historyIndexRef.current + 1;
+      const nextState = withHistoryIndex(options.state, nextIndex);
+      if (options.replace) window.history.replaceState(nextState, '', nextUrl);
+      else window.history.pushState(nextState, '', nextUrl);
+      historyIndexRef.current = nextIndex;
+      const resolvedLocation = readLocation(base);
+      locationRef.current = resolvedLocation;
+      setLocation(resolvedLocation);
     },
-    [base, location.pathname],
+    [base, location.pathname, navigationAllowed],
   );
 
   const value = useMemo(
-    () => ({ basename: base, location, navigate }),
-    [base, location, navigate],
+    () => ({ basename: base, location, navigate, registerBlocker }),
+    [base, location, navigate, registerBlocker],
   );
   return <RouterContext.Provider value={value}>{children}</RouterContext.Provider>;
 }
@@ -103,6 +209,20 @@ const useRouter = () => {
 
 export const useLocation = () => useRouter().location;
 export const useNavigate = () => useRouter().navigate;
+
+export function useNavigationBlocker(
+  enabled: boolean,
+  blocker: (nextLocation: RouterLocation, action: NavigationAction) => boolean,
+) {
+  const { registerBlocker } = useRouter();
+  const blockerRef = useRef(blocker);
+  blockerRef.current = blocker;
+
+  useEffect(() => {
+    if (!enabled) return;
+    return registerBlocker((nextLocation, action) => blockerRef.current(nextLocation, action));
+  }, [enabled, registerBlocker]);
+}
 
 type LinkProps = Omit<AnchorHTMLAttributes<HTMLAnchorElement>, 'href'> & {
   to: string;

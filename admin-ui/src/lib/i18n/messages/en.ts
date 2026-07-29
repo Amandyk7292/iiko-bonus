@@ -504,6 +504,14 @@ const en: Record<string, string> = {
   'orders.refundConfirm':
     'Cancel the order and refund {{amount}} ₸ to the original payment method? Card posting time depends on the customer’s bank.',
   'orders.refundSucceeded': 'Order cancelled and refund submitted to the original payment method',
+  'orders.calculatingRefund': 'Calculating the exact refund…',
+  'orders.refundNow': 'Refund amount',
+  'orders.remainingAfterRefund': 'Remaining refundable',
+  'orders.bonusAdjustment': 'Bonuses: restore / reverse',
+  'orders.serverCalculatesRefund':
+    'The server calculates the exact amount and bonus adjustment on confirmation.',
+  'orders.refundPreviewUnavailable': 'Could not calculate the refund. Refresh the data.',
+  'orders.waitForRefundPreview': 'Wait for the exact refund calculation.',
   'orders.substitutionLabel': 'If an item is unavailable',
   'orders.substitution.remove_refund': 'Remove it and refund the amount',
   'orders.substitution.call_customer': 'Call the customer',
@@ -807,6 +815,15 @@ const en: Record<string, string> = {
   'inventory.emptyHint': 'Run iiko synchronization to create branch inventory.',
   'inventory.reservationHint':
     'Stock is reserved when an invoice is created and released when payment is cancelled or expires.',
+  'inventory.unsaved': 'Unsaved changes',
+  'inventory.serverConflict': 'Stock changed on the server',
+  'inventory.useServer': 'Use server value',
+  'inventory.keepMine': 'Keep my value',
+  'inventory.unsavedNavigation':
+    'There are unsaved stock changes. Leave the page and lose them?',
+  'inventory.unsavedBranch':
+    'Changing the branch will discard unsaved stock changes.',
+  'inventory.discardAndContinue': 'Discard & continue',
   'couriers.heading': 'Delivery team',
   'couriers.intro': 'Add couriers, assign paid orders, and manage availability.',
   'couriers.add': 'Add courier',
@@ -858,6 +875,22 @@ const en: Record<string, string> = {
   'security.result': 'Result',
   'security.ip': 'IP',
   'security.noAudit': 'No audit records yet',
+  'security.filters': 'Audit log filters',
+  'security.searchPlaceholder': 'Administrator, path, request code…',
+  'security.method': 'Method',
+  'security.allMethods': 'All methods',
+  'security.allResults': 'All results',
+  'security.success': 'Success',
+  'security.rejected': 'Rejected',
+  'security.serverError': 'Server error',
+  'security.requestId': 'Request code',
+  'security.openDetails': 'Open audit details',
+  'security.auditDetails': 'Audit details',
+  'security.path': 'API path',
+  'security.target': 'Target',
+  'security.reason': 'Reason',
+  'security.previousPage': 'Previous',
+  'security.nextPage': 'Next',
   'orders.delivery': 'Delivery',
   'orders.customerArrived': 'Customer arrived',
   'orders.assignCourier': 'Assign courier',
@@ -914,6 +947,17 @@ const en: Record<string, string> = {
   'realtime.offline': 'Offline',
   'realtime.updatedNow': 'Updated just now',
   'realtime.updatedMinutes': 'Updated {{count}} min ago',
+  'support.sentToOriginal': 'Reply sent to the original request',
+  'support.switchDraftTitle': 'Switch to another request?',
+  'support.switchDraftBody':
+    'The message has not been sent. Its draft will stay with the current request.',
+  'support.switchDraftConfirm': 'Switch',
+  'whatsapp.switchDraftTitle': 'Switch to another chat?',
+  'whatsapp.switchDraftBody':
+    'The message has not been sent. Its draft will stay with the current customer.',
+  'whatsapp.switchDraftConfirm': 'Switch',
+  'whatsapp.recipientMismatch':
+    'The server response belongs to another chat. The message remains in its draft.',
 };
 
 export default en;

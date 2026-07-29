@@ -1,16 +1,22 @@
 part of '../main.dart';
 
+const _explicitFulfillmentCityKey = 'selected_fulfillment_city_explicit';
+
+String _explicitFulfillmentCityTypeKey(String orderType) =>
+    '${_explicitFulfillmentCityKey}_${_orderTypeFromWire(orderType).wireValue}';
+
 class LocationsScreen extends StatefulWidget {
-  const LocationsScreen({this.orderType = 'pickup', super.key});
+  const LocationsScreen({this.orderType = 'pickup', this.api, super.key});
 
   final String orderType;
+  final BulkaApiClient? api;
 
   @override
   State<LocationsScreen> createState() => _LocationsScreenState();
 }
 
 class _LocationsScreenState extends State<LocationsScreen> {
-  bool _showCities = false;
+  bool _showCities = true;
   String _selectedCity = '';
   String _searchQuery = '';
   final _searchController = TextEditingController();
@@ -33,7 +39,12 @@ class _LocationsScreenState extends State<LocationsScreen> {
       });
     }
     try {
-      final api = BulkaApiClient();
+      final api = widget.api ?? BulkaApiClient();
+      final prefs = await SharedPreferences.getInstance();
+      final savedCity =
+          prefs.getString(_explicitFulfillmentCityTypeKey(widget.orderType)) ??
+          prefs.getString(_explicitFulfillmentCityKey) ??
+          '';
       final locations = await api.getFulfillmentLocations();
       final locs = <String, List<BakeryLocation>>{};
       for (final location in locations) {
@@ -46,10 +57,8 @@ class _LocationsScreenState extends State<LocationsScreen> {
       if (!mounted) return;
       setState(() {
         _cityLocations = locs;
-        if (_cityLocations.isNotEmpty &&
-            !_cityLocations.containsKey(_selectedCity)) {
-          _selectedCity = _cityLocations.keys.first;
-        }
+        _selectedCity = _cityLocations.containsKey(savedCity) ? savedCity : '';
+        _showCities = _selectedCity.isEmpty;
         _loading = false;
       });
     } catch (e) {
@@ -62,7 +71,13 @@ class _LocationsScreenState extends State<LocationsScreen> {
     }
   }
 
-  void _onCityTapped(String city) {
+  Future<void> _onCityTapped(String city) async {
+    final prefs = await SharedPreferences.getInstance();
+    await Future.wait([
+      prefs.setString(_explicitFulfillmentCityKey, city),
+      prefs.setString(_explicitFulfillmentCityTypeKey(widget.orderType), city),
+    ]);
+    if (!mounted) return;
     setState(() {
       _selectedCity = city;
       _showCities = false;
@@ -84,6 +99,16 @@ class _LocationsScreenState extends State<LocationsScreen> {
 
   Future<void> _onLocationTapped(BakeryLocation location) async {
     final prefs = await SharedPreferences.getInstance();
+    final city = location.city.trim();
+    if (city.isNotEmpty) {
+      await Future.wait([
+        prefs.setString(_explicitFulfillmentCityKey, city),
+        prefs.setString(
+          _explicitFulfillmentCityTypeKey(widget.orderType),
+          city,
+        ),
+      ]);
+    }
     if (location.id.isEmpty) {
       await prefs.remove('selected_bakery_location_id');
     } else {
@@ -118,43 +143,59 @@ class _LocationsScreenState extends State<LocationsScreen> {
         )
         .toList();
 
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        toolbarHeight: BulkaLayout.appBarHeight(context),
-        backgroundColor: scheme.surface,
-        centerTitle: true,
-        leading: IconButton(
-          onPressed: () {
-            if (_showCities) {
-              setState(() => _showCities = false);
-            } else {
-              Navigator.of(context).pop();
-            }
-          },
-          icon: const Icon(Icons.chevron_left_rounded, size: 34),
-          color: colors.mutedText,
-          tooltip: 'back_tooltip'.tr,
+    return PopScope(
+      canPop: _showCities,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && !_showCities) {
+          setState(() {
+            _showCities = true;
+            _searchQuery = '';
+          });
+          _searchController.clear();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        appBar: AppBar(
+          toolbarHeight: BulkaLayout.appBarHeight(context),
+          backgroundColor: scheme.surface,
+          centerTitle: true,
+          leading: IconButton(
+            onPressed: () {
+              if (!_showCities) {
+                setState(() {
+                  _showCities = true;
+                  _searchQuery = '';
+                });
+                _searchController.clear();
+                return;
+              }
+              Navigator.of(context).maybePop();
+            },
+            icon: const Icon(Icons.chevron_left_rounded, size: 34),
+            color: colors.mutedText,
+            tooltip: 'back_tooltip'.tr,
+          ),
+          title: _BulkaPageTitle('locations_title'.tr, color: scheme.onSurface),
+          actions: const [SizedBox(width: BulkaLayout.appBarSideSlot)],
+          elevation: 0,
         ),
-        title: _BulkaPageTitle('locations_title'.tr, color: scheme.onSurface),
-        actions: const [SizedBox(width: BulkaLayout.appBarSideSlot)],
-        elevation: 0,
-      ),
-      body: SafeArea(
-        child: _loading
-            ? const Center(
-                child: CircularProgressIndicator(color: Colors.orange),
-              )
-            : _loadFailed
-            ? _LocationsState(
-                icon: Icons.cloud_off_rounded,
-                title: 'locations_error'.tr,
-                actionLabel: 'retry_btn'.tr,
-                onAction: _loadLocations,
-              )
-            : (_showCities
-                  ? _buildCitiesList()
-                  : _buildLocationsList(filteredLocations)),
+        body: SafeArea(
+          child: _loading
+              ? const Center(
+                  child: CircularProgressIndicator(color: Colors.orange),
+                )
+              : _loadFailed
+              ? _LocationsState(
+                  icon: Icons.cloud_off_rounded,
+                  title: 'locations_error'.tr,
+                  actionLabel: 'retry_btn'.tr,
+                  onAction: _loadLocations,
+                )
+              : (_showCities
+                    ? _buildCitiesList()
+                    : _buildLocationsList(filteredLocations)),
+        ),
       ),
     );
   }
@@ -188,7 +229,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
             ),
           ),
           trailing: const Icon(Icons.chevron_right_rounded, color: _almond),
-          onTap: () => _onCityTapped(city),
+          onTap: () => unawaited(_onCityTapped(city)),
         );
       },
     );

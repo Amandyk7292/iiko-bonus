@@ -2,6 +2,8 @@ part of '../main.dart';
 
 enum _OrderType { pickup, delivery, preorder }
 
+enum _PendingForteAction { stay, check, orders }
+
 extension on _OrderType {
   String get wireValue => switch (this) {
     _OrderType.pickup => 'pickup',
@@ -35,6 +37,7 @@ class OrdersScreen extends StatefulWidget {
     this.transactions = const [],
     this.onExplore,
     this.onRequireAuth,
+    this.onOpenOrders,
     super.key,
   });
 
@@ -43,6 +46,7 @@ class OrdersScreen extends StatefulWidget {
   final List<BonusTransaction> transactions;
   final VoidCallback? onExplore;
   final Future<bool> Function()? onRequireAuth;
+  final Future<void> Function()? onOpenOrders;
 
   @override
   State<OrdersScreen> createState() => _OrdersScreenState();
@@ -142,8 +146,79 @@ class _OrdersScreenState extends State<OrdersScreen> {
   List<Map<String, dynamic>> _paymentItems(CartProvider cart) =>
       cart.items.values.map((item) => item.toOrderPayload()).toList();
 
-  Future<bool> _createOrder(CartProvider cart, _CheckoutDetails details) async {
-    if (cart.items.isEmpty) return false;
+  Future<_CheckoutSubmissionResult?> _reconcilePendingPayment(
+    CartProvider cart,
+  ) async {
+    final pending = await PendingForteOperationStore.load(widget.api);
+    if (pending == null) return null;
+    try {
+      final status = await widget.api.checkFortePaymentStatus(
+        pending.operationId,
+      );
+      final paymentStatus = _asString(
+        status['paymentStatus'] ?? status['status'],
+        fallback: 'pending',
+      ).toLowerCase();
+      if (paymentStatus == 'paid') {
+        await PendingForteOperationStore.clear(widget.api);
+        cart.clear();
+        return const _CheckoutSubmissionResult.completed();
+      }
+      if (isTerminalForteFailure(paymentStatus)) {
+        await PendingForteOperationStore.clear(widget.api);
+        return null;
+      }
+    } catch (_) {
+      // A temporary status failure is still uncertain. Never create a second
+      // payment until the existing operation is reconciled.
+    }
+    if (!mounted) {
+      return const _CheckoutSubmissionResult(_CheckoutSubmissionState.pending);
+    }
+    final action =
+        await showDialog<_PendingForteAction>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: Text('forte_payment_pending_title'.tr),
+            content: Text('forte_payment_pending_hint'.tr),
+            actions: [
+              TextButton(
+                onPressed: () =>
+                    Navigator.pop(dialogContext, _PendingForteAction.stay),
+                child: Text('cancel_btn'.tr),
+              ),
+              OutlinedButton(
+                onPressed: () =>
+                    Navigator.pop(dialogContext, _PendingForteAction.orders),
+                child: Text('forte_payment_my_orders'.tr),
+              ),
+              FilledButton(
+                onPressed: () =>
+                    Navigator.pop(dialogContext, _PendingForteAction.check),
+                child: Text('forte_payment_check_status'.tr),
+              ),
+            ],
+          ),
+        ) ??
+        _PendingForteAction.stay;
+    if (action == _PendingForteAction.check) {
+      return _reconcilePendingPayment(cart);
+    }
+    return _CheckoutSubmissionResult(
+      _CheckoutSubmissionState.pending,
+      openOrders: action == _PendingForteAction.orders,
+    );
+  }
+
+  Future<_CheckoutSubmissionResult> _createOrder(
+    CartProvider cart,
+    _CheckoutDetails details,
+  ) async {
+    if (cart.items.isEmpty) {
+      return const _CheckoutSubmissionResult(_CheckoutSubmissionState.failed);
+    }
+    final reconciled = await _reconcilePendingPayment(cart);
+    if (reconciled != null) return reconciled;
     final items = cart.items.values
         .map((item) => item.toOrderPayload())
         .toList();
@@ -170,18 +245,34 @@ class _OrdersScreenState extends State<OrdersScreen> {
     if (forteRedirectUrl.isEmpty) {
       throw ApiException('forte_checkout_invalid'.tr);
     }
-    if (!mounted) return false;
-    final paid = await Navigator.of(context).push<bool>(
+    await PendingForteOperationStore.save(
+      widget.api,
+      operationId: operationId,
+      checkoutId: details.checkoutId,
+    );
+    if (!mounted) {
+      return const _CheckoutSubmissionResult(_CheckoutSubmissionState.pending);
+    }
+    final paymentResult = await Navigator.of(context).push<FortePaymentResult>(
       MaterialPageRoute(
         builder: (_) => FortePaymentScreen(
           api: widget.api,
           operationId: operationId,
           redirectUrl: forteRedirectUrl,
+          checkoutId: details.checkoutId,
         ),
       ),
     );
-    if (paid == true) cart.clear();
-    return paid == true;
+    if (paymentResult?.paid == true) {
+      cart.clear();
+      return const _CheckoutSubmissionResult.completed();
+    }
+    return _CheckoutSubmissionResult(
+      paymentResult?.outcome == FortePaymentOutcome.failed
+          ? _CheckoutSubmissionState.failed
+          : _CheckoutSubmissionState.pending,
+      openOrders: paymentResult?.openOrders == true,
+    );
   }
 
   Future<void> _openCheckout(BuildContext context, CartProvider cart) async {
@@ -195,10 +286,10 @@ class _OrdersScreenState extends State<OrdersScreen> {
     _checkoutOpen = true;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('lastAppScreen', 'checkout');
-    bool? completed;
+    _CheckoutRouteResult? completed;
     try {
       if (!context.mounted) return;
-      completed = await Navigator.of(context).push<bool>(
+      completed = await Navigator.of(context).push<_CheckoutRouteResult>(
         MaterialPageRoute(
           settings: const RouteSettings(name: 'checkout'),
           builder: (_) => _CheckoutScreen(
@@ -213,8 +304,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
       _checkoutOpen = false;
       await prefs.setString('lastAppScreen', 'main');
     }
-    if (!context.mounted || completed != true) return;
-    _showSuccessDialog(context);
+    if (!context.mounted) return;
+    if (completed == _CheckoutRouteResult.completed) {
+      _showSuccessDialog(context);
+    } else if (completed == _CheckoutRouteResult.openOrders) {
+      await widget.onOpenOrders?.call();
+    }
   }
 
   Future<void> _confirmClear(BuildContext context, CartProvider cart) async {

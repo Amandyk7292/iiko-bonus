@@ -1,4 +1,6 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const test = require('node:test');
 
 const {
@@ -12,6 +14,8 @@ const fixedNow = new Date('2026-07-27T12:00:00.000Z');
 const createHarness = () => {
   const settings = new Map();
   let widgetAvailable = true;
+  let checkoutProbeCalls = 0;
+  let connectionProbeCalls = 0;
   const service = new PaymentOperationsService({
     readSetting: async (key) =>
       settings.has(key) ? { value: JSON.stringify(settings.get(key)) } : null,
@@ -27,12 +31,25 @@ const createHarness = () => {
     },
     widget: {
       availability: () => true,
-      probeCheckout: async () => ({
-        available: widgetAvailable,
-        message: widgetAvailable ? 'Карты доступны' : 'Нет доступных методов',
-        errorCode: widgetAvailable ? null : 'FORTE_WIDGET_NO_PAYMENT_METHODS',
-        availableMethods: widgetAvailable ? ['credit_card'] : [],
-      }),
+      probeCheckout: async () => {
+        checkoutProbeCalls += 1;
+        return {
+          available: widgetAvailable,
+          message: widgetAvailable ? 'Карты доступны' : 'Нет доступных методов',
+          errorCode: widgetAvailable ? null : 'FORTE_WIDGET_NO_PAYMENT_METHODS',
+          availableMethods: widgetAvailable ? ['credit_card'] : [],
+        };
+      },
+      probeConnection: async () => {
+        connectionProbeCalls += 1;
+        return {
+          available: widgetAvailable,
+          message: widgetAvailable ? 'API отвечает' : 'Временный отказ',
+          errorCode: widgetAvailable ? null : 'FORTE_WIDGET_CAPABILITY_UNAVAILABLE',
+          availableMethods: [],
+          readOnly: true,
+        };
+      },
     },
     env: {
       FORTE_ENABLED: 'true',
@@ -49,6 +66,9 @@ const createHarness = () => {
     settings,
     setWidgetAvailable(value) {
       widgetAvailable = value;
+    },
+    probeCalls() {
+      return { checkout: checkoutProbeCalls, connection: connectionProbeCalls };
     },
   };
 };
@@ -107,4 +127,41 @@ test('automatic Widget fallback is limited to failures known to be safe', () => 
   );
   assert.equal(isSafeWidgetFallbackError({ code: 'FORTE_WIDGET_NETWORK_ERROR' }), true);
   assert.equal(isSafeWidgetFallbackError({ code: 'FORTE_WIDGET_SAVE_FAILED' }), false);
+});
+
+test('one scheduled transient does not disable a working Widget or create a checkout', async () => {
+  const harness = createHarness();
+  await harness.service.setWidgetEnabled(true, { updatedBy: 'admin' });
+  harness.setWidgetAvailable(false);
+  await harness.service.runScheduledSafeProbe();
+  const decision = await harness.service.getForteCheckoutDecision();
+  assert.equal(decision.effectiveIntegration, 'widget');
+  assert.equal(decision.fallbackActive, false);
+  assert.deepEqual(harness.probeCalls(), { checkout: 1, connection: 1 });
+  const health = harness.settings.get('payment_provider_probe').forteWidget;
+  assert.equal(health.available, false);
+  assert.equal(health.effectiveAvailable, true);
+  assert.equal(health.consecutiveFailures, 1);
+});
+
+test('scheduled safe probe opens the circuit only after consecutive failures', async () => {
+  const harness = createHarness();
+  await harness.service.setWidgetEnabled(true, { updatedBy: 'admin' });
+  harness.setWidgetAvailable(false);
+  await harness.service.runScheduledSafeProbe();
+  await harness.service.runScheduledSafeProbe();
+  await assert.rejects(
+    () => harness.service.runScheduledSafeProbe(),
+    (error) =>
+      error.code === 'PAYMENT_PROVIDER_PROBE_UNHEALTHY' && error.providers.includes('forteWidget'),
+  );
+  const decision = await harness.service.getForteCheckoutDecision();
+  assert.equal(decision.effectiveIntegration, 'hosted_page');
+  assert.equal(harness.settings.get('payment_provider_probe').forteWidget.consecutiveFailures, 3);
+  assert.deepEqual(harness.probeCalls(), { checkout: 1, connection: 3 });
+});
+
+test('scheduled payment capability check runs every thirty minutes', () => {
+  const server = fs.readFileSync(path.join(__dirname, '..', 'src', 'server.js'), 'utf8');
+  assert.match(server, /PAYMENT_PROVIDER_PROBE_INTERVAL_MS\s*=\s*30\s*\*\s*60\s*\*\s*1000/);
 });

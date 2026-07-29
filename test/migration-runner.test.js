@@ -19,7 +19,7 @@ test('migration runner discovers only canonical timestamped migrations', () => {
   const artifacts = migrationArtifacts();
   assert.equal(
     artifacts.at(-1).filename,
-    '20260729140000_privacy_storage_cleanup.sql',
+    '20260729150000_payment_creation_legal_consent_key_rotation.sql',
   );
   assert.equal(artifacts[0].filename, '20260426000000_production_hardening.sql');
   assert.equal(

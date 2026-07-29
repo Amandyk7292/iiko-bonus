@@ -20,6 +20,57 @@ const fortePaymentMethodParamsSchema = z.object({ methodId: z.string().trim().uu
 const forteCardSetupBodySchema = z
   .object({ language: z.enum(['ru', 'kk', 'en']).optional().default('ru') })
   .strict();
+const nullableText = (maximum) => z.string().trim().max(maximum).nullish();
+const cartConfigurationSchema = z.record(z.string().max(80), z.unknown());
+const cartModifierSchema = z.record(z.string().max(80), z.unknown());
+const checkoutItemSchema = z
+  .object({
+    id: resourceIdSchema,
+    quantity: z.coerce.number().int().min(1).max(99),
+    configuration: cartConfigurationSchema.nullish(),
+    modifiers: z.array(cartModifierSchema).max(50).nullish(),
+  })
+  .strict();
+const checkoutAddressSchema = z
+  .object({
+    label: nullableText(160),
+    address: z.string().trim().min(1).max(500),
+    city: z.string().trim().min(1).max(160),
+    latitude: coordinateSchema.min(-90).max(90),
+    longitude: coordinateSchema.min(-180).max(180),
+    entrance: nullableText(80),
+    floor: nullableText(40),
+    apartment: nullableText(80),
+    comment: nullableText(500),
+  })
+  .strict();
+const checkoutQuoteBodySchema = z
+  .object({
+    items: z.array(checkoutItemSchema).min(1).max(50),
+    orderType: z.enum(['pickup', 'delivery', 'preorder']).nullish(),
+    fulfillmentType: z.enum(['pickup', 'delivery', 'preorder']).nullish(),
+    preorderFulfillmentType: z.enum(['pickup', 'delivery']).nullish(),
+    branch: nullableText(160),
+    branchId: nullableText(128),
+    scheduledAt: z.iso.datetime({ offset: true }).nullish(),
+    pickupTime: z.iso.datetime({ offset: true }).nullish(),
+    deliveryAddress: checkoutAddressSchema.nullish(),
+    promoCode: nullableText(80),
+  })
+  .strict();
+const checkoutPaymentBodySchema = checkoutQuoteBodySchema
+  .extend({
+    checkoutId: z.string().trim().uuid(),
+    savedPaymentMethodId: nullableText(200),
+    additionalPhone: nullableText(32),
+    comment: nullableText(500),
+    substitutionPreference: z
+      .enum(['remove_refund', 'call_customer', 'replace_with_approval'])
+      .optional()
+      .default('call_customer'),
+    language: z.enum(['ru', 'kk', 'en']).nullish(),
+  })
+  .strict();
 
 const courierAuthRequestBodySchema = z
   .object({
@@ -196,6 +247,8 @@ const analyticsEventsBodySchema = z
 
 module.exports = {
   analyticsEventsBodySchema,
+  checkoutPaymentBodySchema,
+  checkoutQuoteBodySchema,
   courierAuthRequestBodySchema,
   courierAuthVerifyBodySchema,
   courierConfirmDeliveryBodySchema,

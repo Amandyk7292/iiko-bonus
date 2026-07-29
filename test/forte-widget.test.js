@@ -15,6 +15,7 @@ const {
   mapWidgetStatus,
   normalizeWidgetCheckout,
   resolveCardSetupStatus,
+  tokenEncryptionKeyring,
   verifyWebhookBasicAuth,
   verifyWebhookSignature,
   widgetCheckoutAvailability,
@@ -158,6 +159,22 @@ test('Forte checkout is available before the customer starts the card gateway', 
   );
 });
 
+test('scheduled Forte capability probe is read-only and accepts an authenticated 404', async () => {
+  let requestOptions;
+  const service = new ForteWidgetService({
+    env,
+    fetchImpl: async (_url, options) => {
+      requestOptions = options;
+      return response({}, { ok: false, status: 404 });
+    },
+  });
+  const result = await service.probeConnection();
+  assert.equal(requestOptions.method, 'GET');
+  assert.equal(requestOptions.body, undefined);
+  assert.equal(result.available, true);
+  assert.equal(result.readOnly, true);
+});
+
 test('Forte widget launch keeps the payment token out of the query string', () => {
   const url = new URL(
     buildWidgetLaunchUrl({
@@ -181,11 +198,77 @@ test('Forte widget launch keeps the payment token out of the query string', () =
 
 test('Forte provider tokens use authenticated encryption bound to their owner', () => {
   const encrypted = encryptProviderToken(checkoutToken, 'checkout', operationId, env);
+  assert.match(encrypted, /^v2\.[A-Za-z0-9_-]{4,40}\./);
   assert.notEqual(encrypted, checkoutToken);
   assert.equal(decryptProviderToken(encrypted, 'checkout', operationId, env), checkoutToken);
   assert.throws(
     () => decryptProviderToken(encrypted, 'checkout', crypto.randomUUID(), env),
     (error) => error.code === 'FORTE_WIDGET_TOKEN_DECRYPTION_FAILED',
+  );
+});
+
+test('Forte token keyring decrypts rotated v2 and legacy v1 envelopes', () => {
+  const previousKey = 'previous-widget-token-key-longer-than-thirty-two';
+  const previousEnv = {
+    ...env,
+    FORTE_WIDGET_TOKEN_KEY: previousKey,
+    FORTE_WIDGET_TOKEN_KEY_ID: 'previous-2026',
+  };
+  const rotatedEnv = {
+    ...env,
+    FORTE_WIDGET_TOKEN_KEY: 'current-widget-token-key-longer-than-thirty-two',
+    FORTE_WIDGET_TOKEN_KEY_ID: 'current-2026',
+    FORTE_WIDGET_TOKEN_PREVIOUS_KEYS: JSON.stringify({
+      'previous-2026': previousKey,
+    }),
+  };
+  const rotatedEnvelope = encryptProviderToken(checkoutToken, 'checkout', operationId, previousEnv);
+  assert.equal(
+    decryptProviderToken(rotatedEnvelope, 'checkout', operationId, rotatedEnv),
+    checkoutToken,
+  );
+
+  const iv = crypto.randomBytes(12);
+  const key = crypto.createHash('sha256').update(previousKey, 'utf8').digest();
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  cipher.setAAD(Buffer.from(`forte-widget:checkout:${operationId}`, 'utf8'));
+  const ciphertext = Buffer.concat([cipher.update(checkoutToken, 'utf8'), cipher.final()]);
+  const legacyEnvelope = [
+    'v1',
+    iv.toString('base64url'),
+    cipher.getAuthTag().toString('base64url'),
+    ciphertext.toString('base64url'),
+  ].join('.');
+  assert.equal(
+    decryptProviderToken(legacyEnvelope, 'checkout', operationId, rotatedEnv),
+    checkoutToken,
+  );
+});
+
+test('Forte token keyring rejects one kid assigned to different keys', () => {
+  const currentKey = 'current-widget-token-key-longer-than-thirty-two';
+  const duplicateKey = 'different-widget-token-key-longer-than-thirty-two';
+  assert.throws(
+    () =>
+      tokenEncryptionKeyring({
+        ...env,
+        FORTE_WIDGET_TOKEN_KEY: currentKey,
+        FORTE_WIDGET_TOKEN_KEY_ID: 'duplicate-2026',
+        FORTE_WIDGET_TOKEN_PREVIOUS_KEYS: JSON.stringify({
+          'duplicate-2026': duplicateKey,
+        }),
+      }),
+    (error) => error.code === 'FORTE_WIDGET_TOKEN_ENCRYPTION_UNAVAILABLE',
+  );
+  assert.doesNotThrow(() =>
+    tokenEncryptionKeyring({
+      ...env,
+      FORTE_WIDGET_TOKEN_KEY: currentKey,
+      FORTE_WIDGET_TOKEN_KEY_ID: 'duplicate-2026',
+      FORTE_WIDGET_TOKEN_PREVIOUS_KEYS: JSON.stringify({
+        'duplicate-2026': currentKey,
+      }),
+    }),
   );
 });
 

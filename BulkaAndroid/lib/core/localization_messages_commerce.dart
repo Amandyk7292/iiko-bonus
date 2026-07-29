@@ -299,6 +299,11 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'kk': 'Visa, Mastercard',
     'en': 'Visa, Mastercard',
   },
+  'checkout_saved_card_oneclick_hint': {
+    'ru': 'Данные подставятся; банк может запросить CVV или код.',
+    'kk': 'Деректер толтырылады; банк CVV немесе код сұрауы мүмкін.',
+    'en': 'Card details will be filled in; the bank may request CVV or a code.',
+  },
   'payment_method_unavailable': {
     'ru': 'Сейчас недоступно',
     'kk': 'Қазір қолжетімсіз',
@@ -419,6 +424,42 @@ const Map<String, Map<String, String>> _commerceTranslations = {
         'Банк беті жабылды. Бірнеше секунд күтіңіз — төлем нәтижесін растап жатырмыз.',
     'en':
         'The bank page is closed. Please wait a few seconds while we confirm the payment result.',
+  },
+  'forte_payment_pending_title': {
+    'ru': 'Результат ещё уточняется',
+    'kk': 'Нәтиже әлі тексеріліп жатыр',
+    'en': 'The result is still being checked',
+  },
+  'forte_payment_pending_hint': {
+    'ru':
+        'Не начинайте новую оплату. Сначала проверьте эту операцию или откройте «Мои заказы».',
+    'kk':
+        'Жаңа төлемді бастамаңыз. Алдымен осы операцияны тексеріңіз немесе «Менің тапсырыстарым» бөлімін ашыңыз.',
+    'en':
+        'Do not start another payment. Check this operation first or open My orders.',
+  },
+  'forte_payment_check_status': {
+    'ru': 'Проверить статус',
+    'kk': 'Күйін тексеру',
+    'en': 'Check status',
+  },
+  'forte_payment_my_orders': {
+    'ru': 'Мои заказы',
+    'kk': 'Менің тапсырыстарым',
+    'en': 'My orders',
+  },
+  'forte_payment_close_confirm_title': {
+    'ru': 'Закрыть страницу оплаты?',
+    'kk': 'Төлем бетін жабу керек пе?',
+    'en': 'Close the payment page?',
+  },
+  'forte_payment_close_confirm_hint': {
+    'ru':
+        'Банк ещё может подтвердить операцию. Мы сохраним её и не создадим повторную оплату.',
+    'kk':
+        'Банк операцияны әлі растауы мүмкін. Біз оны сақтап, қайталама төлем жасамаймыз.',
+    'en':
+        'The bank may still confirm this operation. We will keep it and prevent a duplicate payment.',
   },
   'forte_payment_embed_failed': {
     'ru':

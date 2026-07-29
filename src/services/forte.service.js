@@ -768,6 +768,7 @@ class ForteService {
     } catch (error) {
       error.refundUncertain = true;
       error.code = 'FORTE_REFUND_UNKNOWN';
+      error.requestId = requestId;
       throw error;
     }
     const { response, body } = result;

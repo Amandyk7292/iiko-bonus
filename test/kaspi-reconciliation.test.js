@@ -195,8 +195,9 @@ test('reconciliation selects only unfinished work, deduplicates it and handles n
   service.recordPaidOrder = async (operationId) => actions.push(['paid', operationId]);
   service.reverseOrderLoyalty = async (order) => actions.push(['reversed', order.operation_id]);
   service.syncRemoteOrder = async (operationId) => actions.push(['pending', operationId]);
+  service.recoverPaymentCreationClaims = async () => 0;
 
-  const processed = await service.reconcileOrders();
+  const processed = await service.reconcileOrders({ syncKaspiPending: true });
 
   assert.equal(processed, 5);
   assert.deepEqual(actions, [
@@ -267,4 +268,41 @@ test('reconciliation selects only unfinished work, deduplicates it and handles n
     assert.equal(order?.value?.ascending, false);
     assert.equal(query.steps.find((step) => step.method === 'limit')?.value, 50);
   }
+});
+
+test('paid-order finalization still runs when Kaspi is disabled', async (t) => {
+  const paidForteOrder = {
+    id: 'forte-paid',
+    operation_id: 'forte-operation',
+    payment_method: 'forte_card',
+    status: 'paid',
+    fulfillment_status: 'pending',
+    bonus_awarded_at: null,
+    updated_at: '2026-07-29T12:00:00.000Z',
+  };
+  const fixtures = {
+    paidPending: [paidForteOrder],
+    missingBonus: [paidForteOrder],
+    failedAutoRefund: [],
+    missingReversal: [],
+    pending: [],
+    receipts: [],
+  };
+  const database = reconciliationDatabase(fixtures);
+  const service = loadService(t, database, []);
+  const actions = [];
+  service.recordPaidOrder = async (operationId) => actions.push(['paid', operationId]);
+  service.syncRemoteOrder = async () => {
+    throw new Error('Kaspi provider must not be called');
+  };
+  service.reverseOrderLoyalty = async () => undefined;
+
+  const processed = await service.reconcileOrders({ syncKaspiPending: false });
+
+  assert.equal(processed, 1);
+  assert.deepEqual(actions, [['paid', 'forte-operation']]);
+  assert.equal(
+    database.queries.some((query) => hasFilter(query, 'eq', 'status', 'pending')),
+    false,
+  );
 });

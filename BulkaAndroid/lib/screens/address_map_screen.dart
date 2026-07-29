@@ -385,11 +385,19 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
         top: false,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final compact = constraints.maxHeight < 700;
-            final mapHeight = min(
-              360.0,
-              max(245.0, constraints.maxHeight * 0.42),
-            );
+            final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+            final textScale = MediaQuery.textScalerOf(context).scale(1);
+            final keyboardVisible = keyboardInset > 0;
+            final compact =
+                constraints.maxHeight < 700 ||
+                keyboardVisible ||
+                textScale > 1.15;
+            final mapHeight = keyboardVisible
+                ? min(118.0, max(88.0, constraints.maxHeight * 0.2))
+                : min(
+                    textScale > 1.15 ? 270.0 : 360.0,
+                    max(210.0, constraints.maxHeight * 0.42),
+                  );
             const sheetOverlap = 20.0;
             return Stack(
               children: [
@@ -465,13 +473,17 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
                     ),
                     child: Form(
                       key: _formKey,
-                      child: Padding(
+                      child: SingleChildScrollView(
                         key: const ValueKey('delivery-address-form'),
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
                         padding: EdgeInsets.fromLTRB(
                           16,
                           compact ? 12 : 16,
                           16,
-                          12 + BulkaLayout.safeBottomInset(context),
+                          12 +
+                              BulkaLayout.safeBottomInset(context) +
+                              (keyboardVisible ? 12 : 0),
                         ),
                         child: Column(
                           children: [
@@ -481,48 +493,60 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
                               validator: _requiredField,
                             ),
                             SizedBox(height: compact ? 8 : 10),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: _BulkaTextField(
-                                    label: 'house_label'.tr,
-                                    controller: _houseController,
-                                    validator: _requiredField,
-                                    compact: true,
-                                    hintText: '—',
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: _BulkaTextField(
-                                    label: 'entrance_label'.tr,
-                                    controller: _entranceController,
-                                    keyboardType: TextInputType.number,
-                                    compact: true,
-                                    hintText: '—',
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: _BulkaTextField(
-                                    label: 'floor_label'.tr,
-                                    controller: _floorController,
-                                    keyboardType: TextInputType.number,
-                                    compact: true,
-                                    hintText: '—',
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: _BulkaTextField(
-                                    label: 'apartment_label'.tr,
-                                    controller: _apartmentController,
-                                    compact: true,
-                                    hintText: '—',
-                                  ),
-                                ),
-                              ],
+                            LayoutBuilder(
+                              builder: (context, fieldConstraints) {
+                                final twoColumns =
+                                    MediaQuery.textScalerOf(context).scale(1) >
+                                    1.15;
+                                final width = twoColumns
+                                    ? (fieldConstraints.maxWidth - 8) / 2
+                                    : (fieldConstraints.maxWidth - 24) / 4;
+                                return Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    SizedBox(
+                                      width: width,
+                                      child: _BulkaTextField(
+                                        label: 'house_label'.tr,
+                                        controller: _houseController,
+                                        validator: _requiredField,
+                                        compact: true,
+                                        hintText: '—',
+                                      ),
+                                    ),
+                                    SizedBox(
+                                      width: width,
+                                      child: _BulkaTextField(
+                                        label: 'entrance_label'.tr,
+                                        controller: _entranceController,
+                                        keyboardType: TextInputType.number,
+                                        compact: true,
+                                        hintText: '—',
+                                      ),
+                                    ),
+                                    SizedBox(
+                                      width: width,
+                                      child: _BulkaTextField(
+                                        label: 'floor_label'.tr,
+                                        controller: _floorController,
+                                        keyboardType: TextInputType.number,
+                                        compact: true,
+                                        hintText: '—',
+                                      ),
+                                    ),
+                                    SizedBox(
+                                      width: width,
+                                      child: _BulkaTextField(
+                                        label: 'apartment_label'.tr,
+                                        controller: _apartmentController,
+                                        compact: true,
+                                        hintText: '—',
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
                             ),
                             SizedBox(height: compact ? 8 : 10),
                             _BulkaTextField(
@@ -666,6 +690,9 @@ class _BulkaTextField extends StatelessWidget {
           textInputAction: maxLines > 1
               ? TextInputAction.newline
               : TextInputAction.next,
+          scrollPadding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(context).bottom + 120,
+          ),
           style: const TextStyle(
             fontSize: BulkaTypeScale.body,
             fontWeight: FontWeight.w500,

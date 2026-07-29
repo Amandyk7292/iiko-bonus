@@ -9,6 +9,26 @@
   width: 112px;
   min-height: 44px;
 }
+.inventory-row-conflict {
+  background: color-mix(in srgb, var(--sagi-warning, #c77a24) 8%, transparent);
+}
+.inventory-conflict-message,
+.inventory-dirty-message {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
+}
+.inventory-conflict-message {
+  color: var(--sagi-danger, #a7352f);
+}
+.inventory-dirty-message {
+  color: var(--sagi-warning-dark, #8b4a16);
+}
+.inventory-table .row-actions {
+  flex-wrap: wrap;
+}
 .switch-row-compact {
   min-width: 160px;
 }
@@ -175,6 +195,37 @@
 .security-warning {
   border-color: #f1c48c;
   background: #fffaf2;
+}
+.security-audit-filter > .filter-search {
+  flex: 1 1 360px;
+}
+.security-audit-filter > .field-group:not(.filter-search) {
+  flex: 0 1 220px;
+}
+.audit-detail-grid dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin: 0;
+}
+.audit-detail-grid dl > div {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--sagi-border);
+  border-radius: var(--radius-control);
+}
+.audit-detail-grid dt {
+  color: var(--sagi-muted);
+  font-size: 0.82rem;
+}
+.audit-detail-grid dd {
+  margin: 5px 0 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 720px) {
+  .audit-detail-grid dl {
+    grid-template-columns: 1fr;
+  }
 }
 .delivery-admin-control {
   display: grid;

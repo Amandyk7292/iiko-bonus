@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { useSearchParams } from '../lib/router';
+import { useLocation, useNavigationBlocker, useSearchParams } from '../lib/router';
 import {
   Archive,
   Bot,
@@ -49,142 +49,27 @@ import {
 } from '../lib/api';
 import { useAdminRealtimeEvents } from '../lib/admin-realtime';
 import { useI18n } from '../lib/i18n';
-
-type ConsoleView = 'inbox' | 'knowledge' | 'settings';
-type VoiceMode = 'idle' | 'recording' | 'sending';
-type KnowledgeDraft = Pick<
-  WhatsAppKnowledgeDocument,
-  'title' | 'category' | 'content' | 'isActive'
->;
-
-const emptyKnowledgeDraft = (): KnowledgeDraft => ({
-  title: '',
-  category: 'general',
-  content: '',
-  isActive: true,
-});
-
-const categoryLabels: Record<string, string> = {
-  general: 'Общее',
-  menu: 'Меню',
-  delivery: 'Доставка',
-  loyalty: 'Бонусы',
-  locations: 'Филиалы',
-  policies: 'Правила',
-};
-
-const toneLabels: Record<WhatsAppAssistantSettings['tone'], string> = {
-  friendly: 'Дружелюбный',
-  warm: 'Тёплый',
-  concise: 'Краткий',
-  formal: 'Официальный',
-};
-
-const providerLabels: Record<WhatsAppAssistantSettings['provider'], string> = {
-  gemini: 'Gemini',
-  qwen: 'Qwen',
-  deepseek: 'DeepSeek',
-};
-
-const providerModels: Record<WhatsAppAssistantSettings['provider'], string[]> = {
-  gemini: ['gemini-3.1-flash-lite', 'gemini-3.5-flash-lite'],
-  qwen: ['qwen-flash', 'qwen3.6-flash'],
-  deepseek: ['deepseek-v4-flash', 'deepseek-v4-pro'],
-};
-
-const providerDescriptions: Record<WhatsAppAssistantSettings['provider'], string> = {
-  gemini: 'Flash-Lite доступен во Free Tier. Лимиты определяются проектом Google AI Studio.',
-  qwen: 'Используется международный API Alibaba Model Studio. Бесплатная квота зависит от аккаунта.',
-  deepseek:
-    'Официальный DeepSeek API может тарифицироваться. Бесплатный баланс зависит от аккаунта.',
-};
-
-const localeTags = { ru: 'ru-KZ', kk: 'kk-KZ', en: 'en-KZ' } as const;
-const maxVoiceSeconds = 120;
-
-function newClientMessageId() {
-  return (
-    globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
-  );
-}
-
-function formatVoiceDuration(seconds: number) {
-  const bounded = Math.max(0, Math.min(maxVoiceSeconds, Math.round(seconds)));
-  return `${Math.floor(bounded / 60)}:${String(bounded % 60).padStart(2, '0')}`;
-}
-
-function preferredVoiceMimeType() {
-  if (typeof MediaRecorder === 'undefined' || !MediaRecorder.isTypeSupported) return '';
-  return (
-    ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4'].find((type) =>
-      MediaRecorder.isTypeSupported(type),
-    ) || ''
-  );
-}
-
-function formatDateTime(value: string | null, locale: keyof typeof localeTags) {
-  if (!value) return 'Нет данных';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return 'Нет данных';
-  return new Intl.DateTimeFormat(localeTags[locale], {
-    day: '2-digit',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date);
-}
-
-function formatMessageTime(value: string, locale: keyof typeof localeTags) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  return new Intl.DateTimeFormat(localeTags[locale], {
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date);
-}
-
-function conversationName(conversation: WhatsAppConversation) {
-  return conversation.displayName || conversation.phone || 'Клиент WhatsApp';
-}
-
-function initials(conversation: WhatsAppConversation) {
-  const name = conversationName(conversation).replace(/^\+/, '').trim();
-  return name.slice(0, 2).toUpperCase() || 'WA';
-}
-
-function connectionCopy(connection: WhatsAppConnectionStatus | null, canManagePairing: boolean) {
-  if (!connection) return { title: 'Проверяем WhatsApp', detail: 'Получаем состояние подключения' };
-  const copy: Record<string, { title: string; detail: string }> = {
-    connected: {
-      title: 'WhatsApp подключён',
-      detail: connection.phone || 'Сессия готова принимать сообщения',
-    },
-    awaiting_scan: {
-      title: 'Нужно связать WhatsApp',
-      detail: 'Отсканируйте QR-код телефоном с рабочим номером',
-    },
-    connecting: { title: 'Подключение', detail: 'Сервер устанавливает защищённую сессию' },
-    reconnecting: {
-      title: 'Переподключение',
-      detail: 'Сообщения появятся после восстановления связи',
-    },
-    logged_out: {
-      title: 'WhatsApp вышел из аккаунта',
-      detail: canManagePairing
-        ? 'Сервер автоматически готовит новый QR-код'
-        : 'Сообщите владельцу, чтобы он повторно подключил номер',
-    },
-    error: { title: 'Ошибка подключения', detail: connection.lastError || 'Проверьте сервер' },
-    starting: { title: 'Запуск WhatsApp', detail: 'Сервис готовится к работе' },
-  };
-  return copy[connection.state] || copy.starting;
-}
-
-function statusLabel(status: WhatsAppConversation['status']) {
-  if (status === 'closed') return 'Закрыт';
-  if (status === 'spam') return 'Спам';
-  return 'Открыт';
-}
+import {
+  categoryLabels,
+  connectionCopy,
+  conversationName,
+  emptyKnowledgeDraft,
+  formatDateTime,
+  formatMessageTime,
+  formatVoiceDuration,
+  initials,
+  maxVoiceSeconds,
+  newClientMessageId,
+  preferredVoiceMimeType,
+  providerDescriptions,
+  providerLabels,
+  providerModels,
+  statusLabel,
+  toneLabels,
+  type ConsoleView,
+  type KnowledgeDraft,
+  type VoiceMode,
+} from './whatsapp-page.helpers';
 
 export default function WhatsAppPage({ role = 'viewer' }: { role?: string }) {
   const { locale, t } = useI18n();
@@ -193,6 +78,7 @@ export default function WhatsAppPage({ role = 'viewer' }: { role?: string }) {
   const canWrite = role !== 'viewer';
   const isConversationOnly = role === 'whatsapp_operator';
   const [queryParams, setQueryParams] = useSearchParams();
+  const location = useLocation();
   const [view, setView] = useState<ConsoleView>('inbox');
   const [connection, setConnection] = useState<WhatsAppConnectionStatus | null>(null);
   const [settings, setSettings] = useState<WhatsAppAssistantSettings | null>(null);
@@ -215,7 +101,7 @@ export default function WhatsAppPage({ role = 'viewer' }: { role?: string }) {
   );
   const [conversationTotal, setConversationTotal] = useState(0);
   const [totalUnread, setTotalUnread] = useState(0);
-  const [replyText, setReplyText] = useState('');
+  const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
   const [voiceMode, setVoiceMode] = useState<VoiceMode>('idle');
   const [voiceSeconds, setVoiceSeconds] = useState(0);
   const [memoryLabel, setMemoryLabel] = useState('Заметка о клиенте');
@@ -246,7 +132,32 @@ export default function WhatsAppPage({ role = 'viewer' }: { role?: string }) {
     clientMessageId: string;
   } | null>(null);
   const selectedIdRef = useRef(selectedId);
+  const conversationListRequestRef = useRef<{
+    controller: AbortController;
+    sequence: number;
+  } | null>(null);
+  const conversationListSequenceRef = useRef(0);
+  const conversationDetailRequestRef = useRef<{
+    controller: AbortController;
+    sequence: number;
+  } | null>(null);
+  const conversationDetailSequenceRef = useRef(0);
   const conversationPageSize = 50;
+  const replyText = selectedId ? replyDrafts[selectedId] || '' : '';
+
+  const updateReplyDraft = useCallback((conversationId: string, text: string) => {
+    if (!conversationId) return;
+    setReplyDrafts((current) => ({ ...current, [conversationId]: text }));
+  }, []);
+
+  const clearReplyDraft = useCallback((conversationId: string) => {
+    setReplyDrafts((current) => {
+      if (!(conversationId in current)) return current;
+      const next = { ...current };
+      delete next[conversationId];
+      return next;
+    });
+  }, []);
 
   const updateConversationQuery = useCallback(
     (updates: Record<string, string | number | null>) => {
@@ -343,7 +254,13 @@ export default function WhatsAppPage({ role = 'viewer' }: { role?: string }) {
   );
 
   const startVoiceRecording = async () => {
-    if (!selectedConversation || !canWrite || busy || voiceMode !== 'idle') {
+    if (
+      !selectedConversation ||
+      selectedConversation.id !== selectedIdRef.current ||
+      !canWrite ||
+      busy ||
+      voiceMode !== 'idle'
+    ) {
       return;
     }
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
@@ -466,6 +383,8 @@ export default function WhatsAppPage({ role = 'viewer' }: { role?: string }) {
         recorder.onstop = null;
         recorder.stop();
       }
+      conversationListRequestRef.current?.controller.abort();
+      conversationDetailRequestRef.current?.controller.abort();
       releaseVoiceResources();
     },
     [releaseVoiceResources],
@@ -482,27 +401,37 @@ export default function WhatsAppPage({ role = 'viewer' }: { role?: string }) {
 
   const loadConversations = useCallback(
     async (silent = false) => {
+      conversationListRequestRef.current?.controller.abort();
+      const controller = new AbortController();
+      const sequence = ++conversationListSequenceRef.current;
+      conversationListRequestRef.current = { controller, sequence };
       if (!silent) setLoadingOverview(true);
       try {
-        const response = await api.getWhatsAppConversations({
-          search: searchQuery,
-          status: statusFilter,
-          page: conversationPage,
-          pageSize: conversationPageSize,
-        });
+        const response = await api.getWhatsAppConversations(
+          {
+            search: searchQuery,
+            status: statusFilter,
+            page: conversationPage,
+            pageSize: conversationPageSize,
+          },
+          controller.signal,
+        );
+        if (controller.signal.aborted || sequence !== conversationListSequenceRef.current) return;
         setConversations(response.conversations);
         setConversationTotal(response.total);
         setTotalUnread(response.unread);
         setSelectedId((current) => {
-          if (current && response.conversations.some((item) => item.id === current)) return current;
-          return response.conversations[0]?.id || '';
+          if (current) return current;
+          const next = response.conversations[0]?.id || '';
+          selectedIdRef.current = next;
+          return next;
         });
         setError('');
       } catch (caught) {
-        if (!silent)
+        if (!controller.signal.aborted && !silent && sequence === conversationListSequenceRef.current)
           setError(caught instanceof Error ? caught.message : 'Не удалось загрузить диалоги');
       } finally {
-        if (!silent) setLoadingOverview(false);
+        if (!silent && sequence === conversationListSequenceRef.current) setLoadingOverview(false);
       }
     },
     [conversationPage, searchQuery, statusFilter],
@@ -510,30 +439,57 @@ export default function WhatsAppPage({ role = 'viewer' }: { role?: string }) {
 
   const loadConversation = useCallback(
     async (id: string, silent = false) => {
+      conversationDetailRequestRef.current?.controller.abort();
+      const controller = new AbortController();
+      const sequence = ++conversationDetailSequenceRef.current;
+      conversationDetailRequestRef.current = { controller, sequence };
       if (!id) {
         setSelectedConversation(null);
         setMessages([]);
         setMemories([]);
+        setLoadingConversation(false);
         return;
       }
-      if (!silent) setLoadingConversation(true);
+      if (!silent) {
+        setLoadingConversation(true);
+        setSelectedConversation(null);
+        setMessages([]);
+        setMemories([]);
+      }
       try {
-        const response = await api.getWhatsAppConversation(id);
+        const response = await api.getWhatsAppConversation(id, controller.signal);
+        if (
+          controller.signal.aborted ||
+          sequence !== conversationDetailSequenceRef.current ||
+          selectedIdRef.current !== id ||
+          response.conversation.id !== id
+        ) {
+          return;
+        }
         setSelectedConversation(response.conversation);
         setMessages(response.messages);
         setMemories(response.memories);
         if (response.conversation.unreadCount > 0 && canWrite) {
           const marked = await api.updateWhatsAppConversation(id, { markRead: true });
+          if (
+            controller.signal.aborted ||
+            sequence !== conversationDetailSequenceRef.current ||
+            selectedIdRef.current !== id ||
+            marked.conversation.id !== id
+          ) {
+            return;
+          }
           setSelectedConversation(marked.conversation);
           setConversations((current) =>
             current.map((item) => (item.id === id ? marked.conversation : item)),
           );
         }
       } catch (caught) {
-        if (!silent)
+        if (!controller.signal.aborted && !silent && sequence === conversationDetailSequenceRef.current)
           toast(caught instanceof Error ? caught.message : 'Не удалось открыть диалог', 'error');
       } finally {
-        if (!silent) setLoadingConversation(false);
+        if (!silent && sequence === conversationDetailSequenceRef.current)
+          setLoadingConversation(false);
       }
     },
     [canWrite, toast],
@@ -633,16 +589,23 @@ export default function WhatsAppPage({ role = 'viewer' }: { role?: string }) {
   );
   const knowledgeDirty =
     knowledgeModalOpen && JSON.stringify(knowledgeDraft) !== JSON.stringify(knowledgeBaseline);
+  const replyDirty = Object.values(replyDrafts).some((value) => value.trim());
 
   useEffect(() => {
-    if (!settingsDirty && !knowledgeDirty) return;
+    if (!settingsDirty && !knowledgeDirty && !replyDirty) return;
     const warnBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = '';
     };
     window.addEventListener('beforeunload', warnBeforeUnload);
     return () => window.removeEventListener('beforeunload', warnBeforeUnload);
-  }, [knowledgeDirty, settingsDirty]);
+  }, [knowledgeDirty, replyDirty, settingsDirty]);
+
+  useNavigationBlocker(
+    settingsDirty || knowledgeDirty || replyDirty,
+    (nextLocation) =>
+      nextLocation.pathname === location.pathname || window.confirm(t('common.unsavedBody')),
+  );
 
   const changeView = async (nextView: ConsoleView) => {
     if (nextView === view) return;
@@ -666,7 +629,19 @@ export default function WhatsAppPage({ role = 'viewer' }: { role?: string }) {
     setView(nextView);
   };
 
-  const selectConversation = (id: string) => {
+  const selectConversation = async (id: string) => {
+    if (id === selectedId || busy) return;
+    if (
+      replyText.trim() &&
+      !(await confirm({
+        title: t('whatsapp.switchDraftTitle'),
+        body: t('whatsapp.switchDraftBody'),
+        confirmLabel: t('whatsapp.switchDraftConfirm'),
+      }))
+    ) {
+      return;
+    }
+    selectedIdRef.current = id;
     setSelectedId(id);
     setMobileChatOpen(true);
   };
@@ -674,7 +649,16 @@ export default function WhatsAppPage({ role = 'viewer' }: { role?: string }) {
   const sendReply = async (event: FormEvent) => {
     event.preventDefault();
     const text = replyText.trim();
-    if (!selectedConversation || !text || busy) return;
+    if (
+      !selectedConversation ||
+      selectedConversation.id !== selectedId ||
+      selectedIdRef.current !== selectedId ||
+      !text ||
+      busy
+    ) {
+      return;
+    }
+    const targetId = selectedId;
     const previousRequest = replyRequestRef.current;
     const clientMessageId =
       previousRequest?.conversationId === selectedConversation.id && previousRequest.text === text
@@ -687,15 +671,24 @@ export default function WhatsAppPage({ role = 'viewer' }: { role?: string }) {
     };
     setBusy('reply');
     try {
-      const response = await api.sendWhatsAppReply(selectedConversation.id, text, clientMessageId);
-      setMessages((current) => [...current, response.message]);
-      setSelectedConversation(response.conversation);
+      const response = await api.sendWhatsAppReply(targetId, text, clientMessageId);
+      if (response.conversation.id !== targetId) {
+        toast(
+          t('whatsapp.recipientMismatch'),
+          'error',
+        );
+        return;
+      }
+      if (selectedIdRef.current === targetId) {
+        setMessages((current) => [...current, response.message]);
+        setSelectedConversation(response.conversation);
+      }
       setConversations((current) =>
         current.map((item) =>
           item.id === response.conversation.id ? response.conversation : item,
         ),
       );
-      setReplyText('');
+      clearReplyDraft(targetId);
       replyRequestRef.current = null;
       toast(
         response.queued
@@ -1100,7 +1093,7 @@ export default function WhatsAppPage({ role = 'viewer' }: { role?: string }) {
                     key={conversation.id}
                     type="button"
                     className={`whatsapp-conversation-item ${selectedId === conversation.id ? 'is-active' : ''}`}
-                    onClick={() => selectConversation(conversation.id)}
+                    onClick={() => void selectConversation(conversation.id)}
                   >
                     <span className="whatsapp-avatar" aria-hidden="true">
                       {initials(conversation)}
@@ -1290,12 +1283,18 @@ export default function WhatsAppPage({ role = 'viewer' }: { role?: string }) {
                       </label>
                       <textarea
                         id="whatsapp-reply"
+                        name="whatsappReply"
                         value={replyText}
-                        onChange={(event) => setReplyText(event.target.value)}
+                        onChange={(event) => updateReplyDraft(selectedId, event.target.value)}
                         placeholder={
                           canWrite ? 'Напишите ответ клиенту' : 'У вас доступ только для просмотра'
                         }
-                        disabled={!canWrite || Boolean(busy)}
+                        autoComplete="off"
+                        disabled={
+                          !canWrite ||
+                          Boolean(busy) ||
+                          selectedConversation.id !== selectedId
+                        }
                         maxLength={10000}
                         rows={2}
                       />
@@ -1312,7 +1311,12 @@ export default function WhatsAppPage({ role = 'viewer' }: { role?: string }) {
                       <button
                         type="submit"
                         className="btn-classic whatsapp-send-button"
-                        disabled={!canWrite || !replyText.trim() || Boolean(busy)}
+                        disabled={
+                          !canWrite ||
+                          !replyText.trim() ||
+                          Boolean(busy) ||
+                          selectedConversation.id !== selectedId
+                        }
                         aria-label="Отправить сообщение"
                       >
                         {busy === 'reply' ? (

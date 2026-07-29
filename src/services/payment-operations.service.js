@@ -13,6 +13,8 @@ const WEBHOOK_KEYS = Object.freeze({
 });
 const CACHE_TTL_MS = 5000;
 const MAX_DIAGNOSTIC_MESSAGE = 240;
+const SCHEDULED_FAILURE_THRESHOLD = 3;
+const PROBE_CIRCUIT_TTL_MS = 60 * 60 * 1000;
 
 const cache = new Map();
 
@@ -123,6 +125,35 @@ const isSafeWidgetFallbackError = (error) =>
     'FORTE_WIDGET_NO_PAYMENT_METHODS',
   ].includes(error?.code);
 
+const applyProbeHealth = (result, previous, { checkedAt, scheduled }) => {
+  const configured = result?.configured === true;
+  const available = result?.available === true;
+  const priorFailures = Math.max(0, Number(previous?.consecutiveFailures) || 0);
+  const consecutiveFailures =
+    !configured || available ? 0 : scheduled ? priorFailures + 1 : SCHEDULED_FAILURE_THRESHOLD;
+  const opensCircuit =
+    configured && !available && consecutiveFailures >= SCHEDULED_FAILURE_THRESHOLD;
+  return {
+    ...result,
+    probeMode: scheduled ? 'scheduled_read_only' : 'interactive_checkout',
+    consecutiveFailures,
+    effectiveAvailable: configured && (available || !opensCircuit),
+    circuitOpenUntil: opensCircuit
+      ? new Date(Date.parse(checkedAt) + PROBE_CIRCUIT_TTL_MS).toISOString()
+      : null,
+    lastSuccessAt: available ? checkedAt : previous?.lastSuccessAt || null,
+    lastFailureAt: configured && !available ? checkedAt : previous?.lastFailureAt || null,
+  };
+};
+
+const probeIsEffectivelyUnavailable = (result, nowMs) => {
+  if (!result) return false;
+  if (typeof result.effectiveAvailable !== 'boolean') return result.available === false;
+  if (result.effectiveAvailable === true) return false;
+  const circuitOpenUntil = Date.parse(result.circuitOpenUntil || '');
+  return !Number.isFinite(circuitOpenUntil) || circuitOpenUntil > nowMs;
+};
+
 class PaymentOperationsService {
   constructor({
     readSetting = defaultReadSetting,
@@ -214,8 +245,9 @@ class PaymentOperationsService {
     );
   }
 
-  async runSafeProbe() {
+  async runSafeProbe({ scheduled = false } = {}) {
     const checkedAt = this.now().toISOString();
+    const previousProbe = await this.getProviderProbe({ forceRefresh: true });
     const kaspiConfigured =
       this.env.KASPI_POS_ENABLED === 'true' &&
       String(this.env.KASPI_INTERNAL_SECRET || '').length >= 32;
@@ -228,7 +260,9 @@ class PaymentOperationsService {
         ? this.forte.probeConnection()
         : Promise.resolve({ available: false, message: 'Не настроен' }),
       widgetConfigured
-        ? this.widget.probeCheckout()
+        ? scheduled
+          ? this.widget.probeConnection()
+          : this.widget.probeCheckout()
         : Promise.resolve({
             available: false,
             message: 'Не настроен',
@@ -236,7 +270,7 @@ class PaymentOperationsService {
           }),
     ]);
 
-    const probe = {
+    const rawProbe = {
       checkedAt,
       kaspi:
         kaspiResult.status === 'fulfilled'
@@ -292,7 +326,40 @@ class PaymentOperationsService {
               errorCode: widgetResult.reason?.code || 'FORTE_WIDGET_PROBE_FAILED',
             }),
     };
+    const probe = {
+      ...rawProbe,
+      kaspi: applyProbeHealth(rawProbe.kaspi, previousProbe?.kaspi, {
+        checkedAt,
+        scheduled,
+      }),
+      forteHosted: applyProbeHealth(rawProbe.forteHosted, previousProbe?.forteHosted, {
+        checkedAt,
+        scheduled,
+      }),
+      forteWidget: applyProbeHealth(rawProbe.forteWidget, previousProbe?.forteWidget, {
+        checkedAt,
+        scheduled,
+      }),
+    };
     await this.setSetting(PROVIDER_PROBE_KEY, probe);
+    return probe;
+  }
+
+  async runScheduledSafeProbe() {
+    const probe = await this.runSafeProbe({ scheduled: true });
+    const unavailable = [
+      ['kaspi', probe.kaspi],
+      ['forteHosted', probe.forteHosted],
+      ['forteWidget', probe.forteWidget],
+    ]
+      .filter(([, result]) => result?.configured === true && result?.effectiveAvailable !== true)
+      .map(([provider]) => provider);
+    if (unavailable.length) {
+      throw Object.assign(new Error(`Payment provider probe failed: ${unavailable.join(', ')}`), {
+        code: 'PAYMENT_PROVIDER_PROBE_UNHEALTHY',
+        providers: unavailable,
+      });
+    }
     return probe;
   }
 
@@ -311,6 +378,14 @@ class PaymentOperationsService {
             ? 'Банк не вернул доступные способы оплаты'
             : 'Widget временно недоступен',
         errorCode: error?.code || 'FORTE_WIDGET_FAILED',
+        details: {
+          probeMode: 'checkout_failure',
+          consecutiveFailures: SCHEDULED_FAILURE_THRESHOLD,
+          effectiveAvailable: false,
+          circuitOpenUntil: new Date(this.now().getTime() + PROBE_CIRCUIT_TTL_MS).toISOString(),
+          lastSuccessAt: current?.forteWidget?.lastSuccessAt || null,
+          lastFailureAt: checkedAt,
+        },
       }),
     };
     await this.setSetting(PROVIDER_PROBE_KEY, next);
@@ -324,7 +399,10 @@ class PaymentOperationsService {
     ]);
     const hostedAvailable = this.forte.availability();
     const widgetConfigured = this.widget.availability();
-    const widgetKnownUnhealthy = probe?.forteWidget?.available === false;
+    const widgetKnownUnhealthy = probeIsEffectivelyUnavailable(
+      probe?.forteWidget,
+      this.now().getTime(),
+    );
     const useWidget = preference.enabled && widgetConfigured && !widgetKnownUnhealthy;
     const effectiveIntegration = useWidget ? 'widget' : hostedAvailable ? 'hosted_page' : null;
     let fallbackReason = null;

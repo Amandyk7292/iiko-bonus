@@ -5,6 +5,12 @@ const _apiBaseUrl = String.fromEnvironment(
   defaultValue: 'https://bulka.com.kz',
 );
 
+@visibleForTesting
+const bulkaPublicOfferVersion = '2026-07-27';
+
+@visibleForTesting
+const bulkaPrivacyPolicyVersion = '2026-07-27';
+
 String preferredWalletPath(Map<String, dynamic> json, TargetPlatform platform) {
   if (platform == TargetPlatform.iOS) return _asString(json['appleUrl']);
   if (platform == TargetPlatform.android) return _asString(json['googleUrl']);
@@ -239,6 +245,14 @@ class BulkaApiClient {
       'gender': gender,
       'birthdate': birthdate,
       'email': email,
+      'acceptedLegal': true,
+      'legalConsent': {
+        'offerVersion': bulkaPublicOfferVersion,
+        'privacyVersion': bulkaPrivacyPolicyVersion,
+        'locale': AppLang.current,
+        'channel': kIsWeb ? 'web' : 'mobile_app',
+        'acceptedAt': DateTime.now().toUtc().toIso8601String(),
+      },
     }, bearerToken: registrationToken);
     final response = ProfileResponse.fromJson(json);
     if (!response.success) {
@@ -521,7 +535,11 @@ class BulkaApiClient {
       'language': AppLang.current,
     });
     if (json['success'] != true) {
-      throw ApiException(_messageFrom(json, 'error_forte_payment'.tr));
+      throw ApiException(
+        _messageFrom(json, 'error_forte_payment'.tr),
+        code: _nullableString(json['code']),
+        requestId: _requestIdFrom(json),
+      );
     }
     return json;
   }
@@ -571,7 +589,11 @@ class BulkaApiClient {
       '/api/customer/forte-pay/card-setup/${Uri.encodeComponent(operationId)}',
     );
     if (json['success'] != true) {
-      throw ApiException(_messageFrom(json, 'payment_methods_add_error'.tr));
+      throw ApiException(
+        _messageFrom(json, 'payment_methods_add_error'.tr),
+        code: _nullableString(json['code']),
+        requestId: _requestIdFrom(json),
+      );
     }
     return json;
   }
@@ -603,7 +625,11 @@ class BulkaApiClient {
       '/api/customer/forte-pay/status/${Uri.encodeComponent(operationId)}',
     );
     if (json['success'] != true) {
-      throw ApiException(_messageFrom(json, 'error_forte_status'.tr));
+      throw ApiException(
+        _messageFrom(json, 'error_forte_status'.tr),
+        code: _nullableString(json['code']),
+        requestId: _requestIdFrom(json),
+      );
     }
     return json;
   }
@@ -786,6 +812,30 @@ class BulkaApiClient {
       '/api/public/product-options?ids=${Uri.encodeQueryComponent(productId)}',
     );
     return _asMap(_asMap(json['products'])[productId]);
+  }
+
+  Future<Map<String, Map<String, dynamic>>> getProductOptionsBatch(
+    Iterable<String> productIds,
+  ) async {
+    final ids = productIds
+        .map((value) => value.trim())
+        .where((value) => value.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    final result = <String, Map<String, dynamic>>{};
+    for (var offset = 0; offset < ids.length; offset += 40) {
+      final end = min(offset + 40, ids.length);
+      final batch = ids.sublist(offset, end);
+      final json = await _get(
+        '/api/public/product-options'
+        '?ids=${Uri.encodeQueryComponent(batch.join(','))}',
+      );
+      final products = _asMap(json['products']);
+      for (final id in batch) {
+        result[id] = _asMap(products[id]);
+      }
+    }
+    return result;
   }
 
   Future<Set<String>> getFavorites() async {
@@ -1415,23 +1465,57 @@ class BulkaApiClient {
     final text = utf8.decode(response.bodyBytes);
     final decoded = text.isEmpty ? <String, dynamic>{} : jsonDecode(text);
     final json = _asMap(decoded);
+    final responseRequestId =
+        _requestIdFrom(json) ??
+        _nullableString(
+          response.headers['x-request-id'] ?? response.headers['request-id'],
+        );
     if (response.statusCode >= 400) {
       throw ApiException(
         _messageFrom(json, 'error_network'.tr),
         statusCode: response.statusCode,
         code: _nullableString(json['code']),
+        requestId: responseRequestId,
       );
+    }
+    if (responseRequestId != null && !json.containsKey('_requestId')) {
+      json['_requestId'] = responseRequestId;
     }
     return json;
   }
 }
 
+String? _requestIdFrom(Map<String, dynamic> json) {
+  final nested = _asMap(json['error']);
+  final value = _nullableString(
+    json['requestId'] ??
+        json['request_id'] ??
+        json['_requestId'] ??
+        nested['requestId'] ??
+        nested['request_id'],
+  );
+  if (value == null ||
+      value.length > 160 ||
+      !RegExp(r'^[A-Za-z0-9._:-]+$').hasMatch(value)) {
+    return null;
+  }
+  return value;
+}
+
 class ApiException implements Exception {
-  ApiException(this.message, {this.statusCode, this.code});
+  ApiException(this.message, {this.statusCode, this.code, this.requestId});
 
   final String message;
   final int? statusCode;
   final String? code;
+  final String? requestId;
+
+  String? get supportCode {
+    final raw = requestId?.replaceAll(RegExp(r'[^A-Za-z0-9]'), '');
+    if (raw == null || raw.isEmpty) return null;
+    final short = raw.length <= 10 ? raw : raw.substring(raw.length - 10);
+    return short.toUpperCase();
+  }
 
   @override
   String toString() => message;

@@ -59,6 +59,12 @@ const {
   sendCustomerSession,
   usesCustomerRefreshCookie,
 } = require('../utils/customer-session-cookie.util');
+const { validateRequest } = require('../middlewares/validation.middleware');
+const { customerRegistrationBodySchema } = require('../contracts/backend-safety.contract');
+const {
+  recordCustomerLegalConsent,
+  validateLegalConsent,
+} = require('../services/legal-consent.service');
 
 // --- Helper functions (originally in old index.js) ---
 
@@ -337,78 +343,91 @@ router.post('/api/auth/verify-otp', authRateLimit, async (req, res) => {
   }
 });
 
-router.post('/api/auth/register', authRateLimit, registrationAuthMiddleware, async (req, res) => {
-  try {
-    const phone = normalizePhone(req.registrationAuth.phone);
-    const { name, surname, gender, birthdate, email } = req.body;
-    if (!phone) return res.status(400).json({ success: false, error: 'Phone required' });
+router.post(
+  '/api/auth/register',
+  authRateLimit,
+  registrationAuthMiddleware,
+  validateRequest({ body: customerRegistrationBodySchema }),
+  async (req, res) => {
+    try {
+      const phone = normalizePhone(req.registrationAuth.phone);
+      const { name, surname, gender, birthdate, email } = req.body;
+      if (!phone) return res.status(400).json({ success: false, error: 'Phone required' });
+      // Consent is validated before any placeholder customer or credential is
+      // created. The server records canonical document hashes, not client claims.
+      const legalConsent = validateLegalConsent(req.body || {});
 
-    const safeName = typeof name === 'string' ? name.trim() : '';
-    const safeSurname = typeof surname === 'string' ? surname.trim() : '';
-    const safeEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
-    const safeGender = typeof gender === 'string' ? gender.trim().toLowerCase() : '';
-    const safeBirthdate = typeof birthdate === 'string' ? birthdate.trim() : '';
-    const fullName = [safeName, safeSurname].filter(Boolean).join(' ').trim().slice(0, 160);
-    if (!fullName) return res.status(400).json({ success: false, error: 'Name required' });
-    if (safeName.length > 80 || safeSurname.length > 80) {
-      return res.status(400).json({ success: false, error: 'Name is too long' });
-    }
-    if (email != null && (!safeEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(safeEmail))) {
-      return res.status(400).json({ success: false, error: 'Invalid email' });
-    }
-    if (safeEmail.length > 254) {
-      return res.status(400).json({ success: false, error: 'Invalid email' });
-    }
-    if (birthdate != null) {
-      const parsedBirthdate = new Date(`${safeBirthdate}T00:00:00.000Z`);
-      if (
-        !/^\d{4}-\d{2}-\d{2}$/.test(safeBirthdate) ||
-        Number.isNaN(parsedBirthdate.getTime()) ||
-        parsedBirthdate.toISOString().slice(0, 10) !== safeBirthdate ||
-        parsedBirthdate > new Date()
-      ) {
-        return res.status(400).json({ success: false, error: 'Invalid birthdate' });
+      const safeName = typeof name === 'string' ? name.trim() : '';
+      const safeSurname = typeof surname === 'string' ? surname.trim() : '';
+      const safeEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+      const safeGender = typeof gender === 'string' ? gender.trim().toLowerCase() : '';
+      const safeBirthdate = typeof birthdate === 'string' ? birthdate.trim() : '';
+      const fullName = [safeName, safeSurname].filter(Boolean).join(' ').trim().slice(0, 160);
+      if (!fullName) return res.status(400).json({ success: false, error: 'Name required' });
+      if (safeName.length > 80 || safeSurname.length > 80) {
+        return res.status(400).json({ success: false, error: 'Name is too long' });
       }
+      if (email != null && (!safeEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(safeEmail))) {
+        return res.status(400).json({ success: false, error: 'Invalid email' });
+      }
+      if (safeEmail.length > 254) {
+        return res.status(400).json({ success: false, error: 'Invalid email' });
+      }
+      if (birthdate != null) {
+        const parsedBirthdate = new Date(`${safeBirthdate}T00:00:00.000Z`);
+        if (
+          !/^\d{4}-\d{2}-\d{2}$/.test(safeBirthdate) ||
+          Number.isNaN(parsedBirthdate.getTime()) ||
+          parsedBirthdate.toISOString().slice(0, 10) !== safeBirthdate ||
+          parsedBirthdate > new Date()
+        ) {
+          return res.status(400).json({ success: false, error: 'Invalid birthdate' });
+        }
+      }
+      if (gender != null && !['m', 'f', 'male', 'female', 'other'].includes(safeGender)) {
+        return res.status(400).json({ success: false, error: 'Invalid gender' });
+      }
+
+      // Validate every user-controlled field before a placeholder customer can
+      // be created. Invalid registration attempts must not leave orphan rows.
+      const existingCustomer = await getCustomerByPhone(phone);
+      if (isEstablishedCustomer(existingCustomer)) {
+        return res.status(409).json({ success: false, error: 'Customer is already registered' });
+      }
+      let customer = existingCustomer || (await getOrCreateCustomerByPhone(phone, fullName));
+      if (!customer)
+        return res.status(404).json({ success: false, error: 'Cannot create customer' });
+
+      // Persist the legal audit before consuming a one-time credential grant.
+      // A transient audit failure must remain safely retryable for the client.
+      await recordCustomerLegalConsent(customer.id, legalConsent);
+      if (req.registrationAuth.credentialGrantId) {
+        const passwordHash = await consumeRegistrationCredentialGrant({
+          phone,
+          grantId: req.registrationAuth.credentialGrantId,
+        });
+        await createCustomerCredential({ customerId: customer.id, passwordHash });
+      }
+
+      const updateData = { name: fullName };
+      if (safeSurname) updateData.last_name = safeSurname;
+      if (safeEmail) updateData.email = safeEmail;
+      if (safeGender) updateData.gender = safeGender;
+      if (safeBirthdate) updateData.birth_date = safeBirthdate;
+
+      const { error: updateError } = await supabase
+        .from('customers')
+        .update(updateData)
+        .eq('id', customer.id);
+      if (updateError) throw updateError;
+      Object.assign(customer, updateData);
+
+      res.json(await buildAuthenticatedCustomerPayload(customer, req, res));
+    } catch (err) {
+      sendCustomerAuthError(res, err);
     }
-    if (gender != null && !['m', 'f', 'male', 'female', 'other'].includes(safeGender)) {
-      return res.status(400).json({ success: false, error: 'Invalid gender' });
-    }
-
-    // Validate every user-controlled field before a placeholder customer can
-    // be created. Invalid registration attempts must not leave orphan rows.
-    const existingCustomer = await getCustomerByPhone(phone);
-    if (isEstablishedCustomer(existingCustomer)) {
-      return res.status(409).json({ success: false, error: 'Customer is already registered' });
-    }
-    let customer = existingCustomer || (await getOrCreateCustomerByPhone(phone, fullName));
-    if (!customer) return res.status(404).json({ success: false, error: 'Cannot create customer' });
-
-    if (req.registrationAuth.credentialGrantId) {
-      const passwordHash = await consumeRegistrationCredentialGrant({
-        phone,
-        grantId: req.registrationAuth.credentialGrantId,
-      });
-      await createCustomerCredential({ customerId: customer.id, passwordHash });
-    }
-
-    const updateData = { name: fullName };
-    if (safeSurname) updateData.last_name = safeSurname;
-    if (safeEmail) updateData.email = safeEmail;
-    if (safeGender) updateData.gender = safeGender;
-    if (safeBirthdate) updateData.birth_date = safeBirthdate;
-
-    const { error: updateError } = await supabase
-      .from('customers')
-      .update(updateData)
-      .eq('id', customer.id);
-    if (updateError) throw updateError;
-    Object.assign(customer, updateData);
-
-    res.json(await buildAuthenticatedCustomerPayload(customer, req, res));
-  } catch (err) {
-    sendCustomerAuthError(res, err);
-  }
-});
+  },
+);
 
 router.post('/api/auth/refresh', authRateLimit, async (req, res) => {
   try {

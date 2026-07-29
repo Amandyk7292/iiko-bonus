@@ -15,6 +15,7 @@ $stageRoot = Join-Path $scratchRoot 'vps-release'
 $archivePath = Join-Path $scratchRoot 'bulka-release.zip'
 $remoteArchive = '/tmp/bulka-release.zip'
 $remoteDeployScript = '/tmp/bulka-deploy-release.sh'
+$remotePostgresScript = '/tmp/bulka-ensure-postgres-client.sh'
 # New migrations are applied by default. -ApplyMigrations remains accepted for
 # compatibility with older deployment commands.
 $migrationMode = if ($SkipMigrations) { 'check' } else { 'apply' }
@@ -97,9 +98,14 @@ Copy-Item -LiteralPath (Join-Path $projectRoot 'supabase_schema.sql') -Destinati
 
 foreach ($scriptName in @(
     'apply-migrations.js',
+    'backup-database.sh',
+    'enable-nginx-upstream-fallback.sh',
+    'ensure-postgres-client.sh',
+    'install-database-backup-timer.sh',
     'setup-google-wallet.js',
     'deploy-release.sh',
     'rollback-vps.sh',
+    'verify-database-restore.sh',
     'prepare-cloudflare-origin.sh',
     'configure-forte-widget-vps.sh',
     'harden-nginx-access-logs.sh'
@@ -131,6 +137,11 @@ scp $archivePath "bulka-vps:$remoteArchive"
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 scp (Join-Path $projectRoot 'scripts\deploy-release.sh') `
     "bulka-vps:$remoteDeployScript"
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+scp (Join-Path $projectRoot 'scripts\ensure-postgres-client.sh') `
+    "bulka-vps:$remotePostgresScript"
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+ssh bulka-vps "bash '$remotePostgresScript'"
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 ssh bulka-vps "bash '$remoteDeployScript' '$releaseId' '$migrationMode' '$remoteArchive' '$archiveSha256'"

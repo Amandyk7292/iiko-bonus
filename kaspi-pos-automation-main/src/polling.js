@@ -11,14 +11,10 @@ import { isKaspiSessionExpired } from './kaspiResponse.js';
 import { clearGlobalSession, getGlobalSession } from './sessionStorage.js';
 import { getWebhooksByEvent } from './webhookStore.js';
 import { logger } from './logger.js';
-import {
-  resolvePaymentEvent,
-  shouldStopFastTracking,
-  shouldStopPollingAfterFailures,
-} from './paymentStatus.js';
+import { resolvePaymentEvent, shouldStopFastTracking, shouldStopPollingAfterFailures } from './paymentStatus.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const TRACKED_FILE = path.join(__dirname, '..', 'tracked-payments.json');
+const TRACKED_FILE = process.env.KASPI_TRACKED_PAYMENTS_FILE || path.join(__dirname, '..', 'tracked-payments.json');
 
 // ─── Tracked payments ───
 
@@ -32,14 +28,35 @@ const fastTrackingMaxMs = () => {
   return Math.max(MIN_FAST_TRACKING_MAX_MS, Math.floor(configured));
 };
 
+const webhookId = (hook) =>
+  String(hook?.id || '').trim() ||
+  crypto
+    .createHash('sha256')
+    .update(String(hook?.url || ''), 'utf8')
+    .digest('hex')
+    .slice(0, 32);
+
 // ─── Persistence ───
+
+const writePrivateJson = (file, value) => {
+  const temporary = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(temporary, JSON.stringify(value, null, 2), {
+    encoding: 'utf8',
+    mode: 0o600,
+    flag: 'w',
+  });
+  fs.chmodSync(temporary, 0o600);
+  fs.renameSync(temporary, file);
+  fs.chmodSync(file, 0o600);
+};
 
 const saveTracked = () => {
   try {
-    const data = Object.fromEntries(trackedPayments);
-    fs.writeFileSync(TRACKED_FILE, JSON.stringify(data, null, 2));
+    writePrivateJson(TRACKED_FILE, Object.fromEntries(trackedPayments));
+    return true;
   } catch (err) {
     logger.error('POLLING', 'Failed to save tracked payments', err.message);
+    return false;
   }
 };
 
@@ -48,9 +65,21 @@ const loadTracked = () => {
     if (!fs.existsSync(TRACKED_FILE)) return;
     const raw = fs.readFileSync(TRACKED_FILE, 'utf8');
     const data = JSON.parse(raw);
+    let migrated = false;
     for (const [id, entry] of Object.entries(data)) {
+      if (Array.isArray(entry?.terminalWebhookUrls)) {
+        entry.terminalWebhookIds = entry.terminalWebhookUrls.map((url) => webhookId({ url }));
+        delete entry.terminalWebhookUrls;
+        migrated = true;
+      }
+      if (Array.isArray(entry?.deliveredWebhookUrls)) {
+        entry.deliveredWebhookIds = entry.deliveredWebhookUrls.map((url) => webhookId({ url }));
+        delete entry.deliveredWebhookUrls;
+        migrated = true;
+      }
       trackedPayments.set(id, entry);
     }
+    if (migrated) saveTracked();
     if (trackedPayments.size > 0) {
       logger.info('POLLING', `Restored ${trackedPayments.size} tracked payments from file`);
     }
@@ -61,22 +90,50 @@ const loadTracked = () => {
 
 // ─── Pending retries (persisted) ───
 
-const RETRY_FILE = path.join(__dirname, '..', 'webhook-retries.json');
+const RETRY_FILE = process.env.KASPI_WEBHOOK_RETRIES_FILE || path.join(__dirname, '..', 'webhook-retries.json');
 let pendingRetries = [];
+let webhookResolver = getWebhooksByEvent;
 
 const saveRetries = () => {
   try {
-    fs.writeFileSync(RETRY_FILE, JSON.stringify(pendingRetries, null, 2));
+    writePrivateJson(RETRY_FILE, pendingRetries);
+    return true;
   } catch (err) {
     logger.error('WEBHOOK', 'Failed to save retries', err.message);
+    return false;
   }
+};
+
+const normalizeRetry = (value) => {
+  const savedHookId = String(value?.hook?.id || '').trim();
+  const hookUrl = String(value?.hook?.url || '').trim();
+  const payload = value?.payload;
+  if (
+    (!/^[a-f0-9]{32}$/i.test(savedHookId) && !/^https?:\/\//i.test(hookUrl)) ||
+    !payload ||
+    typeof payload !== 'object' ||
+    !String(payload.event || '').trim() ||
+    !String(payload.paymentId || '').trim()
+  ) {
+    return null;
+  }
+  return {
+    hook: { id: savedHookId || webhookId({ url: hookUrl }) },
+    payload,
+    attempt: Math.max(1, Number(value.attempt) || 1),
+    executeAfter: Math.max(0, Number(value.executeAfter) || Date.now()),
+  };
 };
 
 const loadRetries = () => {
   try {
     if (!fs.existsSync(RETRY_FILE)) return;
     const raw = fs.readFileSync(RETRY_FILE, 'utf8');
-    pendingRetries = JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    pendingRetries = (Array.isArray(parsed) ? parsed : []).map(normalizeRetry).filter(Boolean);
+    // Rewrite legacy retry records immediately so previously persisted HMAC
+    // secrets are removed and the queue gets private file permissions.
+    saveRetries();
     if (pendingRetries.length > 0) {
       logger.info('WEBHOOK', `Restored ${pendingRetries.length} pending retries from file`);
     }
@@ -173,17 +230,68 @@ const fetchWithTimeout = async (url, options, timeoutMs = 10000) => {
   }
 };
 
-const sendWebhook = async (hook, payload, attempt = 1) => {
-  const body = JSON.stringify(payload);
-  const signature =
-    'sha256=' +
-    crypto
-      .createHmac('sha256', hook.secret || '')
-      .update(body)
-      .digest('hex');
+const deliveryKey = (hook, payload) => `${webhookId(hook)}\n${payload.event}\n${String(payload.paymentId)}`;
 
+const safeWebhookLabel = (hook) => {
   try {
-    const resp = await fetchWithTimeout(hook.url, {
+    const parsed = new URL(String(hook?.url || ''));
+    return `${parsed.protocol}//${parsed.host}${parsed.pathname}`;
+  } catch {
+    return 'configured webhook';
+  }
+};
+
+const resolveConfiguredHook = (hook, payload) => {
+  if (String(hook?.secret || '').length > 0) return hook;
+  return webhookResolver(payload.event).find((candidate) => webhookId(candidate) === webhookId(hook));
+};
+
+const retryDelayMs = (attempt, retryAfter = '') => {
+  const seconds = Number(retryAfter);
+  if (Number.isFinite(seconds) && seconds > 0) {
+    return Math.min(15 * 60 * 1000, Math.max(1000, Math.ceil(seconds * 1000)));
+  }
+  return Math.min(15 * 60 * 1000, 5000 * 2 ** Math.min(8, Math.max(0, attempt - 1)));
+};
+
+const upsertRetry = (hook, payload, attempt, retryAfter = '') => {
+  const key = deliveryKey(hook, payload);
+  const retry = {
+    // Never persist the HMAC secret. It is resolved from the protected
+    // webhook configuration immediately before each delivery attempt.
+    hook: { id: webhookId(hook) },
+    payload,
+    attempt,
+    executeAfter: Date.now() + retryDelayMs(attempt, retryAfter),
+  };
+  const index = pendingRetries.findIndex((entry) => deliveryKey(entry.hook, entry.payload) === key);
+  if (index >= 0) pendingRetries[index] = retry;
+  else pendingRetries.push(retry);
+  saveRetries();
+};
+
+const removeRetry = (hook, payload) => {
+  const key = deliveryKey(hook, payload);
+  pendingRetries = pendingRetries.filter((entry) => deliveryKey(entry.hook, entry.payload) !== key);
+  saveRetries();
+};
+
+const markTerminalHookDelivered = (payload, hook) => {
+  const entry = trackedPayments.get(String(payload.paymentId));
+  if (!entry || entry.terminalEvent !== payload.event) return true;
+  entry.deliveredWebhookIds = [...new Set([...(entry.deliveredWebhookIds || []), webhookId(hook)])];
+  return saveTracked();
+};
+
+const sendWebhook = async (hook, payload, attempt = 1) => {
+  try {
+    const configuredHook = resolveConfiguredHook(hook, payload);
+    if (!configuredHook || String(configuredHook.secret || '').length < 1) {
+      throw new Error('Webhook signing configuration is unavailable');
+    }
+    const body = JSON.stringify(payload);
+    const signature = 'sha256=' + crypto.createHmac('sha256', configuredHook.secret).update(body).digest('hex');
+    const resp = await fetchWithTimeout(configuredHook.url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -191,55 +299,88 @@ const sendWebhook = async (hook, payload, attempt = 1) => {
       },
       body,
     });
-    logger.info('WEBHOOK', `→ ${hook.url} | ${resp.status} ${resp.statusText}`);
-    // Remove from pending retries on success
-    pendingRetries = pendingRetries.filter(
-      (r) =>
-        !(r.hook.url === hook.url && r.payload.paymentId === payload.paymentId && r.payload.event === payload.event),
-    );
-    saveRetries();
-  } catch (err) {
-    logger.error('WEBHOOK', `→ ${hook.url} | attempt ${attempt} FAILED: ${err.message}`);
-    if (attempt < 3) {
-      // Save retry to disk so it survives restarts
-      pendingRetries.push({
-        hook,
-        payload,
-        attempt: attempt + 1,
-        executeAfter: Date.now() + (attempt === 1 ? 5000 : 30000),
-      });
-      saveRetries();
-    } else {
-      logger.error('WEBHOOK', `→ ${hook.url} | FAILED after 3 retries`);
-      // Remove from pending retries
-      pendingRetries = pendingRetries.filter(
-        (r) =>
-          !(r.hook.url === hook.url && r.payload.paymentId === payload.paymentId && r.payload.event === payload.event),
-      );
-      saveRetries();
+    logger.info('WEBHOOK', `→ ${safeWebhookLabel(configuredHook)} | ${resp.status} ${resp.statusText}`);
+    if (!resp.ok) {
+      const error = new Error(`Webhook returned HTTP ${resp.status}`);
+      error.retryAfter = resp.headers?.get?.('retry-after') || '';
+      throw error;
     }
+    if (!markTerminalHookDelivered(payload, configuredHook)) {
+      throw new Error('Webhook acknowledgement could not be persisted');
+    }
+    removeRetry(hook, payload);
+    return true;
+  } catch (err) {
+    logger.error('WEBHOOK', `→ ${safeWebhookLabel(hook)} | attempt ${attempt} FAILED: ${err.message}`);
+    // A final payment notification is retained until the receiver confirms it
+    // with a 2xx response. Backoff is capped, but retries are never discarded.
+    upsertRetry(hook, payload, attempt + 1, err.retryAfter);
+    return false;
   }
 };
 
-const sendWebhooks = (event, payload) => {
-  const hooks = getWebhooksByEvent(event);
-  for (const hook of hooks) {
-    sendWebhook(hook, payload);
-  }
+const sendWebhooks = async (event, payload, entry) => {
+  const hooks = webhookResolver(event);
+  entry.terminalWebhookIds = hooks.map(webhookId);
+  entry.deliveredWebhookIds = entry.deliveredWebhookIds || [];
+  delete entry.terminalWebhookUrls;
+  delete entry.deliveredWebhookUrls;
+  saveTracked();
+  const results = await Promise.all(hooks.map((hook) => sendWebhook(hook, payload)));
+  return results.every(Boolean);
 };
 
 // ─── Process pending retries ───
 
+const rebuildTerminalRetries = () => {
+  const existing = new Set(pendingRetries.map((retry) => deliveryKey(retry.hook, retry.payload)));
+  let changed = false;
+  for (const entry of trackedPayments.values()) {
+    if (!entry.terminalEvent || !entry.terminalPayload) continue;
+    const delivered = new Set(entry.deliveredWebhookIds || []);
+    for (const id of entry.terminalWebhookIds || []) {
+      if (delivered.has(id)) continue;
+      const hook = { id: String(id) };
+      const key = deliveryKey(hook, entry.terminalPayload);
+      if (existing.has(key)) continue;
+      pendingRetries.push({
+        hook,
+        payload: entry.terminalPayload,
+        attempt: 1,
+        executeAfter: Date.now(),
+      });
+      existing.add(key);
+      changed = true;
+    }
+  }
+  if (changed) saveRetries();
+  return changed;
+};
+
 const processRetries = async () => {
+  rebuildTerminalRetries();
   const now = Date.now();
   const due = pendingRetries.filter((r) => r.executeAfter <= now);
-  // Remove due items from list before executing (they'll be re-added on failure)
-  pendingRetries = pendingRetries.filter((r) => r.executeAfter > now);
-  saveRetries();
-
   for (const r of due) {
+    const tracked = trackedPayments.get(String(r.payload.paymentId));
+    if (tracked?.terminalEvent === r.payload.event && (tracked.deliveredWebhookIds || []).includes(webhookId(r.hook))) {
+      removeRetry(r.hook, r.payload);
+      continue;
+    }
     await sendWebhook(r.hook, r.payload, r.attempt);
   }
+  let changed = false;
+  for (const [id, entry] of trackedPayments) {
+    if (!entry.terminalEvent) continue;
+    const expected = entry.terminalWebhookIds || [];
+    const delivered = new Set(entry.deliveredWebhookIds || []);
+    if (expected.every((hookReference) => delivered.has(hookReference))) {
+      trackedPayments.delete(id);
+      changed = true;
+      logger.info('POLLING', `Terminal webhook delivery confirmed for payment ${id}`);
+    }
+  }
+  if (changed) saveTracked();
 };
 
 // ─── Poll cycle ───
@@ -249,10 +390,7 @@ const pollOnce = async () => {
 
   if (!getGlobalSession()) {
     if (!pollPausedForReauth && trackedPayments.size > 0) {
-      logger.warn(
-        'POLLING',
-        'Kaspi session requires SMS login; pending payments are preserved until reconnection',
-      );
+      logger.warn('POLLING', 'Kaspi session requires SMS login; pending payments are preserved until reconnection');
     }
     pollPausedForReauth = true;
     return;
@@ -264,25 +402,30 @@ const pollOnce = async () => {
   }
 
   for (const [id, entry] of trackedPayments) {
+    // Final provider state is already known. Only durable webhook delivery
+    // remains, so never query Kaspi or discard this entry by polling TTL.
+    if (entry.terminalEvent) continue;
+
     // TTL check via expireDate
     if (entry.meta.expireDate) {
       const expiry = new Date(entry.meta.expireDate).getTime();
       if (Date.now() > expiry && resolvePaymentEvent(entry.type, entry.status) === null) {
         logger.info('POLLING', `Payment ${id} expired (TTL)`);
-        sendWebhooks(
-          'payment.expired',
-          buildPayload('payment.expired', entry, { Status: 'Expired', StatusDesc: 'Время оплаты истекло' }),
-        );
-        trackedPayments.delete(id);
+        const event = 'payment.expired';
+        const payload = buildPayload(event, entry, {
+          Status: 'Expired',
+          StatusDesc: 'Время оплаты истекло',
+        });
+        entry.terminalEvent = event;
+        entry.terminalPayload = payload;
+        const delivered = await sendWebhooks(event, payload, entry);
+        if (delivered) trackedPayments.delete(id);
         changed = true;
         continue;
       }
     }
 
-    if (
-      !entry.meta.expireDate &&
-      shouldStopFastTracking(entry.createdAt, Date.now(), fastTrackingMaxMs())
-    ) {
+    if (!entry.meta.expireDate && shouldStopFastTracking(entry.createdAt, Date.now(), fastTrackingMaxMs())) {
       logger.info('POLLING', `Stopped fast tracking payment ${id}; background reconciliation remains active`);
       trackedPayments.delete(id);
       changed = true;
@@ -295,10 +438,7 @@ const pollOnce = async () => {
     // payment. Preserve every pending operation and resume after SMS login.
     if (result && result.error === 'reauth_required') {
       if (!pollPausedForReauth) {
-        logger.warn(
-          'POLLING',
-          'Kaspi session was revoked; pending payments are preserved until reconnection',
-        );
+        logger.warn('POLLING', 'Kaspi session was revoked; pending payments are preserved until reconnection');
       }
       pollPausedForReauth = true;
       continue;
@@ -335,8 +475,11 @@ const pollOnce = async () => {
 
     const event = resolvePaymentEvent(entry.type, newStatus);
     if (event) {
-      sendWebhooks(event, buildPayload(event, entry, result.Data));
-      trackedPayments.delete(id);
+      const payload = buildPayload(event, entry, result.Data);
+      entry.terminalEvent = event;
+      entry.terminalPayload = payload;
+      const delivered = await sendWebhooks(event, payload, entry);
+      if (delivered) trackedPayments.delete(id);
     }
   }
 
@@ -390,6 +533,7 @@ export const startPolling = () => {
   // Load persisted state
   loadTracked();
   loadRetries();
+  rebuildTerminalRetries();
 
   pollActive = true;
   scheduleNext();
@@ -408,3 +552,22 @@ export const stopPolling = () => {
 };
 
 export const getTrackedPayments = () => Object.fromEntries(trackedPayments);
+export const __test = {
+  deliveryKey,
+  loadTracked,
+  loadRetries,
+  pendingRetries: () => JSON.parse(JSON.stringify(pendingRetries)),
+  processRetries,
+  rebuildTerminalRetries,
+  reset: () => {
+    pendingRetries = [];
+    trackedPayments.clear();
+    webhookResolver = getWebhooksByEvent;
+  },
+  retryDelayMs,
+  safeWebhookLabel,
+  setWebhookResolver: (resolver) => {
+    webhookResolver = resolver;
+  },
+  sendWebhook,
+};
