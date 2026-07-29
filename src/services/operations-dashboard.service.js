@@ -1,4 +1,5 @@
 const { supabase } = require('../config/supabase');
+const { isDeliveryFulfillment } = require('../utils/fulfillment.util');
 
 const CLOSED_ORDER_STATUSES = new Set(['completed', 'cancelled']);
 const CLOSED_DELIVERY_STATUSES = new Set(['delivered', 'cancelled']);
@@ -49,7 +50,7 @@ async function getOperationsSummary({
   let orderQuery = supabase
     .from('kaspi_orders')
     .select(
-      'id,order_number,amount,branch_id,branch_name,status,fulfillment_status,fulfillment_type,kitchen_status,promised_ready_at,delivery_status,courier_id,refund_status,last_error,created_at,updated_at',
+      'id,order_number,amount,branch_id,branch_name,status,fulfillment_status,fulfillment_type,preorder_fulfillment_type,kitchen_status,promised_ready_at,delivery_status,courier_id,refund_status,last_error,created_at,updated_at',
     )
     .order('created_at', { ascending: false })
     .limit(400);
@@ -120,7 +121,7 @@ async function getOperationsSummary({
   const deliveryAttention = activeOrders.filter(
     (order) =>
       includeDispatch &&
-      order.fulfillment_type === 'delivery' &&
+      isDeliveryFulfillment(order) &&
       !CLOSED_DELIVERY_STATUSES.has(order.delivery_status || 'new') &&
       (!order.courier_id ||
         ['new', 'awaiting_courier', 'courier_assigned'].includes(order.delivery_status || 'new')),

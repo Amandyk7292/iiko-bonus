@@ -343,24 +343,45 @@ router.post('/api/auth/register', authRateLimit, registrationAuthMiddleware, asy
     const { name, surname, gender, birthdate, email } = req.body;
     if (!phone) return res.status(400).json({ success: false, error: 'Phone required' });
 
-    const fullName = [name, surname].filter(Boolean).join(' ').trim().slice(0, 160);
+    const safeName = typeof name === 'string' ? name.trim() : '';
+    const safeSurname = typeof surname === 'string' ? surname.trim() : '';
+    const safeEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    const safeGender = typeof gender === 'string' ? gender.trim().toLowerCase() : '';
+    const safeBirthdate = typeof birthdate === 'string' ? birthdate.trim() : '';
+    const fullName = [safeName, safeSurname].filter(Boolean).join(' ').trim().slice(0, 160);
     if (!fullName) return res.status(400).json({ success: false, error: 'Name required' });
+    if (safeName.length > 80 || safeSurname.length > 80) {
+      return res.status(400).json({ success: false, error: 'Name is too long' });
+    }
+    if (email != null && (!safeEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(safeEmail))) {
+      return res.status(400).json({ success: false, error: 'Invalid email' });
+    }
+    if (safeEmail.length > 254) {
+      return res.status(400).json({ success: false, error: 'Invalid email' });
+    }
+    if (birthdate != null) {
+      const parsedBirthdate = new Date(`${safeBirthdate}T00:00:00.000Z`);
+      if (
+        !/^\d{4}-\d{2}-\d{2}$/.test(safeBirthdate) ||
+        Number.isNaN(parsedBirthdate.getTime()) ||
+        parsedBirthdate.toISOString().slice(0, 10) !== safeBirthdate ||
+        parsedBirthdate > new Date()
+      ) {
+        return res.status(400).json({ success: false, error: 'Invalid birthdate' });
+      }
+    }
+    if (gender != null && !['m', 'f', 'male', 'female', 'other'].includes(safeGender)) {
+      return res.status(400).json({ success: false, error: 'Invalid gender' });
+    }
+
+    // Validate every user-controlled field before a placeholder customer can
+    // be created. Invalid registration attempts must not leave orphan rows.
     const existingCustomer = await getCustomerByPhone(phone);
     if (isEstablishedCustomer(existingCustomer)) {
       return res.status(409).json({ success: false, error: 'Customer is already registered' });
     }
     let customer = existingCustomer || (await getOrCreateCustomerByPhone(phone, fullName));
     if (!customer) return res.status(404).json({ success: false, error: 'Cannot create customer' });
-
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email))) {
-      return res.status(400).json({ success: false, error: 'Invalid email' });
-    }
-    if (birthdate && !/^\d{4}-\d{2}-\d{2}$/.test(String(birthdate))) {
-      return res.status(400).json({ success: false, error: 'Invalid birthdate' });
-    }
-    if (gender && !['m', 'f', 'male', 'female', 'other'].includes(String(gender))) {
-      return res.status(400).json({ success: false, error: 'Invalid gender' });
-    }
 
     if (req.registrationAuth.credentialGrantId) {
       const passwordHash = await consumeRegistrationCredentialGrant({
@@ -371,10 +392,10 @@ router.post('/api/auth/register', authRateLimit, registrationAuthMiddleware, asy
     }
 
     const updateData = { name: fullName };
-    if (surname) updateData.last_name = surname;
-    if (email) updateData.email = email;
-    if (gender) updateData.gender = gender;
-    if (birthdate) updateData.birth_date = birthdate;
+    if (safeSurname) updateData.last_name = safeSurname;
+    if (safeEmail) updateData.email = safeEmail;
+    if (safeGender) updateData.gender = safeGender;
+    if (safeBirthdate) updateData.birth_date = safeBirthdate;
 
     const { error: updateError } = await supabase
       .from('customers')

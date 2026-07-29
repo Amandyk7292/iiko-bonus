@@ -13,6 +13,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
   bool _showCities = false;
   String _selectedCity = '';
   String _searchQuery = '';
+  final _searchController = TextEditingController();
   bool _loading = true;
   bool _loadFailed = false;
 
@@ -67,6 +68,18 @@ class _LocationsScreenState extends State<LocationsScreen> {
       _showCities = false;
       _searchQuery = '';
     });
+    _searchController.clear();
+  }
+
+  void _clearSearch() {
+    _searchController.clear();
+    if (_searchQuery.isNotEmpty) setState(() => _searchQuery = '');
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _onLocationTapped(BakeryLocation location) async {
@@ -220,6 +233,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
           child: TextField(
+            controller: _searchController,
             onChanged: (val) => setState(() => _searchQuery = val),
             textInputAction: TextInputAction.search,
             decoration: InputDecoration(
@@ -228,7 +242,16 @@ class _LocationsScreenState extends State<LocationsScreen> {
                 color: colors.mutedText,
                 fontSize: BulkaTypeScale.body,
               ),
-              suffixIcon: const Icon(Icons.search, color: Color(0xFFD3AD72)),
+              suffixIcon: _searchQuery.isEmpty
+                  ? const Icon(Icons.search, color: Color(0xFFD3AD72))
+                  : IconButton(
+                      onPressed: _clearSearch,
+                      tooltip: 'catalog_clear_search'.tr,
+                      icon: const Icon(
+                        Icons.close_rounded,
+                        color: Color(0xFFD3AD72),
+                      ),
+                    ),
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 20,
                 vertical: 16,
@@ -243,10 +266,12 @@ class _LocationsScreenState extends State<LocationsScreen> {
                   title: _searchQuery.isEmpty
                       ? 'locations_empty'.tr
                       : 'locations_search_empty'.tr,
-                  actionLabel: 'refresh_btn'.tr,
+                  actionLabel: _searchQuery.isEmpty
+                      ? 'retry_btn'.tr
+                      : 'catalog_clear_search'.tr,
                   onAction: _searchQuery.isEmpty
                       ? _loadLocations
-                      : () => setState(() => _searchQuery = ''),
+                      : _clearSearch,
                 )
               : ListView.separated(
                   padding: const EdgeInsets.symmetric(horizontal: 24),

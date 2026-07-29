@@ -9,7 +9,6 @@ class BulkaDesktopPhoneViewport extends StatelessWidget {
 
   static const desktopBreakpoint = 900.0;
   static const phoneContentSize = Size(430, 860);
-  static const maxDesktopScale = 1.1;
   static const phoneSafeArea = EdgeInsets.only(top: 10, bottom: 10);
   static const _phoneFrameSize = Size(446, 884);
 
@@ -27,15 +26,6 @@ class BulkaDesktopPhoneViewport extends StatelessWidget {
         (kIsWeb && browserSize.width >= desktopBreakpoint);
 
     if (!usePhoneViewport) return child;
-
-    final phoneMediaQuery = browserMediaQuery.copyWith(
-      size: phoneContentSize,
-      padding: phoneSafeArea,
-      viewPadding: phoneSafeArea,
-      viewInsets: EdgeInsets.zero,
-      systemGestureInsets: EdgeInsets.zero,
-      displayFeatures: const [],
-    );
 
     return RepaintBoundary(
       key: const ValueKey('bulka-desktop-backdrop'),
@@ -69,91 +59,93 @@ class BulkaDesktopPhoneViewport extends StatelessWidget {
                 padding: const EdgeInsets.all(18),
                 child: LayoutBuilder(
                   builder: (context, constraints) {
-                    final fittedWidth = min(
+                    final frameWidth = min(
                       constraints.maxWidth,
-                      _phoneFrameSize.width * maxDesktopScale,
+                      _phoneFrameSize.width,
                     );
-                    final fittedHeight = min(
+                    final frameHeight = min(
                       constraints.maxHeight,
-                      _phoneFrameSize.height * maxDesktopScale,
+                      _phoneFrameSize.height,
+                    );
+                    final contentSize = Size(
+                      max(0, frameWidth - 16),
+                      max(0, frameHeight - 24),
+                    );
+                    final phoneMediaQuery = browserMediaQuery.copyWith(
+                      size: contentSize,
+                      padding: phoneSafeArea,
+                      viewPadding: phoneSafeArea,
+                      viewInsets: EdgeInsets.zero,
+                      systemGestureInsets: EdgeInsets.zero,
+                      displayFeatures: const [],
                     );
                     return Center(
-                      child: SizedBox(
-                        width: fittedWidth,
-                        height: fittedHeight,
-                        child: FittedBox(
-                          fit: BoxFit.contain,
-                          alignment: Alignment.center,
-                          child: Semantics(
-                            container: true,
-                            child: SizedBox(
-                              key: const ValueKey('bulka-desktop-phone-frame'),
-                              width: _phoneFrameSize.width,
-                              height: _phoneFrameSize.height,
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF2B170F),
-                                  borderRadius: BorderRadius.circular(42),
-                                  border: Border.all(
-                                    color: const Color(0xFFB58A55),
-                                    width: 1,
-                                  ),
-                                  boxShadow: const [
-                                    BoxShadow(
-                                      color: Color(0x382B170F),
-                                      blurRadius: 42,
-                                      offset: Offset(0, 18),
-                                    ),
-                                    BoxShadow(
-                                      color: Color(0x14FFFFFF),
-                                      blurRadius: 2,
-                                      spreadRadius: 1,
-                                      offset: Offset(0, -1),
-                                    ),
-                                  ],
-                                ),
-                                child: Stack(
-                                  children: [
-                                    Positioned(
-                                      top: 6,
-                                      left: 0,
-                                      right: 0,
-                                      child: Center(
-                                        child: Container(
-                                          width: 54,
-                                          height: 4,
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFF806454),
-                                            borderRadius: BorderRadius.circular(
-                                              99,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    Positioned(
-                                      left: 8,
-                                      top: 16,
-                                      right: 8,
-                                      bottom: 8,
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(34),
-                                        child: SizedBox(
-                                          key: const ValueKey(
-                                            'bulka-desktop-phone-content',
-                                          ),
-                                          width: phoneContentSize.width,
-                                          height: phoneContentSize.height,
-                                          child: MediaQuery(
-                                            data: phoneMediaQuery,
-                                            child: child,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                      child: Semantics(
+                        container: true,
+                        child: SizedBox(
+                          key: const ValueKey('bulka-desktop-phone-frame'),
+                          width: frameWidth,
+                          height: frameHeight,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2B170F),
+                              borderRadius: BorderRadius.circular(42),
+                              border: Border.all(
+                                color: const Color(0xFFB58A55),
+                                width: 1,
                               ),
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Color(0x382B170F),
+                                  blurRadius: 42,
+                                  offset: Offset(0, 18),
+                                ),
+                                BoxShadow(
+                                  color: Color(0x14FFFFFF),
+                                  blurRadius: 2,
+                                  spreadRadius: 1,
+                                  offset: Offset(0, -1),
+                                ),
+                              ],
+                            ),
+                            child: Stack(
+                              children: [
+                                Positioned(
+                                  top: 6,
+                                  left: 0,
+                                  right: 0,
+                                  child: Center(
+                                    child: Container(
+                                      width: 54,
+                                      height: 4,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF806454),
+                                        borderRadius: BorderRadius.circular(99),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                Positioned(
+                                  left: 8,
+                                  top: 16,
+                                  right: 8,
+                                  bottom: 8,
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(34),
+                                    child: SizedBox(
+                                      key: const ValueKey(
+                                        'bulka-desktop-phone-content',
+                                      ),
+                                      width: contentSize.width,
+                                      height: contentSize.height,
+                                      child: MediaQuery(
+                                        data: phoneMediaQuery,
+                                        child: child,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),

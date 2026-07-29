@@ -123,7 +123,7 @@ export default function OperationsPage() {
       </section>
 
       {summary.capabilities.orders && summary.counts.paymentIssues > 0 && (
-        <Link className="operations-alert" to="/orders?payment=failed">
+        <Link className="operations-alert" to="/orders?payment=issues">
           <AlertTriangle aria-hidden="true" size={20} />
           <span>
             <strong>Проблемы оплаты или возврата: {summary.counts.paymentIssues}</strong>

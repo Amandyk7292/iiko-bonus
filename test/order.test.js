@@ -40,6 +40,32 @@ test('order total rejects unavailable, missing and invalid quantities', () => {
   assert.equal(custom.canonicalItems[0].iikoProductId, null);
 });
 
+test('stock validation aggregates the same product across configurations', () => {
+  const catalog = new Map([
+    [
+      'p1',
+      {
+        name: 'Булочка',
+        price: 100,
+        isAvailable: true,
+        availableQuantity: 10,
+      },
+    ],
+  ]);
+
+  assert.throws(
+    () =>
+      calculateOrderTotal(
+        [
+          { id: 'p1', quantity: 6, configuration: { filling: 'apple' } },
+          { id: 'p1', quantity: 6, configuration: { filling: 'cherry' } },
+        ],
+        catalog,
+      ),
+    /Доступно: 10/,
+  );
+});
+
 test('promo is calculated server-side with minimum order and cap', () => {
   const promos = [{ code: 'BULKA10', type: 'percent', value: 10, min_order: 1000, active: true }];
   assert.deepEqual(applyPromoCode(2500, 'bulka10', promos), {

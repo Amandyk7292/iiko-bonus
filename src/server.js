@@ -21,6 +21,7 @@ const {
 const { syncActiveDeliveries } = require('./services/yandex-delivery.service');
 const { registerWorker, runMonitoredWorker } = require('./services/operational-health.service');
 const { cleanupExpiredPayments } = require('./services/payment-cleanup.service');
+const { processPrivacyStorageCleanupJobs } = require('./services/privacy-storage-cleanup.service');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -78,6 +79,11 @@ if (!process.env.VERCEL) {
       });
     setTimeout(runMarketing, 30 * 1000);
     setInterval(runMarketing, 10 * 60 * 1000);
+
+    const cleanupPrivacyStorage = () =>
+      runMonitoredWorker('privacy-storage-cleanup', processPrivacyStorageCleanupJobs);
+    setTimeout(cleanupPrivacyStorage, 35 * 1000);
+    setInterval(cleanupPrivacyStorage, 60 * 1000);
   }
   registerWorker('kaspi-reconciliation', {
     enabled: runWorkers && process.env.KASPI_POS_ENABLED === 'true',
@@ -99,6 +105,11 @@ if (!process.env.VERCEL) {
   registerWorker('marketing-automation', {
     enabled: runWorkers,
     intervalMs: 10 * 60 * 1000,
+  });
+  registerWorker('privacy-storage-cleanup', {
+    enabled: runWorkers,
+    intervalMs: 60 * 1000,
+    critical: true,
   });
 
   // Delivery tracking is part of the request lifecycle, not an optional

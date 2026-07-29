@@ -63,6 +63,11 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'kk': 'Санын көбейту',
     'en': 'Increase quantity',
   },
+  'cart_quantity_limit_reached': {
+    'ru': 'Максимум {count} шт.',
+    'kk': 'Ең көбі {count} дана',
+    'en': 'Maximum {count} items',
+  },
   'cart_quantity': {'ru': 'Количество', 'kk': 'Саны', 'en': 'Quantity'},
   'checkout_title': {
     'ru': 'Оформление заказа',
@@ -396,6 +401,11 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'ru': 'Защищённая страница банка',
     'kk': 'Банктің қорғалған беті',
     'en': 'Secure bank page',
+  },
+  'forte_payment_loading': {
+    'ru': 'Загружается защищённая страница оплаты',
+    'kk': 'Қорғалған төлем беті жүктелуде',
+    'en': 'Loading the secure payment page',
   },
   'forte_payment_verifying_title': {
     'ru': 'Проверяем оплату',

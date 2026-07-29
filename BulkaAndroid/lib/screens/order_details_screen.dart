@@ -222,7 +222,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
 
   bool get _canReportArrival =>
       _order.paymentStatus == 'paid' &&
-      const {'pickup', 'preorder'}.contains(_order.fulfillmentType) &&
+      !_order.usesDelivery &&
       _order.orderStatus == 'ready';
 
   String _formatDateTime(DateTime value) {
@@ -697,7 +697,7 @@ class _OrderTimeline extends StatelessWidget {
     (key: 'accepted', icon: Icons.thumb_up_alt_rounded),
     (key: 'preparing', icon: Icons.bakery_dining_rounded),
     (key: 'ready', icon: Icons.inventory_2_rounded),
-    if (order.fulfillmentType == 'delivery')
+    if (order.usesDelivery)
       (key: 'en_route', icon: Icons.delivery_dining_rounded),
     (key: 'completed', icon: Icons.check_circle_rounded),
   ];
@@ -711,7 +711,7 @@ class _OrderTimeline extends StatelessWidget {
       'completed' => _steps.length - 1,
       _ => 0,
     };
-    if (order.fulfillmentType == 'delivery') {
+    if (order.usesDelivery) {
       if (const {'picked_up', 'en_route'}.contains(order.deliveryStatus)) {
         return _steps.length - 2;
       }

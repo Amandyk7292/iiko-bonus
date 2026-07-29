@@ -12,6 +12,16 @@ const Map<String, Map<String, String>> _homeAndLoyaltyTranslations = {
     'kk': 'Жинақтау жүйесі',
     'en': 'Loyalty program',
   },
+  'home_promos_load_error': {
+    'ru': 'Не удалось загрузить акции.',
+    'kk': 'Акцияларды жүктеу мүмкін болмады.',
+    'en': 'Promotions could not be loaded.',
+  },
+  'home_news_load_error': {
+    'ru': 'Не удалось загрузить новости.',
+    'kk': 'Жаңалықтарды жүктеу мүмкін болмады.',
+    'en': 'News could not be loaded.',
+  },
   // Loyalty panel & QR
   'show_qr_cashier': {
     'ru': 'Покажите QR-\nкод кассиру',

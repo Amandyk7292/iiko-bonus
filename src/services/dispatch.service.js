@@ -13,10 +13,12 @@ async function listDispatchState({ branchIds = [] } = {}) {
   let ordersQuery = supabase
     .from('kaspi_orders')
     .select(
-      'id,order_number,branch_id,branch_name,delivery_latitude,delivery_longitude,delivery_address,courier_id,delivery_status,estimated_delivery_at,eta_min_at,eta_max_at,eta_confidence,route_distance_km,kitchen_status,promised_ready_at,created_at,amount,bulka_locations(latitude,longitude,name,address)',
+      'id,order_number,branch_id,branch_name,fulfillment_type,preorder_fulfillment_type,delivery_latitude,delivery_longitude,delivery_address,courier_id,delivery_status,estimated_delivery_at,eta_min_at,eta_max_at,eta_confidence,route_distance_km,kitchen_status,promised_ready_at,created_at,amount,bulka_locations(latitude,longitude,name,address)',
     )
     .eq('status', 'paid')
-    .eq('fulfillment_type', 'delivery')
+    .or(
+      'fulfillment_type.eq.delivery,and(fulfillment_type.eq.preorder,preorder_fulfillment_type.eq.delivery)',
+    )
     .not('delivery_status', 'in', '(delivered,cancelled)')
     .order('created_at');
   if (Array.isArray(branchIds) && branchIds.length)

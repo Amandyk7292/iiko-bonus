@@ -45,16 +45,24 @@ type ApiErrorPayload = {
 export function adminApiErrorMessage(payload: ApiErrorPayload, status: number) {
   const rawMessage = String(payload.error || payload.message || '').trim();
   const requestId = String(payload.requestId || '').trim();
+  const requestHint = requestId ? `Код запроса: ${requestId}.` : '';
   if (status >= 500 || rawMessage === 'Internal Server Error') {
     return [
-      'Не удалось выполнить действие. Повторите попытку.',
-      requestId ? `Если ошибка повторится, сообщите поддержке код запроса: ${requestId}.` : '',
+      'Не удалось выполнить действие. Обновите данные и повторите попытку.',
+      requestHint ? `Если ошибка повторится, сообщите поддержке. ${requestHint}` : '',
     ]
       .filter(Boolean)
       .join(' ');
   }
-  return rawMessage || `Ошибка запроса (${status})`;
+  return [rawMessage || `Ошибка запроса (${status})`, requestHint].filter(Boolean).join(' ');
 }
+
+const responseRequestId = (response: Response) =>
+  String(
+    response.headers.get('x-request-id') ||
+      response.headers.get('x-correlation-id') ||
+      '',
+  ).trim();
 
 import type {
   LocalizedText,
@@ -137,10 +145,16 @@ async function parseResponse<T>(response: Response): Promise<T> {
   if (response.status === 204) return undefined as T;
   const contentType = response.headers.get('content-type') ?? '';
   if (!contentType.includes('application/json')) {
+    const requestId = responseRequestId(response);
     throw new ApiError(
-      'Сервер вернул некорректный ответ API',
+      adminApiErrorMessage(
+        { error: 'Сервер вернул некорректный ответ API', requestId },
+        response.status,
+      ),
       response.status,
       'INVALID_API_RESPONSE',
+      undefined,
+      requestId || undefined,
     );
   }
   return response.json() as Promise<T>;
@@ -188,15 +202,17 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     const errorData = await parseResponse<ApiErrorPayload>(response).catch(
       (): ApiErrorPayload => ({}),
     );
+    const requestId = errorData.requestId || responseRequestId(response) || undefined;
+    const payload = { ...errorData, requestId };
     if (response.status === 401) {
       window.dispatchEvent(new Event('unauthorized'));
     }
     throw new ApiError(
-      adminApiErrorMessage(errorData, response.status),
+      adminApiErrorMessage(payload, response.status),
       response.status,
       errorData.code,
       errorData.details,
-      errorData.requestId,
+      requestId,
     );
   }
 
@@ -214,17 +230,28 @@ async function publicAuthRequest<T>(endpoint: string, data: Record<string, unkno
     credentials: 'same-origin',
     body: JSON.stringify(data),
   }).catch(() => {
-    throw new ApiError('Network request failed', 0, 'NETWORK_ERROR');
+    throw new ApiError(
+      'Нет связи с сервером. Проверьте интернет и повторите попытку.',
+      0,
+      'NETWORK_ERROR',
+    );
   });
   if (!response.ok) {
-    const errorData: { error?: string; code?: string } = await parseResponse<{
-      error?: string;
-      code?: string;
-    }>(response).catch(() => ({}));
+    const errorData = await parseResponse<ApiErrorPayload>(response).catch(
+      (): ApiErrorPayload => ({}),
+    );
+    const requestId = errorData.requestId || responseRequestId(response) || undefined;
+    const payload = {
+      ...errorData,
+      error: errorData.error || 'Не удалось выполнить вход',
+      requestId,
+    };
     throw new ApiError(
-      errorData.error || 'Не удалось выполнить вход',
+      adminApiErrorMessage(payload, response.status),
       response.status,
       errorData.code,
+      errorData.details,
+      requestId,
     );
   }
   return parseResponse<T>(response);
@@ -239,14 +266,30 @@ export const api = {
       credentials: 'same-origin',
       body: JSON.stringify(loginData),
     }).catch(() => {
-      throw new ApiError('Network request failed', 0, 'NETWORK_ERROR');
+      throw new ApiError(
+        'Нет связи с сервером. Проверьте интернет и повторите попытку.',
+        0,
+        'NETWORK_ERROR',
+      );
     });
     if (!response.ok) {
-      const errorData = await parseResponse<{ error?: string }>(response).catch(() => null);
+      const errorData = await parseResponse<ApiErrorPayload>(response).catch(
+        (): ApiErrorPayload => ({}),
+      );
+      const requestId = errorData.requestId || responseRequestId(response) || undefined;
       throw new ApiError(
-        errorData?.error || 'Invalid credentials',
+        adminApiErrorMessage(
+          {
+            ...errorData,
+            error: errorData.error || 'Не удалось выполнить вход',
+            requestId,
+          },
+          response.status,
+        ),
         response.status,
         response.status === 401 ? 'AUTH_INVALID' : 'AUTH_CONFIG',
+        errorData.details,
+        requestId,
       );
     }
     return parseResponse<{ user: AdminUser }>(response);
@@ -905,7 +948,26 @@ export const api = {
       body: formData,
       credentials: 'same-origin',
     });
-    if (!response.ok) throw new ApiError('Ошибка загрузки фото', response.status);
+    if (!response.ok) {
+      const errorData = await parseResponse<ApiErrorPayload>(response).catch(
+        (): ApiErrorPayload => ({}),
+      );
+      const requestId = errorData.requestId || responseRequestId(response) || undefined;
+      throw new ApiError(
+        adminApiErrorMessage(
+          {
+            ...errorData,
+            error: errorData.error || 'Не удалось загрузить фото. Повторите попытку.',
+            requestId,
+          },
+          response.status,
+        ),
+        response.status,
+        errorData.code,
+        errorData.details,
+        requestId,
+      );
+    }
     return response.json();
   },
   translate: (text: string, targetLang: string) =>

@@ -535,6 +535,7 @@ const kk: Record<string, string> = {
   'payment.refunded': 'Қайтарылды',
   'payment.failed': 'Қате',
   'payment.expired': 'Мерзімі өтті',
+  'payment.issues': 'Төлем және қайтарым мәселелері',
   'orderStatus.new': 'Жаңа',
   'orderStatus.accepted': 'Қабылданды',
   'orderStatus.preparing': 'Дайындалуда',
@@ -726,6 +727,7 @@ const kk: Record<string, string> = {
   'access.role.operator': 'Оператор',
   'access.role.marketer': 'Маркетолог',
   'access.role.courier': 'Курьер',
+  'access.role.editor': 'Редактор',
   'access.role.viewer': 'Тек көру',
   'access.loadError': 'Құқықтарды жүктеу мүмкін болмады',
   'access.ipInvalid': 'Маскасыз және диапазонсыз жарамды IPv4 немесе IPv6 енгізіңіз.',
@@ -783,6 +785,8 @@ const kk: Record<string, string> = {
   'inventory.heading': 'Қалдықтар және стоп-лист',
   'inventory.intro':
     'Әр филиалдың жеке қалдығы бар. Төленген және күтіп тұрған тапсырыстар тауарды резервтейді.',
+  'inventory.readOnly':
+    'Көру режимі: сіздің рөліңіз үшін қалдықтар мен стоп-парақты өзгерту қолжетімсіз.',
   'inventory.sync': 'iiko-мен синхрондау',
   'inventory.syncing': 'Синхрондалуда…',
   'inventory.synced': 'Қалдықтар синхрондалды',
@@ -854,6 +858,7 @@ const kk: Record<string, string> = {
   'orders.delivery': 'Жеткізу',
   'orders.customerArrived': 'Клиент келді',
   'orders.assignCourier': 'Курьер тағайындау',
+  'orders.courierNotAssigned': 'Курьер тағайындалмаған',
   'orders.courierAssigned': 'Курьер тағайындалды',
   'orders.deliverySaved': 'Жеткізу күйі жаңартылды',
   'deliveryStatus.unassigned': 'Курьер тағайындалмаған',

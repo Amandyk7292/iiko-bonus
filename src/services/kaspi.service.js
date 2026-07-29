@@ -1,15 +1,46 @@
 const fetch = require('node-fetch');
 const { supabase } = require('../config/supabase');
-const { commitOrderReservations, releaseOrderReservations } = require('./inventory.service');
+const {
+  commitOrReacquireOrderReservations,
+  releaseOrderReservations,
+} = require('./inventory.service');
 const realtime = require('./realtime.service');
 const { recordSystemEvent } = require('./analytics-event.service');
 const { queueCustomerLoyaltySync } = require('./loyalty-sync.service');
 const { buildEtaForecast, etaDatabaseFields, forecastOrderEta } = require('./eta.service');
+const { effectiveFulfillmentType, isDeliveryFulfillment } = require('../utils/fulfillment.util');
 
 const KASPI_URL =
   process.env.KASPI_MICROSERVICE_URL || `http://127.0.0.1:${process.env.PORT || 3000}/kaspi-pos`;
 const DEFAULT_PENDING_RECONCILIATION_MS = 24 * 60 * 60 * 1000;
 const MIN_PENDING_RECONCILIATION_MS = 15 * 60 * 1000;
+const RECONCILIATION_BATCH_SIZE = 50;
+const LATE_PAYMENT_CANCELLATION_REASONS = new Set(['Срок оплаты истёк', 'Оплата не прошла']);
+const LATE_PAYMENT_AUTO_REFUND_PREFIX = 'Автоматический возврат поздней оплаты: ';
+
+const isLatePaymentAutoRefund = (order) =>
+  String(order?.cancellation_reason || '').startsWith(LATE_PAYMENT_AUTO_REFUND_PREFIX);
+
+const reconciliationTimestamp = (order) => {
+  const timestamp = Date.parse(String(order?.updated_at || order?.created_at || ''));
+  return Number.isFinite(timestamp) ? timestamp : 0;
+};
+
+const mergeReconciliationOrders = (...groups) => {
+  const unique = new Map();
+  for (const order of groups.flat()) {
+    if (!order) continue;
+    const key = String(order.id || order.operation_id || '');
+    if (!key) continue;
+    const existing = unique.get(key);
+    if (!existing || reconciliationTimestamp(order) > reconciliationTimestamp(existing)) {
+      unique.set(key, order);
+    }
+  }
+  return [...unique.values()].sort(
+    (left, right) => reconciliationTimestamp(right) - reconciliationTimestamp(left),
+  );
+};
 
 const digitsOnly = (value) => String(value ?? '').replace(/\D/g, '');
 
@@ -47,7 +78,7 @@ const kaspiReauthError = () =>
   );
 
 async function dispatchPaidDeliveryOrder(order, { yandexDelivery, dispatchService } = {}) {
-  if (!order || order.fulfillment_type !== 'delivery') {
+  if (!order || !isDeliveryFulfillment(order)) {
     return { skipped: true, reason: 'not_delivery' };
   }
   if (
@@ -102,6 +133,8 @@ const paymentResponse = (order) => ({
   qrToken: order.qr_token || undefined,
   amount: Number(order.amount),
   orderType: order.fulfillment_type || 'pickup',
+  preorderFulfillmentType: order.preorder_fulfillment_type || null,
+  effectiveFulfillmentType: effectiveFulfillmentType(order),
   branchId: order.branch_id == null ? null : String(order.branch_id),
   scheduledAt: order.scheduled_at || null,
   orderId: order.id == null ? undefined : String(order.id),
@@ -154,7 +187,7 @@ class KaspiService {
     const { data, error } = await supabase
       .from('kaspi_orders')
       .select(
-        'id,operation_id,payment_method,qr_token,amount,status,fulfillment_type,branch_id,scheduled_at',
+        'id,operation_id,payment_method,qr_token,amount,status,fulfillment_type,preorder_fulfillment_type,branch_id,scheduled_at',
       )
       .eq('customer_id', customerId)
       .eq('client_request_id', requestId)
@@ -188,7 +221,7 @@ class KaspiService {
 
     const eta = await forecastOrderEta({
       branchId: checkout.branchId,
-      orderType: checkout.orderType,
+      orderType: checkout.effectiveFulfillmentType,
       scheduledAt: checkout.scheduledAt,
       preparationMinutes: pricing.preparationMinutes,
       deliveryAddress: checkout.deliveryAddress,
@@ -344,6 +377,8 @@ class KaspiService {
         qrToken: qrToken,
         amount,
         orderType: checkout.orderType,
+        preorderFulfillmentType: checkout.preorderFulfillmentType,
+        effectiveFulfillmentType: checkout.effectiveFulfillmentType,
         branchId: checkout.branchId,
         scheduledAt: checkout.scheduledAt,
         orderId: savedOrder.id,
@@ -402,6 +437,8 @@ class KaspiService {
       operationId: operationId,
       amount,
       orderType: checkout.orderType,
+      preorderFulfillmentType: checkout.preorderFulfillmentType,
+      effectiveFulfillmentType: checkout.effectiveFulfillmentType,
       branchId: checkout.branchId,
       scheduledAt: checkout.scheduledAt,
       orderId: savedOrder.id,
@@ -420,10 +457,16 @@ class KaspiService {
     eta = null,
   }) {
     const preparationMinutes = Math.min(240, Math.max(1, Number(pricing.preparationMinutes) || 15));
+    const effectiveType =
+      checkout.effectiveFulfillmentType ||
+      effectiveFulfillmentType({
+        fulfillment_type: checkout.orderType,
+        preorder_fulfillment_type: checkout.preorderFulfillmentType,
+      });
     const resolvedEta =
       eta ||
       buildEtaForecast({
-        orderType: checkout.orderType,
+        orderType: effectiveType,
         scheduledAt: checkout.scheduledAt,
         preparationMinutes,
         directDistanceKm: checkout.deliveryZone?.distanceKm,
@@ -440,6 +483,8 @@ class KaspiService {
       delivery_fee: pricing.deliveryFee || 0,
       promo_code: pricing.promoCode,
       fulfillment_type: checkout.orderType,
+      preorder_fulfillment_type:
+        checkout.orderType === 'preorder' ? checkout.preorderFulfillmentType : null,
       branch_id: checkout.branchId,
       branch_name: checkout.branch,
       scheduled_at: checkout.scheduledAt,
@@ -452,7 +497,7 @@ class KaspiService {
       substitution_preference: checkout.substitutionPreference,
       fulfillment_status: 'pending',
       preparation_minutes: preparationMinutes,
-      ...etaDatabaseFields(resolvedEta, checkout.orderType),
+      ...etaDatabaseFields(resolvedEta, effectiveType),
       client_request_id: checkout.requestId,
       payment_method: paymentMethod,
       qr_token: qrToken,
@@ -604,12 +649,15 @@ class KaspiService {
 
     if (data) {
       if (data.status === 'paid') {
-        await commitOrderReservations(data.id).catch((error) =>
-          console.error('Не удалось зафиксировать резерв оплаченного заказа:', error.message),
-        );
+        // recordPaidOrder performs the authoritative commit/reacquire before
+        // any bonus, receipt or fulfillment transition.
       } else if (['failed', 'expired'].includes(data.status)) {
         await releaseOrderReservations(data.id).catch((error) =>
           console.error('Не удалось освободить резерв заказа:', error.message),
+        );
+        const { releasePromotionReservation } = require('./commerce-marketing.service');
+        await releasePromotionReservation({ orderId: data.id }).catch((error) =>
+          console.error('Не удалось освободить промокод заказа:', error.message),
         );
         await recordSystemEvent(data.customer_id, {
           type:
@@ -709,45 +757,83 @@ class KaspiService {
     if (stalePendingError) throw stalePendingError;
 
     const [
-      { data: settledOrders, error: settledError },
+      { data: paidPendingOrders, error: paidPendingError },
+      { data: missingBonusOrders, error: missingBonusError },
+      { data: failedAutoRefundOrders, error: failedAutoRefundError },
+      { data: missingReversalOrders, error: missingReversalError },
       { data: pendingOrders, error: pendingError },
       { data: missingReceiptOrders, error: missingReceiptError },
     ] = await Promise.all([
       supabase
         .from('kaspi_orders')
         .select('*')
-        .in('status', ['paid', 'refunded'])
-        .order('created_at', { ascending: true })
-        .limit(50),
+        .eq('status', 'paid')
+        .eq('fulfillment_status', 'pending')
+        .order('updated_at', { ascending: false })
+        .limit(RECONCILIATION_BATCH_SIZE),
+      supabase
+        .from('kaspi_orders')
+        .select('*')
+        .eq('status', 'paid')
+        .is('bonus_awarded_at', null)
+        .or('fulfillment_status.is.null,fulfillment_status.neq.cancelled')
+        .order('updated_at', { ascending: false })
+        .limit(RECONCILIATION_BATCH_SIZE),
+      supabase
+        .from('kaspi_orders')
+        .select('*')
+        .eq('status', 'paid')
+        .eq('refund_status', 'failed')
+        .like('cancellation_reason', `${LATE_PAYMENT_AUTO_REFUND_PREFIX}%`)
+        .order('updated_at', { ascending: false })
+        .limit(RECONCILIATION_BATCH_SIZE),
+      supabase
+        .from('kaspi_orders')
+        .select('*')
+        .eq('status', 'refunded')
+        .is('bonus_reversed_at', null)
+        .order('updated_at', { ascending: false })
+        .limit(RECONCILIATION_BATCH_SIZE),
       supabase
         .from('kaspi_orders')
         .select('*')
         .eq('status', 'pending')
         .or('payment_method.is.null,payment_method.neq.forte_card')
         .gte('created_at', pendingCutoff)
-        .order('created_at', { ascending: true })
-        .limit(50),
+        .order('created_at', { ascending: false })
+        .limit(RECONCILIATION_BATCH_SIZE),
       supabase
         .from('kaspi_orders')
         .select('*')
         .in('status', ['paid', 'refunded'])
         .is('receipt_created_at', null)
-        .order('created_at', { ascending: true })
-        .limit(50),
+        .order('updated_at', { ascending: false })
+        .limit(RECONCILIATION_BATCH_SIZE),
     ]);
-    if (settledError) throw settledError;
+    if (paidPendingError) throw paidPendingError;
+    if (missingBonusError) throw missingBonusError;
+    if (failedAutoRefundError) throw failedAutoRefundError;
+    if (missingReversalError) throw missingReversalError;
     if (pendingError) throw pendingError;
     if (missingReceiptError) throw missingReceiptError;
 
-    const orders = [...(settledOrders || []), ...(pendingOrders || [])];
+    const orders = mergeReconciliationOrders(
+      paidPendingOrders || [],
+      missingBonusOrders || [],
+      failedAutoRefundOrders || [],
+      missingReversalOrders || [],
+      pendingOrders || [],
+    );
 
-    for (const order of orders || []) {
+    for (const order of orders) {
       try {
         if (order.status === 'refunded') {
           await this.reverseOrderLoyalty(order);
         } else if (
           order.status === 'paid' &&
-          (order.fulfillment_status === 'pending' || !order.bonus_awarded_at)
+          (order.fulfillment_status === 'pending' ||
+            !order.bonus_awarded_at ||
+            (order.refund_status === 'failed' && isLatePaymentAutoRefund(order)))
         ) {
           await this.recordPaidOrder(order.operation_id);
         } else if (order.status === 'pending') {
@@ -768,7 +854,7 @@ class KaspiService {
         );
       }
     }
-    return (orders || []).length + (missingReceiptOrders || []).length;
+    return orders.length + (missingReceiptOrders || []).length;
   }
 
   async awardOrderBonus(order) {
@@ -815,25 +901,115 @@ class KaspiService {
       .maybeSingle();
     if (readError) throw readError;
     if (!order || order.status !== 'paid') return order;
+
+    if (
+      ['processing', 'unknown', 'succeeded'].includes(String(order.refund_status || '')) ||
+      order.status === 'refunded'
+    ) {
+      return order;
+    }
+    const latePaymentAutoRefund = isLatePaymentAutoRefund(order);
+    const lateCleanupCancellation =
+      order.fulfillment_status === 'cancelled' &&
+      (latePaymentAutoRefund ||
+        LATE_PAYMENT_CANCELLATION_REASONS.has(String(order.cancellation_reason || '')));
+    if (order.fulfillment_status === 'cancelled' && !lateCleanupCancellation) {
+      return order;
+    }
+
+    const beforeFulfillment = ['pending', 'new'].includes(
+      String(order.fulfillment_status || 'pending'),
+    );
+    const mustValidateCapacity = beforeFulfillment || lateCleanupCancellation;
+    const refundUnavailableOrder = async (reason) => {
+      const { releasePromotionReservation } = require('./commerce-marketing.service');
+      const { cancelPaidOrder } = require('./customer-order.service');
+      const cancellationReason = String(reason || '').startsWith(LATE_PAYMENT_AUTO_REFUND_PREFIX)
+        ? String(reason)
+        : `${LATE_PAYMENT_AUTO_REFUND_PREFIX}${String(reason || '').trim()}`;
+      await releasePromotionReservation({ orderId: order.id }).catch((error) =>
+        console.error('Не удалось освободить промокод поздней оплаты:', error.message),
+      );
+      await cancelPaidOrder(order, cancellationReason, {
+        allowedFulfillmentStatuses: [String(order.fulfillment_status || 'pending')],
+        cancelBeforeRefund: true,
+        reuseRefundRequestId: true,
+      });
+      const { data: refundedOrder, error: refundedReadError } = await supabase
+        .from('kaspi_orders')
+        .select('*')
+        .eq('id', order.id)
+        .maybeSingle();
+      if (refundedReadError) throw refundedReadError;
+      return refundedOrder || order;
+    };
+
+    if (latePaymentAutoRefund && order.refund_status === 'failed') {
+      return refundUnavailableOrder(order.cancellation_reason);
+    }
+
+    if (mustValidateCapacity) {
+      const reservation = await commitOrReacquireOrderReservations(order.id, {
+        allowReacquire: true,
+      });
+      if (!['committed', 'already_committed'].includes(reservation.status)) {
+        const productSuffix = reservation.productId ? ` (${reservation.productId})` : '';
+        return refundUnavailableOrder(
+          `Оплата поступила после освобождения резерва, а товар или время уже недоступны${productSuffix}`,
+        );
+      }
+    }
+
+    const {
+      consumePromotionReservation,
+      qualifyReferralForOrder,
+    } = require('./commerce-marketing.service');
+    const promotion = await consumePromotionReservation(order);
+    if (
+      mustValidateCapacity &&
+      ['unavailable', 'promotion_missing'].includes(String(promotion.status || ''))
+    ) {
+      return refundUnavailableOrder(
+        'Оплата поступила после истечения резерва промокода, и скидка уже недоступна',
+      );
+    }
+
     let recorded = order;
-    if (order.fulfillment_status === 'pending') {
+    if (order.fulfillment_status === 'pending' || lateCleanupCancellation) {
       const { data, error } = await supabase
         .from('kaspi_orders')
         .update({
           fulfillment_status: 'new',
+          cancellation_reason: null,
           last_error: null,
         })
         .eq('id', order.id)
-        .eq('fulfillment_status', 'pending')
+        .eq('fulfillment_status', order.fulfillment_status)
+        .eq('status', 'paid')
         .select()
         .maybeSingle();
       if (error) throw error;
-      if (data) recorded = data;
+      if (!data) {
+        const { data: latest, error: latestError } = await supabase
+          .from('kaspi_orders')
+          .select('*')
+          .eq('id', order.id)
+          .maybeSingle();
+        if (latestError) throw latestError;
+        if (
+          !latest ||
+          latest.status !== 'paid' ||
+          ['processing', 'unknown'].includes(String(latest.refund_status || '')) ||
+          latest.fulfillment_status === 'cancelled'
+        ) {
+          return latest || order;
+        }
+        recorded = latest;
+      } else {
+        recorded = data;
+      }
     }
     const finalOrder = recorded.bonus_awarded_at ? recorded : await this.awardOrderBonus(recorded);
-    await commitOrderReservations(finalOrder.id).catch((error) =>
-      console.error('Не удалось зафиксировать резерв заказа:', error.message),
-    );
     await recordSystemEvent(finalOrder.customer_id, {
       type: 'payment_paid',
       orderId: finalOrder.id,
@@ -842,16 +1018,9 @@ class KaspiService {
     }).catch((eventError) =>
       console.error('Не удалось записать аналитику оплаты:', eventError.message),
     );
-    const {
-      qualifyReferralForOrder,
-      recordPromotionRedemption,
-    } = require('./commerce-marketing.service');
-    await Promise.all([
-      recordPromotionRedemption(finalOrder),
-      qualifyReferralForOrder(finalOrder),
-    ]).catch((marketingError) =>
+    await qualifyReferralForOrder(finalOrder).catch((marketingError) =>
       console.error(
-        `Не удалось применить маркетинг заказа ${finalOrder.order_number}:`,
+        `Не удалось применить реферальный бонус заказа ${finalOrder.order_number}:`,
         marketingError.message,
       ),
     );
@@ -862,7 +1031,7 @@ class KaspiService {
         receiptError.message,
       ),
     );
-    if (finalOrder.fulfillment_type === 'delivery') {
+    if (isDeliveryFulfillment(finalOrder)) {
       await dispatchPaidDeliveryOrder(finalOrder).catch((dispatchError) =>
         console.warn(
           `Автоматическая отправка заказа ${finalOrder.order_number} курьеру:`,

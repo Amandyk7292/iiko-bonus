@@ -433,6 +433,7 @@ function validateCheckout(payload, cities, options = {}) {
   const isDelivery =
     orderType === 'delivery' ||
     (orderType === 'preorder' && preorderFulfillmentType === 'delivery');
+  const effectiveFulfillmentType = isDelivery ? 'delivery' : 'pickup';
   const deliveryAddress = isDelivery
     ? normalizeDeliveryAddress(payload?.deliveryAddress, env)
     : null;
@@ -460,6 +461,7 @@ function validateCheckout(payload, cities, options = {}) {
   return {
     orderType,
     preorderFulfillmentType: orderType === 'preorder' ? preorderFulfillmentType : null,
+    effectiveFulfillmentType,
     branchId: String(branch.id),
     branch: boundedText(branch.label, 160),
     scheduledAt,

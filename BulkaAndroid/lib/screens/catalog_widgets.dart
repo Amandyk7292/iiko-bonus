@@ -1,5 +1,13 @@
 part of '../main.dart';
 
+int _catalogProductQuantityLimit(CatalogProduct product) => min(
+  product.inStockCount ?? CartProvider.maxItemQuantity,
+  CartProvider.maxItemQuantity,
+);
+
+String _catalogOpenProductLabel(CatalogProduct product) =>
+    'catalog_open_product'.trArgs({'name': product.title});
+
 class _CatalogProductImage extends StatelessWidget {
   const _CatalogProductImage({
     required this.url,
@@ -296,7 +304,7 @@ class _CatalogImageQuantityControl extends StatelessWidget {
   final bool stopListed;
   final VoidCallback onAdd;
   final VoidCallback onDecrease;
-  final VoidCallback onIncrease;
+  final VoidCallback? onIncrease;
 
   @override
   Widget build(BuildContext context) {
@@ -379,7 +387,11 @@ class _CatalogImageQuantityControl extends StatelessWidget {
             ),
             IconButton(
               onPressed: onIncrease,
-              tooltip: 'catalog_increase_quantity'.tr,
+              tooltip: onIncrease == null
+                  ? 'catalog_quantity_limit_reached'.trArgs({
+                      'count': CartProvider.maxItemQuantity,
+                    })
+                  : 'catalog_increase_quantity'.tr,
               style: IconButton.styleFrom(
                 minimumSize: const Size(44, 48),
                 foregroundColor: colors.brandBrown,

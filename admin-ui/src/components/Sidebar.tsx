@@ -30,6 +30,7 @@ import {
   Activity,
 } from 'lucide-react';
 import { NavLink, useLocation } from '../lib/router';
+import { ADMIN_ALLOWED_PATHS } from '../lib/admin-permissions';
 import { useEffect, useMemo, useState } from 'react';
 import { useI18n } from '../lib/i18n';
 import { useAdminRealtime } from '../lib/admin-realtime';
@@ -93,69 +94,6 @@ const sections = [
   },
 ];
 
-const allowedPaths: Record<string, string[]> = {
-  branch_manager: [
-    '/operations',
-    '/analytics',
-    '/customers',
-    '/whatsapp',
-    '/orders',
-    '/menu',
-    '/inventory',
-    '/couriers',
-    '/dispatch',
-    '/kitchen',
-    '/locations',
-    '/reviews',
-    '/support',
-    '/transactions',
-    '/integrations',
-  ],
-  operator: [
-    '/operations',
-    '/customers',
-    '/whatsapp',
-    '/orders',
-    '/dispatch',
-    '/kitchen',
-    '/reviews',
-    '/support',
-  ],
-  marketer: [
-    '/operations',
-    '/analytics',
-    '/customers',
-    '/broadcast',
-    '/contacts',
-    '/stories',
-    '/news',
-    '/bonus',
-    '/tiers',
-    '/marketing',
-    '/reviews',
-    '/support',
-  ],
-  courier: ['/couriers', '/dispatch'],
-  viewer: [
-    '/operations',
-    '/analytics',
-    '/customers',
-    '/whatsapp',
-    '/orders',
-    '/menu',
-    '/inventory',
-    '/couriers',
-    '/dispatch',
-    '/kitchen',
-    '/locations',
-    '/reviews',
-    '/support',
-    '/transactions',
-    '/integrations',
-  ],
-  whatsapp_operator: ['/whatsapp'],
-};
-
 export default function Sidebar({
   role = 'viewer',
   isOpen = false,
@@ -181,7 +119,8 @@ export default function Sidebar({
         .map((section) => ({
           ...section,
           items: section.items.filter(
-            (item) => !allowedPaths[role] || allowedPaths[role].includes(item.to),
+            (item) =>
+              !ADMIN_ALLOWED_PATHS[role] || ADMIN_ALLOWED_PATHS[role].includes(item.to),
           ),
         }))
         .filter((section) => section.items.length > 0),

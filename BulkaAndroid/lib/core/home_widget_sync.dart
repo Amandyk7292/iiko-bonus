@@ -55,7 +55,7 @@ abstract final class HomeWidgetSync {
         ),
         HomeWidget.saveWidgetData<String>(
           'widget_order_type',
-          activeOrder?.fulfillmentType,
+          activeOrder?.effectiveFulfillmentType,
         ),
         HomeWidget.saveWidgetData<String>(
           'widget_order_eta',

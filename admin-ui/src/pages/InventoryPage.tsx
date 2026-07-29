@@ -5,6 +5,7 @@ import SelectControl from '../components/SelectControl';
 import { useFeedback } from '../components/Feedback';
 import { api, type InventoryItem } from '../lib/api';
 import { useAdminRealtimeEvents } from '../lib/admin-realtime';
+import { canMutateInventory } from '../lib/admin-permissions';
 import { useI18n } from '../lib/i18n';
 import { useSearchParams } from '../lib/router';
 
@@ -12,9 +13,10 @@ type Draft = { quantity: string; stopped: boolean };
 
 const cleanIntegerDraft = (value: string) => value.replace(/^0+(?=\d)/, '');
 
-export default function InventoryPage() {
+export default function InventoryPage({ role = 'viewer' }: { role?: string }) {
   const { t, formatDate } = useI18n();
   const { toast } = useFeedback();
+  const inventoryMutationsAllowed = canMutateInventory(role);
   const [params, setParams] = useSearchParams();
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [branches, setBranches] = useState<Array<{ id: string; name: string; active: boolean }>>(
@@ -108,6 +110,7 @@ export default function InventoryPage() {
   };
 
   const save = async (item: InventoryItem) => {
+    if (!inventoryMutationsAllowed) return;
     const key = `${item.branch_id}:${item.product_id}`;
     const draft = drafts[key];
     if (!draft || savingId) return;
@@ -139,7 +142,7 @@ export default function InventoryPage() {
   };
 
   const sync = async () => {
-    if (syncing) return;
+    if (!inventoryMutationsAllowed || syncing) return;
     setSyncing(true);
     try {
       await api.syncInventory();
@@ -163,20 +166,27 @@ export default function InventoryPage() {
           <h2 className="content-heading">{t('inventory.heading')}</h2>
           <p className="page-help">{t('inventory.intro')}</p>
         </div>
-        <button
-          type="button"
-          className="btn-classic px-5 inline-flex items-center gap-2"
-          onClick={sync}
-          disabled={syncing}
-        >
-          {syncing ? (
-            <LoaderCircle className="spin" size={17} />
-          ) : (
-            <RefreshCw aria-hidden="true" size={17} />
-          )}
-          {syncing ? t('inventory.syncing') : t('inventory.sync')}
-        </button>
+        {inventoryMutationsAllowed && (
+          <button
+            type="button"
+            className="btn-classic px-5 inline-flex items-center gap-2"
+            onClick={sync}
+            disabled={syncing}
+          >
+            {syncing ? (
+              <LoaderCircle className="spin" size={17} aria-hidden="true" />
+            ) : (
+              <RefreshCw aria-hidden="true" size={17} />
+            )}
+            {syncing ? t('inventory.syncing') : t('inventory.sync')}
+          </button>
+        )}
       </div>
+      {!inventoryMutationsAllowed && (
+        <div className="inline-alert inline-alert-info" role="status">
+          {t('inventory.readOnly')}
+        </div>
+      )}
       {error && (
         <div className="inline-alert inline-alert-error" role="alert">
           {error}
@@ -270,7 +280,9 @@ export default function InventoryPage() {
                           max="100000"
                           step="1"
                           inputMode="numeric"
+                          name={`inventoryQuantity-${item.branch_id}-${item.product_id}`}
                           value={draft.quantity}
+                          disabled={!inventoryMutationsAllowed}
                           onChange={(event) =>
                             setDraft(item, { quantity: cleanIntegerDraft(event.target.value) })
                           }
@@ -282,6 +294,7 @@ export default function InventoryPage() {
                           <input
                             type="checkbox"
                             checked={draft.stopped}
+                            disabled={!inventoryMutationsAllowed}
                             onChange={(event) => setDraft(item, { stopped: event.target.checked })}
                           />
                           <span className="switch-control" aria-hidden="true" />
@@ -301,19 +314,25 @@ export default function InventoryPage() {
                       </td>
                       <td data-label={t('common.actions')}>
                         <div className="row-actions justify-end">
-                          <button
-                            type="button"
-                            className="icon-button"
-                            onClick={() => void save(item)}
-                            disabled={savingId === key}
-                            aria-label={t('common.save')}
-                          >
-                            {savingId === key ? (
-                              <LoaderCircle className="spin" size={17} />
-                            ) : (
-                              <Save aria-hidden="true" size={17} />
-                            )}
-                          </button>
+                          {inventoryMutationsAllowed ? (
+                            <button
+                              type="button"
+                              className="icon-button"
+                              onClick={() => void save(item)}
+                              disabled={savingId === key}
+                              aria-label={t('common.save')}
+                            >
+                              {savingId === key ? (
+                                <LoaderCircle className="spin" size={17} aria-hidden="true" />
+                              ) : (
+                                <Save aria-hidden="true" size={17} />
+                              )}
+                            </button>
+                          ) : (
+                            <span className="table-secondary" aria-label={t('inventory.readOnly')}>
+                              —
+                            </span>
+                          )}
                         </div>
                       </td>
                     </tr>

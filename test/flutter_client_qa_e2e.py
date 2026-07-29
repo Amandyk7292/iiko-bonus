@@ -237,6 +237,10 @@ with sync_playwright() as playwright:
             if not (
                 "/api/customer/events" in failure
                 or (expected_offline and "/api/guest/menu" in failure)
+                or (
+                    "fonts.gstatic.com/" in failure
+                    and "ERR_ABORTED" in failure
+                )
             )
         ]
         assert not unexpected_errors and not bad_responses and not unexpected_failures, (

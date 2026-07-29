@@ -1,18 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import { adminApiErrorMessage, ApiError } from './api';
+import { ApiError, adminApiErrorMessage } from './api';
 
 describe('admin API errors', () => {
-  it('turns internal errors into an actionable message with the support request id', () => {
-    const requestId = '12eaf4f5-d65b-401d-8ad7-12b7e345e567';
-    const message = adminApiErrorMessage({ error: 'Internal Server Error', requestId }, 500);
+  it('hides internal messages and gives a recovery path with request id', () => {
+    const message = adminApiErrorMessage(
+      { error: 'Internal Server Error', requestId: 'req-123' },
+      500,
+    );
 
-    expect(message).toContain('Повторите попытку');
-    expect(message).toContain(requestId);
     expect(message).not.toContain('Internal Server Error');
+    expect(message).toContain('Обновите данные и повторите попытку');
+    expect(message).toContain('req-123');
   });
 
-  it('keeps request id on the typed error', () => {
-    const error = new ApiError('Ошибка', 500, 'INTERNAL_ERROR', undefined, 'req-123');
-    expect(error.requestId).toBe('req-123');
+  it('keeps request id visible for expected validation errors', () => {
+    expect(
+      adminApiErrorMessage(
+        { error: 'Укажите причину отмены', requestId: 'req-validation' },
+        400,
+      ),
+    ).toBe('Укажите причину отмены Код запроса: req-validation.');
+  });
+
+  it('retains request id on the typed error', () => {
+    const error = new ApiError('Ошибка', 503, 'SERVICE_UNAVAILABLE', undefined, 'req-503');
+    expect(error.requestId).toBe('req-503');
   });
 });

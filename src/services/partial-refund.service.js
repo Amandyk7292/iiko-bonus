@@ -73,6 +73,8 @@ async function getRefundOptions(orderId) {
       Number(order.amount || 0) -
         Number(order.partially_refunded_amount || order.refund_amount || 0),
     ),
+    deliveryFee: Number(order.delivery_fee || 0),
+    deliveryFeeRefunded: (refunded.quantities.get('__delivery_fee__') || 0) > 0,
     lines,
   };
 }
@@ -90,10 +92,15 @@ function calculateRefund(order, requested, alreadyRefunded) {
   }
   if (!requestMap.size) throw refundError('Выберите хотя бы одну позицию');
 
-  const subtotal = Number(
-    order.subtotal || lines.reduce((sum, line) => sum + line.unitAmount * line.quantity, 0),
-  );
+  const lineSubtotal = lines.reduce((sum, line) => sum + line.unitAmount * line.quantity, 0);
+  const subtotal = lineSubtotal > 0 ? lineSubtotal : Number(order.subtotal || 0);
   const discount = Math.max(0, Number(order.discount_amount || 0));
+  const lineRawOffsets = new Map();
+  let rawOffset = 0;
+  for (const line of lines) {
+    lineRawOffsets.set(line.lineKey, rawOffset);
+    rawOffset += line.unitAmount * line.quantity;
+  }
   const records = [];
   let refundAmount = 0;
   for (const [lineKey, quantity] of requestMap) {
@@ -105,9 +112,19 @@ function calculateRefund(order, requested, alreadyRefunded) {
         `Для «${line.name}» доступно к возврату: ${Math.max(0, line.quantity - refundedQuantity)}`,
       );
     }
-    const raw = line.unitAmount * quantity;
-    const proportionalDiscount = subtotal > 0 ? Math.round((discount * raw) / subtotal) : 0;
-    const lineRefund = Math.max(0, raw - proportionalDiscount);
+    const targetQuantity = refundedQuantity + quantity;
+    const targetRaw = line.unitAmount * targetQuantity;
+    const lineRawOffset = lineRawOffsets.get(lineKey) || 0;
+    const targetDiscount =
+      subtotal > 0
+        ? Math.round((discount * (lineRawOffset + targetRaw)) / subtotal) -
+          Math.round((discount * lineRawOffset) / subtotal)
+        : 0;
+    const targetRefundedAmount = Math.max(0, targetRaw - targetDiscount);
+    const lineRefund = Math.max(
+      0,
+      targetRefundedAmount - Number(alreadyRefunded.amounts.get(lineKey) || 0),
+    );
     if (!Number.isSafeInteger(lineRefund) || lineRefund <= 0) {
       throw refundError(`Для «${line.name}» рассчитана некорректная сумма`);
     }
@@ -122,17 +139,48 @@ function calculateRefund(order, requested, alreadyRefunded) {
       refund_amount: lineRefund,
     });
   }
+
+  const refundsEveryRemainingItem = lines.every((line) => {
+    const previouslyRefunded = alreadyRefunded.quantities.get(line.lineKey) || 0;
+    const requestedNow = requestMap.get(line.lineKey) || 0;
+    return previouslyRefunded + requestedNow >= line.quantity;
+  });
+  const deliveryFee = Math.max(0, Number(order.delivery_fee || 0));
+  const deliveryAlreadyRefunded = (alreadyRefunded.quantities.get('__delivery_fee__') || 0) > 0;
+  if (refundsEveryRemainingItem && deliveryFee > 0 && !deliveryAlreadyRefunded) {
+    refundAmount += deliveryFee;
+    records.push({
+      line_key: '__delivery_fee__',
+      product_id: 'delivery_fee',
+      product_name: 'Доставка',
+      quantity: 1,
+      original_quantity: 1,
+      unit_amount: deliveryFee,
+      refund_amount: deliveryFee,
+    });
+  }
+
   const remaining = Number(order.amount || 0) - Number(order.partially_refunded_amount || 0);
   if (refundAmount > remaining && records.length) {
-    const excess = refundAmount - remaining;
-    const last = records[records.length - 1];
-    last.refund_amount = Math.max(0, last.refund_amount - excess);
-    refundAmount = remaining;
+    let excess = refundAmount - remaining;
+    for (let index = records.length - 1; index >= 0 && excess > 0; index -= 1) {
+      const reduction = Math.min(excess, records[index].refund_amount);
+      records[index].refund_amount -= reduction;
+      excess -= reduction;
+    }
+    if (excess > 0) {
+      throw refundError('Не удалось безопасно распределить сумму возврата', 409);
+    }
+    refundAmount = records.reduce((sum, record) => sum + record.refund_amount, 0);
   }
+  const positiveRecords = records.filter((record) => record.refund_amount > 0);
   if (!Number.isSafeInteger(refundAmount) || refundAmount <= 0) {
     throw refundError('По заказу больше нечего возвращать', 409, 'NOTHING_TO_REFUND');
   }
-  return { amount: refundAmount, records };
+  if (positiveRecords.reduce((sum, record) => sum + record.refund_amount, 0) !== refundAmount) {
+    throw refundError('Не удалось безопасно рассчитать сумму возврата', 409);
+  }
+  return { amount: refundAmount, records: positiveRecords };
 }
 
 async function applyRefundAdjustments(refundId) {
@@ -146,7 +194,8 @@ async function applyRefundAdjustments(refundId) {
 async function notifyRefund(order, amount) {
   if (!order.customer_id) return;
   const title = order.status === 'refunded' ? 'Заказ возвращён' : 'Частичный возврат оформлен';
-  const body = `${Number(amount).toLocaleString('ru-RU')} ₸ по заказу №${order.order_number} возвращены через Kaspi.`;
+  const provider = paymentProviderName(order);
+  const body = `Возврат ${Number(amount).toLocaleString('ru-RU')} ₸ по заказу №${order.order_number} отправлен через ${provider}. Срок зачисления зависит от банка карты.`;
   const [{ data: customer }, { data: notification }] = await Promise.all([
     supabase.from('customers').select('fcm_token').eq('id', order.customer_id).maybeSingle(),
     supabase

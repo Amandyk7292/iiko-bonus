@@ -835,7 +835,7 @@ void main() {
     await tester.tap(find.text('Оформить заказ'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Пред заказ'), findsOneWidget);
+    expect(find.text('Предзаказ'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('preorder-fulfillment-delivery')),
       findsOneWidget,
@@ -1262,6 +1262,48 @@ void main() {
     expect(find.text('Сотрудники уже знают, что вы приехали'), findsWidgets);
     semantics.dispose();
   });
+
+  testWidgets(
+    'preorder delivery shows courier progress and repeats as delivery',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      tester.view.physicalSize = const Size(430, 932);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final api = _PreorderDeliveryApiClient();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildBulkaTheme(),
+          home: ChangeNotifierProvider(
+            create: (_) => CartProvider(),
+            child: CustomerOrdersScreen(api: api),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Курьер назначен'), findsOneWidget);
+      expect(find.text('Я приехал'), findsNothing);
+
+      await tester.ensureVisible(find.text('Повторить'));
+      await tester.tap(find.text('Повторить'));
+      await tester.pumpAndSettle();
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('selected_order_type'), 'preorder');
+      expect(
+        prefs.getString(
+          customerPreferenceKey(
+            'checkout_preorder_fulfillment',
+            api.sessionCacheScope,
+          ),
+        ),
+        'delivery',
+      );
+    },
+  );
 
   testWidgets('new paid order can be cancelled with an automatic refund', (
     tester,
@@ -2352,6 +2394,27 @@ class _ArrivalApiClient extends _FakeBulkaApiClient {
   }
 }
 
+class _PreorderDeliveryApiClient extends _FakeBulkaApiClient {
+  @override
+  Future<List<CustomerOrder>> getCustomerOrders({
+    bool completed = false,
+  }) async => completed ? const [] : [_preorderDeliveryOrder];
+
+  @override
+  Future<List<Map<String, dynamic>>> reorder(
+    String orderId, {
+    String? branchId,
+  }) async => const [
+    {
+      'id': 'croissant',
+      'name': 'Круассан',
+      'quantity': 1,
+      'price': 1200,
+      'imageUrl': '',
+    },
+  ];
+}
+
 class _CancellationApiClient extends _FakeBulkaApiClient {
   int cancellationCalls = 0;
   CustomerOrder order = _newPaidOrder;
@@ -2407,6 +2470,27 @@ final _readyPickupOrder = CustomerOrder(
   createdAt: DateTime.utc(2026, 7, 16, 10),
   fulfillmentType: 'pickup',
   deliveryStatus: 'unassigned',
+);
+
+final _preorderDeliveryOrder = CustomerOrder(
+  id: 'preorder-delivery-order',
+  number: 100126,
+  paymentStatus: 'paid',
+  orderStatus: 'ready',
+  amount: 1200,
+  subtotal: 1200,
+  discount: 0,
+  branch: 'Bulka, Актау',
+  items: const [
+    {'id': 'croissant', 'name': 'Круассан', 'quantity': 1, 'price': 1200},
+  ],
+  earnedBonus: 60,
+  createdAt: DateTime.utc(2026, 7, 29, 10),
+  fulfillmentType: 'preorder',
+  preorderFulfillmentType: 'delivery',
+  effectiveFulfillmentType: 'delivery',
+  deliveryStatus: 'assigned',
+  estimatedDeliveryAt: DateTime.utc(2026, 7, 30, 14, 40),
 );
 
 final _newPaidOrder = CustomerOrder(

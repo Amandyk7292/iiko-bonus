@@ -121,6 +121,8 @@ export interface AdminOrder {
   refundStatus?: string | null;
   refundAmount?: number | null;
   refundedAt?: string | null;
+  refundError?: string | null;
+  lastError?: string | null;
   cancellationReason?: string | null;
   createdAt: string;
   updatedAt: string;

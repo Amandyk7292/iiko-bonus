@@ -67,7 +67,12 @@ const registerOrderSubstitutionAdminRoutes = (router, { assertOrderAccess }) => 
     async (req, res) => {
       try {
         await assertOrderAccess(req, req.params.id);
-        const substitution = await completeSubstitution(req.params.id, req.params.requestId);
+        const substitution = await completeSubstitution(
+          req.params.id,
+          req.params.requestId,
+          req.admin.sub,
+          { role: req.admin.role },
+        );
         res.json({ success: true, substitution });
       } catch (error) {
         res.status(error.statusCode || 500).json({

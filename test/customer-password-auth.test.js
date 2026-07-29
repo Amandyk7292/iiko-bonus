@@ -251,6 +251,21 @@ test('legacy account can start recovery and registration grants are one-time', a
   );
 });
 
+test('password recovery start does not reveal whether an account exists', async () => {
+  const { tables, client } = fakeDatabase();
+  const reset = await startCustomerPasswordReset(
+    { phone: '+7 700 999 99 99', requestToken: 'UnknownAbc2345' },
+    { db: client, findCustomer: async () => null },
+  );
+  assert.equal(reset.phone, '+77009999999');
+  assert.equal(reset.customer, null);
+  assert.match(reset.whatsappUrl, /^https:\/\/wa\.me\//);
+  assert.equal(
+    tables.whatsapp_sessions.get('token_UnknownAbc2345').data.purpose,
+    AUTH_PURPOSES.passwordReset,
+  );
+});
+
 test('password authentication migrations stay mirrored and revoke old refresh sessions', () => {
   const root = path.join(__dirname, '..');
   const migration = fs.readFileSync(

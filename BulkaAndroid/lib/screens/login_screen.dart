@@ -1083,79 +1083,78 @@ class _LoginScreenState extends State<LoginScreen> {
       const SizedBox(height: 22),
       Directionality(
         textDirection: TextDirection.ltr,
-        child: Pinput(
-          key: const ValueKey('auth-otp-field'),
-          length: 4,
-          controller: _otpController,
-          hapticFeedbackType: HapticFeedbackType.lightImpact,
-          onChanged: (value) {
-            setState(() => _error = null);
-          },
-          onCompleted: (pin) {
-            if (pin.length == 4 && isRegistration) {
-              _verifyRegistration();
-            }
-          },
-          defaultPinTheme: PinTheme(
-            width: 64,
-            height: 64,
-            textStyle: TextStyle(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            const separatorWidth = 8.0;
+            final pinSize = ((constraints.maxWidth - separatorWidth * 3) / 4)
+                .clamp(44.0, 64.0);
+            final pinTextStyle = TextStyle(
               fontFamily: _headingFont,
-              fontSize: BulkaTypeScale.pageTitle,
+              fontSize: min(BulkaTypeScale.pageTitle, pinSize * 0.48),
               color: Theme.of(context).colorScheme.onSurface,
               fontWeight: FontWeight.w700,
-            ),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(BulkaRadii.control),
-              border: Border.all(color: _bulkaBrown.withValues(alpha: 0.3)),
-              boxShadow: [
-                BoxShadow(
-                  color: _bulkaBrown.withValues(alpha: 0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
+            );
+            return Pinput(
+              key: const ValueKey('auth-otp-field'),
+              length: 4,
+              controller: _otpController,
+              separatorBuilder: (_) => const SizedBox(width: separatorWidth),
+              hapticFeedbackType: HapticFeedbackType.lightImpact,
+              onChanged: (value) {
+                setState(() => _error = null);
+              },
+              onCompleted: (pin) {
+                if (pin.length == 4 && isRegistration) {
+                  _verifyRegistration();
+                }
+              },
+              defaultPinTheme: PinTheme(
+                width: pinSize,
+                height: pinSize,
+                textStyle: pinTextStyle,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(BulkaRadii.control),
+                  border: Border.all(color: _bulkaBrown.withValues(alpha: 0.3)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _bulkaBrown.withValues(alpha: 0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-          focusedPinTheme: PinTheme(
-            width: 64,
-            height: 64,
-            textStyle: TextStyle(
-              fontFamily: _headingFont,
-              fontSize: BulkaTypeScale.pageTitle,
-              color: Theme.of(context).colorScheme.onSurface,
-              fontWeight: FontWeight.w700,
-            ),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(BulkaRadii.control),
-              border: Border.all(color: _bulkaBrown, width: 2),
-              boxShadow: [
-                BoxShadow(
-                  color: _bulkaBrown.withValues(alpha: 0.15),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
+              ),
+              focusedPinTheme: PinTheme(
+                width: pinSize,
+                height: pinSize,
+                textStyle: pinTextStyle,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(BulkaRadii.control),
+                  border: Border.all(color: _bulkaBrown, width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _bulkaBrown.withValues(alpha: 0.15),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-          errorPinTheme: PinTheme(
-            width: 64,
-            height: 64,
-            textStyle: const TextStyle(
-              fontFamily: _headingFont,
-              fontSize: BulkaTypeScale.pageTitle,
-              color: Colors.red,
-              fontWeight: FontWeight.w700,
-            ),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(BulkaRadii.control),
-              border: Border.all(color: Colors.red, width: 2),
-            ),
-          ),
-          forceErrorState: _error != null,
+              ),
+              errorPinTheme: PinTheme(
+                width: pinSize,
+                height: pinSize,
+                textStyle: pinTextStyle.copyWith(color: _authErrorRed),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(BulkaRadii.control),
+                  border: Border.all(color: _authErrorRed, width: 2),
+                ),
+              ),
+              forceErrorState: _error != null,
+            );
+          },
         ),
       ),
       const SizedBox(height: 8),
@@ -1342,6 +1341,8 @@ class _AuthStepHeader extends StatelessWidget {
   }
 }
 
+const _authErrorRed = Color(0xFF982A24);
+
 class _InlineAlert extends StatelessWidget {
   const _InlineAlert({required this.message, required this.icon});
 
@@ -1357,20 +1358,20 @@ class _InlineAlert extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: _errorRed.withValues(alpha: 0.08),
+            color: _authErrorRed.withValues(alpha: 0.09),
             borderRadius: BorderRadius.circular(BulkaRadii.control),
-            border: Border.all(color: _errorRed.withValues(alpha: 0.22)),
+            border: Border.all(color: _authErrorRed.withValues(alpha: 0.38)),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, color: _errorRed, size: 20),
+              Icon(icon, color: _authErrorRed, size: 20),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   message,
                   style: const TextStyle(
-                    color: _errorRed,
+                    color: _authErrorRed,
                     fontSize: BulkaTypeScale.bodySmall,
                     height: 1.35,
                     fontWeight: FontWeight.w600,

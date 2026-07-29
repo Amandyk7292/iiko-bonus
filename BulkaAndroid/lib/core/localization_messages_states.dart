@@ -245,6 +245,16 @@ const Map<String, Map<String, String>> _featureStateTranslations = {
     'kk': 'Санын арттыру',
     'en': 'Increase quantity',
   },
+  'catalog_quantity_limit_reached': {
+    'ru': 'Максимум {count} шт.',
+    'kk': 'Ең көбі {count} дана',
+    'en': 'Maximum {count} items',
+  },
+  'catalog_open_product': {
+    'ru': 'Открыть товар «{name}»',
+    'kk': '«{name}» тауарын ашу',
+    'en': 'Open {name}',
+  },
   'catalog_added_to_cart': {
     'ru': 'Товар добавлен в корзину',
     'kk': 'Тауар себетке қосылды',

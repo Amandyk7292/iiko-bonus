@@ -241,7 +241,7 @@
   padding: 8px;
 }
 
-.notification-popover-list > button {
+.notification-popover-list > a {
   display: grid;
   grid-template-columns: 36px minmax(0, 1fr) auto;
   align-items: center;
@@ -253,17 +253,18 @@
   color: #332c27;
   padding: 7px 9px;
   text-align: left;
+  text-decoration: none;
   transition:
     background-color 140ms ease,
     transform 140ms ease;
 }
 
-.notification-popover-list > button:hover {
+.notification-popover-list > a:hover {
   background: #f7f1e8;
   transform: translateX(2px);
 }
 
-.notification-popover-list > button > strong {
+.notification-popover-list > a > strong {
   min-width: 28px;
   border-radius: 999px;
   background: #efe2d2;
@@ -292,6 +293,8 @@
 }
 
 .notification-all-button {
+  display: grid;
+  place-items: center;
   width: 100%;
   min-height: 46px;
   border: 0;
@@ -300,6 +303,7 @@
   color: #79391f;
   font-size: 13px;
   font-weight: 700;
+  text-decoration: none;
 }
 
 .operations-metric-grid {
@@ -1362,8 +1366,16 @@
 }
 
 @media (max-width: 680px) {
+  .realtime-status {
+    gap: 6px;
+    padding: 5px 8px;
+  }
+
   .realtime-status-copy small {
-    display: none;
+    max-width: 116px;
+    overflow: hidden;
+    font-size: 9px;
+    text-overflow: ellipsis;
   }
 
   .topbar-branch-select {

@@ -21,6 +21,23 @@ void main() {
     expect(cart.items.values.single.configuration?['weight'], '2kg');
   });
 
+  test('cart quantity is capped at the customer-safe limit', () async {
+    SharedPreferences.setMockInitialValues({});
+    final cart = CartProvider();
+    final deadline = DateTime.now().add(const Duration(seconds: 2));
+    while (!cart.isRestored && DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
+
+    for (var index = 0; index < CartProvider.maxItemQuantity + 10; index++) {
+      cart.addItem(productId: 'bun', name: 'Булочка', price: 300, imageUrl: '');
+    }
+    expect(cart.items['bun']?.quantity, CartProvider.maxItemQuantity);
+
+    cart.setQuantity('bun', CartProvider.maxItemQuantity + 50);
+    expect(cart.items['bun']?.quantity, CartProvider.maxItemQuantity);
+  });
+
   test('offline order round-trip preserves ETA and courier tracking', () {
     final original = CustomerOrder(
       id: 'order-42',
@@ -69,6 +86,60 @@ void main() {
     expect(restored.courier?.latitude, 43.64);
     expect(restored.isClosed, false);
   });
+
+  test(
+    'preorder delivery keeps its actual receiving method and delivery ETA',
+    () {
+      final estimatedDeliveryAt = DateTime.utc(2026, 7, 30, 14, 40);
+      final promisedReadyAt = DateTime.utc(2026, 7, 30, 14, 10);
+      final order = CustomerOrder.fromJson({
+        'id': 'preorder-delivery',
+        'number': 1043,
+        'paymentStatus': 'paid',
+        'orderStatus': 'ready',
+        'amount': 4200,
+        'subtotal': 4200,
+        'discount': 0,
+        'branch': 'Bulka, Актау',
+        'items': const [],
+        'earnedBonus': 210,
+        'createdAt': '2026-07-30T12:00:00.000Z',
+        'fulfillmentType': 'preorder',
+        'preorderFulfillmentType': 'delivery',
+        'effectiveFulfillmentType': 'delivery',
+        'deliveryStatus': 'assigned',
+        'estimatedDeliveryAt': estimatedDeliveryAt.toIso8601String(),
+        'promisedReadyAt': promisedReadyAt.toIso8601String(),
+      });
+
+      expect(order.fulfillmentType, 'preorder');
+      expect(order.preorderFulfillmentType, 'delivery');
+      expect(order.effectiveFulfillmentType, 'delivery');
+      expect(order.usesDelivery, isTrue);
+      expect(order.eta, estimatedDeliveryAt);
+
+      final restored = CustomerOrder.fromJson(order.toJson());
+      expect(restored.preorderFulfillmentType, 'delivery');
+      expect(restored.effectiveFulfillmentType, 'delivery');
+      expect(restored.eta, estimatedDeliveryAt);
+    },
+  );
+
+  test(
+    'legacy preorder derives pickup or delivery without the new API field',
+    () {
+      final delivery = CustomerOrder.fromJson({
+        'fulfillmentType': 'preorder',
+        'preorderFulfillmentType': 'delivery',
+      });
+      final pickup = CustomerOrder.fromJson({'fulfillmentType': 'preorder'});
+
+      expect(delivery.effectiveFulfillmentType, 'delivery');
+      expect(delivery.usesDelivery, isTrue);
+      expect(pickup.effectiveFulfillmentType, 'pickup');
+      expect(pickup.usesDelivery, isFalse);
+    },
+  );
 
   test('notification settings serialize all customer choices', () {
     const preferences = NotificationPreferences(

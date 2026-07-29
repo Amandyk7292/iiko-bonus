@@ -1,9 +1,18 @@
 part of '../main.dart';
 
 class AddressMapScreen extends StatefulWidget {
-  const AddressMapScreen({this.api, super.key});
+  const AddressMapScreen({
+    this.api,
+    this.initialCity,
+    this.initialLatitude,
+    this.initialLongitude,
+    super.key,
+  });
 
   final BulkaApiClient? api;
+  final String? initialCity;
+  final double? initialLatitude;
+  final double? initialLongitude;
 
   @override
   State<AddressMapScreen> createState() => _AddressMapScreenState();
@@ -21,11 +30,12 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
   final _floorController = TextEditingController();
   final _apartmentController = TextEditingController();
   final _commentController = TextEditingController();
-  LatLng _point = _defaultPoint;
+  late LatLng _point;
   double _zoom = 14.5;
   List<BakeryLocation> _locations = const [];
   String _address = '';
-  String _city = 'Астана';
+  late String _city;
+  late bool _hasPreferredCenter;
   bool _addressResolved = false;
   bool _resolving = false;
   bool _locating = false;
@@ -38,6 +48,22 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
   void initState() {
     super.initState();
     _api = widget.api ?? BulkaApiClient();
+    final latitude = widget.initialLatitude;
+    final longitude = widget.initialLongitude;
+    _hasPreferredCenter =
+        latitude != null &&
+        longitude != null &&
+        latitude.isFinite &&
+        longitude.isFinite &&
+        latitude >= -90 &&
+        latitude <= 90 &&
+        longitude >= -180 &&
+        longitude <= 180;
+    _point = _hasPreferredCenter
+        ? LatLng(latitude!, longitude!)
+        : _defaultPoint;
+    final initialCity = widget.initialCity?.trim() ?? '';
+    _city = initialCity.isEmpty ? 'Астана' : initialCity;
     _titleController.text = 'house_label'.tr;
     _address = 'map_select_point'.tr;
     unawaited(_loadLocations());
@@ -51,6 +77,7 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
     // permission prompt. If the customer already touched the map, preserve
     // that explicit choice instead of moving the pin underneath them.
     _locateOnOpenTimer?.cancel();
+    if (_hasPreferredCenter) return;
     _locateOnOpenTimer = Timer(const Duration(milliseconds: 250), () {
       if (!mounted || _pointSelected) return;
       unawaited(_goToMyLocation());

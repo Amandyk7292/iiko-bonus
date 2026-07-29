@@ -1400,7 +1400,7 @@ class _CatalogScreenState extends State<CatalogScreen>
 
   Future<void> _setProductQuantity(CatalogProduct product, int quantity) async {
     if (product.isStopListed) return;
-    final next = quantity.clamp(0, product.inStockCount ?? 999);
+    final next = quantity.clamp(0, _catalogProductQuantityLimit(product));
     final cart = context.read<CartProvider>();
     final previous = cart.getQuantity(product.id);
     if (next > previous && !await _ensureOrderTypeSelected()) return;
@@ -2573,12 +2573,16 @@ class _CatalogScreenState extends State<CatalogScreen>
                 pressedScale: 0.975,
                 child: Material(
                   color: Colors.transparent,
-                  child: InkWell(
-                    onTap: unavailable
-                        ? null
-                        : () => _openProductDetails(product),
-                    borderRadius: BorderRadius.circular(BulkaRadii.card),
-                    child: ExcludeSemantics(
+                  child: Semantics(
+                    button: true,
+                    enabled: !unavailable,
+                    label: _catalogOpenProductLabel(product),
+                    excludeSemantics: true,
+                    child: InkWell(
+                      onTap: unavailable
+                          ? null
+                          : () => _openProductDetails(product),
+                      borderRadius: BorderRadius.circular(BulkaRadii.card),
                       child: _CatalogProductImage(
                         key: ValueKey('catalog-product-image-${product.id}'),
                         url: product.imageUrl,
@@ -2674,7 +2678,9 @@ class _CatalogScreenState extends State<CatalogScreen>
                   stopListed: unavailable,
                   onAdd: () => _setProductQuantity(product, 1),
                   onDecrease: () => _setProductQuantity(product, quantity - 1),
-                  onIncrease: () => _setProductQuantity(product, quantity + 1),
+                  onIncrease: quantity >= _catalogProductQuantityLimit(product)
+                      ? null
+                      : () => _setProductQuantity(product, quantity + 1),
                 ),
               ),
             ],

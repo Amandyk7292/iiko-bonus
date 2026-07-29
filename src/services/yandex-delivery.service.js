@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const fetch = require('node-fetch');
 const { supabase } = require('../config/supabase');
+const { isDeliveryFulfillment } = require('../utils/fulfillment.util');
 const { normalizeKazakhstanPhone } = require('../utils/phone.util');
 const realtime = require('./realtime.service');
 
@@ -212,8 +213,7 @@ function validateDeliveryOrder(order, config = getConfig()) {
   if (!order) throw deliveryError('Заказ не найден', 404, 'ORDER_NOT_FOUND');
   if (order.status !== 'paid')
     throw deliveryError('Вызвать курьера можно только для оплаченного заказа', 409);
-  if (order.fulfillment_type !== 'delivery')
-    throw deliveryError('Заказ не относится к доставке', 409);
+  if (!isDeliveryFulfillment(order)) throw deliveryError('Заказ не относится к доставке', 409);
   if (order.courier_id) throw deliveryError('На заказ уже назначен курьер Bulka', 409);
   const branch = order.bulka_locations || {};
   if (
@@ -454,7 +454,7 @@ async function readOrder(orderId) {
   const { data, error } = await supabase
     .from('kaspi_orders')
     .select(
-      'id,order_number,status,fulfillment_status,fulfillment_type,amount,phone,additional_phone,cart_items,comment,branch_id,branch_name,courier_id,delivery_address,delivery_latitude,delivery_longitude,customer_id,customers(name,phone),bulka_locations(id,name,city,address,latitude,longitude)',
+      'id,order_number,status,fulfillment_status,fulfillment_type,preorder_fulfillment_type,amount,phone,additional_phone,cart_items,comment,branch_id,branch_name,courier_id,delivery_address,delivery_latitude,delivery_longitude,customer_id,customers(name,phone),bulka_locations(id,name,city,address,latitude,longitude)',
     )
     .eq('id', orderId)
     .maybeSingle();

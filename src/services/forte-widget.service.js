@@ -4,6 +4,7 @@ const { supabase } = require('../config/supabase');
 const kaspiService = require('./kaspi.service');
 const { recordSystemEvent } = require('./analytics-event.service');
 const { forecastOrderEta } = require('./eta.service');
+const { effectiveFulfillmentType } = require('../utils/fulfillment.util');
 const { normalizeLanguage, toMinorUnits } = require('./forte.service');
 
 const CHECKOUT_API_ORIGIN = 'https://securepayments.fortebank.com';
@@ -900,6 +901,8 @@ class ForteWidgetService {
       }),
       amount: Number(order.amount),
       orderType: order.fulfillment_type || 'pickup',
+      preorderFulfillmentType: order.preorder_fulfillment_type || null,
+      effectiveFulfillmentType: effectiveFulfillmentType(order),
       branchId: order.branch_id == null ? null : String(order.branch_id),
       scheduledAt: order.scheduled_at || null,
       orderId: order.id == null ? undefined : String(order.id),
@@ -984,7 +987,7 @@ class ForteWidgetService {
       ) || 'Заказ Bulka';
     const eta = await forecastOrderEta({
       branchId: checkout.branchId,
-      orderType: checkout.orderType,
+      orderType: checkout.effectiveFulfillmentType,
       scheduledAt: checkout.scheduledAt,
       preparationMinutes: pricing.preparationMinutes,
       deliveryAddress: checkout.deliveryAddress,

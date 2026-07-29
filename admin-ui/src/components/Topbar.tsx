@@ -11,7 +11,7 @@ import {
   VolumeX,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate } from '../lib/router';
+import { Link, useLocation } from '../lib/router';
 import { api, type AdminScopeLocation } from '../lib/api';
 import { useAdminRealtime } from '../lib/admin-realtime';
 import { useI18n } from '../lib/i18n';
@@ -61,12 +61,12 @@ export default function Topbar({
 }) {
   const { t } = useI18n();
   const location = useLocation();
-  const navigate = useNavigate();
   const { summary, connectionStatus, lastUpdatedAt, soundEnabled, setSoundEnabled } =
     useAdminRealtime();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [statusClock, setStatusClock] = useState(() => Date.now());
   const notificationsRef = useRef<HTMLDivElement>(null);
+  const notificationsButtonRef = useRef<HTMLButtonElement>(null);
   const page = routeKeys[location.pathname] ?? 'operations';
   const counts = summary?.counts;
   const actionCount = counts
@@ -84,8 +84,17 @@ export default function Topbar({
         setNotificationsOpen(false);
       }
     };
+    const closeWithKeyboard = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setNotificationsOpen(false);
+      notificationsButtonRef.current?.focus();
+    };
     document.addEventListener('pointerdown', close);
-    return () => document.removeEventListener('pointerdown', close);
+    document.addEventListener('keydown', closeWithKeyboard);
+    return () => {
+      document.removeEventListener('pointerdown', close);
+      document.removeEventListener('keydown', closeWithKeyboard);
+    };
   }, [notificationsOpen]);
 
   useEffect(() => {
@@ -103,18 +112,13 @@ export default function Topbar({
         ? t('realtime.updatedNow')
         : t('realtime.updatedMinutes', { count: minutesSinceUpdate });
 
-  const openTask = (path: string) => {
-    setNotificationsOpen(false);
-    navigate(path);
-  };
-
   const notificationItems = counts
     ? [
         {
           key: 'payments',
           label: t('notifications.paymentIssues'),
           value: counts.paymentIssues,
-          path: '/orders?payment=failed',
+          path: '/orders?payment=issues',
           icon: CreditCard,
         },
         {
@@ -200,6 +204,7 @@ export default function Topbar({
             className={`realtime-status realtime-status-${connectionStatus}`}
             role="status"
             aria-live="polite"
+            aria-atomic="true"
             title={
               lastUpdatedAt
                 ? `${realtimeLabel}. ${new Date(lastUpdatedAt).toLocaleString()}`
@@ -216,6 +221,7 @@ export default function Topbar({
         {!operatorMode && (
           <div className="topbar-notifications" ref={notificationsRef}>
             <button
+              ref={notificationsButtonRef}
               type="button"
               className="icon-button topbar-notification-button"
               aria-label="Операционные уведомления"
@@ -247,7 +253,11 @@ export default function Topbar({
                     }
                     onClick={() => setSoundEnabled(!soundEnabled)}
                   >
-                    {soundEnabled ? <Volume2 size={17} /> : <VolumeX size={17} />}
+                    {soundEnabled ? (
+                      <Volume2 size={17} aria-hidden="true" />
+                    ) : (
+                      <VolumeX size={17} aria-hidden="true" />
+                    )}
                   </button>
                 </header>
                 <div className="notification-popover-list">
@@ -255,26 +265,30 @@ export default function Topbar({
                     notificationItems.map((item) => {
                       const Icon = item.icon;
                       return (
-                        <button type="button" key={item.key} onClick={() => openTask(item.path)}>
+                        <Link
+                          key={item.key}
+                          to={item.path}
+                          onClick={() => setNotificationsOpen(false)}
+                        >
                           <span className="notification-popover-icon">
                             <Icon aria-hidden="true" size={18} />
                           </span>
                           <span>{item.label}</span>
                           <strong>{item.value}</strong>
-                        </button>
+                        </Link>
                       );
                     })
                   ) : (
                     <p className="notification-empty">Новых срочных задач нет.</p>
                   )}
                 </div>
-                <button
-                  type="button"
+                <Link
                   className="notification-all-button"
-                  onClick={() => openTask('/operations')}
+                  to="/operations"
+                  onClick={() => setNotificationsOpen(false)}
                 >
                   Открыть операционный центр
-                </button>
+                </Link>
               </section>
             )}
           </div>

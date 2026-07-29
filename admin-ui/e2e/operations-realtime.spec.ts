@@ -66,7 +66,7 @@ const summary = {
   whatsapp: [],
 };
 
-test('operations center scopes every request without a visible realtime indicator', async ({
+test('operations center scopes every request and exposes realtime state', async ({
   page,
 }, testInfo) => {
   const scopedRequests: string[] = [];
@@ -129,9 +129,8 @@ test('operations center scopes every request without a visible realtime indicato
   await expect(page.getByRole('heading', { name: 'Операционный центр' })).toBeVisible();
   await expect(page.getByText('Новые заказы', { exact: true })).toBeVisible();
   await expect(page.getByText('Поддержка', { exact: true })).toBeVisible();
-  await expect(page.getByText('Подключено', { exact: true })).toHaveCount(0);
-  await expect(page.getByText('Переподключение', { exact: true })).toHaveCount(0);
-  await expect(page.getByText('Нет связи', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Переподключение', { exact: true })).toBeVisible();
+  await expect(page.getByText('Обновлено сейчас', { exact: true })).toBeVisible();
 
   const operationRows = page.locator('.operations-list > a');
   await expect(operationRows).toHaveCount(2);

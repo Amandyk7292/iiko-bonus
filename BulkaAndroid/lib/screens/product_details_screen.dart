@@ -189,7 +189,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     if (product.isStopListed) return;
     if (newQty > _quantity && !await _ensureOrderTypeSelected()) return;
     if (!mounted) return;
-    final next = newQty.clamp(0, product.inStockCount ?? 999);
+    final next = newQty.clamp(0, _catalogProductQuantityLimit(product));
     setState(() {
       _quantity = next;
     });
@@ -1336,8 +1336,11 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                             onAdd: () => _updateQuantity(product, 1),
                             onDecrease: () =>
                                 _updateQuantity(product, _quantity - 1),
-                            onIncrease: () =>
-                                _updateQuantity(product, _quantity + 1),
+                            onIncrease:
+                                _quantity >=
+                                    _catalogProductQuantityLimit(product)
+                                ? null
+                                : () => _updateQuantity(product, _quantity + 1),
                           ),
                         ],
                       ),

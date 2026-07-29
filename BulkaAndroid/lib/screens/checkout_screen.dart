@@ -973,7 +973,13 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
             _CheckoutLabel('checkout_promo'.tr),
             const SizedBox(height: 10),
             SizedBox(
-              height: 58,
+              height:
+                  58 +
+                  (MediaQuery.textScalerOf(context).scale(1) - 1).clamp(
+                        0.0,
+                        1.0,
+                      ) *
+                      22,
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -1005,9 +1011,11 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
                               height: 20,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
-                          : FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Text('checkout_apply'.tr, maxLines: 1),
+                          : Text(
+                              'checkout_apply'.tr,
+                              maxLines: 2,
+                              textAlign: TextAlign.center,
+                              overflow: TextOverflow.visible,
                             ),
                     ),
                   ),
@@ -1184,16 +1192,21 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
                     ? null
                     : _submit,
                 loading: _isSubmitting,
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Text(
-                    'cart_checkout'.tr,
-                    maxLines: 1,
-                    style: const TextStyle(
-                      fontFamily: _headingFont,
-                      fontSize: BulkaTypeScale.body,
-                      fontWeight: FontWeight.w700,
-                    ),
+                height:
+                    58 +
+                    (MediaQuery.textScalerOf(context).scale(1) - 1).clamp(
+                          0.0,
+                          1.0,
+                        ) *
+                        18,
+                child: Text(
+                  'cart_checkout'.tr,
+                  maxLines: 2,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontFamily: _headingFont,
+                    fontSize: BulkaTypeScale.body,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),

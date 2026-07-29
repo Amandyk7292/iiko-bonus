@@ -150,6 +150,130 @@ test('partial refund line allocation never exceeds the remaining paid amount', (
   );
 });
 
+test('final merchandise refund also returns the delivery fee exactly once', () => {
+  const order = {
+    amount: 2500,
+    subtotal: 2000,
+    discount_amount: 0,
+    delivery_fee: 500,
+    partially_refunded_amount: 1000,
+    cart_items: [{ id: 'a', lineKey: 'line-a', name: 'Хлеб', quantity: 2, price: 1000 }],
+  };
+  const result = calculateRefund(order, [{ lineKey: 'line-a', quantity: 1 }], {
+    quantities: new Map([['line-a', 1]]),
+    amounts: new Map([['line-a', 1000]]),
+  });
+  assert.equal(result.amount, 1500);
+  assert.deepEqual(
+    result.records.map((row) => row.line_key),
+    ['line-a', '__delivery_fee__'],
+  );
+
+  const withoutDuplicateFee = calculateRefund(
+    { ...order, amount: 2000, delivery_fee: 500, partially_refunded_amount: 1000 },
+    [{ lineKey: 'line-a', quantity: 1 }],
+    {
+      quantities: new Map([
+        ['line-a', 1],
+        ['__delivery_fee__', 1],
+      ]),
+      amounts: new Map([
+        ['line-a', 1000],
+        ['__delivery_fee__', 500],
+      ]),
+    },
+  );
+  assert.equal(withoutDuplicateFee.amount, 1000);
+  assert.equal(
+    withoutDuplicateFee.records.some((row) => row.line_key === '__delivery_fee__'),
+    false,
+  );
+});
+
+test('refund clamp distributes excess across delivery and merchandise records', () => {
+  const result = calculateRefund(
+    {
+      amount: 100,
+      subtotal: 200,
+      discount_amount: 0,
+      delivery_fee: 10,
+      partially_refunded_amount: 90,
+      cart_items: [{ id: 'a', lineKey: 'line-a', name: 'Товар', quantity: 1, price: 200 }],
+    },
+    [{ lineKey: 'line-a', quantity: 1 }],
+    { quantities: new Map(), amounts: new Map() },
+  );
+  assert.equal(result.amount, 10);
+  assert.equal(
+    result.records.reduce((sum, row) => sum + row.refund_amount, 0),
+    10,
+  );
+  assert.equal(
+    result.records.every((row) => row.refund_amount > 0),
+    true,
+  );
+});
+
+test('sequential quantity refunds allocate rounding cumulatively without over-refunding', () => {
+  const order = {
+    amount: 200,
+    subtotal: 300,
+    discount_amount: 100,
+    partially_refunded_amount: 0,
+    cart_items: [{ id: 'a', lineKey: 'line-a', name: 'Мини-товар', quantity: 3, price: 100 }],
+  };
+  const first = calculateRefund(order, [{ lineKey: 'line-a', quantity: 1 }], {
+    quantities: new Map(),
+    amounts: new Map(),
+  });
+  const second = calculateRefund(
+    { ...order, partially_refunded_amount: first.amount },
+    [{ lineKey: 'line-a', quantity: 1 }],
+    {
+      quantities: new Map([['line-a', 1]]),
+      amounts: new Map([['line-a', first.amount]]),
+    },
+  );
+  const third = calculateRefund(
+    { ...order, partially_refunded_amount: first.amount + second.amount },
+    [{ lineKey: 'line-a', quantity: 1 }],
+    {
+      quantities: new Map([['line-a', 2]]),
+      amounts: new Map([['line-a', first.amount + second.amount]]),
+    },
+  );
+  assert.deepEqual([first.amount, second.amount, third.amount], [67, 66, 67]);
+  assert.equal(first.amount + second.amount + third.amount, order.amount);
+});
+
+test('discount rounding is allocated globally across different refund lines', () => {
+  const order = {
+    amount: 199,
+    subtotal: 200,
+    discount_amount: 1,
+    partially_refunded_amount: 0,
+    cart_items: [
+      { id: 'a', lineKey: 'line-a', name: 'Первый товар', quantity: 1, price: 100 },
+      { id: 'b', lineKey: 'line-b', name: 'Второй товар', quantity: 1, price: 100 },
+    ],
+  };
+  const first = calculateRefund(order, [{ lineKey: 'line-a', quantity: 1 }], {
+    quantities: new Map(),
+    amounts: new Map(),
+  });
+  const second = calculateRefund(
+    { ...order, partially_refunded_amount: first.amount },
+    [{ lineKey: 'line-b', quantity: 1 }],
+    {
+      quantities: new Map([['line-a', 1]]),
+      amounts: new Map([['line-a', first.amount]]),
+    },
+  );
+
+  assert.deepEqual([first.amount, second.amount], [99, 100]);
+  assert.equal(first.amount + second.amount, order.amount);
+});
+
 test('dispatch distance and ETA are bounded and deterministic', () => {
   const distance = distanceKm(43.6532, 51.1975, 43.66, 51.21);
   assert.ok(distance > 1 && distance < 2);

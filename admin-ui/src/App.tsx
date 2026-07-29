@@ -11,6 +11,7 @@ import {
 } from './lib/api';
 import { useI18n } from './lib/i18n';
 import { AdminRealtimeProvider } from './lib/admin-realtime';
+import { ADMIN_ALLOWED_PATHS } from './lib/admin-permissions';
 import PageState from './components/PageState';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
@@ -464,70 +465,9 @@ export default function App() {
     );
 
   const role = adminUser?.role || 'viewer';
-  const allowedPaths: Record<string, string[]> = {
-    branch_manager: [
-      '/operations',
-      '/analytics',
-      '/customers',
-      '/whatsapp',
-      '/orders',
-      '/menu',
-      '/inventory',
-      '/couriers',
-      '/dispatch',
-      '/kitchen',
-      '/locations',
-      '/reviews',
-      '/support',
-      '/transactions',
-      '/integrations',
-    ],
-    operator: [
-      '/operations',
-      '/customers',
-      '/whatsapp',
-      '/orders',
-      '/dispatch',
-      '/kitchen',
-      '/reviews',
-      '/support',
-    ],
-    marketer: [
-      '/operations',
-      '/analytics',
-      '/customers',
-      '/broadcast',
-      '/contacts',
-      '/stories',
-      '/news',
-      '/bonus',
-      '/tiers',
-      '/marketing',
-      '/reviews',
-      '/support',
-    ],
-    courier: ['/couriers', '/dispatch'],
-    viewer: [
-      '/operations',
-      '/analytics',
-      '/customers',
-      '/whatsapp',
-      '/orders',
-      '/menu',
-      '/inventory',
-      '/couriers',
-      '/dispatch',
-      '/kitchen',
-      '/locations',
-      '/reviews',
-      '/support',
-      '/transactions',
-      '/integrations',
-    ],
-    whatsapp_operator: ['/whatsapp'],
-  };
-  const canOpen = (path: string) => !allowedPaths[role] || allowedPaths[role].includes(path);
-  const firstPath = allowedPaths[role]?.[0] || '/operations';
+  const canOpen = (path: string) =>
+    !ADMIN_ALLOWED_PATHS[role] || ADMIN_ALLOWED_PATHS[role].includes(path);
+  const firstPath = ADMIN_ALLOWED_PATHS[role]?.[0] || '/operations';
   const guard = (path: string, element: React.ReactNode) =>
     canOpen(path) ? element : <Navigate to={firstPath} replace />;
 
@@ -584,7 +524,7 @@ export default function App() {
                 path="/customers"
                 element={guard('/customers', <CustomersPage user={adminUser} />)}
               />
-              <Route path="/orders" element={guard('/orders', <OrdersPage />)} />
+              <Route path="/orders" element={guard('/orders', <OrdersPage role={role} />)} />
               <Route path="/menu" element={guard('/menu', <MenuPage />)} />
               <Route path="/settings" element={guard('/settings', <SettingsPage />)} />
               <Route path="/stories" element={guard('/stories', <StoriesPage />)} />
@@ -595,7 +535,10 @@ export default function App() {
                 path="/locations"
                 element={guard('/locations', <LocationsPage user={adminUser} />)}
               />
-              <Route path="/inventory" element={guard('/inventory', <InventoryPage />)} />
+              <Route
+                path="/inventory"
+                element={guard('/inventory', <InventoryPage role={role} />)}
+              />
               <Route path="/couriers" element={guard('/couriers', <CouriersPage />)} />
               <Route path="/dispatch" element={guard('/dispatch', <DispatchPage />)} />
               <Route path="/kitchen" element={guard('/kitchen', <KitchenPage />)} />

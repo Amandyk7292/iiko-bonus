@@ -7,6 +7,11 @@ const { normalizeOrderType, validateCheckout } = require('../services/checkout.s
 const { forecastOrderEta } = require('../services/eta.service');
 const { SingleFlight } = require('../utils/single-flight.util');
 const {
+  attachPromotionReservation,
+  releasePromotionReservation,
+  reservePromotionForCheckout,
+} = require('../services/commerce-marketing.service');
+const {
   attachOrderReservations,
   commitOrderReservations,
   releaseCheckoutRequest,
@@ -54,14 +59,27 @@ const createPayment = async (req, res) => {
         error.statusCode = 400;
         throw error;
       }
-      await reserveCheckout({
+      await reservePromotionForCheckout(pricing, {
         customerId,
         requestId: checkoutId,
-        branchId: checkout.branchId,
-        items: pricing.canonicalItems,
-        orderType: checkout.orderType,
-        scheduledAt: checkout.scheduledAt,
+        ttlMinutes: 24 * 60 + 5,
       });
+      try {
+        await reserveCheckout({
+          customerId,
+          requestId: checkoutId,
+          branchId: checkout.branchId,
+          items: pricing.canonicalItems,
+          orderType: checkout.effectiveFulfillmentType,
+          scheduledAt: checkout.scheduledAt,
+          ttlMinutes: 24 * 60 + 5,
+        });
+      } catch (error) {
+        await releasePromotionReservation({ customerId, requestId: checkoutId }).catch(
+          () => undefined,
+        );
+        throw error;
+      }
       try {
         const result = await kaspiService.createInvoice(phone, pricing, customerId, {
           ...checkout,
@@ -70,15 +88,32 @@ const createPayment = async (req, res) => {
         const order = await kaspiService.existingRequest(customerId, checkoutId);
         if (order?.id) {
           await attachOrderReservations(customerId, checkoutId, order.id);
+          if (pricing.promotionId) {
+            await attachPromotionReservation(customerId, checkoutId, order.id);
+          }
           if (order.status === 'paid') await commitOrderReservations(order.id);
         }
         return result;
       } catch (error) {
         const order = await kaspiService.existingRequest(customerId, checkoutId).catch(() => null);
-        if (!order) {
-          await releaseCheckoutRequest(customerId, checkoutId).catch((releaseError) =>
-            console.error('Не удалось освободить резерв оформления:', releaseError.message),
-          );
+        await Promise.allSettled([
+          releaseCheckoutRequest(customerId, checkoutId),
+          releasePromotionReservation({ customerId, requestId: checkoutId }),
+          ...(order?.id ? [releasePromotionReservation({ orderId: order.id })] : []),
+        ]).then((results) => {
+          for (const result of results) {
+            if (result.status === 'rejected') {
+              console.error('Не удалось освободить резерв оформления:', result.reason.message);
+            }
+          }
+        });
+        if (order?.status === 'pending') {
+          await kaspiService.cancelInvoice(order.operation_id).catch(() => undefined);
+          await kaspiService
+            .updateOrderStatus(order.operation_id, 'expired')
+            .catch((statusError) =>
+              console.error('Не удалось закрыть несвязанную оплату:', statusError.message),
+            );
         }
         throw error;
       }
@@ -114,7 +149,7 @@ const quotePayment = async (req, res) => {
     }
     const eta = await forecastOrderEta({
       branchId: checkout.branchId,
-      orderType: checkout.orderType,
+      orderType: checkout.effectiveFulfillmentType,
       scheduledAt: checkout.scheduledAt,
       preparationMinutes: pricing.preparationMinutes,
       deliveryAddress: checkout.deliveryAddress,

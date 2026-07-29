@@ -435,7 +435,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
                 item: item,
                 onDecrease: () =>
                     cart.setQuantity(item.cartKey, item.quantity - 1),
-                onIncrease: item.isStopListed
+                onIncrease:
+                    item.isStopListed ||
+                        item.quantity >= CartProvider.maxItemQuantity
                     ? null
                     : () => cart.setQuantity(item.cartKey, item.quantity + 1),
               );
@@ -538,6 +540,10 @@ class _CartProductCard extends StatelessWidget {
                   Text(
                     item.isStopListed
                         ? 'cart_unavailable'.tr
+                        : item.quantity >= CartProvider.maxItemQuantity
+                        ? 'cart_quantity_limit_reached'.trArgs({
+                            'count': CartProvider.maxItemQuantity,
+                          })
                         : '${'cart_contains'.tr} · ${item.quantity} ${'cart_units'.tr}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -627,7 +633,11 @@ class _CartQuantityStepper extends StatelessWidget {
           ),
           IconButton(
             onPressed: onIncrease,
-            tooltip: 'cart_increase'.tr,
+            tooltip: onIncrease == null
+                ? 'cart_quantity_limit_reached'.trArgs({
+                    'count': CartProvider.maxItemQuantity,
+                  })
+                : 'cart_increase'.tr,
             constraints: const BoxConstraints.tightFor(width: 44, height: 46),
             padding: EdgeInsets.zero,
             icon: const Icon(Icons.add_rounded, size: 20),

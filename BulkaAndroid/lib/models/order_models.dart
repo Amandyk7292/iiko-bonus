@@ -60,6 +60,8 @@ class CustomerOrder {
     required this.createdAt,
     required this.fulfillmentType,
     required this.deliveryStatus,
+    this.preorderFulfillmentType,
+    String? effectiveFulfillmentType,
     this.paymentProvider = 'kaspi',
     this.pickupTime,
     this.comment,
@@ -86,7 +88,7 @@ class CustomerOrder {
     this.customerArrivedAt,
     this.courier,
     this.receiptUrl,
-  });
+  }) : _effectiveFulfillmentType = effectiveFulfillmentType;
 
   final String id;
   final int number;
@@ -101,6 +103,8 @@ class CustomerOrder {
   final int earnedBonus;
   final DateTime createdAt;
   final String fulfillmentType;
+  final String? preorderFulfillmentType;
+  final String? _effectiveFulfillmentType;
   final String deliveryStatus;
   final DateTime? pickupTime;
   final String? comment;
@@ -150,6 +154,10 @@ class CustomerOrder {
         json['fulfillmentType'] ?? json['orderType'],
         fallback: 'pickup',
       ),
+      preorderFulfillmentType: _nullableString(json['preorderFulfillmentType']),
+      effectiveFulfillmentType: _nullableString(
+        json['effectiveFulfillmentType'],
+      ),
       deliveryStatus: _asString(json['deliveryStatus'], fallback: 'unassigned'),
       pickupTime: DateTime.tryParse(_asString(json['pickupTime'])),
       comment: _nullableString(json['comment']),
@@ -193,7 +201,18 @@ class CustomerOrder {
     );
   }
 
-  DateTime? get eta => fulfillmentType == 'delivery'
+  String get effectiveFulfillmentType {
+    final fromApi = _effectiveFulfillmentType;
+    if (fromApi == 'pickup' || fromApi == 'delivery') return fromApi!;
+    if (fulfillmentType == 'preorder') {
+      return preorderFulfillmentType == 'delivery' ? 'delivery' : 'pickup';
+    }
+    return fulfillmentType == 'delivery' ? 'delivery' : 'pickup';
+  }
+
+  bool get usesDelivery => effectiveFulfillmentType == 'delivery';
+
+  DateTime? get eta => usesDelivery
       ? estimatedDeliveryAt ?? promisedReadyAt
       : promisedReadyAt ?? pickupTime;
 
@@ -221,6 +240,8 @@ class CustomerOrder {
     'earnedBonus': earnedBonus,
     'createdAt': createdAt.toUtc().toIso8601String(),
     'fulfillmentType': fulfillmentType,
+    'preorderFulfillmentType': preorderFulfillmentType,
+    'effectiveFulfillmentType': effectiveFulfillmentType,
     'deliveryStatus': deliveryStatus,
     'pickupTime': pickupTime?.toUtc().toIso8601String(),
     'comment': comment,

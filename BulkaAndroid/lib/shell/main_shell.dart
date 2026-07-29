@@ -763,8 +763,7 @@ class _GuestProfileScreen extends StatelessWidget {
             const SizedBox(height: 20),
             Semantics(
               container: true,
-              label:
-                  '${'guest_profile_heading'.tr}. ${'guest_profile_body'.tr}',
+              explicitChildNodes: true,
               child: Container(
                 padding: const EdgeInsets.all(22),
                 decoration: BoxDecoration(
@@ -781,10 +780,12 @@ class _GuestProfileScreen extends StatelessWidget {
                         color: colors.brandGold.withValues(alpha: 0.18),
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(
-                        Icons.person_outline_rounded,
-                        size: 38,
-                        color: colors.brandBrown,
+                      child: ExcludeSemantics(
+                        child: Icon(
+                          Icons.person_outline_rounded,
+                          size: 38,
+                          color: colors.brandBrown,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 16),

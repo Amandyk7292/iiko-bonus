@@ -198,6 +198,18 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
       }
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('selected_order_type', order.fulfillmentType);
+      final preorderFulfillmentKey = customerPreferenceKey(
+        'checkout_preorder_fulfillment',
+        widget.api.sessionCacheScope,
+      );
+      if (order.fulfillmentType == 'preorder') {
+        await prefs.setString(
+          preorderFulfillmentKey,
+          order.effectiveFulfillmentType,
+        );
+      } else {
+        await prefs.remove(preorderFulfillmentKey);
+      }
       if (order.branch.trim().isNotEmpty) {
         await prefs.setString('selected_bakery_location', order.branch);
       }
@@ -1107,7 +1119,7 @@ class _CustomerOrderCard extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final canReportArrival =
         order.paymentStatus == 'paid' &&
-        ['pickup', 'preorder'].contains(order.fulfillmentType) &&
+        !order.usesDelivery &&
         order.orderStatus == 'ready';
     return Container(
       padding: const EdgeInsets.all(18),
@@ -1188,7 +1200,7 @@ class _CustomerOrderCard extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           _OrderInfoRow(label: 'orders_branch'.tr, value: order.branch),
-          if (order.fulfillmentType == 'delivery') ...[
+          if (order.usesDelivery) ...[
             _DeliveryProgress(status: order.deliveryStatus),
             if (order.deliveryPin?.isNotEmpty == true &&
                 order.deliveryStatus != 'delivered')

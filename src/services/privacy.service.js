@@ -1,6 +1,10 @@
 const crypto = require('crypto');
 const { supabase } = require('../config/supabase');
-const { notFound } = require('../utils/app-error.util');
+const { conflict, notFound } = require('../utils/app-error.util');
+const {
+  enqueuePrivacyStorageCleanup,
+  processPrivacyStorageCleanupJobs,
+} = require('./privacy-storage-cleanup.service');
 
 const DIRECT_EXPORT_RELATIONS = Object.freeze([
   ['transactions', 'transactions', 'customer_id'],
@@ -25,6 +29,18 @@ const DIRECT_EXPORT_RELATIONS = Object.freeze([
   ['notificationPreferences', 'customer_notification_preferences', 'customer_id'],
   ['whatsappConversations', 'whatsapp_conversations', 'customer_id'],
   ['whatsappOutbox', 'whatsapp_outbox', 'customer_id'],
+  [
+    'paymentMethods',
+    'customer_payment_methods',
+    'customer_id',
+    'id,provider,brand,last_four,exp_month,exp_year,is_default,status,consented_at,last_used_at,revoked_at,created_at,updated_at',
+  ],
+  [
+    'paymentMethodSetups',
+    'customer_payment_method_setups',
+    'customer_id',
+    'id,provider,status,provider_status,provider_transaction_id,payment_test,expires_at,completed_at,created_at,updated_at',
+  ],
 ]);
 
 async function readRowsByColumn(db, table, column, value, columns = '*') {
@@ -68,14 +84,6 @@ function outboxStoragePaths(rows) {
   return rows.map((row) => String(row?.payload?.storagePath || '').trim()).filter(Boolean);
 }
 
-async function removeStoragePaths(db, bucket, paths) {
-  const uniquePaths = [...new Set(paths)];
-  for (let offset = 0; offset < uniquePaths.length; offset += 100) {
-    const { error } = await db.storage.from(bucket).remove(uniquePaths.slice(offset, offset + 100));
-    if (error) throw error;
-  }
-}
-
 async function exportCustomerData(customerId, { db = supabase, now = () => new Date() } = {}) {
   const { data: customer, error } = await db
     .from('customers')
@@ -87,9 +95,9 @@ async function exportCustomerData(customerId, { db = supabase, now = () => new D
   if (!customer) throw notFound('CUSTOMER_NOT_FOUND', 'Профиль не найден');
 
   const relationEntries = await Promise.all(
-    DIRECT_EXPORT_RELATIONS.map(async ([key, table, column]) => [
+    DIRECT_EXPORT_RELATIONS.map(async ([key, table, column, columns = '*']) => [
       key,
-      await readRowsByColumn(db, table, column, customerId),
+      await readRowsByColumn(db, table, column, customerId, columns),
     ]),
   );
   const related = Object.fromEntries(relationEntries);
@@ -172,6 +180,39 @@ async function deleteCustomerData(customerId, { db = supabase, now = () => new D
   if (readError) throw readError;
   if (!customer) return true;
 
+  const [paymentOrdersResult, refundOrdersResult] = await Promise.all([
+    db
+      .from('kaspi_orders')
+      .select('id,status,fulfillment_status,refund_status')
+      .eq('customer_id', customerId)
+      .in('status', ['pending', 'paid']),
+    db
+      .from('kaspi_orders')
+      .select('id,status,fulfillment_status,refund_status')
+      .eq('customer_id', customerId)
+      .in('refund_status', ['processing', 'unknown']),
+  ]);
+  if (paymentOrdersResult.error) throw paymentOrdersResult.error;
+  if (refundOrdersResult.error) throw refundOrdersResult.error;
+  const unsettledOrders = uniqueRows([
+    ...(paymentOrdersResult.data || []),
+    ...(refundOrdersResult.data || []),
+  ]);
+  const hasActiveOrder = unsettledOrders.some((order) => {
+    if (['processing', 'unknown'].includes(String(order.refund_status || ''))) return true;
+    if (order.status === 'pending') return true;
+    return (
+      order.status === 'paid' &&
+      !['completed', 'cancelled'].includes(String(order.fulfillment_status || 'pending'))
+    );
+  });
+  if (hasActiveOrder) {
+    throw conflict(
+      'CUSTOMER_DELETION_ACTIVE_ORDERS',
+      'Профиль можно удалить после завершения активных заказов и возвратов',
+    );
+  }
+
   const { data: request, error: requestError } = await db
     .from('customer_privacy_requests')
     .insert({ customer_id: customerId, request_type: 'delete', status: 'processing' })
@@ -202,19 +243,46 @@ async function deleteCustomerData(customerId, { db = supabase, now = () => new D
       'payload',
     );
 
-    await removeStoragePaths(db, 'support-attachments', [
-      ...attachmentPaths(supportRows),
-      ...attachmentPaths(supportMessages),
-    ]);
-    await removeStoragePaths(db, 'whatsapp-outbox', outboxStoragePaths(whatsappOutbox));
+    const cleanupJob = await enqueuePrivacyStorageCleanup(
+      request.id,
+      [
+        ...attachmentPaths(supportRows).map((path) => ({
+          bucket: 'support-attachments',
+          path,
+        })),
+        ...attachmentPaths(supportMessages).map((path) => ({
+          bucket: 'support-attachments',
+          path,
+        })),
+        ...outboxStoragePaths(whatsappOutbox).map((path) => ({
+          bucket: 'whatsapp-outbox',
+          path,
+        })),
+      ],
+      { db },
+    );
 
     const deletedPhone = `deleted-${crypto.randomUUID().replace(/-/g, '').slice(0, 20)}`;
-    const { error: deleteError } = await db.rpc('delete_customer_personal_data', {
+    const { error: deleteError } = await db.rpc('delete_customer_personal_data_complete', {
       p_customer_id: customerId,
       p_deleted_phone: deletedPhone,
       p_request_id: request.id,
     });
-    if (deleteError) throw deleteError;
+    if (deleteError) {
+      if (String(deleteError.message || '').includes('active orders or unsettled refunds')) {
+        throw conflict(
+          'CUSTOMER_DELETION_ACTIVE_ORDERS',
+          'Профиль можно удалить после завершения активных заказов и возвратов',
+        );
+      }
+      throw deleteError;
+    }
+    if (cleanupJob?.id) {
+      await processPrivacyStorageCleanupJobs({ jobId: cleanupJob.id, limit: 1 }, { db, now }).catch(
+        (cleanupError) =>
+          console.error('Очистка приватных файлов будет повторена фоново:', cleanupError.message),
+      );
+    }
     return true;
   } catch (error) {
     await db

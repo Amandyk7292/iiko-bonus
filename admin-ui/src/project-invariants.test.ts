@@ -36,6 +36,17 @@ describe('admin production invariants', () => {
     }
   });
 
+  it('uses one payment-issues deep link across the admin workspaces', () => {
+    const topbar = readFileSync(resolve(root, 'src/components/Topbar.tsx'), 'utf8');
+    const operations = readFileSync(resolve(root, 'src/pages/OperationsPage.tsx'), 'utf8');
+    const orders = readFileSync(resolve(root, 'src/pages/OrdersPage.tsx'), 'utf8');
+    for (const source of [topbar, operations]) {
+      expect(source).toContain('/orders?payment=issues');
+      expect(source).not.toContain('/orders?payment=failed');
+    }
+    expect(orders).toContain("{ value: 'issues', label: t('payment.issues') }");
+  });
+
   it('ships every locally referenced font and product mark', () => {
     const assets = [
       'GolosText-Regular.ttf',

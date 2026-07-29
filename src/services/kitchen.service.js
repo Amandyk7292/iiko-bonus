@@ -1,4 +1,5 @@
 const { supabase } = require('../config/supabase');
+const { effectiveFulfillmentType, isDeliveryFulfillment } = require('../utils/fulfillment.util');
 const realtime = require('./realtime.service');
 const { notifyOrderStatus } = require('./customer-order.service');
 const { notifyDeliveryStatus } = require('./courier.service');
@@ -23,7 +24,7 @@ const normalize = (order) => ({
   items: Array.isArray(order.cart_items) ? order.cart_items : [],
   comment: order.comment || null,
   substitutionPreference: order.substitution_preference || 'call_customer',
-  fulfillmentType: order.fulfillment_type,
+  fulfillmentType: effectiveFulfillmentType(order),
   fulfillmentStatus: order.fulfillment_status,
   kitchenStatus: order.kitchen_status || 'queued',
   createdAt: order.created_at,
@@ -99,7 +100,7 @@ async function updateKitchenStatus(
   }
   if (nextStatus === 'handed_over') {
     updates.handed_to_courier_at = now;
-    if (current.fulfillment_type === 'delivery') {
+    if (isDeliveryFulfillment(current)) {
       updates.delivery_status = current.courier_id ? 'picked_up' : current.delivery_status;
     } else {
       updates.fulfillment_status = 'completed';
@@ -135,7 +136,7 @@ async function updateKitchenStatus(
     { customerId: data.customer_id, includeAdmins: true, branchId: data.branch_id },
   );
   const notify =
-    nextStatus === 'handed_over' && data.fulfillment_type === 'delivery'
+    nextStatus === 'handed_over' && isDeliveryFulfillment(data)
       ? notifyDeliveryStatus
       : notifyOrderStatus;
   await notify(refreshed).catch((notificationError) =>

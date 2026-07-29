@@ -7,6 +7,7 @@ const realtime = require('./realtime.service');
 const { sendOrderLiveActivity } = require('./live-activity.service');
 const { paymentReceiptUrl } = require('./payment-receipt.service');
 const { paymentProviderName, refundPaymentForOrder } = require('./payment-gateway.service');
+const { effectiveFulfillmentType, isDeliveryFulfillment } = require('../utils/fulfillment.util');
 
 const ORDER_FIELDS = [
   'id',
@@ -20,6 +21,7 @@ const ORDER_FIELDS = [
   'discount_amount',
   'promo_code',
   'fulfillment_type',
+  'preorder_fulfillment_type',
   'branch_id',
   'branch_name',
   'scheduled_at',
@@ -39,6 +41,7 @@ const ORDER_FIELDS = [
   'refund_requested_at',
   'refunded_at',
   'refund_error',
+  'last_error',
   'courier_id',
   'delivery_status',
   'estimated_delivery_at',
@@ -64,6 +67,8 @@ const ORDER_FIELDS = [
 
 const ORDER_STATUSES = ['new', 'accepted', 'preparing', 'ready', 'completed', 'cancelled'];
 const CLOSED_STATUSES = ['completed', 'cancelled'];
+const PAYMENT_ISSUES_FILTER =
+  'status.in.(failed,expired),refund_status.in.(failed,unknown),last_error.not.is.null';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SAFE_REFUND_RETRY_WINDOW_MS = 23 * 60 * 60 * 1000;
 const STATUS_TRANSITIONS = {
@@ -196,6 +201,8 @@ const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
     promoCode: order.promo_code || null,
     orderType: order.fulfillment_type || 'pickup',
     fulfillmentType: order.fulfillment_type || 'pickup',
+    preorderFulfillmentType: order.preorder_fulfillment_type || null,
+    effectiveFulfillmentType: effectiveFulfillmentType(order),
     branchId: order.branch_id == null ? null : String(order.branch_id),
     branch: order.branch_name || '',
     scheduledAt: order.scheduled_at || order.pickup_time || null,
@@ -213,6 +220,8 @@ const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
     refundStatus: order.refund_status || null,
     refundAmount: order.refund_amount == null ? null : Number(order.refund_amount),
     refundedAt: order.refunded_at || null,
+    refundError: order.refund_error || null,
+    lastError: order.last_error || null,
     deliveryStatus: order.delivery_status || 'unassigned',
     deliveryConfirmedAt: order.delivery_confirmed_at || null,
     ...(includeDeliveryPin && order.delivery_pin ? { deliveryPin: order.delivery_pin } : {}),
@@ -290,6 +299,7 @@ async function listCustomerOrders(customerId, { scope = 'active', page = 1, page
 
 function canMarkCustomerArrived(order) {
   if (!order || order.status !== 'paid') return false;
+  if (isDeliveryFulfillment(order)) return false;
   if (!['pickup', 'preorder'].includes(order.fulfillment_type || 'pickup')) return false;
   const status = order.fulfillment_status === 'pending' ? 'new' : order.fulfillment_status;
   return status === 'ready';
@@ -363,7 +373,9 @@ async function listAdminOrders({
       { count: 'exact' },
     );
 
-  if (
+  if (paymentStatus === 'issues') {
+    query = query.or(PAYMENT_ISSUES_FILTER);
+  } else if (
     paymentStatus &&
     ['pending', 'paid', 'refunded', 'failed', 'expired'].includes(paymentStatus)
   ) {
@@ -516,7 +528,7 @@ async function notifyOrderStatus(order) {
         orderId: String(order.id),
         orderNumber: String(order.order_number),
         orderStatus: String(order.fulfillment_status || ''),
-        fulfillmentType: String(order.fulfillment_type || 'pickup'),
+        fulfillmentType: effectiveFulfillmentType(order),
         orderEta: String(order.promised_ready_at || order.estimated_delivery_at || ''),
         deepLink: `${String(process.env.PUBLIC_BASE_URL || 'https://bulka.com.kz').replace(/\/$/, '')}/orders?order=${encodeURIComponent(order.id)}`,
         notificationId: String(saved?.id || ''),
@@ -546,7 +558,11 @@ async function markRefundFailure(order, error) {
 async function cancelPaidOrder(
   current,
   cancellationReason,
-  { allowedFulfillmentStatuses = [], cancelBeforeRefund = false } = {},
+  {
+    allowedFulfillmentStatuses = [],
+    cancelBeforeRefund = false,
+    reuseRefundRequestId = false,
+  } = {},
 ) {
   const currentStatus =
     current.fulfillment_status === 'pending' ? 'new' : current.fulfillment_status;
@@ -586,7 +602,12 @@ async function cancelPaidOrder(
   if (current.refund_status === 'processing') {
     throw refundError(409, 'Возврат по заказу уже выполняется', 'PAYMENT_REFUND_PROCESSING');
   }
-  const retryRequestId = safeUnknownRefundRequestId(current);
+  const existingRefundRequestId = /^[0-9a-f-]{36}$/i.test(String(current.refund_request_id || ''))
+    ? String(current.refund_request_id)
+    : null;
+  const retryRequestId =
+    safeUnknownRefundRequestId(current) ||
+    (reuseRefundRequestId && current.refund_status === 'failed' ? existingRefundRequestId : null);
   if (current.refund_status === 'unknown' && !retryRequestId) {
     throw refundError(
       409,
@@ -866,6 +887,7 @@ module.exports = {
   listCustomerOrders,
   canMarkCustomerArrived,
   canCustomerCancelOrder,
+  cancelPaidOrder,
   markCustomerArrived,
   cancelCustomerOrder,
   notifyOrderStatus,

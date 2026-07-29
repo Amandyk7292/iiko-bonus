@@ -548,6 +548,7 @@ const ru: Record<string, string> = {
   'payment.refunded': 'Возвращён',
   'payment.failed': 'Ошибка',
   'payment.expired': 'Истёк',
+  'payment.issues': 'Проблемы оплаты и возврата',
   'orderStatus.new': 'Новый',
   'orderStatus.accepted': 'Принят',
   'orderStatus.preparing': 'Готовится',
@@ -746,6 +747,7 @@ const ru: Record<string, string> = {
   'access.role.operator': 'Оператор',
   'access.role.marketer': 'Маркетолог',
   'access.role.courier': 'Курьер',
+  'access.role.editor': 'Редактор',
   'access.role.viewer': 'Только просмотр',
   'access.loadError': 'Не удалось загрузить права',
   'access.ipInvalid': 'Введите корректный IPv4 или IPv6 без маски и диапазона.',
@@ -803,6 +805,8 @@ const ru: Record<string, string> = {
   'inventory.heading': 'Остатки и стоп-лист',
   'inventory.intro':
     'Каждый филиал получает собственный остаток. Оплаченные и ожидающие заказы резервируют товар.',
+  'inventory.readOnly':
+    'Режим просмотра: изменение остатков и стоп-листа недоступно для вашей роли.',
   'inventory.sync': 'Синхронизировать с iiko',
   'inventory.syncing': 'Синхронизация…',
   'inventory.synced': 'Остатки синхронизированы',
@@ -876,6 +880,7 @@ const ru: Record<string, string> = {
   'orders.delivery': 'Доставка',
   'orders.customerArrived': 'Клиент приехал',
   'orders.assignCourier': 'Назначить курьера',
+  'orders.courierNotAssigned': 'Курьер не назначен',
   'orders.courierAssigned': 'Курьер назначен',
   'orders.deliverySaved': 'Статус доставки обновлён',
   'deliveryStatus.unassigned': 'Курьер не назначен',

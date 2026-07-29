@@ -23,9 +23,14 @@ import {
   type OrderSubstitution,
 } from '../lib/api';
 import { useAdminRealtimeEvents } from '../lib/admin-realtime';
+import {
+  availableOrderStatuses,
+  canMutateOrders,
+  canRefundOrders,
+  ORDER_STATUSES,
+} from '../lib/admin-permissions';
 import { useI18n } from '../lib/i18n';
 
-const statuses = ['new', 'accepted', 'preparing', 'ready', 'completed', 'cancelled'];
 const deliveryTransitions: Record<string, string[]> = {
   unassigned: [],
   assigned: ['picked_up', 'en_route', 'cancelled'],
@@ -36,9 +41,11 @@ const deliveryTransitions: Record<string, string[]> = {
 };
 type SubstitutionOptions = Awaited<ReturnType<typeof api.getSubstitutionOptions>>['options'];
 
-export default function OrdersPage() {
+export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
   const { t, formatDate, formatNumber } = useI18n();
   const { toast } = useFeedback();
+  const orderMutationsAllowed = canMutateOrders(role);
+  const refundsAllowed = canRefundOrders(role);
   const [params, setParams] = useSearchParams();
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -138,7 +145,7 @@ export default function OrdersPage() {
   }, [load]);
 
   const assignCourier = async (order: AdminOrder, courierId: string) => {
-    if (!courierId || savingId) return;
+    if (!orderMutationsAllowed || !courierId || savingId) return;
     setSavingId(order.id);
     try {
       const eta = new Date(Date.now() + 45 * 60_000).toISOString();
@@ -153,7 +160,7 @@ export default function OrdersPage() {
   };
 
   const changeDeliveryStatus = async (order: AdminOrder, status: string) => {
-    if (!status || savingId) return;
+    if (!orderMutationsAllowed || !status || savingId) return;
     setSavingId(order.id);
     try {
       await api.updateDeliveryStatus(order.id, status);
@@ -167,6 +174,7 @@ export default function OrdersPage() {
   };
 
   const persistStatus = async (order: AdminOrder, status: string, reason = '') => {
+    if (!orderMutationsAllowed || (status === 'cancelled' && !refundsAllowed)) return false;
     setSavingId(order.id);
     try {
       const result = await api.updateOrderStatus(order.id, status, reason);
@@ -182,8 +190,9 @@ export default function OrdersPage() {
   };
 
   const changeStatus = (order: AdminOrder, status: string) => {
-    if (status === order.orderStatus || savingId) return;
+    if (!orderMutationsAllowed || status === order.orderStatus || savingId) return;
     if (status === 'cancelled') {
+      if (!refundsAllowed) return;
       setCancellationOrder(order);
       setCancellationReason('');
       return;
@@ -193,7 +202,7 @@ export default function OrdersPage() {
 
   const submitCancellation = async (event: FormEvent) => {
     event.preventDefault();
-    if (!cancellationOrder || savingId) return;
+    if (!refundsAllowed || !cancellationOrder || savingId) return;
     if (await persistStatus(cancellationOrder, 'cancelled', cancellationReason.trim())) {
       setCancellationOrder(null);
       setCancellationReason('');
@@ -201,6 +210,7 @@ export default function OrdersPage() {
   };
 
   const openPartialRefund = async (order: AdminOrder) => {
+    if (!refundsAllowed) return;
     setRefundOrder(order);
     setRefundData(null);
     setRefundQuantities({});
@@ -214,7 +224,7 @@ export default function OrdersPage() {
   };
 
   const submitPartialRefund = async () => {
-    if (!refundOrder || savingId) return;
+    if (!refundsAllowed || !refundOrder || savingId) return;
     const items = Object.entries(refundQuantities)
       .filter(([, quantity]) => quantity > 0)
       .map(([lineKey, quantity]) => ({ lineKey, quantity }));
@@ -245,6 +255,7 @@ export default function OrdersPage() {
   };
 
   const openSubstitution = async (order: AdminOrder) => {
+    if (!orderMutationsAllowed) return;
     setSubstitutionOrder(order);
     setSubstitutionOptions(null);
     setSubstitutionLineKey('');
@@ -254,7 +265,8 @@ export default function OrdersPage() {
     setSubstitutionAction(
       ['remove_refund', 'call_customer', 'replace_with_approval'].includes(
         String(order.substitutionPreference),
-      )
+      ) &&
+        (order.substitutionPreference !== 'remove_refund' || refundsAllowed)
         ? (order.substitutionPreference as OrderSubstitution['action'])
         : 'call_customer',
     );
@@ -270,7 +282,14 @@ export default function OrdersPage() {
   };
 
   const submitSubstitution = async () => {
-    if (!substitutionOrder || !substitutionLineKey || savingId) return;
+    if (
+      !orderMutationsAllowed ||
+      (substitutionAction === 'remove_refund' && !refundsAllowed) ||
+      !substitutionOrder ||
+      !substitutionLineKey ||
+      savingId
+    )
+      return;
     if (substitutionAction === 'replace_with_approval' && !replacementProductId) {
       toast(t('orders.substitutionWorkflow.selectReplacement'), 'error');
       return;
@@ -299,7 +318,7 @@ export default function OrdersPage() {
   };
 
   const completeSubstitution = async (order: AdminOrder, requestId: string) => {
-    if (savingId) return;
+    if (!orderMutationsAllowed || savingId) return;
     setSavingId(order.id);
     try {
       await api.completeSubstitution(order.id, requestId);
@@ -394,6 +413,7 @@ export default function OrdersPage() {
             }}
             options={[
               { value: '', label: t('orders.all') },
+              { value: 'issues', label: t('payment.issues') },
               ...['pending', 'paid', 'refunded', 'failed', 'expired'].map((value) => ({
                 value,
                 label: t(`payment.${value}`),
@@ -414,7 +434,7 @@ export default function OrdersPage() {
             }}
             options={[
               { value: '', label: t('orders.all') },
-              ...statuses.map((value) => ({ value, label: t(`orderStatus.${value}`) })),
+              ...ORDER_STATUSES.map((value) => ({ value, label: t(`orderStatus.${value}`) })),
             ]}
           />
         </div>
@@ -466,7 +486,8 @@ export default function OrdersPage() {
                           )}
                         </span>
                       </div>
-                      {order.paymentStatus === 'paid' &&
+                      {orderMutationsAllowed &&
+                        order.paymentStatus === 'paid' &&
                         !['completed', 'cancelled'].includes(order.orderStatus) && (
                           <button
                             type="button"
@@ -497,16 +518,17 @@ export default function OrdersPage() {
                               <small>
                                 {t(`orders.substitutionWorkflow.status.${request.status}`)}
                               </small>
-                              {['contacting', 'approved'].includes(request.status) && (
-                                <button
-                                  type="button"
-                                  className="text-button-refund"
-                                  onClick={() => void completeSubstitution(order, request.id)}
-                                  disabled={savingId === order.id}
-                                >
-                                  {t('orders.substitutionWorkflow.markCompleted')}
-                                </button>
-                              )}
+                              {((request.status === 'contacting' && orderMutationsAllowed) ||
+                                (request.status === 'approved' && refundsAllowed)) && (
+                                  <button
+                                    type="button"
+                                    className="text-button-refund"
+                                    onClick={() => void completeSubstitution(order, request.id)}
+                                    disabled={savingId === order.id}
+                                  >
+                                    {t('orders.substitutionWorkflow.markCompleted')}
+                                  </button>
+                                )}
                             </div>
                           ))}
                         </div>
@@ -527,7 +549,7 @@ export default function OrdersPage() {
                             <small>
                               {order.courier.name} · {order.courier.phone}
                             </small>
-                          ) : (
+                          ) : orderMutationsAllowed ? (
                             <SelectControl
                               compact
                               ariaLabel={t('orders.assignCourier')}
@@ -545,8 +567,11 @@ export default function OrdersPage() {
                                   })),
                               ]}
                             />
+                          ) : (
+                            <small>{t('orders.courierNotAssigned')}</small>
                           )}
-                          {order.courier &&
+                          {orderMutationsAllowed &&
+                            order.courier &&
                             (deliveryTransitions[order.deliveryStatus || 'unassigned']?.length ??
                               0) > 0 && (
                               <SelectControl
@@ -580,7 +605,7 @@ export default function OrdersPage() {
                               className="text-button-refund"
                               onClick={() => void openDeliveryProof(order)}
                             >
-                              <Camera size={14} />
+                              <Camera size={14} aria-hidden="true" />
                               Подтверждение
                             </button>
                           )}
@@ -596,22 +621,26 @@ export default function OrdersPage() {
                           Возврат: {formatNumber(Number(order.refundAmount))} ₸
                         </small>
                       )}
-                      {order.paymentStatus === 'paid' &&
+                      {refundsAllowed &&
+                        order.paymentStatus === 'paid' &&
                         Number(order.refundAmount || 0) < Number(order.amount || 0) && (
                           <button
                             className="text-button-refund"
                             type="button"
                             onClick={() => void openPartialRefund(order)}
                           >
-                            <RotateCcw size={14} />
+                            <RotateCcw size={14} aria-hidden="true" />
                             По позициям
                           </button>
                         )}
                     </td>
                     <td data-label={t('common.status')}>
-                      {['paid', 'refunded'].includes(order.paymentStatus) ? (
+                      {['paid', 'refunded'].includes(order.paymentStatus) &&
+                      orderMutationsAllowed ? (
                         <div className="order-status-control">
-                          {savingId === order.id && <LoaderCircle className="spin" size={16} />}
+                          {savingId === order.id && (
+                            <LoaderCircle className="spin" size={16} aria-hidden="true" />
+                          )}
                           <SelectControl
                             compact
                             ariaLabel={t('orders.changeStatus')}
@@ -622,12 +651,18 @@ export default function OrdersPage() {
                               savingId === order.id ||
                               ['completed', 'cancelled'].includes(order.orderStatus)
                             }
-                            options={statuses.map((value) => ({
-                              value,
-                              label: t(`orderStatus.${value}`),
-                            }))}
+                            options={availableOrderStatuses(order.orderStatus, refundsAllowed).map(
+                              (value) => ({
+                                value,
+                                label: t(`orderStatus.${value}`),
+                              }),
+                            )}
                           />
                         </div>
+                      ) : ['paid', 'refunded'].includes(order.paymentStatus) ? (
+                        <span className="status-pill status-info">
+                          {t(`orderStatus.${order.orderStatus}`)}
+                        </span>
                       ) : (
                         <span className="table-secondary">—</span>
                       )}
@@ -886,18 +921,20 @@ export default function OrdersPage() {
                     'call_customer',
                     'replace_with_approval',
                   ] as OrderSubstitution['action'][]
-                ).map((action) => (
-                  <label className="substitution-action-option" key={action}>
-                    <input
-                      type="radio"
-                      name="substitutionAction"
-                      value={action}
-                      checked={substitutionAction === action}
-                      onChange={() => setSubstitutionAction(action)}
-                    />
-                    <span>{t(`orders.substitution.${action}`)}</span>
-                  </label>
-                ))}
+                )
+                  .filter((action) => action !== 'remove_refund' || refundsAllowed)
+                  .map((action) => (
+                    <label className="substitution-action-option" key={action}>
+                      <input
+                        type="radio"
+                        name="substitutionAction"
+                        value={action}
+                        checked={substitutionAction === action}
+                        onChange={() => setSubstitutionAction(action)}
+                      />
+                      <span>{t(`orders.substitution.${action}`)}</span>
+                    </label>
+                  ))}
               </fieldset>
               {substitutionAction === 'replace_with_approval' && (
                 <div className="field-group">

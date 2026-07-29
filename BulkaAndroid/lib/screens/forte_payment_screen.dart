@@ -428,13 +428,20 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
                   if (_loadingProgress < 100)
                     Align(
                       alignment: Alignment.topCenter,
-                      child: LinearProgressIndicator(
+                      child: Semantics(
+                        liveRegion: true,
+                        label: 'forte_payment_loading'.tr,
                         value: _loadingProgress <= 0
                             ? null
-                            : _loadingProgress / 100,
-                        minHeight: 3,
-                        color: _bulkaYellow,
-                        backgroundColor: const Color(0xFFFFF1D0),
+                            : '$_loadingProgress%',
+                        child: LinearProgressIndicator(
+                          value: _loadingProgress <= 0
+                              ? null
+                              : _loadingProgress / 100,
+                          minHeight: 3,
+                          color: _bulkaYellow,
+                          backgroundColor: const Color(0xFFFFF1D0),
+                        ),
                       ),
                     ),
                 ],
@@ -447,37 +454,47 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
-                        paid
-                            ? Icons.check_circle_rounded
-                            : terminalFailure
-                            ? Icons.error_outline_rounded
-                            : Icons.credit_card_rounded,
-                        color: paid
-                            ? _successGreen
-                            : terminalFailure
-                            ? _errorRed
-                            : _bulkaYellow,
-                        size: 88,
-                      ),
-                      const SizedBox(height: 24),
-                      Text(
-                        title,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontFamily: _headingFont,
-                          fontSize: BulkaTypeScale.titleLarge,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        message,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: BulkaTypeScale.body,
-                          height: 1.4,
-                          color: _textDark.withValues(alpha: 0.72),
+                      Semantics(
+                        container: true,
+                        liveRegion: true,
+                        label: '$title. $message',
+                        excludeSemantics: true,
+                        child: Column(
+                          children: [
+                            Icon(
+                              paid
+                                  ? Icons.check_circle_rounded
+                                  : terminalFailure
+                                  ? Icons.error_outline_rounded
+                                  : Icons.credit_card_rounded,
+                              color: paid
+                                  ? _successGreen
+                                  : terminalFailure
+                                  ? _errorRed
+                                  : _bulkaYellow,
+                              size: 88,
+                            ),
+                            const SizedBox(height: 24),
+                            Text(
+                              title,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontFamily: _headingFont,
+                                fontSize: BulkaTypeScale.titleLarge,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              message,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: BulkaTypeScale.body,
+                                height: 1.4,
+                                color: _textDark.withValues(alpha: 0.72),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       if (!paid && !terminalFailure) ...[
@@ -497,10 +514,15 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
                       ],
                       if ((_checkoutError ?? _statusError) != null) ...[
                         const SizedBox(height: 18),
-                        Text(
-                          (_checkoutError ?? _statusError)!,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: _errorRed),
+                        Semantics(
+                          liveRegion: true,
+                          label: (_checkoutError ?? _statusError)!,
+                          excludeSemantics: true,
+                          child: Text(
+                            (_checkoutError ?? _statusError)!,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: _errorRed),
+                          ),
                         ),
                       ],
                       if (_checkoutError != null &&

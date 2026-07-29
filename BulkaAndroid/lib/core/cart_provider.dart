@@ -95,6 +95,7 @@ class CartProvider extends ChangeNotifier {
   }
 
   static const _storageKey = 'bulka_cart_v1';
+  static const maxItemQuantity = 99;
   final Map<String, CartItem> _items = {};
   Map<String, CartProductSnapshot>? _latestMenu;
   bool _restored = false;
@@ -158,7 +159,10 @@ class CartProvider extends ChangeNotifier {
   }) {
     if (isStopListed) return;
     if (_items.containsKey(productId)) {
-      _items[productId]!.quantity += 1;
+      _items[productId]!.quantity = (_items[productId]!.quantity + 1).clamp(
+        1,
+        maxItemQuantity,
+      );
     } else {
       _items[productId] = CartItem(
         id: productId,
@@ -179,7 +183,7 @@ class CartProvider extends ChangeNotifier {
     if (quantity <= 0) {
       _items.remove(productId);
     } else {
-      _items[productId]!.quantity = quantity;
+      _items[productId]!.quantity = quantity.clamp(1, maxItemQuantity);
     }
     notifyListeners();
     unawaited(_save());

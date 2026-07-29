@@ -30,6 +30,7 @@ function calculateOrderTotal(items, catalog) {
   if (items.length > 50) throw badRequest('Слишком много позиций в корзине');
 
   const quantities = new Map();
+  const productQuantities = new Map();
   for (const item of items) {
     const id = String(item?.id || '').trim();
     const quantity = Number(item?.quantity);
@@ -51,11 +52,14 @@ function calculateOrderTotal(items, catalog) {
     if (quantities.get(key).quantity > 99) {
       throw badRequest('Количество одной позиции не может превышать 99');
     }
+    const productQuantity = (productQuantities.get(id) || 0) + quantity;
+    if (productQuantity > 99) {
+      throw badRequest('Количество одного товара не может превышать 99');
+    }
+    productQuantities.set(id, productQuantity);
   }
 
-  const canonicalItems = [];
-  let subtotal = 0;
-  for (const { id, quantity, configuration, modifiers } of quantities.values()) {
+  for (const [id, quantity] of productQuantities) {
     const product = catalog.get(id);
     if (!product) throw badRequest('Один из товаров больше недоступен. Обновите корзину.');
     if (!product.isAvailable) throw badRequest(`«${product.name}» сейчас недоступен`);
@@ -64,6 +68,12 @@ function calculateOrderTotal(items, catalog) {
         `Недостаточно товара «${product.name}». Доступно: ${Math.max(product.availableQuantity, 0)}`,
       );
     }
+  }
+
+  const canonicalItems = [];
+  let subtotal = 0;
+  for (const { id, quantity, configuration, modifiers } of quantities.values()) {
+    const product = catalog.get(id);
     const price = Number(product.price);
     if (!Number.isFinite(price) || price <= 0) throw badRequest('У товара некорректная цена');
 

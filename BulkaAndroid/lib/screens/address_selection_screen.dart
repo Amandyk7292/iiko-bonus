@@ -56,8 +56,76 @@ class _AddressSelectionScreenState extends State<AddressSelectionScreen> {
   Future<void> _addAddress() async {
     await _navigationGate.run(() async {
       BulkaMotion.lightImpact();
+      DeliveryLocation? initialLocation;
+      for (final address in _addresses) {
+        if (address.id == _selectedId) {
+          initialLocation = address.location;
+          break;
+        }
+      }
+      if (initialLocation == null) {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          final selectedIds =
+              [
+                    prefs.getString('selected_bakery_location_id'),
+                    prefs.getString('selected_bakery_location_id_delivery'),
+                    prefs.getString('selected_bakery_location_id_preorder'),
+                    prefs.getString('selected_bakery_location_id_pickup'),
+                  ]
+                  .whereType<String>()
+                  .map((value) => value.trim())
+                  .where((value) => value.isNotEmpty);
+          final selectedLabels =
+              [
+                    prefs.getString('selected_bakery_location'),
+                    prefs.getString('selected_bakery_location_delivery'),
+                    prefs.getString('selected_bakery_location_preorder'),
+                    prefs.getString('selected_bakery_location_pickup'),
+                  ]
+                  .whereType<String>()
+                  .map((value) => value.trim())
+                  .where((value) => value.isNotEmpty);
+          final locations = await (widget.api ?? BulkaApiClient())
+              .getFulfillmentLocations();
+          BakeryLocation? selectedBranch;
+          for (final id in selectedIds) {
+            selectedBranch = locations
+                .where((location) => location.id == id)
+                .firstOrNull;
+            if (selectedBranch != null) break;
+          }
+          if (selectedBranch == null) {
+            for (final label in selectedLabels) {
+              selectedBranch = locations
+                  .where((location) => location.displayLabel == label)
+                  .firstOrNull;
+              if (selectedBranch != null) break;
+            }
+          }
+          if (selectedBranch?.latitude != null &&
+              selectedBranch?.longitude != null) {
+            initialLocation = DeliveryLocation(
+              city: selectedBranch!.city,
+              address: selectedBranch.address,
+              latitude: selectedBranch.latitude!,
+              longitude: selectedBranch.longitude!,
+            );
+          }
+        } catch (_) {
+          // The map still opens with its safe default if branch lookup fails.
+        }
+      }
+      if (!mounted) return;
       final address = await Navigator.of(context).push<DeliveryAddress>(
-        MaterialPageRoute(builder: (_) => AddressMapScreen(api: widget.api)),
+        MaterialPageRoute(
+          builder: (_) => AddressMapScreen(
+            api: widget.api,
+            initialCity: initialLocation?.city,
+            initialLatitude: initialLocation?.latitude,
+            initialLongitude: initialLocation?.longitude,
+          ),
+        ),
       );
       if (!mounted || address == null) return;
 

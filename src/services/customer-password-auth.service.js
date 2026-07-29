@@ -167,15 +167,19 @@ async function startCustomerPasswordReset(
   const requestToken = validateRequestToken(rawRequestToken);
   const customer = await findCustomer(phone);
   const credential = customer ? await getCustomerCredential(customer.id, { db }) : null;
-  if (!customer || (!credential && !isEstablishedCustomer(customer))) {
-    throw customerAuthError('Customer account was not found', 404, 'ACCOUNT_NOT_FOUND');
-  }
 
+  // Keep the public response and WhatsApp confirmation flow identical for
+  // existing and unknown numbers. Only someone who controls the phone can
+  // complete the OTP step, where account eligibility is checked again.
   const contact = await saveWhatsAppAuthRequest(
     { phone, requestToken, purpose: AUTH_PURPOSES.passwordReset },
     { db },
   );
-  return { phone, customer, ...contact };
+  return {
+    phone,
+    customer: customer && (credential || isEstablishedCustomer(customer)) ? customer : null,
+    ...contact,
+  };
 }
 
 async function authenticateCustomerPassword(
