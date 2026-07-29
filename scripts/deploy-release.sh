@@ -215,19 +215,17 @@ create_pre_migration_backup() {
 }
 
 configure_postgres_client() {
-  if command -v pg_dump >/dev/null && command -v pg_restore >/dev/null; then
+  local portable_root=/home/deploy/.bulka-tools/postgresql
+  local portable_bin="$portable_root/usr/lib/postgresql/17/bin"
+  local portable_lib="$portable_root/usr/lib/x86_64-linux-gnu"
+  if [[ -x "$portable_bin/pg_dump" && -x "$portable_bin/pg_restore" ]]; then
+    export PATH="$portable_bin:$PATH"
+    export LD_LIBRARY_PATH="$portable_lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    pg_dump --version >/dev/null
+    pg_restore --version >/dev/null
     return 0
   fi
-  local portable_root=/home/deploy/.bulka-tools/postgresql
-  local portable_bin="$portable_root/usr/lib/postgresql/16/bin"
-  local portable_lib="$portable_root/usr/lib/x86_64-linux-gnu"
-  if [[ ! -x "$portable_bin/pg_dump" || ! -x "$portable_bin/pg_restore" ]]; then
-    return 1
-  fi
-  export PATH="$portable_bin:$PATH"
-  export LD_LIBRARY_PATH="$portable_lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-  pg_dump --version >/dev/null
-  pg_restore --version >/dev/null
+  command -v pg_dump >/dev/null && command -v pg_restore >/dev/null
 }
 
 run_optional_privileged_task() {

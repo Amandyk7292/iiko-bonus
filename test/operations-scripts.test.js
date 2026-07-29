@@ -30,6 +30,9 @@ test('release deployment keeps a healthy staging fallback during graceful reload
   assert.match(packageRelease, /ensure-postgres-client\.sh/);
   assert.match(packageRelease, /bulka-ensure-postgres-client/);
   assert.match(deploy, /configure_postgres_client/);
+  assert.match(deploy, /postgresql\/17\/bin/);
+  assert.match(read('scripts/ensure-postgres-client.sh'), /postgresql-client-\$client_major/);
+  assert.doesNotMatch(read('scripts/ensure-postgres-client.sh'), /postgresql\/16\/bin/);
   assert.match(deploy, /start_staging_release "\$backup"/);
   assert.match(rollback, /start_staging_release/);
   assert.match(rollback, /pm2 delete iiko-bonus-staging/);
