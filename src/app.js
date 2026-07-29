@@ -222,6 +222,18 @@ app.get('/.well-known/assetlinks.json', (_req, res) => {
   );
 });
 
+const sendBrandPng = (relativePath) => (_req, res) => {
+  res.setHeader('Cache-Control', 'public, max-age=86400, must-revalidate');
+  res.type('image/png').sendFile(path.join(process.cwd(), 'public', 'app', relativePath));
+};
+
+// Keep the browser tab icon available to every surface, including admin and
+// temporary site-access pages. /favicon.ico serves the same PNG for browsers
+// and bookmarks that still request the legacy default path.
+app.get('/favicon.png', sendBrandPng('favicon.png'));
+app.get('/favicon.ico', sendBrandPng('favicon.png'));
+app.get('/icons/apple-touch-icon.png', sendBrandPng('icons/apple-touch-icon.png'));
+
 // Restrict the public web experience without interrupting the admin panel,
 // mobile API, health checks or machine-to-machine integrations.
 app.use(siteAccessMiddleware);

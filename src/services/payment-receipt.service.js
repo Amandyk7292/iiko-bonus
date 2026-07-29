@@ -488,6 +488,7 @@ function renderPaymentReceipt(receipt, requestedLanguage, access = {}) {
     <meta name="robots" content="noindex,nofollow,noarchive" />
     <meta name="referrer" content="no-referrer" />
     <meta name="theme-color" content="#fffaf2" />
+    <link rel="icon" type="image/png" sizes="48x48" href="/favicon.png?v=20260730-1" />
     <title>${copy.title} ${escapeHtml(receipt.document_number)} — Bulka</title>
     <link rel="stylesheet" href="/assets/legal/payment-receipt.css?v=20260725" />
     <script src="/assets/legal/payment-receipt.js?v=20260725" defer></script>

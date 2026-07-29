@@ -77,6 +77,7 @@ async function renderWalletChoice(req, res) {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <link rel="icon" type="image/png" sizes="48x48" href="/favicon.png?v=20260730-1">
       <title>Сохранить карту Bulka</title>
       <style>
         * { box-sizing: border-box; }
