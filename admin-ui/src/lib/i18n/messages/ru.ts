@@ -495,6 +495,30 @@ const ru: Record<string, string> = {
   'locations.bulkConfirmBody':
     'У {{count}} активных филиалов текущие тарифные зоны будут заменены. Действие применяется сразу ко всем точкам.',
   'locations.bulkSaved': 'Общие зоны применены. Обновлено филиалов: {{count}}.',
+  'locations.posTitle': 'Ключ кассового плагина',
+  'locations.posHint':
+    'Ключ связывает плагин iiko с этим филиалом. Секрет показывается только один раз.',
+  'locations.posConfigured': 'Кассовый плагин настроен',
+  'locations.posNotConfigured': 'Ключ кассы ещё не создан',
+  'locations.posVersion': 'Версия ключа: {{version}}',
+  'locations.posRotatedAt': 'заменён {{date}}',
+  'locations.posCreateKey': 'Создать ключ кассы',
+  'locations.posReplaceKey': 'Заменить ключ кассы',
+  'locations.posCreateConfirmTitle': 'Создать ключ кассы?',
+  'locations.posCreateConfirmBody':
+    'Новый ключ нужно сразу скопировать в настройки плагина iiko. Повторно показать его будет невозможно.',
+  'locations.posReplaceConfirmTitle': 'Заменить действующий ключ кассы?',
+  'locations.posReplaceConfirmBody':
+    'Старый ключ сразу перестанет работать. До установки нового ключа плагин этого филиала не сможет обращаться к Bulka.',
+  'locations.posOneTimeTitle': 'Новый ключ кассы',
+  'locations.posOneTimeWarning':
+    'Скопируйте данные сейчас. После закрытия окна секретный ключ больше не будет показан.',
+  'locations.posConfiguration': 'Настройки плагина iiko',
+  'locations.posConfigurationHint':
+    'Добавьте обе переменные в конфигурацию плагина выбранного филиала.',
+  'locations.posCopy': 'Скопировать настройки',
+  'locations.posCopied': 'Настройки кассы скопированы',
+  'locations.posCopyFailed': 'Не удалось скопировать. Выделите текст и скопируйте вручную.',
   'nav.orders': 'Заказы',
   'page.orders.title': 'Заказы',
   'page.orders.subtitle': 'Оплаченные заказы приложения без отправки в iiko',
@@ -839,8 +863,7 @@ const ru: Record<string, string> = {
   'inventory.keepMine': 'Сохранить мой',
   'inventory.unsavedNavigation':
     'Есть несохранённые остатки. Уйти со страницы и потерять изменения?',
-  'inventory.unsavedBranch':
-    'При смене филиала несохранённые остатки будут потеряны.',
+  'inventory.unsavedBranch': 'При смене филиала несохранённые остатки будут потеряны.',
   'inventory.discardAndContinue': 'Сбросить и продолжить',
   'couriers.heading': 'Команда доставки',
   'couriers.intro':
@@ -968,15 +991,37 @@ const ru: Record<string, string> = {
   'realtime.updatedMinutes': 'Обновлено {{count}} мин назад',
   'support.sentToOriginal': 'Ответ отправлен в исходное обращение',
   'support.switchDraftTitle': 'Перейти к другому обращению?',
-  'support.switchDraftBody':
-    'Текст не отправлен. Черновик останется у текущего обращения.',
+  'support.switchDraftBody': 'Текст не отправлен. Черновик останется у текущего обращения.',
   'support.switchDraftConfirm': 'Перейти',
   'whatsapp.switchDraftTitle': 'Перейти к другому диалогу?',
-  'whatsapp.switchDraftBody':
-    'Сообщение не отправлено. Черновик останется у текущего клиента.',
+  'whatsapp.switchDraftBody': 'Сообщение не отправлено. Черновик останется у текущего клиента.',
   'whatsapp.switchDraftConfirm': 'Перейти',
   'whatsapp.recipientMismatch':
     'Ответ сервера относится к другому диалогу. Сообщение оставлено в черновике.',
+  'globalSearch.trigger': 'Найти заказ или клиента…',
+  'globalSearch.shortcut': 'Ctrl K',
+  'globalSearch.title': 'Быстрый поиск',
+  'globalSearch.description': 'Заказы, клиенты и обращения в одном окне.',
+  'globalSearch.inputLabel': 'Номер заказа, телефон, имя или обращение',
+  'globalSearch.placeholder': 'Например, 100030 или +7 747…',
+  'globalSearch.hint': 'Введите минимум 2 символа. Используйте ↑ ↓ и Enter для выбора.',
+  'globalSearch.minimum': 'Введите ещё символ для поиска.',
+  'globalSearch.loading': 'Ищем по доступным данным…',
+  'globalSearch.empty': 'Ничего не найдено',
+  'globalSearch.emptyHint': 'Проверьте номер заказа, телефон или имя и повторите поиск.',
+  'globalSearch.details': 'Карточка 360°',
+  'globalSearch.back': 'К результатам',
+  'globalSearch.openWorkspace': 'Открыть в разделе',
+  'globalSearch.summary': 'Основные данные',
+  'globalSearch.timeline': 'История',
+  'globalSearch.timelineEmpty': 'Событий по этому объекту пока нет.',
+  'globalSearch.type.order': 'Заказ',
+  'globalSearch.type.customer': 'Клиент',
+  'globalSearch.type.support': 'Обращение',
+  'globalSearch.assigned': 'Ответственный',
+  'globalSearch.priority': 'Приоритет',
+  'globalSearch.category': 'Категория',
+  'globalSearch.dueAt': 'Срок ответа',
 };
 
 export default ru;

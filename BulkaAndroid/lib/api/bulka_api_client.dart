@@ -131,6 +131,15 @@ class BulkaApiClient {
     return null;
   }
 
+  Future<BonusExpirySummary> getBonusExpiry({int days = 30}) async {
+    final json = await _get('/api/customer/bonus-expiry?days=$days');
+    final summary = _asMap(json['summary']);
+    if (json['success'] != true || summary.isEmpty) {
+      throw ApiException(_messageFrom(json, 'bonus_expiry_load_error'.tr));
+    }
+    return BonusExpirySummary.fromJson(summary);
+  }
+
   Future<List<City>> getCities() async {
     final json = await _get('/api/public/cities');
     if (json['success'] != true) {
@@ -787,6 +796,17 @@ class BulkaApiClient {
     return CustomerOrder.fromJson(order);
   }
 
+  Future<PickupHandoff> getPickupHandoff(String orderId) async {
+    final json = await _get(
+      '/api/customer/orders/${Uri.encodeComponent(orderId)}/pickup-handoff',
+    );
+    final handoff = _asMap(json['handoff']);
+    if (json['success'] != true || handoff.isEmpty) {
+      throw ApiException(_messageFrom(json, 'pickup_handoff_load_error'.tr));
+    }
+    return PickupHandoff.fromJson(handoff);
+  }
+
   Future<OrderSubstitution> respondToOrderSubstitution({
     required String orderId,
     required String requestId,
@@ -855,6 +875,47 @@ class BulkaApiClient {
     });
     if (json['success'] != true) {
       throw ApiException(_messageFrom(json, 'error_save'.tr));
+    }
+  }
+
+  Future<List<StockSubscription>> getStockSubscriptions() async {
+    final json = await _get('/api/customer/stock-subscriptions');
+    final values = json['subscriptions'];
+    if (json['success'] != true || values is! List) {
+      throw ApiException(_messageFrom(json, 'stock_notify_load_error'.tr));
+    }
+    return values
+        .map((value) => StockSubscription.fromJson(_asMap(value)))
+        .where(
+          (value) =>
+              value.id.isNotEmpty &&
+              value.productId.isNotEmpty &&
+              value.branchId.isNotEmpty,
+        )
+        .toList(growable: false);
+  }
+
+  Future<StockSubscription> createStockSubscription({
+    required String productId,
+    required String branchId,
+  }) async {
+    final json = await _post('/api/customer/stock-subscriptions', {
+      'productId': productId,
+      'branchId': branchId,
+    });
+    final value = _asMap(json['subscription']);
+    if (json['success'] != true || value.isEmpty) {
+      throw ApiException(_messageFrom(json, 'stock_notify_save_error'.tr));
+    }
+    return StockSubscription.fromJson(value);
+  }
+
+  Future<void> deleteStockSubscription(String id) async {
+    final json = await _delete(
+      '/api/customer/stock-subscriptions/${Uri.encodeComponent(id)}',
+    );
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'stock_notify_save_error'.tr));
     }
   }
 
@@ -1047,6 +1108,73 @@ class BulkaApiClient {
       throw ApiException(_messageFrom(json, 'error_save'.tr));
     }
     return (json['amount'] as num?)?.round() ?? 0;
+  }
+
+  Future<Map<String, dynamic>> createGiftCertificatePurchase({
+    required String requestId,
+    required int amount,
+    required String recipientPhone,
+    String? recipientName,
+    String? message,
+    DateTime? deliveryAt,
+    required String paymentMethod,
+  }) async {
+    final json = await _post('/api/customer/gift-certificate-purchases', {
+      'requestId': requestId,
+      'amount': amount,
+      'recipient': {
+        'phone': recipientPhone,
+        if (recipientName?.trim().isNotEmpty == true)
+          'name': recipientName!.trim(),
+        if (message?.trim().isNotEmpty == true) 'message': message!.trim(),
+      },
+      if (deliveryAt != null)
+        'deliveryAt': deliveryAt.toUtc().toIso8601String(),
+      'paymentMethod': paymentMethod,
+      'locale': AppLang.current,
+    });
+    final purchase = _asMap(json['purchase']);
+    final payment = _asMap(json['payment']);
+    final purchaseStatus = _asString(purchase['status']).trim().toLowerCase();
+    if (json['success'] != true ||
+        purchase.isEmpty ||
+        (payment.isEmpty && purchaseStatus != 'active')) {
+      throw ApiException(_messageFrom(json, 'gift_purchase_error'.tr));
+    }
+    return {'purchase': purchase, 'payment': payment};
+  }
+
+  Future<List<Map<String, dynamic>>> getGiftCertificatePurchases() async {
+    final json = await _get('/api/customer/gift-certificate-purchases');
+    if (json['success'] != true || json['purchases'] is! List) {
+      throw ApiException(_messageFrom(json, 'gift_purchase_error'.tr));
+    }
+    return (json['purchases'] as List)
+        .map(_asMap)
+        .where((purchase) => purchase.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  Future<Map<String, dynamic>> getGiftCertificatePurchase(String id) async {
+    final json = await _get(
+      '/api/customer/gift-certificate-purchases/${Uri.encodeComponent(id)}',
+    );
+    final purchase = _asMap(json['purchase']);
+    if (json['success'] != true || purchase.isEmpty) {
+      throw ApiException(_messageFrom(json, 'gift_purchase_error'.tr));
+    }
+    return purchase;
+  }
+
+  Future<List<Map<String, dynamic>>> getReceivedGiftCards() async {
+    final json = await _get('/api/customer/gift-cards');
+    if (json['success'] != true || json['cards'] is! List) {
+      throw ApiException(_messageFrom(json, 'gift_purchase_error'.tr));
+    }
+    return (json['cards'] as List)
+        .map(_asMap)
+        .where((card) => card.isNotEmpty)
+        .toList(growable: false);
   }
 
   Future<Map<String, dynamic>> exportPersonalData() async {

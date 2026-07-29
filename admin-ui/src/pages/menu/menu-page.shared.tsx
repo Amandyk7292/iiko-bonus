@@ -56,6 +56,22 @@ export interface CategoryOverride {
   is_hidden?: boolean;
 }
 
+export const resolveIikoProductPrices = (products: IikoProduct[] = []): IikoProduct[] =>
+  products.map((product) => ({
+    ...product,
+    price: product.price || (product.sizePrices?.[0]?.price?.currentPrice ?? 0),
+  }));
+
+export const indexProductOverrides = (
+  overrides: ProductOverride[] = [],
+): Record<string, ProductOverride> =>
+  Object.fromEntries(overrides.map((override) => [override.iiko_product_id, override]));
+
+export const indexCategoryOverrides = (
+  overrides: CategoryOverride[] = [],
+): Record<string, CategoryOverride> =>
+  Object.fromEntries(overrides.map((override) => [override.iiko_category_id, override]));
+
 export interface CustomProduct {
   id?: string;
   name: string;
@@ -65,6 +81,7 @@ export interface CustomProduct {
   image_url?: string;
   is_available?: boolean;
   sort_order?: number;
+  preparation_minutes?: number | null;
   ingredients?: string;
   ingredients_translations?: Record<string, string>;
   allergens?: string[] | string;

@@ -484,6 +484,30 @@ const en: Record<string, string> = {
   'locations.bulkConfirmBody':
     'The current tariff zones for {{count}} active branches will be replaced. The change is applied to every branch immediately.',
   'locations.bulkSaved': 'Shared zones applied. Branches updated: {{count}}.',
+  'locations.posTitle': 'POS plugin key',
+  'locations.posHint':
+    'This key links the iiko plugin to this branch. The secret is shown only once.',
+  'locations.posConfigured': 'POS plugin is configured',
+  'locations.posNotConfigured': 'No POS key has been created',
+  'locations.posVersion': 'Key version: {{version}}',
+  'locations.posRotatedAt': 'replaced {{date}}',
+  'locations.posCreateKey': 'Create POS key',
+  'locations.posReplaceKey': 'Replace POS key',
+  'locations.posCreateConfirmTitle': 'Create a POS key?',
+  'locations.posCreateConfirmBody':
+    'Copy the new key into the iiko plugin settings immediately. It cannot be shown again.',
+  'locations.posReplaceConfirmTitle': 'Replace the active POS key?',
+  'locations.posReplaceConfirmBody':
+    'The old key will stop working immediately. This branch plugin cannot reach Bulka until the new key is installed.',
+  'locations.posOneTimeTitle': 'New POS key',
+  'locations.posOneTimeWarning':
+    'Copy these values now. The secret key will not be shown again after this window closes.',
+  'locations.posConfiguration': 'iiko plugin configuration',
+  'locations.posConfigurationHint':
+    'Add both variables to the selected branch plugin configuration.',
+  'locations.posCopy': 'Copy configuration',
+  'locations.posCopied': 'POS configuration copied',
+  'locations.posCopyFailed': 'Could not copy. Select the text and copy it manually.',
   'nav.orders': 'Orders',
   'page.orders.title': 'Orders',
   'page.orders.subtitle': 'Paid app orders kept separate from iiko',
@@ -819,10 +843,8 @@ const en: Record<string, string> = {
   'inventory.serverConflict': 'Stock changed on the server',
   'inventory.useServer': 'Use server value',
   'inventory.keepMine': 'Keep my value',
-  'inventory.unsavedNavigation':
-    'There are unsaved stock changes. Leave the page and lose them?',
-  'inventory.unsavedBranch':
-    'Changing the branch will discard unsaved stock changes.',
+  'inventory.unsavedNavigation': 'There are unsaved stock changes. Leave the page and lose them?',
+  'inventory.unsavedBranch': 'Changing the branch will discard unsaved stock changes.',
   'inventory.discardAndContinue': 'Discard & continue',
   'couriers.heading': 'Delivery team',
   'couriers.intro': 'Add couriers, assign paid orders, and manage availability.',
@@ -958,6 +980,30 @@ const en: Record<string, string> = {
   'whatsapp.switchDraftConfirm': 'Switch',
   'whatsapp.recipientMismatch':
     'The server response belongs to another chat. The message remains in its draft.',
+  'globalSearch.trigger': 'Find an order or customer…',
+  'globalSearch.shortcut': 'Ctrl K',
+  'globalSearch.title': 'Quick search',
+  'globalSearch.description': 'Orders, customers, and support requests in one place.',
+  'globalSearch.inputLabel': 'Order number, phone, name, or support request',
+  'globalSearch.placeholder': 'For example, 100030 or +7 747…',
+  'globalSearch.hint': 'Enter at least 2 characters. Use ↑ ↓ and Enter to select.',
+  'globalSearch.minimum': 'Enter one more character to search.',
+  'globalSearch.loading': 'Searching accessible data…',
+  'globalSearch.empty': 'No results found',
+  'globalSearch.emptyHint': 'Check the order number, phone, or name and try again.',
+  'globalSearch.details': '360° overview',
+  'globalSearch.back': 'Back to results',
+  'globalSearch.openWorkspace': 'Open in workspace',
+  'globalSearch.summary': 'Key details',
+  'globalSearch.timeline': 'History',
+  'globalSearch.timelineEmpty': 'There are no events for this item yet.',
+  'globalSearch.type.order': 'Order',
+  'globalSearch.type.customer': 'Customer',
+  'globalSearch.type.support': 'Support request',
+  'globalSearch.assigned': 'Assignee',
+  'globalSearch.priority': 'Priority',
+  'globalSearch.category': 'Category',
+  'globalSearch.dueAt': 'Response deadline',
 };
 
 export default en;

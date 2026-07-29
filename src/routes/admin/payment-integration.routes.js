@@ -3,6 +3,11 @@ const {
   PAYMENT_ACTIONS,
   requireAdminAction,
 } = require('../../middlewares/auth.middleware');
+const { validateRequest } = require('../../middlewares/validation.middleware');
+const {
+  paymentProbeBodySchema,
+  paymentWidgetModeBodySchema,
+} = require('../../contracts/payment-integration.contract');
 const { getIntegrationHealth } = require('../../services/integration-health.service');
 const paymentOperations = require('../../services/payment-operations.service');
 
@@ -35,6 +40,7 @@ function registerPaymentIntegrationAdminRoutes(router) {
   router.put(
     '/admin/api/integrations/payments/widget',
     requireAdminAction(PAYMENT_ACTIONS.MANAGE),
+    validateRequest({ body: paymentWidgetModeBodySchema }),
     async (req, res) => {
       try {
         await paymentOperations.setWidgetEnabled(req.body?.enabled, {
@@ -58,6 +64,7 @@ function registerPaymentIntegrationAdminRoutes(router) {
   router.post(
     '/admin/api/integrations/payments/probe',
     requireAdminAction(PAYMENT_ACTIONS.MANAGE),
+    validateRequest({ body: paymentProbeBodySchema }),
     async (_req, res) => {
       try {
         await paymentOperations.runSafeProbe();

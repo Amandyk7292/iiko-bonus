@@ -9,7 +9,7 @@
     "lint": "eslint src/**/*.js",
     "lint:fix": "eslint src/**/*.js --fix",
     "check:structure": "node scripts/check-source-size.js",
-    "check:contracts": "node scripts/check-api-contract-coverage.js --minimum=35 --minimum-percentage=21.8",
+    "check:contracts": "node scripts/check-api-contract-coverage.js --minimum=170 --minimum-percentage=100",
     "check:secrets": "node scripts/check-secrets.js",
     "check:migration-safety": "node scripts/check-migration-safety.js",
     "check:bundle-admin": "node scripts/check-build-budgets.js --admin admin-ui/dist",

@@ -60,6 +60,13 @@ async function successfulRefundedQuantities(orderId) {
 
 async function getRefundOptions(orderId) {
   const order = await readOrder(orderId);
+  if (order.order_kind === 'gift_certificate') {
+    throw refundError(
+      'Сертификат можно вернуть только целиком и только пока он не использован',
+      409,
+      'GIFT_CERTIFICATE_PARTIAL_REFUND_FORBIDDEN',
+    );
+  }
   const refunded = await successfulRefundedQuantities(order.id);
   const lines = normalizedLines(order).map((line) => ({
     ...line,
@@ -235,6 +242,13 @@ function buildRefundPreview(order, calculated, financials = {}) {
 
 async function previewPartialRefund(orderId, payload = {}) {
   const order = await readOrder(orderId);
+  if (order.order_kind === 'gift_certificate') {
+    throw refundError(
+      'Сертификат можно вернуть только целиком и только пока он не использован',
+      409,
+      'GIFT_CERTIFICATE_PARTIAL_REFUND_FORBIDDEN',
+    );
+  }
   if (order.status !== 'paid') {
     throw refundError('Возврат доступен только для оплаченного заказа', 409);
   }
@@ -393,6 +407,13 @@ async function createPartialRefund(orderId, payload = {}, requestedBy = 'admin')
   }
 
   const order = await readOrder(orderId);
+  if (order.order_kind === 'gift_certificate') {
+    throw refundError(
+      'Сертификат можно вернуть только целиком и только пока он не использован',
+      409,
+      'GIFT_CERTIFICATE_PARTIAL_REFUND_FORBIDDEN',
+    );
+  }
   if (order.status !== 'paid')
     throw refundError('Возврат доступен только для оплаченного заказа', 409);
   if (['processing', 'unknown'].includes(order.refund_status)) {

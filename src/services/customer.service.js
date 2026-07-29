@@ -878,7 +878,7 @@ async function checkAndNotifyBirthdays(settings = {}) {
         {},
         c.fcm_token,
       );
-      if (pushResult.delivered > 0) {
+      if (pushResult.delivered > 0 || pushResult.queued) {
         notifiedCount++;
       }
     }

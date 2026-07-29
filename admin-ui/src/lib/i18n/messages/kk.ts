@@ -482,6 +482,30 @@ const kk: Record<string, string> = {
   'locations.bulkConfirmBody':
     '{{count}} белсенді филиалдың қазіргі тарифтік аймақтары ауыстырылады. Өзгеріс барлық нүктеге бірден қолданылады.',
   'locations.bulkSaved': 'Ортақ аймақтар қолданылды. Жаңартылған филиалдар: {{count}}.',
+  'locations.posTitle': 'Касса плагинінің кілті',
+  'locations.posHint':
+    'Кілт iiko плагинін осы филиалмен байланыстырады. Құпия кілт тек бір рет көрсетіледі.',
+  'locations.posConfigured': 'Касса плагині бапталған',
+  'locations.posNotConfigured': 'Касса кілті әлі жасалмаған',
+  'locations.posVersion': 'Кілт нұсқасы: {{version}}',
+  'locations.posRotatedAt': '{{date}} ауыстырылды',
+  'locations.posCreateKey': 'Касса кілтін жасау',
+  'locations.posReplaceKey': 'Касса кілтін ауыстыру',
+  'locations.posCreateConfirmTitle': 'Касса кілтін жасау керек пе?',
+  'locations.posCreateConfirmBody':
+    'Жаңа кілтті iiko плагинінің баптауына бірден көшіріңіз. Оны қайта көрсету мүмкін болмайды.',
+  'locations.posReplaceConfirmTitle': 'Қолданыстағы касса кілтін ауыстыру керек пе?',
+  'locations.posReplaceConfirmBody':
+    'Ескі кілт бірден жұмысын тоқтатады. Жаңа кілт орнатылғанша осы филиалдың плагині Bulka жүйесіне қосыла алмайды.',
+  'locations.posOneTimeTitle': 'Жаңа касса кілті',
+  'locations.posOneTimeWarning':
+    'Деректерді қазір көшіріңіз. Терезе жабылғаннан кейін құпия кілт қайта көрсетілмейді.',
+  'locations.posConfiguration': 'iiko плагинінің баптауы',
+  'locations.posConfigurationHint':
+    'Екі айнымалыны да таңдалған филиал плагинінің конфигурациясына қосыңыз.',
+  'locations.posCopy': 'Баптауларды көшіру',
+  'locations.posCopied': 'Касса баптаулары көшірілді',
+  'locations.posCopyFailed': 'Көшіру мүмкін болмады. Мәтінді белгілеп, қолмен көшіріңіз.',
   'nav.orders': 'Тапсырыстар',
   'page.orders.title': 'Тапсырыстар',
   'page.orders.subtitle': 'iiko-ға жіберілмейтін төленген тапсырыстар',
@@ -506,8 +530,7 @@ const kk: Record<string, string> = {
   'orders.refundNow': 'Қайтарылатын сома',
   'orders.remainingAfterRefund': 'Қолжетімді қалдық',
   'orders.bonusAdjustment': 'Бонустар: қайтару / шегеру',
-  'orders.serverCalculatesRefund':
-    'Нақты сома мен бонус түзетуін растау кезінде сервер есептейді.',
+  'orders.serverCalculatesRefund': 'Нақты сома мен бонус түзетуін растау кезінде сервер есептейді.',
   'orders.refundPreviewUnavailable': 'Қайтарымды есептеу мүмкін болмады. Деректерді жаңартыңыз.',
   'orders.waitForRefundPreview': 'Қайтарымның нақты есебін күтіңіз.',
   'orders.substitutionLabel': 'Тауар болмаса',
@@ -819,8 +842,7 @@ const kk: Record<string, string> = {
   'inventory.keepMine': 'Менікін сақтау',
   'inventory.unsavedNavigation':
     'Сақталмаған қалдықтар бар. Парақтан шығып, өзгерістерді жоғалтасыз ба?',
-  'inventory.unsavedBranch':
-    'Филиалды ауыстырғанда сақталмаған қалдықтар жоғалады.',
+  'inventory.unsavedBranch': 'Филиалды ауыстырғанда сақталмаған қалдықтар жоғалады.',
   'inventory.discardAndContinue': 'Тастау және жалғастыру',
   'couriers.heading': 'Жеткізу тобы',
   'couriers.intro': 'Курьерлерді қосып, төленген тапсырыстарға тағайындаңыз.',
@@ -946,15 +968,36 @@ const kk: Record<string, string> = {
   'realtime.updatedMinutes': '{{count}} мин бұрын жаңартылды',
   'support.sentToOriginal': 'Жауап бастапқы өтінішке жіберілді',
   'support.switchDraftTitle': 'Басқа өтінішке өту керек пе?',
-  'support.switchDraftBody':
-    'Мәтін жіберілмеді. Жоба ағымдағы өтініште сақталады.',
+  'support.switchDraftBody': 'Мәтін жіберілмеді. Жоба ағымдағы өтініште сақталады.',
   'support.switchDraftConfirm': 'Өту',
   'whatsapp.switchDraftTitle': 'Басқа диалогқа өту керек пе?',
-  'whatsapp.switchDraftBody':
-    'Хабарлама жіберілмеді. Жоба ағымдағы клиентте сақталады.',
+  'whatsapp.switchDraftBody': 'Хабарлама жіберілмеді. Жоба ағымдағы клиентте сақталады.',
   'whatsapp.switchDraftConfirm': 'Өту',
-  'whatsapp.recipientMismatch':
-    'Сервер жауабы басқа диалогқа тиесілі. Хабарлама жобада қалды.',
+  'whatsapp.recipientMismatch': 'Сервер жауабы басқа диалогқа тиесілі. Хабарлама жобада қалды.',
+  'globalSearch.trigger': 'Тапсырысты немесе клиентті табу…',
+  'globalSearch.shortcut': 'Ctrl K',
+  'globalSearch.title': 'Жылдам іздеу',
+  'globalSearch.description': 'Тапсырыстар, клиенттер және өтініштер бір терезеде.',
+  'globalSearch.inputLabel': 'Тапсырыс нөмірі, телефон, аты немесе өтініш',
+  'globalSearch.placeholder': 'Мысалы, 100030 немесе +7 747…',
+  'globalSearch.hint': 'Кемінде 2 таңба енгізіңіз. Таңдау үшін ↑ ↓ және Enter пайдаланыңыз.',
+  'globalSearch.minimum': 'Іздеу үшін тағы бір таңба енгізіңіз.',
+  'globalSearch.loading': 'Қолжетімді деректерден іздеп жатырмыз…',
+  'globalSearch.empty': 'Ештеңе табылмады',
+  'globalSearch.emptyHint': 'Тапсырыс нөмірін, телефонды немесе атты тексеріп, қайталаңыз.',
+  'globalSearch.details': '360° картасы',
+  'globalSearch.back': 'Нәтижелерге',
+  'globalSearch.openWorkspace': 'Бөлімде ашу',
+  'globalSearch.summary': 'Негізгі деректер',
+  'globalSearch.timeline': 'Тарих',
+  'globalSearch.timelineEmpty': 'Бұл нысан бойынша оқиғалар әзірге жоқ.',
+  'globalSearch.type.order': 'Тапсырыс',
+  'globalSearch.type.customer': 'Клиент',
+  'globalSearch.type.support': 'Өтініш',
+  'globalSearch.assigned': 'Жауапты',
+  'globalSearch.priority': 'Басымдық',
+  'globalSearch.category': 'Санат',
+  'globalSearch.dueAt': 'Жауап мерзімі',
 };
 
 export default kk;

@@ -199,6 +199,7 @@ class _MainShellState extends State<MainShell> {
         hasSelectedOrderType: _hasCatalogOrderType,
         selectionRevision: _catalogSelectionRevision,
         onRequestOrderType: () => _changeTab(0),
+        onRequireAuth: _requireAuth,
         initialClientUri: clientRouteNotifier.value,
       ),
       OrdersScreen(

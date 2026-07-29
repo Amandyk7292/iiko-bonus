@@ -556,8 +556,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   }
 
   Future<void> _shareProduct(CatalogProduct product) async {
-    final url =
-        'https://bulka.com.kz/app/?product=${Uri.encodeQueryComponent(product.id)}';
+    final url = catalogProductShareUri(product).toString();
     await Clipboard.setData(ClipboardData(text: '${product.title}\n$url'));
     if (!mounted) return;
     ScaffoldMessenger.of(

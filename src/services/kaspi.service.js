@@ -830,6 +830,7 @@ class KaspiService {
       comment: checkout.comment,
       substitution_preference: checkout.substitutionPreference,
       fulfillment_status: 'pending',
+      order_kind: checkout.orderKind === 'gift_certificate' ? 'gift_certificate' : 'product',
       preparation_minutes: preparationMinutes,
       ...etaDatabaseFields(resolvedEta, effectiveType),
       client_request_id: checkout.requestId,
@@ -1063,7 +1064,16 @@ class KaspiService {
     }
 
     if (data) {
-      if (data.status === 'paid') {
+      if (data.order_kind === 'gift_certificate') {
+        const {
+          syncGiftCertificatePurchaseForOrder,
+        } = require('./gift-certificate-purchase.service');
+        if (data.status !== 'paid') {
+          await syncGiftCertificatePurchaseForOrder(data).catch((giftError) =>
+            console.error('Не удалось обновить покупку сертификата:', giftError.message),
+          );
+        }
+      } else if (data.status === 'paid') {
         // recordPaidOrder performs the authoritative commit/reacquire before
         // any bonus, receipt or fulfillment transition.
       } else if (['failed', 'expired'].includes(data.status)) {
@@ -1327,6 +1337,39 @@ class KaspiService {
       order.status === 'refunded'
     ) {
       return order;
+    }
+    if (order.order_kind === 'gift_certificate') {
+      const {
+        activateGiftCertificateForPaidOrder,
+      } = require('./gift-certificate-purchase.service');
+      await activateGiftCertificateForPaidOrder(order);
+      const { data: activatedOrder, error: activatedReadError } = await supabase
+        .from('kaspi_orders')
+        .select('*')
+        .eq('id', order.id)
+        .single();
+      if (activatedReadError) throw activatedReadError;
+      const { ensurePaymentReceipt } = require('./payment-receipt.service');
+      await ensurePaymentReceipt(activatedOrder).catch((receiptError) =>
+        console.error(
+          `Не удалось создать чек сертификата ${activatedOrder.order_number}:`,
+          receiptError.message,
+        ),
+      );
+      realtime.publish(
+        'gift-certificate.activated',
+        {
+          orderId: activatedOrder.id,
+          orderNumber: activatedOrder.order_number,
+          paymentStatus: activatedOrder.status,
+        },
+        {
+          customerId: activatedOrder.customer_id,
+          includeAdmins: true,
+          branchId: null,
+        },
+      );
+      return activatedOrder;
     }
     const latePaymentAutoRefund = isLatePaymentAutoRefund(order);
     const lateCleanupCancellation =

@@ -213,6 +213,8 @@ class _LoyaltyPanel extends StatelessWidget {
                   const SizedBox(height: 24),
                   _StampRow(completed: purchaseCount, total: 12),
                 ],
+                const SizedBox(height: 20),
+                _BonusExpiryNotice(api: api),
                 const SizedBox(height: 28),
                 SizedBox(
                   width: double.infinity,
@@ -250,6 +252,121 @@ class _LoyaltyPanel extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _BonusExpiryNotice extends StatefulWidget {
+  const _BonusExpiryNotice({required this.api});
+
+  final BulkaApiClient api;
+
+  @override
+  State<_BonusExpiryNotice> createState() => _BonusExpiryNoticeState();
+}
+
+class _BonusExpiryNoticeState extends State<_BonusExpiryNotice> {
+  BonusExpirySummary? _summary;
+  Object? _error;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_load());
+  }
+
+  Future<void> _load() async {
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
+    try {
+      final summary = await widget.api.getBonusExpiry();
+      if (mounted) setState(() => _summary = summary);
+    } catch (error) {
+      if (mounted) setState(() => _error = error);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return Semantics(
+        label: 'bonus_expiry_title'.tr,
+        child: const Center(
+          child: SizedBox.square(
+            dimension: 24,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+    if (_error != null) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.errorContainer,
+          borderRadius: BorderRadius.circular(BulkaRadii.control),
+        ),
+        child: Row(
+          children: [
+            Expanded(child: Text('bonus_expiry_load_error'.tr)),
+            IconButton(
+              tooltip: 'retry_btn'.tr,
+              onPressed: _load,
+              icon: const Icon(Icons.refresh_rounded),
+              style: IconButton.styleFrom(minimumSize: const Size(48, 48)),
+            ),
+          ],
+        ),
+      );
+    }
+    final summary = _summary;
+    final nextExpiry = summary?.nextExpiryAt;
+    if (summary == null || nextExpiry == null || summary.totalExpiring <= 0) {
+      return const SizedBox.shrink();
+    }
+    final message = 'bonus_expiry_message'.trArgs({
+      'amount': formatMoney(summary.totalExpiring),
+      'date': formatUiDate(context, nextExpiry.toLocal()),
+    });
+    return Semantics(
+      label: message,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFF4D3),
+          borderRadius: BorderRadius.circular(BulkaRadii.control),
+          border: Border.all(color: const Color(0xFFF3D994)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.schedule_rounded, color: Color(0xFF8A4C1F)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'bonus_expiry_title'.tr,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(message),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

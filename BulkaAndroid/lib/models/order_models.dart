@@ -1,5 +1,35 @@
 part of '../main.dart';
 
+class PickupHandoff {
+  const PickupHandoff({
+    required this.orderId,
+    required this.qrPayload,
+    required this.pin,
+    required this.expiresAt,
+    this.usedAt,
+  });
+
+  final String orderId;
+  final String qrPayload;
+  final String pin;
+  final DateTime expiresAt;
+  final DateTime? usedAt;
+
+  bool get isUsed => usedAt != null;
+  bool get isExpired => !isUsed && expiresAt.isBefore(DateTime.now());
+
+  factory PickupHandoff.fromJson(Map<String, dynamic> json) {
+    return PickupHandoff(
+      orderId: _asString(json['orderId']),
+      qrPayload: _asString(json['qrPayload']),
+      pin: _asString(json['pin']),
+      expiresAt:
+          DateTime.tryParse(_asString(json['expiresAt'])) ?? DateTime.now(),
+      usedAt: DateTime.tryParse(_asString(json['usedAt'])),
+    );
+  }
+}
+
 class OrderSubstitution {
   const OrderSubstitution({
     required this.id,

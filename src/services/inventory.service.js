@@ -120,6 +120,13 @@ async function syncBranchInventory(branchId, { strict = false, products = [] } =
         .from('branch_product_inventory')
         .upsert(rows, { onConflict: 'branch_id,product_id' });
       if (error) throw error;
+      const { notifyAvailableStock } = require('./stock-subscription.service');
+      await notifyAvailableStock(
+        String(branchId),
+        rows.map((row) => row.product_id),
+      ).catch((notificationError) =>
+        console.error('Не удалось уведомить о появлении товара:', notificationError.message),
+      );
     }
     return { tracked: true, balances, stopIds: snapshot.stopIds || new Set(), group };
   } catch (error) {
@@ -396,6 +403,10 @@ async function updateInventory(branchId, productId, payload = {}) {
     .select()
     .single();
   if (error) throw error;
+  const { notifyAvailableStock } = require('./stock-subscription.service');
+  await notifyAvailableStock(String(branchId), [row.product_id]).catch((notificationError) =>
+    console.error('Не удалось уведомить о появлении товара:', notificationError.message),
+  );
   return data;
 }
 

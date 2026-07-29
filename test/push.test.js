@@ -16,6 +16,8 @@ const previousModules = new Map(
 const previousServiceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
 const sentMessages = [];
 const rpcCalls = [];
+const pushOutboxRows = [];
+let failOutboxUpdate = false;
 
 const supabase = {
   from(table) {
@@ -31,6 +33,56 @@ const supabase = {
         },
         async maybeSingle() {
           return { data: null, error: { code: '42P01', message: 'table is not installed' } };
+        },
+      };
+    }
+    if (table === 'push_notification_outbox') {
+      return {
+        insert(record) {
+          const row = {
+            id: `push-outbox-${pushOutboxRows.length + 1}`,
+            ...record,
+            status: 'queued',
+            attempt_count: 0,
+            attempted_tokens: 0,
+            delivered_tokens: 0,
+            next_attempt_at: new Date().toISOString(),
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          };
+          pushOutboxRows.push(row);
+          return {
+            select() {
+              return {
+                async single() {
+                  return { data: row, error: null };
+                },
+              };
+            },
+          };
+        },
+        update(values) {
+          const filters = [];
+          const query = {
+            eq(column, value) {
+              filters.push([column, value]);
+              return query;
+            },
+            select() {
+              return query;
+            },
+            async maybeSingle() {
+              if (failOutboxUpdate) {
+                return { data: null, error: { code: '08006', message: 'connection lost' } };
+              }
+              const row = pushOutboxRows.find((candidate) =>
+                filters.every(([column, value]) => candidate[column] === value),
+              );
+              if (row) Object.assign(row, values);
+              return { data: row ? { id: row.id } : null, error: null };
+            },
+          };
+          return query;
         },
       };
     }
@@ -57,6 +109,14 @@ const supabase = {
   },
   async rpc(name, args) {
     rpcCalls.push([name, args]);
+    if (name === 'claim_push_notification_outbox') {
+      const row = pushOutboxRows.find((candidate) => candidate.id === args.p_message_id);
+      if (!row) return { data: [], error: null };
+      row.status = 'processing';
+      row.attempt_count += 1;
+      row.lease_token = '21dd5b2c-d7dc-4bb2-a1b4-9d204983cf53';
+      return { data: [row], error: null };
+    }
     return { data: 1, error: null };
   },
 };
@@ -114,7 +174,16 @@ test('push is delivered to every registered installation with string data', asyn
     'device-token-android-1234567890',
   );
 
-  assert.deepEqual(result, { attempted: 2, delivered: 2, failed: 0 });
+  assert.deepEqual(
+    {
+      attempted: result.attempted,
+      delivered: result.delivered,
+      failed: result.failed,
+      queued: result.queued,
+      status: result.status,
+    },
+    { attempted: 2, delivered: 2, failed: 0, queued: false, status: 'sent' },
+  );
   assert.equal(sentMessages.length, 2);
   assert.deepEqual(
     new Set(sentMessages.map((message) => message.token)),
@@ -140,6 +209,23 @@ test('FCM invalid-token errors remove the stale installation', async () => {
   ]);
 });
 
+test('a post-send outbox failure never falls back to a duplicate immediate send', async () => {
+  const sentBefore = sentMessages.length;
+  failOutboxUpdate = true;
+  try {
+    const result = await sendPushToCustomer(
+      'customer-1',
+      'Unique notification',
+      'Send exactly once in this attempt',
+      { type: 'bonus', eventId: 'outbox-write-failure-1' },
+    );
+    assert.equal(result.queued, true);
+    assert.equal(sentMessages.length - sentBefore, 2);
+  } finally {
+    failOutboxUpdate = false;
+  }
+});
+
 test('closed delivery replaces the persistent Android status', async () => {
   const delivered = await sendPushNotification(
     'device-token-delivery-1234567890',
@@ -161,13 +247,7 @@ test('closed delivery replaces the persistent Android status', async () => {
 
 test('push migration enforces one token and installation owner', () => {
   const sql = fs.readFileSync(
-    path.join(
-      __dirname,
-      '..',
-      'supabase',
-      'migrations',
-      '20260715193000_push_device_tokens.sql',
-    ),
+    path.join(__dirname, '..', 'supabase', 'migrations', '20260715193000_push_device_tokens.sql'),
     'utf8',
   );
   assert.match(sql, /token text not null unique/i);

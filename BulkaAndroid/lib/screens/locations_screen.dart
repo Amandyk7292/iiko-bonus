@@ -1,9 +1,14 @@
 part of '../main.dart';
 
 const _explicitFulfillmentCityKey = 'selected_fulfillment_city_explicit';
+const _confirmedFulfillmentCityKey = 'selected_fulfillment_city_confirmed';
 
 String _explicitFulfillmentCityTypeKey(String orderType) =>
     '${_explicitFulfillmentCityKey}_${_orderTypeFromWire(orderType).wireValue}';
+
+String _confirmedFulfillmentCityTypeKey(String orderType) =>
+    'selected_fulfillment_city_confirmed_'
+    '${_orderTypeFromWire(orderType).wireValue}';
 
 class LocationsScreen extends StatefulWidget {
   const LocationsScreen({this.orderType = 'pickup', this.api, super.key});
@@ -41,10 +46,19 @@ class _LocationsScreenState extends State<LocationsScreen> {
     try {
       final api = widget.api ?? BulkaApiClient();
       final prefs = await SharedPreferences.getInstance();
-      final savedCity =
-          prefs.getString(_explicitFulfillmentCityTypeKey(widget.orderType)) ??
-          prefs.getString(_explicitFulfillmentCityKey) ??
-          '';
+      final hasConfirmedTypeCity =
+          prefs.getBool(_confirmedFulfillmentCityTypeKey(widget.orderType)) ??
+          false;
+      final hasConfirmedSharedCity =
+          prefs.getBool(_confirmedFulfillmentCityKey) ?? false;
+      final savedCity = hasConfirmedTypeCity
+          ? prefs.getString(
+                  _explicitFulfillmentCityTypeKey(widget.orderType),
+                ) ??
+                ''
+          : hasConfirmedSharedCity
+          ? prefs.getString(_explicitFulfillmentCityKey) ?? ''
+          : '';
       final locations = await api.getFulfillmentLocations();
       final locs = <String, List<BakeryLocation>>{};
       for (final location in locations) {
@@ -76,6 +90,8 @@ class _LocationsScreenState extends State<LocationsScreen> {
     await Future.wait([
       prefs.setString(_explicitFulfillmentCityKey, city),
       prefs.setString(_explicitFulfillmentCityTypeKey(widget.orderType), city),
+      prefs.setBool(_confirmedFulfillmentCityKey, true),
+      prefs.setBool(_confirmedFulfillmentCityTypeKey(widget.orderType), true),
     ]);
     if (!mounted) return;
     setState(() {
@@ -107,6 +123,8 @@ class _LocationsScreenState extends State<LocationsScreen> {
           _explicitFulfillmentCityTypeKey(widget.orderType),
           city,
         ),
+        prefs.setBool(_confirmedFulfillmentCityKey, true),
+        prefs.setBool(_confirmedFulfillmentCityTypeKey(widget.orderType), true),
       ]);
     }
     if (location.id.isEmpty) {

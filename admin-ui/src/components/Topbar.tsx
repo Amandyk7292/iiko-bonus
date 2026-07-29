@@ -15,6 +15,7 @@ import { Link, useLocation } from '../lib/router';
 import { api, type AdminScopeLocation } from '../lib/api';
 import { useAdminRealtime } from '../lib/admin-realtime';
 import { useI18n } from '../lib/i18n';
+import AdminGlobalSearch from './AdminGlobalSearch';
 import LanguageSelect from './LanguageSelect';
 
 const routeKeys: Record<string, string> = {
@@ -182,6 +183,7 @@ export default function Topbar({
         </div>
       </div>
       <div className="topbar-actions">
+        {!operatorMode && <AdminGlobalSearch />}
         {!operatorMode && scopeLocations.length > 0 && (
           <label className="topbar-branch-select">
             <span>Филиал</span>

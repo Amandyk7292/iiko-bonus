@@ -3,6 +3,7 @@ part of '../main.dart';
 class AddressMapScreen extends StatefulWidget {
   const AddressMapScreen({
     this.api,
+    this.initialAddress,
     this.initialCity,
     this.initialLatitude,
     this.initialLongitude,
@@ -10,6 +11,7 @@ class AddressMapScreen extends StatefulWidget {
   });
 
   final BulkaApiClient? api;
+  final DeliveryAddress? initialAddress;
   final String? initialCity;
   final double? initialLatitude;
   final double? initialLongitude;
@@ -48,8 +50,11 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
   void initState() {
     super.initState();
     _api = widget.api ?? BulkaApiClient();
-    final latitude = widget.initialLatitude;
-    final longitude = widget.initialLongitude;
+    final initialAddress = widget.initialAddress;
+    final latitude =
+        initialAddress?.location.latitude ?? widget.initialLatitude;
+    final longitude =
+        initialAddress?.location.longitude ?? widget.initialLongitude;
     _hasPreferredCenter =
         latitude != null &&
         longitude != null &&
@@ -62,10 +67,20 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
     _point = _hasPreferredCenter
         ? LatLng(latitude!, longitude!)
         : _defaultPoint;
-    final initialCity = widget.initialCity?.trim() ?? '';
+    final initialCity =
+        initialAddress?.location.city.trim() ??
+        widget.initialCity?.trim() ??
+        '';
     _city = initialCity.isEmpty ? 'Астана' : initialCity;
-    _titleController.text = 'house_label'.tr;
-    _address = 'map_select_point'.tr;
+    _titleController.text = initialAddress?.title ?? 'house_label'.tr;
+    _houseController.text = initialAddress?.house ?? '';
+    _entranceController.text = initialAddress?.entrance ?? '';
+    _floorController.text = initialAddress?.floor ?? '';
+    _apartmentController.text = initialAddress?.apartment ?? '';
+    _commentController.text = initialAddress?.courierComment ?? '';
+    _address = initialAddress?.location.address ?? 'map_select_point'.tr;
+    _addressResolved = initialAddress != null;
+    _pointSelected = initialAddress != null;
     unawaited(_loadLocations());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scheduleLocateOnOpen();
@@ -310,7 +325,9 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
     if (!_formKey.currentState!.validate()) return;
     Navigator.of(context).pop(
       DeliveryAddress(
-        id: DateTime.now().microsecondsSinceEpoch.toString(),
+        id:
+            widget.initialAddress?.id ??
+            DateTime.now().microsecondsSinceEpoch.toString(),
         title: _titleController.text.trim(),
         location: _selectedLocation(),
         house: _houseController.text.trim(),
@@ -318,6 +335,7 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
         floor: _emptyToNull(_floorController.text),
         apartment: _emptyToNull(_apartmentController.text),
         courierComment: _emptyToNull(_commentController.text),
+        isDefault: widget.initialAddress?.isDefault ?? false,
       ),
     );
   }
@@ -378,7 +396,11 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
           color: colors.mutedText,
           tooltip: 'back_tooltip'.tr,
         ),
-        title: _BulkaPageTitle('delivery_address_title'.tr),
+        title: _BulkaPageTitle(
+          widget.initialAddress == null
+              ? 'delivery_address_title'.tr
+              : 'edit_address_title'.tr,
+        ),
         actions: const [SizedBox(width: BulkaLayout.appBarSideSlot)],
       ),
       body: SafeArea(
@@ -560,7 +582,10 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
                               onPressed: _saveAddress,
                               height: compact ? 48 : 52,
                               child: Text(
-                                'save_address_btn'.tr,
+                                (widget.initialAddress == null
+                                        ? 'save_address_btn'
+                                        : 'update_address_btn')
+                                    .tr,
                                 style: const TextStyle(
                                   fontSize: BulkaTypeScale.body,
                                   fontWeight: FontWeight.w600,

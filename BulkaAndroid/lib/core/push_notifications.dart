@@ -3,12 +3,15 @@ part of '../main.dart';
 @pragma('vm:entry-point')
 Future<void> _firebaseBackgroundMessage(RemoteMessage message) async {
   if (Firebase.apps.isEmpty) await Firebase.initializeApp();
+  if (!await PushNotifications.claimMessage(message.data)) return;
   await HomeWidgetSync.updateFromPush(message.data);
 }
 
 abstract final class PushNotifications {
   static const _installationIdKey = 'pushInstallationIdV1';
   static const _lastTokenKey = 'lastRegisteredFcmTokenV1';
+  static const _seenPushIdsKey = 'seenPushOutboxIdsV1';
+  static final Set<String> _seenPushIds = <String>{};
   static const _webVapidKey = String.fromEnvironment(
     'FIREBASE_WEB_VAPID_KEY',
     defaultValue:
@@ -38,6 +41,19 @@ abstract final class PushNotifications {
 
   static NotificationTarget _target(Map<String, dynamic> data) =>
       resolveNotificationPayload(data, fallbackType: _asString(data['type']));
+
+  static Future<bool> claimMessage(Map<String, dynamic> data) async {
+    final id = _asString(data['pushOutboxId']).trim();
+    if (id.isEmpty) return true;
+    if (!_seenPushIds.add(id)) return false;
+    final prefs = await SharedPreferences.getInstance();
+    final persisted = prefs.getStringList(_seenPushIdsKey) ?? const <String>[];
+    if (persisted.contains(id)) return false;
+    final next = <String>[...persisted.where((value) => value != id), id];
+    if (next.length > 100) next.removeRange(0, next.length - 100);
+    await prefs.setStringList(_seenPushIdsKey, next);
+    return true;
+  }
 
   static bool _isActionable(Map<String, dynamic> data) =>
       _target(data).kind != NotificationTargetKind.none;
@@ -190,7 +206,8 @@ abstract final class PushNotifications {
   static void listenForeground(BuildContext context) {
     if (!_ready) return;
     _messageSubscription?.cancel();
-    _messageSubscription = FirebaseMessaging.onMessage.listen((message) {
+    _messageSubscription = FirebaseMessaging.onMessage.listen((message) async {
+      if (!await claimMessage(message.data)) return;
       unawaited(HomeWidgetSync.updateFromPush(message.data));
       if (_opensOrders(message.data)) {
         _orderEventController.add(Map<String, dynamic>.from(message.data));

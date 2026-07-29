@@ -111,3 +111,10 @@ class CatalogProduct {
       fatGrams != null ||
       carbsGrams != null;
 }
+
+Uri catalogProductShareUri(CatalogProduct product) => Uri(
+  scheme: 'https',
+  host: 'bulka.com.kz',
+  pathSegments: ['catalog', 'product', product.id],
+  queryParameters: {'category': product.category},
+);

@@ -212,6 +212,7 @@ class CatalogScreen extends StatefulWidget {
     this.hasSelectedOrderType = false,
     this.selectionRevision = 0,
     this.onRequestOrderType,
+    this.onRequireAuth,
     this.initialClientUri,
     super.key,
   });
@@ -221,6 +222,7 @@ class CatalogScreen extends StatefulWidget {
   final bool hasSelectedOrderType;
   final int selectionRevision;
   final VoidCallback? onRequestOrderType;
+  final Future<bool> Function()? onRequireAuth;
   final Uri? initialClientUri;
 
   @override
@@ -244,6 +246,8 @@ class _CatalogScreenState extends State<CatalogScreen>
   Set<String> _dietaryFilters = const {};
   Set<String> _excludedAllergens = const {};
   Set<String> _favoriteProductIds = const {};
+  Map<String, StockSubscription> _stockSubscriptions = const {};
+  Set<String> _stockSubscriptionBusy = const {};
   Set<String> _configurableProductIds = const {};
   bool _favoritesOnly = false;
   Map<String, String> _apiCategoryImages = {};
@@ -290,6 +294,7 @@ class _CatalogScreenState extends State<CatalogScreen>
     _pendingClientUri = widget.initialClientUri;
     unawaited(_loadSelectedBakery().then((_) => _loadMenu()));
     unawaited(_loadFavorites());
+    unawaited(_loadStockSubscriptions());
     _menuEventSubscription = _api.customerEvents.listen((event) {
       if (event['type'] == 'menu.updated') unawaited(_silentRefresh());
     });
@@ -309,6 +314,8 @@ class _CatalogScreenState extends State<CatalogScreen>
       queryParameters: {'category': product.category},
     );
   }
+
+  void _updateCatalogState(VoidCallback update) => setState(update);
 
   void applyClientUri(Uri uri) {
     _pendingClientUri = normalizedClientUri(uri);
@@ -2498,6 +2505,9 @@ class _CatalogScreenState extends State<CatalogScreen>
     final scheme = Theme.of(context).colorScheme;
     final favorite = _favoriteProductIds.contains(product.id);
     final unavailable = product.isStopListed;
+    final stockKey = _stockSubscriptionKey(product.id, _selectedBakeryId);
+    final stockSubscribed = _stockSubscriptions.containsKey(stockKey);
+    final stockBusy = _stockSubscriptionBusy.contains(stockKey);
 
     return Semantics(
       container: true,
@@ -2620,15 +2630,57 @@ class _CatalogScreenState extends State<CatalogScreen>
               Positioned(
                 right: 7,
                 bottom: -20,
-                child: _CatalogImageQuantityControl(
-                  quantity: quantity,
-                  stopListed: unavailable,
-                  onAdd: () => _setProductQuantity(product, 1),
-                  onDecrease: () => _setProductQuantity(product, quantity - 1),
-                  onIncrease: quantity >= _catalogProductQuantityLimit(product)
-                      ? null
-                      : () => _setProductQuantity(product, quantity + 1),
-                ),
+                child: unavailable
+                    ? Semantics(
+                        button: true,
+                        toggled: stockSubscribed,
+                        label: stockSubscribed
+                            ? 'stock_notify_enabled'.tr
+                            : 'stock_notify_enable'.tr,
+                        child: IconButton.filled(
+                          key: ValueKey('stock-notify-${product.id}'),
+                          tooltip: stockSubscribed
+                              ? 'stock_notify_enabled'.tr
+                              : 'stock_notify_enable'.tr,
+                          onPressed: stockBusy
+                              ? null
+                              : () => unawaited(
+                                  _toggleStockSubscription(product),
+                                ),
+                          style: IconButton.styleFrom(
+                            minimumSize: const Size(48, 48),
+                            backgroundColor: stockSubscribed
+                                ? colors.brandBrown
+                                : _bulkaYellow,
+                            foregroundColor: stockSubscribed
+                                ? Colors.white
+                                : _textDark,
+                          ),
+                          icon: stockBusy
+                              ? const SizedBox.square(
+                                  dimension: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Icon(
+                                  stockSubscribed
+                                      ? Icons.notifications_active_rounded
+                                      : Icons.add_alert_rounded,
+                                ),
+                        ),
+                      )
+                    : _CatalogImageQuantityControl(
+                        quantity: quantity,
+                        stopListed: false,
+                        onAdd: () => _setProductQuantity(product, 1),
+                        onDecrease: () =>
+                            _setProductQuantity(product, quantity - 1),
+                        onIncrease:
+                            quantity >= _catalogProductQuantityLimit(product)
+                            ? null
+                            : () => _setProductQuantity(product, quantity + 1),
+                      ),
               ),
             ],
           ),

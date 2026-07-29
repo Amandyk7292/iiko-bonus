@@ -292,6 +292,41 @@ const Map<String, Map<String, String>> _orderAndPaymentTranslations = {
     'kk': '№{number} тапсырыс',
     'en': 'Order #{number}',
   },
+  'pickup_handoff_title': {
+    'ru': 'Код выдачи заказа',
+    'kk': 'Тапсырысты беру коды',
+    'en': 'Pickup handoff code',
+  },
+  'pickup_handoff_hint': {
+    'ru': 'Покажите QR-код сотруднику или назовите код',
+    'kk': 'Қызметкерге QR-кодты көрсетіңіз немесе кодты айтыңыз',
+    'en': 'Show the QR code to staff or tell them the code',
+  },
+  'pickup_handoff_pin': {
+    'ru': 'Код: {pin}',
+    'kk': 'Код: {pin}',
+    'en': 'Code: {pin}',
+  },
+  'pickup_handoff_expires': {
+    'ru': 'Действует до {time}',
+    'kk': '{time} дейін жарамды',
+    'en': 'Valid until {time}',
+  },
+  'pickup_handoff_used': {
+    'ru': 'Заказ уже выдан',
+    'kk': 'Тапсырыс берілді',
+    'en': 'Order already handed over',
+  },
+  'pickup_handoff_expired': {
+    'ru': 'Код устарел. Обновите заказ',
+    'kk': 'Кодтың мерзімі аяқталды. Тапсырысты жаңартыңыз',
+    'en': 'The code expired. Refresh the order',
+  },
+  'pickup_handoff_load_error': {
+    'ru': 'Не удалось загрузить код выдачи',
+    'kk': 'Беру кодын жүктеу мүмкін болмады',
+    'en': 'Could not load the handoff code',
+  },
   'order_open_details': {
     'ru': 'Следить за заказом',
     'kk': 'Тапсырысты бақылау',
@@ -966,6 +1001,222 @@ const Map<String, Map<String, String>> _orderAndPaymentTranslations = {
     'kk': 'Кодты енгізіңіз — номинал бірден бонус балансына түседі.',
     'en':
         'Enter the code and its value will be credited to your bonus balance.',
+  },
+  'gift_purchase_title': {
+    'ru': 'Подарить сертификат',
+    'kk': 'Сертификат сыйлау',
+    'en': 'Send a gift certificate',
+  },
+  'gift_purchase_description': {
+    'ru': 'Выберите сумму и отправьте подарок по номеру телефона.',
+    'kk': 'Соманы таңдап, сыйлықты телефон нөміріне жіберіңіз.',
+    'en': 'Choose an amount and send the gift to a phone number.',
+  },
+  'gift_purchase_action': {
+    'ru': 'Выбрать подарок',
+    'kk': 'Сыйлықты таңдау',
+    'en': 'Choose a gift',
+  },
+  'gift_amount_label': {
+    'ru': 'Сумма сертификата',
+    'kk': 'Сертификат сомасы',
+    'en': 'Certificate amount',
+  },
+  'gift_custom_amount': {
+    'ru': 'Другая сумма',
+    'kk': 'Басқа сома',
+    'en': 'Other amount',
+  },
+  'gift_recipient_phone': {
+    'ru': 'Телефон получателя',
+    'kk': 'Алушының телефоны',
+    'en': 'Recipient phone',
+  },
+  'gift_recipient_name': {
+    'ru': 'Имя получателя (необязательно)',
+    'kk': 'Алушының аты (міндетті емес)',
+    'en': 'Recipient name (optional)',
+  },
+  'gift_message': {
+    'ru': 'Пожелание (необязательно)',
+    'kk': 'Тілек (міндетті емес)',
+    'en': 'Message (optional)',
+  },
+  'gift_payment_method': {
+    'ru': 'Способ оплаты',
+    'kk': 'Төлем тәсілі',
+    'en': 'Payment method',
+  },
+  'gift_pay_and_send': {
+    'ru': 'Оплатить и отправить',
+    'kk': 'Төлеу және жіберу',
+    'en': 'Pay and send',
+  },
+  'gift_phone_error': {
+    'ru': 'Введите корректный номер телефона',
+    'kk': 'Дұрыс телефон нөмірін енгізіңіз',
+    'en': 'Enter a valid phone number',
+  },
+  'gift_amount_error': {
+    'ru': 'Минимальная сумма — 500 ₸',
+    'kk': 'Ең төменгі сома — 500 ₸',
+    'en': 'The minimum amount is 500 ₸',
+  },
+  'gift_purchase_error': {
+    'ru': 'Не удалось оформить сертификат',
+    'kk': 'Сертификатты рәсімдеу мүмкін болмады',
+    'en': 'Could not create the certificate',
+  },
+  'gift_purchase_success': {
+    'ru': 'Сертификат оплачен и будет отправлен получателю',
+    'kk': 'Сертификат төленді және алушыға жіберіледі',
+    'en': 'The certificate is paid and will be sent to the recipient',
+  },
+  'gift_purchase_success_registered': {
+    'ru': 'Сертификат уже появился у получателя в приложении Bulka',
+    'kk': 'Сертификат алушының Bulka қолданбасында пайда болды',
+    'en': 'The certificate is now available in the recipient’s Bulka app',
+  },
+  'gift_purchase_success_share': {
+    'ru': 'Получатель ещё не зарегистрирован. Отправьте ему код сертификата',
+    'kk': 'Алушы әлі тіркелмеген. Оған сертификат кодын жіберіңіз',
+    'en': 'The recipient is not registered yet. Send them the certificate code',
+  },
+  'gift_purchase_code_preparing': {
+    'ru': 'Оплата подтверждена. Сертификат появится здесь после проверки банка',
+    'kk': 'Төлем расталды. Банк тексергеннен кейін сертификат осында шығады',
+    'en':
+        'Payment is confirmed. The certificate will appear here after bank verification',
+  },
+  'gift_purchase_pending': {
+    'ru': 'Оплата не завершена. Сертификат пока не отправлен',
+    'kk': 'Төлем аяқталмады. Сертификат әлі жіберілген жоқ',
+    'en': 'Payment is incomplete. The certificate has not been sent',
+  },
+  'gift_code_ready': {
+    'ru': 'Сертификат готов',
+    'kk': 'Сертификат дайын',
+    'en': 'Certificate ready',
+  },
+  'gift_code_hint': {
+    'ru': 'Получатель сможет активировать этот код в разделе подарков.',
+    'kk': 'Алушы бұл кодты сыйлықтар бөлімінде белсендіре алады.',
+    'en': 'The recipient can redeem this code in the gifts section.',
+  },
+  'gift_code_hint_registered': {
+    'ru':
+        'Сертификат уже доступен получателю в Bulka. Код можно отправить дополнительно.',
+    'kk':
+        'Сертификат алушыға Bulka-да қолжетімді. Кодты қосымша жіберуге болады.',
+    'en':
+        'The certificate is already available to the recipient in Bulka. You can also share the code.',
+  },
+  'gift_code_hint_unregistered': {
+    'ru':
+        'Получатель ещё не зарегистрирован в Bulka. Скопируйте код или отправьте его в WhatsApp.',
+    'kk':
+        'Алушы Bulka-да әлі тіркелмеген. Кодты көшіріңіз немесе WhatsApp арқылы жіберіңіз.',
+    'en':
+        'The recipient is not registered with Bulka yet. Copy the code or send it via WhatsApp.',
+  },
+  'gift_copy_code': {
+    'ru': 'Скопировать код',
+    'kk': 'Кодты көшіру',
+    'en': 'Copy code',
+  },
+  'gift_send_whatsapp': {
+    'ru': 'Отправить в WhatsApp',
+    'kk': 'WhatsApp арқылы жіберу',
+    'en': 'Send via WhatsApp',
+  },
+  'gift_code_copied': {
+    'ru': 'Код сертификата скопирован',
+    'kk': 'Сертификат коды көшірілді',
+    'en': 'Certificate code copied',
+  },
+  'gift_share_message': {
+    'ru': 'Вам подарочный сертификат Bulka на {amount} ₸. Код: {code}',
+    'kk': 'Сізге {amount} ₸ сомасына Bulka сыйлық сертификаты. Код: {code}',
+    'en': 'You have a Bulka gift certificate for {amount} ₸. Code: {code}',
+  },
+  'gift_pending_title': {
+    'ru': 'Незавершённый подарок',
+    'kk': 'Аяқталмаған сыйлық',
+    'en': 'Unfinished gift',
+  },
+  'gift_pending_description': {
+    'ru':
+        'Сертификат на {amount} ₸ для {phone}. Продолжить без повторного списания.',
+    'kk':
+        '{phone} үшін {amount} ₸ сертификат. Қайта ақша ұстамай жалғастырыңыз.',
+    'en':
+        'A {amount} ₸ certificate for {phone}. Continue without creating a duplicate charge.',
+  },
+  'gift_pending_continue': {
+    'ru': 'Продолжить оплату',
+    'kk': 'Төлемді жалғастыру',
+    'en': 'Continue payment',
+  },
+  'gift_received_title': {
+    'ru': 'Полученные сертификаты',
+    'kk': 'Алынған сертификаттар',
+    'en': 'Received certificates',
+  },
+  'gift_received_description': {
+    'ru': 'Подарки, отправленные на ваш номер телефона.',
+    'kk': 'Телефон нөміріңізге жіберілген сыйлықтар.',
+    'en': 'Gifts sent to your phone number.',
+  },
+  'gift_received_from': {
+    'ru': 'Подарок от {name}',
+    'kk': '{name} сыйлығы',
+    'en': 'Gift from {name}',
+  },
+  'gift_received_from_bulka': {
+    'ru': 'Подарок Bulka',
+    'kk': 'Bulka сыйлығы',
+    'en': 'Bulka gift',
+  },
+  'gift_received_redeem': {
+    'ru': 'Зачислить на бонусный баланс',
+    'kk': 'Бонустық балансқа аудару',
+    'en': 'Add to bonus balance',
+  },
+  'gift_history_title': {
+    'ru': 'Мои подарки',
+    'kk': 'Менің сыйлықтарым',
+    'en': 'My gifts',
+  },
+  'gift_history_description': {
+    'ru': 'Статус купленных сертификатов и повторная отправка кода.',
+    'kk': 'Сатып алынған сертификаттардың күйі және кодты қайта жіберу.',
+    'en': 'Status of purchased certificates and code sharing.',
+  },
+  'gift_status_active': {'ru': 'Оплачен', 'kk': 'Төленді', 'en': 'Paid'},
+  'gift_status_pending': {
+    'ru': 'Ожидает оплаты',
+    'kk': 'Төлем күтілуде',
+    'en': 'Awaiting payment',
+  },
+  'gift_status_failed': {
+    'ru': 'Оплата не прошла',
+    'kk': 'Төлем өтпеді',
+    'en': 'Payment failed',
+  },
+  'gift_status_expired': {
+    'ru': 'Срок оплаты истёк',
+    'kk': 'Төлем мерзімі аяқталды',
+    'en': 'Payment expired',
+  },
+  'gift_status_refunded': {
+    'ru': 'Деньги возвращены',
+    'kk': 'Ақша қайтарылды',
+    'en': 'Refunded',
+  },
+  'gift_share_again': {
+    'ru': 'Отправить код ещё раз',
+    'kk': 'Кодты қайта жіберу',
+    'en': 'Share code again',
   },
   'rewards_referral_accepted': {
     'ru': 'Код принят. Бонусы начислятся после первого заказа.',

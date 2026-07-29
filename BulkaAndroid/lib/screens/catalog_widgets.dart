@@ -1,5 +1,93 @@
 part of '../main.dart';
 
+extension _CatalogStockSubscriptionController on _CatalogScreenState {
+  String _stockSubscriptionKey(String productId, String branchId) =>
+      '$productId::$branchId';
+
+  Future<void> _loadStockSubscriptions() async {
+    if (!_api.isAuthenticated) {
+      if (mounted) _updateCatalogState(() => _stockSubscriptions = const {});
+      return;
+    }
+    try {
+      final subscriptions = await _api.getStockSubscriptions();
+      if (!mounted) return;
+      _updateCatalogState(() {
+        _stockSubscriptions = {
+          for (final subscription in subscriptions)
+            if (subscription.status != 'cancelled')
+              _stockSubscriptionKey(
+                subscription.productId,
+                subscription.branchId,
+              ): subscription,
+        };
+      });
+    } catch (_) {
+      // The catalog remains usable if notification state cannot be loaded.
+    }
+  }
+
+  Future<void> _toggleStockSubscription(CatalogProduct product) async {
+    if (!_api.isAuthenticated) {
+      final authenticated = await widget.onRequireAuth?.call() ?? false;
+      if (!authenticated || !_api.isAuthenticated || !mounted) return;
+      await _loadStockSubscriptions();
+    }
+    if (_selectedBakeryId.isEmpty) {
+      await _selectFulfillmentSource();
+      if (!mounted || _selectedBakeryId.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('stock_notify_select_branch'.tr)),
+          );
+        }
+        return;
+      }
+    }
+    final key = _stockSubscriptionKey(product.id, _selectedBakeryId);
+    if (_stockSubscriptionBusy.contains(key)) return;
+    final existing = _stockSubscriptions[key];
+    _updateCatalogState(() {
+      _stockSubscriptionBusy = {..._stockSubscriptionBusy, key};
+    });
+    try {
+      if (existing == null) {
+        final created = await _api.createStockSubscription(
+          productId: product.id,
+          branchId: _selectedBakeryId,
+        );
+        if (!mounted) return;
+        _updateCatalogState(() {
+          _stockSubscriptions = {..._stockSubscriptions, key: created};
+        });
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('stock_notify_enabled'.tr)));
+      } else {
+        await _api.deleteStockSubscription(existing.id);
+        if (!mounted) return;
+        final next = {..._stockSubscriptions}..remove(key);
+        _updateCatalogState(() => _stockSubscriptions = next);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('stock_notify_disabled'.tr)));
+      }
+    } catch (error) {
+      if (!mounted) return;
+      showApiErrorSnackBar(
+        context,
+        error,
+        fallbackKey: 'stock_notify_save_error',
+      );
+    } finally {
+      if (mounted) {
+        final next = {..._stockSubscriptionBusy}..remove(key);
+        _updateCatalogState(() => _stockSubscriptionBusy = next);
+      }
+    }
+  }
+}
+
 int _catalogProductQuantityLimit(CatalogProduct product) => min(
   product.inStockCount ?? CartProvider.maxItemQuantity,
   CartProvider.maxItemQuantity,

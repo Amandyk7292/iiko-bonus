@@ -412,6 +412,82 @@ class BonusTransaction {
   };
 }
 
+class BonusExpiryBucket {
+  const BonusExpiryBucket({
+    required this.expiresAt,
+    required this.amount,
+    required this.daysRemaining,
+  });
+
+  final DateTime expiresAt;
+  final double amount;
+  final int daysRemaining;
+
+  factory BonusExpiryBucket.fromJson(Map<String, dynamic> json) {
+    return BonusExpiryBucket(
+      expiresAt:
+          DateTime.tryParse(_asString(json['expiresAt'])) ?? DateTime.now(),
+      amount: _asDouble(json['amount']),
+      daysRemaining: _asInt(json['daysRemaining']),
+    );
+  }
+}
+
+class BonusExpirySummary {
+  const BonusExpirySummary({
+    required this.currentBalance,
+    required this.totalExpiring,
+    required this.buckets,
+    this.nextExpiryAt,
+  });
+
+  final double currentBalance;
+  final double totalExpiring;
+  final DateTime? nextExpiryAt;
+  final List<BonusExpiryBucket> buckets;
+
+  factory BonusExpirySummary.fromJson(Map<String, dynamic> json) {
+    return BonusExpirySummary(
+      currentBalance: _asDouble(json['currentBalance']),
+      totalExpiring: _asDouble(json['totalExpiring']),
+      nextExpiryAt: DateTime.tryParse(_asString(json['nextExpiryAt'])),
+      buckets: (json['buckets'] as List? ?? const [])
+          .map((item) => BonusExpiryBucket.fromJson(_asMap(item)))
+          .toList(growable: false),
+    );
+  }
+}
+
+class StockSubscription {
+  const StockSubscription({
+    required this.id,
+    required this.productId,
+    required this.branchId,
+    required this.status,
+    required this.createdAt,
+    this.notifiedAt,
+  });
+
+  final String id;
+  final String productId;
+  final String branchId;
+  final String status;
+  final DateTime createdAt;
+  final DateTime? notifiedAt;
+
+  factory StockSubscription.fromJson(Map<String, dynamic> json) {
+    return StockSubscription(
+      id: _asString(json['id']),
+      productId: _asString(json['productId']),
+      branchId: _asString(json['branchId']),
+      status: _asString(json['status'], fallback: 'active'),
+      createdAt:
+          DateTime.tryParse(_asString(json['createdAt'])) ?? DateTime.now(),
+      notifiedAt: DateTime.tryParse(_asString(json['notifiedAt'])),
+    );
+  }
+}
+
 class OrderCourier {
   const OrderCourier({
     required this.id,

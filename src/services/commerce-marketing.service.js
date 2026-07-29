@@ -610,7 +610,7 @@ async function deliverAutomatedMessages(limit = 100) {
           .eq('id', delivery.id);
         continue;
       }
-      if (pushResult.delivered === 0) {
+      if (pushResult.delivered === 0 && !pushResult.queued) {
         throw new Error('FCM отклонил все push-токены клиента');
       }
       await supabase

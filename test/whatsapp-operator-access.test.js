@@ -118,7 +118,7 @@ test('operator session cannot reach bot configuration or other admin areas', asy
   invalidVoice.append('audio', new Blob(['not audio'], { type: 'audio/webm' }), 'voice.webm');
   invalidVoice.append('durationSeconds', '2');
   const invalidVoiceResponse = await fetch(
-    `${origin}/admin/api/whatsapp/conversations/test-id/voice`,
+    `${origin}/admin/api/whatsapp/conversations/11111111-1111-4111-8111-111111111111/voice`,
     {
       method: 'POST',
       headers: { Cookie: cookie, Origin: origin },

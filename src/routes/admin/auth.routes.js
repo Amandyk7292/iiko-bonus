@@ -8,7 +8,7 @@ const {
   whatsappOperatorAccessHandler,
 } = require('../../middlewares/auth.middleware');
 const { adminLoginRateLimit } = require('../../middlewares/rate-limit.middleware');
-const { validateRequest } = require('../../middlewares/validation.middleware');
+const { emptyBodySchema, validateRequest } = require('../../middlewares/validation.middleware');
 const {
   adminLoginBodySchema,
   adminPhoneRequestBodySchema,
@@ -42,7 +42,13 @@ const registerAdminAuthRoutes = (router, { auth, audit }) => {
     adminCsrfMiddleware,
     whatsappOperatorAccessHandler,
   );
-  router.post('/admin/api/logout', auth, audit, adminLogoutHandler);
+  router.post(
+    '/admin/api/logout',
+    auth,
+    audit,
+    validateRequest({ body: emptyBodySchema }),
+    adminLogoutHandler,
+  );
   router.get('/admin/api/session', auth, adminSessionHandler);
 };
 

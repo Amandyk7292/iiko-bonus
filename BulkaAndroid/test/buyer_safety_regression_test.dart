@@ -66,6 +66,22 @@ Widget _locationsHost(BulkaApiClient api) {
 }
 
 void main() {
+  test('the same durable push message is handled only once', () async {
+    SharedPreferences.setMockInitialValues({});
+    const payload = {
+      'pushOutboxId': '7c95a723-56e9-4c67-b106-3cb8867f0aaa',
+      'type': 'bonus',
+    };
+
+    expect(await PushNotifications.claimMessage(payload), isTrue);
+    expect(await PushNotifications.claimMessage(payload), isFalse);
+    final preferences = await SharedPreferences.getInstance();
+    expect(
+      preferences.getStringList('seenPushOutboxIdsV1'),
+      contains(payload['pushOutboxId']),
+    );
+  });
+
   setUp(() {
     appLanguageNotifier.value = 'ru';
     SharedPreferences.setMockInitialValues({});
@@ -104,6 +120,7 @@ void main() {
   ) async {
     SharedPreferences.setMockInitialValues({
       'selected_fulfillment_city_explicit_pickup': 'Актау',
+      'selected_fulfillment_city_confirmed_pickup': true,
     });
 
     await tester.pumpWidget(_locationsHost(_LocationsApi()));
@@ -117,6 +134,302 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Астана'), findsOneWidget);
     expect(find.text('Актау'), findsOneWidget);
+  });
+
+  testWidgets('legacy city value is ignored until the customer confirms it', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({
+      'selected_fulfillment_city_explicit': 'Астана',
+      'selected_fulfillment_city_explicit_pickup': 'Астана',
+    });
+
+    await tester.pumpWidget(_locationsHost(_LocationsApi()));
+    await tester.tap(find.text('open-locations'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Астана'), findsOneWidget);
+    expect(find.text('Актау'), findsOneWidget);
+    expect(find.text('Bulka Astana'), findsNothing);
+  });
+
+  test('product share URI opens the exact supported catalog product', () {
+    const product = CatalogProduct(
+      id: 'bun / 17',
+      title: 'Булочка',
+      price: 500,
+      category: 'Выпечка',
+      imageUrl: '',
+      inStockCount: 2,
+      preparationMinutes: 10,
+    );
+
+    final uri = catalogProductShareUri(product);
+
+    expect(uri.scheme, 'https');
+    expect(uri.host, 'bulka.com.kz');
+    expect(uri.pathSegments, ['catalog', 'product', 'bun / 17']);
+    expect(uri.queryParameters['category'], 'Выпечка');
+  });
+
+  test('new buyer API contracts parse without losing typed data', () async {
+    final api = BulkaApiClient(
+      client: MockClient((request) async {
+        if (request.url.path == '/api/customer/bonus-expiry') {
+          expect(request.url.queryParameters['days'], '30');
+          return http.Response(
+            jsonEncode({
+              'success': true,
+              'summary': {
+                'currentBalance': 1200,
+                'totalExpiring': 300,
+                'nextExpiryAt': '2026-08-15T00:00:00.000Z',
+                'buckets': [
+                  {
+                    'expiresAt': '2026-08-15T00:00:00.000Z',
+                    'amount': 300,
+                    'daysRemaining': 17,
+                  },
+                ],
+              },
+            }),
+            200,
+          );
+        }
+        if (request.url.path == '/api/customer/stock-subscriptions') {
+          if (request.method == 'GET') {
+            return http.Response(
+              jsonEncode({
+                'success': true,
+                'subscriptions': [
+                  {
+                    'id': 'stock-1',
+                    'productId': 'bun',
+                    'branchId': 'branch-1',
+                    'status': 'active',
+                    'createdAt': '2026-07-29T00:00:00.000Z',
+                  },
+                ],
+              }),
+              200,
+            );
+          }
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          expect(body, {'productId': 'bun', 'branchId': 'branch-1'});
+          return http.Response(
+            jsonEncode({
+              'success': true,
+              'subscription': {
+                'id': 'stock-2',
+                ...body,
+                'status': 'active',
+                'createdAt': '2026-07-29T00:00:00.000Z',
+              },
+            }),
+            200,
+          );
+        }
+        if (request.url.path == '/api/customer/orders/order-1/pickup-handoff') {
+          return http.Response(
+            jsonEncode({
+              'success': true,
+              'handoff': {
+                'orderId': 'order-1',
+                'qrPayload': 'bulka:pickup:secure-value',
+                'pin': '4812',
+                'expiresAt': '2026-07-29T22:00:00.000Z',
+                'usedAt': null,
+              },
+            }),
+            200,
+          );
+        }
+        if (request.url.path == '/api/customer/gift-certificate-purchases') {
+          final body = jsonDecode(request.body) as Map<String, dynamic>;
+          expect(body['amount'], 5000);
+          expect(
+            (body['recipient'] as Map<String, dynamic>)['phone'],
+            '+77000000000',
+          );
+          return http.Response(
+            jsonEncode({
+              'success': true,
+              'purchase': {'id': 'gift-1', 'status': 'pending'},
+              'payment': {
+                'provider': 'forte',
+                'operationId': 'operation-1',
+                'checkoutUrl': 'https://ecom.fortebank.com/flex/',
+              },
+            }),
+            200,
+          );
+        }
+        return http.Response(jsonEncode({'success': false}), 404);
+      }),
+    );
+
+    final expiry = await api.getBonusExpiry();
+    expect(expiry.totalExpiring, 300);
+    expect(expiry.buckets.single.daysRemaining, 17);
+
+    final subscriptions = await api.getStockSubscriptions();
+    expect(subscriptions.single.productId, 'bun');
+    final created = await api.createStockSubscription(
+      productId: 'bun',
+      branchId: 'branch-1',
+    );
+    expect(created.id, 'stock-2');
+
+    final handoff = await api.getPickupHandoff('order-1');
+    expect(handoff.pin, '4812');
+    expect(handoff.isUsed, isFalse);
+
+    final gift = await api.createGiftCertificatePurchase(
+      requestId: 'gift-request-1',
+      amount: 5000,
+      recipientPhone: '+77000000000',
+      paymentMethod: 'forte',
+    );
+    expect(
+      (gift['payment'] as Map<String, dynamic>)['operationId'],
+      'operation-1',
+    );
+  });
+
+  test('gift retry accepts an already active idempotent purchase', () async {
+    final api = BulkaApiClient(
+      client: MockClient((request) async {
+        expect(request.url.path, '/api/customer/gift-certificate-purchases');
+        final body = jsonDecode(request.body) as Map<String, dynamic>;
+        expect(body['requestId'], '317615f9-b35f-4eb4-9f6d-777f2236bb25');
+        return http.Response(
+          jsonEncode({
+            'success': true,
+            'purchase': {
+              'id': 'gift-active',
+              'status': 'active',
+              'amount': 5000,
+              'recipient': {'phone': '+77000000000', 'registered': false},
+              'deliveryMode': 'share_code',
+              'giftCard': {'code': 'BLK-EXAMPLE', 'balance': 5000},
+            },
+            'payment': null,
+          }),
+          200,
+        );
+      }),
+    );
+
+    final result = await api.createGiftCertificatePurchase(
+      requestId: '317615f9-b35f-4eb4-9f6d-777f2236bb25',
+      amount: 5000,
+      recipientPhone: '+77000000000',
+      paymentMethod: 'forte',
+    );
+
+    expect((result['purchase'] as Map<String, dynamic>)['status'], 'active');
+    expect(result['payment'], isEmpty);
+  });
+
+  test(
+    'gift wallet and sender history parse as separate customer views',
+    () async {
+      final api = BulkaApiClient(
+        client: MockClient((request) async {
+          if (request.url.path == '/api/customer/gift-cards') {
+            return http.Response(
+              jsonEncode({
+                'success': true,
+                'cards': [
+                  {
+                    'id': 'card-1',
+                    'purchaseId': 'purchase-1',
+                    'last4': 'A1B2',
+                    'balance': 5000,
+                    'code': 'BLK-A1B2',
+                  },
+                ],
+              }),
+              200,
+            );
+          }
+          if (request.url.path == '/api/customer/gift-certificate-purchases') {
+            return http.Response(
+              jsonEncode({
+                'success': true,
+                'purchases': [
+                  {
+                    'id': 'purchase-2',
+                    'status': 'pending_payment',
+                    'amount': 3000,
+                  },
+                ],
+              }),
+              200,
+            );
+          }
+          return http.Response('{}', 404);
+        }),
+      );
+
+      final received = await api.getReceivedGiftCards();
+      final history = await api.getGiftCertificatePurchases();
+
+      expect(received.single['code'], 'BLK-A1B2');
+      expect(history.single['status'], 'pending_payment');
+    },
+  );
+
+  test(
+    'pending gift draft survives restart and keeps its request id',
+    () async {
+      final api = BulkaApiClient()
+        ..setSession(cacheScope: 'customer-gift-test');
+      final pending = PendingGiftPurchase(
+        requestId: '317615f9-b35f-4eb4-9f6d-777f2236bb25',
+        amount: 5000,
+        recipientPhone: '+77000000000',
+        recipientName: 'Алия',
+        message: 'С праздником',
+        paymentMethod: 'forte',
+        createdAt: DateTime.utc(2026, 7, 29, 12),
+        purchaseId: 'purchase-1',
+      );
+
+      await PendingGiftPurchaseStore.save(api, pending);
+      final restored = await PendingGiftPurchaseStore.load(api);
+
+      expect(restored?.requestId, pending.requestId);
+      expect(restored?.purchaseId, 'purchase-1');
+      expect(
+        restored?.matches(
+          amount: 5000,
+          recipientPhone: '+77000000000',
+          recipientName: 'Алия',
+          message: 'С праздником',
+          paymentMethod: 'forte',
+        ),
+        isTrue,
+      );
+    },
+  );
+
+  test('gift delivery and recovery messages exist in RU, KK and EN', () {
+    const keys = {
+      'gift_purchase_success_registered',
+      'gift_purchase_success_share',
+      'gift_code_hint_unregistered',
+      'gift_pending_description',
+      'gift_received_title',
+      'gift_history_title',
+    };
+    for (final key in keys) {
+      for (final language in AppLang.supportedCodes) {
+        final text = localizedAppText(key, language: language);
+        expect(text.trim(), isNotEmpty, reason: '$key:$language');
+        expect(text, isNot(key), reason: '$key:$language');
+      }
+    }
   });
 
   test('registration always sends versioned legal consent', () async {

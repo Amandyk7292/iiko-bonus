@@ -674,7 +674,13 @@ async function cancelPaidOrder(
   }
 
   let refund;
+  let giftRefundPrepared = false;
   try {
+    if (claimed.order_kind === 'gift_certificate') {
+      const { prepareGiftCertificateRefund } = require('./gift-certificate-purchase.service');
+      await prepareGiftCertificateRefund(claimed);
+      giftRefundPrepared = true;
+    }
     const remainingRefund = Number(claimed.amount) - Number(claimed.partially_refunded_amount || 0);
     if (!Number.isFinite(remainingRefund) || remainingRefund <= 0) {
       throw refundError(409, 'Заказ уже полностью возвращён', 'PAYMENT_REFUND_CONFLICT');
@@ -687,6 +693,15 @@ async function cancelPaidOrder(
     await markRefundFailure(claimed, error).catch((saveError) =>
       console.error('Не удалось сохранить ошибку возврата:', saveError.message),
     );
+    if (giftRefundPrepared && error?.refundUncertain !== true) {
+      const { rollbackGiftCertificateRefund } = require('./gift-certificate-purchase.service');
+      await rollbackGiftCertificateRefund(claimed).catch((rollbackError) =>
+        console.error(
+          'Не удалось восстановить сертификат после отклонённого возврата:',
+          rollbackError.message,
+        ),
+      );
+    }
     throw refundError(
       error.statusCode || 502,
       error.message || `${paymentProviderName(claimed)} не подтвердил возврат`,
@@ -721,6 +736,21 @@ async function cancelPaidOrder(
       `${paymentProviderName(claimed)} подтвердил возврат, но заказ не обновился. Обратитесь к администратору.`,
       'PAYMENT_REFUND_DB_CONFLICT',
     );
+  }
+
+  if (giftRefundPrepared) {
+    const { finalizeGiftCertificateRefund } = require('./gift-certificate-purchase.service');
+    await finalizeGiftCertificateRefund(refunded).catch(async (giftError) => {
+      console.error('Не удалось завершить деактивацию сертификата:', giftError.message);
+      await supabase
+        .from('kaspi_orders')
+        .update({
+          last_error: `Возврат выполнен, сертификат ожидает сверки: ${String(
+            giftError.message || '',
+          ).slice(0, 800)}`,
+        })
+        .eq('id', refunded.id);
+    });
   }
 
   let finalOrder = refunded;

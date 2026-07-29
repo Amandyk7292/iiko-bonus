@@ -20,6 +20,8 @@ const Map<String, Map<String, String>> _commonTranslations = {
   'confirm_btn': {'ru': 'Подтвердить', 'kk': 'Растау', 'en': 'Confirm'},
   'cancel_btn': {'ru': 'Отмена', 'kk': 'Болдырмау', 'en': 'Cancel'},
   'save_btn': {'ru': 'Сохранить', 'kk': 'Сақтау', 'en': 'Save'},
+  'edit_btn': {'ru': 'Изменить', 'kk': 'Өзгерту', 'en': 'Edit'},
+  'close_btn': {'ru': 'Закрыть', 'kk': 'Жабу', 'en': 'Close'},
   'delete_btn': {'ru': 'Удалить', 'kk': 'Жою', 'en': 'Delete'},
   'search_hint': {'ru': 'Поиск', 'kk': 'Іздеу', 'en': 'Search'},
   'error_generic': {

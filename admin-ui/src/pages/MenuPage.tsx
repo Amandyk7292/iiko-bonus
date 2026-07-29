@@ -36,10 +36,13 @@ import {
   emptyProductOptions,
   emptyTranslations,
   fulfillmentSummary,
+  indexCategoryOverrides,
+  indexProductOverrides,
   menuLanguages,
   normalizeFulfillmentTypes,
   normalizeTranslations,
   optionLanguages,
+  resolveIikoProductPrices,
   resolvedCategoryName,
   resolvedProductName,
   type BuilderOptionKey,
@@ -98,14 +101,12 @@ export default function MenuPage() {
     return () => window.clearTimeout(timer);
   }, [searchQuery, setParams]);
 
-  // Названия категории на трёх языках
   const [categoryEditModalOpen, setCategoryEditModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<IikoGroup | null>(null);
   const [categoryEditForm, setCategoryEditForm] =
     useState<Record<MenuLanguage, string>>(emptyTranslations);
   const [categoryEditSaving, setCategoryEditSaving] = useState(false);
 
-  // Модалка редактирования товара iiko
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<IikoProduct | null>(null);
   const [editForm, setEditForm] = useState({
@@ -131,7 +132,6 @@ export default function MenuPage() {
   const [editLang, setEditLang] = useState<'ru' | 'kk' | 'en'>('ru');
   const [editSaving, setEditSaving] = useState(false);
 
-  // Модалка для кастомного блюда
   const [modalOpen, setModalOpen] = useState(false);
   const [customForm, setCustomForm] = useState<CustomProduct>({
     name: '',
@@ -149,7 +149,6 @@ export default function MenuPage() {
   });
   const [submitting, setSubmitting] = useState(false);
 
-  // Пагинация — показывать по 30 товаров
   const [displayCount, setDisplayCount] = useState(30);
   const [optionsProduct, setOptionsProduct] = useState<IikoProduct | null>(null);
   const [optionsDraft, setOptionsDraft] = useState<any>(emptyProductOptions);
@@ -162,26 +161,10 @@ export default function MenuPage() {
     try {
       const data = await api.getAdminMenu();
       const raw = data.rawMenu || {};
-      // Извлекаем цену из sizePrices
-      const prods = (raw.products || []).map((p: IikoProduct) => ({
-        ...p,
-        price: p.price || (p.sizePrices?.[0]?.price?.currentPrice ?? 0),
-      }));
-      setRawProducts(prods);
+      setRawProducts(resolveIikoProductPrices(raw.products));
       setRawGroups(raw.groups || []);
-
-      const pMap: Record<string, ProductOverride> = {};
-      (data.overrides?.products || []).forEach((o: ProductOverride) => {
-        pMap[o.iiko_product_id] = o;
-      });
-      setProductOverrides(pMap);
-
-      const cMap: Record<string, CategoryOverride> = {};
-      (data.overrides?.categories || []).forEach((o: CategoryOverride) => {
-        cMap[o.iiko_category_id] = o;
-      });
-      setCategoryOverrides(cMap);
-
+      setProductOverrides(indexProductOverrides(data.overrides?.products));
+      setCategoryOverrides(indexCategoryOverrides(data.overrides?.categories));
       setCustomProducts(data.overrides?.customProducts || []);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : t('common.loadError'));
@@ -216,7 +199,6 @@ export default function MenuPage() {
     }
   };
 
-  // Загрузка фото для блюда iiko
   const handleUploadPhoto = async (productId: string, file: File) => {
     setUploadingId(productId);
     try {
@@ -235,7 +217,6 @@ export default function MenuPage() {
     }
   };
 
-  // Загрузка фото для категории
   const handleUploadCategoryPhoto = async (categoryId: string, file: File) => {
     setUploadingId(categoryId);
     try {
@@ -254,7 +235,6 @@ export default function MenuPage() {
     }
   };
 
-  // Переключение видимости товара
   const handleToggleProductHidden = async (productId: string, curHidden?: boolean) => {
     const cur = productOverrides[productId] || { iiko_product_id: productId };
     const updated = { ...cur, is_hidden: !curHidden };
@@ -267,7 +247,6 @@ export default function MenuPage() {
     }
   };
 
-  // Переключение стоп-листа вручную
   const handleToggleStopList = async (productId: string, curStop?: boolean) => {
     const cur = productOverrides[productId] || { iiko_product_id: productId };
     const updated = { ...cur, is_stop_listed: !curStop };
@@ -280,7 +259,6 @@ export default function MenuPage() {
     }
   };
 
-  // Переключение видимости категории
   const handleToggleCategoryHidden = async (categoryId: string, curHidden?: boolean) => {
     const cur = categoryOverrides[categoryId] || { iiko_category_id: categoryId };
     const updated = { ...cur, is_hidden: !curHidden };
@@ -340,7 +318,6 @@ export default function MenuPage() {
     }
   };
 
-  // Сохранение кастомного блюда
   const handleSaveCustom = async (e: FormEvent) => {
     e.preventDefault();
     if (!customForm.name || !customForm.price) return;
@@ -387,7 +364,6 @@ export default function MenuPage() {
     setEditModalOpen(true);
   };
 
-  // Сохранение изменений товара iiko
   const handleSaveProductEdit = async (e: FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
@@ -466,7 +442,6 @@ export default function MenuPage() {
     }
   };
 
-  // Удаление кастомного блюда
   const handleDeleteCustom = async (id: string) => {
     if (
       !(await confirm({
@@ -1257,10 +1232,25 @@ export default function MenuPage() {
                           type="button"
                           onClick={() => {
                             setCustomForm({
-                              ...cp,
+                              id: cp.id,
+                              name: cp.name,
+                              description: cp.description || '',
+                              price: Number(cp.price || 0),
+                              category_name: cp.category_name,
+                              image_url: cp.image_url || '',
+                              is_available: cp.is_available !== false,
+                              sort_order: cp.sort_order,
+                              preparation_minutes: cp.preparation_minutes,
+                              ingredients: cp.ingredients || '',
+                              ingredients_translations: cp.ingredients_translations,
                               allergens: cp.allergens || [],
                               dietary_tags: cp.dietary_tags || [],
                               search_keywords: cp.search_keywords || [],
+                              weight_grams: cp.weight_grams,
+                              calories_kcal: cp.calories_kcal,
+                              protein_grams: cp.protein_grams,
+                              fat_grams: cp.fat_grams,
+                              carbs_grams: cp.carbs_grams,
                               storage_conditions: cp.storage_conditions || [],
                               fulfillment_types: normalizeFulfillmentTypes(cp.fulfillment_types),
                             });

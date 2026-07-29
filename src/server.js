@@ -24,6 +24,7 @@ const { cleanupExpiredPayments } = require('./services/payment-cleanup.service')
 const { processPrivacyStorageCleanupJobs } = require('./services/privacy-storage-cleanup.service');
 const paymentOperations = require('./services/payment-operations.service');
 const { reconcileUnknownPartialRefunds } = require('./services/partial-refund.service');
+const { flushPushOutbox } = require('./services/push.service');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -51,6 +52,11 @@ if (!process.env.VERCEL) {
     });
 
   if (runWorkers) {
+    const deliverQueuedPush = () => runMonitoredWorker('push-outbox', () => flushPushOutbox(100));
+    setTimeout(deliverQueuedPush, 12 * 1000);
+    const pushOutboxTimer = setInterval(deliverQueuedPush, 10 * 1000);
+    pushOutboxTimer.unref?.();
+
     setTimeout(runDailyChecks, 5000);
     setInterval(runDailyChecks, 24 * 60 * 60 * 1000);
 
@@ -101,6 +107,11 @@ if (!process.env.VERCEL) {
   registerWorker('kaspi-reconciliation', {
     enabled: runWorkers && process.env.KASPI_POS_ENABLED === 'true',
     intervalMs: 60 * 1000,
+    critical: true,
+  });
+  registerWorker('push-outbox', {
+    enabled: runWorkers,
+    intervalMs: 10 * 1000,
     critical: true,
   });
   registerWorker('forte-reconciliation', {

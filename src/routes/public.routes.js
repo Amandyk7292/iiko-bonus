@@ -42,10 +42,11 @@ const liveActivity = require('../services/live-activity.service');
 const contactCenter = require('../services/contact-center.service');
 const { respondToSubstitution } = require('../services/order-substitution.service');
 const { optimizeUploadedImage } = require('../utils/image.util');
-const { validateRequest } = require('../middlewares/validation.middleware');
+const { emptyBodySchema, validateRequest } = require('../middlewares/validation.middleware');
 const {
   courierAuthRequestBodySchema,
   analyticsEventsBodySchema,
+  cartSnapshotBodySchema,
   checkoutPaymentBodySchema,
   checkoutQuoteBodySchema,
   courierAuthVerifyBodySchema,
@@ -53,13 +54,25 @@ const {
   courierLocationBodySchema,
   courierOrderParamsSchema,
   courierOrderStatusBodySchema,
+  customerAddressBodySchema,
+  customerAddressParamsSchema,
+  customerOrderParamsSchema,
+  customerProductParamsSchema,
+  favoriteMutationBodySchema,
   forteCardSetupBodySchema,
   forteOperationParamsSchema,
   fortePaymentMethodParamsSchema,
+  forteWidgetWebhookBodySchema,
+  giftCardRedeemBodySchema,
+  kaspiWebhookBodySchema,
   liveActivityBodySchema,
   liveActivityDeleteBodySchema,
   notificationPreferencesBodySchema,
+  orderReviewBodySchema,
   profileUpdateBodySchema,
+  referralRedeemBodySchema,
+  registrationBodySchema,
+  reorderBodySchema,
   supportCreateBodySchema,
   supportMessageBodySchema,
   supportRequestParamsSchema,
@@ -68,6 +81,9 @@ const {
   orderSubstitutionRequestParamsSchema,
   orderSubstitutionResponseBodySchema,
 } = require('../contracts/order-substitution.contract');
+const {
+  registerBusinessFoundationCustomerRoutes,
+} = require('./customer/business-foundation.routes');
 
 const referenceUpload = multer({
   storage: multer.memoryStorage(),
@@ -200,6 +216,7 @@ router.delete(
   '/api/courier/session',
   courierSessionMiddleware,
   courierMutationOrigin,
+  validateRequest({ body: emptyBodySchema }),
   async (req, res) => {
     try {
       await revokeCourierSession(req.courier.id, req.courierSession.id);
@@ -384,6 +401,7 @@ router.post(
   '/api/register-iiko',
   publicApiRateLimit,
   registrationAuthMiddleware,
+  validateRequest({ body: registrationBodySchema }),
   publicController.registerIiko,
 );
 
@@ -393,12 +411,24 @@ router.put(
   validateRequest({ body: profileUpdateBodySchema }),
   publicController.updateProfile,
 );
-router.delete('/api/customer/profile', publicController.deleteProfile);
+router.delete(
+  '/api/customer/profile',
+  validateRequest({ body: emptyBodySchema }),
+  publicController.deleteProfile,
+);
 router.get('/api/customer/profile/export', publicController.exportProfile);
 router.get('/api/customer/loyalty', tierController.getCustomerLoyalty);
 router.get('/api/customer/orders', orderController.listCustomer);
-router.post('/api/customer/orders/:id/arrived', orderController.markArrived);
-router.post('/api/customer/orders/:id/cancel', orderController.cancelCustomer);
+router.post(
+  '/api/customer/orders/:id/arrived',
+  validateRequest({ params: customerOrderParamsSchema, body: emptyBodySchema }),
+  orderController.markArrived,
+);
+router.post(
+  '/api/customer/orders/:id/cancel',
+  validateRequest({ params: customerOrderParamsSchema, body: emptyBodySchema }),
+  orderController.cancelCustomer,
+);
 router.post(
   '/api/customer/orders/:id/substitutions/:requestId/respond',
   validateRequest({
@@ -423,6 +453,7 @@ router.post(
     }
   },
 );
+registerBusinessFoundationCustomerRoutes(router);
 router.get('/api/customer/events', (req, res) =>
   realtime.openStream(req, res, { customerId: req.customerAuth.id }),
 );
@@ -508,17 +539,22 @@ router.post(
     }
   },
 );
-router.post('/api/customer/support/upload', supportUpload.single('image'), async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ success: false, error: 'Выберите изображение' });
-    res.status(201).json({
-      success: true,
-      attachment: await support.uploadSupportAttachment(req.customerAuth.id, req.file),
-    });
-  } catch (error) {
-    res.status(error.statusCode || 500).json({ success: false, error: error.message });
-  }
-});
+router.post(
+  '/api/customer/support/upload',
+  supportUpload.single('image'),
+  validateRequest({ body: emptyBodySchema }),
+  async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ success: false, error: 'Выберите изображение' });
+      res.status(201).json({
+        success: true,
+        attachment: await support.uploadSupportAttachment(req.customerAuth.id, req.file),
+      });
+    } catch (error) {
+      res.status(error.statusCode || 500).json({ success: false, error: error.message });
+    }
+  },
+);
 router.post(
   '/api/customer/live-activity',
   validateRequest({ body: liveActivityBodySchema }),
@@ -567,28 +603,42 @@ router.get('/api/customer/favorites', async (req, res) => {
     res.status(error.statusCode || 500).json({ success: false, error: error.message });
   }
 });
-router.put('/api/customer/favorites/:productId', async (req, res) => {
-  try {
-    res.json({
-      success: true,
-      favorite: await personalization.setFavorite(
-        req.customerAuth.id,
-        req.params.productId,
-        req.body?.favorite !== false,
-      ),
-    });
-  } catch (error) {
-    res.status(error.statusCode || 500).json({ success: false, error: error.message });
-  }
-});
-router.post('/api/customer/recent/:productId', async (req, res) => {
-  try {
-    await personalization.recordProductView(req.customerAuth.id, req.params.productId);
-    res.status(202).json({ success: true });
-  } catch (error) {
-    res.status(error.statusCode || 500).json({ success: false, error: error.message });
-  }
-});
+router.put(
+  '/api/customer/favorites/:productId',
+  validateRequest({
+    params: customerProductParamsSchema,
+    body: favoriteMutationBodySchema,
+  }),
+  async (req, res) => {
+    try {
+      res.json({
+        success: true,
+        favorite: await personalization.setFavorite(
+          req.customerAuth.id,
+          req.params.productId,
+          req.body.favorite,
+        ),
+      });
+    } catch (error) {
+      res.status(error.statusCode || 500).json({ success: false, error: error.message });
+    }
+  },
+);
+router.post(
+  '/api/customer/recent/:productId',
+  validateRequest({
+    params: customerProductParamsSchema,
+    body: emptyBodySchema,
+  }),
+  async (req, res) => {
+    try {
+      await personalization.recordProductView(req.customerAuth.id, req.params.productId);
+      res.status(202).json({ success: true });
+    } catch (error) {
+      res.status(error.statusCode || 500).json({ success: false, error: error.message });
+    }
+  },
+);
 router.get('/api/customer/recent', async (req, res) => {
   try {
     res.json({
@@ -623,26 +673,37 @@ router.get('/api/customer/usual-order', async (req, res) => {
     res.status(error.statusCode || 500).json({ success: false, error: error.message });
   }
 });
-router.post('/api/customer/orders/:id/reorder', async (req, res) => {
-  try {
-    res.json({
-      success: true,
-      cart: await personalization.reorder(req.customerAuth.id, req.params.id, req.body?.branchId),
-    });
-  } catch (error) {
-    res.status(error.statusCode || 500).json({ success: false, error: error.message });
-  }
-});
-router.put('/api/customer/cart-snapshot', async (req, res) => {
-  try {
-    res.json({
-      success: true,
-      cart: await personalization.saveCartSnapshot(req.customerAuth.id, req.body),
-    });
-  } catch (error) {
-    res.status(error.statusCode || 500).json({ success: false, error: error.message });
-  }
-});
+router.post(
+  '/api/customer/orders/:id/reorder',
+  validateRequest({
+    params: customerOrderParamsSchema,
+    body: reorderBodySchema,
+  }),
+  async (req, res) => {
+    try {
+      res.json({
+        success: true,
+        cart: await personalization.reorder(req.customerAuth.id, req.params.id, req.body.branchId),
+      });
+    } catch (error) {
+      res.status(error.statusCode || 500).json({ success: false, error: error.message });
+    }
+  },
+);
+router.put(
+  '/api/customer/cart-snapshot',
+  validateRequest({ body: cartSnapshotBodySchema }),
+  async (req, res) => {
+    try {
+      res.json({
+        success: true,
+        cart: await personalization.saveCartSnapshot(req.customerAuth.id, req.body),
+      });
+    } catch (error) {
+      res.status(error.statusCode || 500).json({ success: false, error: error.message });
+    }
+  },
+);
 router.get('/api/customer/reviews', async (req, res) => {
   try {
     res.json({ success: true, reviews: await reviews.listCustomerReviews(req.customerAuth.id) });
@@ -650,16 +711,23 @@ router.get('/api/customer/reviews', async (req, res) => {
     res.status(error.statusCode || 500).json({ success: false, error: error.message });
   }
 });
-router.put('/api/customer/orders/:id/review', async (req, res) => {
-  try {
-    res.json({
-      success: true,
-      review: await reviews.submitReview(req.customerAuth.id, req.params.id, req.body),
-    });
-  } catch (error) {
-    res.status(error.statusCode || 500).json({ success: false, error: error.message });
-  }
-});
+router.put(
+  '/api/customer/orders/:id/review',
+  validateRequest({
+    params: customerOrderParamsSchema,
+    body: orderReviewBodySchema,
+  }),
+  async (req, res) => {
+    try {
+      res.json({
+        success: true,
+        review: await reviews.submitReview(req.customerAuth.id, req.params.id, req.body),
+      });
+    } catch (error) {
+      res.status(error.statusCode || 500).json({ success: false, error: error.message });
+    }
+  },
+);
 router.get('/api/customer/referral', async (req, res) => {
   try {
     res.json({
@@ -670,54 +738,94 @@ router.get('/api/customer/referral', async (req, res) => {
     res.status(error.statusCode || 500).json({ success: false, error: error.message });
   }
 });
-router.post('/api/customer/referral/redeem', async (req, res) => {
-  try {
-    res.json({
-      success: true,
-      redemption: await marketing.redeemReferralCode(req.customerAuth.id, req.body?.code),
-    });
-  } catch (error) {
-    res.status(error.statusCode || 500).json({ success: false, error: error.message });
-  }
-});
-router.post('/api/customer/gift-cards/redeem', async (req, res) => {
-  try {
-    res.json({
-      success: true,
-      amount: await marketing.redeemGiftCard(req.customerAuth.id, req.body?.code),
-    });
-  } catch (error) {
-    res.status(error.statusCode || 500).json({ success: false, error: error.message });
-  }
-});
-router.post('/api/customer/cake-reference', referenceUpload.single('image'), async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ success: false, error: 'Выберите изображение' });
-    const detected = detectReferenceImage(req.file.buffer);
-    if (!detected || detected.mime !== req.file.mimetype) {
-      return res.status(400).json({ success: false, error: 'Допустимы JPEG, PNG и WebP до 8 МБ' });
-    }
-    const optimized = await optimizeUploadedImage(req.file.buffer, detected.mime);
-    const fileName = `cake-references/${req.customerAuth.id}/${Date.now()}-${crypto.randomUUID()}.${optimized.extension}`;
-    const { error } = await supabase.storage
-      .from('menu_images')
-      .upload(fileName, optimized.buffer, {
-        contentType: optimized.mime,
-        cacheControl: '31536000',
-        upsert: false,
+router.post(
+  '/api/customer/referral/redeem',
+  validateRequest({ body: referralRedeemBodySchema }),
+  async (req, res) => {
+    try {
+      res.json({
+        success: true,
+        redemption: await marketing.redeemReferralCode(req.customerAuth.id, req.body.code),
       });
-    if (error) throw error;
-    const { data } = supabase.storage.from('menu_images').getPublicUrl(fileName);
-    res.status(201).json({ success: true, url: data.publicUrl, optimized: optimized.optimized });
-  } catch (error) {
-    res.status(error.statusCode || 500).json({ success: false, error: error.message });
-  }
-});
+    } catch (error) {
+      res.status(error.statusCode || 500).json({ success: false, error: error.message });
+    }
+  },
+);
+router.post(
+  '/api/customer/gift-cards/redeem',
+  validateRequest({ body: giftCardRedeemBodySchema }),
+  async (req, res) => {
+    try {
+      res.json({
+        success: true,
+        amount: await marketing.redeemGiftCard(req.customerAuth.id, req.body.code),
+      });
+    } catch (error) {
+      res.status(error.statusCode || 500).json({ success: false, error: error.message });
+    }
+  },
+);
+router.post(
+  '/api/customer/cake-reference',
+  referenceUpload.single('image'),
+  validateRequest({ body: emptyBodySchema }),
+  async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ success: false, error: 'Выберите изображение' });
+      const detected = detectReferenceImage(req.file.buffer);
+      if (!detected || detected.mime !== req.file.mimetype) {
+        return res
+          .status(400)
+          .json({ success: false, error: 'Допустимы JPEG, PNG и WebP до 8 МБ' });
+      }
+      const optimized = await optimizeUploadedImage(req.file.buffer, detected.mime);
+      const fileName = `cake-references/${req.customerAuth.id}/${Date.now()}-${crypto.randomUUID()}.${optimized.extension}`;
+      const { error } = await supabase.storage
+        .from('menu_images')
+        .upload(fileName, optimized.buffer, {
+          contentType: optimized.mime,
+          cacheControl: '31536000',
+          upsert: false,
+        });
+      if (error) throw error;
+      const { data } = supabase.storage.from('menu_images').getPublicUrl(fileName);
+      res.status(201).json({ success: true, url: data.publicUrl, optimized: optimized.optimized });
+    } catch (error) {
+      res.status(error.statusCode || 500).json({ success: false, error: error.message });
+    }
+  },
+);
 router.get('/api/customer/addresses', addressController.list);
-router.post('/api/customer/addresses', addressController.create);
-router.put('/api/customer/addresses/:id', addressController.update);
-router.delete('/api/customer/addresses/:id', addressController.remove);
-router.patch('/api/customer/addresses/:id/default', addressController.setDefault);
+router.post(
+  '/api/customer/addresses',
+  validateRequest({ body: customerAddressBodySchema }),
+  addressController.create,
+);
+router.put(
+  '/api/customer/addresses/:id',
+  validateRequest({
+    params: customerAddressParamsSchema,
+    body: customerAddressBodySchema,
+  }),
+  addressController.update,
+);
+router.delete(
+  '/api/customer/addresses/:id',
+  validateRequest({
+    params: customerAddressParamsSchema,
+    body: emptyBodySchema,
+  }),
+  addressController.remove,
+);
+router.patch(
+  '/api/customer/addresses/:id/default',
+  validateRequest({
+    params: customerAddressParamsSchema,
+    body: emptyBodySchema,
+  }),
+  addressController.setDefault,
+);
 
 // Kaspi Pay endpoints
 const kaspiController = require('../controllers/kaspi.controller');
@@ -735,7 +843,12 @@ router.post(
 router.get('/api/customer/kaspi-pay/status/:operationId', kaspiController.checkStatus);
 
 // Kaspi Webhook (должен быть открытым)
-router.post('/webhooks/kaspi', webhookRateLimit, kaspiController.handleWebhook);
+router.post(
+  '/webhooks/kaspi',
+  webhookRateLimit,
+  validateRequest({ body: kaspiWebhookBodySchema }),
+  kaspiController.handleWebhook,
+);
 
 // ForteBank PaymentGateway: HPP redirect plus server-side status polling.
 const forteController = require('../controllers/forte.controller');
@@ -764,15 +877,26 @@ router.get(
 );
 router.delete(
   '/api/customer/forte-pay/methods/:methodId',
-  validateRequest({ params: fortePaymentMethodParamsSchema }),
+  validateRequest({
+    params: fortePaymentMethodParamsSchema,
+    body: emptyBodySchema,
+  }),
   forteController.removePaymentMethod,
 );
 router.patch(
   '/api/customer/forte-pay/methods/:methodId/default',
-  validateRequest({ params: fortePaymentMethodParamsSchema }),
+  validateRequest({
+    params: fortePaymentMethodParamsSchema,
+    body: emptyBodySchema,
+  }),
   forteController.setDefaultPaymentMethod,
 );
-router.post('/webhooks/forte/widget', webhookRateLimit, forteController.handleWidgetWebhook);
+router.post(
+  '/webhooks/forte/widget',
+  webhookRateLimit,
+  validateRequest({ body: forteWidgetWebhookBodySchema }),
+  forteController.handleWidgetWebhook,
+);
 
 router.get('/api/public/cities', publicController.getCities);
 router.get('/api/public/geocode/search', geocodeController.search);

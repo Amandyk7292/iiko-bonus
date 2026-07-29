@@ -59,9 +59,7 @@ export function adminApiErrorMessage(payload: ApiErrorPayload, status: number) {
 
 const responseRequestId = (response: Response) =>
   String(
-    response.headers.get('x-request-id') ||
-      response.headers.get('x-correlation-id') ||
-      '',
+    response.headers.get('x-request-id') || response.headers.get('x-correlation-id') || '',
   ).trim();
 
 const REQUEST_TIMEOUT_MS = 30000;
@@ -121,10 +119,18 @@ import type {
   AdminUser,
   AdminScopeLocation,
   AdminLocationCity,
+  BranchPosCredentialStatus,
+  BranchPosCredentialSecret,
   OperationsSummary,
   IntegrationHealthService,
   SupportRequest,
   SupportMessage,
+  AdminGlobalEntityType,
+  AdminGlobalSearchResult,
+  AdminGlobalDetail,
+  AdminGlobalTimelineEvent,
+  AdminGlobalCustomerProfile,
+  AdminGlobalSupportSummary,
   AdminPhoneLoginChallenge,
   WhatsAppAssistantSettings,
   WhatsAppConnectionStatus,
@@ -162,10 +168,18 @@ export type {
   AdminUser,
   AdminScopeLocation,
   AdminLocationCity,
+  BranchPosCredentialStatus,
+  BranchPosCredentialSecret,
   OperationsSummary,
   IntegrationHealthService,
   SupportRequest,
   SupportMessage,
+  AdminGlobalEntityType,
+  AdminGlobalSearchResult,
+  AdminGlobalDetail,
+  AdminGlobalTimelineEvent,
+  AdminGlobalCustomerProfile,
+  AdminGlobalSupportSummary,
   AdminPhoneLoginChallenge,
   WhatsAppAssistantSettings,
   WhatsAppConnectionStatus,
@@ -354,6 +368,21 @@ export const api = {
   },
 
   getStats: () => request<Record<string, any>>('/stats'),
+  globalSearch: (query: string, limit = 20, signal?: AbortSignal) => {
+    const params = new URLSearchParams({
+      q: query.trim(),
+      limit: String(Math.max(1, Math.min(20, limit))),
+    });
+    return request<{ success: boolean; results: AdminGlobalSearchResult[] }>(
+      `/global-search?${params}`,
+      { signal },
+    );
+  },
+  getGlobalSearchDetail: (type: AdminGlobalEntityType, id: string, signal?: AbortSignal) =>
+    request<{ success: boolean; detail: AdminGlobalDetail }>(
+      `/global-search/${encodeURIComponent(type)}/${encodeURIComponent(id)}`,
+      { signal },
+    ),
   getOperationsSummary: () =>
     request<OperationsSummary & { success: boolean }>('/operations/summary'),
   getIntegrationHealth: () =>
@@ -671,6 +700,15 @@ export const api = {
       `/locations/${encodeURIComponent(id)}`,
       json('PATCH', data),
     ),
+  getBranchPosCredential: (id: string) =>
+    request<{ success: boolean; credential: BranchPosCredentialStatus }>(
+      `/locations/${encodeURIComponent(id)}/pos-credential`,
+    ),
+  rotateBranchPosCredential: (id: string) =>
+    request<{ success: boolean; credential: BranchPosCredentialSecret }>(
+      `/locations/${encodeURIComponent(id)}/pos-credential/rotate`,
+      json('POST'),
+    ),
   updateAllFulfillmentDeliveryZones: (data: {
     deliveryZones: Array<Record<string, unknown>>;
     enableDelivery: boolean;
@@ -899,11 +937,13 @@ export const api = {
     if (search.trim()) params.set('search', search.trim());
     if (method) params.set('method', method);
     if (outcome) params.set('outcome', outcome);
-    return (
-    request<{ success: boolean; logs: AuditLog[]; total: number; page: number; pageSize: number }>(
-        `/audit-logs?${params}`,
-      )
-    );
+    return request<{
+      success: boolean;
+      logs: AuditLog[];
+      total: number;
+      page: number;
+      pageSize: number;
+    }>(`/audit-logs?${params}`);
   },
 
   uploadPhoto: (base64: string, filename: string) =>

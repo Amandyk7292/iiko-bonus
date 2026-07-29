@@ -317,6 +317,27 @@ export interface AdminLocationCity {
   branchCount: number;
 }
 
+export interface BranchPosCredentialStatus {
+  branchId: string;
+  branchName: string | null;
+  branchActive: boolean;
+  configured: boolean;
+  version: number | null;
+  rotatedBy: string | null;
+  rotatedAt: string | null;
+}
+
+export interface BranchPosCredentialSecret {
+  branchId: string;
+  token: string;
+  version: number;
+  rotatedAt: string;
+  headers: {
+    branch: string;
+    token: string;
+  };
+}
+
 export interface OperationsSummary {
   updatedAt: string;
   capabilities: {
@@ -422,6 +443,70 @@ export interface SupportMessage {
   attachments: Array<{ path: string; url: string | null }>;
   internal: boolean;
   createdAt: string;
+}
+
+export type AdminGlobalEntityType = 'order' | 'customer' | 'support';
+
+export interface AdminGlobalSearchResult {
+  type: AdminGlobalEntityType;
+  id: string;
+  title: string;
+  subtitle?: string | null;
+  status?: string | null;
+  branch?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface AdminGlobalTimelineEvent {
+  id: string;
+  kind: 'order' | 'payment' | 'refund' | 'support' | 'audit' | 'customer' | string;
+  title: string;
+  description?: string | null;
+  status?: string | null;
+  occurredAt: string;
+  actor?: string | null;
+  requestId?: string | null;
+}
+
+export interface AdminGlobalCustomerProfile {
+  id: string;
+  name?: string | null;
+  phone?: string | null;
+  balance?: number | null;
+  totalSpent?: number | null;
+}
+
+export interface AdminGlobalSupportSummary {
+  id: string;
+  customerId?: string | null;
+  orderId?: string | null;
+  orderNumber?: number | null;
+  branch?: string | null;
+  category?: string | null;
+  message?: string | null;
+  status?: string | null;
+  priority?: string | null;
+  refundRequested?: boolean;
+  resolution?: string | null;
+  assignedTo?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  resolvedAt?: string | null;
+  dueAt?: string | null;
+}
+
+export interface AdminGlobalDetail {
+  type: AdminGlobalEntityType;
+  id: string;
+  title: string;
+  subtitle?: string | null;
+  status?: string | null;
+  branch?: string | null;
+  customer?: { id?: string | null; name?: string | null; phone?: string | null } | null;
+  order?: AdminOrder | null;
+  customerProfile?: AdminGlobalCustomerProfile | null;
+  support?: AdminGlobalSupportSummary | null;
+  timeline: AdminGlobalTimelineEvent[];
 }
 
 export interface AdminPhoneLoginChallenge {

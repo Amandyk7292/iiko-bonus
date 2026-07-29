@@ -49,6 +49,21 @@ const Map<String, Map<String, String>> _homeAndLoyaltyTranslations = {
     'kk': 'Теңгерім тарихы',
     'en': 'Balance history',
   },
+  'bonus_expiry_title': {
+    'ru': 'Срок действия бонусов',
+    'kk': 'Бонустардың жарамдылық мерзімі',
+    'en': 'Bonus expiry',
+  },
+  'bonus_expiry_message': {
+    'ru': '{amount} бонусов сгорят {date}',
+    'kk': '{amount} бонус {date} күні жойылады',
+    'en': '{amount} bonuses expire on {date}',
+  },
+  'bonus_expiry_load_error': {
+    'ru': 'Не удалось проверить срок бонусов',
+    'kk': 'Бонустардың мерзімін тексеру мүмкін болмады',
+    'en': 'Could not check bonus expiry',
+  },
   'my_qr': {'ru': 'МОЙ QR', 'kk': 'МЕНІҢ QR', 'en': 'MY QR'},
   'qr_unavailable': {
     'ru': 'QR временно недоступен',

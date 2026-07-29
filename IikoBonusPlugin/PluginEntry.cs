@@ -16,6 +16,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
     {
         private IDisposable _buttonSubscription;
         private IDisposable _statusButtonSubscription;
+        private IDisposable _pickupButtonSubscription;
+        private IDisposable _giftButtonSubscription;
         private IDisposable _orderSubscription;
         private IDisposable _billPrintSubscription;
         private IDisposable _cashPrintSubscription;
@@ -45,6 +47,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             {
                 PluginContext.Log.Info("IikoBonusPlugin: Initializing...");
                 LoyaltyFlow.RestoreActiveOrders();
+                GiftCertificateFlow.RestoreActiveOrders();
 
                 _buttonSubscription = PluginContext.Operations.AddButtonToOrderEditScreen(
                     "Бонусы",
@@ -71,7 +74,11 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     {
                         try
                         {
-                            args.Item3.ShowOkPopup("Статус бонусной системы", LoyaltyFlow.GetQueueStatusText(), "ОК");
+                            args.Item3.ShowOkPopup(
+                                "Статус Bulka",
+                                LoyaltyFlow.GetQueueStatusText() + "\n\n" +
+                                GiftCertificateFlow.GetStatusText(),
+                                "ОК");
                         }
                         catch (Exception ex)
                         {
@@ -80,17 +87,35 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     }
                 );
 
+                _pickupButtonSubscription = PluginContext.Operations.AddButtonToOrderEditScreen(
+                    "Выдать онлайн-заказ",
+                    (ValueTuple<IOrder, IOperationService, IViewManager> args) =>
+                    {
+                        LoyaltyFlow.RunPickupHandoffByPin(args.Item1, args.Item3);
+                    }
+                );
+
+                _giftButtonSubscription = PluginContext.Operations.AddButtonToOrderEditScreen(
+                    "Сертификат",
+                    (ValueTuple<IOrder, IOperationService, IViewManager> args) =>
+                    {
+                        GiftCertificateFlow.Run(args.Item1, args.Item2, args.Item3);
+                    }
+                );
+
                 _orderSubscription = PluginContext.Notifications.OrderChanged.Subscribe(
-                    new OrderChangedObserver(LoyaltyFlow.OnOrderChanged)
+                    new OrderChangedObserver(OnOrderChanged)
                 );
                 LoyaltyFlow.ReconcileRestoredOrders(PluginContext.Operations);
+                GiftCertificateFlow.ReconcileRestoredOrders(PluginContext.Operations);
 
                 _billPrintSubscription = PluginContext.Notifications.BillChequePrinting.Subscribe(OnBillChequePrinting);
                 _cashPrintSubscription = PluginContext.Notifications.CashChequePrinting.Subscribe(OnCashChequePrinting);
 
-                _barcodeSubscription = PluginContext.Notifications.OrderEditBarcodeScanned.Subscribe(LoyaltyFlow.OnBarcodeScanned);
-                _beforePaymentSubscription = PluginContext.Notifications.BeforeProceedOrderPayment.Subscribe(LoyaltyFlow.BeforeProceedOrderPayment);
+                _barcodeSubscription = PluginContext.Notifications.OrderEditBarcodeScanned.Subscribe(OnBarcodeScanned);
+                _beforePaymentSubscription = PluginContext.Notifications.BeforeProceedOrderPayment.Subscribe(BeforeProceedOrderPayment);
                 LoyaltyFlow.StartBackgroundRetry();
+                GiftCertificateFlow.StartBackgroundRetry();
 
                 PluginContext.Log.Info("IikoBonusPlugin: Initialized successfully.");
             }
@@ -112,12 +137,36 @@ namespace Resto.Front.Api.IikoBonusPlugin
         {
             TryDispose(_buttonSubscription);
             TryDispose(_statusButtonSubscription);
+            TryDispose(_pickupButtonSubscription);
+            TryDispose(_giftButtonSubscription);
             TryDispose(_orderSubscription);
             TryDispose(_billPrintSubscription);
             TryDispose(_cashPrintSubscription);
             TryDispose(_barcodeSubscription);
             TryDispose(_beforePaymentSubscription);
             LoyaltyFlow.StopBackgroundRetry();
+            GiftCertificateFlow.StopBackgroundRetry();
+        }
+
+        private static bool OnBarcodeScanned(
+            ValueTuple<string, IOrder, IOperationService, IViewManager> args)
+        {
+            if (GiftCertificateFlow.TryHandleBarcode(args)) return true;
+            return LoyaltyFlow.OnBarcodeScanned(args);
+        }
+
+        private static void BeforeProceedOrderPayment(
+            ValueTuple<IOrder, IViewManager, IOperationService> args)
+        {
+            GiftCertificateFlow.BeforeProceedOrderPayment(args);
+            LoyaltyFlow.BeforeProceedOrderPayment(args);
+        }
+
+        private static void OnOrderChanged(
+            Resto.Front.Api.Data.Common.EntityChangedEventArgs<IOrder> args)
+        {
+            GiftCertificateFlow.OnOrderChanged(args);
+            LoyaltyFlow.OnOrderChanged(args);
         }
 
         private static ChequeExtensions OnBillChequePrinting(Guid orderId)
