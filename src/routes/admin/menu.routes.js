@@ -97,6 +97,9 @@ function registerMenuAdminRoutes(router) {
         const syncedAt = new Date().toISOString();
         const menuSource = rawMenu?.menuSource || 'unknown';
         const externalMenuId = rawMenu?.externalMenuId || null;
+        const priceCategoryId = rawMenu?.priceCategoryId || null;
+        const priceCategoryName = rawMenu?.priceCategoryName || null;
+        const priceSource = rawMenu?.priceSource || null;
 
         realtime.publish(
           'menu.updated',
@@ -104,6 +107,9 @@ function registerMenuAdminRoutes(router) {
             source: 'iiko-sync',
             menuSource,
             externalMenuId,
+            priceCategoryId,
+            priceCategoryName,
+            priceSource,
             productsCount,
             categoriesCount,
             syncedAt,
@@ -114,6 +120,9 @@ function registerMenuAdminRoutes(router) {
           success: true,
           menuSource,
           externalMenuId,
+          priceCategoryId,
+          priceCategoryName,
+          priceSource,
           productsCount,
           categoriesCount,
           syncedAt,

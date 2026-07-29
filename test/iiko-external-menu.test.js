@@ -7,6 +7,8 @@ const organizationId = '11111111-1111-4111-8111-111111111111';
 const managedEnvironment = [
   'IIKO_EXTERNAL_MENU_ID',
   'IIKO_EXTERNAL_MENU_NAME',
+  'IIKO_PRICE_CATEGORY_ID',
+  'IIKO_PRICE_CATEGORY_NAME',
   'IIKO_MENU_CACHE_TTL_SECONDS',
   'IIKO_EMPTY_MENU_CACHE_TTL_SECONDS',
 ];
@@ -287,6 +289,100 @@ test('configured External Menu ID selects the requested menu', async () => {
       assert.equal(selectedMenuId, 'menu-configured');
       assert.equal(menu.externalMenuId, 'menu-configured');
       assert.equal(menu.products[0].sizePrices[0].price.currentPrice, 800);
+    },
+  );
+});
+
+test('a single iiko price category is selected automatically', async () => {
+  let menuRequest = null;
+  const fetchMock = async (url, options) => {
+    const path = new URL(url).pathname;
+    if (path === '/api/2/menu') {
+      return jsonResponse({
+        externalMenus: [{ id: 'menu-main', name: 'Основное меню' }],
+        priceCategories: [{ id: 'price-main', name: 'Основной прайс' }],
+      });
+    }
+    if (path === '/api/2/menu/by_id') {
+      menuRequest = JSON.parse(options.body);
+      return jsonResponse(externalItems(300));
+    }
+    throw new Error(`Unexpected iiko request: ${path}`);
+  };
+
+  await withIikoService({ fetchMock }, async (service) => {
+    const menu = await service.getMenu({ strict: true, forceRefresh: true });
+    assert.equal(menuRequest.priceCategoryId, 'price-main');
+    assert.equal(menu.priceSource, 'price-category');
+    assert.equal(menu.priceCategoryId, 'price-main');
+    assert.equal(menu.priceCategoryName, 'Основной прайс');
+    assert.equal(menu.products[0].sizePrices[0].price.currentPrice, 300);
+  });
+});
+
+test('configured iiko price category is selected when several are available', async () => {
+  let menuRequest = null;
+  const fetchMock = async (url, options) => {
+    const path = new URL(url).pathname;
+    if (path === '/api/2/menu') {
+      return jsonResponse({
+        externalMenus: [{ id: 'menu-main', name: 'Основное меню' }],
+        priceCategories: [
+          { id: 'price-astana', name: 'Астана' },
+          { id: 'price-aktau', name: 'Актау' },
+        ],
+      });
+    }
+    if (path === '/api/2/menu/by_id') {
+      menuRequest = JSON.parse(options.body);
+      return jsonResponse(externalItems(310));
+    }
+    throw new Error(`Unexpected iiko request: ${path}`);
+  };
+
+  await withIikoService(
+    {
+      environment: { IIKO_PRICE_CATEGORY_NAME: 'актау' },
+      fetchMock,
+    },
+    async (service) => {
+      const menu = await service.getMenu({ strict: true, forceRefresh: true });
+      assert.equal(menuRequest.priceCategoryId, 'price-aktau');
+      assert.equal(menu.priceCategoryId, 'price-aktau');
+      assert.equal(menu.priceCategoryName, 'Актау');
+    },
+  );
+});
+
+test('configured missing iiko price category fails closed', async () => {
+  let itemRequests = 0;
+  const fetchMock = async (url) => {
+    const path = new URL(url).pathname;
+    if (path === '/api/2/menu') {
+      return jsonResponse({
+        externalMenus: [{ id: 'menu-main', name: 'Основное меню' }],
+        priceCategories: [{ id: 'price-other', name: 'Другой прайс' }],
+      });
+    }
+    if (path === '/api/2/menu/by_id') {
+      itemRequests += 1;
+      return jsonResponse(externalItems(999));
+    }
+    throw new Error(`Unexpected iiko request: ${path}`);
+  };
+
+  await withIikoService(
+    {
+      environment: { IIKO_PRICE_CATEGORY_ID: 'price-required' },
+      fetchMock,
+    },
+    async (service) => {
+      await assert.rejects(
+        service.getMenu({ strict: true, forceRefresh: true }),
+        /Меню временно недоступно/,
+      );
+      assert.equal(itemRequests, 0);
+      assert.equal(service.cachedMenu, null);
     },
   );
 });

@@ -55,6 +55,8 @@ class IikoAPI {
     this.organizationId = process.env.IIKO_ORGANIZATION_ID || null;
     this.externalMenuId = String(process.env.IIKO_EXTERNAL_MENU_ID || '').trim();
     this.externalMenuName = String(process.env.IIKO_EXTERNAL_MENU_NAME || '').trim();
+    this.priceCategoryId = String(process.env.IIKO_PRICE_CATEGORY_ID || '').trim();
+    this.priceCategoryName = String(process.env.IIKO_PRICE_CATEGORY_NAME || '').trim();
     this.menuCacheTtlMs =
       boundedSeconds(process.env.IIKO_MENU_CACHE_TTL_SECONDS, 5 * 60, 30, 60 * 60) * 1000;
     this.emptyMenuCacheTtlMs =
@@ -324,6 +326,49 @@ class IikoAPI {
     return menus[0];
   }
 
+  _selectPriceCategory(priceCategories) {
+    const categories = (Array.isArray(priceCategories) ? priceCategories : []).filter(
+      (category) => category?.id,
+    );
+
+    if (this.priceCategoryId) {
+      const byId = categories.find(
+        (category) => String(category.id) === String(this.priceCategoryId),
+      );
+      if (!byId) {
+        throw configurationError(
+          `Ценовая категория iiko с ID ${this.priceCategoryId} недоступна для API-логина.`,
+        );
+      }
+      return byId;
+    }
+
+    if (this.priceCategoryName) {
+      const configuredName = this.priceCategoryName.toLocaleLowerCase('ru-RU');
+      const byName = categories.find(
+        (category) =>
+          String(category.name || '')
+            .trim()
+            .toLocaleLowerCase('ru-RU') === configuredName,
+      );
+      if (!byName) {
+        throw configurationError(
+          `Ценовая категория iiko «${this.priceCategoryName}» недоступна для API-логина.`,
+        );
+      }
+      return byName;
+    }
+
+    if (categories.length === 1) return categories[0];
+    if (categories.length > 1) {
+      console.warn(
+        '[iiko] Доступно несколько ценовых категорий. ' +
+          'Задайте IIKO_PRICE_CATEGORY_ID, чтобы не выбрать неверную цену.',
+      );
+    }
+    return null;
+  }
+
   _externalPrice(item, organizationId) {
     const visibleSizes = (Array.isArray(item?.itemSizes) ? item.itemSizes : []).filter(
       (size) => size && size.isHidden !== true,
@@ -368,7 +413,7 @@ class IikoAPI {
     };
   }
 
-  _normalizeExternalMenu(selectedMenu, itemsData, organizationId) {
+  _normalizeExternalMenu(selectedMenu, itemsData, organizationId, selectedPriceCategory) {
     if (!itemsData || typeof itemsData !== 'object' || Array.isArray(itemsData)) {
       throw new Error('External Menu вернул некорректный ответ.');
     }
@@ -429,13 +474,21 @@ class IikoAPI {
     }
     console.log(
       `[iiko] External Menu «${selectedMenu.name || selectedMenu.id}»: ` +
-        `${groups.length} категорий, ${products.length} товаров`,
+        `${groups.length} категорий, ${products.length} товаров; источник цен: ` +
+        `${
+          selectedPriceCategory
+            ? `категория «${selectedPriceCategory.name || selectedPriceCategory.id}»`
+            : 'External Menu'
+        }`,
     );
     return {
       groups,
       products,
       orgName: `${selectedMenu.name || selectedMenu.id} (External v2)`,
       externalMenuId: String(selectedMenu.id),
+      priceCategoryId: selectedPriceCategory ? String(selectedPriceCategory.id) : null,
+      priceCategoryName: selectedPriceCategory?.name || null,
+      priceSource: selectedPriceCategory ? 'price-category' : 'external-menu',
       menuSource: 'external-v2',
       fetchedAt: new Date().toISOString(),
     };
@@ -460,12 +513,16 @@ class IikoAPI {
       typeof listData !== 'object' ||
       Array.isArray(listData) ||
       !Object.prototype.hasOwnProperty.call(listData, 'externalMenus') ||
-      (listData.externalMenus !== null && !Array.isArray(listData.externalMenus))
+      (listData.externalMenus !== null && !Array.isArray(listData.externalMenus)) ||
+      (listData.priceCategories !== undefined &&
+        listData.priceCategories !== null &&
+        !Array.isArray(listData.priceCategories))
     ) {
       throw new Error('Список External Menu вернул некорректный ответ.');
     }
     const selectedMenu = this._selectExternalMenu(listData.externalMenus || []);
     if (!selectedMenu) return null;
+    const selectedPriceCategory = this._selectPriceCategory(listData.priceCategories || []);
 
     const itemsResponse = await fetchWithTimeout(`${this.baseUrl}/api/2/menu/by_id`, {
       method: 'POST',
@@ -476,7 +533,7 @@ class IikoAPI {
       body: JSON.stringify({
         externalMenuId: selectedMenu.id,
         organizationIds: [organizationId],
-        priceCategoryId: null,
+        priceCategoryId: selectedPriceCategory?.id || null,
         version: 2,
       }),
     });
@@ -484,7 +541,12 @@ class IikoAPI {
       const errorText = await itemsResponse.text();
       throw new Error(`Ошибка получения External Menu: ${errorText}`);
     }
-    return this._normalizeExternalMenu(selectedMenu, await itemsResponse.json(), organizationId);
+    return this._normalizeExternalMenu(
+      selectedMenu,
+      await itemsResponse.json(),
+      organizationId,
+      selectedPriceCategory,
+    );
   }
 
   async _fetchMenuFromIiko({ requireExternal = false } = {}) {
@@ -741,6 +803,13 @@ class IikoAPI {
       },
     };
 
+    const priceCategoryId = String(
+      this.cachedExternalMenu?.priceCategoryId ||
+        this.cachedMenu?.priceCategoryId ||
+        this.priceCategoryId ||
+        '',
+    ).trim();
+    if (priceCategoryId) payload.order.priceCategoryId = priceCategoryId;
     if (!completeBefore) delete payload.order.completeBefore;
     for (const item of payload.order.items) {
       if (!item.productSizeId) delete item.productSizeId;
