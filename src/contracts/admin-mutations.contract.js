@@ -347,22 +347,19 @@ const storageConditionSchema = z
     path: ['duration_unit'],
     message: 'Укажите единицу срока хранения',
   });
-const compactEmptyStorageConditions = (value) => {
+const compactIncompleteStorageConditions = (value) => {
   if (!Array.isArray(value)) return value;
   return value.filter((condition) => {
     if (!condition || typeof condition !== 'object' || Array.isArray(condition)) return true;
     const temperature = String(condition.temperature ?? '').trim();
     const duration = condition.duration_value ?? condition.durationValue;
     const durationUnit = String(condition.duration_unit ?? condition.durationUnit ?? '').trim();
-    return (
-      temperature ||
-      (duration !== undefined && duration !== null && duration !== '') ||
-      durationUnit
-    );
+    const hasDuration = duration !== undefined && duration !== null && duration !== '';
+    return Boolean(temperature && hasDuration && durationUnit);
   });
 };
 const storageConditionsSchema = z.preprocess(
-  compactEmptyStorageConditions,
+  compactIncompleteStorageConditions,
   z.array(storageConditionSchema).max(2),
 );
 const textListSchema = (maximumItems) =>

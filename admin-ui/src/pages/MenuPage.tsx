@@ -122,11 +122,11 @@ export default function MenuPage() {
     allergens: '' as string | string[],
     dietary_tags: '' as string | string[],
     search_keywords: '' as string | string[],
-    weight_grams: undefined as number | undefined,
-    calories_kcal: undefined as number | undefined,
-    protein_grams: undefined as number | undefined,
-    fat_grams: undefined as number | undefined,
-    carbs_grams: undefined as number | undefined,
+    weight_grams: undefined as number | null | undefined,
+    calories_kcal: undefined as number | null | undefined,
+    protein_grams: undefined as number | null | undefined,
+    fat_grams: undefined as number | null | undefined,
+    carbs_grams: undefined as number | null | undefined,
     storage_conditions: [] as ProductStorageCondition[],
     fulfillment_types: [...defaultFulfillmentTypes] as FulfillmentType[],
   });
@@ -382,11 +382,11 @@ export default function MenuPage() {
         custom_price: editForm.price !== (editingProduct.price || 0) ? editForm.price : undefined,
         custom_description:
           editForm.description !== (editingProduct.description || '')
-            ? editForm.description
-            : undefined,
+            ? editForm.description.trim() || null
+            : null,
         description_translations: editForm.description_translations,
         custom_image_url: editForm.imageUrl || cur.custom_image_url || undefined,
-        ingredients: editForm.ingredients || undefined,
+        ingredients: editForm.ingredients.trim() || null,
         ingredients_translations: editForm.ingredients_translations,
         allergens: editForm.allergens,
         dietary_tags: editForm.dietary_tags,

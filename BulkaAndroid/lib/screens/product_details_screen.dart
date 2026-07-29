@@ -518,30 +518,34 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
           runSpacing: 16,
           alignment: WrapAlignment.center,
           children: [
-            _nutritionMetric(
-              'catalog_calories'.tr,
-              product.caloriesKcal,
-              'catalog_kcal'.tr,
-              width: width,
-            ),
-            _nutritionMetric(
-              'catalog_protein'.tr,
-              product.proteinGrams,
-              'catalog_grams'.tr,
-              width: width,
-            ),
-            _nutritionMetric(
-              'catalog_fat'.tr,
-              product.fatGrams,
-              'catalog_grams'.tr,
-              width: width,
-            ),
-            _nutritionMetric(
-              'catalog_carbs'.tr,
-              product.carbsGrams,
-              'catalog_grams'.tr,
-              width: width,
-            ),
+            if (product.caloriesKcal != null)
+              _nutritionMetric(
+                'catalog_calories'.tr,
+                product.caloriesKcal,
+                'catalog_kcal'.tr,
+                width: width,
+              ),
+            if (product.proteinGrams != null)
+              _nutritionMetric(
+                'catalog_protein'.tr,
+                product.proteinGrams,
+                'catalog_grams'.tr,
+                width: width,
+              ),
+            if (product.fatGrams != null)
+              _nutritionMetric(
+                'catalog_fat'.tr,
+                product.fatGrams,
+                'catalog_grams'.tr,
+                width: width,
+              ),
+            if (product.carbsGrams != null)
+              _nutritionMetric(
+                'catalog_carbs'.tr,
+                product.carbsGrams,
+                'catalog_grams'.tr,
+                width: width,
+              ),
           ],
         );
       },
@@ -625,30 +629,29 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'catalog_ingredients'.tr,
-                          style: const TextStyle(
-                            fontFamily: _headingFont,
-                            fontSize: BulkaTypeScale.title,
-                            fontWeight: FontWeight.w700,
+                        if (ingredients.isNotEmpty) ...[
+                          Text(
+                            'catalog_ingredients'.tr,
+                            style: const TextStyle(
+                              fontFamily: _headingFont,
+                              fontSize: BulkaTypeScale.title,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 22),
-                        Text(
-                          ingredients.isEmpty
-                              ? 'catalog_product_info_pending'.tr
-                              : ingredients,
-                          style: TextStyle(
-                            color: ingredients.isEmpty
-                                ? colors.mutedText
-                                : Theme.of(context).colorScheme.onSurface,
-                            fontSize: BulkaTypeScale.body,
-                            height: 1.55,
-                            fontWeight: FontWeight.w500,
+                          const SizedBox(height: 22),
+                          Text(
+                            ingredients,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurface,
+                              fontSize: BulkaTypeScale.body,
+                              height: 1.55,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
-                        ),
+                        ],
                         if (product.allergens.isNotEmpty) ...[
-                          const SizedBox(height: 28),
+                          if (ingredients.isNotEmpty)
+                            const SizedBox(height: 28),
                           Container(
                             width: double.infinity,
                             padding: const EdgeInsets.all(18),
@@ -897,110 +900,128 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                               ),
                             ),
                           ],
-                          const SizedBox(height: 28),
-                          Center(
-                            child: Text(
-                              'catalog_about_product'.tr,
-                              style: const TextStyle(
-                                fontFamily: _headingFont,
-                                fontSize: BulkaTypeScale.titleLarge,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(20),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(
-                                BulkaRadii.card,
-                              ),
-                              border: Border.all(color: colors.cardBorder),
-                            ),
-                            child: Text(
-                              product.description.trim().isEmpty
-                                  ? 'catalog_product_info_pending'.tr
-                                  : product.description.trim(),
-                              style: TextStyle(
-                                fontFamily: _descriptionFont,
-                                fontSize: BulkaTypeScale.body,
-                                color: product.description.trim().isEmpty
-                                    ? colors.mutedText
-                                    : scheme.onSurface,
-                                height: 1.5,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 14),
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.fromLTRB(14, 20, 14, 18),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(
-                                BulkaRadii.card,
-                              ),
-                              border: Border.all(color: colors.cardBorder),
-                            ),
-                            child: Column(
-                              children: [
-                                Text(
-                                  'catalog_product_information'.tr,
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    fontFamily: _headingFont,
-                                    fontSize: BulkaTypeScale.title,
-                                    fontWeight: FontWeight.w700,
-                                  ),
+                          if (product.hasProductDetails) ...[
+                            const SizedBox(height: 28),
+                            Center(
+                              child: Text(
+                                'catalog_about_product'.tr,
+                                style: const TextStyle(
+                                  fontFamily: _headingFont,
+                                  fontSize: BulkaTypeScale.titleLarge,
+                                  fontWeight: FontWeight.w700,
                                 ),
-                                const SizedBox(height: 5),
-                                Text(
-                                  'catalog_nutrition_whole_product'.tr,
-                                  style: TextStyle(
-                                    fontFamily: _descriptionFont,
-                                    color: colors.mutedText,
-                                    fontSize: BulkaTypeScale.bodySmall,
-                                    fontWeight: FontWeight.w500,
-                                  ),
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                          ],
+                          if (product.description.trim().isNotEmpty)
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(
+                                  BulkaRadii.card,
                                 ),
-                                const SizedBox(height: 18),
-                                _nutritionGrid(product),
-                                const SizedBox(height: 18),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: OutlinedButton(
-                                    key: const ValueKey(
-                                      'product-show-ingredients',
-                                    ),
-                                    onPressed: () =>
-                                        _showIngredientsSheet(product),
-                                    style: OutlinedButton.styleFrom(
-                                      backgroundColor: colors.surfaceCream,
-                                      foregroundColor: colors.brandBrown,
-                                      side: BorderSide(
-                                        color: colors.cardBorder,
-                                      ),
-                                      minimumSize: const Size.fromHeight(52),
-                                      shape: const StadiumBorder(),
-                                    ),
-                                    child: Text(
-                                      'catalog_view_ingredients'.tr,
+                                border: Border.all(color: colors.cardBorder),
+                              ),
+                              child: Text(
+                                product.description.trim(),
+                                style: TextStyle(
+                                  fontFamily: _descriptionFont,
+                                  fontSize: BulkaTypeScale.body,
+                                  color: scheme.onSurface,
+                                  height: 1.5,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          if (product.hasNutrition ||
+                              product.hasComposition) ...[
+                            if (product.description.trim().isNotEmpty)
+                              const SizedBox(height: 14),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.fromLTRB(
+                                14,
+                                20,
+                                14,
+                                18,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(
+                                  BulkaRadii.card,
+                                ),
+                                border: Border.all(color: colors.cardBorder),
+                              ),
+                              child: Column(
+                                children: [
+                                  if (product.hasNutrition) ...[
+                                    Text(
+                                      'catalog_product_information'.tr,
+                                      textAlign: TextAlign.center,
                                       style: const TextStyle(
                                         fontFamily: _headingFont,
-                                        fontSize: BulkaTypeScale.body,
+                                        fontSize: BulkaTypeScale.title,
                                         fontWeight: FontWeight.w700,
                                       ),
                                     ),
-                                  ),
-                                ),
-                              ],
+                                    const SizedBox(height: 5),
+                                    Text(
+                                      'catalog_nutrition_whole_product'.tr,
+                                      style: TextStyle(
+                                        fontFamily: _descriptionFont,
+                                        color: colors.mutedText,
+                                        fontSize: BulkaTypeScale.bodySmall,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 18),
+                                    _nutritionGrid(product),
+                                  ],
+                                  if (product.hasNutrition &&
+                                      product.hasComposition)
+                                    const SizedBox(height: 18),
+                                  if (product.hasComposition)
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: OutlinedButton(
+                                        key: const ValueKey(
+                                          'product-show-ingredients',
+                                        ),
+                                        onPressed: () =>
+                                            _showIngredientsSheet(product),
+                                        style: OutlinedButton.styleFrom(
+                                          backgroundColor: colors.surfaceCream,
+                                          foregroundColor: colors.brandBrown,
+                                          side: BorderSide(
+                                            color: colors.cardBorder,
+                                          ),
+                                          minimumSize: const Size.fromHeight(
+                                            52,
+                                          ),
+                                          shape: const StadiumBorder(),
+                                        ),
+                                        child: Text(
+                                          'catalog_view_ingredients'.tr,
+                                          style: const TextStyle(
+                                            fontFamily: _headingFont,
+                                            fontSize: BulkaTypeScale.body,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
-                          ),
+                          ],
                           if (product.storageConditions.isNotEmpty) ...[
-                            const SizedBox(height: 14),
+                            if (product.description.trim().isNotEmpty ||
+                                product.hasNutrition ||
+                                product.hasComposition)
+                              const SizedBox(height: 14),
                             Container(
                               width: double.infinity,
                               padding: const EdgeInsets.all(20),
@@ -1031,7 +1052,11 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                             ),
                           ],
                           if (product.dietaryTags.isNotEmpty) ...[
-                            const SizedBox(height: 14),
+                            if (product.description.trim().isNotEmpty ||
+                                product.hasNutrition ||
+                                product.hasComposition ||
+                                product.storageConditions.isNotEmpty)
+                              const SizedBox(height: 14),
                             Container(
                               width: double.infinity,
                               padding: const EdgeInsets.all(20),

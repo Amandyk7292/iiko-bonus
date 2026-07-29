@@ -537,6 +537,20 @@ test('product override validation compacts empty storage rows', () => {
   assert.deepEqual(parsed.overrides.storage_conditions, []);
 });
 
+test('product override validation keeps incomplete optional storage rows unpublished', () => {
+  const parsed = adminMutationSchemas.productOverride.body.parse({
+    iikoProductId: 'product-1',
+    overrides: {
+      storage_conditions: [
+        { temperature: '-18 °C', duration_value: '', duration_unit: 'days' },
+        { temperature: '', duration_value: 72, duration_unit: 'hours' },
+      ],
+    },
+  });
+
+  assert.deepEqual(parsed.overrides.storage_conditions, []);
+});
+
 test('global request body guard rejects unsafe keys and excessive nesting', () => {
   const unsafeBody = JSON.parse('{"safe":1,"__proto__":{"polluted":true}}');
   let unsafeError;

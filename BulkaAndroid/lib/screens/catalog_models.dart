@@ -110,6 +110,16 @@ class CatalogProduct {
       proteinGrams != null ||
       fatGrams != null ||
       carbsGrams != null;
+
+  bool get hasComposition =>
+      ingredients.trim().isNotEmpty || allergens.isNotEmpty;
+
+  bool get hasProductDetails =>
+      description.trim().isNotEmpty ||
+      hasNutrition ||
+      hasComposition ||
+      storageConditions.isNotEmpty ||
+      dietaryTags.isNotEmpty;
 }
 
 Uri catalogProductShareUri(CatalogProduct product) => Uri(

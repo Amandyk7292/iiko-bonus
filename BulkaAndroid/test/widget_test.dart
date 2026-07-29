@@ -120,6 +120,37 @@ void main() {
     expect(productStorageDurationLabel(conditions[1]), '72 hours');
   });
 
+  test(
+    'product details exist only when at least one optional fact is filled',
+    () {
+      const emptyProduct = CatalogProduct(
+        id: 'empty-facts',
+        title: 'Товар',
+        price: 100,
+        category: 'Категория',
+        imageUrl: '',
+        inStockCount: 1,
+        preparationMinutes: 10,
+      );
+      const partialProduct = CatalogProduct(
+        id: 'partial-facts',
+        title: 'Товар',
+        price: 100,
+        category: 'Категория',
+        imageUrl: '',
+        inStockCount: 1,
+        preparationMinutes: 10,
+        proteinGrams: 4.2,
+      );
+
+      expect(emptyProduct.hasNutrition, isFalse);
+      expect(emptyProduct.hasComposition, isFalse);
+      expect(emptyProduct.hasProductDetails, isFalse);
+      expect(partialProduct.hasNutrition, isTrue);
+      expect(partialProduct.hasProductDetails, isTrue);
+    },
+  );
+
   test('every localization key used by the client exists', () {
     final missing = <String>{};
     final keyPattern = RegExp(r"'([a-z][a-z0-9_]*)'\.tr(?:Args)?");
@@ -1495,6 +1526,48 @@ void main() {
     expect(find.text('1000.3 ккал'), findsOneWidget);
     expect(tester.takeException(), isNull);
     semantics.dispose();
+  });
+
+  testWidgets('product page hides every unfilled optional information block', (
+    tester,
+  ) async {
+    appLanguageNotifier.value = 'ru';
+    final liveProducts = ValueNotifier<Map<String, CatalogProduct>>(const {});
+    addTearDown(liveProducts.dispose);
+    const product = CatalogProduct(
+      id: 'empty-details-product',
+      title: 'Товар без характеристик',
+      price: 300,
+      category: 'Выпечка',
+      imageUrl: '',
+      inStockCount: 5,
+      preparationMinutes: 10,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildBulkaTheme(),
+        home: ChangeNotifierProvider(
+          create: (_) => CartProvider(),
+          child: ProductDetailsScreen(
+            api: _FakeBulkaApiClient(),
+            product: product,
+            liveProducts: liveProducts,
+            initialQuantity: 0,
+            onQuantityChanged: (_, _) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('О продукте'), findsNothing);
+    expect(find.text('Информация скоро появится'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('product-show-ingredients')),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('motion primitives honor the system reduced-motion setting', (

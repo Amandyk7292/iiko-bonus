@@ -37,11 +37,26 @@ describe('menu product override payload', () => {
     ]);
   });
 
-  it('explains which partially completed storage row must be fixed', () => {
-    expect(() =>
+  it('keeps explicit nulls so cleared optional facts are removed on the server', () => {
+    expect(
+      sanitizeProductOverridePatch({
+        weight_grams: null,
+        calories_kcal: null,
+        protein_grams: null,
+      }),
+    ).toEqual({
+      weight_grams: null,
+      calories_kcal: null,
+      protein_grams: null,
+    });
+  });
+
+  it('keeps partially completed optional storage rows unpublished', () => {
+    expect(
       normalizeStorageConditionsForSave([
+        { temperature: '-18 °C', duration_value: undefined, duration_unit: 'days' },
         { temperature: '', duration_value: 72, duration_unit: 'hours' },
       ]),
-    ).toThrow('Укажите температуру для условия хранения 1');
+    ).toEqual([]);
   });
 });

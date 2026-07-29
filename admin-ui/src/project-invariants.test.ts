@@ -57,6 +57,16 @@ describe('admin production invariants', () => {
     expect(topbar).not.toContain('realtime-status');
   });
 
+  it('keeps long product labels inside container-responsive cards', () => {
+    const commerce = readFileSync(resolve(root, 'src/styles/commerce.css'), 'utf8');
+    const index = readFileSync(resolve(root, 'src/index.css'), 'utf8');
+    expect(commerce).toContain(
+      'grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));',
+    );
+    expect(commerce).toMatch(/\.product-fact-choice span\s*\{[^}]*overflow-wrap:\s*anywhere;/s);
+    expect(index).toMatch(/\.modal-title\s*\{[^}]*overflow-wrap:\s*anywhere;/s);
+  });
+
   it('ships every locally referenced font and product mark', () => {
     const assets = [
       'GolosText-Regular.ttf',

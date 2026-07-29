@@ -19,7 +19,7 @@ export interface IikoGroup {
 export type StorageDurationUnit = 'hours' | 'days' | 'months';
 
 export interface ProductStorageCondition {
-  temperature: string;
+  temperature?: string;
   duration_value?: number;
   duration_unit?: StorageDurationUnit | '';
 }
@@ -30,20 +30,20 @@ export interface ProductOverride {
   name_translations?: Record<string, string>;
   custom_price?: number;
   custom_image_url?: string;
-  custom_description?: string;
+  custom_description?: string | null;
   description_translations?: Record<string, string>;
   is_hidden?: boolean;
   is_stop_listed?: boolean;
-  ingredients?: string;
+  ingredients?: string | null;
   ingredients_translations?: Record<string, string>;
   allergens?: string[] | string;
   dietary_tags?: string[] | string;
   search_keywords?: string[] | string;
-  weight_grams?: number;
-  calories_kcal?: number;
-  protein_grams?: number;
-  fat_grams?: number;
-  carbs_grams?: number;
+  weight_grams?: number | null;
+  calories_kcal?: number | null;
+  protein_grams?: number | null;
+  fat_grams?: number | null;
+  carbs_grams?: number | null;
   storage_conditions?: ProductStorageCondition[];
   fulfillment_types?: FulfillmentType[];
 }
@@ -87,11 +87,11 @@ export interface CustomProduct {
   allergens?: string[] | string;
   dietary_tags?: string[] | string;
   search_keywords?: string[] | string;
-  weight_grams?: number;
-  calories_kcal?: number;
-  protein_grams?: number;
-  fat_grams?: number;
-  carbs_grams?: number;
+  weight_grams?: number | null;
+  calories_kcal?: number | null;
+  protein_grams?: number | null;
+  fat_grams?: number | null;
+  carbs_grams?: number | null;
   storage_conditions?: ProductStorageCondition[];
   fulfillment_types?: FulfillmentType[];
 }
@@ -158,9 +158,7 @@ const productOverridePatchKeys = [
   'fulfillment_types',
 ] as const satisfies ReadonlyArray<keyof Omit<ProductOverride, 'iiko_product_id'>>;
 
-export const normalizeStorageConditionsForSave = (
-  value: unknown,
-): ProductStorageCondition[] => {
+export const normalizeStorageConditionsForSave = (value: unknown): ProductStorageCondition[] => {
   if (value == null) return [];
   if (!Array.isArray(value) || value.length > 2) {
     throw new Error('Условия хранения заполнены некорректно');
@@ -177,9 +175,9 @@ export const normalizeStorageConditionsForSave = (
     const hasDuration = rawDuration !== undefined && rawDuration !== null && rawDuration !== '';
 
     if (!temperature && !hasDuration && !durationUnit) return [];
-    if (!temperature) {
-      throw new Error(`Укажите температуру для условия хранения ${index + 1}`);
-    }
+    // A storage row is optional. Keep a partially entered row as a local draft
+    // and publish it only after temperature, duration and unit are complete.
+    if (!temperature || !hasDuration || !durationUnit) return [];
     if (temperature.length > 40) {
       throw new Error(`Температура в условии хранения ${index + 1} слишком длинная`);
     }
@@ -233,14 +231,14 @@ export function FulfillmentTypeFields({
       <p className="field-hint mb-3">
         Товар появится только в отмеченных каталогах. Выберите минимум один вариант.
       </p>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="fulfillment-type-grid">
         {fulfillmentTypeOptions.map((option) => {
           const checked = selected.includes(option.value);
           return (
             <label
               key={option.value}
               htmlFor={`${idPrefix}-${option.value}`}
-              className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition-colors ${
+              className={`fulfillment-type-choice flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition-colors ${
                 checked
                   ? 'border-amber-400 bg-amber-50 text-amber-950'
                   : 'border-gray-200 bg-white text-gray-600 hover:border-amber-200'
@@ -262,7 +260,7 @@ export function FulfillmentTypeFields({
                 }}
                 className="h-5 w-5 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
               />
-              <span className="text-sm font-semibold">{option.label}</span>
+              <span className="min-w-0 text-sm font-semibold">{option.label}</span>
             </label>
           );
         })}
@@ -299,11 +297,11 @@ export interface ProductFactsDraft {
   allergens?: string[] | string;
   dietary_tags?: string[] | string;
   search_keywords?: string[] | string;
-  weight_grams?: number;
-  calories_kcal?: number;
-  protein_grams?: number;
-  fat_grams?: number;
-  carbs_grams?: number;
+  weight_grams?: number | null;
+  calories_kcal?: number | null;
+  protein_grams?: number | null;
+  fat_grams?: number | null;
+  carbs_grams?: number | null;
   storage_conditions?: ProductStorageCondition[];
 }
 
@@ -389,7 +387,7 @@ export function ProductFactsFields({
   value: ProductFactsDraft;
   onChange: (
     key: ProductFactKey,
-    value: string | string[] | number | ProductStorageCondition[] | undefined,
+    value: string | string[] | number | ProductStorageCondition[] | null | undefined,
   ) => void;
   idPrefix: string;
 }) {
@@ -412,7 +410,7 @@ export function ProductFactsFields({
         step={step}
         value={value[key] ?? ''}
         onChange={(event) =>
-          onChange(key, event.target.value === '' ? undefined : Number(event.target.value))
+          onChange(key, event.target.value === '' ? null : Number(event.target.value))
         }
         className="input-classic"
       />
@@ -477,9 +475,10 @@ export function ProductFactsFields({
     <fieldset className="form-section">
       <legend>Карточка товара</legend>
       <p className="field-hint mb-3">
-        Эти данные видит клиент. Значения КБЖУ указываются на весь товар.
+        Все поля необязательны. Клиент увидит только заполненные данные; значения КБЖУ указываются
+        на 100 г продукта.
       </p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="product-facts-number-grid">
         {numberField('weight_grams', 'Вес, г')}
         {numberField('calories_kcal', 'Калорийность, ккал', '0.1')}
         {numberField('protein_grams', 'Белки, г', '0.1')}
@@ -488,14 +487,17 @@ export function ProductFactsFields({
       </div>
       <section className="product-storage-editor" aria-labelledby={`${idPrefix}-storage-title`}>
         <div className="product-storage-editor__heading">
-          <strong id={`${idPrefix}-storage-title`}>Срок и условия хранения</strong>
-          <p>Температура показывается как введена. Срок автоматически переводится в приложении.</p>
+          <strong id={`${idPrefix}-storage-title`}>Срок и условия хранения (необязательно)</strong>
+          <p>
+            Незаполненные условия не публикуются. Заполните температуру, срок и единицу, чтобы
+            показать условие клиенту.
+          </p>
         </div>
         <div className="product-storage-editor__rows">
           {storageRows.map((condition, index) => (
             <div className="product-storage-row" key={`${idPrefix}-storage-${index}`}>
               <strong className="product-storage-row__title">
-                {index === 0 ? 'Условие 1' : 'Условие 2 (необязательно)'}
+                {index === 0 ? 'Условие 1 (необязательно)' : 'Условие 2 (необязательно)'}
               </strong>
               <div className="product-storage-row__fields">
                 <div className="field-group">
