@@ -45,6 +45,7 @@ import {
   resolveIikoProductPrices,
   resolvedCategoryName,
   resolvedProductName,
+  sanitizeProductOverridePatch,
   type BuilderOptionKey,
   type CategoryOverride,
   type CustomProduct,
@@ -398,7 +399,7 @@ export default function MenuPage() {
         storage_conditions: editForm.storage_conditions,
         fulfillment_types: editForm.fulfillment_types,
       };
-      await api.setProductOverride(editingProduct.id, updated);
+      await api.setProductOverride(editingProduct.id, sanitizeProductOverridePatch(updated));
       setProductOverrides((prev) => ({ ...prev, [editingProduct.id]: updated }));
       toast('Изменения сохранены', 'success');
       setEditModalOpen(false);

@@ -39,11 +39,18 @@ type ApiErrorPayload = {
   message?: string;
   code?: string;
   details?: unknown;
+  fields?: Array<{ path?: string; message?: string }>;
   requestId?: string;
 };
 
 export function adminApiErrorMessage(payload: ApiErrorPayload, status: number) {
   const rawMessage = String(payload.error || payload.message || '').trim();
+  const validationMessage =
+    status < 500 && payload.code === 'VALIDATION_ERROR'
+      ? (payload.fields || [])
+          .map((field) => String(field?.message || '').trim())
+          .find((message) => /[А-Яа-яЁё]/.test(message))
+      : '';
   const requestId = String(payload.requestId || '').trim();
   const requestHint = requestId ? `Код запроса: ${requestId}.` : '';
   if (status >= 500 || rawMessage === 'Internal Server Error') {
@@ -54,7 +61,9 @@ export function adminApiErrorMessage(payload: ApiErrorPayload, status: number) {
       .filter(Boolean)
       .join(' ');
   }
-  return [rawMessage || `Ошибка запроса (${status})`, requestHint].filter(Boolean).join(' ');
+  return [validationMessage || rawMessage || `Ошибка запроса (${status})`, requestHint]
+    .filter(Boolean)
+    .join(' ');
 }
 
 const responseRequestId = (response: Response) =>
@@ -262,7 +271,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
       adminApiErrorMessage(payload, response.status),
       response.status,
       errorData.code,
-      errorData.details,
+      errorData.details ?? errorData.fields,
       requestId,
     );
   }

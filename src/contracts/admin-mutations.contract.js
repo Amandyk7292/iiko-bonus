@@ -332,7 +332,7 @@ const fulfillmentTypesSchema = z
   });
 const storageConditionSchema = z
   .object({
-    temperature: shortText(40, 1),
+    temperature: z.string().trim().min(1, 'Укажите температуру хранения').max(40),
     duration_value: z.coerce.number().int().min(1).max(10_000).optional(),
     durationValue: z.coerce.number().int().min(1).max(10_000).optional(),
     duration_unit: z.enum(['hours', 'days', 'months']).optional(),
@@ -347,6 +347,24 @@ const storageConditionSchema = z
     path: ['duration_unit'],
     message: 'Укажите единицу срока хранения',
   });
+const compactEmptyStorageConditions = (value) => {
+  if (!Array.isArray(value)) return value;
+  return value.filter((condition) => {
+    if (!condition || typeof condition !== 'object' || Array.isArray(condition)) return true;
+    const temperature = String(condition.temperature ?? '').trim();
+    const duration = condition.duration_value ?? condition.durationValue;
+    const durationUnit = String(condition.duration_unit ?? condition.durationUnit ?? '').trim();
+    return (
+      temperature ||
+      (duration !== undefined && duration !== null && duration !== '') ||
+      durationUnit
+    );
+  });
+};
+const storageConditionsSchema = z.preprocess(
+  compactEmptyStorageConditions,
+  z.array(storageConditionSchema).max(2),
+);
 const textListSchema = (maximumItems) =>
   z.union([z.array(shortText(80, 1)).max(maximumItems), shortText(maximumItems * 81)]);
 const productFactsFields = {
@@ -360,7 +378,7 @@ const productFactsFields = {
   protein_grams: z.coerce.number().min(0).max(100_000).nullable().optional(),
   fat_grams: z.coerce.number().min(0).max(100_000).nullable().optional(),
   carbs_grams: z.coerce.number().min(0).max(100_000).nullable().optional(),
-  storage_conditions: z.array(storageConditionSchema).max(2).nullable().optional(),
+  storage_conditions: storageConditionsSchema.nullable().optional(),
 };
 const productOverrideSchema = optionalPatch(
   z

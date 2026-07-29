@@ -522,6 +522,21 @@ test('admin mutation contracts accept the payloads emitted by current admin form
   );
 });
 
+test('product override validation compacts empty storage rows', () => {
+  const parsed = adminMutationSchemas.productOverride.body.parse({
+    iikoProductId: 'product-1',
+    overrides: {
+      custom_price: 300,
+      storage_conditions: [
+        { temperature: '', duration_value: undefined, duration_unit: '' },
+        { temperature: '  ', duration_value: '', duration_unit: '' },
+      ],
+    },
+  });
+
+  assert.deepEqual(parsed.overrides.storage_conditions, []);
+});
+
 test('global request body guard rejects unsafe keys and excessive nesting', () => {
   const unsafeBody = JSON.parse('{"safe":1,"__proto__":{"polluted":true}}');
   let unsafeError;

@@ -135,6 +135,88 @@ export const normalizeFulfillmentTypes = (value?: string[]): FulfillmentType[] =
   return fulfillmentTypeOptions.map((option) => option.value).filter((type) => requested.has(type));
 };
 
+const productOverridePatchKeys = [
+  'custom_name',
+  'name_translations',
+  'custom_price',
+  'custom_image_url',
+  'custom_description',
+  'description_translations',
+  'is_hidden',
+  'is_stop_listed',
+  'ingredients',
+  'ingredients_translations',
+  'allergens',
+  'dietary_tags',
+  'search_keywords',
+  'weight_grams',
+  'calories_kcal',
+  'protein_grams',
+  'fat_grams',
+  'carbs_grams',
+  'storage_conditions',
+  'fulfillment_types',
+] as const satisfies ReadonlyArray<keyof Omit<ProductOverride, 'iiko_product_id'>>;
+
+export const normalizeStorageConditionsForSave = (
+  value: unknown,
+): ProductStorageCondition[] => {
+  if (value == null) return [];
+  if (!Array.isArray(value) || value.length > 2) {
+    throw new Error('Условия хранения заполнены некорректно');
+  }
+
+  return value.flatMap((raw, index) => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      throw new Error(`Условие хранения ${index + 1} заполнено некорректно`);
+    }
+    const source = raw as Record<string, unknown>;
+    const temperature = String(source.temperature ?? '').trim();
+    const rawDuration = source.duration_value ?? source.durationValue;
+    const durationUnit = String(source.duration_unit ?? source.durationUnit ?? '').trim();
+    const hasDuration = rawDuration !== undefined && rawDuration !== null && rawDuration !== '';
+
+    if (!temperature && !hasDuration && !durationUnit) return [];
+    if (!temperature) {
+      throw new Error(`Укажите температуру для условия хранения ${index + 1}`);
+    }
+    if (temperature.length > 40) {
+      throw new Error(`Температура в условии хранения ${index + 1} слишком длинная`);
+    }
+    const durationValue = Number(rawDuration);
+    if (!Number.isInteger(durationValue) || durationValue < 1 || durationValue > 10_000) {
+      throw new Error(`Укажите срок хранения от 1 до 10000 для условия ${index + 1}`);
+    }
+    if (!['hours', 'days', 'months'].includes(durationUnit)) {
+      throw new Error(`Выберите единицу срока хранения ${index + 1}`);
+    }
+    return [
+      {
+        temperature,
+        duration_value: durationValue,
+        duration_unit: durationUnit as StorageDurationUnit,
+      },
+    ];
+  });
+};
+
+export const sanitizeProductOverridePatch = (
+  value: unknown,
+): Omit<ProductOverride, 'iiko_product_id'> => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('Настройки товара заполнены некорректно');
+  }
+  const source = value as Record<string, unknown>;
+  const patch: Record<string, unknown> = {};
+  for (const key of productOverridePatchKeys) {
+    if (source[key] !== undefined) patch[key] = source[key];
+  }
+  if (source.storage_conditions !== undefined) {
+    patch.storage_conditions = normalizeStorageConditionsForSave(source.storage_conditions);
+  }
+  return patch as Omit<ProductOverride, 'iiko_product_id'>;
+};
+
 export function FulfillmentTypeFields({
   value,
   onChange,
