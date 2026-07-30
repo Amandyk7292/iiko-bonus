@@ -397,6 +397,63 @@ const Map<String, Map<String, String>> _featureStateTranslations = {
     'kk': 'Акцияларды жүктеу мүмкін болмады',
     'en': 'Could not load promotions',
   },
+  'promos_tab_discount': {
+    'ru': 'Скидки',
+    'kk': 'Жеңілдіктер',
+    'en': 'Discounts',
+  },
+  'promos_tab_promotion': {'ru': 'Акции', 'kk': 'Акциялар', 'en': 'Promotions'},
+  'promos_tab_subscription': {
+    'ru': 'Абонементы',
+    'kk': 'Абонементтер',
+    'en': 'Passes',
+  },
+  'promos_category_empty': {
+    'ru': 'В этом разделе пока ничего нет',
+    'kk': 'Бұл бөлімде әзірге ештеңе жоқ',
+    'en': 'There is nothing in this section yet',
+  },
+  'promos_more': {'ru': 'Подробнее', 'kk': 'Толығырақ', 'en': 'Details'},
+  'promos_remaining': {
+    'ru': 'Осталось: {count}',
+    'kk': 'Қалды: {count}',
+    'en': 'Remaining: {count}',
+  },
+  'promos_period': {
+    'ru': '{from} — {to}',
+    'kk': '{from} — {to}',
+    'en': '{from} — {to}',
+  },
+  'promos_from_date': {
+    'ru': 'С {date}',
+    'kk': '{date} бастап',
+    'en': 'From {date}',
+  },
+  'promos_until_date': {
+    'ru': 'До {date}',
+    'kk': '{date} дейін',
+    'en': 'Until {date}',
+  },
+  'promos_published': {
+    'ru': 'Опубликовано {date}',
+    'kk': '{date} жарияланды',
+    'en': 'Published {date}',
+  },
+  'promos_show_qr': {
+    'ru': 'Показать QR-код',
+    'kk': 'QR-кодты көрсету',
+    'en': 'Show QR code',
+  },
+  'promos_qr_title': {
+    'ru': 'QR-код акции',
+    'kk': 'Акцияның QR-коды',
+    'en': 'Promotion QR code',
+  },
+  'promos_details_fallback': {
+    'ru': 'Подробные условия акции уточняйте в выбранной пекарне.',
+    'kk': 'Акцияның толық шарттарын таңдалған наубайханадан біліңіз.',
+    'en': 'Ask your selected bakery for the full promotion terms.',
+  },
   'balance_prefix': {'ru': 'Баланс: ', 'kk': 'Теңгерім: ', 'en': 'Balance: '},
   'points_suffix': {'ru': ' баллов', 'kk': ' ұпай', 'en': ' points'},
   'cashback_gift_1': {'ru': 'Дарим ', 'kk': 'Әр сатылымнан ', 'en': 'Get '},

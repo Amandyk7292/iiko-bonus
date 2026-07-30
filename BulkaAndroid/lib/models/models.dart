@@ -711,9 +711,17 @@ class PromoStory {
     required this.groupCoverUrl,
     this.sortOrder = 0,
     this.description,
+    this.details,
     this.duration = 15,
+    this.promoType = 'promotion',
+    this.startsAt,
+    this.endsAt,
+    this.remaining,
+    this.qrValue,
+    this.createdAt,
     this.localizedTitles = const {},
     this.localizedDescriptions = const {},
+    this.localizedDetails = const {},
     this.localizedCoverUrls = const {},
     this.localizedContentUrls = const {},
   });
@@ -727,9 +735,17 @@ class PromoStory {
   final String groupCoverUrl;
   final int sortOrder;
   final String? description;
+  final String? details;
   final int duration;
+  final String promoType;
+  final String? startsAt;
+  final String? endsAt;
+  final int? remaining;
+  final String? qrValue;
+  final String? createdAt;
   final Map<String, String> localizedTitles;
   final Map<String, String> localizedDescriptions;
+  final Map<String, String> localizedDetails;
   final Map<String, String> localizedCoverUrls;
   final Map<String, String> localizedContentUrls;
 
@@ -737,6 +753,14 @@ class PromoStory {
   String? get localizedDescription {
     final value = _localizedValue(description ?? '', localizedDescriptions);
     return value.isEmpty ? null : value;
+  }
+
+  String? get localizedLongDescription {
+    final value = _localizedValue(
+      details ?? description ?? '',
+      localizedDetails,
+    );
+    return value.isEmpty ? localizedDescription : value;
   }
 
   String get localizedImageUrl => _localizedValue(imageUrl, localizedCoverUrls);
@@ -753,8 +777,14 @@ class PromoStory {
     final title = _asString(json['title']);
     final localizedTitles = _nestedLocalizedValues(json, 'title');
     final localizedDescriptions = _nestedLocalizedValues(json, 'description');
+    final localizedDetails = _nestedLocalizedValues(json, 'details');
     final localizedCoverUrls = _nestedLocalizedValues(json, 'coverUrl');
     final localizedContentUrls = _nestedLocalizedValues(json, 'contentUrl');
+    final rawType = _asString(
+      json['promoType'] ?? json['promo_type'],
+      fallback: 'promotion',
+    ).trim();
+    const supportedTypes = {'discount', 'promotion', 'subscription'};
     return PromoStory(
       id: id,
       title: title,
@@ -779,9 +809,17 @@ class PromoStory {
       ),
       sortOrder: _asInt(json['sortOrder'] ?? json['sort_order']),
       description: _nullableString(json['description']),
+      details: _nullableString(json['details']),
       duration: _asInt(json['duration'], fallback: 15),
+      promoType: supportedTypes.contains(rawType) ? rawType : 'promotion',
+      startsAt: _nullableString(json['startsAt'] ?? json['starts_at']),
+      endsAt: _nullableString(json['endsAt'] ?? json['ends_at']),
+      remaining: _nullableInt(json['remaining']),
+      qrValue: _nullableString(json['qrValue'] ?? json['qr_value']),
+      createdAt: _nullableString(json['createdAt'] ?? json['created_at']),
       localizedTitles: localizedTitles,
       localizedDescriptions: localizedDescriptions,
+      localizedDetails: localizedDetails,
       localizedCoverUrls: localizedCoverUrls,
       localizedContentUrls: localizedContentUrls,
     );
@@ -797,10 +835,18 @@ class PromoStory {
     'groupCoverUrl': groupCoverUrl,
     'sortOrder': sortOrder,
     'description': description,
+    'details': details,
     'duration': duration,
+    'promoType': promoType,
+    'startsAt': startsAt,
+    'endsAt': endsAt,
+    'remaining': remaining,
+    'qrValue': qrValue,
+    'createdAt': createdAt,
     'i18n': _localizedContentJson(
       titles: localizedTitles,
       descriptions: localizedDescriptions,
+      details: localizedDetails,
       imageUrls: localizedCoverUrls,
       contentUrls: localizedContentUrls,
     ),
@@ -1481,6 +1527,7 @@ Map<String, dynamic> _localizedContentJson({
   required Map<String, String> titles,
   required Map<String, String> descriptions,
   required Map<String, String> imageUrls,
+  Map<String, String> details = const {},
   Map<String, String> contentUrls = const {},
 }) {
   final result = <String, dynamic>{};
@@ -1489,6 +1536,7 @@ Map<String, dynamic> _localizedContentJson({
       if (titles[code]?.isNotEmpty == true) 'title': titles[code]!,
       if (descriptions[code]?.isNotEmpty == true)
         'description': descriptions[code]!,
+      if (details[code]?.isNotEmpty == true) 'details': details[code]!,
       if (imageUrls[code]?.isNotEmpty == true) 'imageUrl': imageUrls[code]!,
       if (contentUrls[code]?.isNotEmpty == true)
         'contentUrl': contentUrls[code]!,

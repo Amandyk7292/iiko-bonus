@@ -730,3 +730,68 @@ test('baseline API envelope applies Zod validation to untyped JSON routes', () =
   });
   assert.equal(invalidError.code, 'QUERY_VALIDATION_ERROR');
 });
+
+test('story contracts accept extended promotion metadata and reject invalid limits', () => {
+  const localized = {
+    ru: {
+      title: 'Кофе в подарок',
+      description: 'Краткое описание',
+      details: 'Подробные условия акции.',
+      coverUrl: 'https://example.com/cover.webp',
+      contentUrl: 'https://example.com/story.webp',
+    },
+    kz: {
+      title: 'Кофе сыйлыққа',
+      description: '',
+      details: '',
+      coverUrl: '',
+      contentUrl: '',
+    },
+    en: {
+      title: 'Free coffee',
+      description: '',
+      details: '',
+      coverUrl: '',
+      contentUrl: '',
+    },
+  };
+  const payload = {
+    title: localized.ru.title,
+    description: localized.ru.description,
+    details: localized.ru.details,
+    coverUrl: localized.ru.coverUrl,
+    contentUrl: localized.ru.contentUrl,
+    groupId: 'free-coffee',
+    groupTitle: localized.ru.title,
+    duration: 15,
+    sortOrder: 1,
+    promoType: 'promotion',
+    startsAt: '2026-08-01T05:00:00.000Z',
+    endsAt: '2026-08-10T05:00:00.000Z',
+    remaining: 10,
+    qrValue: 'BULKA-FREE-COFFEE',
+    createdAt: null,
+    i18n: localized,
+  };
+
+  assert.equal(adminMutationSchemas.storyCreate.body.safeParse(payload).success, true);
+  assert.equal(
+    adminMutationSchemas.storyCreate.body.safeParse({ ...payload, remaining: -1 }).success,
+    false,
+  );
+  assert.equal(
+    adminMutationSchemas.storyCreate.body.safeParse({
+      ...payload,
+      startsAt: payload.endsAt,
+      endsAt: payload.startsAt,
+    }).success,
+    false,
+  );
+  assert.equal(
+    adminMutationSchemas.storyCreate.body.safeParse({
+      ...payload,
+      promoType: 'recurring',
+    }).success,
+    false,
+  );
+});

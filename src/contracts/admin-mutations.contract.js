@@ -665,11 +665,33 @@ const contentI18nSchema = z
     en: contentLocaleSchema,
   })
   .strict();
+const storyLocaleSchema = z
+  .object({
+    title: shortText(255),
+    description: shortText(5_000),
+    details: shortText(20_000).optional(),
+    coverUrl: nullableHttpsUrl.optional(),
+    contentUrl: nullableHttpsUrl.optional(),
+  })
+  .strict();
+const storyI18nSchema = z
+  .object({
+    ru: storyLocaleSchema,
+    kz: storyLocaleSchema.optional(),
+    kk: storyLocaleSchema.optional(),
+    en: storyLocaleSchema,
+  })
+  .strict()
+  .refine((value) => Boolean(value.kz || value.kk), {
+    path: ['kz'],
+    message: 'Добавьте казахскую локализацию',
+  });
 const storyBodySchema = z
   .object({
     id: z.union([numericIdSchema, z.coerce.number().int().positive()]).optional(),
     title: shortText(255, 1),
     description: shortText(5_000).optional(),
+    details: shortText(20_000).optional(),
     coverUrl: httpsUrl,
     contentUrl: httpsUrl,
     groupId: shortText(160, 1),
@@ -677,9 +699,25 @@ const storyBodySchema = z
     groupCoverUrl: nullableHttpsUrl.optional(),
     duration: z.coerce.number().int().min(3).max(120),
     sortOrder: positiveInteger(1_000_000),
-    i18n: contentI18nSchema,
+    promoType: z.enum(['discount', 'promotion', 'subscription']).optional(),
+    startsAt: z.string().datetime({ offset: true }).nullable().optional(),
+    endsAt: z.string().datetime({ offset: true }).nullable().optional(),
+    remaining: z.coerce.number().int().min(0).max(1_000_000_000).nullable().optional(),
+    qrValue: shortText(2_000).nullable().optional(),
+    createdAt: z.string().datetime({ offset: true }).nullable().optional(),
+    i18n: storyI18nSchema,
   })
-  .strict();
+  .strict()
+  .refine(
+    (value) =>
+      !value.startsAt ||
+      !value.endsAt ||
+      new Date(value.endsAt).getTime() >= new Date(value.startsAt).getTime(),
+    {
+      path: ['endsAt'],
+      message: 'Дата окончания не может быть раньше даты начала',
+    },
+  );
 const newsBodySchema = z
   .object({
     id: z.union([numericIdSchema, z.coerce.number().int().positive()]).optional(),

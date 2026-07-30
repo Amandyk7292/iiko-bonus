@@ -3,7 +3,34 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('promos grid preserves the 1080 by 480 cover ratio', (
+  test('promotion model reads optional detail metadata', () {
+    final story = PromoStory.fromJson({
+      'id': 7,
+      'title': 'Акция',
+      'coverUrl': 'https://example.com/cover.webp',
+      'contentUrl': 'https://example.com/content.webp',
+      'groupId': 'offer',
+      'promoType': 'discount',
+      'details': 'Подробные условия',
+      'startsAt': '2026-08-01T00:00:00.000Z',
+      'endsAt': '2026-08-10T00:00:00.000Z',
+      'remaining': 3,
+      'qrValue': 'BULKA-OFFER-7',
+      'createdAt': '2026-07-30T00:00:00.000Z',
+      'i18n': {
+        'ru': {'details': 'Подробные условия'},
+        'kz': {'details': 'Толық шарттар'},
+        'en': {'details': 'Full terms'},
+      },
+    });
+
+    expect(story.promoType, 'discount');
+    expect(story.localizedLongDescription, 'Подробные условия');
+    expect(story.remaining, 3);
+    expect(story.qrValue, 'BULKA-OFFER-7');
+  });
+
+  testWidgets('promotion cards preserve the 1080 by 480 cover ratio', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -20,12 +47,12 @@ void main() {
     await tester.pumpAndSettle();
 
     final size = tester.getSize(
-      find.byKey(const ValueKey('promos-grid-card-ratio-check')),
+      find.byKey(const ValueKey('promo-cover-ratio-check')),
     );
     expect(size.width / size.height, closeTo(1080 / 480, 0.001));
   });
 
-  testWidgets('opening a promo chains the following story groups', (
+  testWidgets('opening a promotion shows its description and optional QR', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -44,16 +71,15 @@ void main() {
     await tester.tap(
       find.byKey(const ValueKey('promos-grid-card-ratio-check')),
     );
-    await tester.pump();
-    await tester.pump(BulkaMotion.emphasized);
+    await tester.pumpAndSettle();
 
-    final viewer = tester.widget<StoryViewer>(find.byType(StoryViewer));
-    expect(viewer.stories.map((story) => story.id), orderedEquals([1, 2]));
-    expect(viewer.initialIndex, 0);
+    expect(find.byType(StoryViewer), findsNothing);
+    expect(find.text('Полное описание акции'), findsOneWidget);
+    expect(find.text('Показать QR-код'), findsOneWidget);
 
-    await tester.pump(const Duration(seconds: 1));
-    await tester.pump(const Duration(milliseconds: 100));
-    expect(find.byKey(const ValueKey('story-target-face')), findsOneWidget);
+    await tester.tap(find.text('Показать QR-код'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('promotion-qr')), findsOneWidget);
   });
 
   testWidgets('promo cover keeps the 1080 by 480 aspect ratio', (tester) async {
@@ -463,6 +489,9 @@ class _PromoGridApiClient extends BulkaApiClient {
       groupTitle: 'Banner',
       groupCoverUrl: '',
       duration: 1,
+      description: 'Краткое описание',
+      details: 'Полное описание акции',
+      qrValue: 'BULKA-PROMO-1',
     ),
     PromoStory(
       id: 2,
