@@ -60,8 +60,8 @@ function registerMenuAdminRoutes(router) {
       const selectedIikoApi = await getIikoClientForBranch(req.admin?.selectedBranchId);
       const rawMenu = await selectedIikoApi.getMenu();
       const [productOverrides, categoryOverrides, customProducts] = await Promise.all([
-        menuService.getProductOverrides(),
-        menuService.getCategoryOverrides(),
+        menuService.getProductOverrides({ profileKey: selectedIikoApi.profileKey }),
+        menuService.getCategoryOverrides({ profileKey: selectedIikoApi.profileKey }),
         menuService.getCustomProducts({ profileKey: selectedIikoApi.profileKey }),
       ]);
 
@@ -150,9 +150,16 @@ function registerMenuAdminRoutes(router) {
     async (req, res) => {
       try {
         const { iikoProductId, overrides } = req.body;
-        await menuService.setProductOverride(iikoProductId, overrides);
+        const selectedIikoApi = await getIikoClientForBranch(req.admin?.selectedBranchId);
+        await menuService.setProductOverride(iikoProductId, overrides, {
+          profileKey: selectedIikoApi.profileKey,
+        });
         invalidateAllIikoCaches();
-        realtime.publish('menu.updated', { productId: String(iikoProductId) }, { broadcast: true });
+        realtime.publish(
+          'menu.updated',
+          { productId: String(iikoProductId), profileKey: selectedIikoApi.profileKey },
+          { broadcast: true, branchId: req.admin?.selectedBranchId || null },
+        );
         res.json({ success: true });
       } catch (error) {
         res.status(error.statusCode || 500).json({ success: false, error: error.message });
@@ -167,12 +174,15 @@ function registerMenuAdminRoutes(router) {
     async (req, res) => {
       try {
         const { iikoCategoryId, overrides } = req.body;
-        await menuService.setCategoryOverride(iikoCategoryId, overrides);
+        const selectedIikoApi = await getIikoClientForBranch(req.admin?.selectedBranchId);
+        await menuService.setCategoryOverride(iikoCategoryId, overrides, {
+          profileKey: selectedIikoApi.profileKey,
+        });
         invalidateAllIikoCaches();
         realtime.publish(
           'menu.updated',
-          { categoryId: String(iikoCategoryId) },
-          { broadcast: true },
+          { categoryId: String(iikoCategoryId), profileKey: selectedIikoApi.profileKey },
+          { broadcast: true, branchId: req.admin?.selectedBranchId || null },
         );
         res.json({ success: true });
       } catch (error) {

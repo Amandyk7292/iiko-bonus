@@ -13,6 +13,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from '../lib/router';
 import { api, type AdminScopeLocation } from '../lib/api';
+import { cityScopeForBranch, getAdminCityScopes } from '../lib/admin-city-scope';
 import { useAdminRealtime } from '../lib/admin-realtime';
 import { useI18n } from '../lib/i18n';
 import AdminGlobalSearch from './AdminGlobalSearch';
@@ -66,6 +67,9 @@ export default function Topbar({
   const notificationsRef = useRef<HTMLDivElement>(null);
   const notificationsButtonRef = useRef<HTMLButtonElement>(null);
   const page = routeKeys[location.pathname] ?? 'operations';
+  const usesCityScope = location.pathname === '/menu';
+  const cityScopes = usesCityScope ? getAdminCityScopes(scopeLocations) : [];
+  const selectedCity = usesCityScope ? cityScopeForBranch(cityScopes, selectedBranchId) : undefined;
   const counts = summary?.counts;
   const actionCount = counts
     ? counts.newOrders +
@@ -168,18 +172,41 @@ export default function Topbar({
         {!operatorMode && <AdminGlobalSearch />}
         {!operatorMode && scopeLocations.length > 0 && (
           <label className="topbar-branch-select">
-            <span>Филиал</span>
+            <span>{usesCityScope ? 'Город' : 'Филиал'}</span>
             <select
-              value={selectedBranchId}
-              onChange={(event) => onBranchChange?.(event.target.value)}
-              aria-label="Филиал для всех разделов"
+              value={usesCityScope ? selectedCity?.key || '' : selectedBranchId}
+              onChange={(event) => {
+                if (!usesCityScope) {
+                  onBranchChange?.(event.target.value);
+                  return;
+                }
+                const city = cityScopes.find((item) => item.key === event.target.value);
+                const branch = city?.branches[0];
+                if (branch) onBranchChange?.(branch.id);
+              }}
+              aria-label={usesCityScope ? 'Город для настройки меню' : 'Филиал для всех разделов'}
             >
-              <option value="">Все доступные</option>
-              {scopeLocations.map((branch) => (
-                <option key={branch.id} value={branch.id}>
-                  {branch.name}
-                </option>
-              ))}
+              {usesCityScope ? (
+                <>
+                  <option value="" disabled>
+                    Выберите город
+                  </option>
+                  {cityScopes.map((city) => (
+                    <option key={city.key} value={city.key}>
+                      {city.name}
+                    </option>
+                  ))}
+                </>
+              ) : (
+                <>
+                  <option value="">Все доступные</option>
+                  {scopeLocations.map((branch) => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.name}
+                    </option>
+                  ))}
+                </>
+              )}
             </select>
           </label>
         )}

@@ -270,8 +270,11 @@ class MenuService {
   /**
    * Получает все оверрайды товаров
    */
-  async getProductOverrides({ strict = false } = {}) {
-    const { data, error } = await supabase.from('menu_overrides').select('*');
+  async getProductOverrides({ strict = false, profileKey = 'default' } = {}) {
+    const { data, error } = await supabase
+      .from('menu_overrides')
+      .select('*')
+      .eq('iiko_profile', cleanProfileKey(profileKey));
     if (error) {
       if (strict) throw new Error('Ошибка при получении оверрайдов товаров: ' + error.message);
       console.error('Ошибка при получении оверрайдов товаров:', error.message);
@@ -283,16 +286,17 @@ class MenuService {
   /**
    * Сохраняет оверрайд для товара
    */
-  async setProductOverride(iikoProductId, overrides) {
+  async setProductOverride(iikoProductId, overrides, { profileKey = 'default' } = {}) {
     const id = cleanId(iikoProductId, 'iikoProductId');
     const input = productOverrideInput(overrides);
     const { error } = await supabase.from('menu_overrides').upsert(
       {
+        iiko_profile: cleanProfileKey(profileKey),
         iiko_product_id: id,
         ...input,
         updated_at: new Date(),
       },
-      { onConflict: 'iiko_product_id' },
+      { onConflict: 'iiko_profile,iiko_product_id' },
     );
     if (error) throw new Error('Ошибка сохранения настроек товара: ' + error.message);
   }
@@ -300,8 +304,11 @@ class MenuService {
   /**
    * Получает все оверрайды категорий
    */
-  async getCategoryOverrides({ strict = false } = {}) {
-    const { data, error } = await supabase.from('menu_category_overrides').select('*');
+  async getCategoryOverrides({ strict = false, profileKey = 'default' } = {}) {
+    const { data, error } = await supabase
+      .from('menu_category_overrides')
+      .select('*')
+      .eq('iiko_profile', cleanProfileKey(profileKey));
     if (error) {
       if (strict) throw new Error('Ошибка при получении оверрайдов категорий: ' + error.message);
       console.error('Ошибка при получении оверрайдов категорий:', error.message);
@@ -313,16 +320,17 @@ class MenuService {
   /**
    * Сохраняет оверрайд для категории
    */
-  async setCategoryOverride(iikoCategoryId, overrides) {
+  async setCategoryOverride(iikoCategoryId, overrides, { profileKey = 'default' } = {}) {
     const id = cleanId(iikoCategoryId, 'iikoCategoryId');
     const input = categoryOverrideInput(overrides);
     const { error } = await supabase.from('menu_category_overrides').upsert(
       {
+        iiko_profile: cleanProfileKey(profileKey),
         iiko_category_id: id,
         ...input,
         updated_at: new Date(),
       },
-      { onConflict: 'iiko_category_id' },
+      { onConflict: 'iiko_profile,iiko_category_id' },
     );
     if (error) throw new Error('Ошибка сохранения настроек категории: ' + error.message);
   }

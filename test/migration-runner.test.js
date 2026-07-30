@@ -17,7 +17,7 @@ test('migration runner strips only an outer transaction wrapper', () => {
 
 test('migration runner discovers only canonical timestamped migrations', () => {
   const artifacts = migrationArtifacts();
-  assert.equal(artifacts.at(-1).filename, '20260730170000_city_scoped_custom_products.sql');
+  assert.equal(artifacts.at(-1).filename, '20260730180000_city_scoped_menu_overrides.sql');
   assert.equal(artifacts[0].filename, '20260426000000_production_hardening.sql');
   assert.equal(
     artifacts.some((artifact) => artifact.filename === 'supabase_schema.sql'),

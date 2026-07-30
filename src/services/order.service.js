@@ -148,8 +148,14 @@ async function loadOrderCatalog({ branchId = null, orderType = 'pickup' } = {}) 
   const rawMenu = await selectedIikoApi.getMenu({ strict: true });
   const [stopIds, productOverrides, categoryOverrides, customProducts] = await Promise.all([
     selectedIikoApi.getStopListProductIds(undefined, { strict: true }),
-    menuService.getProductOverrides({ strict: true }),
-    menuService.getCategoryOverrides({ strict: true }),
+    menuService.getProductOverrides({
+      strict: true,
+      profileKey: selectedIikoApi.profileKey,
+    }),
+    menuService.getCategoryOverrides({
+      strict: true,
+      profileKey: selectedIikoApi.profileKey,
+    }),
     menuService.getCustomProducts({
       strict: true,
       profileKey: selectedIikoApi.profileKey,

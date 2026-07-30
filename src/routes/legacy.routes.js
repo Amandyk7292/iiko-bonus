@@ -745,8 +745,14 @@ router.get('/api/guest/menu', async (req, res) => {
     const menuService = require('../services/menu.service');
     const [stopIds, productOverrides, categoryOverrides, customProducts] = await Promise.all([
       selectedIikoApi.getStopListProductIds(undefined, { strict: true }),
-      menuService.getProductOverrides({ strict: true }),
-      menuService.getCategoryOverrides({ strict: true }),
+      menuService.getProductOverrides({
+        strict: true,
+        profileKey: selectedIikoApi.profileKey,
+      }),
+      menuService.getCategoryOverrides({
+        strict: true,
+        profileKey: selectedIikoApi.profileKey,
+      }),
       menuService.getCustomProducts({
         strict: true,
         profileKey: selectedIikoApi.profileKey,
