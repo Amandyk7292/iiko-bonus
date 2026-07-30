@@ -170,6 +170,8 @@ void main() {
     expect(uri.host, 'bulka.com.kz');
     expect(uri.pathSegments, ['catalog', 'product', 'bun / 17']);
     expect(uri.queryParameters['category'], 'Выпечка');
+    expect(catalogProductShareText(product), uri.toString());
+    expect(catalogProductShareText(product), isNot(contains(product.title)));
   });
 
   test('new buyer API contracts parse without losing typed data', () async {

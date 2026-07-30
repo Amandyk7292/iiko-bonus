@@ -194,7 +194,14 @@ app.get('/.well-known/apple-app-site-association', (_req, res) => {
   res.json({
     applinks: {
       apps: [],
-      details: teamId ? [{ appID: `${teamId}.${bundleId}`, paths: ['/orders', '/orders/*'] }] : [],
+      details: teamId
+        ? [
+            {
+              appID: `${teamId}.${bundleId}`,
+              paths: ['/orders', '/orders/*', '/catalog', '/catalog/*'],
+            },
+          ]
+        : [],
     },
   });
 });

@@ -62,6 +62,40 @@ test('readiness and metrics endpoints expose bounded operational state', async (
   assert.match(await metrics.text(), /bulka_http_requests_total/);
 });
 
+test('mobile association files open catalog links in installed apps', async (t) => {
+  const previousFingerprints = process.env.ANDROID_APP_SHA256_CERT_FINGERPRINTS;
+  const fingerprint =
+    '1D:46:30:E7:F2:29:8D:19:B8:A8:39:5F:26:D3:43:5C:B8:30:79:D1:D3:1A:08:0B:DD:18:08:9C:D7:EB:4D:30';
+  process.env.ANDROID_APP_SHA256_CERT_FINGERPRINTS = fingerprint;
+  t.after(() => {
+    if (previousFingerprints === undefined) {
+      delete process.env.ANDROID_APP_SHA256_CERT_FINGERPRINTS;
+    } else {
+      process.env.ANDROID_APP_SHA256_CERT_FINGERPRINTS = previousFingerprints;
+    }
+  });
+
+  const server = http.createServer(app);
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  t.after(() => server.close());
+  const origin = `http://127.0.0.1:${server.address().port}`;
+
+  const aasaResponse = await fetch(`${origin}/.well-known/apple-app-site-association`);
+  const aasa = await aasaResponse.json();
+  assert.equal(aasaResponse.status, 200);
+  assert.equal(aasa.applinks.details[0].appID, 'GKRRT4JU9G.com.bulka.bonus');
+  assert.ok(aasa.applinks.details[0].paths.includes('/catalog/*'));
+
+  const assetLinksResponse = await fetch(`${origin}/.well-known/assetlinks.json`);
+  const assetLinks = await assetLinksResponse.json();
+  assert.equal(assetLinksResponse.status, 200);
+  assert.equal(assetLinks[0].target.package_name, 'com.bulka.bonus');
+  assert.deepEqual(assetLinks[0].target.sha256_cert_fingerprints, [fingerprint]);
+});
+
 test('admin and Flutter CSP remove general-purpose script evaluation', async (t) => {
   const server = http.createServer(app);
   await new Promise((resolve, reject) => {

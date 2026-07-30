@@ -128,3 +128,6 @@ Uri catalogProductShareUri(CatalogProduct product) => Uri(
   pathSegments: ['catalog', 'product', product.id],
   queryParameters: {'category': product.category},
 );
+
+String catalogProductShareText(CatalogProduct product) =>
+    catalogProductShareUri(product).toString();

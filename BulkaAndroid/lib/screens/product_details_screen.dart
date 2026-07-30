@@ -557,8 +557,9 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   }
 
   Future<void> _shareProduct(CatalogProduct product) async {
-    final url = catalogProductShareUri(product).toString();
-    await Clipboard.setData(ClipboardData(text: '${product.title}\n$url'));
+    await Clipboard.setData(
+      ClipboardData(text: catalogProductShareText(product)),
+    );
     if (!mounted) return;
     ScaffoldMessenger.of(
       context,
