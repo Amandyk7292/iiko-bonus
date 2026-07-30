@@ -21,8 +21,12 @@ let astanaClientSignature = '';
 const astanaConfiguration = () => ({
   profileKey: 'astana',
   apiLogin: String(process.env.IIKO_ASTANA_API_LOGIN || '').trim(),
-  appId: String(process.env.IIKO_ASTANA_APP_ID || '').trim(),
-  clientSecret: String(process.env.IIKO_ASTANA_CLIENT_SECRET || '').trim(),
+  // App identity belongs to the Bulka integration and can authenticate API
+  // keys from both city accounts. City-specific values remain an override.
+  appId: String(process.env.IIKO_ASTANA_APP_ID || process.env.IIKO_APP_ID || '').trim(),
+  clientSecret: String(
+    process.env.IIKO_ASTANA_CLIENT_SECRET || process.env.IIKO_CLIENT_SECRET || '',
+  ).trim(),
   // Organization, External Menu and price category belong to a concrete iiko
   // account. Never inherit these IDs from the default city profile.
   organizationId: String(process.env.IIKO_ASTANA_ORGANIZATION_ID || '').trim(),

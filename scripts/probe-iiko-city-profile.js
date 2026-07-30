@@ -10,8 +10,6 @@ const client = new IikoAPI({
   apiLogin,
   // Probe a replacement login without reusing IDs from a previously connected
   // Astana account. Successful IDs are written back only after the probe.
-  appId: '',
-  clientSecret: '',
   organizationId: '',
   externalMenuId: '',
   externalMenuName: '',

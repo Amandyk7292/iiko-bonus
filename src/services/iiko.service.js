@@ -128,33 +128,38 @@ class IikoAPI {
       return this.token;
     }
 
-    let url = `${this.baseUrl}/api/1/access_token`;
-    let body = { apiLogin: this.apiLogin };
+    const requestToken = (path, body) =>
+      fetchWithTimeout(`${this.baseUrl}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
 
-    // Если указаны appId и clientSecret для новой OAuth авторизации (с 01.06.2026)
-    if (this.appId && this.clientSecret) {
-      url = `${this.baseUrl}/api/v2/access_token`;
-      body = {
+    let authVersion = 'v1';
+    let response = await requestToken('/api/1/access_token', { apiLogin: this.apiLogin });
+    let errorText = response.ok ? '' : await response.text();
+
+    // New iiko Cloud API keys explicitly reject the legacy endpoint. The v2
+    // endpoint accepts the same full key together with the application's
+    // shared App ID and Client Secret.
+    if (!response.ok && /use\s+\/api\/v2\/access_token/i.test(errorText)) {
+      authVersion = 'v2';
+      response = await requestToken('/api/v2/access_token', {
+        apiKey: this.apiLogin,
         appId: this.appId,
         clientSecret: this.clientSecret,
-        apiLogin: this.apiLogin,
-      };
+      });
+      errorText = response.ok ? '' : await response.text();
     }
 
-    const response = await fetchWithTimeout(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(
-        `Ошибка получения токена iiko (${this.appId && this.clientSecret ? 'v2' : 'v1'}): ${errorText}`,
-      );
+      throw new Error(`Ошибка получения токена iiko (${authVersion}): ${errorText}`);
     }
 
     const data = await response.json();
+    if (!data?.token || typeof data.token !== 'string') {
+      throw new Error(`Ошибка получения токена iiko (${authVersion}): токен отсутствует`);
+    }
     this.token = data.token;
     // Токен iikoTransport обычно живет около часа (или больше)
     this.tokenExpiresAt = Date.now() + 60 * 60 * 1000;

@@ -5,10 +5,14 @@ const iikoPath = require.resolve('../src/services/iiko.service');
 const profilePath = require.resolve('../src/services/iiko-city-profile.service');
 const managedEnvironment = [
   'IIKO_API_LOGIN',
+  'IIKO_APP_ID',
+  'IIKO_CLIENT_SECRET',
   'IIKO_ORGANIZATION_ID',
   'IIKO_EXTERNAL_MENU_ID',
   'IIKO_PRICE_CATEGORY_ID',
   'IIKO_ASTANA_API_LOGIN',
+  'IIKO_ASTANA_APP_ID',
+  'IIKO_ASTANA_CLIENT_SECRET',
   'IIKO_ASTANA_ORGANIZATION_ID',
   'IIKO_ASTANA_EXTERNAL_MENU_ID',
   'IIKO_ASTANA_PRICE_CATEGORY_ID',
@@ -21,12 +25,16 @@ test('Astana gets an isolated iiko client while other cities keep the default pr
 
   Object.assign(process.env, {
     IIKO_API_LOGIN: 'default-api-login-1234567890',
+    IIKO_APP_ID: '11111111-1111-4111-8111-111111111111',
+    IIKO_CLIENT_SECRET: 'shared-client-secret',
     IIKO_ORGANIZATION_ID: '11111111-1111-4111-8111-111111111111',
     IIKO_EXTERNAL_MENU_ID: 'default-menu',
     IIKO_PRICE_CATEGORY_ID: 'default-price',
     IIKO_ASTANA_API_LOGIN: 'astana-api-login-12345678901',
   });
   delete process.env.IIKO_ASTANA_ORGANIZATION_ID;
+  delete process.env.IIKO_ASTANA_APP_ID;
+  delete process.env.IIKO_ASTANA_CLIENT_SECRET;
   delete process.env.IIKO_ASTANA_EXTERNAL_MENU_ID;
   delete process.env.IIKO_ASTANA_PRICE_CATEGORY_ID;
   delete require.cache[iikoPath];
@@ -40,6 +48,8 @@ test('Astana gets an isolated iiko client while other cities keep the default pr
 
     assert.equal(astana.profileKey, 'astana');
     assert.equal(astana.apiLogin, 'astana-api-login-12345678901');
+    assert.equal(astana.appId, '11111111-1111-4111-8111-111111111111');
+    assert.equal(astana.clientSecret, 'shared-client-secret');
     assert.equal(astana.organizationId, null);
     assert.equal(astana.externalMenuId, '');
     assert.equal(astana.priceCategoryId, '');
