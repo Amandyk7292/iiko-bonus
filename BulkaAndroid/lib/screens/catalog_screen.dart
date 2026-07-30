@@ -468,38 +468,6 @@ class _CatalogScreenState extends State<CatalogScreen>
         }
       }
 
-      final changed =
-          jsonEncode(
-            products
-                .map(
-                  (p) => [
-                    p.id,
-                    p.title,
-                    p.price,
-                    p.category,
-                    p.imageUrl,
-                    p.isStopListed,
-                    p.preparationMinutes,
-                  ],
-                )
-                .toList(),
-          ) !=
-          jsonEncode(
-            _allProducts
-                .map(
-                  (p) => [
-                    p.id,
-                    p.title,
-                    p.price,
-                    p.category,
-                    p.imageUrl,
-                    p.isStopListed,
-                    p.preparationMinutes,
-                  ],
-                )
-                .toList(),
-          );
-
       final cachedAt = await _cacheMenu(json, cacheKey: cacheKey);
       if (!_isCurrentMenuRequest(revision, endpoint)) return;
       _syncCartWithMenu(products);
@@ -514,11 +482,6 @@ class _CatalogScreenState extends State<CatalogScreen>
       });
       unawaited(_refreshProductOptionFlags(products));
       unawaited(_warmProductImages(products));
-      if (changed && mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('catalog_menu_updated'.tr)));
-      }
     } catch (_) {
       // Тихая ошибка — не показываем пользователю
     }

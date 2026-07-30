@@ -785,11 +785,6 @@ const Map<String, Map<String, String>> _orderAndPaymentTranslations = {
     'kk': 'QR жүктеуді қайталау',
     'en': 'Retry QR loading',
   },
-  'catalog_menu_updated': {
-    'ru': 'Меню обновлено',
-    'kk': 'Мәзір жаңартылды',
-    'en': 'Menu updated',
-  },
   'catalog_upload_login_required': {
     'ru': 'Войдите в профиль для загрузки примера',
     'kk': 'Үлгіні жүктеу үшін профильге кіріңіз',
