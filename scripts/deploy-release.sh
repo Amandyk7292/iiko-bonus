@@ -77,6 +77,8 @@ copy_artifacts() {
     rollback-vps.sh \
     verify-database-restore.sh \
     prepare-cloudflare-origin.sh \
+    configure-iiko-astana-vps.sh \
+    probe-iiko-city-profile.js \
     harden-nginx-access-logs.sh; do
     if [[ -f "$source/scripts/$script" ]]; then
       cp "$source/scripts/$script" "$destination/scripts/$script"
@@ -313,6 +315,8 @@ for required_file in \
   scripts/backup-database.sh \
   scripts/deploy-release.sh \
   scripts/ensure-postgres-client.sh \
+  scripts/configure-iiko-astana-vps.sh \
+  scripts/probe-iiko-city-profile.js \
   scripts/rollback-vps.sh \
   release-manifest.json; do
   test -f "$temporary_release/$required_file"

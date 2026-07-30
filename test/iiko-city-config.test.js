@@ -17,9 +17,15 @@ test('Astana activation stores only city-scoped iiko settings', () => {
 
 test('deployment contains the safe Astana probe and activation scripts', () => {
   const deployment = read('scripts/deploy-vps.ps1');
+  const remoteDeployment = read('scripts/deploy-release.sh');
+  const activation = read('scripts/configure-iiko-astana-vps.sh');
   const probe = read('scripts/probe-iiko-city-profile.js');
   assert.match(deployment, /configure-iiko-astana-vps\.sh/);
   assert.match(deployment, /probe-iiko-city-profile\.js/);
+  assert.match(remoteDeployment, /configure-iiko-astana-vps\.sh/);
+  assert.match(remoteDeployment, /probe-iiko-city-profile\.js/);
+  assert.match(activation, /current_user == "\$service_user"/);
+  assert.match(activation, /\/home\/deploy\/\.bulka-config-backups/);
   assert.match(probe, /requireExternal:\s*true/);
   assert.match(probe, /productsCount === 0/);
 });

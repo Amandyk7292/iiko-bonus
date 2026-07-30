@@ -1,11 +1,11 @@
 param(
-    [string]$SshHost = 'root@185.113.132.73',
+    [string]$SshHost = 'bulka-vps',
     [string]$StatusFile = ''
 )
 
 $ErrorActionPreference = 'Stop'
 $remoteScriptSource = Join-Path $PSScriptRoot 'configure-iiko-astana-vps.sh'
-$remoteScript = "/root/.configure-iiko-astana-$PID.sh"
+$remoteScript = "/home/deploy/.configure-iiko-astana-$PID.sh"
 $exitCode = 1
 
 if ($StatusFile) {

@@ -5,25 +5,41 @@ project='/var/www/iiko-bonus'
 env_file="$project/.env"
 service_user='deploy'
 timestamp=$(date -u +'%Y%m%dT%H%M%SZ')
-backup="/var/backups/bulka-iiko-astana-${timestamp}.env"
 changed=0
 
-if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
-  echo 'Run this script through sudo.' >&2
+current_user=$(id -un)
+if [[ $current_user == 'root' ]]; then
+  backup_root='/var/backups'
+elif [[ $current_user == "$service_user" ]]; then
+  backup_root='/home/deploy/.bulka-config-backups'
+else
+  echo "Run this script as root or ${service_user}." >&2
   exit 1
 fi
+backup="${backup_root}/bulka-iiko-astana-${timestamp}.env"
 test -d "$project"
 test -f "$env_file"
 test -f "$project/scripts/probe-iiko-city-profile.js"
 command -v node >/dev/null
 command -v curl >/dev/null
-command -v sudo >/dev/null
 id "$service_user" >/dev/null 2>&1
-sudo -u "$service_user" -H bash -lc 'command -v pm2 >/dev/null'
+if [[ $current_user == 'root' ]]; then
+  command -v sudo >/dev/null
+  sudo -u "$service_user" -H bash -lc 'command -v pm2 >/dev/null'
+else
+  command -v pm2 >/dev/null
+fi
 
 restart_production() {
-  sudo -u "$service_user" -H bash -lc \
-    "cd '$project' && env HOST=127.0.0.1 pm2 reload iiko-bonus --update-env"
+  if [[ $current_user == 'root' ]]; then
+    sudo -u "$service_user" -H bash -lc \
+      "cd '$project' && env HOST=127.0.0.1 pm2 reload iiko-bonus --update-env"
+  else
+    (
+      cd "$project"
+      env HOST=127.0.0.1 pm2 reload iiko-bonus --update-env
+    )
+  fi
 }
 
 rollback() {
@@ -78,7 +94,7 @@ probe_summary=$(
 )
 echo "Astana iiko credentials accepted: ${probe_summary}."
 
-install -d -m 0700 /var/backups
+install -d -m 0700 "$backup_root"
 cp -a -- "$env_file" "$backup"
 chmod 0600 "$backup"
 
@@ -113,7 +129,9 @@ fs.writeFileSync(temporary, `${lines.join('\n').replace(/\n+$/, '')}\n`, {
 });
 fs.renameSync(temporary, file);
 NODE
-chown --reference="$backup" "$env_file"
+if [[ $current_user == 'root' ]]; then
+  chown --reference="$backup" "$env_file"
+fi
 chmod 0600 "$env_file"
 changed=1
 
@@ -169,7 +187,11 @@ curl -fsS \
     });
   '
 
-sudo -u "$service_user" -H bash -lc 'pm2 save' >/dev/null
+if [[ $current_user == 'root' ]]; then
+  sudo -u "$service_user" -H bash -lc 'pm2 save' >/dev/null
+else
+  pm2 save >/dev/null
+fi
 changed=0
 trap - ERR
 
