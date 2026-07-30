@@ -498,9 +498,13 @@
   .topbar-actions:has(.topbar-branch-select) .global-search-trigger {
     grid-column: 1;
   }
-  .topbar-actions:has(.topbar-branch-select) .topbar-branch-select {
+  .topbar-actions:has(.topbar-branch-select) .topbar-scope-selectors {
     grid-column: 2;
     width: auto;
+    min-width: 0;
+  }
+  .topbar-actions:has(.topbar-branch-select) .topbar-branch-select {
+    width: 100%;
     min-width: 0;
   }
   .topbar-actions:has(.topbar-branch-select) .topbar-branch-select select {

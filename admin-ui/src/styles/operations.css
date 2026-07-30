@@ -144,6 +144,21 @@
   min-width: 180px;
 }
 
+.topbar-scope-selectors {
+  display: flex;
+  min-width: 0;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.topbar-city-select {
+  min-width: 132px;
+}
+
+.topbar-city-branch-select {
+  min-width: 190px;
+}
+
 .topbar-branch-select > span {
   padding-left: 2px;
   color: #84766a;
@@ -163,6 +178,7 @@
   padding: 0 32px 0 12px;
   font-size: 13px;
   font-weight: 600;
+  text-overflow: ellipsis;
 }
 
 .topbar-notifications {
@@ -1394,7 +1410,18 @@
 }
 
 @media (max-width: 680px) {
+  .topbar-scope-selectors {
+    display: grid;
+    width: 100%;
+    grid-template-columns: minmax(94px, 0.72fr) minmax(0, 1.28fr);
+  }
+
+  .topbar-scope-selectors:has(.topbar-branch-select:only-child) {
+    grid-template-columns: 1fr;
+  }
+
   .topbar-branch-select {
+    min-width: 0;
     width: 100%;
   }
 
