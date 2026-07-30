@@ -1036,10 +1036,17 @@ export const api = {
     ),
 
   // --- Menu Management ---
-  getAdminMenu: () => request<{ success: boolean; rawMenu: any; overrides: any }>('/menu'),
+  getAdminMenu: () =>
+    request<{
+      success: boolean;
+      rawMenu: any;
+      overrides: any;
+      profileKey: 'default' | 'astana';
+    }>('/menu'),
   syncIikoMenu: () =>
     request<{
       success: boolean;
+      profileKey: 'default' | 'astana';
       productsCount: number;
       categoriesCount: number;
       syncedAt: string;

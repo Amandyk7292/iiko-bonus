@@ -652,3 +652,32 @@ test('force refresh waits for an in-flight normal fetch and then performs a fres
     assert.equal(externalItemRequests, 2);
   });
 });
+
+test('secondary city profile namespaces public ids but keeps original iiko ids for checkout', async () => {
+  const fetchMock = async (url) => {
+    const path = new URL(url).pathname;
+    if (path === '/api/2/menu') {
+      return jsonResponse({ externalMenus: [{ id: 'menu-astana', name: 'Астана' }] });
+    }
+    if (path === '/api/2/menu/by_id') return jsonResponse(externalItems(880, 'Астанинская'));
+    throw new Error(`Unexpected iiko request: ${path}`);
+  };
+
+  await withIikoService({ fetchMock }, async (service) => {
+    const astana = new service.IikoAPI({
+      profileKey: 'astana',
+      apiLogin: 'astana-api-login-12345678901',
+      organizationId,
+    });
+    astana.getToken = async () => 'astana-token';
+
+    const menu = await astana.getMenu({ strict: true, forceRefresh: true });
+    assert.equal(menu.profileKey, 'astana');
+    assert.equal(menu.products[0].id, 'astana:product-1');
+    assert.equal(menu.products[0].iikoProductId, 'product-1');
+    assert.equal(menu.products[0].parentGroup, 'astana:external-group');
+    assert.equal(menu.groups[0].id, 'astana:external-group');
+    assert.equal(menu.groups[0].iikoCategoryId, 'external-group');
+    assert.equal(menu.products[0].sizePrices[0].price.currentPrice, 880);
+  });
+});

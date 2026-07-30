@@ -4,7 +4,11 @@ const { validateRequest } = require('../../middlewares/validation.middleware');
 const { adminMutationSchemas } = require('../../contracts/admin-mutations.contract');
 const { supabase } = require('../../config/supabase');
 const menuService = require('../../services/menu.service');
-const iikoApi = require('../../services/iiko.service');
+const {
+  getIikoClientForBranch,
+  invalidateAllIikoCaches,
+  profileStatus,
+} = require('../../services/iiko-city-profile.service');
 const realtime = require('../../services/realtime.service');
 const {
   listInventory,
@@ -53,7 +57,8 @@ const validateUploadedImage = (req, res, next) => {
 function registerMenuAdminRoutes(router) {
   router.get('/admin/api/menu', adminAuthMiddleware, async (req, res) => {
     try {
-      const rawMenu = await iikoApi.getMenu();
+      const selectedIikoApi = await getIikoClientForBranch(req.admin?.selectedBranchId);
+      const rawMenu = await selectedIikoApi.getMenu();
       const [productOverrides, categoryOverrides, customProducts] = await Promise.all([
         menuService.getProductOverrides(),
         menuService.getCategoryOverrides(),
@@ -68,6 +73,8 @@ function registerMenuAdminRoutes(router) {
           categories: categoryOverrides,
           customProducts,
         },
+        profileKey: selectedIikoApi.profileKey,
+        profiles: profileStatus(),
       });
     } catch (error) {
       console.error('Ошибка в /admin/api/menu:', error);
@@ -81,7 +88,8 @@ function registerMenuAdminRoutes(router) {
     validateRequest(adminMutationSchemas.empty),
     async (req, res) => {
       try {
-        const rawMenu = await iikoApi.getMenu({
+        const selectedIikoApi = await getIikoClientForBranch(req.admin?.selectedBranchId);
+        const rawMenu = await selectedIikoApi.getMenu({
           strict: true,
           forceRefresh: true,
           requireExternal: true,
@@ -113,11 +121,13 @@ function registerMenuAdminRoutes(router) {
             productsCount,
             categoriesCount,
             syncedAt,
+            profileKey: selectedIikoApi.profileKey,
           },
-          { broadcast: true },
+          { broadcast: true, branchId: req.admin?.selectedBranchId || null },
         );
         res.json({
           success: true,
+          profileKey: selectedIikoApi.profileKey,
           menuSource,
           externalMenuId,
           priceCategoryId,
@@ -141,7 +151,7 @@ function registerMenuAdminRoutes(router) {
       try {
         const { iikoProductId, overrides } = req.body;
         await menuService.setProductOverride(iikoProductId, overrides);
-        iikoApi.invalidateMenuCache();
+        invalidateAllIikoCaches();
         realtime.publish('menu.updated', { productId: String(iikoProductId) }, { broadcast: true });
         res.json({ success: true });
       } catch (error) {
@@ -158,7 +168,7 @@ function registerMenuAdminRoutes(router) {
       try {
         const { iikoCategoryId, overrides } = req.body;
         await menuService.setCategoryOverride(iikoCategoryId, overrides);
-        iikoApi.invalidateMenuCache();
+        invalidateAllIikoCaches();
         realtime.publish(
           'menu.updated',
           { categoryId: String(iikoCategoryId) },
@@ -178,7 +188,7 @@ function registerMenuAdminRoutes(router) {
     async (req, res) => {
       try {
         await menuService.upsertCustomProduct(req.body);
-        iikoApi.invalidateMenuCache();
+        invalidateAllIikoCaches();
         realtime.publish('menu.updated', { customProduct: true }, { broadcast: true });
         res.json({ success: true });
       } catch (error) {
@@ -194,7 +204,7 @@ function registerMenuAdminRoutes(router) {
     async (req, res) => {
       try {
         await menuService.deleteCustomProduct(req.params.id);
-        iikoApi.invalidateMenuCache();
+        invalidateAllIikoCaches();
         realtime.publish(
           'menu.updated',
           { customProductId: String(req.params.id), deleted: true },
@@ -284,10 +294,8 @@ function registerInventoryAdminRoutes(router, { assertBranchAccess, scopedBranch
     validateRequest(adminMutationSchemas.empty),
     async (req, res) => {
       try {
-        const rawMenu = await iikoApi.getMenu({ strict: true });
         const results = await syncAllBranchInventory({
           strict: true,
-          products: rawMenu.products || [],
           branchIds: scopedBranchIds(req),
         });
         realtime.publish('menu.updated', { inventory: true }, { broadcast: true });

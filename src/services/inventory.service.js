@@ -1,5 +1,5 @@
 const { supabase } = require('../config/supabase');
-const iikoApi = require('./iiko.service');
+const { getIikoClientForCity } = require('./iiko-city-profile.service');
 
 const inventoryError = (message, statusCode = 400) =>
   Object.assign(new Error(message), { statusCode });
@@ -70,7 +70,7 @@ const terminalGroupForLocation = (location, snapshot) => {
 async function readLocation(branchId) {
   const { data, error } = await supabase
     .from('bulka_locations')
-    .select('id,name,address,active')
+    .select('id,name,address,city,active')
     .eq('id', branchId)
     .maybeSingle();
   if (error) throw error;
@@ -78,13 +78,15 @@ async function readLocation(branchId) {
   return data;
 }
 
-async function syncBranchInventory(branchId, { strict = false, products = [] } = {}) {
+async function syncBranchInventory(
+  branchId,
+  { strict = false, products = [], iikoClient = null } = {},
+) {
   if (!branchId) return { tracked: false, balances: new Map(), stopIds: new Set() };
   try {
-    const [location, snapshot] = await Promise.all([
-      readLocation(branchId),
-      iikoApi.getStopListSnapshot(undefined, { strict: true }),
-    ]);
+    const location = await readLocation(branchId);
+    const selectedIikoApi = iikoClient || getIikoClientForCity(location.city);
+    const snapshot = await selectedIikoApi.getStopListSnapshot(undefined, { strict: true });
     const group = terminalGroupForLocation(location, snapshot);
     if (!group) {
       return {
@@ -94,8 +96,15 @@ async function syncBranchInventory(branchId, { strict = false, products = [] } =
       };
     }
 
+    const normalizedProducts = Array.isArray(products) ? products : [];
+    const publicProductByIikoId = new Map(
+      normalizedProducts.map((product) => [
+        String(product?.iikoProductId || product?.id || ''),
+        String(product?.id || ''),
+      ]),
+    );
     const productNames = new Map(
-      (Array.isArray(products) ? products : []).map((product) => [
+      normalizedProducts.map((product) => [
         String(product?.id || ''),
         String(product?.name || '').slice(0, 160) || null,
       ]),
@@ -104,11 +113,12 @@ async function syncBranchInventory(branchId, { strict = false, products = [] } =
     const rows = [];
     for (const item of group.items || []) {
       const quantity = Math.max(0, Math.floor(Number(item.balance)));
-      balances.set(item.productId, quantity);
+      const publicProductId = publicProductByIikoId.get(item.productId) || item.productId;
+      balances.set(publicProductId, quantity);
       rows.push({
         branch_id: String(branchId),
-        product_id: item.productId,
-        product_name: productNames.get(item.productId) || null,
+        product_id: publicProductId,
+        product_name: productNames.get(publicProductId) || null,
         source_quantity: quantity,
         source: 'iiko',
         last_synced_at: snapshot.fetchedAt || new Date().toISOString(),
@@ -138,10 +148,10 @@ async function syncBranchInventory(branchId, { strict = false, products = [] } =
 
 async function getBranchAvailability(
   branchId,
-  { sync = false, products = [], strict = false } = {},
+  { sync = false, products = [], strict = false, iikoClient = null } = {},
 ) {
   if (!branchId) return new Map();
-  if (sync) await syncBranchInventory(branchId, { strict, products });
+  if (sync) await syncBranchInventory(branchId, { strict, products, iikoClient });
   const now = new Date().toISOString();
   const [inventoryResult, reservationsResult] = await Promise.all([
     supabase
@@ -411,14 +421,23 @@ async function updateInventory(branchId, productId, payload = {}) {
 }
 
 async function syncAllBranchInventory({ strict = false, products = [], branchIds = [] } = {}) {
-  let locationsQuery = supabase.from('bulka_locations').select('id').eq('active', true);
+  let locationsQuery = supabase.from('bulka_locations').select('id,city').eq('active', true);
   if (Array.isArray(branchIds) && branchIds.length)
     locationsQuery = locationsQuery.in('id', branchIds);
   const { data: locations, error } = await locationsQuery;
   if (error) throw error;
   const results = [];
   for (const location of locations || []) {
-    const result = await syncBranchInventory(location.id, { strict, products });
+    const selectedIikoApi = getIikoClientForCity(location.city);
+    const selectedMenu =
+      Array.isArray(products) && products.length > 0 && selectedIikoApi.profileKey === 'default'
+        ? { products }
+        : await selectedIikoApi.getMenu({ strict });
+    const result = await syncBranchInventory(location.id, {
+      strict,
+      products: selectedMenu.products || [],
+      iikoClient: selectedIikoApi,
+    });
     results.push({ branchId: location.id, tracked: result.tracked, count: result.balances.size });
   }
   return results;

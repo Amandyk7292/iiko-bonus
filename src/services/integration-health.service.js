@@ -4,6 +4,7 @@ const { getAssistantSettings } = require('./whatsapp-assistant-console.service')
 const { getWhatsAppStatus } = require('./whatsapp-baileys.service');
 const yandexDelivery = require('./yandex-delivery.service');
 const paymentOperations = require('./payment-operations.service');
+const { profileStatus } = require('./iiko-city-profile.service');
 
 const booleanEnvironment = (name) => String(process.env[name] || '').trim().length > 0;
 
@@ -33,6 +34,7 @@ async function getIntegrationHealth({ canManagePayments = false } = {}) {
   const iikoV2CredentialsComplete =
     booleanEnvironment('IIKO_APP_ID') === booleanEnvironment('IIKO_CLIENT_SECRET');
   const iikoConfigured = iikoLoginConfigured && iikoV2CredentialsComplete;
+  const iikoProfiles = profileStatus();
   const kaspiEnabled = process.env.KASPI_POS_ENABLED === 'true';
   const kaspiConfigured =
     kaspiEnabled &&
@@ -70,7 +72,7 @@ async function getIntegrationHealth({ canManagePayments = false } = {}) {
       },
       {
         id: 'iiko',
-        name: 'iiko Cloud',
+        name: 'iiko Cloud · основной',
         state: iikoConfigured ? 'healthy' : 'error',
         summary: iikoConfigured
           ? 'Доступ настроен'
@@ -80,6 +82,19 @@ async function getIntegrationHealth({ canManagePayments = false } = {}) {
         detail:
           iikoLoginConfigured && !iikoV2CredentialsComplete
             ? 'IIKO_APP_ID и IIKO_CLIENT_SECRET указываются только вместе'
+            : '',
+        updatedAt: inventorySyncedAt,
+      },
+      {
+        id: 'iiko-astana',
+        name: 'iiko Cloud · Астана',
+        state: iikoProfiles.astana.configured ? 'healthy' : 'disabled',
+        summary: iikoProfiles.astana.configured
+          ? 'Отдельный API login настроен'
+          : 'Используется основной профиль',
+        detail:
+          iikoProfiles.astana.configured && !iikoProfiles.astana.externalMenuConfigured
+            ? 'External Menu определяется автоматически'
             : '',
         updatedAt: inventorySyncedAt,
       },

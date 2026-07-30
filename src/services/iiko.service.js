@@ -47,20 +47,63 @@ const hasFinitePrice = (value) =>
   Number.isFinite(Number(value)) &&
   Number(value) >= 0;
 
+const configuredValue = (configuration, key, environmentKey, fallback = '') =>
+  Object.prototype.hasOwnProperty.call(configuration, key)
+    ? configuration[key]
+    : (process.env[environmentKey] ?? fallback);
+
 class IikoAPI {
-  constructor() {
-    this.apiLogin = process.env.IIKO_API_LOGIN;
-    this.appId = process.env.IIKO_APP_ID;
-    this.clientSecret = process.env.IIKO_CLIENT_SECRET;
-    this.organizationId = process.env.IIKO_ORGANIZATION_ID || null;
-    this.externalMenuId = String(process.env.IIKO_EXTERNAL_MENU_ID || '').trim();
-    this.externalMenuName = String(process.env.IIKO_EXTERNAL_MENU_NAME || '').trim();
-    this.priceCategoryId = String(process.env.IIKO_PRICE_CATEGORY_ID || '').trim();
-    this.priceCategoryName = String(process.env.IIKO_PRICE_CATEGORY_NAME || '').trim();
+  constructor(configuration = {}) {
+    this.profileKey =
+      String(configuration.profileKey || 'default')
+        .trim()
+        .toLocaleLowerCase('en-US')
+        .replace(/[^a-z0-9_-]/g, '')
+        .slice(0, 40) || 'default';
+    this.apiLogin = String(configuredValue(configuration, 'apiLogin', 'IIKO_API_LOGIN')).trim();
+    this.appId = String(configuredValue(configuration, 'appId', 'IIKO_APP_ID')).trim();
+    this.clientSecret = String(
+      configuredValue(configuration, 'clientSecret', 'IIKO_CLIENT_SECRET'),
+    ).trim();
+    this.organizationId =
+      String(configuredValue(configuration, 'organizationId', 'IIKO_ORGANIZATION_ID')).trim() ||
+      null;
+    this.externalMenuId = String(
+      configuredValue(configuration, 'externalMenuId', 'IIKO_EXTERNAL_MENU_ID'),
+    ).trim();
+    this.externalMenuName = String(
+      configuredValue(configuration, 'externalMenuName', 'IIKO_EXTERNAL_MENU_NAME'),
+    ).trim();
+    this.priceCategoryId = String(
+      configuredValue(configuration, 'priceCategoryId', 'IIKO_PRICE_CATEGORY_ID'),
+    ).trim();
+    this.priceCategoryName = String(
+      configuredValue(configuration, 'priceCategoryName', 'IIKO_PRICE_CATEGORY_NAME'),
+    ).trim();
     this.menuCacheTtlMs =
-      boundedSeconds(process.env.IIKO_MENU_CACHE_TTL_SECONDS, 5 * 60, 30, 60 * 60) * 1000;
+      boundedSeconds(
+        configuredValue(
+          configuration,
+          'menuCacheTtlSeconds',
+          'IIKO_MENU_CACHE_TTL_SECONDS',
+          5 * 60,
+        ),
+        5 * 60,
+        30,
+        60 * 60,
+      ) * 1000;
     this.emptyMenuCacheTtlMs =
-      boundedSeconds(process.env.IIKO_EMPTY_MENU_CACHE_TTL_SECONDS, 60, 15, 10 * 60) * 1000;
+      boundedSeconds(
+        configuredValue(
+          configuration,
+          'emptyMenuCacheTtlSeconds',
+          'IIKO_EMPTY_MENU_CACHE_TTL_SECONDS',
+          60,
+        ),
+        60,
+        15,
+        10 * 60,
+      ) * 1000;
     this.baseUrl = 'https://api-ru.iiko.services';
     this.token = null;
     this.tokenExpiresAt = 0;
@@ -612,6 +655,12 @@ class IikoAPI {
       throw externalError || nomenclatureError || new Error('Меню iiko недоступно');
     }
 
+    menuData = {
+      ...menuData,
+      profileKey: this.profileKey,
+      organizationId,
+    };
+
     // Очищаем названия товаров и категорий от служебных символов iiko (например "Плюшка+++", "Круассан +")
     const cleanIikoName = (name) => {
       if (!name || typeof name !== 'string') return '';
@@ -622,17 +671,41 @@ class IikoAPI {
         .trim();
     };
 
+    const publicId = (value) => {
+      const normalized = String(value || '').trim();
+      if (!normalized || this.profileKey === 'default') return normalized;
+      const prefix = `${this.profileKey}:`;
+      return normalized.startsWith(prefix) ? normalized : `${prefix}${normalized}`;
+    };
     if (menuData && menuData.products) {
-      menuData.products = menuData.products.map((p) => ({
-        ...p,
-        name: cleanIikoName(p.name),
-      }));
+      menuData.products = menuData.products.map((product) => {
+        const iikoProductId = String(product.iikoProductId || product.id || '').trim();
+        const iikoParentGroupId = String(
+          product.iikoParentGroupId || product.parentGroup || '',
+        ).replace(new RegExp(`^${this.profileKey}:`), '');
+        return {
+          ...product,
+          id: publicId(iikoProductId),
+          iikoProductId,
+          parentGroup: publicId(iikoParentGroupId),
+          iikoParentGroupId,
+          name: cleanIikoName(product.name),
+        };
+      });
     }
     if (menuData && menuData.groups) {
-      menuData.groups = menuData.groups.map((g) => ({
-        ...g,
-        name: cleanIikoName(g.name),
-      }));
+      menuData.groups = menuData.groups.map((group) => {
+        const iikoCategoryId = String(group.iikoCategoryId || group.id || '').replace(
+          new RegExp(`^${this.profileKey}:`),
+          '',
+        );
+        return {
+          ...group,
+          id: publicId(iikoCategoryId),
+          iikoCategoryId,
+          name: cleanIikoName(group.name),
+        };
+      });
     }
 
     if (menuData.menuSource === 'external-v2' && menuData.isStale !== true) {
@@ -850,4 +923,7 @@ class IikoAPI {
   }
 }
 
-module.exports = new IikoAPI();
+const defaultIikoApi = new IikoAPI();
+
+module.exports = defaultIikoApi;
+module.exports.IikoAPI = IikoAPI;

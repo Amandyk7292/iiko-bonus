@@ -8,7 +8,7 @@ const { buildWhatsAppContact } = require('../utils/whatsapp.util');
 const { getOrCreateCustomerByPhone, getCustomerByPhone } = require('../services/customer.service');
 const otpStore = require('../services/otpStore.service');
 const { supabase } = require('../config/supabase');
-const iikoApi = require('../services/iiko.service');
+const { getIikoClientForCity } = require('../services/iiko-city-profile.service');
 const { getStories } = require('../services/story.service');
 const { getNews } = require('../services/news.service');
 const path = require('path');
@@ -719,27 +719,12 @@ router.get('/api/guest/menu', async (req, res) => {
             ['hours', 'days', 'months'].includes(condition.durationUnit),
         );
 
-    const rawMenu = await iikoApi.getMenu({ strict: true });
-    const rawGroups = Array.isArray(rawMenu.groups) ? rawMenu.groups : [];
-    const rawProducts = Array.isArray(rawMenu.products) ? rawMenu.products : [];
-
-    // Menu visibility, prices and stop-list state are order-critical. If one
-    // source is unavailable, fail the request instead of publishing stale or
-    // partially configured products.
-    const menuService = require('../services/menu.service');
-    const [stopIds, productOverrides, categoryOverrides, customProducts] = await Promise.all([
-      iikoApi.getStopListProductIds(undefined, { strict: true }),
-      menuService.getProductOverrides({ strict: true }),
-      menuService.getCategoryOverrides({ strict: true }),
-      menuService.getCustomProducts({ strict: true }),
-    ]);
-
-    const prodOverridesMap = new Map(productOverrides.map((o) => [o.iiko_product_id, o]));
-    const catOverridesMap = new Map(categoryOverrides.map((o) => [o.iiko_category_id, o]));
     const { data: branchSettings, error: branchSettingsError } = branchId
       ? await supabase
           .from('bulka_locations')
-          .select('default_preparation_minutes,pickup_enabled,delivery_enabled,preorder_enabled')
+          .select(
+            'city,default_preparation_minutes,pickup_enabled,delivery_enabled,preorder_enabled',
+          )
           .eq('id', branchId)
           .eq('active', true)
           .maybeSingle()
@@ -748,6 +733,25 @@ router.get('/api/guest/menu', async (req, res) => {
     if (branchId && !branchSettings) {
       return res.status(404).json({ success: false, error: 'Филиал больше недоступен' });
     }
+
+    const selectedIikoApi = getIikoClientForCity(branchSettings?.city);
+    const rawMenu = await selectedIikoApi.getMenu({ strict: true });
+    const rawGroups = Array.isArray(rawMenu.groups) ? rawMenu.groups : [];
+    const rawProducts = Array.isArray(rawMenu.products) ? rawMenu.products : [];
+
+    // Menu visibility, prices and stop-list state are order-critical. If one
+    // source is unavailable, fail the request instead of publishing stale or
+    // partially configured products.
+    const menuService = require('../services/menu.service');
+    const [stopIds, productOverrides, categoryOverrides, customProducts] = await Promise.all([
+      selectedIikoApi.getStopListProductIds(undefined, { strict: true }),
+      menuService.getProductOverrides({ strict: true }),
+      menuService.getCategoryOverrides({ strict: true }),
+      menuService.getCustomProducts({ strict: true }),
+    ]);
+
+    const prodOverridesMap = new Map(productOverrides.map((o) => [o.iiko_product_id, o]));
+    const catOverridesMap = new Map(categoryOverrides.map((o) => [o.iiko_category_id, o]));
     const branchSupportsOrderType =
       !branchSettings ||
       (orderType === 'pickup' && branchSettings.pickup_enabled !== false) ||
@@ -765,6 +769,7 @@ router.get('/api/guest/menu', async (req, res) => {
           sync: true,
           strict: true,
           products: rawProducts,
+          iikoClient: selectedIikoApi,
         })
       : new Map();
 
@@ -835,7 +840,7 @@ router.get('/api/guest/menu', async (req, res) => {
       const inventory = branchAvailability.get(String(p.id));
       const isStopped =
         Boolean(override && override.is_stop_listed) ||
-        stopIds.has(p.id) ||
+        stopIds.has(p.iikoProductId || p.id) ||
         (branchId && inventory?.isAvailable === false);
 
       products.push({
@@ -949,6 +954,7 @@ router.get('/api/guest/menu', async (req, res) => {
       ),
       branchId: branchId || null,
       orderType,
+      iikoProfile: rawMenu.profileKey || 'default',
     });
   } catch (error) {
     console.error('Ошибка получения меню:', error);

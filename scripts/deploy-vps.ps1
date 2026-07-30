@@ -108,6 +108,8 @@ foreach ($scriptName in @(
     'verify-database-restore.sh',
     'prepare-cloudflare-origin.sh',
     'configure-forte-widget-vps.sh',
+    'configure-iiko-astana-vps.sh',
+    'probe-iiko-city-profile.js',
     'harden-nginx-access-logs.sh'
 )) {
     Copy-Item -LiteralPath (Join-Path $projectRoot "scripts\$scriptName") `

@@ -185,8 +185,9 @@ export default function MenuPage() {
     try {
       const result = await api.syncIikoMenu();
       await fetchMenu();
+      const profileLabel = result.profileKey === 'astana' ? 'Астана' : 'основной профиль';
       toast(
-        `Синхронизация завершена: ${result.productsCount} товаров, ${result.categoriesCount} категорий`,
+        `${profileLabel}: синхронизировано ${result.productsCount} товаров и ${result.categoriesCount} категорий`,
         'success',
       );
     } catch (error) {

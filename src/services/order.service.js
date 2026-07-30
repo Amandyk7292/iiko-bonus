@@ -1,4 +1,4 @@
-const iikoApi = require('./iiko.service');
+const { getIikoClientForCity } = require('./iiko-city-profile.service');
 const menuService = require('./menu.service');
 const { supabase } = require('../config/supabase');
 const { getSettings } = require('./settings.service');
@@ -130,9 +130,24 @@ function applyPromoCode(subtotal, code, configuredPromos = []) {
 async function loadOrderCatalog({ branchId = null, orderType = 'pickup' } = {}) {
   const normalizedOrderType = normalizeMenuOrderType(orderType);
   if (!normalizedOrderType) throw badRequest('Некорректный способ получения заказа');
-  const rawMenu = await iikoApi.getMenu({ strict: true });
+  let branchPreparationMinutes = 15;
+  let branchCity = '';
+  if (branchId) {
+    const { data: branch, error: branchError } = await supabase
+      .from('bulka_locations')
+      .select('city,default_preparation_minutes')
+      .eq('id', branchId)
+      .eq('active', true)
+      .maybeSingle();
+    if (branchError) throw branchError;
+    if (!branch) throw badRequest('Филиал больше недоступен');
+    branchCity = branch.city;
+    branchPreparationMinutes = preparationMinutes(branch.default_preparation_minutes);
+  }
+  const selectedIikoApi = getIikoClientForCity(branchCity);
+  const rawMenu = await selectedIikoApi.getMenu({ strict: true });
   const [stopIds, productOverrides, categoryOverrides, customProducts] = await Promise.all([
-    iikoApi.getStopListProductIds(undefined, { strict: true }),
+    selectedIikoApi.getStopListProductIds(undefined, { strict: true }),
     menuService.getProductOverrides({ strict: true }),
     menuService.getCategoryOverrides({ strict: true }),
     menuService.getCustomProducts({ strict: true }),
@@ -150,23 +165,12 @@ async function loadOrderCatalog({ branchId = null, orderType = 'pickup' } = {}) 
     )
     .map((group) => ({ id: group.id, name: group.name }));
   const hiddenCategories = getHiddenCategoryVisibility(baseCategories, categoryOverrideMap);
-  let branchPreparationMinutes = 15;
-  if (branchId) {
-    const { data: branch, error: branchError } = await supabase
-      .from('bulka_locations')
-      .select('default_preparation_minutes')
-      .eq('id', branchId)
-      .eq('active', true)
-      .maybeSingle();
-    if (branchError) throw branchError;
-    if (!branch) throw badRequest('Филиал больше недоступен');
-    branchPreparationMinutes = preparationMinutes(branch.default_preparation_minutes);
-  }
   const branchAvailability = branchId
     ? await getBranchAvailability(branchId, {
         sync: true,
         strict: true,
         products: rawMenu.products || [],
+        iikoClient: selectedIikoApi,
       })
     : new Map();
   const catalog = new Map();
@@ -179,9 +183,10 @@ async function loadOrderCatalog({ branchId = null, orderType = 'pickup' } = {}) 
       Number(override?.custom_price) > 0 ? Number(override.custom_price) : productPrice(product);
     if (!price) continue;
     const inventory = branchAvailability.get(String(product.id));
-    const globallyAvailable = !stopIds.has(product.id) && !override?.is_stop_listed;
+    const globallyAvailable =
+      !stopIds.has(product.iikoProductId || product.id) && !override?.is_stop_listed;
     catalog.set(String(product.id), {
-      iikoProductId: String(product.id),
+      iikoProductId: String(product.iikoProductId || product.id),
       productSizeId: product.sizePrices?.[0]?.sizeId || null,
       name: override?.custom_name || product.name,
       price,
