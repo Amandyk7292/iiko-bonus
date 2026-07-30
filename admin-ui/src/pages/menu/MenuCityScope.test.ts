@@ -56,4 +56,27 @@ describe('MenuCityScope helpers', () => {
     );
     expect(onBranchChange).toHaveBeenCalledWith('astana-1');
   });
+
+  it('shows city-wide coverage without a branch selector', () => {
+    render(
+      createElement(MenuCityScope, {
+        locations: [
+          { id: 'astana-1', name: 'Кабанбай', address: '', city: 'Астана', active: true },
+          { id: 'astana-2', name: 'Улы Дала', address: '', city: 'Астана', active: true },
+        ],
+        selectedBranchId: 'astana-1',
+        onBranchChange: vi.fn(),
+        activeProfileKey: 'astana',
+        profiles: { astana: { key: 'astana', configured: true, city: 'Астана' } },
+        loading: false,
+        hasError: false,
+        productsCount: 173,
+        categoriesCount: 16,
+      }),
+    );
+
+    expect(screen.queryByRole('combobox')).toBeNull();
+    expect(screen.getByText('Все филиалы города')).toBeTruthy();
+    expect(screen.getAllByText('2 филиала')).toHaveLength(2);
+  });
 });

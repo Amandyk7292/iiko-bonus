@@ -1,5 +1,4 @@
 import { Building2, CheckCircle2, CircleAlert, Cloud, MapPin } from 'lucide-react';
-import SelectControl from '../../components/SelectControl';
 import type { AdminScopeLocation } from '../../lib/api';
 
 export interface MenuProfileStatus {
@@ -208,7 +207,7 @@ export default function MenuCityScope({
       )}
 
       {selectedCity && selectedBranch && (
-        <div className="mt-4 grid gap-3 rounded-2xl bg-stone-50 p-4 lg:grid-cols-[minmax(0,1fr)_minmax(240px,0.75fr)_auto] lg:items-end">
+        <div className="mt-4 grid gap-3 rounded-2xl bg-stone-50 p-4 lg:grid-cols-[minmax(0,1fr)_minmax(220px,0.75fr)_auto] lg:items-stretch">
           <div className="flex min-w-0 items-start gap-3">
             <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-white text-amber-700 shadow-sm">
               <Cloud aria-hidden="true" size={20} />
@@ -230,22 +229,22 @@ export default function MenuCityScope({
             </div>
           </div>
 
-          <label className="block min-w-0">
-            <span className="mb-1.5 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-stone-600">
-              <Building2 aria-hidden="true" size={15} />
-              Филиал в городе
+          <div className="flex min-w-0 items-center gap-3 rounded-xl border border-stone-200 bg-white px-3 py-2.5">
+            <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-amber-50 text-amber-700">
+              <Building2 aria-hidden="true" size={18} />
             </span>
-            <SelectControl
-              value={selectedBranch.id}
-              onChange={chooseBranch}
-              ariaLabel={`Филиал города ${selectedCity.name}`}
-              className="min-h-11 bg-white"
-              options={selectedCity.branches.map((branch) => ({
-                value: branch.id,
-                label: branch.name,
-              }))}
-            />
-          </label>
+            <div className="min-w-0">
+              <span className="block text-xs font-semibold text-stone-500">
+                Область применения
+              </span>
+              <strong className="mt-0.5 block text-sm text-stone-900">
+                Все филиалы города
+              </strong>
+              <span className="mt-0.5 block text-xs text-stone-600">
+                {branchCountLabel(selectedCity.branches.length)}
+              </span>
+            </div>
+          </div>
 
           <div className="min-w-[170px] rounded-xl border border-stone-200 bg-white px-3 py-2.5">
             <span className="block text-xs font-semibold text-stone-500">Состав меню</span>
