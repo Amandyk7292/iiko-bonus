@@ -319,7 +319,7 @@ async function loadSnapshot() {
       iikoApi.getMenu({ strict: true }),
       menuService.getProductOverrides({ strict: true }),
       menuService.getCategoryOverrides({ strict: true }),
-      menuService.getCustomProducts({ strict: true }),
+      menuService.getCustomProducts({ strict: true, profileKey: 'default' }),
       listPublicContactCards(),
       readLoyalty(),
     ]);

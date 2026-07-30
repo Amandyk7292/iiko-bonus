@@ -7,7 +7,6 @@ import {
   LoaderCircle,
   Pencil,
   Plus,
-  RefreshCw,
   Search,
   ShieldX,
   SlidersHorizontal,
@@ -19,9 +18,12 @@ import Modal from '../components/Modal';
 import PageState from '../components/PageState';
 import SelectControl from '../components/SelectControl';
 import { useFeedback } from '../components/Feedback';
-import { api } from '../lib/api';
+import { api, type AdminScopeLocation } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 import { useSearchParams } from '../lib/router';
+import MenuCityScope, { type MenuProfileStatus } from './menu/MenuCityScope';
+import MenuWorkspaceToolbar, { type MenuWorkspaceTab } from './menu/MenuWorkspaceToolbar';
+import { useMenuCitySelection } from './menu/use-menu-city-selection';
 
 import {
   FulfillmentTypeFields,
@@ -57,15 +59,23 @@ import {
   type ProductStorageCondition,
 } from './menu/menu-page.shared';
 
-export default function MenuPage() {
+export default function MenuPage({
+  scopeLocations,
+  selectedBranchId,
+  onBranchChange,
+}: {
+  scopeLocations: AdminScopeLocation[];
+  selectedBranchId: string;
+  onBranchChange: (branchId: string) => void;
+}) {
   const { t } = useI18n();
   const { toast, confirm } = useFeedback();
   const [params, setParams] = useSearchParams();
 
   const requestedTab = params.get('tab');
-  const activeTab: 'products' | 'categories' | 'custom' =
+  const activeTab: MenuWorkspaceTab =
     requestedTab === 'categories' || requestedTab === 'custom' ? requestedTab : 'products';
-  const setActiveTab = (value: 'products' | 'categories' | 'custom') => {
+  const setActiveTab = (value: MenuWorkspaceTab) => {
     const next = new URLSearchParams(params);
     if (value === 'products') next.delete('tab');
     else next.set('tab', value);
@@ -79,6 +89,8 @@ export default function MenuPage() {
   const [productOverrides, setProductOverrides] = useState<Record<string, ProductOverride>>({});
   const [categoryOverrides, setCategoryOverrides] = useState<Record<string, CategoryOverride>>({});
   const [customProducts, setCustomProducts] = useState<CustomProduct[]>([]);
+  const [activeProfileKey, setActiveProfileKey] = useState<string>();
+  const [profileStatuses, setProfileStatuses] = useState<Record<string, MenuProfileStatus>>({});
 
   const [searchQuery, setSearchQuery] = useState(params.get('search') || '');
   const selectedCategory = params.get('category') || 'all';
@@ -156,6 +168,17 @@ export default function MenuPage() {
   const [optionsSaving, setOptionsSaving] = useState(false);
 
   const fetchMenu = useCallback(async () => {
+    if (!selectedBranchId) {
+      setLoading(false);
+      setError('');
+      setRawProducts([]);
+      setRawGroups([]);
+      setProductOverrides({});
+      setCategoryOverrides({});
+      setCustomProducts([]);
+      setActiveProfileKey(undefined);
+      return;
+    }
     setLoading(true);
     setError('');
     setDisplayCount(30);
@@ -167,16 +190,27 @@ export default function MenuPage() {
       setProductOverrides(indexProductOverrides(data.overrides?.products));
       setCategoryOverrides(indexCategoryOverrides(data.overrides?.categories));
       setCustomProducts(data.overrides?.customProducts || []);
+      setActiveProfileKey(data.profileKey);
+      setProfileStatuses(data.profiles || {});
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : t('common.loadError'));
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }, [selectedBranchId, t]);
 
   useEffect(() => {
     void fetchMenu();
   }, [fetchMenu]);
+
+  const handleMenuBranchChange = useMenuCitySelection({
+    locations: scopeLocations,
+    selectedBranchId,
+    setSearchParams: setParams,
+    onBranchChange,
+    hasOpenEditor: categoryEditModalOpen || editModalOpen || modalOpen || Boolean(optionsProduct),
+    confirm,
+  });
 
   const handleSyncIikoMenu = async () => {
     if (iikoSyncInFlight.current) return;
@@ -185,9 +219,11 @@ export default function MenuPage() {
     try {
       const result = await api.syncIikoMenu();
       await fetchMenu();
-      const profileLabel = result.profileKey === 'astana' ? 'Астана' : 'основной профиль';
+      const selectedCity =
+        scopeLocations.find((location) => location.id === selectedBranchId)?.city ||
+        (result.profileKey === 'astana' ? 'Астана' : 'Основной профиль');
       toast(
-        `${profileLabel}: синхронизировано ${result.productsCount} товаров и ${result.categoriesCount} категорий`,
+        `${selectedCity}: синхронизировано ${result.productsCount} товаров и ${result.categoriesCount} категорий`,
         'success',
       );
     } catch (error) {
@@ -768,67 +804,38 @@ export default function MenuPage() {
 
   return (
     <div className="page-stack">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <button
-          type="button"
-          onClick={() => void handleSyncIikoMenu()}
-          disabled={syncingIiko || loading}
-          className="btn-outline inline-flex min-h-11 items-center justify-center gap-2 px-4"
-        >
-          <RefreshCw aria-hidden="true" className={syncingIiko ? 'spin' : ''} size={17} />
-          {syncingIiko ? 'Синхронизация…' : 'Синхронизировать с iiko'}
-        </button>
-        {/* Табы */}
-        <div className="flex bg-gray-100 p-1 rounded-xl" role="tablist" aria-label="Разделы меню">
-          <button
-            type="button"
-            id="menu-tab-products"
-            role="tab"
-            aria-selected={activeTab === 'products'}
-            aria-controls="menu-panel-products"
-            onClick={() => setActiveTab('products')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              activeTab === 'products'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            Блюда iiko ({productsInVisibleCategories.length})
-          </button>
-          <button
-            type="button"
-            id="menu-tab-categories"
-            role="tab"
-            aria-selected={activeTab === 'categories'}
-            aria-controls="menu-panel-categories"
-            onClick={() => setActiveTab('categories')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              activeTab === 'categories'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            Категории ({rawGroups.length})
-          </button>
-          <button
-            type="button"
-            id="menu-tab-custom"
-            role="tab"
-            aria-selected={activeTab === 'custom'}
-            aria-controls="menu-panel-custom"
-            onClick={() => setActiveTab('custom')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              activeTab === 'custom'
-                ? 'bg-white text-gray-900 shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
-            }`}
-          >
-            Свои блюда ({customProducts.length})
-          </button>
-        </div>
-      </div>
+      <MenuCityScope
+        locations={scopeLocations}
+        selectedBranchId={selectedBranchId}
+        onBranchChange={handleMenuBranchChange}
+        activeProfileKey={activeProfileKey}
+        profiles={profileStatuses}
+        loading={loading}
+        hasError={Boolean(error)}
+        productsCount={productsInVisibleCategories.length}
+        categoriesCount={rawGroups.length}
+      />
 
-      {loading ? (
+      {selectedBranchId && (
+        <MenuWorkspaceToolbar
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          onSync={() => void handleSyncIikoMenu()}
+          syncing={syncingIiko}
+          loading={loading}
+          productsCount={productsInVisibleCategories.length}
+          categoriesCount={rawGroups.length}
+          customProductsCount={customProducts.length}
+        />
+      )}
+
+      {!selectedBranchId ? (
+        <PageState
+          type="empty"
+          title="Выберите город"
+          description="После выбора откроется именно его ассортимент и цены. Так изменения не попадут в меню другого города."
+        />
+      ) : loading ? (
         <PageState type="loading" />
       ) : error ? (
         <PageState type="error" description={error} onRetry={fetchMenu} />

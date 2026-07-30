@@ -1042,6 +1042,17 @@ export const api = {
       rawMenu: any;
       overrides: any;
       profileKey: 'default' | 'astana';
+      profiles: Record<
+        string,
+        {
+          key: string;
+          configured: boolean;
+          city?: string;
+          organizationConfigured?: boolean;
+          externalMenuConfigured?: boolean;
+          priceCategoryConfigured?: boolean;
+        }
+      >;
     }>('/menu'),
   syncIikoMenu: () =>
     request<{

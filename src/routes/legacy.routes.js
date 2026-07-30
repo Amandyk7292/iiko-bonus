@@ -747,7 +747,10 @@ router.get('/api/guest/menu', async (req, res) => {
       selectedIikoApi.getStopListProductIds(undefined, { strict: true }),
       menuService.getProductOverrides({ strict: true }),
       menuService.getCategoryOverrides({ strict: true }),
-      menuService.getCustomProducts({ strict: true }),
+      menuService.getCustomProducts({
+        strict: true,
+        profileKey: selectedIikoApi.profileKey,
+      }),
     ]);
 
     const prodOverridesMap = new Map(productOverrides.map((o) => [o.iiko_product_id, o]));

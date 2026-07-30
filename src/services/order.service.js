@@ -150,7 +150,10 @@ async function loadOrderCatalog({ branchId = null, orderType = 'pickup' } = {}) 
     selectedIikoApi.getStopListProductIds(undefined, { strict: true }),
     menuService.getProductOverrides({ strict: true }),
     menuService.getCategoryOverrides({ strict: true }),
-    menuService.getCustomProducts({ strict: true }),
+    menuService.getCustomProducts({
+      strict: true,
+      profileKey: selectedIikoApi.profileKey,
+    }),
   ]);
   const productOverrideMap = new Map(productOverrides.map((item) => [item.iiko_product_id, item]));
   const categoryOverrideMap = new Map(

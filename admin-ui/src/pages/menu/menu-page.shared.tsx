@@ -74,6 +74,7 @@ export const indexCategoryOverrides = (
 
 export interface CustomProduct {
   id?: string;
+  iiko_profile?: string;
   name: string;
   description?: string;
   price: number;

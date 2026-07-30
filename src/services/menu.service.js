@@ -16,6 +16,11 @@ const cleanId = (value, label) => {
   if (!/^[0-9A-Za-z._:-]+$/.test(id)) throw menuError(`Некорректный ${label}`);
   return id;
 };
+const cleanProfileKey = (value = 'default') => {
+  const profileKey = cleanText(value, 64, true).toLowerCase();
+  if (!/^[a-z0-9_-]+$/.test(profileKey)) throw menuError('Некорректный профиль меню');
+  return profileKey;
+};
 const cleanUrl = (value) => {
   const url = cleanText(value, 2000);
   if (!url) return null;
@@ -325,11 +330,13 @@ class MenuService {
   /**
    * Получает все кастомные товары
    */
-  async getCustomProducts({ strict = false } = {}) {
-    const { data, error } = await supabase
+  async getCustomProducts({ strict = false, profileKey } = {}) {
+    let query = supabase
       .from('custom_products')
       .select('*')
       .order('sort_order', { ascending: true });
+    if (profileKey) query = query.eq('iiko_profile', cleanProfileKey(profileKey));
+    const { data, error } = await query;
     if (error) {
       if (strict) throw new Error('Ошибка при получении кастомных товаров: ' + error.message);
       console.error('Ошибка при получении кастомных товаров:', error.message);
@@ -341,8 +348,11 @@ class MenuService {
   /**
    * Добавляет или обновляет кастомный товар
    */
-  async upsertCustomProduct(product) {
-    const input = customProductInput(product);
+  async upsertCustomProduct(product, { profileKey = 'default' } = {}) {
+    const input = {
+      ...customProductInput(product),
+      iiko_profile: cleanProfileKey(profileKey),
+    };
     const { error } = await supabase.from('custom_products').upsert(input);
     if (error) throw new Error('Ошибка сохранения кастомного товара: ' + error.message);
   }
@@ -350,14 +360,16 @@ class MenuService {
   /**
    * Удаляет кастомный товар
    */
-  async deleteCustomProduct(id) {
+  async deleteCustomProduct(id, { profileKey } = {}) {
     const normalized = String(id || '');
     if (
       !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(normalized)
     ) {
       throw menuError('Некорректный id товара');
     }
-    const { error } = await supabase.from('custom_products').delete().eq('id', normalized);
+    let query = supabase.from('custom_products').delete().eq('id', normalized);
+    if (profileKey) query = query.eq('iiko_profile', cleanProfileKey(profileKey));
+    const { error } = await query;
     if (error) throw new Error('Ошибка удаления кастомного товара: ' + error.message);
   }
 }

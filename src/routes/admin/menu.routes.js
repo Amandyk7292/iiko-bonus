@@ -62,7 +62,7 @@ function registerMenuAdminRoutes(router) {
       const [productOverrides, categoryOverrides, customProducts] = await Promise.all([
         menuService.getProductOverrides(),
         menuService.getCategoryOverrides(),
-        menuService.getCustomProducts(),
+        menuService.getCustomProducts({ profileKey: selectedIikoApi.profileKey }),
       ]);
 
       res.json({
@@ -187,9 +187,16 @@ function registerMenuAdminRoutes(router) {
     validateRequest(adminMutationSchemas.customProduct),
     async (req, res) => {
       try {
-        await menuService.upsertCustomProduct(req.body);
+        const selectedIikoApi = await getIikoClientForBranch(req.admin?.selectedBranchId);
+        await menuService.upsertCustomProduct(req.body, {
+          profileKey: selectedIikoApi.profileKey,
+        });
         invalidateAllIikoCaches();
-        realtime.publish('menu.updated', { customProduct: true }, { broadcast: true });
+        realtime.publish(
+          'menu.updated',
+          { customProduct: true, profileKey: selectedIikoApi.profileKey },
+          { broadcast: true, branchId: req.admin?.selectedBranchId || null },
+        );
         res.json({ success: true });
       } catch (error) {
         res.status(error.statusCode || 500).json({ success: false, error: error.message });
@@ -203,12 +210,19 @@ function registerMenuAdminRoutes(router) {
     validateRequest(adminMutationSchemas.customProductDelete),
     async (req, res) => {
       try {
-        await menuService.deleteCustomProduct(req.params.id);
+        const selectedIikoApi = await getIikoClientForBranch(req.admin?.selectedBranchId);
+        await menuService.deleteCustomProduct(req.params.id, {
+          profileKey: selectedIikoApi.profileKey,
+        });
         invalidateAllIikoCaches();
         realtime.publish(
           'menu.updated',
-          { customProductId: String(req.params.id), deleted: true },
-          { broadcast: true },
+          {
+            customProductId: String(req.params.id),
+            deleted: true,
+            profileKey: selectedIikoApi.profileKey,
+          },
+          { broadcast: true, branchId: req.admin?.selectedBranchId || null },
         );
         res.json({ success: true });
       } catch (error) {
