@@ -171,79 +171,87 @@ class _PromosScreenState extends State<PromosScreen>
             : RefreshIndicator(
                 onRefresh: _load,
                 color: _caramel,
-                child: CustomScrollView(
-                  key: const PageStorageKey('promos-list'),
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  slivers: [
-                    SliverToBoxAdapter(
-                      child: _PromoTypeTabs(
-                        selectedType: _selectedType,
-                        onSelected: (value) =>
-                            setState(() => _selectedType = value),
+                child: ScrollConfiguration(
+                  key: const ValueKey('promos-scroll-configuration'),
+                  behavior: ScrollConfiguration.of(
+                    context,
+                  ).copyWith(scrollbars: false),
+                  child: CustomScrollView(
+                    key: const PageStorageKey('promos-list'),
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    slivers: [
+                      SliverToBoxAdapter(
+                        child: _PromoTypeTabs(
+                          selectedType: _selectedType,
+                          onSelected: (value) =>
+                              setState(() => _selectedType = value),
+                        ),
                       ),
-                    ),
-                    if (filteredGroups.isEmpty)
-                      SliverFillRemaining(
-                        hasScrollBody: false,
-                        child: _PromoCategoryEmpty(
-                          showRefresh: groups.isEmpty,
-                          onRefresh: _load,
-                        ),
-                      )
-                    else
-                      SliverPadding(
-                        padding: EdgeInsets.fromLTRB(
-                          20,
-                          8,
-                          20,
-                          BulkaLayout.bottomNavContentInset(context),
-                        ),
-                        sliver: SliverLayoutBuilder(
-                          builder: (context, constraints) {
-                            if (constraints.crossAxisExtent < 720) {
-                              return SliverList(
-                                delegate: SliverChildBuilderDelegate(
-                                  (context, index) => Padding(
-                                    padding: EdgeInsets.only(
-                                      bottom: index == filteredGroups.length - 1
-                                          ? 0
-                                          : 18,
-                                    ),
-                                    child: _PromoGridCard(
-                                      key: ValueKey(
-                                        'promos-grid-card-${filteredGroups[index].id}',
+                      if (filteredGroups.isEmpty)
+                        SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: _PromoCategoryEmpty(
+                            showRefresh: groups.isEmpty,
+                            onRefresh: _load,
+                          ),
+                        )
+                      else
+                        SliverPadding(
+                          padding: EdgeInsets.fromLTRB(
+                            20,
+                            8,
+                            20,
+                            BulkaLayout.bottomNavContentInset(context),
+                          ),
+                          sliver: SliverLayoutBuilder(
+                            builder: (context, constraints) {
+                              if (constraints.crossAxisExtent < 720) {
+                                return SliverList(
+                                  delegate: SliverChildBuilderDelegate(
+                                    (context, index) => Padding(
+                                      padding: EdgeInsets.only(
+                                        bottom:
+                                            index == filteredGroups.length - 1
+                                            ? 0
+                                            : 18,
                                       ),
-                                      group: filteredGroups[index],
-                                      onTap: () => _open(filteredGroups[index]),
+                                      child: _PromoGridCard(
+                                        key: ValueKey(
+                                          'promos-grid-card-${filteredGroups[index].id}',
+                                        ),
+                                        group: filteredGroups[index],
+                                        onTap: () =>
+                                            _open(filteredGroups[index]),
+                                      ),
                                     ),
+                                    childCount: filteredGroups.length,
+                                  ),
+                                );
+                              }
+                              return SliverGrid(
+                                gridDelegate:
+                                    const SliverGridDelegateWithFixedCrossAxisCount(
+                                      crossAxisCount: 2,
+                                      crossAxisSpacing: 18,
+                                      mainAxisSpacing: 18,
+                                      mainAxisExtent: 500,
+                                    ),
+                                delegate: SliverChildBuilderDelegate(
+                                  (context, index) => _PromoGridCard(
+                                    key: ValueKey(
+                                      'promos-grid-card-${filteredGroups[index].id}',
+                                    ),
+                                    group: filteredGroups[index],
+                                    onTap: () => _open(filteredGroups[index]),
                                   ),
                                   childCount: filteredGroups.length,
                                 ),
                               );
-                            }
-                            return SliverGrid(
-                              gridDelegate:
-                                  const SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: 2,
-                                    crossAxisSpacing: 18,
-                                    mainAxisSpacing: 18,
-                                    mainAxisExtent: 500,
-                                  ),
-                              delegate: SliverChildBuilderDelegate(
-                                (context, index) => _PromoGridCard(
-                                  key: ValueKey(
-                                    'promos-grid-card-${filteredGroups[index].id}',
-                                  ),
-                                  group: filteredGroups[index],
-                                  onTap: () => _open(filteredGroups[index]),
-                                ),
-                                childCount: filteredGroups.length,
-                              ),
-                            );
-                          },
+                            },
+                          ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
       ),

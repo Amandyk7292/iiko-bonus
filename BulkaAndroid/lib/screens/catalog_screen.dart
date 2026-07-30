@@ -1354,26 +1354,6 @@ class _CatalogScreenState extends State<CatalogScreen>
           ? BulkaMotion.lightImpact()
           : BulkaMotion.selection(),
     );
-    if (next > previous && previous == 0 && mounted) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            behavior: SnackBarBehavior.floating,
-            content: Row(
-              children: [
-                const Icon(
-                  Icons.thumb_up_alt_rounded,
-                  color: Colors.white,
-                  size: 20,
-                ),
-                const SizedBox(width: 10),
-                Expanded(child: Text('catalog_added_to_cart'.tr)),
-              ],
-            ),
-          ),
-        );
-    }
   }
 
   double _catalogContentBottomInset(BuildContext context) =>

@@ -1,4 +1,5 @@
 import 'package:bulka_bonus/main.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -50,6 +51,38 @@ void main() {
       find.byKey(const ValueKey('promo-cover-ratio-check')),
     );
     expect(size.width / size.height, closeTo(1080 / 480, 0.001));
+  });
+
+  testWidgets('promotions hide the desktop scrollbar but remain scrollable', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 500);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildBulkaTheme(),
+        home: PromosScreen(api: _PromoGridApiClient()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('promos-scroll-configuration')),
+      findsOneWidget,
+    );
+    expect(find.byType(Scrollbar), findsNothing);
+
+    final scrollable = find.byType(Scrollable).first;
+    final before = tester.state<ScrollableState>(scrollable).position.pixels;
+    await tester.drag(scrollable, const Offset(0, -220));
+    await tester.pumpAndSettle();
+    final after = tester.state<ScrollableState>(scrollable).position.pixels;
+    expect(after, greaterThan(before));
+    debugDefaultTargetPlatformOverride = null;
   });
 
   testWidgets('opening a promotion shows its description and optional QR', (

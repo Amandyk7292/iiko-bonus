@@ -450,14 +450,19 @@ class _CatalogImageQuantityControl extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            IconButton(
-              onPressed: onDecrease,
-              tooltip: 'catalog_decrease_quantity'.tr,
-              style: IconButton.styleFrom(
-                minimumSize: const Size(44, 48),
-                foregroundColor: colors.brandBrown,
+            Semantics(
+              button: true,
+              label: 'catalog_decrease_quantity'.tr,
+              child: ExcludeSemantics(
+                child: IconButton(
+                  onPressed: onDecrease,
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(44, 48),
+                    foregroundColor: colors.brandBrown,
+                  ),
+                  icon: const Icon(Icons.remove_rounded, size: 22),
+                ),
               ),
-              icon: const Icon(Icons.remove_rounded, size: 22),
             ),
             SizedBox(
               width: 28,
@@ -473,18 +478,24 @@ class _CatalogImageQuantityControl extends StatelessWidget {
                 ),
               ),
             ),
-            IconButton(
-              onPressed: onIncrease,
-              tooltip: onIncrease == null
+            Semantics(
+              button: true,
+              enabled: onIncrease != null,
+              label: onIncrease == null
                   ? 'catalog_quantity_limit_reached'.trArgs({
                       'count': CartProvider.maxItemQuantity,
                     })
                   : 'catalog_increase_quantity'.tr,
-              style: IconButton.styleFrom(
-                minimumSize: const Size(44, 48),
-                foregroundColor: colors.brandBrown,
+              child: ExcludeSemantics(
+                child: IconButton(
+                  onPressed: onIncrease,
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(44, 48),
+                    foregroundColor: colors.brandBrown,
+                  ),
+                  icon: const Icon(Icons.add_rounded, size: 22),
+                ),
               ),
-              icon: const Icon(Icons.add_rounded, size: 22),
             ),
           ],
         ),

@@ -452,9 +452,6 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       modifiers: modifiers,
     );
     BulkaMotion.lightImpact();
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('catalog_added_to_cart'.tr)));
   }
 
   String _factNumber(double? value) {
@@ -1176,15 +1173,22 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                               ),
                                             ),
                                           ),
-                                          IconButton(
-                                            onPressed: _candles > 0
-                                                ? () =>
-                                                      setState(() => _candles--)
-                                                : null,
-                                            tooltip:
+                                          Semantics(
+                                            button: true,
+                                            enabled: _candles > 0,
+                                            label:
                                                 'catalog_decrease_quantity'.tr,
-                                            icon: const Icon(
-                                              Icons.remove_rounded,
+                                            child: ExcludeSemantics(
+                                              child: IconButton(
+                                                onPressed: _candles > 0
+                                                    ? () => setState(
+                                                        () => _candles--,
+                                                      )
+                                                    : null,
+                                                icon: const Icon(
+                                                  Icons.remove_rounded,
+                                                ),
+                                              ),
                                             ),
                                           ),
                                           SizedBox(
@@ -1199,14 +1203,23 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                               ),
                                             ),
                                           ),
-                                          IconButton(
-                                            onPressed: _candles < 99
-                                                ? () =>
-                                                      setState(() => _candles++)
-                                                : null,
-                                            tooltip:
+                                          Semantics(
+                                            button: true,
+                                            enabled: _candles < 99,
+                                            label:
                                                 'catalog_increase_quantity'.tr,
-                                            icon: const Icon(Icons.add_rounded),
+                                            child: ExcludeSemantics(
+                                              child: IconButton(
+                                                onPressed: _candles < 99
+                                                    ? () => setState(
+                                                        () => _candles++,
+                                                      )
+                                                    : null,
+                                                icon: const Icon(
+                                                  Icons.add_rounded,
+                                                ),
+                                              ),
+                                            ),
                                           ),
                                         ],
                                       ),
