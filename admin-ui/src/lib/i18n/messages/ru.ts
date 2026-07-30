@@ -49,6 +49,7 @@ const ru: Record<string, string> = {
   'adminScope.city': 'Город',
   'adminScope.branch': 'Филиал',
   'adminScope.allCities': 'Все города',
+  'adminScope.allCityBranches': 'Все филиалы города',
   'adminScope.selectCity': 'Выберите город',
   'adminScope.menuCityAria': 'Город для настройки меню',
   'adminScope.operationsCityAria': 'Город для фильтрации данных',

@@ -1,4 +1,5 @@
 import type { PaymentDiagnostics } from './payment-diagnostics';
+import { parseAdminScopeSelection } from './admin-city-scope';
 const BASE_URL = '/admin/api';
 const BRANCH_SCOPE_STORAGE_KEY = 'adminSelectedBranchId';
 
@@ -10,6 +11,37 @@ export function setAdminBranchScope(branchId: string) {
   const value = String(branchId || '').trim();
   if (value) localStorage.setItem(BRANCH_SCOPE_STORAGE_KEY, value);
   else localStorage.removeItem(BRANCH_SCOPE_STORAGE_KEY);
+}
+
+export function applyAdminScopeHeaders(
+  headers: Headers,
+  endpoint: string,
+  storedScope = getAdminBranchScope(),
+) {
+  if (
+    !storedScope ||
+    endpoint === '/session' ||
+    endpoint === '/scope' ||
+    endpoint.startsWith('/login')
+  ) {
+    return;
+  }
+  const selection = parseAdminScopeSelection(storedScope);
+  if (selection.kind === 'branch') {
+    headers.set('X-Bulka-Branch-Id', selection.branchId);
+    return;
+  }
+  if (selection.kind !== 'city') return;
+
+  const isMenuEndpoint = endpoint === '/menu' || endpoint.startsWith('/menu/');
+  if (isMenuEndpoint) {
+    headers.set('X-Bulka-Branch-Id', selection.branchIds[0] || 'invalid-city-scope');
+    return;
+  }
+  headers.set(
+    'X-Bulka-Branch-Ids',
+    selection.branchIds.length ? selection.branchIds.join(',') : 'invalid-city-scope',
+  );
 }
 
 export class ApiError extends Error {
@@ -227,15 +259,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   if (options.body && !(options.body instanceof FormData))
     headers.set('Content-Type', 'application/json');
   headers.set('Accept', 'application/json');
-  const selectedBranchId = getAdminBranchScope();
-  if (
-    selectedBranchId &&
-    endpoint !== '/session' &&
-    endpoint !== '/scope' &&
-    !endpoint.startsWith('/login')
-  ) {
-    headers.set('X-Bulka-Branch-Id', selectedBranchId);
-  }
+  applyAdminScopeHeaders(headers, endpoint);
 
   let response: Response;
   const requestAbort = composeRequestAbortSignal(options.signal);
@@ -1080,8 +1104,7 @@ export const api = {
     const formData = new FormData();
     formData.append('image', file);
     const headers = new Headers();
-    const selectedBranchId = getAdminBranchScope();
-    if (selectedBranchId) headers.set('X-Bulka-Branch-Id', selectedBranchId);
+    applyAdminScopeHeaders(headers, '/menu/upload-image');
     const response = await fetch(`${BASE_URL}/menu/upload-image`, {
       method: 'POST',
       headers,

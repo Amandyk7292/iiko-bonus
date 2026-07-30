@@ -71,17 +71,21 @@ describe('Topbar city and branch scope', () => {
     expect(screen.queryByRole('combobox', { name: /Филиал города/ })).not.toBeInTheDocument();
 
     fireEvent.change(citySelect, { target: { value: 'астана' } });
-    expect(onBranchChange).toHaveBeenCalledWith('astana-1');
+    const cityScope = onBranchChange.mock.calls[0]?.[0] as string;
+    expect(cityScope).toContain('city:');
+    expect(cityScope).toContain('astana-1,astana-2');
 
-    view.rerender(topbar('astana-1', onBranchChange));
+    view.rerender(topbar(cityScope, onBranchChange));
     const branchSelect = screen.getByRole('combobox', {
       name: 'Филиал города Астана',
     });
     const options = within(branchSelect).getAllByRole('option');
     expect(options.map((option) => option.textContent)).toEqual([
+      'Все филиалы города',
       'Bulka — Кабанбай батыра',
       'Bulka — Улы Дала',
     ]);
+    expect(branchSelect).toHaveValue(cityScope);
     expect(within(branchSelect).queryByText('ЖК Дукат')).not.toBeInTheDocument();
   });
 

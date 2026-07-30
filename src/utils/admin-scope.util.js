@@ -14,6 +14,8 @@ const normalizeBranchIds = (value) =>
 const hasGlobalBranchAccess = (admin) => GLOBAL_BRANCH_ROLES.has(String(admin?.role || ''));
 
 const branchScopeForAdmin = (admin) => {
+  const selectedBranchIds = normalizeBranchIds(admin?.selectedBranchIds);
+  if (selectedBranchIds.length) return selectedBranchIds;
   const selectedBranchId = String(admin?.selectedBranchId || '').trim();
   if (selectedBranchId) return [selectedBranchId];
   if (hasGlobalBranchAccess(admin)) return [];
@@ -23,17 +25,39 @@ const branchScopeForAdmin = (admin) => {
   return branchIds.length ? branchIds : [NO_BRANCH_SCOPE];
 };
 
-const applyAdminBranchSelection = (admin, value) => {
+const applyAdminBranchSelection = (admin, value, multipleValue = '') => {
   const selectedBranchId = String(value || '').trim();
-  if (!selectedBranchId) return { ...admin, selectedBranchId: null };
-  if (!UUID_PATTERN.test(selectedBranchId)) {
+  const rawMultipleValue = String(multipleValue || '').trim();
+  if (selectedBranchId && rawMultipleValue) {
     throw Object.assign(new Error('Некорректный филиал'), { statusCode: 400 });
   }
+  const requestedBranchIds = selectedBranchId
+    ? [selectedBranchId]
+    : normalizeBranchIds(rawMultipleValue.split(','));
+  if (!selectedBranchId && rawMultipleValue && requestedBranchIds.length === 0) {
+    throw Object.assign(new Error('Некорректные филиалы'), { statusCode: 400 });
+  }
+  if (!requestedBranchIds.length) {
+    return { ...admin, selectedBranchId: null, selectedBranchIds: [] };
+  }
+  if (
+    requestedBranchIds.length > 50 ||
+    requestedBranchIds.some((branchId) => !UUID_PATTERN.test(branchId))
+  ) {
+    throw Object.assign(new Error('Некорректные филиалы'), { statusCode: 400 });
+  }
   const assignedBranchIds = normalizeBranchIds(admin?.branchIds);
-  if (!hasGlobalBranchAccess(admin) && !assignedBranchIds.includes(selectedBranchId)) {
+  if (
+    !hasGlobalBranchAccess(admin) &&
+    requestedBranchIds.some((branchId) => !assignedBranchIds.includes(branchId))
+  ) {
     throw Object.assign(new Error('Филиал не входит в область доступа'), { statusCode: 403 });
   }
-  return { ...admin, selectedBranchId };
+  return {
+    ...admin,
+    selectedBranchId: requestedBranchIds.length === 1 ? requestedBranchIds[0] : null,
+    selectedBranchIds: requestedBranchIds,
+  };
 };
 
 module.exports = {

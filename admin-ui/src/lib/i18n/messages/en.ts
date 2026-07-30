@@ -49,6 +49,7 @@ const en: Record<string, string> = {
   'adminScope.city': 'City',
   'adminScope.branch': 'Branch',
   'adminScope.allCities': 'All cities',
+  'adminScope.allCityBranches': 'All branches in the city',
   'adminScope.selectCity': 'Select a city',
   'adminScope.menuCityAria': 'City whose menu is being configured',
   'adminScope.operationsCityAria': 'City used to filter data',

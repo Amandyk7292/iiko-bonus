@@ -57,6 +57,23 @@ test('realtime applies the selected branch even for globally scoped administrato
   );
 });
 
+test('realtime accepts events from every branch selected through a city scope', () => {
+  const cityAdmin = admin({
+    role: 'owner',
+    areas: ['*'],
+    globalBranchAccess: true,
+    selectedBranchIds: ['branch-a', 'branch-b'],
+  });
+  assert.equal(realtime.canReceive(cityAdmin, orderEvent()), true);
+  assert.equal(
+    realtime.canReceive(
+      cityAdmin,
+      orderEvent({ audience: { includeAdmins: true, branchId: 'branch-c' } }),
+    ),
+    false,
+  );
+});
+
 test('realtime isolates customers and respects admin feature areas', () => {
   assert.equal(
     realtime.canReceive({ customerId: 'customer-a', admin: false }, orderEvent()),

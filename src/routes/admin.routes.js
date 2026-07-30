@@ -292,6 +292,7 @@ router.get('/admin/api/scope', async (req, res) => {
         active: location.active,
       })),
       selectedBranchId: req.admin?.selectedBranchId || null,
+      selectedBranchIds: normalizeBranchIds(req.admin?.selectedBranchIds),
     });
   } catch (error) {
     res.status(error.statusCode || 500).json({ success: false, error: error.message });
@@ -304,6 +305,7 @@ router.get('/admin/api/events', (req, res) =>
     areas: [...(ROLE_AREAS[req.admin?.role] || [])],
     branchIds: hasGlobalBranchAccess(req.admin) ? [] : normalizeBranchIds(req.admin?.branchIds),
     selectedBranchId: req.admin?.selectedBranchId || null,
+    selectedBranchIds: normalizeBranchIds(req.admin?.selectedBranchIds),
     globalBranchAccess: hasGlobalBranchAccess(req.admin),
   }),
 );

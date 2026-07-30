@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { composeRequestAbortSignal } from './api';
+import { applyAdminScopeHeaders, composeRequestAbortSignal } from './api';
 
 describe('admin API request abort composition', () => {
   afterEach(() => {
@@ -39,5 +39,19 @@ describe('admin API request abort composition', () => {
     vi.advanceTimersByTime(30000);
     expect(completedRequest.signal.aborted).toBe(false);
     expect(completedRequest.didTimeout()).toBe(false);
+  });
+
+  it('sends every city branch to regular APIs and one technical branch to menu APIs', () => {
+    const scope =
+      'city:%D0%B0%D1%81%D1%82%D0%B0%D0%BD%D0%B0|branch-a,branch-b';
+    const operationsHeaders = new Headers();
+    applyAdminScopeHeaders(operationsHeaders, '/operations/summary', scope);
+    expect(operationsHeaders.get('X-Bulka-Branch-Ids')).toBe('branch-a,branch-b');
+    expect(operationsHeaders.has('X-Bulka-Branch-Id')).toBe(false);
+
+    const menuHeaders = new Headers();
+    applyAdminScopeHeaders(menuHeaders, '/menu', scope);
+    expect(menuHeaders.get('X-Bulka-Branch-Id')).toBe('branch-a');
+    expect(menuHeaders.has('X-Bulka-Branch-Ids')).toBe(false);
   });
 });

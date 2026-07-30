@@ -50,6 +50,10 @@ const adminCanReceiveArea = (subscriber, type) => {
 const branchMatches = (subscriber, branchId) => {
   if (!branchId) return true;
   const requested = String(branchId);
+  const selectedBranchIds = Array.isArray(subscriber.selectedBranchIds)
+    ? subscriber.selectedBranchIds.map(String)
+    : [];
+  if (selectedBranchIds.length) return selectedBranchIds.includes(requested);
   if (subscriber.selectedBranchId) return String(subscriber.selectedBranchId) === requested;
   if (subscriber.globalBranchAccess) return true;
   const branchIds = Array.isArray(subscriber.branchIds) ? subscriber.branchIds.map(String) : [];
@@ -128,6 +132,9 @@ function openStream(req, res, identity = {}) {
     areas: Array.isArray(identity.areas) ? identity.areas.map(String) : [],
     branchIds: Array.isArray(identity.branchIds) ? identity.branchIds.map(String) : [],
     selectedBranchId: identity.selectedBranchId || null,
+    selectedBranchIds: Array.isArray(identity.selectedBranchIds)
+      ? identity.selectedBranchIds.map(String)
+      : [],
     globalBranchAccess: identity.globalBranchAccess === true,
     close,
   };

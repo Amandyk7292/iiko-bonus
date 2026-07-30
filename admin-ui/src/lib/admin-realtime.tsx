@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import { api, type OperationsSummary } from './api';
+import { parseAdminScopeSelection } from './admin-city-scope';
 
 export interface AdminRealtimeEvent {
   id: string;
@@ -165,7 +166,14 @@ export function AdminRealtimeProvider({
 
   useEffect(() => {
     const params = new URLSearchParams();
-    if (branchId) params.set('scopeBranchId', branchId);
+    const selection = parseAdminScopeSelection(branchId);
+    if (selection.kind === 'branch') params.set('scopeBranchId', selection.branchId);
+    if (selection.kind === 'city') {
+      params.set(
+        'scopeBranchIds',
+        selection.branchIds.length ? selection.branchIds.join(',') : 'invalid-city-scope',
+      );
+    }
     setConnectionStatus('connecting');
     const source = new EventSource(
       `/admin/api/events${params.size ? `?${params.toString()}` : ''}`,

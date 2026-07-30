@@ -49,6 +49,7 @@ const kk: Record<string, string> = {
   'adminScope.city': 'Қала',
   'adminScope.branch': 'Филиал',
   'adminScope.allCities': 'Барлық қалалар',
+  'adminScope.allCityBranches': 'Қаланың барлық филиалдары',
   'adminScope.selectCity': 'Қаланы таңдаңыз',
   'adminScope.menuCityAria': 'Мәзірді баптайтын қала',
   'adminScope.operationsCityAria': 'Деректерді сүзетін қала',

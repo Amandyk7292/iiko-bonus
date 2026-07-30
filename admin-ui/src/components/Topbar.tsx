@@ -13,7 +13,12 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from '../lib/router';
 import { api, type AdminScopeLocation } from '../lib/api';
-import { cityScopeForBranch, getAdminCityScopes } from '../lib/admin-city-scope';
+import {
+  adminCityScopeValue,
+  cityScopeForSelection,
+  getAdminCityScopes,
+  parseAdminScopeSelection,
+} from '../lib/admin-city-scope';
 import { useAdminRealtime } from '../lib/admin-realtime';
 import { useI18n } from '../lib/i18n';
 import AdminGlobalSearch from './AdminGlobalSearch';
@@ -69,7 +74,8 @@ export default function Topbar({
   const page = routeKeys[location.pathname] ?? 'operations';
   const usesCityScope = location.pathname === '/menu';
   const cityScopes = getAdminCityScopes(scopeLocations);
-  const selectedCity = cityScopeForBranch(cityScopes, selectedBranchId);
+  const selectedScope = parseAdminScopeSelection(selectedBranchId);
+  const selectedCity = cityScopeForSelection(cityScopes, selectedBranchId);
   const counts = summary?.counts;
   const actionCount = counts
     ? counts.newOrders +
@@ -183,8 +189,8 @@ export default function Topbar({
                     return;
                   }
                   const city = cityScopes.find((item) => item.key === cityKey);
-                  const branch = city?.branches[0];
-                  if (branch) onBranchChange?.(branch.id);
+                  if (!city) return;
+                  onBranchChange?.(adminCityScopeValue(city));
                 }}
                 aria-label={
                   usesCityScope
@@ -206,10 +212,17 @@ export default function Topbar({
               <label className="topbar-branch-select topbar-city-branch-select">
                 <span>{t('adminScope.branch')}</span>
                 <select
-                  value={selectedBranchId}
+                  value={
+                    selectedScope.kind === 'city'
+                      ? adminCityScopeValue(selectedCity)
+                      : selectedBranchId
+                  }
                   onChange={(event) => onBranchChange?.(event.target.value)}
                   aria-label={t('adminScope.branchAria', { city: selectedCity.name })}
                 >
+                  <option value={adminCityScopeValue(selectedCity)}>
+                    {t('adminScope.allCityBranches')}
+                  </option>
                   {selectedCity.branches.map((branch) => (
                     <option key={branch.id} value={branch.id}>
                       {branch.name}

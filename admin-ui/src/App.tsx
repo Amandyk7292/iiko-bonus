@@ -12,6 +12,12 @@ import {
 import { useI18n } from './lib/i18n';
 import { AdminRealtimeProvider } from './lib/admin-realtime';
 import { ADMIN_ALLOWED_PATHS } from './lib/admin-permissions';
+import {
+  adminCityScopeValue,
+  getAdminCityScopes,
+  parseAdminScopeSelection,
+  primaryBranchIdForAdminScope,
+} from './lib/admin-city-scope';
 import PageState from './components/PageState';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
@@ -431,7 +437,27 @@ export default function App() {
         if (!active) return;
         setScopeLocations(response.locations);
         const stored = getAdminBranchScope();
-        if (stored && !response.locations.some((location) => location.id === stored)) {
+        const selection = parseAdminScopeSelection(stored);
+        if (selection.kind === 'city') {
+          const city = getAdminCityScopes(response.locations).find(
+            (candidate) => candidate.key === selection.cityKey,
+          );
+          if (!city) {
+            setAdminBranchScope('');
+            setSelectedBranchIdState('');
+            return;
+          }
+          const refreshedScope = adminCityScopeValue(city);
+          if (refreshedScope !== stored) {
+            setAdminBranchScope(refreshedScope);
+            setSelectedBranchIdState(refreshedScope);
+          }
+          return;
+        }
+        if (
+          selection.kind === 'branch' &&
+          !response.locations.some((location) => location.id === selection.branchId)
+        ) {
           setAdminBranchScope('');
           setSelectedBranchIdState('');
         }
@@ -476,6 +502,7 @@ export default function App() {
     setAdminBranchScope(branchId);
     setSelectedBranchIdState(branchId);
   };
+  const menuSelectedBranchId = primaryBranchIdForAdminScope(selectedBranchId);
 
   return (
     <AdminRealtimeProvider branchId={selectedBranchId} role={role}>
@@ -538,7 +565,7 @@ export default function App() {
                     '/menu',
                     <MenuPage
                       scopeLocations={scopeLocations}
-                      selectedBranchId={selectedBranchId}
+                      selectedBranchId={menuSelectedBranchId}
                       onBranchChange={handleBranchChange}
                     />,
                   )}

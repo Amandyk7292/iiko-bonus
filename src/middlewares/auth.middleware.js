@@ -431,7 +431,9 @@ const adminAuthMiddleware = async (req, res, next) => {
       throw new Error('Session is revoked');
     }
     const requestedBranch = req.headers['x-bulka-branch-id'] || req.query?.scopeBranchId || '';
-    req.admin = applyAdminBranchSelection(activeSession, requestedBranch);
+    const requestedBranches =
+      req.headers['x-bulka-branch-ids'] || req.query?.scopeBranchIds || '';
+    req.admin = applyAdminBranchSelection(activeSession, requestedBranch, requestedBranches);
     return next();
   } catch (error) {
     if (error?.statusCode) return res.status(error.statusCode).json({ error: error.message });
