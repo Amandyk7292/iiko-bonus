@@ -83,6 +83,7 @@ flutter:
     - assets/categories/
     - assets/social/
     - assets/product_marks/
+    - shorebird.yaml
 
   fonts:
     - family: GolosText
