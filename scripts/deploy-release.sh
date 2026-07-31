@@ -313,8 +313,10 @@ for required_file in \
   supabase/migrations/20260725120000_customer_access_hardening.sql \
   scripts/apply-migrations.js \
   scripts/backup-database.sh \
+  scripts/backup-supabase-storage.js \
   scripts/deploy-release.sh \
   scripts/ensure-postgres-client.sh \
+  scripts/install-database-backup-timer.sh \
   scripts/configure-iiko-astana-vps.sh \
   scripts/probe-iiko-city-profile.js \
   scripts/rollback-vps.sh \

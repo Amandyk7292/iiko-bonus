@@ -99,6 +99,7 @@ Copy-Item -LiteralPath (Join-Path $projectRoot 'supabase_schema.sql') -Destinati
 foreach ($scriptName in @(
     'apply-migrations.js',
     'backup-database.sh',
+    'backup-supabase-storage.js',
     'enable-nginx-upstream-fallback.sh',
     'ensure-postgres-client.sh',
     'install-database-backup-timer.sh',
