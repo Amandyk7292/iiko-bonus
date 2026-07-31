@@ -678,9 +678,16 @@ class BulkaApiClient {
     return const [];
   }
 
-  Future<List<Map<String, dynamic>>> searchDeliveryAddress(String query) async {
+  Future<List<Map<String, dynamic>>> searchDeliveryAddress(
+    String query, {
+    String? city,
+  }) async {
+    final normalizedCity = city?.trim() ?? '';
+    final cityParameter = normalizedCity.isEmpty
+        ? ''
+        : '&city=${Uri.encodeQueryComponent(normalizedCity)}';
     final uri =
-        '/api/public/geocode/search?q=${Uri.encodeQueryComponent(query)}';
+        '/api/public/geocode/search?q=${Uri.encodeQueryComponent(query)}$cityParameter';
     final json = await _get(uri);
     final results = json['results'];
     if (json['success'] != true || results is! List) return const [];

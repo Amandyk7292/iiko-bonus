@@ -5,8 +5,13 @@ const test = require('node:test');
 
 const { normalizeAddressInput } = require('../src/services/address.service');
 const {
+  AKTAU_BOUNDS,
   ASTANA_BOUNDS,
+  cityRegion,
+  cityRegionForCoordinates,
+  insideAktauBounds,
   insideAstanaBounds,
+  insideSupportedCityBounds,
   normalizeLanguage,
 } = require('../src/services/geocode.service');
 const { validateCheckout } = require('../src/services/checkout.service');
@@ -39,9 +44,18 @@ test('saved delivery addresses are normalized and require map coordinates', () =
   assert.throws(() => normalizeAddressInput({ address: '11-й микрорайон, 25' }), /адрес на карте/);
 });
 
-test('geocoding is bounded to Astana and language input is allowlisted', () => {
+test('geocoding is bounded to supported delivery cities and language input is allowlisted', () => {
   assert.equal(insideAstanaBounds(51.1282, 71.4304), true);
   assert.equal(insideAstanaBounds(ASTANA_BOUNDS.north + 0.01, 71.4304), false);
+  assert.equal(insideAktauBounds(43.66944, 51.136929), true);
+  assert.equal(insideAktauBounds(AKTAU_BOUNDS.north + 0.01, 51.136929), false);
+  assert.equal(insideSupportedCityBounds(43.66944, 51.136929), true);
+  assert.equal(insideSupportedCityBounds(40, 60), false);
+  assert.equal(cityRegion('Ақтау')?.name, 'Актау');
+  assert.equal(cityRegion('Astana')?.name, 'Астана');
+  assert.equal(cityRegion('Алматы'), null);
+  assert.equal(cityRegionForCoordinates(43.66944, 51.136929)?.name, 'Актау');
+  assert.equal(cityRegionForCoordinates(51.1282, 71.4304)?.name, 'Астана');
   assert.equal(normalizeLanguage('kk-KZ,ru;q=0.9'), 'kk');
   assert.equal(normalizeLanguage('en-US'), 'en');
   assert.equal(normalizeLanguage('../../etc/passwd'), 'ru');
