@@ -18,6 +18,7 @@ import {
   parseAdminScopeSelection,
   primaryBranchIdForAdminScope,
 } from './lib/admin-city-scope';
+import { isEmbeddedAdminPortal } from './lib/embedded-admin';
 import PageState from './components/PageState';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
@@ -101,7 +102,9 @@ function LoginScreen({ onLogin }: { onLogin: (user: AdminUser) => void }) {
         setPhoneCodeRequested(true);
         setPhoneCode('');
         if (response.whatsappUrl) {
-          window.open(response.whatsappUrl, '_blank', 'noopener,noreferrer');
+          if (isEmbeddedAdminPortal(window.location.search))
+            window.location.assign(response.whatsappUrl);
+          else window.open(response.whatsappUrl, '_blank', 'noopener,noreferrer');
         }
       } else {
         const response = await api.verifyAdminPhoneLogin(phone, phoneCode);

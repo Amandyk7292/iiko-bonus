@@ -836,6 +836,12 @@ class _GuestProfileScreen extends StatelessWidget {
               child: Column(
                 children: [
                   _ProfileMenuItem(
+                    icon: Icons.admin_panel_settings_outlined,
+                    title: 'admin_portal_title'.tr,
+                    onTap: () => unawaited(openAdminPortal(context)),
+                  ),
+                  Divider(height: 1, indent: 60, color: colors.cardBorder),
+                  _ProfileMenuItem(
                     icon: Icons.language_rounded,
                     title: 'select_lang_title'.tr,
                     onTap: () => _selectLanguage(context),

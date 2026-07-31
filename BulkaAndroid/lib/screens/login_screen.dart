@@ -934,6 +934,7 @@ class _LoginScreenState extends State<LoginScreen> {
           onPressed: () => _selectFlow(_CustomerAuthFlow.registration),
           child: Text('auth_create_account'.tr),
         ),
+        AdminPortalLoginButton(enabled: !_loading),
       ] else ...[
         TextButton.icon(
           onPressed: () => _selectFlow(_CustomerAuthFlow.login),

@@ -528,6 +528,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       color: colors.cardBorder,
                     ),
                     _ProfileMenuItem(
+                      icon: Icons.admin_panel_settings_outlined,
+                      title: 'admin_portal_title'.tr,
+                      onTap: () => unawaited(openAdminPortal(context)),
+                    ),
+                    Divider(
+                      height: 1,
+                      indent: 60,
+                      endIndent: 20,
+                      color: colors.cardBorder,
+                    ),
+                    _ProfileMenuItem(
                       icon: Icons.support_agent_outlined,
                       title: 'support_title'.tr,
                       onTap: () =>

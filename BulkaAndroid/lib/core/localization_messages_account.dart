@@ -2,6 +2,48 @@ part of '../main.dart';
 
 const Map<String, Map<String, String>> _accountTranslations = {
   // Profile, account and loyalty tiers
+  'admin_portal_title': {
+    'ru': 'Панель управления',
+    'kk': 'Басқару панелі',
+    'en': 'Management panel',
+  },
+  'admin_portal_staff_login': {
+    'ru': 'Вход для сотрудников',
+    'kk': 'Қызметкерлерге кіру',
+    'en': 'Staff sign-in',
+  },
+  'admin_portal_secure': {
+    'ru': 'Защищённый вход для сотрудников',
+    'kk': 'Қызметкерлерге арналған қауіпсіз кіру',
+    'en': 'Secure staff sign-in',
+  },
+  'admin_portal_semantics': {
+    'ru': 'Встроенная панель управления Bulka',
+    'kk': 'Bulka кірістірілген басқару панелі',
+    'en': 'Embedded Bulka management panel',
+  },
+  'admin_portal_error_title': {
+    'ru': 'Панель не загрузилась',
+    'kk': 'Панель жүктелмеді',
+    'en': 'The panel did not load',
+  },
+  'admin_portal_error_body': {
+    'ru': 'Проверьте интернет-соединение и повторите попытку.',
+    'kk': 'Интернет байланысын тексеріп, қайталап көріңіз.',
+    'en': 'Check your internet connection and try again.',
+  },
+  'admin_portal_external_error': {
+    'ru': 'Не удалось открыть внешнюю страницу.',
+    'kk': 'Сыртқы бетті ашу мүмкін болмады.',
+    'en': 'Could not open the external page.',
+  },
+  'admin_portal_open_browser': {
+    'ru': 'Открыть в браузере',
+    'kk': 'Браузерде ашу',
+    'en': 'Open in browser',
+  },
+  'close': {'ru': 'Закрыть', 'kk': 'Жабу', 'en': 'Close'},
+  'retry': {'ru': 'Повторить', 'kk': 'Қайталау', 'en': 'Retry'},
   'guest_name': {'ru': 'Гость', 'kk': 'Қонақ', 'en': 'Guest'},
   'profile_saved': {
     'ru': 'Профиль сохранён.',
