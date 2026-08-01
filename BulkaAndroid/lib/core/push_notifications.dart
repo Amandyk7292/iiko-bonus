@@ -149,8 +149,10 @@ abstract final class PushNotifications {
     try {
       final current = await FirebaseMessaging.instance
           .getNotificationSettings();
-      final settings =
-          current.authorizationStatus == AuthorizationStatus.notDetermined
+      final shouldRequest =
+          defaultTargetPlatform == TargetPlatform.android ||
+          current.authorizationStatus == AuthorizationStatus.notDetermined;
+      final settings = shouldRequest
           ? await FirebaseMessaging.instance.requestPermission(
               alert: true,
               badge: true,
