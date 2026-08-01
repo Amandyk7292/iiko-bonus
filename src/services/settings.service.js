@@ -60,6 +60,18 @@ const defaultSettings = {
     monthly_limit: 0,
     employee_cashback_percent: 5,
   },
+  app_release_policy: {
+    android: {
+      latest_version: '1.0.0',
+      minimum_version: '1.0.0',
+      store_url: 'https://play.google.com/store/apps/details?id=com.bulka.bonus',
+    },
+    ios: {
+      latest_version: '1.0.0',
+      minimum_version: '1.0.0',
+      store_url: '',
+    },
+  },
 };
 
 function parseSettingValue(value) {

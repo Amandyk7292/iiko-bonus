@@ -53,20 +53,7 @@ class GradientButton extends StatelessWidget {
                       const Color(0xFFFFA000),
                     ],
             ),
-            boxShadow: disabled
-                ? null
-                : const [
-                    BoxShadow(
-                      color: Color(0x245A260D),
-                      blurRadius: 22,
-                      offset: Offset(0, 10),
-                    ),
-                    BoxShadow(
-                      color: Color(0x42FFA000),
-                      blurRadius: 9,
-                      offset: Offset(0, 3),
-                    ),
-                  ],
+            boxShadow: disabled ? null : BulkaShadows.primaryAction,
           ),
           child: FilledButton(
             onPressed: effectiveOnPressed,

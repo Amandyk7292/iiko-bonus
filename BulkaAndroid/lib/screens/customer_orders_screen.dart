@@ -478,11 +478,7 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
       ).showSnackBar(SnackBar(content: Text('orders_arrival_sent'.tr)));
     } catch (error) {
       if (!mounted) return;
-      showApiErrorSnackBar(
-        context,
-        error,
-        fallbackKey: 'orders_arrival_error',
-      );
+      showApiErrorSnackBar(context, error, fallbackKey: 'orders_arrival_error');
     } finally {
       if (mounted) setState(() => _arrivalInFlight = null);
     }
@@ -528,11 +524,7 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
       }
     } catch (error) {
       if (!mounted) return;
-      showApiErrorSnackBar(
-        context,
-        error,
-        fallbackKey: 'order_cancel_error',
-      );
+      showApiErrorSnackBar(context, error, fallbackKey: 'order_cancel_error');
       await _load(silent: true);
     } finally {
       if (mounted) setState(() => _cancellationInFlight = null);

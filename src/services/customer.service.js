@@ -591,7 +591,7 @@ async function searchCustomers(query) {
 
 async function updateCustomerInfo(
   customerId,
-  { name, last_name, gender, email, region, birth_date, phone },
+  { name, last_name, gender, email, region, birth_date, phone, avatar_key },
 ) {
   const updates = {};
   if (name !== undefined && name !== null) updates.name = name;
@@ -601,6 +601,7 @@ async function updateCustomerInfo(
   if (region !== undefined) updates.region = region;
   if (birth_date !== undefined) updates.birth_date = birth_date || null;
   if (phone !== undefined && phone !== null) updates.phone = phone;
+  if (avatar_key !== undefined) updates.avatar_key = avatar_key || null;
   const { error } = await supabase.from('customers').update(updates).eq('id', customerId);
   if (error) throw new Error(error.message);
   if (['name', 'phone'].some((key) => key in updates)) {

@@ -75,6 +75,7 @@ class Customer {
     this.birthDate,
     this.email,
     this.region,
+    this.avatarKey,
     this.emailVerified = false,
   });
 
@@ -93,6 +94,7 @@ class Customer {
   final String? birthDate;
   final String? email;
   final String? region;
+  final String? avatarKey;
   final bool emailVerified;
 
   factory Customer.fromJson(Map<String, dynamic> json) {
@@ -136,6 +138,7 @@ class Customer {
       birthDate: _nullableString(json['birth_date'] ?? json['birthdate']),
       email: _nullableString(json['email']),
       region: _nullableString(json['region']),
+      avatarKey: _nullableString(json['avatar_key'] ?? json['avatarKey']),
       emailVerified:
           json['emailVerified'] == true || json['email_verified'] == true,
     );
@@ -157,9 +160,11 @@ class Customer {
     'birth_date': birthDate,
     'email': email,
     'region': region,
+    'avatar_key': avatarKey,
+    'email_verified': emailVerified,
   };
 
-  Customer copyWith({Tier? tier}) {
+  Customer copyWith({Tier? tier, String? avatarKey}) {
     return Customer(
       id: id,
       name: name,
@@ -176,6 +181,7 @@ class Customer {
       birthDate: birthDate,
       email: email,
       region: region,
+      avatarKey: avatarKey ?? this.avatarKey,
       emailVerified: emailVerified,
     );
   }
@@ -1213,10 +1219,13 @@ class DeliveryAddress {
 
   Map<String, dynamic> toOrderPayload() => {
     'label': title,
-    'address': streetAddress,
+    // Keep the geocoded street and customer-entered house in separate
+    // fields. Combining them made the house impossible to restore for edit.
+    'address': location.address,
     'city': location.city,
     'latitude': location.latitude,
     'longitude': location.longitude,
+    'house': house,
     'entrance': entrance,
     'floor': floor,
     'apartment': apartment,

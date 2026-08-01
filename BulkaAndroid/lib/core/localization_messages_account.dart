@@ -50,6 +50,64 @@ const Map<String, Map<String, String>> _accountTranslations = {
     'kk': 'Профиль сақталды.',
     'en': 'Profile saved.',
   },
+  'avatar_title': {
+    'ru': 'Выберите аватар',
+    'kk': 'Аватарды таңдаңыз',
+    'en': 'Choose an avatar',
+  },
+  'avatar_choose': {
+    'ru': 'Изменить аватар',
+    'kk': 'Аватарды өзгерту',
+    'en': 'Change avatar',
+  },
+  'avatar_not_selected': {
+    'ru': 'Аватар не выбран',
+    'kk': 'Аватар таңдалмаған',
+    'en': 'No avatar selected',
+  },
+  'avatar_selected': {
+    'ru': 'Выбранный аватар',
+    'kk': 'Таңдалған аватар',
+    'en': 'Selected avatar',
+  },
+  'avatar_option': {
+    'ru': 'Аватар {number}',
+    'kk': 'Аватар {number}',
+    'en': 'Avatar {number}',
+  },
+  'app_update_title': {
+    'ru': 'Обновите Bulka',
+    'kk': 'Bulka қолданбасын жаңартыңыз',
+    'en': 'Update Bulka',
+  },
+  'app_update_body': {
+    'ru':
+        'Эта версия больше не поддерживается. Установите обновление, чтобы продолжить пользоваться приложением.',
+    'kk':
+        'Бұл нұсқаға енді қолдау көрсетілмейді. Қолданбаны пайдалану үшін жаңартуды орнатыңыз.',
+    'en':
+        'This version is no longer supported. Install the update to keep using the app.',
+  },
+  'app_update_version': {
+    'ru': 'Доступна версия {version}',
+    'kk': '{version} нұсқасы қолжетімді',
+    'en': 'Version {version} is available',
+  },
+  'app_update_button': {
+    'ru': 'Обновить приложение',
+    'kk': 'Қолданбаны жаңарту',
+    'en': 'Update app',
+  },
+  'app_update_store_error': {
+    'ru': 'Не удалось открыть магазин приложений. Повторите попытку.',
+    'kk': 'Қолданбалар дүкенін ашу мүмкін болмады. Қайталап көріңіз.',
+    'en': 'Could not open the app store. Please try again.',
+  },
+  'app_update_illustration_semantics': {
+    'ru': 'Доступно обязательное обновление Bulka',
+    'kk': 'Bulka міндетті жаңартуы қолжетімді',
+    'en': 'A required Bulka update is available',
+  },
   'delete_account': {
     'ru': 'Удалить аккаунт',
     'kk': 'Аккаунтты жою',

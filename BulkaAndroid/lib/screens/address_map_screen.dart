@@ -72,7 +72,9 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
         widget.initialCity?.trim() ??
         '';
     _city = initialCity.isEmpty ? 'Астана' : initialCity;
-    _titleController.text = initialAddress?.title ?? 'house_label'.tr;
+    // A new address starts empty. "Дом" is a hint, not customer data that
+    // must be selected and deleted before typing a custom address name.
+    _titleController.text = initialAddress?.title ?? '';
     _houseController.text = initialAddress?.house ?? '';
     _entranceController.text = initialAddress?.entrance ?? '';
     _floorController.text = initialAddress?.floor ?? '';
@@ -384,7 +386,9 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
     final colors = context.bulkaColors;
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      // The form sheet, app bar and bottom safe area intentionally share one
+      // surface color so iOS does not expose a visible horizontal seam.
+      backgroundColor: scheme.surface,
       appBar: AppBar(
         toolbarHeight: BulkaLayout.appBarHeight(context),
         centerTitle: true,
@@ -405,6 +409,7 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
       ),
       body: SafeArea(
         top: false,
+        bottom: false,
         child: LayoutBuilder(
           builder: (context, constraints) {
             final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
@@ -513,6 +518,7 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
                               label: 'address_title_label'.tr,
                               controller: _titleController,
                               validator: _requiredField,
+                              hintText: 'house_label'.tr,
                             ),
                             SizedBox(height: compact ? 8 : 10),
                             LayoutBuilder(

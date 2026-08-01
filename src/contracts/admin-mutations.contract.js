@@ -199,6 +199,24 @@ const settingsPromoSchema = z
     path: ['value'],
     message: 'Процент не может быть больше 100',
   });
+const appVersionSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{1,5}(?:\.\d{1,5}){1,3}$/, 'Используйте формат 1.2.3');
+const appStoreUrlSchema = z.union([
+  z.literal(''),
+  z
+    .url()
+    .max(2_000)
+    .refine((value) => value.startsWith('https://'), 'Нужна HTTPS-ссылка'),
+]);
+const appPlatformReleaseSchema = z
+  .object({
+    latest_version: appVersionSchema,
+    minimum_version: appVersionSchema,
+    store_url: appStoreUrlSchema,
+  })
+  .strict();
 const settingsBodySchema = optionalPatch(
   z
     .object({
@@ -287,6 +305,13 @@ const settingsBodySchema = optionalPatch(
           company_name: shortText(160),
           monthly_limit: moneySchema,
           employee_cashback_percent: percentSchema,
+        })
+        .strict()
+        .optional(),
+      app_release_policy: z
+        .object({
+          android: appPlatformReleaseSchema,
+          ios: appPlatformReleaseSchema,
         })
         .strict()
         .optional(),

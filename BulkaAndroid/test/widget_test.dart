@@ -333,15 +333,94 @@ void main() {
     expect(address.hasValidCoordinates, isTrue);
     expect(address.toOrderPayload(), {
       'label': 'Дом',
-      'address': '17-й микрорайон, 1',
+      'address': '17-й микрорайон',
       'city': 'Актау',
       'latitude': 43.66944,
       'longitude': 51.136929,
+      'house': '1',
       'entrance': '2',
       'floor': '4',
       'apartment': '18',
       'comment': 'Позвонить заранее',
     });
+
+    final restored = DeliveryAddress.fromJson(address.toJson());
+    expect(restored.house, '1');
+    expect(restored.entrance, '2');
+    expect(restored.floor, '4');
+    expect(restored.apartment, '18');
+  });
+
+  test('mandatory update policy compares semantic versions safely', () {
+    expect(compareAppVersions('1.0.0', '1.0.0'), 0);
+    expect(compareAppVersions('1.2.0+14', '1.1.9'), greaterThan(0));
+    expect(compareAppVersions('1.0.9', '1.1.0'), lessThan(0));
+
+    final update = requiredAppUpdateForPolicy(
+      currentVersion: '1.0.0',
+      policy: AppReleasePolicy(
+        platform: 'android',
+        latestVersion: '1.2.0',
+        minimumVersion: '1.1.0',
+        storeUri: Uri.parse(
+          'https://play.google.com/store/apps/details?id=com.bulka.bonus',
+        ),
+      ),
+    );
+    expect(update?.targetVersion, '1.2.0');
+
+    expect(
+      requiredAppUpdateForPolicy(
+        currentVersion: '1.1.0',
+        policy: const AppReleasePolicy(
+          platform: 'ios',
+          latestVersion: '1.1.0',
+          minimumVersion: '1.1.0',
+          storeUri: null,
+        ),
+      ),
+      isNull,
+    );
+  });
+
+  testWidgets('mandatory update follows the language selected in Bulka', (
+    tester,
+  ) async {
+    const expectedTitles = {
+      'ru': 'Обновите Bulka',
+      'kk': 'Bulka қолданбасын жаңартыңыз',
+      'en': 'Update Bulka',
+    };
+    const expectedButtons = {
+      'ru': 'Обновить приложение',
+      'kk': 'Қолданбаны жаңарту',
+      'en': 'Update app',
+    };
+    final requirement = RequiredAppUpdate(
+      currentVersion: '1.0.0',
+      targetVersion: '1.1.0',
+      storeUri: Uri.parse(
+        'https://play.google.com/store/apps/details?id=com.bulka.bonus',
+      ),
+    );
+
+    for (final code in AppLang.supportedCodes) {
+      appLanguageNotifier.value = code;
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: Locale(code),
+          theme: buildBulkaTheme(),
+          home: RequiredAppUpdateScreen(
+            requirement: requirement,
+            onUpdate: () {},
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text(expectedTitles[code]!), findsOneWidget);
+      expect(find.text(expectedButtons[code]!), findsOneWidget);
+    }
+    appLanguageNotifier.value = 'ru';
   });
 
   test('fulfillment location reads delivery rules from the API', () {
@@ -1149,7 +1228,7 @@ void main() {
     await tester.pumpWidget(
       ChangeNotifierProvider(
         create: (_) => CartProvider(),
-        child: const BulkaBonusApp(),
+        child: const BulkaBonusApp(appReleaseChecksEnabled: false),
       ),
     );
     await tester.pump();
@@ -2147,6 +2226,7 @@ void main() {
 
     expect(find.text('Выберите адрес'), findsOneWidget);
     expect(find.text('тест'), findsOneWidget);
+    expect(find.text('Дом 9'), findsOneWidget);
     expect(find.byIcon(Icons.check_rounded), findsWidgets);
   });
 

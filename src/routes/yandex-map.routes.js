@@ -242,7 +242,7 @@ router.get('/maps/yandex', (_req, res) => {
       };
       const applyState = next => {
         state = {...state,...next};
-        controls.style.display = 'flex';
+        controls.style.display = state.showControls === false ? 'none' : 'flex';
         const center = point(state.center) || point(state.selected) || defaults.center;
         const minimumZoom = state.mode === 'admin' ? 4 : 9;
         const zoom = Math.max(minimumZoom,Math.min(19,number(state.zoom) || 13));

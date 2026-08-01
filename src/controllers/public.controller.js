@@ -98,6 +98,7 @@ const updateProfile = async (req, res) => {
     }
     if (req.body.region !== undefined)
       updates.region = String(req.body.region).trim().slice(0, 160);
+    if (req.body.avatar_key !== undefined) updates.avatar_key = req.body.avatar_key;
     if (req.body.birth_date !== undefined) {
       const birthDate = String(req.body.birth_date || '');
       if (birthDate && !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {

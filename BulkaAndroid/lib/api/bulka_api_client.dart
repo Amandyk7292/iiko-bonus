@@ -280,6 +280,7 @@ class BulkaApiClient {
     String? birthDate,
     String? email,
     String? region,
+    String? avatarKey,
   }) async {
     final json = await _put('/api/customer/profile', {
       'name': ?name,
@@ -288,10 +289,22 @@ class BulkaApiClient {
       'birth_date': ?birthDate,
       'email': ?email,
       'region': ?region,
+      'avatar_key': ?avatarKey,
     });
     if (json['success'] != true) {
       throw ApiException(_messageFrom(json, 'error_save'.tr));
     }
+  }
+
+  Future<AppReleasePolicy> getAppReleasePolicy(String platform) async {
+    final normalized = platform.toLowerCase();
+    final json = await _get(
+      '/api/public/app-release?platform=${Uri.encodeQueryComponent(normalized)}',
+    );
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'error_network'.tr));
+    }
+    return AppReleasePolicy.fromJson(json);
   }
 
   Future<void> deleteAccount(String phone) async {

@@ -14,6 +14,7 @@ const phoneSchema = z
   .max(32)
   .regex(/^[+()\s0-9-]+$/);
 const coordinateSchema = z.coerce.number().finite();
+const appReleaseQuerySchema = z.object({ platform: z.enum(['android', 'ios']) }).strict();
 const optionalCoordinateSchema = z.preprocess(
   (value) => (value === '' || value === null || value === undefined ? undefined : value),
   coordinateSchema.optional(),
@@ -45,6 +46,7 @@ const checkoutAddressSchema = z
     city: z.string().trim().min(1).max(160),
     latitude: coordinateSchema.min(-90).max(90),
     longitude: coordinateSchema.min(-180).max(180),
+    house: nullableText(80),
     entrance: nullableText(80),
     floor: nullableText(40),
     apartment: nullableText(80),
@@ -154,6 +156,7 @@ const customerAddressBodySchema = z
     city: z.string().trim().min(1).max(100),
     latitude: coordinateSchema.min(-90).max(90),
     longitude: coordinateSchema.min(-180).max(180),
+    house: optionalAddressText(30),
     entrance: optionalAddressText(30),
     floor: optionalAddressText(20),
     apartment: optionalAddressText(30),
@@ -228,6 +231,23 @@ const profileUpdateBodySchema = z
     gender: z.enum(['male', 'female', 'other', 'Мужской', 'Женский', '']).optional(),
     email: z.union([z.email().max(255), z.literal('')]).optional(),
     region: z.string().trim().max(160).optional(),
+    avatar_key: z
+      .enum([
+        'kz_female_01',
+        'kz_female_02',
+        'kz_female_03',
+        'kz_female_04',
+        'kz_female_05',
+        'kz_female_06',
+        'kz_male_01',
+        'kz_male_02',
+        'kz_male_03',
+        'kz_male_04',
+        'kz_male_05',
+        'kz_male_06',
+      ])
+      .nullable()
+      .optional(),
     birth_date: z
       .union([z.iso.date(), z.literal('')])
       .optional()
@@ -660,6 +680,7 @@ const forteWidgetWebhookBodySchema = z.union([
 ]);
 
 module.exports = {
+  appReleaseQuerySchema,
   analyticsEventsBodySchema,
   cartSnapshotBodySchema,
   checkoutPaymentBodySchema,

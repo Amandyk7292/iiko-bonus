@@ -446,14 +446,32 @@ class _AddressListTile extends StatelessWidget {
   final VoidCallback onEdit;
   final VoidCallback onDelete;
 
+  String get _savedDetails {
+    final parts = <String>[
+      if (address.house.trim().isNotEmpty)
+        '${'house_label'.tr} ${address.house.trim()}',
+      if ((address.entrance ?? '').trim().isNotEmpty)
+        '${'entrance_label'.tr} ${address.entrance!.trim()}',
+      if ((address.floor ?? '').trim().isNotEmpty)
+        '${'floor_label'.tr} ${address.floor!.trim()}',
+      if ((address.apartment ?? '').trim().isNotEmpty)
+        '${'apartment_label'.tr} ${address.apartment!.trim()}',
+    ];
+    return parts.join(' · ');
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.bulkaColors;
     final scheme = Theme.of(context).colorScheme;
+    final savedDetails = _savedDetails;
     return Semantics(
       button: true,
       selected: selected,
-      label: '${address.title}. ${address.displayAddress}',
+      label: [
+        address.title,
+        savedDetails,
+      ].where((value) => value.isNotEmpty).join('. '),
       child: Material(
         color: scheme.surface,
         borderRadius: BorderRadius.circular(BulkaRadii.card),
@@ -461,7 +479,7 @@ class _AddressListTile extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(BulkaRadii.card),
           child: Container(
-            constraints: const BoxConstraints(minHeight: 96),
+            constraints: const BoxConstraints(minHeight: 82),
             padding: const EdgeInsets.fromLTRB(22, 16, 16, 16),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(BulkaRadii.card),
@@ -488,18 +506,20 @@ class _AddressListTile extends StatelessWidget {
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        address.displayAddress,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: colors.mutedText,
-                          fontSize: BulkaTypeScale.body,
-                          height: 1.18,
-                          fontWeight: FontWeight.w300,
+                      if (savedDetails.isNotEmpty) ...[
+                        const SizedBox(height: 7),
+                        Text(
+                          savedDetails,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: colors.mutedText,
+                            fontSize: BulkaTypeScale.body,
+                            height: 1.18,
+                            fontWeight: FontWeight.w400,
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),

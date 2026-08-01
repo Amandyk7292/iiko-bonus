@@ -106,6 +106,10 @@ class BulkaExpandable extends StatelessWidget {
       curve: expanded ? BulkaMotion.enterCurve : BulkaMotion.exitCurve,
       child: RepaintBoundary(child: child),
       builder: (context, value, child) => ClipRect(
+        // Keep overflow clipped only while the section is moving. Once fully
+        // expanded, rounded card/button shadows may render naturally instead
+        // of being cut into a sharp rectangle by the animation boundary.
+        clipBehavior: value >= 0.999 ? Clip.none : Clip.hardEdge,
         child: Align(
           alignment: Alignment.topCenter,
           heightFactor: value,

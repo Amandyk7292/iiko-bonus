@@ -684,6 +684,10 @@ test('remaining customer mutations use strict bounded contracts', () => {
     city: 'Актау',
     latitude: '43.6532',
     longitude: '51.1975',
+    house: '14',
+    entrance: '2',
+    floor: '7',
+    apartment: '42',
   };
   assert.equal(customerAddressBodySchema.safeParse(address).success, true);
   assert.equal(

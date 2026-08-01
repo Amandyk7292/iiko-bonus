@@ -44,6 +44,7 @@ const normalizeAddressInput = (payload = {}) => {
     city,
     latitude,
     longitude,
+    house: cleanText(payload.house, 30) || null,
     entrance: cleanText(payload.entrance, 30) || null,
     floor: cleanText(payload.floor, 20) || null,
     apartment: cleanText(payload.apartment, 30) || null,
@@ -59,6 +60,7 @@ const normalizeAddress = (row) => ({
   city: row.city,
   latitude: Number(row.latitude),
   longitude: Number(row.longitude),
+  house: row.house || null,
   entrance: row.entrance || null,
   floor: row.floor || null,
   apartment: row.apartment || null,
@@ -78,7 +80,9 @@ const rpcError = (error) => {
 async function listCustomerAddresses(customerId) {
   const { data, error } = await supabase
     .from('customer_addresses')
-    .select('id,label,address,city,latitude,longitude,entrance,floor,apartment,comment,is_default')
+    .select(
+      'id,label,address,city,latitude,longitude,house,entrance,floor,apartment,comment,is_default',
+    )
     .eq('customer_id', customerId)
     .order('is_default', { ascending: false })
     .order('updated_at', { ascending: false });
@@ -96,6 +100,7 @@ async function saveCustomerAddress(customerId, payload, addressId = null) {
     p_city: input.city,
     p_latitude: input.latitude,
     p_longitude: input.longitude,
+    p_house: input.house,
     p_entrance: input.entrance,
     p_floor: input.floor,
     p_apartment: input.apartment,

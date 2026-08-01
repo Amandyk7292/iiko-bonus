@@ -24,6 +24,7 @@ create table if not exists public.customers (
   gender varchar(20),
   email varchar(255),
   region varchar(160),
+  avatar_key varchar(40),
   tags text[] default '{}',
   created_at timestamptz default now() not null,
   updated_at timestamptz default now() not null
@@ -44,6 +45,25 @@ alter table public.customers add column if not exists last_name varchar(160);
 alter table public.customers add column if not exists gender varchar(20);
 alter table public.customers add column if not exists email varchar(255);
 alter table public.customers add column if not exists region varchar(160);
+alter table public.customers add column if not exists avatar_key varchar(40);
+alter table public.customers drop constraint if exists customers_avatar_key_check;
+alter table public.customers add constraint customers_avatar_key_check check (
+  avatar_key is null
+  or avatar_key in (
+    'kz_female_01',
+    'kz_female_02',
+    'kz_female_03',
+    'kz_female_04',
+    'kz_female_05',
+    'kz_female_06',
+    'kz_male_01',
+    'kz_male_02',
+    'kz_male_03',
+    'kz_male_04',
+    'kz_male_05',
+    'kz_male_06'
+  )
+);
 alter table public.customers add column if not exists tags text[] default '{}';
 alter table public.customers add column if not exists created_at timestamptz default now();
 alter table public.customers add column if not exists updated_at timestamptz default now();
@@ -1703,6 +1723,7 @@ create table if not exists public.customer_addresses (
   city varchar(100) not null,
   latitude numeric(10, 7) not null,
   longitude numeric(10, 7) not null,
+  house varchar(30),
   entrance varchar(30),
   floor varchar(20),
   apartment varchar(30),
@@ -1714,6 +1735,7 @@ create table if not exists public.customer_addresses (
     latitude between -90 and 90 and longitude between -180 and 180
   )
 );
+alter table public.customer_addresses add column if not exists house varchar(30);
 create index if not exists customer_addresses_customer_idx
   on public.customer_addresses(customer_id, created_at desc);
 create unique index if not exists customer_addresses_one_default_idx
@@ -1725,6 +1747,11 @@ create policy "service role manages customer addresses"
 revoke all on public.customer_addresses from public, anon, authenticated;
 grant all on public.customer_addresses to service_role;
 
+drop function if exists public.save_customer_address(
+  uuid, uuid, varchar, varchar, varchar, numeric, numeric,
+  varchar, varchar, varchar, varchar, boolean
+);
+
 create or replace function public.save_customer_address(
   p_customer_id uuid,
   p_address_id uuid,
@@ -1733,6 +1760,7 @@ create or replace function public.save_customer_address(
   p_city varchar,
   p_latitude numeric,
   p_longitude numeric,
+  p_house varchar,
   p_entrance varchar,
   p_floor varchar,
   p_apartment varchar,
@@ -1769,11 +1797,12 @@ begin
       where customer_id = p_customer_id and is_default;
     end if;
     insert into public.customer_addresses (
-      customer_id, label, address, city, latitude, longitude,
+      customer_id, label, address, city, latitude, longitude, house,
       entrance, floor, apartment, comment, is_default
     ) values (
       p_customer_id, nullif(btrim(p_label), ''), btrim(p_address), btrim(p_city),
-      p_latitude, p_longitude, nullif(btrim(p_entrance), ''),
+      p_latitude, p_longitude, nullif(btrim(p_house), ''),
+      nullif(btrim(p_entrance), ''),
       nullif(btrim(p_floor), ''), nullif(btrim(p_apartment), ''),
       nullif(btrim(p_comment), ''), v_make_default
     ) returning * into v_address;
@@ -1792,6 +1821,7 @@ begin
     update public.customer_addresses set
       label = nullif(btrim(p_label), ''), address = btrim(p_address), city = btrim(p_city),
       latitude = p_latitude, longitude = p_longitude,
+      house = nullif(btrim(p_house), ''),
       entrance = nullif(btrim(p_entrance), ''), floor = nullif(btrim(p_floor), ''),
       apartment = nullif(btrim(p_apartment), ''), comment = nullif(btrim(p_comment), ''),
       is_default = v_make_default, updated_at = now()
@@ -1870,7 +1900,7 @@ $$;
 
 revoke all on function public.save_customer_address(
   uuid, uuid, varchar, varchar, varchar, numeric, numeric,
-  varchar, varchar, varchar, varchar, boolean
+  varchar, varchar, varchar, varchar, varchar, boolean
 ) from public, anon, authenticated;
 revoke all on function public.set_customer_address_default(uuid, uuid)
   from public, anon, authenticated;
@@ -1878,7 +1908,7 @@ revoke all on function public.delete_customer_address(uuid, uuid)
   from public, anon, authenticated;
 grant execute on function public.save_customer_address(
   uuid, uuid, varchar, varchar, varchar, numeric, numeric,
-  varchar, varchar, varchar, varchar, boolean
+  varchar, varchar, varchar, varchar, varchar, boolean
 ) to service_role;
 grant execute on function public.set_customer_address_default(uuid, uuid) to service_role;
 grant execute on function public.delete_customer_address(uuid, uuid) to service_role;

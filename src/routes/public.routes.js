@@ -33,6 +33,7 @@ const {
 } = require('../services/courier.service');
 const { readCookieToken } = require('../services/auth.service');
 const { getProductOptions } = require('../services/product-options.service');
+const { getAppReleasePolicy } = require('../services/app-release.service');
 const personalization = require('../services/personalization.service');
 const reviews = require('../services/review.service');
 const marketing = require('../services/commerce-marketing.service');
@@ -44,6 +45,7 @@ const { respondToSubstitution } = require('../services/order-substitution.servic
 const { optimizeUploadedImage } = require('../utils/image.util');
 const { emptyBodySchema, validateRequest } = require('../middlewares/validation.middleware');
 const {
+  appReleaseQuerySchema,
   courierAuthRequestBodySchema,
   analyticsEventsBodySchema,
   cartSnapshotBodySchema,
@@ -127,6 +129,22 @@ const detectReferenceImage = (buffer) => {
 router.use('/api/public', publicApiRateLimit);
 router.use('/api/customer', publicApiRateLimit, customerAuthMiddleware);
 router.use('/api/courier', publicApiRateLimit);
+
+router.get(
+  '/api/public/app-release',
+  validateRequest({ query: appReleaseQuerySchema }),
+  async (req, res, next) => {
+    try {
+      res.set('Cache-Control', 'no-store');
+      res.json({
+        success: true,
+        ...(await getAppReleasePolicy(req.query.platform)),
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 const courierSessionMiddleware = async (req, res, next) => {
   try {

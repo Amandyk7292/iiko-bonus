@@ -30,7 +30,9 @@ Future<void> reconcileReturnedForteCheckout({
 }
 
 class BulkaBonusApp extends StatefulWidget {
-  const BulkaBonusApp({super.key});
+  const BulkaBonusApp({super.key, this.appReleaseChecksEnabled = true});
+
+  final bool appReleaseChecksEnabled;
 
   @override
   State<BulkaBonusApp> createState() => _BulkaBonusAppState();
@@ -67,6 +69,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   bool _ordersRouteOpen = false;
   PaymentReturnNotice? _pendingPaymentReturnNotice;
   NotificationTarget? _pendingPushTarget;
+  RequiredAppUpdate? _requiredAppUpdate;
 
   @override
   void initState() {
@@ -104,6 +107,9 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_refreshRequiredAppUpdate());
+    }
     final phone = _savedPhone;
     if (state == AppLifecycleState.resumed && phone != null) {
       unawaited(_refreshProfile(phone));
@@ -155,6 +161,9 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     // multi-second artificial wait that feels like startup lag.
     final cart = context.read<CartProvider>();
     final minimumSplashDelay = Future<void>.delayed(_minimumSplashDuration);
+    final requiredUpdateFuture = widget.appReleaseChecksEnabled
+        ? resolveRequiredAppUpdate(_api)
+        : Future<RequiredAppUpdate?>.value();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('app_theme_mode');
     await SessionStore.clearLegacyCustomerData(prefs);
@@ -206,6 +215,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       _pendingPaymentReturnNotice = paymentReturnNotice;
       _booting = false;
     });
+    unawaited(_applyRequiredAppUpdate(requiredUpdateFuture));
     if (paymentReturnNotice != null && kIsWeb) {
       publishClientRoute(Uri(path: '/orders'), replace: true);
     }
@@ -233,6 +243,46 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     _lastMainTab = tab.clamp(0, 4).toInt();
     final prefs = _prefs ?? await SharedPreferences.getInstance();
     await prefs.setInt('lastMainTab', _lastMainTab);
+  }
+
+  Future<void> _refreshRequiredAppUpdate() async {
+    await _applyRequiredAppUpdate(resolveRequiredAppUpdate(_api));
+  }
+
+  Future<void> _applyRequiredAppUpdate(
+    Future<RequiredAppUpdate?> requirementFuture,
+  ) async {
+    final requirement = await requirementFuture;
+    if (!mounted) return;
+    final current = _requiredAppUpdate;
+    if (current?.targetVersion == requirement?.targetVersion &&
+        current?.storeUri == requirement?.storeUri) {
+      return;
+    }
+    setState(() => _requiredAppUpdate = requirement);
+  }
+
+  Future<void> _openRequiredUpdateStore() async {
+    final requirement = _requiredAppUpdate;
+    if (requirement == null) return;
+    try {
+      final opened = await launchUrl(
+        requirement.storeUri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (opened) return;
+    } catch (_) {}
+    final context = _navigatorKey.currentContext;
+    if (context == null || !context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('app_update_store_error'.tr),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(BulkaRadii.control),
+        ),
+      ),
+    );
   }
 
   Future<void> _saveOrdersScope(bool completed) async {
@@ -803,6 +853,14 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       return SplashScreen(
         key: const ValueKey('app-stage-boot'),
         text: 'splash_loading'.tr,
+      );
+    }
+    final requiredUpdate = _requiredAppUpdate;
+    if (requiredUpdate != null) {
+      return RequiredAppUpdateScreen(
+        key: const ValueKey('app-stage-required-update'),
+        requirement: requiredUpdate,
+        onUpdate: () => unawaited(_openRequiredUpdateStore()),
       );
     }
     final customer = _customer;

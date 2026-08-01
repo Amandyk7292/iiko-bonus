@@ -58,9 +58,30 @@ class _BulkaPageTitle extends StatelessWidget {
   }
 }
 
-const _softShadow = [
-  BoxShadow(color: Color(0x1F6D3317), blurRadius: 24, offset: Offset(0, 14)),
-];
+abstract final class BulkaShadows {
+  static const card = [
+    BoxShadow(color: Color(0x146D3317), blurRadius: 22, offset: Offset(0, 9)),
+  ];
+
+  static const primaryAction = [
+    BoxShadow(color: Color(0x185A260D), blurRadius: 20, offset: Offset(0, 8)),
+    BoxShadow(color: Color(0x28FFA000), blurRadius: 12, offset: Offset(0, 4)),
+  ];
+
+  static const floatingAction = [
+    BoxShadow(color: Color(0x265A260D), blurRadius: 16, offset: Offset(0, 6)),
+  ];
+
+  static const avatar = [
+    BoxShadow(color: Color(0x145A260D), blurRadius: 14, offset: Offset(0, 5)),
+  ];
+
+  static const selectedAvatar = [
+    BoxShadow(color: Color(0x34FFB814), blurRadius: 14, offset: Offset(0, 5)),
+  ];
+}
+
+const List<BoxShadow> _softShadow = BulkaShadows.card;
 
 /// Shared type scale for the whole client application.
 ///

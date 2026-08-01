@@ -104,6 +104,9 @@ class _YandexMapViewState extends State<YandexMapView> {
   Map<String, Object?> _statePayload() => {
     'type': 'state',
     'mode': widget.interactive ? 'customer' : 'preview',
+    // Native Flutter draws accessible map controls above the WebView. Hide
+    // the HTML controls to prevent duplicated zoom/location buttons.
+    'showControls': false,
     'center': [widget.center.latitude, widget.center.longitude],
     'selected': widget.selectedPoint == null
         ? null

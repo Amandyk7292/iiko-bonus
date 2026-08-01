@@ -219,8 +219,11 @@ class _PromoBannerSliderState extends State<PromoBannerSlider> {
         unawaited(
           _pageController.animateToPage(
             next,
-            duration: BulkaMotion.emphasized,
-            curve: BulkaMotion.enterCurve,
+            // A balanced ease-in/ease-out avoids the abrupt first frames of
+            // the standard entrance curve and keeps the banner readable
+            // while it glides to the next promotion.
+            duration: const Duration(milliseconds: 720),
+            curve: Curves.easeInOutCubic,
           ),
         );
       });
