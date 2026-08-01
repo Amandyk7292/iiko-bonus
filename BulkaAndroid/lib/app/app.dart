@@ -55,6 +55,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   bool _profileRefreshInFlight = false;
   bool _widgetRefreshInFlight = false;
   bool _loginRouteOpen = false;
+  bool _notificationPermissionScheduled = false;
   bool _booting = true;
   String? _savedPhone;
   String? _accessToken;
@@ -257,9 +258,24 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     final current = _requiredAppUpdate;
     if (current?.targetVersion == requirement?.targetVersion &&
         current?.storeUri == requirement?.storeUri) {
+      if (requirement == null) _scheduleFirstLaunchNotificationPermission();
       return;
     }
     setState(() => _requiredAppUpdate = requirement);
+    if (requirement == null) _scheduleFirstLaunchNotificationPermission();
+  }
+
+  void _scheduleFirstLaunchNotificationPermission() {
+    if (kIsWeb ||
+        !widget.appReleaseChecksEnabled ||
+        _notificationPermissionScheduled) {
+      return;
+    }
+    _notificationPermissionScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _requiredAppUpdate != null) return;
+      unawaited(PushNotifications.requestPermissionOnFirstLaunch(_api));
+    });
   }
 
   Future<void> _openRequiredUpdateStore() async {

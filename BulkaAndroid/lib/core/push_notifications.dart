@@ -11,6 +11,7 @@ abstract final class PushNotifications {
   static const _installationIdKey = 'pushInstallationIdV1';
   static const _lastTokenKey = 'lastRegisteredFcmTokenV1';
   static const _seenPushIdsKey = 'seenPushOutboxIdsV1';
+  static const _permissionPromptedKey = 'pushPermissionPromptedV1';
   static final Set<String> _seenPushIds = <String>{};
   static const _webVapidKey = String.fromEnvironment(
     'FIREBASE_WEB_VAPID_KEY',
@@ -139,6 +140,35 @@ abstract final class PushNotifications {
     }
   }
 
+  static Future<void> requestPermissionOnFirstLaunch(BulkaApiClient api) async {
+    if (kIsWeb) return;
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(_permissionPromptedKey) == true) return;
+    if (!_ready) await initialize();
+    if (!_ready) return;
+    try {
+      final current = await FirebaseMessaging.instance
+          .getNotificationSettings();
+      final settings =
+          current.authorizationStatus == AuthorizationStatus.notDetermined
+          ? await FirebaseMessaging.instance.requestPermission(
+              alert: true,
+              badge: true,
+              sound: true,
+            )
+          : current;
+      await prefs.setBool(_permissionPromptedKey, true);
+      if (api.isAuthenticated &&
+          (settings.authorizationStatus == AuthorizationStatus.authorized ||
+              settings.authorizationStatus ==
+                  AuthorizationStatus.provisional)) {
+        await register(api);
+      }
+    } catch (error) {
+      debugPrint('Notification permission prompt unavailable: $error');
+    }
+  }
+
   static StreamSubscription<RemoteMessage>? _messageSubscription;
 
   static void _publishOpenedTarget(Map<String, dynamic> data) {
@@ -165,12 +195,17 @@ abstract final class PushNotifications {
     _registering = true;
     try {
       final installationId = await _installationId();
-      final settings = await FirebaseMessaging.instance.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
-      if (settings.authorizationStatus == AuthorizationStatus.denied) return;
+      final settings = kIsWeb
+          ? await FirebaseMessaging.instance.requestPermission(
+              alert: true,
+              badge: true,
+              sound: true,
+            )
+          : await FirebaseMessaging.instance.getNotificationSettings();
+      if (settings.authorizationStatus != AuthorizationStatus.authorized &&
+          settings.authorizationStatus != AuthorizationStatus.provisional) {
+        return;
+      }
       _tokenSubscription ??= FirebaseMessaging.instance.onTokenRefresh.listen(
         (nextToken) => unawaited(
           _registerToken(api, nextToken, installationId).catchError((_) {}),
