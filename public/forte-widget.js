@@ -1,6 +1,12 @@
 (() => {
   'use strict';
 
+  const embeddedInApp =
+    new URLSearchParams(window.location.search).get('embedded') === 'app';
+  if (embeddedInApp) {
+    document.documentElement.classList.add('embedded-app');
+  }
+
   const copy = {
     ru: {
       title: 'Оплата картой',

@@ -109,6 +109,10 @@ void main() {
     expect(find.byType(StoryViewer), findsNothing);
     expect(find.text('Полное описание акции'), findsOneWidget);
     expect(find.text('Показать QR-код'), findsOneWidget);
+    final sheetSize = tester.getSize(
+      find.byKey(const ValueKey('promo-details-sheet')),
+    );
+    expect(sheetSize.height, lessThan(844 * 0.85));
 
     await tester.tap(find.text('Показать QR-код'));
     await tester.pumpAndSettle();

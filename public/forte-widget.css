@@ -113,6 +113,11 @@ body {
   font-weight: 600;
 }
 
+html.embedded-app .payment-header,
+html.embedded-app .secure-strip {
+  display: none;
+}
+
 .lock {
   color: #2f8b57;
   font-size: 13px;

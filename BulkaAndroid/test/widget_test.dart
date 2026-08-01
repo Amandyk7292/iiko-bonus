@@ -520,6 +520,11 @@ void main() {
       find.text('Ассортимент выбран для этого типа заказа'),
       findsOneWidget,
     );
+    expect(find.text('Если товара не будет'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('checkout-substitution-call_customer')),
+      findsNothing,
+    );
 
     final savedCardLabel = find.text('VISA •••• 1328');
     await tester.scrollUntilVisible(

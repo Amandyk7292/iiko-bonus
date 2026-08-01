@@ -125,6 +125,19 @@ void main() {
     );
   });
 
+  test('embedded checkout mode hides only the in-page duplicate chrome', () {
+    final uri = forteEmbeddedCheckoutUri(
+      Uri.parse(
+        'https://bulka.com.kz/payments/forte-widget'
+        '#token=abc1234567890123&order=117615f9-b35f-4eb4-9f6d-777f2236bb25',
+      ),
+    );
+
+    expect(uri.queryParameters, {'embedded': 'app'});
+    expect(uri.fragment, contains('token=abc1234567890123'));
+    expect(uri.query, isNot(contains('token')));
+  });
+
   testWidgets(
     'cancelled payment is explained separately from previous order statuses',
     (tester) async {

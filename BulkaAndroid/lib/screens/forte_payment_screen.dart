@@ -214,6 +214,14 @@ bool isAllowedForteCheckoutUri(Uri uri) {
   return false;
 }
 
+@visibleForTesting
+Uri forteEmbeddedCheckoutUri(Uri uri) {
+  if (uri.host.toLowerCase() != 'bulka.com.kz') return uri;
+  return uri.replace(
+    queryParameters: {...uri.queryParameters, 'embedded': 'app'},
+  );
+}
+
 class FortePaymentScreen extends StatefulWidget {
   const FortePaymentScreen({
     required this.api,
@@ -257,6 +265,11 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
   Uri? get _checkoutUri {
     final uri = Uri.tryParse(widget.redirectUrl);
     return uri != null && isAllowedForteCheckoutUri(uri) ? uri : null;
+  }
+
+  Uri? get _embeddedCheckoutUri {
+    final uri = _checkoutUri;
+    return uri == null ? null : forteEmbeddedCheckoutUri(uri);
   }
 
   bool get _supportsEmbeddedCheckout => supportsEmbeddedForteCheckout(
@@ -587,7 +600,7 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
                     Positioned.fill(
                       child: ForteCheckoutWebView(
                         key: ValueKey('forte-webview-${widget.operationId}'),
-                        initialUri: _checkoutUri!,
+                        initialUri: _embeddedCheckoutUri!,
                         acceptLanguage: forteCheckoutAcceptLanguage(
                           AppLang.current,
                         ),

@@ -64,11 +64,10 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   int _discount = 0;
   int _deliveryFee = 0;
   int? _quotedTotal;
-  Map<String, dynamic>? _etaQuote;
   int _branchTimezoneOffsetMinutes = 300;
   int _quoteRevision = 0;
   String _checkoutId = _newCheckoutId();
-  String _substitutionPreference = 'call_customer';
+  static const String _substitutionPreference = 'call_customer';
   String? _checkoutTrackedBranchId;
 
   bool get _isPreorder => _orderType == _OrderType.preorder;
@@ -236,9 +235,6 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
     _promoController.text = prefs.getString(_draftKey('checkout_promo')) ?? '';
     _commentController.text =
         prefs.getString(_draftKey('checkout_comment')) ?? '';
-    final savedSubstitutionPreference =
-        prefs.getString(_draftKey('checkout_substitution_preference')) ??
-        'call_customer';
     setState(() {
       _branch = savedBranch;
       _branchId = prefs.getString('selected_bakery_location_id');
@@ -251,14 +247,6 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         (location) => location.active && location.deliveryEnabled,
       );
       _deliveryAvailabilityChecked = locationsLoaded;
-      _substitutionPreference =
-          const {
-            'remove_refund',
-            'call_customer',
-            'replace_with_approval',
-          }.contains(savedSubstitutionPreference)
-          ? savedSubstitutionPreference
-          : 'call_customer';
     });
     _trackCheckoutStart();
     if (parsedScheduledAt != null) {
@@ -294,7 +282,6 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         _discount = 0;
         _isQuoting = false;
         _quotedTotal = null;
-        _etaQuote = null;
       });
     }
   }
@@ -414,10 +401,6 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       prefs.setString(_draftKey('checkout_phone'), _phoneController.text),
       prefs.setString(_draftKey('checkout_promo'), _promoController.text),
       prefs.setString(_draftKey('checkout_comment'), _commentController.text),
-      prefs.setString(
-        _draftKey('checkout_substitution_preference'),
-        _substitutionPreference,
-      ),
       if (_scheduledSlot == null)
         prefs.remove(_draftKey('checkout_scheduled_at'))
       else
@@ -491,7 +474,6 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       _discount = 0;
       _deliveryFee = 0;
       _quotedTotal = null;
-      _etaQuote = null;
       _isQuoting = false;
     });
     await _persistDraft();
@@ -530,7 +512,6 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         _deliveryFee = 0;
         _isQuoting = false;
         _quotedTotal = null;
-        _etaQuote = null;
       });
       _trackCheckoutStart();
       await _persistDraft();
@@ -556,7 +537,6 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         _deliveryFee = 0;
         _isQuoting = false;
         _quotedTotal = null;
-        _etaQuote = null;
       });
       await _persistDraft();
     } finally {
@@ -656,46 +636,6 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
           ? _deliveryAddress != null && _deliveryBranchLocation != null
           : _branch.trim().isNotEmpty);
 
-  String get _quoteEtaText {
-    final eta = _etaQuote;
-    if (eta == null) return '';
-    final minimumInstant = DateTime.tryParse(_asString(eta['minAt']));
-    final maximumInstant = DateTime.tryParse(_asString(eta['maxAt']));
-    if (minimumInstant != null && maximumInstant != null) {
-      final minimum = branchWallClock(
-        minimumInstant,
-        _branchTimezoneOffsetMinutes,
-      );
-      final maximum = branchWallClock(
-        maximumInstant,
-        _branchTimezoneOffsetMinutes,
-      );
-      final start = _clockLabel(minimum);
-      final end = _clockLabel(maximum);
-      return 'checkout_eta_window'.trArgs({
-        'date': formatUiDate(context, minimum),
-        'min': start,
-        'max': end,
-      });
-    }
-    final minimumMinutes = (eta['minMinutes'] as num?)?.round();
-    final maximumMinutes = (eta['maxMinutes'] as num?)?.round();
-    if (minimumMinutes != null && maximumMinutes != null) {
-      return 'order_eta_range_minutes'.trArgs({
-        'min': minimumMinutes,
-        'max': maximumMinutes,
-      });
-    }
-    return '';
-  }
-
-  String get _quoteEtaConfidence {
-    final confidence = _asString(_etaQuote?['confidence']);
-    return const {'low', 'medium', 'high'}.contains(confidence)
-        ? 'order_eta_confidence_$confidence'.tr
-        : '';
-  }
-
   Future<void> _refreshQuote({bool showFeedback = false}) async {
     if (!_canQuote) return;
     if (_isQuoting) return;
@@ -719,8 +659,6 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         _discount = (quote['discount'] as num?)?.round() ?? 0;
         _deliveryFee = (quote['deliveryFee'] as num?)?.round() ?? 0;
         _quotedTotal = (quote['total'] as num?)?.round();
-        final eta = _asMap(quote['eta']);
-        _etaQuote = eta.isEmpty ? null : eta;
       });
       if (showFeedback) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -780,7 +718,6 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       setState(() {
         _scheduledSlot = null;
         _quotedTotal = null;
-        _etaQuote = null;
       });
       ScaffoldMessenger.of(
         context,
@@ -1047,24 +984,6 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
                 loading: _isSelectingTime,
               ),
             const SizedBox(height: 28),
-            _CheckoutLabel('checkout_substitution_title'.tr, required: true),
-            const SizedBox(height: 6),
-            Text(
-              'checkout_substitution_hint'.tr,
-              style: TextStyle(
-                color: context.bulkaColors.mutedText,
-                fontSize: BulkaTypeScale.bodySmall,
-              ),
-            ),
-            const SizedBox(height: 12),
-            _CheckoutSubstitutionPreference(
-              value: _substitutionPreference,
-              onChanged: (value) {
-                setState(() => _substitutionPreference = value);
-                _saveDraft();
-              },
-            ),
-            const SizedBox(height: 28),
             _CheckoutLabel('payment_methods_title'.tr, required: true),
             const SizedBox(height: 12),
             _CheckoutSavedCards(
@@ -1111,57 +1030,6 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (_quoteEtaText.isNotEmpty) ...[
-              Semantics(
-                liveRegion: true,
-                label:
-                    '${'orders_eta'.tr}: $_quoteEtaText. $_quoteEtaConfidence',
-                child: Container(
-                  width: double.infinity,
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _bulkaYellow.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(BulkaRadii.control),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.schedule_rounded,
-                        size: 21,
-                        color: _textDark,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _quoteEtaText,
-                              style: const TextStyle(
-                                fontFamily: _headingFont,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            if (_quoteEtaConfidence.isNotEmpty)
-                              Text(
-                                _quoteEtaConfidence,
-                                style: TextStyle(
-                                  fontSize: BulkaTypeScale.caption,
-                                  color: _textDark.withValues(alpha: 0.68),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
             _CheckoutTotalRow(
               label: 'checkout_subtotal'.tr,
               value: '${_formatCartMoney(widget.total)} ₸',
