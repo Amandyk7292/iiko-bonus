@@ -88,8 +88,10 @@ void main() {
   testWidgets('opening a promotion shows its description and optional QR', (
     tester,
   ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(390, 844);
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
     addTearDown(tester.view.resetDevicePixelRatio);
     addTearDown(tester.view.resetPhysicalSize);
 
@@ -109,6 +111,11 @@ void main() {
     expect(find.byType(StoryViewer), findsNothing);
     expect(find.text('Полное описание акции'), findsOneWidget);
     expect(find.text('Показать QR-код'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('promo-details-scroll-configuration')),
+      findsOneWidget,
+    );
+    expect(find.byType(Scrollbar), findsNothing);
     final sheetSize = tester.getSize(
       find.byKey(const ValueKey('promo-details-sheet')),
     );
@@ -117,6 +124,7 @@ void main() {
     await tester.tap(find.text('Показать QR-код'));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('promotion-qr')), findsOneWidget);
+    debugDefaultTargetPlatformOverride = null;
   });
 
   testWidgets('promo cover keeps the 1080 by 480 aspect ratio', (tester) async {

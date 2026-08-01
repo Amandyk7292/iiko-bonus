@@ -571,88 +571,97 @@ class _PromoDetailsSheet extends StatelessWidget {
                 ),
                 Flexible(
                   fit: FlexFit.loose,
-                  child: SingleChildScrollView(
-                    key: const ValueKey('promo-details-scroll'),
-                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(BulkaRadii.card),
-                          child: AspectRatio(
-                            aspectRatio: _promoCoverAspectRatio,
-                            child: _NetworkImage(
-                              url: group.coverUrl,
-                              fit: BoxFit.cover,
-                              semanticLabel: group.title,
+                  child: ScrollConfiguration(
+                    key: const ValueKey('promo-details-scroll-configuration'),
+                    behavior: ScrollConfiguration.of(
+                      context,
+                    ).copyWith(scrollbars: false),
+                    child: SingleChildScrollView(
+                      key: const ValueKey('promo-details-scroll'),
+                      clipBehavior: Clip.hardEdge,
+                      padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(
+                              BulkaRadii.card,
                             ),
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        SelectableText(
-                          details,
-                          style: TextStyle(
-                            color: colors.brandBrown,
-                            fontSize: BulkaTypeScale.body,
-                            height: 1.55,
-                          ),
-                        ),
-                        if (story.remaining != null ||
-                            period != null ||
-                            published != null) ...[
-                          const SizedBox(height: 22),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              if (story.remaining != null)
-                                _PromoMetadataChip(
-                                  icon: Icons.inventory_2_outlined,
-                                  label: 'promos_remaining'.trArgs({
-                                    'count': story.remaining,
-                                  }),
-                                ),
-                              if (period != null)
-                                _PromoMetadataChip(
-                                  icon: Icons.calendar_today_outlined,
-                                  label: period,
-                                ),
-                              if (published != null)
-                                _PromoMetadataChip(
-                                  icon: Icons.schedule_outlined,
-                                  label: published,
-                                ),
-                            ],
-                          ),
-                        ],
-                        if (qrValue.isNotEmpty) ...[
-                          const SizedBox(height: 28),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed: () => onShowQr(qrValue),
-                              icon: const Icon(Icons.qr_code_2_rounded),
-                              label: Text('promos_show_qr'.tr),
-                              style: ElevatedButton.styleFrom(
-                                minimumSize: const Size.fromHeight(52),
-                                backgroundColor: colors.brandGold,
-                                foregroundColor: colors.brandBrown,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(
-                                    BulkaRadii.pill,
-                                  ),
-                                ),
-                                textStyle: const TextStyle(
-                                  fontFamily: _headingFont,
-                                  fontSize: BulkaTypeScale.body,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                            child: AspectRatio(
+                              aspectRatio: _promoCoverAspectRatio,
+                              child: _NetworkImage(
+                                url: group.coverUrl,
+                                fit: BoxFit.cover,
+                                semanticLabel: group.title,
                               ),
                             ),
                           ),
+                          const SizedBox(height: 24),
+                          Text(
+                            details,
+                            style: TextStyle(
+                              color: colors.brandBrown,
+                              fontSize: BulkaTypeScale.body,
+                              height: 1.55,
+                            ),
+                          ),
+                          if (story.remaining != null ||
+                              period != null ||
+                              published != null) ...[
+                            const SizedBox(height: 22),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                if (story.remaining != null)
+                                  _PromoMetadataChip(
+                                    icon: Icons.inventory_2_outlined,
+                                    label: 'promos_remaining'.trArgs({
+                                      'count': story.remaining,
+                                    }),
+                                  ),
+                                if (period != null)
+                                  _PromoMetadataChip(
+                                    icon: Icons.calendar_today_outlined,
+                                    label: period,
+                                  ),
+                                if (published != null)
+                                  _PromoMetadataChip(
+                                    icon: Icons.schedule_outlined,
+                                    label: published,
+                                  ),
+                              ],
+                            ),
+                          ],
+                          if (qrValue.isNotEmpty) ...[
+                            const SizedBox(height: 28),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed: () => onShowQr(qrValue),
+                                icon: const Icon(Icons.qr_code_2_rounded),
+                                label: Text('promos_show_qr'.tr),
+                                style: ElevatedButton.styleFrom(
+                                  minimumSize: const Size.fromHeight(52),
+                                  backgroundColor: colors.brandGold,
+                                  foregroundColor: colors.brandBrown,
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(
+                                      BulkaRadii.pill,
+                                    ),
+                                  ),
+                                  textStyle: const TextStyle(
+                                    fontFamily: _headingFont,
+                                    fontSize: BulkaTypeScale.body,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ),
                 ),
