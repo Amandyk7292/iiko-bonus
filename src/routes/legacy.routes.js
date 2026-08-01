@@ -643,6 +643,7 @@ router.post(
           birth_date: customer.birth_date,
           email: customer.email,
           region: customer.region,
+          avatar_key: customer.avatar_key,
           name: customer.name,
           phone: customer.phone,
           balance: customer.balance,

@@ -247,6 +247,18 @@ test('manually created dishes stay inside the selected city iiko profile', () =>
   assert.match(publicRoutes, /getCustomProducts\(\{[\s\S]*profileKey: selectedIikoApi\.profileKey/);
 });
 
+test('customer profile refresh preserves the selected avatar', () => {
+  const legacyRoutes = fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'routes', 'legacy.routes.js'),
+    'utf8',
+  );
+
+  assert.match(
+    legacyRoutes,
+    /['"]\/api\/guest\/profile['"][\s\S]*customer:\s*\{[\s\S]*avatar_key:\s*customer\.avatar_key/,
+  );
+});
+
 test('canonical order-type catalog migration is complete', () => {
   const migration = fs.readFileSync(
     path.join(__dirname, '..', 'supabase', 'migrations', '20260716200000_order_type_catalogs.sql'),
