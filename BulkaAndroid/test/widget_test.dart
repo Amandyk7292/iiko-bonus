@@ -626,7 +626,8 @@ void main() {
       find.byKey(const ValueKey('checkout-add-saved-card')),
       findsOneWidget,
     );
-    expect(find.text('Kaspi Pay'), findsOneWidget);
+    expect(find.text('Выберите способ оплаты'), findsNothing);
+    expect(find.text('Kaspi Pay'), findsNothing);
     expect(find.text('Оплатить картой'), findsNothing);
     expect(tester.takeException(), isNull);
   });
@@ -678,7 +679,8 @@ void main() {
     );
     expect(find.text('Сохранённых карт пока нет.'), findsOneWidget);
     expect(addCard, findsOneWidget);
-    expect(find.text('Kaspi Pay'), findsOneWidget);
+    expect(find.text('Выберите способ оплаты'), findsNothing);
+    expect(find.text('Kaspi Pay'), findsNothing);
     expect(find.text('Оплатить картой'), findsNothing);
     expect(tester.takeException(), isNull);
   });

@@ -1712,24 +1712,6 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
                 loading: _isSelectingTime,
               ),
             const SizedBox(height: 28),
-            _CheckoutLabel('checkout_payment_method'.tr, required: true),
-            const SizedBox(height: 12),
-            _CheckoutPaymentCard(
-              cardKey: const ValueKey('checkout-payment-kaspi'),
-              title: 'Kaspi Pay',
-              subtitle: 'checkout_kaspi_card_hint'.tr,
-              visual: _CheckoutPaymentVisual.kaspi,
-              available: _kaspiAvailable,
-              selected: _paymentMethod == _CheckoutPaymentMethod.kaspi,
-              onTap: () {
-                if (_kaspiAvailable == true) {
-                  setState(() => _paymentMethod = _CheckoutPaymentMethod.kaspi);
-                } else {
-                  unawaited(_loadPaymentAvailability());
-                }
-              },
-            ),
-            const SizedBox(height: 18),
             _CheckoutLabel('payment_methods_title'.tr),
             const SizedBox(height: 10),
             _CheckoutSavedCardsPanel(
