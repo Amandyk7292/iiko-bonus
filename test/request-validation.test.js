@@ -98,6 +98,8 @@ test('validation middleware raises a typed field error without echoing input', (
 });
 
 test('authentication and customer contracts reject extra and malformed fields', () => {
+  const loginBody = adminLoginBodySchema.parse({ password: 'secret', code: '' });
+  assert.deepEqual(loginBody, { username: 'admin', password: 'secret', code: undefined });
   assert.equal(
     adminLoginBodySchema.safeParse({ password: 'secret', unexpected: true }).success,
     false,

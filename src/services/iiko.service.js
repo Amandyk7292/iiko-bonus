@@ -53,6 +53,12 @@ class IikoAPI {
     this.organizationId =
       String(configuredValue(configuration, 'organizationId', 'IIKO_ORGANIZATION_ID')).trim() ||
       null;
+    this.externalMenuId =
+      String(configuredValue(configuration, 'externalMenuId', 'IIKO_EXTERNAL_MENU_ID')).trim() ||
+      null;
+    this.priceCategoryId =
+      String(configuredValue(configuration, 'priceCategoryId', 'IIKO_PRICE_CATEGORY_ID')).trim() ||
+      null;
     this.baseUrl = 'https://api-ru.iiko.services';
     this.token = null;
     this.tokenExpiresAt = 0;
@@ -245,8 +251,30 @@ class IikoAPI {
         if (extRes.ok) {
           const extData = await extRes.json();
           if (extData.externalMenus && extData.externalMenus.length > 0) {
-            const extMenuId = extData.externalMenus[0].id;
-            console.log('Найдено Внешнее Меню:', extData.externalMenus[0].name, extMenuId);
+            const configuredMenu = this.externalMenuId
+              ? extData.externalMenus.find(
+                  (menu) => String(menu?.id || '').trim() === this.externalMenuId,
+                )
+              : null;
+            const selectedMenu = configuredMenu || extData.externalMenus[0];
+            const extMenuId = selectedMenu.id;
+            const priceCategories = Array.isArray(extData.priceCategories)
+              ? extData.priceCategories
+              : [];
+            const configuredPriceCategory = this.priceCategoryId
+              ? priceCategories.find(
+                  (category) => String(category?.id || '').trim() === this.priceCategoryId,
+                )
+              : null;
+            const priceCategory = configuredPriceCategory || priceCategories[0] || null;
+            const priceCategoryId = String(priceCategory?.id || '').trim() || null;
+            console.log(
+              'Найдено Внешнее Меню:',
+              selectedMenu.name,
+              extMenuId,
+              'ценовая категория:',
+              priceCategoryId || 'не найдена',
+            );
             const itemsRes = await fetchWithTimeout(`${this.baseUrl}/api/2/menu/by_id`, {
               method: 'POST',
               headers: {
@@ -256,7 +284,7 @@ class IikoAPI {
               body: JSON.stringify({
                 externalMenuId: extMenuId,
                 organizationIds: [orgId],
-                priceCategoryId: null,
+                priceCategoryId,
               }),
             });
             if (itemsRes.ok) {
@@ -300,8 +328,15 @@ class IikoAPI {
               menuData = {
                 groups,
                 products,
-                orgName: extData.externalMenus[0].name + ' (External v2)',
+                orgName: selectedMenu.name + ' (External v2)',
               };
+            } else {
+              const errorData = await itemsRes.json().catch(() => ({}));
+              console.error(
+                'Ошибка загрузки внешнего меню v2:',
+                itemsRes.status,
+                errorData.error || errorData.errorDescription || 'unknown error',
+              );
             }
           }
         }

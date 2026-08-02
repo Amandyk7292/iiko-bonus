@@ -26,6 +26,12 @@ const astanaConfiguration = () => ({
     process.env.IIKO_ASTANA_CLIENT_SECRET || process.env.IIKO_CLIENT_SECRET || '',
   ).trim(),
   organizationId: String(process.env.IIKO_ASTANA_ORGANIZATION_ID || '').trim(),
+  externalMenuId: String(
+    process.env.IIKO_ASTANA_EXTERNAL_MENU_ID || process.env.IIKO_EXTERNAL_MENU_ID || '',
+  ).trim(),
+  priceCategoryId: String(
+    process.env.IIKO_ASTANA_PRICE_CATEGORY_ID || process.env.IIKO_PRICE_CATEGORY_ID || '',
+  ).trim(),
 });
 
 const astanaProfileConfigured = () => Boolean(astanaConfiguration().apiLogin);
