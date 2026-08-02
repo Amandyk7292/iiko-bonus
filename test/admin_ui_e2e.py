@@ -176,7 +176,22 @@ def route_api(route):
     elif path.endswith("/admin/api/operations/summary"):
         fulfill_json(route, OPERATIONS_SUMMARY)
     elif path.endswith("/admin/api/scope"):
-        fulfill_json(route, {"success": True, "locations": []})
+        fulfill_json(
+            route,
+            {
+                "success": True,
+                "locations": [
+                    {
+                        "id": "48f71218-aa08-51bf-a6d9-2497c4a1e55b",
+                        "name": "ЖК Дукат",
+                        "city": "Актау",
+                        "address": "17-й микрорайон, 1",
+                        "active": True,
+                    }
+                ],
+                "selectedBranchId": None,
+            },
+        )
     elif path.endswith("/admin/api/transactions"):
         fulfill_json(
             route,
@@ -322,7 +337,9 @@ with sync_playwright() as playwright:
     page.get_by_role("combobox", name="Изменить статус").click()
     page.get_by_role("option", name="Отменён", exact=True).click()
     cancellation_dialog = page.get_by_role("dialog")
-    cancellation_dialog.get_by_label("Причина отмены (необязательно)").fill("Тест формы")
+    cancellation_reason = cancellation_dialog.get_by_label("Причина отмены (увидит клиент)")
+    assert cancellation_reason.get_attribute("required") is not None
+    cancellation_reason.fill("Тест формы")
     page.screenshot(path=str(ROOT / "scratch" / "admin-cancellation-modal.png"), full_page=True)
     cancellation_dialog.get_by_role("button", name="Отмена", exact=True).click()
 
@@ -384,6 +401,11 @@ with sync_playwright() as playwright:
     page.get_by_role("link", name="Меню и блюда", exact=True).click()
     page.get_by_role("heading", name="Управление меню", exact=True).wait_for()
     assert page.get_by_role("heading", name="Управление меню", exact=True).count() == 1
+    page.get_by_role(
+        "button",
+        name="Редактировать меню города Актау, 1 филиал",
+        exact=True,
+    ).click()
     page.get_by_role("heading", name="Блюд пока нет", exact=True).wait_for()
 
     page.get_by_role("link", name="Акции и баннеры", exact=True).click()
@@ -435,7 +457,12 @@ with sync_playwright() as playwright:
         page.set_viewport_size({"width": width, "height": 900})
         for route_name in audited_routes:
             page.goto(f"{BASE_URL.rstrip('/')}/{route_name}")
-            page.locator("h1.sagi-page-title").wait_for()
+            try:
+                page.locator("h1.sagi-page-title").wait_for(timeout=10_000)
+            except Exception as error:
+                raise AssertionError(
+                    f"page heading did not load at {width}px on /{route_name}"
+                ) from error
             page.wait_for_timeout(80)
             layout = page.evaluate(
                 """() => {
