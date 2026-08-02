@@ -588,7 +588,59 @@ declare
   card public.gift_cards%rowtype;
   payment_order public.kaspi_orders%rowtype;
 begin
-  perform pg_advisory_xact_l…351 tokens truncated…= 'refunded',
+  perform pg_advisory_xact_lock(hashtextextended('gift-refund:' || p_order_id::text, 0));
+
+  select *
+    into payment_order
+  from public.kaspi_orders
+  where id = p_order_id
+  for update;
+
+  if payment_order.id is null
+     or payment_order.order_kind <> 'gift_certificate'
+     or payment_order.status <> 'refunded' then
+    raise exception 'gift certificate refund is not completed';
+  end if;
+
+  select *
+    into purchase
+  from public.gift_certificate_purchases
+  where payment_order_id = p_order_id
+  for update;
+
+  if purchase.id is null then
+    raise exception 'gift certificate purchase not found';
+  end if;
+  if purchase.status = 'refunded' then
+    return jsonb_build_object('status', 'already_refunded', 'purchaseId', purchase.id);
+  end if;
+  if purchase.status not in ('pending_payment', 'active', 'refund_processing') then
+    raise exception 'gift certificate refund is not prepared';
+  end if;
+
+  select *
+    into card
+  from public.gift_cards
+  where id = purchase.gift_card_id
+  for update;
+
+  if card.id is null
+     or card.balance <> purchase.amount
+     or exists (
+       select 1
+       from public.gift_card_transactions
+       where gift_card_id = card.id
+         and type = 'redeem'
+     ) then
+    raise exception 'gift certificate refund state conflict';
+  end if;
+
+  update public.gift_cards
+  set active = false
+  where id = card.id;
+
+  update public.gift_certificate_purchases
+  set status = 'refunded',
       refund_previous_status = null,
       updated_at = now(),
       last_error = null
