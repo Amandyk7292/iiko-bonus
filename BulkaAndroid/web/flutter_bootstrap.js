@@ -17,9 +17,5 @@ window.bulkaFirebaseModulesReady = new Promise((resolve) => window.setTimeout(re
   });
 
 (async () => {
-  await _flutter.loader.load({
-    serviceWorkerSettings: {
-      serviceWorkerVersion: {{flutter_service_worker_version}},
-    },
-  });
+  await _flutter.loader.load();
 })();
