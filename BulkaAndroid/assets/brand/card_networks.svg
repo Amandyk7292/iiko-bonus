@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 28">
+  <title>Visa and Mastercard</title>
+  <text
+    x="1"
+    y="20"
+    fill="#1434CB"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="20"
+    font-style="italic"
+    font-weight="800"
+  >VISA</text>
+  <path d="M49 5v18" stroke="#B8ACA4" stroke-width="1.5"/>
+  <circle cx="68" cy="14" r="10" fill="#EB001B"/>
+  <circle cx="81" cy="14" r="10" fill="#F79E1B"/>
+  <path d="M74.5 6.4a10 10 0 0 1 0 15.2 10 10 0 0 1 0-15.2Z" fill="#FF5F00"/>
+</svg>

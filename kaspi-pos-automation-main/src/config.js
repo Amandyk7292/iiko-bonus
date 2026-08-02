@@ -28,7 +28,7 @@ if (savedKeyPair) {
     privateKey: ecKeyPair.privateKey.export({ type: 'pkcs8', format: 'der' }).toString('base64'),
     publicKey: ecKeyPair.publicKey.export({ type: 'spki', format: 'der' }).toString('base64'),
   };
-  persistRuntimeJson(KEYPAIR_FILE, saved, 'KEYPAIR_JSON_B64');
+  persistRuntimeJson(KEYPAIR_FILE, saved);
   console.log('Generated new ECDSA keypair → saved to keypair.json');
 }
 
@@ -55,7 +55,7 @@ if (savedDevice) {
   deviceId = crypto.randomUUID().toUpperCase();
   installId = crypto.randomUUID().toUpperCase();
   pinHash = crypto.createHash('md5').update(crypto.randomBytes(16)).digest('hex');
-  persistRuntimeJson(DEVICE_FILE, { deviceId, installId, pinHash }, 'DEVICE_JSON_B64');
+  persistRuntimeJson(DEVICE_FILE, { deviceId, installId, pinHash });
   console.log('Generated new device identity → saved to device.json');
 }
 
@@ -79,18 +79,18 @@ export const KASPI_QRPAY_URL = 'https://qrpay.kaspi.kz';
 // Kaspi validates these parameters and may reject unknown values.
 
 export const APP = {
-  version: process.env.APP_VERSION || '4.111',
-  build: process.env.APP_BUILD || '1101',
+  version: process.env.APP_VERSION || '4.112.1',
+  build: process.env.APP_BUILD || '1107',
   platform: process.env.APP_PLATFORM || 'iOS',
-  platformVer: process.env.APP_PLATFORM_VER || '18.5',
+  platformVer: process.env.APP_PLATFORM_VER || '18.4',
   locale: process.env.APP_LOCALE || 'ru-RU',
-  model: process.env.APP_MODEL || 'iPhone17,3',
+  model: process.env.APP_MODEL || 'iPhone16,2',
   brand: process.env.APP_BRAND || 'Apple',
   deviceName: process.env.APP_DEVICE_NAME || 'iPhone',
-  screenW: process.env.APP_SCREEN_W || '393.0',
-  screenH: process.env.APP_SCREEN_H || '852.0',
-  cfNetwork: process.env.APP_CFNETWORK || 'CFNetwork/3826.500.131',
-  darwin: process.env.APP_DARWIN || 'Darwin/24.5.0',
+  screenW: process.env.APP_SCREEN_W || '430.0',
+  screenH: process.env.APP_SCREEN_H || '932.0',
+  cfNetwork: process.env.APP_CFNETWORK || 'CFNetwork/3826.400.120',
+  darwin: process.env.APP_DARWIN || 'Darwin/24.4.0',
 };
 
 export const UA_NATIVE = `Kaspi%20Pay/${APP.build} ${APP.cfNetwork} ${APP.darwin}`;

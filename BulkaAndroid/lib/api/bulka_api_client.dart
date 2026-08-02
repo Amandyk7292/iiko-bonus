@@ -5,14 +5,84 @@ const _apiBaseUrl = String.fromEnvironment(
   defaultValue: 'https://bulka.com.kz',
 );
 
+String preferredWalletPath(Map<String, dynamic> json, TargetPlatform platform) {
+  if (platform == TargetPlatform.iOS) return _asString(json['appleUrl']);
+  if (platform == TargetPlatform.android) return _asString(json['googleUrl']);
+  return _asString(json['url']);
+}
+
+enum _SessionRefreshResult { refreshed, rejected, unavailable }
+
 class BulkaApiClient {
-  BulkaApiClient({http.Client? client}) : _client = client ?? http.Client();
+  BulkaApiClient({
+    http.Client? client,
+    Future<void> Function(String? accessToken, String? refreshToken)?
+    onSessionChanged,
+  }) : _client = client ?? createBulkaHttpClient(),
+       _onSessionChanged = onSessionChanged;
 
   final http.Client _client;
+  Future<void> Function(String? accessToken, String? refreshToken)?
+  _onSessionChanged;
   String? _accessToken;
+  String? _refreshToken;
+  String? _sessionCacheScope;
+  Future<_SessionRefreshResult>? _refreshRequest;
+  StreamController<Map<String, dynamic>>? _eventController;
+  StreamSubscription<String>? _eventStreamSubscription;
+  Completer<void>? _eventStreamDone;
+  Completer<void> _eventWakeUp = Completer<void>();
+  int _eventGeneration = 0;
+  bool _eventLoopRunning = false;
+  bool _disposed = false;
+
+  Stream<Map<String, dynamic>> get customerEvents {
+    _eventController ??= StreamController<Map<String, dynamic>>.broadcast(
+      onListen: _startEventLoopIfAuthenticated,
+      onCancel: () {
+        _wakeEventLoop();
+        unawaited(_cancelEventStream());
+      },
+    );
+    return _eventController!.stream;
+  }
+
+  bool get isAuthenticated => _accessToken?.isNotEmpty == true;
+  String? get accessToken => _accessToken;
+  String? get sessionCacheScope => _sessionCacheScope;
+
+  void setSession({
+    String? accessToken,
+    String? refreshToken,
+    String? cacheScope,
+  }) {
+    final changed =
+        _accessToken != accessToken ||
+        _refreshToken != refreshToken ||
+        _sessionCacheScope != cacheScope;
+    _accessToken = accessToken;
+    _refreshToken = refreshToken;
+    _sessionCacheScope = cacheScope;
+    if (changed) {
+      _eventGeneration++;
+      _wakeEventLoop();
+      unawaited(_cancelEventStream());
+    }
+    _startEventLoopIfAuthenticated();
+  }
 
   void setAccessToken(String? token) {
-    _accessToken = token;
+    setSession(
+      accessToken: token,
+      refreshToken: _refreshToken,
+      cacheScope: _sessionCacheScope,
+    );
+  }
+
+  void setSessionListener(
+    Future<void> Function(String? accessToken, String? refreshToken)? listener,
+  ) {
+    _onSessionChanged = listener;
   }
 
   Map<String, String> _headers({String? bearerToken, bool json = true}) {
@@ -21,6 +91,7 @@ class BulkaApiClient {
       if (json) 'Content-Type': 'application/json',
       if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
       'Accept-Language': AppLang.current,
+      if (kIsWeb) 'X-Bulka-Session-Transport': 'cookie',
     };
   }
 
@@ -62,6 +133,63 @@ class BulkaApiClient {
     return list.map((item) => City.fromJson(_asMap(item))).toList();
   }
 
+  Future<ProfileResponse> loginWithPassword({
+    required String phone,
+    required String password,
+  }) async {
+    final json = await _post('/api/auth/login', {
+      'phone': phone,
+      'password': password,
+    });
+    return ProfileResponse.fromJson(json);
+  }
+
+  OtpRequestResult _otpRequestResult(Map<String, dynamic> json) {
+    return OtpRequestResult(
+      whatsappUrl: _nullableString(json['whatsappUrl'] ?? json['whatsapp_url']),
+      whatsappPhone: _nullableString(
+        json['whatsappPhone'] ?? json['whatsapp_phone'],
+      ),
+    );
+  }
+
+  Future<OtpRequestResult> startPasswordRegistration({
+    required String phone,
+    required String password,
+    required String token,
+  }) async {
+    final json = await _post('/api/auth/register/start', {
+      'phone': phone,
+      'password': password,
+      'token': token,
+    });
+    return _otpRequestResult(json);
+  }
+
+  Future<OtpRequestResult> startPasswordReset({
+    required String phone,
+    required String token,
+  }) async {
+    final json = await _post('/api/auth/password-reset/start', {
+      'phone': phone,
+      'token': token,
+    });
+    return _otpRequestResult(json);
+  }
+
+  Future<ProfileResponse> completePasswordReset({
+    required String phone,
+    required String code,
+    required String password,
+  }) async {
+    final json = await _post('/api/auth/password-reset/complete', {
+      'phone': phone,
+      'code': code,
+      'password': password,
+    });
+    return ProfileResponse.fromJson(json);
+  }
+
   Future<OtpRequestResult> requestOtp({
     required String phone,
     required String token,
@@ -73,12 +201,7 @@ class BulkaApiClient {
     if (json['success'] != true) {
       throw ApiException(_messageFrom(json, 'error_send_code'.tr));
     }
-    return OtpRequestResult(
-      whatsappUrl: _nullableString(json['whatsappUrl'] ?? json['whatsapp_url']),
-      whatsappPhone: _nullableString(
-        json['whatsappPhone'] ?? json['whatsapp_phone'],
-      ),
-    );
+    return _otpRequestResult(json);
   }
 
   Future<ProfileResponse> verifyOtp({
@@ -133,54 +256,50 @@ class BulkaApiClient {
     String? email,
     String? region,
   }) async {
-    final response = await _client
-        .put(
-          _uri('/api/customer/profile'),
-          headers: {..._headers()},
-          body: jsonEncode({
-            'name': ?name,
-            'last_name': ?lastName,
-            'gender': ?gender,
-            'birth_date': ?birthDate,
-            'email': ?email,
-            'region': ?region,
-          }),
-        )
-        .timeout(const Duration(seconds: 15));
-    final json = _decode(response);
+    final json = await _put('/api/customer/profile', {
+      'name': ?name,
+      'last_name': ?lastName,
+      'gender': ?gender,
+      'birth_date': ?birthDate,
+      'email': ?email,
+      'region': ?region,
+    });
     if (json['success'] != true) {
       throw ApiException(_messageFrom(json, 'error_save'.tr));
     }
   }
 
   Future<void> deleteAccount(String phone) async {
-    final response = await _client
-        .delete(
-          _uri('/api/customer/profile'),
-          headers: {..._headers(json: false)},
-        )
-        .timeout(const Duration(seconds: 15));
-    final json = _decode(response);
+    final json = await _delete('/api/customer/profile');
     if (json['success'] != true) {
       throw ApiException(_messageFrom(json, 'error_delete_account'.tr));
     }
   }
 
-  Future<void> registerFcmToken(String fcmToken) async {
+  Future<void> registerFcmToken(
+    String fcmToken, {
+    required String platform,
+    required String installationId,
+  }) async {
     final json = await _post('/api/customer/fcm-token', {
       'fcmToken': fcmToken,
       'language': AppLang.current,
+      'platform': platform,
+      'installationId': installationId,
     });
     if (json['success'] != true) {
       throw ApiException(_messageFrom(json, 'error_network'.tr));
     }
   }
 
-  Future<void> clearFcmToken() async {
-    final response = await _client
-        .delete(_uri('/api/customer/fcm-token'), headers: _headers(json: false))
-        .timeout(const Duration(seconds: 15));
-    if (response.statusCode >= 400) throw ApiException('error_network'.tr);
+  Future<void> clearFcmToken({
+    required String installationId,
+    String? fcmToken,
+  }) async {
+    await _delete('/api/customer/fcm-token', {
+      'installationId': installationId,
+      if (fcmToken != null && fcmToken.isNotEmpty) 'fcmToken': fcmToken,
+    });
   }
 
   Future<String> getQrToken(String phone) async {
@@ -192,9 +311,7 @@ class BulkaApiClient {
 
   Future<String> createWalletUrl(String phone) async {
     final json = await _post('/api/wallet/token', {});
-    final preferred = defaultTargetPlatform == TargetPlatform.iOS
-        ? _asString(json['appleUrl'])
-        : _asString(json['googleUrl']);
+    final preferred = preferredWalletPath(json, defaultTargetPlatform);
     final path = preferred.isNotEmpty ? preferred : _asString(json['url']);
     if (path.isNotEmpty) {
       return path.startsWith('http') ? path : _uri(path).toString();
@@ -220,6 +337,16 @@ class BulkaApiClient {
     return const [];
   }
 
+  Future<List<AppContactCard>> getContactCards() async {
+    final json = await _get('/api/public/contact-center');
+    final cards = json['cards'];
+    if (json['success'] != true || cards is! List) return const [];
+    return cards
+        .map((item) => AppContactCard.fromJson(_asMap(item)))
+        .where((card) => card.id.isNotEmpty)
+        .toList(growable: false);
+  }
+
   Future<List<AppNotification>> getNotifications() async {
     final json = await _get('/api/customer/notifications');
     final items = json['notifications'];
@@ -239,6 +366,29 @@ class BulkaApiClient {
     if (json['success'] != true) {
       throw ApiException(_messageFrom(json, 'error_network'.tr));
     }
+  }
+
+  Future<NotificationPreferences> getNotificationPreferences() async {
+    final json = await _get('/api/customer/notification-preferences');
+    final preferences = _asMap(json['preferences']);
+    if (json['success'] != true || preferences.isEmpty) {
+      throw ApiException(_messageFrom(json, 'error_network'.tr));
+    }
+    return NotificationPreferences.fromJson(preferences);
+  }
+
+  Future<NotificationPreferences> updateNotificationPreferences(
+    NotificationPreferences preferences,
+  ) async {
+    final json = await _patch(
+      '/api/customer/notification-preferences',
+      preferences.toJson(),
+    );
+    final saved = _asMap(json['preferences']);
+    if (json['success'] != true || saved.isEmpty) {
+      throw ApiException(_messageFrom(json, 'error_save'.tr));
+    }
+    return NotificationPreferences.fromJson(saved);
   }
 
   Future<Map<String, List<String>>> getLocations() async {
@@ -263,6 +413,7 @@ class BulkaApiClient {
     required String orderType,
     required String scheduledAt,
     required String checkoutId,
+    String? preorderFulfillmentType,
     String? branch,
     String? branchId,
     DeliveryAddress? deliveryAddress,
@@ -273,6 +424,7 @@ class BulkaApiClient {
     final json = await _post('/api/customer/kaspi-pay/create', {
       'items': cartItems,
       'orderType': orderType,
+      'preorderFulfillmentType': preorderFulfillmentType,
       'branch': branch,
       'branchId': branchId,
       'scheduledAt': scheduledAt,
@@ -289,18 +441,25 @@ class BulkaApiClient {
     return json;
   }
 
+  Future<bool> isKaspiPaymentAvailable() async {
+    final json = await _get('/api/customer/kaspi-pay/availability');
+    return json['success'] == true && json['available'] == true;
+  }
+
   Future<Map<String, dynamic>> quoteKaspiOrder({
     required List<Map<String, dynamic>> cartItems,
     String? orderType,
     String? branch,
     String? branchId,
     String? scheduledAt,
+    String? preorderFulfillmentType,
     DeliveryAddress? deliveryAddress,
     String? promoCode,
   }) async {
     final json = await _post('/api/customer/kaspi-pay/quote', {
       'items': cartItems,
       'orderType': orderType,
+      'preorderFulfillmentType': preorderFulfillmentType,
       'branch': branch,
       'branchId': branchId,
       'scheduledAt': scheduledAt,
@@ -316,9 +475,127 @@ class BulkaApiClient {
   Future<Map<String, dynamic>> checkKaspiPaymentStatus(
     String operationId,
   ) async {
-    final json = await _get('/api/customer/kaspi-pay/status/$operationId');
+    final json = await _get(
+      '/api/customer/kaspi-pay/status/${Uri.encodeComponent(operationId)}',
+    );
     if (json['success'] != true) {
       throw ApiException(_messageFrom(json, 'error_kaspi_status'.tr));
+    }
+    return json;
+  }
+
+  Future<Map<String, dynamic>> createFortePayment({
+    required List<Map<String, dynamic>> cartItems,
+    required String orderType,
+    required String scheduledAt,
+    required String checkoutId,
+    String? preorderFulfillmentType,
+    String? branch,
+    String? branchId,
+    DeliveryAddress? deliveryAddress,
+    String? additionalPhone,
+    String? promoCode,
+    String? comment,
+  }) async {
+    final json = await _post('/api/customer/forte-pay/create', {
+      'items': cartItems,
+      'orderType': orderType,
+      'preorderFulfillmentType': preorderFulfillmentType,
+      'branch': branch,
+      'branchId': branchId,
+      'scheduledAt': scheduledAt,
+      'pickupTime': scheduledAt,
+      'deliveryAddress': deliveryAddress?.toOrderPayload(),
+      'checkoutId': checkoutId,
+      'additionalPhone': additionalPhone,
+      'promoCode': promoCode,
+      'comment': comment,
+      'language': AppLang.current,
+    });
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'error_forte_payment'.tr));
+    }
+    return json;
+  }
+
+  String? _forteSavedCardLabel;
+  String? get forteSavedCardLabel => _forteSavedCardLabel;
+
+  Future<bool> isFortePaymentAvailable() async {
+    final json = await _get('/api/customer/forte-pay/availability');
+    final savedCard = json['savedCard'];
+    if (savedCard is Map) {
+      final brand = (savedCard['brand'] ?? 'card').toString().trim();
+      final lastFour = (savedCard['lastFour'] ?? '').toString().trim();
+      _forteSavedCardLabel = lastFour.length == 4
+          ? '${brand.toUpperCase()} •••• $lastFour'
+          : null;
+    } else {
+      _forteSavedCardLabel = null;
+    }
+    return json['success'] == true && json['available'] == true;
+  }
+
+  Future<List<Map<String, dynamic>>> getFortePaymentMethods() async {
+    final json = await _get('/api/customer/forte-pay/methods');
+    final methods = json['methods'];
+    if (json['success'] != true || methods is! List) return const [];
+    return methods
+        .whereType<Map>()
+        .map((method) => Map<String, dynamic>.from(method))
+        .toList();
+  }
+
+  Future<Map<String, dynamic>> createForteCardSetup() async {
+    final json = await _post('/api/customer/forte-pay/card-setup', {
+      'language': AppLang.current,
+    });
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'payment_methods_add_error'.tr));
+    }
+    return json;
+  }
+
+  Future<Map<String, dynamic>> checkForteCardSetupStatus(
+    String operationId,
+  ) async {
+    final json = await _get(
+      '/api/customer/forte-pay/card-setup/${Uri.encodeComponent(operationId)}',
+    );
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'payment_methods_add_error'.tr));
+    }
+    return json;
+  }
+
+  Future<void> removeFortePaymentMethod(String methodId) async {
+    final json = await _delete(
+      '/api/customer/forte-pay/methods/${Uri.encodeComponent(methodId)}',
+    );
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'error_forte_payment'.tr));
+    }
+    _forteSavedCardLabel = null;
+  }
+
+  Future<void> setDefaultFortePaymentMethod(String methodId) async {
+    final json = await _patch(
+      '/api/customer/forte-pay/methods/${Uri.encodeComponent(methodId)}/default',
+      const {},
+    );
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'error_forte_payment'.tr));
+    }
+  }
+
+  Future<Map<String, dynamic>> checkFortePaymentStatus(
+    String operationId,
+  ) async {
+    final json = await _get(
+      '/api/customer/forte-pay/status/${Uri.encodeComponent(operationId)}',
+    );
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'error_forte_status'.tr));
     }
     return json;
   }
@@ -449,11 +726,481 @@ class BulkaApiClient {
     return orders.map((item) => CustomerOrder.fromJson(_asMap(item))).toList();
   }
 
+  Future<CustomerOrder> markCustomerArrived(String orderId) async {
+    final json = await _post(
+      '/api/customer/orders/${Uri.encodeComponent(orderId)}/arrived',
+      const {},
+    );
+    final order = _asMap(json['order']);
+    if (json['success'] != true || order.isEmpty) {
+      throw ApiException(_messageFrom(json, 'orders_arrival_error'.tr));
+    }
+    return CustomerOrder.fromJson(order);
+  }
+
+  Future<Map<String, dynamic>> getProductOptions(String productId) async {
+    final json = await _get(
+      '/api/public/product-options?ids=${Uri.encodeQueryComponent(productId)}',
+    );
+    return _asMap(_asMap(json['products'])[productId]);
+  }
+
+  Future<Set<String>> getFavorites() async {
+    if (!isAuthenticated) return const {};
+    final json = await _get('/api/customer/favorites');
+    final values = json['favorites'];
+    if (values is! List) return const {};
+    return values
+        .map((value) => _asString(_asMap(value)['productId']))
+        .where((value) => value.isNotEmpty)
+        .toSet();
+  }
+
+  Future<void> setFavorite(String productId, bool favorite) async {
+    final json = await _put('/api/customer/favorites/$productId', {
+      'favorite': favorite,
+    });
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'error_save'.tr));
+    }
+  }
+
+  Future<void> recordProductView(String productId) async {
+    if (!isAuthenticated) return;
+    await _post('/api/customer/recent/$productId', const {});
+  }
+
+  Future<List<String>> getRecentProductIds() async {
+    if (!isAuthenticated) return const [];
+    final json = await _get('/api/customer/recent?limit=20');
+    return (json['recent'] as List? ?? const [])
+        .map((value) => _asString(_asMap(value)['productId']))
+        .where((value) => value.isNotEmpty)
+        .toList();
+  }
+
+  Future<List<String>> getRecommendationProductIds() async {
+    if (!isAuthenticated) return const [];
+    final json = await _get('/api/customer/recommendations?limit=16');
+    return (json['recommendations'] as List? ?? const [])
+        .map((value) => _asString(_asMap(value)['productId']))
+        .where((value) => value.isNotEmpty)
+        .toList();
+  }
+
+  Future<List<Map<String, dynamic>>> reorder(
+    String orderId, {
+    String? branchId,
+  }) async {
+    final json = await _post('/api/customer/orders/$orderId/reorder', {
+      if (branchId?.isNotEmpty == true) 'branchId': branchId,
+    });
+    final cart = _asMap(json['cart']);
+    final items = cart['items'];
+    if (json['success'] != true || items is! List) {
+      throw ApiException(_messageFrom(json, 'error_network'.tr));
+    }
+    return items.map((value) => _asMap(value)).toList();
+  }
+
+  Future<List<SupportRequest>> getSupportRequests() async {
+    final json = await _get('/api/customer/support');
+    final requests = json['requests'];
+    if (json['success'] != true || requests is! List) {
+      throw ApiException(_messageFrom(json, 'error_network'.tr));
+    }
+    return requests
+        .map((item) => SupportRequest.fromJson(_asMap(item)))
+        .toList();
+  }
+
+  Future<SupportRequest> createSupportRequest({
+    String? orderId,
+    required String category,
+    required String message,
+    bool refundRequested = false,
+    List<String> attachments = const [],
+  }) async {
+    final json = await _post('/api/customer/support', {
+      'orderId': orderId,
+      'category': category,
+      'message': message,
+      'refundRequested': refundRequested,
+      'attachments': attachments,
+    });
+    final request = _asMap(json['request']);
+    if (json['success'] != true || request.isEmpty) {
+      throw ApiException(_messageFrom(json, 'error_save'.tr));
+    }
+    return SupportRequest.fromJson(request);
+  }
+
+  Future<SupportThread> getSupportThread(String requestId) async {
+    final json = await _get(
+      '/api/customer/support/${Uri.encodeComponent(requestId)}',
+    );
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'error_network'.tr));
+    }
+    return SupportThread.fromJson(json);
+  }
+
+  Future<SupportThread> sendSupportReply(
+    String requestId,
+    String message,
+  ) async {
+    final json = await _post(
+      '/api/customer/support/${Uri.encodeComponent(requestId)}/messages',
+      {'body': message},
+    );
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'error_save'.tr));
+    }
+    return SupportThread.fromJson(json);
+  }
+
+  Future<String> uploadSupportAttachment({
+    required List<int> bytes,
+    required String fileName,
+  }) async {
+    final request = http.MultipartRequest(
+      'POST',
+      _uri('/api/customer/support/upload'),
+    );
+    request.headers.addAll(_headers(json: false));
+    final extension = fileName.split('.').last.toLowerCase();
+    final subtype = extension == 'png'
+        ? 'png'
+        : extension == 'webp'
+        ? 'webp'
+        : 'jpeg';
+    request.files.add(
+      http.MultipartFile.fromBytes(
+        'image',
+        bytes,
+        filename: fileName,
+        contentType: MediaType('image', subtype),
+      ),
+    );
+    final streamed = await _client.send(request);
+    final response = await http.Response.fromStream(streamed);
+    final json = _asMap(jsonDecode(response.body));
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException(_messageFrom(json, 'error_save'.tr));
+    }
+    return _asString(_asMap(json['attachment'])['path']);
+  }
+
+  Future<void> registerLiveActivity({
+    required String pushToken,
+    required String activityId,
+    required String installationId,
+    required String orderId,
+    required String environment,
+  }) async {
+    final json = await _post('/api/customer/live-activity', {
+      'pushToken': pushToken,
+      'activityId': activityId,
+      'installationId': installationId,
+      'orderId': orderId,
+      'environment': environment,
+    });
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'error_save'.tr));
+    }
+  }
+
+  Future<void> deactivateLiveActivity({
+    String? activityId,
+    String? orderId,
+  }) async {
+    await _delete('/api/customer/live-activity', {
+      if (activityId?.isNotEmpty == true) 'activityId': activityId,
+      if (orderId?.isNotEmpty == true) 'orderId': orderId,
+    });
+  }
+
+  Future<void> submitOrderReview({
+    required String orderId,
+    required int rating,
+    String? comment,
+    List<Map<String, dynamic>> items = const [],
+  }) async {
+    final json = await _put('/api/customer/orders/$orderId/review', {
+      'rating': rating,
+      'comment': comment,
+      'items': items,
+    });
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'error_save'.tr));
+    }
+  }
+
+  Future<Map<String, dynamic>> getReferral() async {
+    final json = await _get('/api/customer/referral');
+    return _asMap(json['referral']);
+  }
+
+  Future<void> redeemReferral(String code) async {
+    final json = await _post('/api/customer/referral/redeem', {'code': code});
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'error_save'.tr));
+    }
+  }
+
+  Future<int> redeemGiftCard(String code) async {
+    final json = await _post('/api/customer/gift-cards/redeem', {'code': code});
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'error_save'.tr));
+    }
+    return (json['amount'] as num?)?.round() ?? 0;
+  }
+
+  Future<Map<String, dynamic>> exportPersonalData() async {
+    final json = await _get('/api/customer/profile/export');
+    if (json['success'] != true || json['export'] is! Map) {
+      throw ApiException(_messageFrom(json, 'error_network'.tr));
+    }
+    return _asMap(json['export']);
+  }
+
+  Future<String> uploadCakeReference({
+    required List<int> bytes,
+    required String fileName,
+  }) async {
+    final request = http.MultipartRequest(
+      'POST',
+      _uri('/api/customer/cake-reference'),
+    );
+    request.headers.addAll(_headers(json: false));
+    final extension = fileName.split('.').last.toLowerCase();
+    final subtype = extension == 'png'
+        ? 'png'
+        : extension == 'webp'
+        ? 'webp'
+        : 'jpeg';
+    request.files.add(
+      http.MultipartFile.fromBytes(
+        'image',
+        bytes,
+        filename: fileName,
+        contentType: MediaType('image', subtype),
+      ),
+    );
+    final streamed = await _client.send(request);
+    final response = await http.Response.fromStream(streamed);
+    final json = _asMap(jsonDecode(response.body));
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw ApiException(_messageFrom(json, 'error_save'.tr));
+    }
+    return _asString(json['url']);
+  }
+
+  Future<List<FulfillmentSlot>> getFulfillmentSlots({
+    required String branchId,
+    required String orderType,
+    int days = 7,
+  }) async {
+    final query = Uri(
+      queryParameters: {
+        'branchId': branchId,
+        'orderType': orderType,
+        'days': '$days',
+      },
+    ).query;
+    final json = await _get('/api/public/fulfillment-slots?$query');
+    final slots = json['slots'];
+    if (json['success'] != true || slots is! List) {
+      throw ApiException(_messageFrom(json, 'checkout_no_time_slots'.tr));
+    }
+    final requestedOffset = _asInt(
+      json['timezoneOffsetMinutes'],
+      fallback: 300,
+    );
+    final timezoneOffsetMinutes = requestedOffset.abs() <= 840
+        ? requestedOffset
+        : 300;
+    final serverTime = DateTime.tryParse(_asString(json['serverTime']));
+    return slots
+        .map(
+          (item) => FulfillmentSlot.fromJson(
+            _asMap(item),
+            timezoneOffsetMinutes: timezoneOffsetMinutes,
+            serverTime: serverTime,
+          ),
+        )
+        .toList();
+  }
+
+  Future<void> recordAnalyticsEvents(List<Map<String, dynamic>> events) async {
+    if (events.isEmpty) return;
+    await _post('/api/customer/analytics/events', {'events': events});
+  }
+
+  void trackEvent(
+    String type, {
+    String? productId,
+    String? categoryId,
+    String? branchId,
+    String? orderId,
+    Map<String, dynamic> properties = const {},
+  }) {
+    unawaited(
+      recordAnalyticsEvents([
+        {
+          'type': type,
+          'occurredAt': DateTime.now().toUtc().toIso8601String(),
+          if (productId?.isNotEmpty == true) 'productId': productId,
+          if (categoryId?.isNotEmpty == true) 'categoryId': categoryId,
+          if (branchId?.isNotEmpty == true) 'branchId': branchId,
+          if (orderId?.isNotEmpty == true) 'orderId': orderId,
+          if (properties.isNotEmpty) 'properties': properties,
+        },
+      ]).catchError((_) {}),
+    );
+  }
+
+  Future<void> logoutSession() async {
+    final refreshToken = _refreshToken;
+    if (!kIsWeb && (refreshToken == null || refreshToken.isEmpty)) return;
+    try {
+      await _request(
+        'POST',
+        '/api/auth/logout',
+        body: {
+          if (!kIsWeb && refreshToken != null) 'refreshToken': refreshToken,
+        },
+        allowRefresh: false,
+      );
+    } catch (_) {}
+  }
+
+  void _startEventLoopIfAuthenticated() {
+    if (_disposed ||
+        _accessToken == null ||
+        _eventController?.hasListener != true) {
+      return;
+    }
+    if (_eventLoopRunning) return;
+    _eventLoopRunning = true;
+    unawaited(_runEventLoop());
+  }
+
+  void _wakeEventLoop() {
+    if (!_eventWakeUp.isCompleted) _eventWakeUp.complete();
+    _eventWakeUp = Completer<void>();
+  }
+
+  Future<void> _cancelEventStream() async {
+    final done = _eventStreamDone;
+    _eventStreamDone = null;
+    if (done != null && !done.isCompleted) done.complete();
+    final subscription = _eventStreamSubscription;
+    _eventStreamSubscription = null;
+    await subscription?.cancel();
+  }
+
+  Future<void> _consumeEventStream(
+    http.StreamedResponse response,
+    int generation,
+  ) async {
+    final done = Completer<void>();
+    late final StreamSubscription<String> subscription;
+    subscription = response.stream
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())
+        .listen(
+          (line) {
+            if (generation != _eventGeneration || !line.startsWith('data:')) {
+              return;
+            }
+            try {
+              final decoded = jsonDecode(line.substring(5).trim());
+              final event = _asMap(decoded);
+              if (event.isNotEmpty) _eventController?.add(event);
+            } catch (_) {
+              // Ignore a malformed SSE frame without dropping the connection.
+            }
+          },
+          onError: (Object error, StackTrace stackTrace) {
+            if (!done.isCompleted) done.completeError(error, stackTrace);
+          },
+          onDone: () {
+            if (!done.isCompleted) done.complete();
+          },
+          cancelOnError: true,
+        );
+
+    if (generation != _eventGeneration || _disposed) {
+      await subscription.cancel();
+      return;
+    }
+    _eventStreamSubscription = subscription;
+    _eventStreamDone = done;
+    try {
+      await done.future;
+    } finally {
+      if (identical(_eventStreamSubscription, subscription)) {
+        _eventStreamSubscription = null;
+      }
+      if (identical(_eventStreamDone, done)) _eventStreamDone = null;
+      await subscription.cancel();
+    }
+  }
+
+  Future<void> _runEventLoop() async {
+    try {
+      while (!_disposed && _eventController?.hasListener == true) {
+        if (_accessToken == null) break;
+        final generation = _eventGeneration;
+        try {
+          final request = http.Request('GET', _uri('/api/customer/events'));
+          request.headers.addAll(_headers(json: false));
+          var response = await _client
+              .send(request)
+              .timeout(const Duration(seconds: 15));
+          if (generation != _eventGeneration || _disposed) break;
+          if (response.statusCode == 401) {
+            final refresh = await _refreshSession();
+            if (generation != _eventGeneration || _disposed) break;
+            if (refresh == _SessionRefreshResult.refreshed) {
+              final retry = http.Request('GET', _uri('/api/customer/events'));
+              retry.headers.addAll(_headers(json: false));
+              response = await _client
+                  .send(retry)
+                  .timeout(const Duration(seconds: 15));
+            } else if (refresh == _SessionRefreshResult.rejected) {
+              break;
+            } else {
+              throw ApiException(
+                'error_network'.tr,
+                code: 'SESSION_REFRESH_UNAVAILABLE',
+              );
+            }
+          }
+          if (generation != _eventGeneration || _disposed) break;
+          if (response.statusCode >= 400) {
+            throw ApiException('error_network'.tr);
+          }
+          await _consumeEventStream(response, generation);
+        } catch (_) {
+          if (generation != _eventGeneration || _disposed) break;
+          final wakeUp = _eventWakeUp.future;
+          await Future.any<void>([
+            Future<void>.delayed(const Duration(seconds: 3)),
+            wakeUp,
+          ]);
+        }
+      }
+    } finally {
+      await _cancelEventStream();
+      _eventLoopRunning = false;
+      _startEventLoopIfAuthenticated();
+    }
+  }
+
   Future<Map<String, dynamic>> _get(String path) async {
-    final response = await _client
-        .get(_uri(path), headers: _headers(json: false))
-        .timeout(const Duration(seconds: 15));
-    return _decode(response);
+    return _request('GET', path);
   }
 
   Future<Map<String, dynamic>> _post(
@@ -461,41 +1208,151 @@ class BulkaApiClient {
     Map<String, dynamic> body, {
     String? bearerToken,
   }) async {
-    final response = await _client
-        .post(
-          _uri(path),
-          headers: _headers(bearerToken: bearerToken),
-          body: jsonEncode(body),
-        )
-        .timeout(const Duration(seconds: 15));
-    return _decode(response);
+    return _request(
+      'POST',
+      path,
+      body: body,
+      bearerToken: bearerToken,
+      allowRefresh: bearerToken == null,
+    );
   }
 
   Future<Map<String, dynamic>> _put(
     String path,
     Map<String, dynamic> body,
   ) async {
-    final response = await _client
-        .put(_uri(path), headers: _headers(), body: jsonEncode(body))
-        .timeout(const Duration(seconds: 15));
-    return _decode(response);
+    return _request('PUT', path, body: body);
   }
 
   Future<Map<String, dynamic>> _patch(
     String path,
     Map<String, dynamic> body,
   ) async {
-    final response = await _client
-        .patch(_uri(path), headers: _headers(), body: jsonEncode(body))
-        .timeout(const Duration(seconds: 15));
+    return _request('PATCH', path, body: body);
+  }
+
+  Future<Map<String, dynamic>> _delete(
+    String path, [
+    Map<String, dynamic>? body,
+  ]) async {
+    return _request('DELETE', path, body: body);
+  }
+
+  Future<Map<String, dynamic>> _request(
+    String method,
+    String path, {
+    Map<String, dynamic>? body,
+    String? bearerToken,
+    bool allowRefresh = true,
+  }) async {
+    Future<http.Response> send() {
+      final uri = _uri(path);
+      final headers = _headers(bearerToken: bearerToken, json: body != null);
+      final encodedBody = body == null ? null : jsonEncode(body);
+      return switch (method) {
+        'GET' => _client.get(uri, headers: headers),
+        'POST' => _client.post(uri, headers: headers, body: encodedBody),
+        'PUT' => _client.put(uri, headers: headers, body: encodedBody),
+        'PATCH' => _client.patch(uri, headers: headers, body: encodedBody),
+        'DELETE' => _client.delete(uri, headers: headers, body: encodedBody),
+        _ => throw ArgumentError.value(method, 'method'),
+      }.timeout(const Duration(seconds: 15));
+    }
+
+    var response = await send();
+    if (response.statusCode == 401 &&
+        allowRefresh &&
+        bearerToken == null &&
+        (kIsWeb || _refreshToken?.isNotEmpty == true)) {
+      final refresh = await _refreshSession();
+      if (refresh == _SessionRefreshResult.refreshed) {
+        response = await send();
+      } else if (refresh == _SessionRefreshResult.unavailable) {
+        throw ApiException(
+          'error_network'.tr,
+          code: 'SESSION_REFRESH_UNAVAILABLE',
+        );
+      }
+    }
     return _decode(response);
   }
 
-  Future<Map<String, dynamic>> _delete(String path) async {
-    final response = await _client
-        .delete(_uri(path), headers: _headers(json: false))
-        .timeout(const Duration(seconds: 15));
-    return _decode(response);
+  Future<bool> restoreSession() async {
+    if (isAuthenticated) return true;
+    if (!kIsWeb && _refreshToken?.isNotEmpty != true) return false;
+    return await _refreshSession() == _SessionRefreshResult.refreshed;
+  }
+
+  Future<_SessionRefreshResult> _refreshSession() {
+    final inFlight = _refreshRequest;
+    if (inFlight != null) return inFlight;
+    final request = _performRefresh();
+    _refreshRequest = request;
+    request.whenComplete(() {
+      if (identical(_refreshRequest, request)) _refreshRequest = null;
+    });
+    return request;
+  }
+
+  Future<void> _rejectSession() async {
+    final hadLocalSession =
+        _accessToken?.isNotEmpty == true || _refreshToken?.isNotEmpty == true;
+    _accessToken = null;
+    _refreshToken = null;
+    _eventGeneration++;
+    _wakeEventLoop();
+    await _cancelEventStream();
+    if (hadLocalSession) await _onSessionChanged?.call(null, null);
+  }
+
+  Future<_SessionRefreshResult> _performRefresh() async {
+    final refreshToken = _refreshToken;
+    if (!kIsWeb && (refreshToken == null || refreshToken.isEmpty)) {
+      return _SessionRefreshResult.rejected;
+    }
+    try {
+      final response = await _client
+          .post(
+            _uri('/api/auth/refresh'),
+            headers: _headers(),
+            body: jsonEncode({
+              if (!kIsWeb && refreshToken != null) 'refreshToken': refreshToken,
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
+      if (response.statusCode >= 400) {
+        if (response.statusCode == 408 ||
+            response.statusCode == 425 ||
+            response.statusCode == 429 ||
+            response.statusCode >= 500) {
+          return _SessionRefreshResult.unavailable;
+        }
+        await _rejectSession();
+        return _SessionRefreshResult.rejected;
+      }
+      final json = _asMap(jsonDecode(utf8.decode(response.bodyBytes)));
+      final accessToken = _nullableString(json['accessToken']);
+      final nextRefresh = _nullableString(json['refreshToken']);
+      if (accessToken == null || (!kIsWeb && nextRefresh == null)) {
+        return _SessionRefreshResult.unavailable;
+      }
+      _accessToken = accessToken;
+      _refreshToken = kIsWeb ? null : nextRefresh;
+      await _onSessionChanged?.call(accessToken, nextRefresh);
+      return _SessionRefreshResult.refreshed;
+    } catch (_) {
+      return _SessionRefreshResult.unavailable;
+    }
+  }
+
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    _eventGeneration++;
+    _wakeEventLoop();
+    unawaited(_cancelEventStream());
+    unawaited(_eventController?.close() ?? Future<void>.value());
+    _client.close();
   }
 
   Map<String, dynamic> _decode(http.Response response) {
@@ -506,6 +1363,7 @@ class BulkaApiClient {
       throw ApiException(
         _messageFrom(json, 'error_network'.tr),
         statusCode: response.statusCode,
+        code: _nullableString(json['code']),
       );
     }
     return json;
@@ -513,10 +1371,11 @@ class BulkaApiClient {
 }
 
 class ApiException implements Exception {
-  ApiException(this.message, {this.statusCode});
+  ApiException(this.message, {this.statusCode, this.code});
 
   final String message;
   final int? statusCode;
+  final String? code;
 
   @override
   String toString() => message;

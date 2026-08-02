@@ -4,9 +4,14 @@ const { getSettings, updateSettings } = require('../services/settings.service');
 const { getActiveLoyaltyTiers } = require('../services/tier.service');
 const { parseMoney } = require('../utils/money.util');
 const { getTierInfo } = require('../utils/tier.util');
-const { sendPushNotification, notifyBonusChange } = require('../services/push.service');
+const { branchScopeForAdmin, hasGlobalBranchAccess } = require('../utils/admin-scope.util');
+const { optimizeUploadedImage } = require('../utils/image.util');
+const {
+  notifyBonusChange,
+  sendPushNotification,
+  sendPushToCustomer,
+} = require('../services/push.service');
 const { sendMessage } = require('../services/telegram.service');
-const { sendAppleWalletPush } = require('../services/wallet.service');
 const {
   getAllCustomers,
   getTransactions,
@@ -15,9 +20,10 @@ const {
   updateCustomerInfo,
   checkAndExpireInactiveBonuses,
   checkAndNotifyInactiveCustomers,
-  deleteCustomer,
   activatePendingBonusesSafe,
 } = require('../services/customer.service');
+const { deleteCustomerData } = require('../services/privacy.service');
+const { setAdminAuditContext } = require('../services/admin-audit.service');
 const { getStories, addStory, updateStory, deleteStory } = require('../services/story.service');
 const { getNews, addNews, updateNews, deleteNews } = require('../services/news.service');
 const {
@@ -30,13 +36,34 @@ const {
   deletePoint,
 } = require('../services/location.service');
 
+const boundedPositiveNumber = (value, fallback, maximum) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.min(parsed, maximum) : fallback;
+};
+
+const manualBonusLimitForAdmin = (admin) =>
+  hasGlobalBranchAccess(admin)
+    ? boundedPositiveNumber(process.env.ADMIN_MANUAL_BONUS_LIMIT, 1_000_000, 1_000_000)
+    : boundedPositiveNumber(process.env.DELEGATED_MANUAL_BONUS_LIMIT, 100_000, 1_000_000);
+
+const normalizeManualBonusReason = (value) => {
+  const reason = String(value || '').trim();
+  if (reason.length < 5 || reason.length > 240) {
+    throw Object.assign(new Error('Укажите причину корректировки от 5 до 240 символов'), {
+      statusCode: 400,
+      code: 'MANUAL_BONUS_REASON_REQUIRED',
+    });
+  }
+  return reason;
+};
+
 // Settings
 const getSettingsHandler = async (req, res) => {
   try {
     const settings = await getSettings();
     res.json(settings);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.statusCode || 500).json({ error: err.message, code: err.code });
   }
 };
 
@@ -57,6 +84,7 @@ const getCustomersHandler = async (req, res) => {
       page: req.query.page,
       pageSize: req.query.pageSize,
       search: req.query.search,
+      branchIds: branchScopeForAdmin(req.admin),
     });
     const settings = await getSettings();
     const tiers = await getActiveLoyaltyTiers(settings);
@@ -75,7 +103,15 @@ const getCustomersHandler = async (req, res) => {
 const getTransactionsHandler = async (req, res) => {
   try {
     await activatePendingBonusesSafe();
-    const data = await getTransactions();
+    const data = await getTransactions({
+      branchIds: branchScopeForAdmin(req.admin),
+      page: req.query.page,
+      pageSize: req.query.pageSize,
+      search: req.query.search,
+      dateFrom: req.query.dateFrom,
+      dateTo: req.query.dateTo,
+      type: req.query.type,
+    });
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -85,7 +121,7 @@ const getTransactionsHandler = async (req, res) => {
 const getStatsHandler = async (req, res) => {
   try {
     await activatePendingBonusesSafe();
-    const data = await getStats();
+    const data = await getStats({ branchIds: branchScopeForAdmin(req.admin) });
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -125,20 +161,43 @@ const pushTestHandler = async (req, res) => {
 const pushMassHandler = async (req, res) => {
   try {
     const { title, body } = req.body;
-    if (!title || !body) return res.status(400).json({ error: 'title and body required' });
+    const normalizeTranslations = (value, fallback, limit) => {
+      const source = value && typeof value === 'object' ? value : {};
+      return Object.fromEntries(
+        ['ru', 'kk', 'en'].map((language) => [
+          language,
+          String(source[language] || fallback || '')
+            .trim()
+            .slice(0, limit),
+        ]),
+      );
+    };
+    const titles = normalizeTranslations(req.body.titleTranslations || req.body.titles, title, 160);
+    const bodies = normalizeTranslations(req.body.bodyTranslations || req.body.bodies, body, 2000);
+    if ([...Object.values(titles), ...Object.values(bodies)].some((value) => !value)) {
+      return res.status(400).json({ error: 'ru, kk and en title/body translations required' });
+    }
 
-    const { data: customers } = await supabase.from('customers').select('id, fcm_token');
+    const { data: customers } = await supabase
+      .from('customers')
+      .select('id, fcm_token, preferred_language');
     if (!customers || customers.length === 0) return res.json({ success: true, count: 0 });
 
     const { data: savedNotifications, error: notificationError } = await supabase
       .from('customer_notifications')
       .insert(
-        customers.map((customer) => ({
-          customer_id: customer.id,
-          title: String(title).slice(0, 160),
-          body: String(body).slice(0, 2000),
-          type: 'broadcast',
-        })),
+        customers.map((customer) => {
+          const language = ['kk', 'en'].includes(customer.preferred_language)
+            ? customer.preferred_language
+            : 'ru';
+          return {
+            customer_id: customer.id,
+            title: titles[language],
+            body: bodies[language],
+            type: 'broadcast',
+            payload: { i18n: { titles, bodies } },
+          };
+        }),
       )
       .select('id, customer_id');
     if (notificationError) throw notificationError;
@@ -148,15 +207,27 @@ const pushMassHandler = async (req, res) => {
 
     let count = 0;
     let totalTokens = 0;
-    for (const c of customers) {
-      if (c.fcm_token && c.fcm_token.trim()) {
-        totalTokens++;
-        const delivered = await sendPushNotification(c.fcm_token, title, body, {
-          notificationId: String(notificationByCustomer.get(c.id) || ''),
-          type: 'broadcast',
-        });
-        if (delivered) count++;
-      }
+    for (let offset = 0; offset < customers.length; offset += 25) {
+      const batch = customers.slice(offset, offset + 25);
+      const results = await Promise.all(
+        batch.map((customer) => {
+          const language = ['kk', 'en'].includes(customer.preferred_language)
+            ? customer.preferred_language
+            : 'ru';
+          return sendPushToCustomer(
+            customer.id,
+            titles[language],
+            bodies[language],
+            {
+              notificationId: String(notificationByCustomer.get(customer.id) || ''),
+              type: 'broadcast',
+            },
+            customer.fcm_token,
+          );
+        }),
+      );
+      totalTokens += results.reduce((sum, result) => sum + result.attempted, 0);
+      count += results.reduce((sum, result) => sum + result.delivered, 0);
     }
     console.log(
       `[PUSH MASS] Всего клиентов: ${customers.length}, с fcm_token: ${totalTokens}, успешно отправлено push: ${count}`,
@@ -171,9 +242,31 @@ const pushMassHandler = async (req, res) => {
 const addBonusHandler = async (req, res) => {
   try {
     const { customerId, amount, reason } = req.body;
-    const parsedAmount = parseMoney(amount, 'amount', { min: -100000000 });
-    await addManualBonus(customerId, parsedAmount, reason);
-    sendAppleWalletPush(customerId).catch((err) => console.error('Push error:', err));
+    const limit = manualBonusLimitForAdmin(req.admin);
+    const parsedAmount = parseMoney(amount, 'amount', { min: -limit, max: limit });
+    if (parsedAmount === 0) {
+      return res.status(400).json({
+        error: 'Сумма корректировки не может быть равна нулю',
+        code: 'MANUAL_BONUS_ZERO_AMOUNT',
+      });
+    }
+    const normalizedReason = normalizeManualBonusReason(reason);
+    const branchScope = branchScopeForAdmin(req.admin);
+    const requestedBranchId = String(req.body?.branchId || '');
+    const branchId = hasGlobalBranchAccess(req.admin)
+      ? requestedBranchId || null
+      : branchScope.includes(requestedBranchId)
+        ? requestedBranchId
+        : branchScope[0];
+    setAdminAuditContext(req, {
+      actionCode: 'customer.bonus.adjust',
+      targetType: 'customer',
+      targetId: customerId,
+      branchId,
+      reason: normalizedReason,
+      amountChange: parsedAmount,
+    });
+    await addManualBonus(customerId, parsedAmount, normalizedReason, { branchId });
 
     try {
       const { data: c } = await supabase
@@ -183,16 +276,18 @@ const addBonusHandler = async (req, res) => {
         .single();
       if (c) {
         const actionTxt =
-          amount >= 0 ? `Начислено: +${amount} бонусов` : `Списано: ${amount} бонусов`;
-        const msg = `<b>Изменение баланса баллов!</b>\n\n${actionTxt}\n<b>Причина:</b> ${reason || 'Корректировка администратором'}\n<b>Текущий баланс:</b> ${c.balance} бон.`;
+          parsedAmount >= 0
+            ? `Начислено: +${parsedAmount} бонусов`
+            : `Списано: ${parsedAmount} бонусов`;
+        const msg = `<b>Изменение баланса баллов!</b>\n\n${actionTxt}\n<b>Причина:</b> ${normalizedReason}\n<b>Текущий баланс:</b> ${c.balance} бон.`;
         if (c.telegram_id) sendMessage(c.telegram_id, msg).catch(() => {});
         await notifyBonusChange({
           customerId: c.id,
           fcmToken: c.fcm_token,
           language: c.preferred_language || c.language || 'ru',
-          amount: Number(amount),
+          amount: parsedAmount,
           balance: Number(c.balance),
-          reason: reason || '',
+          reason: normalizedReason,
           isOrder: false,
         });
       }
@@ -202,14 +297,24 @@ const addBonusHandler = async (req, res) => {
 
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.statusCode || 500).json({ error: err.message, code: err.code });
   }
 };
 
 const updateCustomerHandler = async (req, res) => {
   try {
-    const { customerId, name, phone, balance, total_spent } = req.body;
-    if (!customerId) return res.status(400).json({ error: 'customerId is required' });
+    const { customerId, name, phone } = req.body;
+    setAdminAuditContext(req, {
+      actionCode: 'customer.profile.update',
+      targetType: 'customer',
+      targetId: customerId,
+      context: {
+        changedFields: [
+          ...(name === undefined ? [] : ['name']),
+          ...(phone === undefined ? [] : ['phone']),
+        ],
+      },
+    });
     const updates = {
       name: name === undefined ? undefined : String(name).trim().slice(0, 160),
       phone:
@@ -218,8 +323,6 @@ const updateCustomerHandler = async (req, res) => {
           : String(phone)
               .replace(/[^0-9+]/g, '')
               .slice(0, 32),
-      balance: balance === undefined ? undefined : parseMoney(balance, 'balance'),
-      total_spent: total_spent === undefined ? undefined : parseMoney(total_spent, 'total_spent'),
     };
     await updateCustomerInfo(customerId, updates);
     res.json({ success: true });
@@ -230,6 +333,9 @@ const updateCustomerHandler = async (req, res) => {
 
 const expireInactiveHandler = async (req, res) => {
   try {
+    if (!hasGlobalBranchAccess(req.admin)) {
+      return res.status(403).json({ error: 'Массовое сгорание доступно только владельцу' });
+    }
     const days = req.body.days || 90;
     const result = await checkAndExpireInactiveBonuses(days);
     res.json({ success: true, ...result });
@@ -240,6 +346,9 @@ const expireInactiveHandler = async (req, res) => {
 
 const notifyInactiveHandler = async (req, res) => {
   try {
+    if (!hasGlobalBranchAccess(req.admin)) {
+      return res.status(403).json({ error: 'Глобальная рассылка доступна только владельцу' });
+    }
     const days = req.body.days || 30;
     const result = await checkAndNotifyInactiveCustomers(days);
     res.json({ success: true, ...result });
@@ -250,10 +359,15 @@ const notifyInactiveHandler = async (req, res) => {
 
 const deleteCustomerHandler = async (req, res) => {
   try {
-    await deleteCustomer(req.params.id);
-    res.json({ success: true });
+    setAdminAuditContext(req, {
+      actionCode: 'customer.privacy.delete',
+      targetType: 'customer',
+      targetId: req.params.id,
+    });
+    await deleteCustomerData(req.params.id);
+    res.json({ success: true, anonymized: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(err.statusCode || 500).json({ error: err.message, code: err.code });
   }
 };
 
@@ -262,7 +376,9 @@ const broadcastHandler = async (req, res) => {
     const { message } = req.body;
     if (!message) return res.status(400).json({ error: 'Message is required' });
 
-    const { data: customers } = await supabase.from('customers').select('telegram_id, fcm_token');
+    const { data: customers } = await supabase
+      .from('customers')
+      .select('id, telegram_id, fcm_token');
 
     if (!customers || customers.length === 0) {
       return res.json({ success: true, count: 0 });
@@ -280,10 +396,12 @@ const broadcastHandler = async (req, res) => {
             : []),
           ...(customer.fcm_token
             ? [
-                sendPushNotification(
-                  customer.fcm_token,
+                sendPushToCustomer(
+                  customer.id,
                   'Bulka Bonus: Новая акция!',
                   cleanText,
+                  {},
+                  customer.fcm_token,
                 ).catch(() => false),
               ]
             : []),
@@ -319,18 +437,18 @@ const uploadPhotoHandler = async (req, res) => {
       (match[1] === 'image/png' && isPng) ||
       (match[1] === 'image/webp' && isWebp);
     if (!signatureMatches) return res.status(400).json({ error: 'Image content is invalid' });
-    const extension = match[1] === 'image/jpeg' ? 'jpg' : match[1].split('/')[1];
-    const objectPath = `admin/${Date.now()}-${crypto.randomBytes(8).toString('hex')}.${extension}`;
-    const { error } = await supabase.storage.from('stories').upload(objectPath, buffer, {
-      contentType: match[1],
+    const optimized = await optimizeUploadedImage(buffer, match[1]);
+    const objectPath = `admin/${Date.now()}-${crypto.randomBytes(8).toString('hex')}.${optimized.extension}`;
+    const { error } = await supabase.storage.from('stories').upload(objectPath, optimized.buffer, {
+      contentType: optimized.mime,
       cacheControl: '31536000',
       upsert: false,
     });
     if (error) throw error;
     const { data } = supabase.storage.from('stories').getPublicUrl(objectPath);
-    res.json({ success: true, url: data.publicUrl });
-  } catch (_err) {
-    res.status(500).json({ error: 'Image upload failed' });
+    res.json({ success: true, url: data.publicUrl, optimized: optimized.optimized });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ error: 'Image upload failed' });
   }
 };
 
@@ -469,6 +587,8 @@ const deletePointHandler = async (req, res) => {
 };
 
 module.exports = {
+  manualBonusLimitForAdmin,
+  normalizeManualBonusReason,
   getSettingsHandler,
   updateSettingsHandler,
   getCustomersHandler,

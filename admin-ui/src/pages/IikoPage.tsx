@@ -55,7 +55,7 @@ export default function IikoPage() {
               <td data-label={t('iiko.paidBonus')} className="text-right tabular value-negative">{spent > 0 ? formatNumber(spent) : '—'}</td>
               <td data-label={t('iiko.earnedBonus')} className="text-right tabular value-positive">{earned > 0 ? `+${formatNumber(earned)}` : '—'}</td>
               <td data-label={t('iiko.customer')}>{operation.customers?.phone || operation.customers?.name || '—'}</td>
-              <td data-label={t('iiko.status')}><span className="status-pill status-active">SUCCESS</span></td>
+              <td data-label={t('iiko.status')}><span className="status-pill status-active">{t('common.success')}</span></td>
             </tr>;
           })}</tbody>
         </table></div></section>

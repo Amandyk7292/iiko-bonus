@@ -20,7 +20,7 @@ const normalizeUuid = (value) => {
 
 const normalizeAddressInput = (payload = {}) => {
   const address = cleanText(payload.address, 500);
-  const city = cleanText(payload.city || 'Актау', 100);
+  const city = cleanText(payload.city || 'Астана', 100);
   const latitude = Number(payload.latitude);
   const longitude = Number(payload.longitude);
   if (address.length < 3) throw addressError('Укажите полный адрес');

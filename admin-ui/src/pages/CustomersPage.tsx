@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Download, Gift, LoaderCircle, Pencil, RefreshCw, Search, Trash2 } from 'lucide-react';
+import { useSearchParams } from '../lib/router';
 import Modal from '../components/Modal';
 import PageState from '../components/PageState';
 import { useFeedback } from '../components/Feedback';
-import { api } from '../lib/api';
+import { api, type AdminUser } from '../lib/api';
+import { useAdminRealtimeEvents } from '../lib/admin-realtime';
 import { useI18n } from '../lib/i18n';
 
 interface Customer {
@@ -14,14 +16,19 @@ interface Customer {
   total_spent?: number;
 }
 
-export default function CustomersPage() {
+interface CustomersPageProps {
+  user: AdminUser | null;
+}
+
+export default function CustomersPage({ user }: CustomersPageProps) {
   const { t, formatNumber } = useI18n();
   const { toast, confirm } = useFeedback();
+  const [params, setParams] = useSearchParams();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState(params.get('search') || '');
+  const [page, setPage] = useState(Math.max(1, Number(params.get('page')) || 1));
   const [total, setTotal] = useState(0);
   const pageSize = 50;
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
@@ -31,6 +38,14 @@ export default function CustomersPage() {
   const [submitting, setSubmitting] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [formError, setFormError] = useState('');
+  const can = (action: string) =>
+    Boolean(user?.actions?.includes('*') || user?.actions?.includes(action));
+  const canAdjustBonus = can('customers:adjust-bonus');
+  const canUpdateCustomer = can('customers:update');
+  const canDeleteCustomer = can('customers:delete');
+  const canBulkNotify = can('customers:bulk-notify');
+  const canBulkExpire = can('customers:bulk-expire');
+  const canManageCustomer = canAdjustBonus || canUpdateCustomer || canDeleteCustomer;
 
   const fetchCustomers = useCallback(async () => {
     setLoading(true);
@@ -50,6 +65,21 @@ export default function CustomersPage() {
     const timer = window.setTimeout(() => void fetchCustomers(), 250);
     return () => window.clearTimeout(timer);
   }, [fetchCustomers]);
+
+  useEffect(() => {
+    const next = new URLSearchParams(params);
+    if (search.trim()) next.set('search', search.trim());
+    else next.delete('search');
+    if (page > 1) next.set('page', String(page));
+    else next.delete('page');
+    if (next.toString() !== params.toString()) setParams(next, { replace: true });
+  }, [page, params, search, setParams]);
+
+  useAdminRealtimeEvents(
+    ['loyalty.balance.updated', 'customer.updated', 'order.created', 'transaction.created'],
+    () => document.visibilityState === 'visible' && void fetchCustomers(),
+    [fetchCustomers],
+  );
 
   const filtered = customers;
 
@@ -118,14 +148,19 @@ export default function CustomersPage() {
   const saveBonus = async (event: FormEvent) => {
     event.preventDefault();
     const amount = Number(bonusAmount);
+    const reason = bonusReason.trim();
     if (!bonusCustomer || !Number.isFinite(amount) || amount === 0) {
       setFormError(t('customers.bonusAmountHint'));
+      return;
+    }
+    if (reason.length < 5) {
+      setFormError(t('customers.reasonRequired'));
       return;
     }
     setSubmitting(true);
     setFormError('');
     try {
-      await api.addCustomerBonus(bonusCustomer.id, amount, bonusReason.trim() || t('customers.reasonPlaceholder'));
+      await api.addCustomerBonus(bonusCustomer.id, amount, reason);
       setBonusCustomer(null);
       toast(t('customers.bonusSaved'));
       await fetchCustomers();
@@ -143,8 +178,8 @@ export default function CustomersPage() {
     setFormError('');
     try {
       await api.updateCustomer(editingCustomer.id, {
-        name: editingCustomer.name ?? '', phone: editingCustomer.phone ?? '',
-        balance: Number(editingCustomer.balance ?? 0), total_spent: Number(editingCustomer.total_spent ?? 0),
+        name: editingCustomer.name ?? '',
+        phone: editingCustomer.phone ?? '',
       });
       setEditingCustomer(null);
       toast(t('common.saved'));
@@ -160,12 +195,12 @@ export default function CustomersPage() {
   if (error && customers.length === 0) return <PageState type="error" description={error} onRetry={fetchCustomers} />;
 
   return (
-    <div className="page-stack">
+      <div className="page-stack">
       <div className="page-actions-row">
-        <div className="action-cluster">
-          <button type="button" className="btn-outline px-4 inline-flex items-center gap-2" onClick={notifyInactive} disabled={Boolean(busyAction)}>{busyAction === 'notify' ? <LoaderCircle className="spin" size={17} /> : <RefreshCw aria-hidden="true" size={17} />}{t('customers.notify')}</button>
-          <button type="button" className="btn-outline danger-outline px-4" onClick={expireInactive} disabled={Boolean(busyAction)}>{t('customers.expire')}</button>
-        </div>
+        {(canBulkNotify || canBulkExpire) && <div className="action-cluster">
+          {canBulkNotify && <button type="button" className="btn-outline px-4 inline-flex items-center gap-2" onClick={notifyInactive} disabled={Boolean(busyAction)}>{busyAction === 'notify' ? <LoaderCircle className="spin" size={17} /> : <RefreshCw aria-hidden="true" size={17} />}{t('customers.notify')}</button>}
+          {canBulkExpire && <button type="button" className="btn-outline danger-outline px-4" onClick={expireInactive} disabled={Boolean(busyAction)}>{t('customers.expire')}</button>}
+        </div>}
         <button type="button" onClick={handleExport} disabled={filtered.length === 0} className="btn-outline px-4 inline-flex items-center gap-2"><Download aria-hidden="true" size={17} />{t('customers.export')}</button>
       </div>
       {error && <div className="inline-alert inline-alert-error" role="alert">{error}</div>}
@@ -176,16 +211,16 @@ export default function CustomersPage() {
 
       {filtered.length === 0 ? <PageState type="empty" title={t('customers.empty')} description={t('customers.emptyHint')} /> : (
         <section className="card table-card"><div className="responsive-table-wrap"><table className="data-table customers-table">
-          <thead><tr><th scope="col">#</th><th scope="col">{t('common.name')}</th><th scope="col">{t('transactions.phone')}</th><th scope="col" className="text-right">{t('customers.balance')}</th><th scope="col" className="text-right">{t('customers.purchases')}</th><th scope="col" className="text-right">{t('customers.manage')}</th></tr></thead>
+          <thead><tr><th scope="col">#</th><th scope="col">{t('common.name')}</th><th scope="col">{t('transactions.phone')}</th><th scope="col" className="text-right">{t('customers.balance')}</th><th scope="col" className="text-right">{t('customers.purchases')}</th>{canManageCustomer && <th scope="col" className="text-right">{t('customers.manage')}</th>}</tr></thead>
           <tbody>{filtered.map((customer, index) => <tr key={customer.id}>
             <td data-label="#" className="row-number">{(page - 1) * pageSize + index + 1}</td><td data-label={t('common.name')}><strong>{customer.name || t('customers.noName')}</strong></td>
             <td data-label={t('transactions.phone')}>{customer.phone || '—'}</td><td data-label={t('customers.balance')} className="text-right tabular value-info"><strong>{formatNumber(customer.balance ?? 0)}</strong></td>
             <td data-label={t('customers.purchases')} className="text-right tabular">{formatNumber(customer.total_spent ?? 0)}</td>
-            <td data-label={t('customers.manage')}><div className="row-actions justify-end">
-              <button type="button" className="icon-button" onClick={() => openBonus(customer)} aria-label={t('customers.bonus')} title={t('customers.bonus')}><Gift aria-hidden="true" size={17} /></button>
-              <button type="button" className="icon-button" onClick={() => { setEditingCustomer({ ...customer }); setFormError(''); }} aria-label={t('common.edit')} title={t('common.edit')}><Pencil aria-hidden="true" size={17} /></button>
-              <button type="button" className="icon-button icon-button-danger" onClick={() => deleteCustomer(customer)} disabled={Boolean(busyAction)} aria-label={t('common.delete')} title={t('common.delete')}>{busyAction === customer.id ? <LoaderCircle className="spin" size={17} /> : <Trash2 aria-hidden="true" size={17} />}</button>
-            </div></td>
+            {canManageCustomer && <td data-label={t('customers.manage')}><div className="row-actions justify-end">
+              {canAdjustBonus && <button type="button" className="icon-button" onClick={() => openBonus(customer)} aria-label={t('customers.bonus')} title={t('customers.bonus')}><Gift aria-hidden="true" size={17} /></button>}
+              {canUpdateCustomer && <button type="button" className="icon-button" onClick={() => { setEditingCustomer({ ...customer }); setFormError(''); }} aria-label={t('common.edit')} title={t('common.edit')}><Pencil aria-hidden="true" size={17} /></button>}
+              {canDeleteCustomer && <button type="button" className="icon-button icon-button-danger" onClick={() => deleteCustomer(customer)} disabled={Boolean(busyAction)} aria-label={t('common.delete')} title={t('common.delete')}>{busyAction === customer.id ? <LoaderCircle className="spin" size={17} /> : <Trash2 aria-hidden="true" size={17} />}</button>}
+            </div></td>}
           </tr>)}</tbody>
         </table></div>
         {total > pageSize && <div className="table-pagination" aria-label="Пагинация клиентов">
@@ -201,10 +236,6 @@ export default function CustomersPage() {
           {formError && <div className="inline-alert inline-alert-error" role="alert">{formError}</div>}
           <div className="field-group"><label className="field-label" htmlFor="customer-name">{t('common.name')}</label><input id="customer-name" className="input-classic" value={editingCustomer.name ?? ''} onChange={event => setEditingCustomer(current => current && ({ ...current, name: event.target.value }))} autoComplete="name" /></div>
           <div className="field-group"><label className="field-label" htmlFor="customer-phone">{t('transactions.phone')}</label><input id="customer-phone" type="tel" className="input-classic" value={editingCustomer.phone ?? ''} onChange={event => setEditingCustomer(current => current && ({ ...current, phone: event.target.value }))} autoComplete="tel" /></div>
-          <div className="form-grid form-grid-2">
-            <div className="field-group"><label className="field-label" htmlFor="customer-balance">{t('customers.balance')}</label><input id="customer-balance" type="number" step="0.01" className="input-classic" value={editingCustomer.balance ?? 0} onChange={event => setEditingCustomer(current => current && ({ ...current, balance: Number(event.target.value) }))} /></div>
-            <div className="field-group"><label className="field-label" htmlFor="customer-spent">{t('customers.totalPurchases')}</label><input id="customer-spent" type="number" min="0" step="0.01" className="input-classic" value={editingCustomer.total_spent ?? 0} onChange={event => setEditingCustomer(current => current && ({ ...current, total_spent: Number(event.target.value) }))} /></div>
-          </div>
           <div className="modal-actions"><button type="button" className="btn-outline px-5" onClick={() => setEditingCustomer(null)} disabled={submitting}>{t('common.cancel')}</button><button type="submit" className="btn-classic px-5 inline-flex items-center gap-2" disabled={submitting}>{submitting && <LoaderCircle className="spin" size={17} />}{submitting ? t('common.saving') : t('common.save')}</button></div>
         </form>}
       </Modal>
@@ -214,7 +245,7 @@ export default function CustomersPage() {
           <p className="modal-context"><strong>{bonusCustomer?.name || t('customers.noName')}</strong><span>{bonusCustomer?.phone}</span></p>
           {formError && <div className="inline-alert inline-alert-error" role="alert">{formError}</div>}
           <div className="field-group"><label className="field-label" htmlFor="bonus-amount">{t('customers.bonusAmount')} *</label><input id="bonus-amount" type="number" step="0.01" className="input-classic" value={bonusAmount} onChange={event => setBonusAmount(event.target.value)} required /><p className="field-hint">{t('customers.bonusAmountHint')}</p></div>
-          <div className="field-group"><label className="field-label" htmlFor="bonus-reason">{t('customers.reason')}</label><textarea id="bonus-reason" rows={3} className="input-classic" value={bonusReason} onChange={event => setBonusReason(event.target.value)} placeholder={t('customers.reasonPlaceholder')} maxLength={240} /></div>
+          <div className="field-group"><label className="field-label" htmlFor="bonus-reason">{t('customers.reason')} *</label><textarea id="bonus-reason" name="reason" rows={3} className="input-classic" value={bonusReason} onChange={event => setBonusReason(event.target.value)} placeholder={t('customers.reasonPlaceholder')} minLength={5} maxLength={240} required /></div>
           <div className="modal-actions"><button type="button" className="btn-outline px-5" onClick={() => setBonusCustomer(null)} disabled={submitting}>{t('common.cancel')}</button><button type="submit" className="btn-classic px-5 inline-flex items-center gap-2" disabled={submitting}>{submitting && <LoaderCircle className="spin" size={17} />}{submitting ? t('common.saving') : t('common.save')}</button></div>
         </form>
       </Modal>

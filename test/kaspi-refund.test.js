@@ -24,6 +24,12 @@ test('Kaspi refund sends the stored operation and exact order amount', async (t)
         JSON.stringify(
           parsedBody.returnAmount === 1
             ? {}
+            : parsedBody.returnAmount === 2
+              ? {
+                  error: 'Kaspi Pay требует повторного входа администратора.',
+                  code: 'KASPI_REAUTH_REQUIRED',
+                  retryable: false,
+                }
             : { StatusCode: 0, Data: { ReturnOperationId: 987654 } },
         ),
       );
@@ -60,6 +66,10 @@ test('Kaspi refund sends the stored operation and exact order amount', async (t)
   await assert.rejects(
     () => new KaspiService().refundPayment('123456', 1),
     (error) => error.code === 'KASPI_REFUND_UNKNOWN' && error.refundUncertain === true,
+  );
+  await assert.rejects(
+    () => new KaspiService().refundPayment('123456', 2),
+    (error) => error.code === 'KASPI_REAUTH_REQUIRED' && error.retryable === false,
   );
 });
 

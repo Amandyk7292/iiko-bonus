@@ -4,8 +4,8 @@ const {
   getCustomerById,
   getOrCreateCustomerByPhone,
   updateCustomerInfo,
-  deleteCustomer,
 } = require('../services/customer.service');
+const { deleteCustomerData, exportCustomerData } = require('../services/privacy.service');
 const { getCitiesWithPoints } = require('../services/location.service');
 const { getSettings } = require('../services/settings.service');
 const { getActiveLoyaltyTiers } = require('../services/tier.service');
@@ -114,8 +114,17 @@ const updateProfile = async (req, res) => {
 
 const deleteProfile = async (req, res) => {
   try {
-    await deleteCustomer(req.customerAuth.id);
+    await deleteCustomerData(req.customerAuth.id);
     res.json({ success: true });
+  } catch (err) {
+    sendApiError(res, err);
+  }
+};
+
+const exportProfile = async (req, res) => {
+  try {
+    res.set('Cache-Control', 'private, no-store');
+    res.json({ success: true, export: await exportCustomerData(req.customerAuth.id) });
   } catch (err) {
     sendApiError(res, err);
   }
@@ -137,5 +146,6 @@ module.exports = {
   getProfile,
   updateProfile,
   deleteProfile,
+  exportProfile,
   getCities,
 };

@@ -33,22 +33,22 @@ router.get(
 
 // Apple Wallet Web Service API
 router.post(
-  '/api/wallet/v1/devices/:deviceLibraryIdentifier/registrations/pass.com.bulka.bonus/:serialNumber',
+  '/api/wallet/v1/devices/:deviceLibraryIdentifier/registrations/:passTypeIdentifier/:serialNumber',
   walletRateLimit,
   asyncHandler(walletController.handleAppleWalletWebService),
 );
 router.delete(
-  '/api/wallet/v1/devices/:deviceLibraryIdentifier/registrations/pass.com.bulka.bonus/:serialNumber',
+  '/api/wallet/v1/devices/:deviceLibraryIdentifier/registrations/:passTypeIdentifier/:serialNumber',
   walletRateLimit,
   asyncHandler(walletController.handleAppleWalletWebService),
 );
 router.get(
-  '/api/wallet/v1/devices/:deviceLibraryIdentifier/registrations/pass.com.bulka.bonus',
+  '/api/wallet/v1/devices/:deviceLibraryIdentifier/registrations/:passTypeIdentifier',
   walletRateLimit,
   asyncHandler(walletController.listAppleWalletRegistrations),
 );
 router.get(
-  '/api/wallet/v1/passes/pass.com.bulka.bonus/:serialNumber',
+  '/api/wallet/v1/passes/:passTypeIdentifier/:serialNumber',
   walletRateLimit,
   asyncHandler(walletController.handleAppleWalletWebService),
 );

@@ -6,7 +6,16 @@ const iikoApi = require('../src/services/iiko.service');
 
 test('order total uses server catalog and ignores client price fields', () => {
   const catalog = new Map([
-    ['p1', { name: 'Круассан', price: 900, isAvailable: true, iikoProductId: 'p1' }],
+    [
+      'p1',
+      {
+        name: 'Круассан',
+        price: 900,
+        isAvailable: true,
+        iikoProductId: 'p1',
+        preparationMinutes: 18,
+      },
+    ],
   ]);
   const result = calculateOrderTotal(
     [{ id: 'p1', quantity: 2, price: 1, name: 'Подмена' }],
@@ -15,6 +24,7 @@ test('order total uses server catalog and ignores client price fields', () => {
   assert.equal(result.subtotal, 1800);
   assert.equal(result.canonicalItems[0].price, 900);
   assert.equal(result.canonicalItems[0].name, 'Круассан');
+  assert.equal(result.canonicalItems[0].preparationMinutes, 18);
 });
 
 test('order total rejects unavailable, missing and invalid quantities', () => {
@@ -45,7 +55,10 @@ test('order export to iiko stays disabled unless explicitly enabled', async () =
   const previous = process.env.IIKO_ORDER_EXPORT_ENABLED;
   delete process.env.IIKO_ORDER_EXPORT_ENABLED;
   try {
-    await assert.rejects(() => iikoApi.createDeliveryOrder({}), /отправка заказов в iiko отключена/);
+    await assert.rejects(
+      () => iikoApi.createDeliveryOrder({}),
+      /отправка заказов в iiko отключена/,
+    );
   } finally {
     if (previous === undefined) delete process.env.IIKO_ORDER_EXPORT_ENABLED;
     else process.env.IIKO_ORDER_EXPORT_ENABLED = previous;

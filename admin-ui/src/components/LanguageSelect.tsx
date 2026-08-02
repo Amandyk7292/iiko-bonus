@@ -1,17 +1,26 @@
 import { Languages } from 'lucide-react';
 import { useI18n, type Locale } from '../lib/i18n';
+import SelectControl from './SelectControl';
 
 export default function LanguageSelect({ compact = false }: { compact?: boolean }) {
   const { locale, setLocale, t } = useI18n();
   return (
-    <label className={`language-select ${compact ? 'language-select-compact' : ''}`}>
+    <div className={`language-select ${compact ? 'language-select-compact' : ''}`}>
       <Languages aria-hidden="true" size={18} />
       {!compact && <span>{t('language.label')}</span>}
-      <select value={locale} onChange={event => setLocale(event.target.value as Locale)} aria-label={t('language.label')}>
-        <option value="ru">{t('language.ru')}</option>
-        <option value="kk">{t('language.kk')}</option>
-        <option value="en">{t('language.en')}</option>
-      </select>
-    </label>
+      <SelectControl
+        bare
+        compact
+        value={locale}
+        displayValue={compact ? locale.toUpperCase() : undefined}
+        ariaLabel={t('language.label')}
+        onChange={(value) => setLocale(value as Locale)}
+        options={[
+          { value: 'ru', label: t('language.ru') },
+          { value: 'kk', label: t('language.kk') },
+          { value: 'en', label: t('language.en') },
+        ]}
+      />
+    </div>
   );
 }

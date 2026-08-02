@@ -33,8 +33,12 @@ dependencies:
 
   cupertino_icons: ^1.0.8
   http: ^1.6.0
+  http_parser: ^4.1.2
   qr_flutter: ^4.1.0
+  flutter_svg: ^2.3.0
   shared_preferences: ^2.5.3
+  flutter_secure_storage: ^10.3.1
+  app_links: 7.0.0
   url_launcher: ^6.3.2
   latlong2: ^0.10.1
   web: ^1.1.1
@@ -43,8 +47,13 @@ dependencies:
   pinput: ^6.0.2
   firebase_core: ^4.11.0
   firebase_messaging: ^16.4.1
+  home_widget: ^0.9.3
   provider: ^6.1.5+1
   flutter_native_splash: ^2.4.7
+  image_picker: ^1.1.2
+  cached_network_image: ^3.4.1
+  screen_brightness: ^2.1.11
+  wakelock_plus: ^1.6.1
 
 dev_dependencies:
   flutter_test:
@@ -71,27 +80,31 @@ flutter:
   assets:
     - assets/brand/
     - assets/order/
+    - assets/categories/
+    - assets/social/
+    - assets/product_marks/
 
   fonts:
-    - family: Circe
+    - family: GolosText
       fonts:
-        - asset: Circe_Light-s.p.0cbc6h0ugczie.ttf
-          weight: 300
-        - asset: Circe_Regular-s.p.0jj5ux0wu7s4k.ttf
+        - asset: assets/fonts/GolosText-Regular.ttf
           weight: 400
-        - asset: Circe_Light-s.p.0cbc6h0ugczie.ttf
+        - asset: assets/fonts/GolosText-Medium.ttf
           weight: 500
-        - asset: Circe_Light-s.p.0cbc6h0ugczie.ttf
+        - asset: assets/fonts/GolosText-SemiBold.ttf
           weight: 600
-        - asset: Circe_Bold-s.p.0wwbfdru4uw8s.ttf
+        - asset: assets/fonts/GolosText-Bold.ttf
           weight: 700
-        - asset: Circe_Bold-s.p.0wwbfdru4uw8s.ttf
-          weight: 800
-        - asset: Circe_Bold-s.p.0wwbfdru4uw8s.ttf
-          weight: 900
-    - family: KulikovSoft
+    - family: Montserrat
       fonts:
-        - asset: KulikovSoft-Regular-B57es-8y (1).otf
+        - asset: assets/fonts/Montserrat-Regular-subset.ttf
+          weight: 400
+        - asset: assets/fonts/Montserrat-Medium-subset.ttf
+          weight: 500
+        - asset: assets/fonts/Montserrat-SemiBold-subset.ttf
+          weight: 600
+        - asset: assets/fonts/Montserrat-Bold-subset.ttf
+          weight: 700
 
   # To add assets to your application, add an assets section, like this:
   # assets:
@@ -146,8 +159,9 @@ flutter:
   # see https://flutter.dev/to/font-from-package
 
 flutter_native_splash:
-  color: "#FFB300"
-  image: "assets/brand/bulka_logo.png"
+  color: "#FFFFFF"
+  image: "assets/brand/app_icon_foreground.png"
+  web: false
   android_12:
-    color: "#FFB300"
-    image: "assets/brand/bulka_logo.png"
+    color: "#FFFFFF"
+    image: "assets/brand/app_icon_foreground.png"

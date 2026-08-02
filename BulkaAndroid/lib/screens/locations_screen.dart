@@ -1,9 +1,10 @@
 part of '../main.dart';
 
 class LocationsScreen extends StatefulWidget {
-  const LocationsScreen({this.orderType = 'pickup', super.key});
+  const LocationsScreen({this.orderType = 'pickup', this.api, super.key});
 
   final String orderType;
+  final BulkaApiClient? api;
 
   @override
   State<LocationsScreen> createState() => _LocationsScreenState();
@@ -32,7 +33,12 @@ class _LocationsScreenState extends State<LocationsScreen> {
       });
     }
     try {
-      final api = BulkaApiClient();
+      final prefs = await SharedPreferences.getInstance();
+      final preferredCity = prefs.getString('selected_bakery_city')?.trim();
+      final preferredLocationId = prefs
+          .getString('selected_bakery_location_id')
+          ?.trim();
+      final api = widget.api ?? BulkaApiClient();
       final locations = await api.getFulfillmentLocations();
       final locs = <String, List<BakeryLocation>>{};
       for (final location in locations) {
@@ -42,12 +48,26 @@ class _LocationsScreenState extends State<LocationsScreen> {
             : location.city.trim();
         locs.putIfAbsent(city, () => []).add(location);
       }
+      String? cityFromLocation;
+      if (preferredLocationId != null && preferredLocationId.isNotEmpty) {
+        for (final entry in locs.entries) {
+          if (entry.value.any(
+            (location) => location.id == preferredLocationId,
+          )) {
+            cityFromLocation = entry.key;
+            break;
+          }
+        }
+      }
       if (!mounted) return;
       setState(() {
         _cityLocations = locs;
-        if (_cityLocations.isNotEmpty &&
-            !_cityLocations.containsKey(_selectedCity)) {
-          _selectedCity = _cityLocations.keys.first;
+        if (_cityLocations.isNotEmpty) {
+          final nextCity =
+              preferredCity != null && _cityLocations.containsKey(preferredCity)
+              ? preferredCity
+              : cityFromLocation;
+          _selectedCity = nextCity ?? _cityLocations.keys.first;
         }
         _loading = false;
       });
@@ -67,6 +87,11 @@ class _LocationsScreenState extends State<LocationsScreen> {
       _showCities = false;
       _searchQuery = '';
     });
+    unawaited(
+      SharedPreferences.getInstance().then(
+        (prefs) => prefs.setString('selected_bakery_city', city),
+      ),
+    );
   }
 
   Future<void> _onLocationTapped(BakeryLocation location) async {
@@ -77,11 +102,26 @@ class _LocationsScreenState extends State<LocationsScreen> {
       await prefs.setString('selected_bakery_location_id', location.id);
     }
     await prefs.setString('selected_bakery_location', location.displayLabel);
+    await prefs.setString('selected_bakery_city', _selectedCity);
+    await prefs.setString(
+      'selected_bakery_location_${widget.orderType}',
+      location.displayLabel,
+    );
+    if (location.id.isEmpty) {
+      await prefs.remove('selected_bakery_location_id_${widget.orderType}');
+    } else {
+      await prefs.setString(
+        'selected_bakery_location_id_${widget.orderType}',
+        location.id,
+      );
+    }
     if (mounted) Navigator.of(context).pop(location.displayLabel);
   }
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.bulkaColors;
+    final scheme = Theme.of(context).colorScheme;
     final locations = _cityLocations[_selectedCity] ?? [];
     final filteredLocations = locations
         .where(
@@ -92,8 +132,10 @@ class _LocationsScreenState extends State<LocationsScreen> {
         .toList();
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
+        toolbarHeight: BulkaLayout.appBarHeight(context),
+        backgroundColor: scheme.surface,
         centerTitle: true,
         leading: IconButton(
           onPressed: () {
@@ -104,19 +146,12 @@ class _LocationsScreenState extends State<LocationsScreen> {
             }
           },
           icon: const Icon(Icons.chevron_left_rounded, size: 34),
-          color: _cocoa.withValues(alpha: 0.56),
+          color: colors.mutedText,
           tooltip: 'back_tooltip'.tr,
         ),
-        title: Text(
-          'locations_title'.tr,
-          style: const TextStyle(
-            color: Colors.black,
-            fontSize: 20,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
+        title: _BulkaPageTitle('locations_title'.tr, color: scheme.onSurface),
+        actions: const [SizedBox(width: BulkaLayout.appBarSideSlot)],
         elevation: 0,
-        backgroundColor: Colors.transparent,
       ),
       body: SafeArea(
         child: _loading
@@ -138,6 +173,8 @@ class _LocationsScreenState extends State<LocationsScreen> {
   }
 
   Widget _buildCitiesList() {
+    final colors = context.bulkaColors;
+    final scheme = Theme.of(context).colorScheme;
     final cities = _cityLocations.keys.toList();
     if (cities.isEmpty) {
       return _LocationsState(
@@ -151,14 +188,17 @@ class _LocationsScreenState extends State<LocationsScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       itemCount: cities.length,
       separatorBuilder: (context, index) =>
-          Divider(height: 1, color: _textDark.withValues(alpha: 0.08)),
+          Divider(height: 1, color: colors.cardBorder),
       itemBuilder: (context, index) {
         final city = cities[index];
         return ListTile(
           contentPadding: EdgeInsets.zero,
           title: Text(
             city,
-            style: const TextStyle(fontSize: 18, color: _textDark),
+            style: TextStyle(
+              fontSize: BulkaTypeScale.titleSmall,
+              color: scheme.onSurface,
+            ),
           ),
           trailing: const Icon(Icons.chevron_right_rounded, color: _almond),
           onTap: () => _onCityTapped(city),
@@ -168,6 +208,8 @@ class _LocationsScreenState extends State<LocationsScreen> {
   }
 
   Widget _buildLocationsList(List<BakeryLocation> locations) {
+    final colors = context.bulkaColors;
+    final scheme = Theme.of(context).colorScheme;
     return Column(
       children: [
         Padding(
@@ -184,7 +226,10 @@ class _LocationsScreenState extends State<LocationsScreen> {
                 ),
                 label: Text(
                   'all_locations'.tr,
-                  style: const TextStyle(fontSize: 16, color: _textDark),
+                  style: TextStyle(
+                    fontSize: BulkaTypeScale.body,
+                    color: scheme.onSurface,
+                  ),
                 ),
               ),
               IconButton(
@@ -200,23 +245,19 @@ class _LocationsScreenState extends State<LocationsScreen> {
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: TextField(
-              onChanged: (val) => setState(() => _searchQuery = val),
-              textInputAction: TextInputAction.search,
-              decoration: InputDecoration(
-                hintText: 'search_hint'.tr,
-                hintStyle: const TextStyle(color: Colors.black38, fontSize: 16),
-                suffixIcon: const Icon(Icons.search, color: Color(0xFFD3AD72)),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
-                ),
+          child: TextField(
+            onChanged: (val) => setState(() => _searchQuery = val),
+            textInputAction: TextInputAction.search,
+            decoration: InputDecoration(
+              hintText: 'search_hint'.tr,
+              hintStyle: TextStyle(
+                color: colors.mutedText,
+                fontSize: BulkaTypeScale.body,
+              ),
+              suffixIcon: const Icon(Icons.search, color: Color(0xFFD3AD72)),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 20,
+                vertical: 16,
               ),
             ),
           ),
@@ -236,10 +277,8 @@ class _LocationsScreenState extends State<LocationsScreen> {
               : ListView.separated(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   itemCount: locations.length,
-                  separatorBuilder: (context, index) => Divider(
-                    height: 1,
-                    color: _textDark.withValues(alpha: 0.08),
-                  ),
+                  separatorBuilder: (context, index) =>
+                      Divider(height: 1, color: colors.cardBorder),
                   itemBuilder: (context, index) {
                     final location = locations[index];
                     return ListTile(
@@ -247,7 +286,10 @@ class _LocationsScreenState extends State<LocationsScreen> {
                       minVerticalPadding: 12,
                       title: Text(
                         location.name,
-                        style: const TextStyle(fontSize: 18, color: _textDark),
+                        style: TextStyle(
+                          fontSize: BulkaTypeScale.titleSmall,
+                          color: scheme.onSurface,
+                        ),
                       ),
                       subtitle: location.address.trim().isEmpty
                           ? null
@@ -258,8 +300,8 @@ class _LocationsScreenState extends State<LocationsScreen> {
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  color: _textDark.withValues(alpha: 0.62),
-                                  fontSize: 14,
+                                  color: colors.mutedText,
+                                  fontSize: BulkaTypeScale.bodySmall,
                                 ),
                               ),
                             ),
@@ -303,10 +345,10 @@ class _LocationsState extends StatelessWidget {
             Text(
               title,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: _textDark,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
                 fontFamily: _headingFont,
-                fontSize: 21,
+                fontSize: BulkaTypeScale.title,
               ),
             ),
             const SizedBox(height: 18),

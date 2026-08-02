@@ -20,6 +20,17 @@ flutter test
 
 The app supports Russian, Kazakh, and English. Changing the language in Profile updates the running interface and is retained locally.
 
+## Web Push
+
+The web Firebase app, `firebase-messaging-sw.js`, and the project's public Web Push key are included. Override the public key for another Firebase project when building:
+
+```powershell
+$env:FIREBASE_WEB_VAPID_KEY='PUBLIC_VAPID_KEY'
+..\build_web.ps1
+```
+
+Only the public VAPID key is compiled into the browser app. Never commit an APNs key or a VAPID private key.
+
 ## Android release signing
 
 1. Create a protected upload keystore.
@@ -32,3 +43,5 @@ The app supports Russian, Kazakh, and English. Changing the language in Profile 
 ## iOS
 
 Archive on macOS using the intended Apple team and provisioning profile. The app requests only foreground location for nearby-bakery and pickup-point selection; its system permission messages are localized for RU/KZ/EN.
+
+The complete production signing, privacy, deep-link, and store checklist is in [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md). Run `..\scripts\check-native-release.ps1` before creating store artifacts.

@@ -34,13 +34,15 @@ class OrdersScreen extends StatefulWidget {
     required this.customer,
     this.transactions = const [],
     this.onExplore,
+    this.onRequireAuth,
     super.key,
   });
 
   final BulkaApiClient api;
-  final Customer customer;
+  final Customer? customer;
   final List<BonusTransaction> transactions;
   final VoidCallback? onExplore;
+  final Future<bool> Function()? onRequireAuth;
 
   @override
   State<OrdersScreen> createState() => _OrdersScreenState();
@@ -110,12 +112,12 @@ class _OrdersScreenState extends State<OrdersScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(
-          'success'.tr,
+          'checkout_success_title'.tr,
           style: const TextStyle(fontFamily: _headingFont),
         ),
         content: Text(
-          'Ваш заказ успешно оформлен!',
-          style: const TextStyle(fontSize: 16),
+          'checkout_success_message'.tr,
+          style: const TextStyle(fontSize: BulkaTypeScale.body),
         ),
         actions: [
           TextButton(
@@ -126,6 +128,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
             child: const Text(
               'OK',
               style: TextStyle(
+                fontFamily: _headingFont,
                 color: _bulkaYellow,
                 fontWeight: FontWeight.w700,
               ),
@@ -136,41 +139,70 @@ class _OrdersScreenState extends State<OrdersScreen> {
     );
   }
 
-  List<Map<String, dynamic>> _paymentItems(CartProvider cart) => cart
-      .items
-      .values
-      .map((item) => {'id': item.id, 'quantity': item.quantity})
-      .toList();
+  List<Map<String, dynamic>> _paymentItems(CartProvider cart) =>
+      cart.items.values.map((item) => item.toOrderPayload()).toList();
 
   Future<bool> _createOrder(CartProvider cart, _CheckoutDetails details) async {
     if (cart.items.isEmpty) return false;
     final items = cart.items.values
-        .map((item) => {'id': item.id, 'quantity': item.quantity})
+        .map((item) => item.toOrderPayload())
         .toList();
-    final result = await widget.api.createKaspiPayment(
-      cartItems: items,
-      orderType: details.orderType.wireValue,
-      branch: details.branch,
-      branchId: details.branchId,
-      scheduledAt: details.scheduledAt,
-      deliveryAddress: details.deliveryAddress,
-      checkoutId: details.checkoutId,
-      additionalPhone: details.additionalPhone,
-      promoCode: details.promoCode,
-      comment: details.comment,
-    );
+    final result = details.paymentMethod == _CheckoutPaymentMethod.forte
+        ? await widget.api.createFortePayment(
+            cartItems: items,
+            orderType: details.orderType.wireValue,
+            preorderFulfillmentType: details.preorderFulfillmentType,
+            branch: details.branch,
+            branchId: details.branchId,
+            scheduledAt: details.scheduledAt,
+            deliveryAddress: details.deliveryAddress,
+            checkoutId: details.checkoutId,
+            additionalPhone: details.additionalPhone,
+            promoCode: details.promoCode,
+            comment: details.comment,
+          )
+        : await widget.api.createKaspiPayment(
+            cartItems: items,
+            orderType: details.orderType.wireValue,
+            preorderFulfillmentType: details.preorderFulfillmentType,
+            branch: details.branch,
+            branchId: details.branchId,
+            scheduledAt: details.scheduledAt,
+            deliveryAddress: details.deliveryAddress,
+            checkoutId: details.checkoutId,
+            additionalPhone: details.additionalPhone,
+            promoCode: details.promoCode,
+            comment: details.comment,
+          );
     final operationId = (result['operationId'] ?? '').toString();
     if (operationId.isEmpty) {
-      throw ApiException('Kaspi не вернул номер операции');
+      throw ApiException('checkout_operation_missing'.tr);
+    }
+    final forteRedirectUrl =
+        details.paymentMethod == _CheckoutPaymentMethod.forte
+        ? (result['redirectUrl'] ?? '').toString()
+        : null;
+    if (details.paymentMethod == _CheckoutPaymentMethod.forte &&
+        forteRedirectUrl!.isEmpty) {
+      throw ApiException('forte_checkout_invalid'.tr);
     }
     if (!mounted) return false;
     final paid = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => KaspiPaymentScreen(
-          api: widget.api,
-          operationId: operationId,
-          qrToken: result['qrToken']?.toString(),
-        ),
+        builder: (_) {
+          if (details.paymentMethod == _CheckoutPaymentMethod.forte) {
+            return FortePaymentScreen(
+              api: widget.api,
+              operationId: operationId,
+              redirectUrl: forteRedirectUrl!,
+            );
+          }
+          return KaspiPaymentScreen(
+            api: widget.api,
+            operationId: operationId,
+            qrToken: result['qrToken']?.toString(),
+          );
+        },
       ),
     );
     if (paid == true) cart.clear();
@@ -179,7 +211,17 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
   Future<void> _openCheckout(BuildContext context, CartProvider cart) async {
     if (cart.items.isEmpty || _checkoutOpen) return;
+    if (widget.customer == null || !widget.api.isAuthenticated) {
+      final authenticated = await widget.onRequireAuth?.call() ?? false;
+      if (!mounted || !authenticated) return;
+      await Future<void>.delayed(Duration.zero);
+      if (widget.customer == null || !widget.api.isAuthenticated) return;
+    }
     _checkoutOpen = true;
+    widget.api.trackEvent(
+      'checkout_started',
+      properties: {'items': cart.itemCount, 'total': cart.totalAmount},
+    );
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('lastAppScreen', 'checkout');
     bool? completed;
@@ -189,7 +231,6 @@ class _OrdersScreenState extends State<OrdersScreen> {
         MaterialPageRoute(
           settings: const RouteSettings(name: 'checkout'),
           builder: (_) => _CheckoutScreen(
-            customer: widget.customer,
             api: widget.api,
             total: cart.totalAmount,
             cartItems: _paymentItems(cart),
@@ -208,20 +249,87 @@ class _OrdersScreenState extends State<OrdersScreen> {
   Future<void> _confirmClear(BuildContext context, CartProvider cart) async {
     final shouldClear = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('cart_clear_title'.tr),
-        content: Text('cart_clear_body'.tr),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text('cancel_btn'.tr),
+      builder: (dialogContext) => Dialog(
+        backgroundColor: Colors.white,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 38),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(BulkaRadii.control),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(28, 32, 28, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'cart_clear_title'.tr,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontFamily: _headingFont,
+                  color: _textDark,
+                  fontSize: BulkaTypeScale.title,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 28),
+              Row(
+                children: [
+                  Expanded(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFFFD95F), Color(0xFFFFAF08)],
+                        ),
+                        borderRadius: BorderRadius.circular(BulkaRadii.card),
+                      ),
+                      child: TextButton(
+                        onPressed: () => Navigator.pop(dialogContext, true),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size.fromHeight(52),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              BulkaRadii.card,
+                            ),
+                          ),
+                        ),
+                        child: Text(
+                          'cart_clear'.tr,
+                          maxLines: 1,
+                          softWrap: false,
+                          style: const TextStyle(
+                            fontFamily: _headingFont,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(dialogContext, false),
+                      style: TextButton.styleFrom(
+                        foregroundColor: _textDark,
+                        backgroundColor: const Color(0xFFF1F1F1),
+                        minimumSize: const Size.fromHeight(52),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(BulkaRadii.card),
+                        ),
+                      ),
+                      child: Text(
+                        'cancel_btn'.tr,
+                        style: const TextStyle(
+                          fontFamily: _headingFont,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            style: TextButton.styleFrom(foregroundColor: _errorRed),
-            child: Text('cart_clear'.tr),
-          ),
-        ],
+        ),
       ),
     );
     if (shouldClear == true) cart.clear();
@@ -230,30 +338,32 @@ class _OrdersScreenState extends State<OrdersScreen> {
   @override
   Widget build(BuildContext context) {
     final cart = context.watch<CartProvider>();
-    final colors = context.bulkaColors;
+    final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: colors.surfaceCream,
+      backgroundColor: scheme.surface,
       appBar: AppBar(
+        toolbarHeight: BulkaLayout.appBarHeight(context),
         automaticallyImplyLeading: false,
+        leadingWidth: BulkaLayout.appBarSideSlot,
+        leading: const SizedBox(width: BulkaLayout.appBarSideSlot),
         centerTitle: true,
-        backgroundColor: Colors.white,
-        title: Text(
+        backgroundColor: scheme.surface,
+        title: _BulkaPageTitle(
           'nav_cart'.tr,
-          style: const TextStyle(
-            fontFamily: _headingFont,
-            fontSize: 27,
-            fontWeight: FontWeight.w400,
-          ),
+          key: const ValueKey('cart-page-title'),
         ),
         actions: [
-          if (cart.items.isNotEmpty)
-            IconButton(
-              onPressed: () => _confirmClear(context, cart),
-              tooltip: 'cart_clear'.tr,
-              icon: const Icon(Icons.delete_outline_rounded),
-            ),
-          const SizedBox(width: 8),
+          SizedBox(
+            width: BulkaLayout.appBarSideSlot,
+            child: cart.items.isNotEmpty
+                ? IconButton(
+                    onPressed: () => _confirmClear(context, cart),
+                    tooltip: 'cart_clear'.tr,
+                    icon: const Icon(Icons.delete_outline_rounded),
+                  )
+                : null,
+          ),
         ],
       ),
       body: cart.items.isEmpty
@@ -263,6 +373,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
   }
 
   Widget _buildEmptyState(BuildContext context) {
+    final colors = context.bulkaColors;
     return Center(
       child: SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(
@@ -278,24 +389,24 @@ class _OrdersScreenState extends State<OrdersScreen> {
               width: 132,
               height: 132,
               decoration: BoxDecoration(
-                color: _lightCardHighlight,
+                color: colors.brandGold.withValues(alpha: 0.16),
                 shape: BoxShape.circle,
-                border: Border.all(color: _almond),
+                border: Border.all(color: colors.cardBorder),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.shopping_bag_outlined,
                 size: 58,
-                color: _textDark,
+                color: colors.brandBrown,
               ),
             ),
             const SizedBox(height: 24),
             Text(
               'cart_empty_title'.tr,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: _textDark,
+              style: TextStyle(
+                color: colors.brandBrown,
                 fontFamily: _headingFont,
-                fontSize: 30,
+                fontSize: BulkaTypeScale.pageTitle,
                 fontWeight: FontWeight.w400,
               ),
             ),
@@ -304,8 +415,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
               'cart_empty_sub'.tr,
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: _textDark.withValues(alpha: 0.66),
-                fontSize: 17,
+                color: colors.mutedText,
+                fontSize: BulkaTypeScale.body,
                 height: 1.35,
               ),
             ),
@@ -325,7 +436,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
                 child: Text(
                   'cart_action'.tr,
                   style: const TextStyle(
-                    fontSize: 16,
+                    fontFamily: _headingFont,
+                    fontSize: BulkaTypeScale.body,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -352,10 +464,11 @@ class _OrdersScreenState extends State<OrdersScreen> {
               final item = items[index];
               return _CartProductCard(
                 item: item,
-                onDecrease: () => cart.setQuantity(item.id, item.quantity - 1),
+                onDecrease: () =>
+                    cart.setQuantity(item.cartKey, item.quantity - 1),
                 onIncrease: item.isStopListed
                     ? null
-                    : () => cart.setQuantity(item.id, item.quantity + 1),
+                    : () => cart.setQuantity(item.cartKey, item.quantity + 1),
               );
             },
           ),
@@ -366,7 +479,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
           ),
           child: _CartCheckoutBar(
             total: cart.totalAmount,
-            cashbackPercent: widget.customer.cashbackPercent,
+            cashbackPercent: widget.customer?.cashbackPercent ?? 0,
             hasUnavailableItems: hasUnavailableItems,
             onCheckout: hasUnavailableItems
                 ? null
@@ -414,6 +527,7 @@ class _CartProductCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.bulkaColors;
+    final scheme = Theme.of(context).colorScheme;
     final textScale = MediaQuery.textScalerOf(context).scale(1);
     final compact = MediaQuery.sizeOf(context).width < 360;
     final cardHeight =
@@ -422,8 +536,8 @@ class _CartProductCard extends StatelessWidget {
       height: cardHeight,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(BulkaRadii.card),
         border: Border.all(color: colors.cardBorder),
       ),
       child: Row(
@@ -443,9 +557,10 @@ class _CartProductCard extends StatelessWidget {
                     item.name,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: _textDark,
-                      fontSize: 16,
+                    style: TextStyle(
+                      fontFamily: _headingFont,
+                      color: scheme.onSurface,
+                      fontSize: BulkaTypeScale.body,
                       height: 1.15,
                       fontWeight: FontWeight.w700,
                     ),
@@ -459,7 +574,7 @@ class _CartProductCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: item.isStopListed ? colors.danger : colors.success,
-                      fontSize: 12,
+                      fontSize: BulkaTypeScale.caption,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -470,10 +585,11 @@ class _CartProductCard extends StatelessWidget {
                         child: Text(
                           '${_formatCartMoney(item.total)} ₸',
                           maxLines: 1,
-                          style: const TextStyle(
-                            color: _textDark,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
+                          style: TextStyle(
+                            fontFamily: _headingFont,
+                            color: scheme.onSurface,
+                            fontSize: BulkaTypeScale.body,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ),
@@ -511,7 +627,7 @@ class _CartQuantityStepper extends StatelessWidget {
       height: 46,
       decoration: BoxDecoration(
         color: _bulkaYellow,
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(BulkaRadii.control),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -532,9 +648,10 @@ class _CartQuantityStepper extends StatelessWidget {
                 '$quantity',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
+                  fontFamily: _headingFont,
                   color: _textDark,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
+                  fontSize: BulkaTypeScale.body,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ),
@@ -567,12 +684,14 @@ class _CartCheckoutBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.bulkaColors;
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(24, 18, 24, 20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: _almond.withValues(alpha: 0.45))),
+        color: scheme.surface,
+        border: Border(top: BorderSide(color: colors.cardBorder)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -592,7 +711,7 @@ class _CartCheckoutBar extends StatelessWidget {
                     'cart_unavailable_hint'.tr,
                     style: TextStyle(
                       color: context.bulkaColors.danger,
-                      fontSize: 13,
+                      fontSize: BulkaTypeScale.bodySmall,
                       height: 1.25,
                       fontWeight: FontWeight.w600,
                     ),
@@ -608,15 +727,15 @@ class _CartCheckoutBar extends StatelessWidget {
                 child: Text(
                   'cart_reward'.tr,
                   maxLines: 1,
-                  style: TextStyle(fontSize: 15),
+                  style: TextStyle(fontSize: BulkaTypeScale.body),
                 ),
               ),
               const SizedBox(width: 12),
               Text(
                 '+ ${(total * cashbackPercent / 100).round()} ${'cart_points'.tr}',
                 style: TextStyle(
-                  color: _textDark.withValues(alpha: 0.72),
-                  fontSize: 15,
+                  color: colors.mutedText,
+                  fontSize: BulkaTypeScale.body,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -629,15 +748,20 @@ class _CartCheckoutBar extends StatelessWidget {
                 child: Text(
                   'cart_total'.tr,
                   maxLines: 1,
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                  style: TextStyle(
+                    fontFamily: _headingFont,
+                    fontSize: BulkaTypeScale.titleSmall,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
               Text(
                 '${_formatCartMoney(total)} ₸',
                 style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
+                  fontFamily: _headingFont,
+                  fontSize: BulkaTypeScale.title,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ],
@@ -650,8 +774,9 @@ class _CartCheckoutBar extends StatelessWidget {
               child: Text(
                 'cart_checkout'.tr,
                 style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
+                  fontFamily: _headingFont,
+                  fontSize: BulkaTypeScale.body,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ),
@@ -662,46 +787,33 @@ class _CartCheckoutBar extends StatelessWidget {
   }
 }
 
-class _CheckoutDetails {
-  const _CheckoutDetails({
-    required this.checkoutId,
-    required this.orderType,
-    required this.scheduledAt,
-    this.branch,
-    this.branchId,
-    this.deliveryAddress,
-    this.additionalPhone,
-    this.promoCode,
-    this.comment,
-  });
-
-  final String checkoutId;
-  final _OrderType orderType;
-  final String scheduledAt;
-  final String? branch;
-  final String? branchId;
-  final DeliveryAddress? deliveryAddress;
-  final String? additionalPhone;
-  final String? promoCode;
-  final String? comment;
-}
-
 class _PickupSlot {
-  const _PickupSlot({required this.label, required this.value});
+  const _PickupSlot({
+    required this.label,
+    required this.value,
+    required this.startsAt,
+    required this.endsAt,
+    required this.timezoneOffsetMinutes,
+    required this.serverNow,
+    this.remaining,
+  });
   final String label;
   final String value;
+  final DateTime startsAt;
+  final DateTime endsAt;
+  final int timezoneOffsetMinutes;
+  final DateTime serverNow;
+  final int? remaining;
 }
 
 class _CheckoutScreen extends StatefulWidget {
   const _CheckoutScreen({
-    required this.customer,
     required this.api,
     required this.total,
     required this.cartItems,
     required this.onSubmit,
   });
 
-  final Customer customer;
   final BulkaApiClient api;
   final int total;
   final List<Map<String, dynamic>> cartItems;
@@ -716,6 +828,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   final _promoController = TextEditingController();
   final _commentController = TextEditingController();
   _OrderType _orderType = _OrderType.pickup;
+  _OrderType _preorderFulfillment = _OrderType.pickup;
   String _branch = '';
   String? _branchId;
   DeliveryAddress? _deliveryAddress;
@@ -725,11 +838,27 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   bool _deliveryAvailabilityChecked = false;
   bool _isSubmitting = false;
   bool _isQuoting = false;
+  bool _isSelectingBranch = false;
+  bool _isSelectingAddress = false;
+  bool _isSelectingTime = false;
+  bool? _kaspiAvailable;
+  bool? _forteAvailable;
+  String? _forteSavedCardLabel;
+  _CheckoutPaymentMethod _paymentMethod = _CheckoutPaymentMethod.kaspi;
   int _discount = 0;
   int _deliveryFee = 0;
   int? _quotedTotal;
+  Map<String, dynamic>? _etaQuote;
+  int _branchTimezoneOffsetMinutes = 300;
   int _quoteRevision = 0;
   String _checkoutId = _newCheckoutId();
+
+  bool get _isPreorder => _orderType == _OrderType.preorder;
+  bool get _usesDelivery =>
+      _orderType == _OrderType.delivery ||
+      (_isPreorder && _preorderFulfillment == _OrderType.delivery);
+  String _draftKey(String base) =>
+      customerPreferenceKey(base, widget.api.sessionCacheScope);
 
   @override
   void initState() {
@@ -740,6 +869,40 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
     _promoController.addListener(_saveDraft);
     _commentController.addListener(_saveDraft);
     unawaited(_loadCheckoutPreferences());
+    unawaited(_loadPaymentAvailability());
+  }
+
+  bool get _selectedPaymentAvailable =>
+      _paymentMethod == _CheckoutPaymentMethod.kaspi
+      ? _kaspiAvailable == true
+      : _forteAvailable == true;
+
+  Future<void> _loadPaymentAvailability() async {
+    if (mounted) {
+      setState(() {
+        _kaspiAvailable = null;
+        _forteAvailable = null;
+      });
+    }
+    final availability = await Future.wait<bool>([
+      widget.api.isKaspiPaymentAvailable().catchError((_) => true),
+      widget.api.isFortePaymentAvailable().catchError((_) => true),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _kaspiAvailable = availability[0];
+      _forteAvailable = availability[1];
+      _forteSavedCardLabel = widget.api.forteSavedCardLabel;
+      if (_paymentMethod == _CheckoutPaymentMethod.kaspi &&
+          _kaspiAvailable != true &&
+          _forteAvailable == true) {
+        _paymentMethod = _CheckoutPaymentMethod.forte;
+      } else if (_paymentMethod == _CheckoutPaymentMethod.forte &&
+          _forteAvailable != true &&
+          _kaspiAvailable == true) {
+        _paymentMethod = _CheckoutPaymentMethod.kaspi;
+      }
+    });
   }
 
   Future<void> _loadCheckoutPreferences() async {
@@ -748,6 +911,11 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
     final savedType = _orderTypeFromWire(
       prefs.getString('selected_order_type'),
     );
+    final savedPreorderFulfillment =
+        prefs.getString(_draftKey('checkout_preorder_fulfillment')) ==
+            'delivery'
+        ? _OrderType.delivery
+        : _OrderType.pickup;
     DeliveryAddress? address;
     try {
       address = await AddressRepository(api: widget.api).loadSelectedAddress();
@@ -755,37 +923,38 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       address = null;
     }
     List<BakeryLocation> locations = const [];
+    var locationsLoaded = false;
     try {
       locations = await widget.api.getFulfillmentLocations();
+      locationsLoaded = true;
     } catch (_) {
       // Checkout remains usable for pickup while branch availability retries.
     }
-    final savedScheduledAt = prefs.getString('checkout_scheduled_at');
+    final savedScheduledAt = prefs.getString(
+      _draftKey('checkout_scheduled_at'),
+    );
     final parsedScheduledAt = DateTime.tryParse(savedScheduledAt ?? '');
-    final savedSlot =
-        parsedScheduledAt != null && parsedScheduledAt.isAfter(DateTime.now())
-        ? _slotFromDate(parsedScheduledAt)
-        : null;
     if (!mounted) return;
-    _phoneController.text = prefs.getString('checkout_phone') ?? '';
-    _promoController.text = prefs.getString('checkout_promo') ?? '';
-    _commentController.text = prefs.getString('checkout_comment') ?? '';
+    _phoneController.text = prefs.getString(_draftKey('checkout_phone')) ?? '';
+    _promoController.text = prefs.getString(_draftKey('checkout_promo')) ?? '';
+    _commentController.text =
+        prefs.getString(_draftKey('checkout_comment')) ?? '';
     setState(() {
       _branch = savedBranch;
       _branchId = prefs.getString('selected_bakery_location_id');
       _orderType = savedType;
+      _preorderFulfillment = savedPreorderFulfillment;
       _deliveryAddress = address;
-      _scheduledSlot = savedSlot;
+      _scheduledSlot = null;
       _locations = locations;
       _deliveryAvailable = locations.any(
         (location) => location.active && location.deliveryEnabled,
       );
-      _deliveryAvailabilityChecked = true;
-      if (_orderType == _OrderType.delivery && !_deliveryAvailable) {
-        _orderType = _OrderType.pickup;
-      }
+      _deliveryAvailabilityChecked = locationsLoaded;
     });
-    if (_scheduledSlot != null) unawaited(_refreshQuote());
+    if (parsedScheduledAt != null) {
+      await _restoreScheduledSlot(parsedScheduledAt);
+    }
   }
 
   void _refreshPromoButton() {
@@ -795,28 +964,110 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         _discount = 0;
         _isQuoting = false;
         _quotedTotal = null;
+        _etaQuote = null;
       });
     }
   }
 
-  _PickupSlot _slotFromDate(DateTime date) {
-    final local = date.toLocal();
-    final end = local.add(const Duration(hours: 1));
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
+  _PickupSlot _slotFromDate(
+    DateTime date, {
+    DateTime? endDate,
+    int? remaining,
+    _OrderType? orderType,
+    int? timezoneOffsetMinutes,
+    DateTime? serverNow,
+  }) {
+    final offset = timezoneOffsetMinutes ?? _branchTimezoneOffsetMinutes;
+    final startsAt = date.toUtc();
+    final endsAt = (endDate ?? startsAt.add(const Duration(hours: 1))).toUtc();
+    final local = branchWallClock(startsAt, offset);
+    final end = branchWallClock(endsAt, offset);
+    final branchNow = branchWallClock(
+      serverNow?.toUtc() ?? DateTime.now().toUtc(),
+      offset,
+    );
+    final selectedType = orderType ?? _orderType;
+    if (selectedType != _OrderType.preorder) {
+      return _PickupSlot(
+        label: '${_clockLabel(local)}–${_clockLabel(end)}',
+        value: startsAt.toIso8601String(),
+        startsAt: local,
+        endsAt: end,
+        timezoneOffsetMinutes: offset,
+        serverNow: branchNow,
+        remaining: remaining,
+      );
+    }
+    final today = DateTime(branchNow.year, branchNow.month, branchNow.day);
     final slotDay = DateTime(local.year, local.month, local.day);
-    final offset = slotDay.difference(today).inDays;
-    final dayLabel = offset == 0
+    final dayOffset = slotDay.difference(today).inDays;
+    final dayLabel = dayOffset == 0
         ? 'checkout_today'.tr
-        : offset == 1
+        : dayOffset == 1
         ? 'checkout_tomorrow'.tr
-        : '${local.day.toString().padLeft(2, '0')}.${local.month.toString().padLeft(2, '0')}';
+        : formatUiDate(context, local);
     return _PickupSlot(
-      label:
-          '$dayLabel, ${local.hour.toString().padLeft(2, '0')}:00–${end.hour.toString().padLeft(2, '0')}:00',
-      value: local.toUtc().toIso8601String(),
+      label: '$dayLabel, ${_clockLabel(local)}–${_clockLabel(end)}',
+      value: startsAt.toIso8601String(),
+      startsAt: local,
+      endsAt: end,
+      timezoneOffsetMinutes: offset,
+      serverNow: branchNow,
+      remaining: remaining,
     );
   }
+
+  _PickupSlot _slotFromFulfillment(
+    FulfillmentSlot slot, {
+    _OrderType? orderType,
+  }) {
+    return _slotFromDate(
+      slot.startsAt,
+      endDate: slot.endsAt,
+      remaining: slot.remaining,
+      orderType: orderType,
+      timezoneOffsetMinutes: slot.timezoneOffsetMinutes,
+      serverNow: slot.serverTime,
+    );
+  }
+
+  Future<void> _restoreScheduledSlot(DateTime savedScheduledAt) async {
+    final location = _effectiveLocation;
+    if (location == null) return;
+    try {
+      final slots = await widget.api.getFulfillmentSlots(
+        branchId: location.id,
+        orderType: _orderType.wireValue,
+        days: _orderType == _OrderType.preorder ? 7 : 1,
+      );
+      FulfillmentSlot? matchingSlot;
+      for (final slot in slots) {
+        if (slot.startsAt.isAtSameMomentAs(savedScheduledAt.toUtc())) {
+          matchingSlot = slot;
+          break;
+        }
+      }
+      if (!mounted) return;
+      if (matchingSlot == null) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove(_draftKey('checkout_scheduled_at'));
+        return;
+      }
+      final restored = _slotFromFulfillment(
+        matchingSlot,
+        orderType: _orderType,
+      );
+      setState(() {
+        _branchTimezoneOffsetMinutes = matchingSlot!.timezoneOffsetMinutes;
+        _scheduledSlot = restored;
+      });
+      await _refreshQuote();
+    } catch (_) {
+      // Keep checkout usable; the customer can select a fresh slot manually.
+    }
+  }
+
+  String _clockLabel(DateTime value) => formatUiTime(context, value);
 
   void _saveDraft() {
     unawaited(_persistDraft());
@@ -826,51 +1077,21 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
     final prefs = await SharedPreferences.getInstance();
     await Future.wait([
       prefs.setString('selected_order_type', _orderType.wireValue),
-      prefs.setString('checkout_phone', _phoneController.text),
-      prefs.setString('checkout_promo', _promoController.text),
-      prefs.setString('checkout_comment', _commentController.text),
+      prefs.setString(
+        _draftKey('checkout_preorder_fulfillment'),
+        _preorderFulfillment.wireValue,
+      ),
+      prefs.setString(_draftKey('checkout_phone'), _phoneController.text),
+      prefs.setString(_draftKey('checkout_promo'), _promoController.text),
+      prefs.setString(_draftKey('checkout_comment'), _commentController.text),
       if (_scheduledSlot == null)
-        prefs.remove('checkout_scheduled_at')
+        prefs.remove(_draftKey('checkout_scheduled_at'))
       else
-        prefs.setString('checkout_scheduled_at', _scheduledSlot!.value),
+        prefs.setString(
+          _draftKey('checkout_scheduled_at'),
+          _scheduledSlot!.value,
+        ),
     ]);
-  }
-
-  Future<void> _setOrderType(_OrderType value) async {
-    if (value == _orderType) return;
-    if (value == _OrderType.delivery && !_deliveryAvailable) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('checkout_delivery_unavailable'.tr)),
-      );
-      return;
-    }
-    final selectedLocation = _selectedBranchLocation;
-    final clearBranch =
-        value != _OrderType.delivery &&
-        selectedLocation != null &&
-        !selectedLocation.supports(value.wireValue);
-    BulkaMotion.selection();
-    _quoteRevision++;
-    setState(() {
-      _orderType = value;
-      if (clearBranch) {
-        _branch = '';
-        _branchId = null;
-      }
-      _scheduledSlot = null;
-      _discount = 0;
-      _deliveryFee = 0;
-      _isQuoting = false;
-      _quotedTotal = null;
-    });
-    if (clearBranch) {
-      final prefs = await SharedPreferences.getInstance();
-      await Future.wait([
-        prefs.remove('selected_bakery_location'),
-        prefs.remove('selected_bakery_location_id'),
-      ]);
-    }
-    await _persistDraft();
   }
 
   BakeryLocation? get _selectedBranchLocation {
@@ -908,6 +1129,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
               (location) =>
                   location.active &&
                   location.deliveryEnabled &&
+                  (!_isPreorder || location.preorderEnabled) &&
                   location.deliveryZoneForDistance(
                         _distanceToAddressKm(location, address),
                       ) !=
@@ -923,68 +1145,22 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
     return candidates.isEmpty ? null : candidates.first;
   }
 
-  BakeryLocation? get _effectiveLocation => _orderType == _OrderType.delivery
-      ? _deliveryBranchLocation
-      : _selectedBranchLocation;
+  BakeryLocation? get _effectiveLocation =>
+      _usesDelivery ? _deliveryBranchLocation : _selectedBranchLocation;
 
-  int? _clockMinutes(Object? value) {
-    final match = RegExp(r'^(\d{2}):(\d{2})$').firstMatch('$value');
-    if (match == null) return null;
-    final hour = int.parse(match.group(1)!);
-    final minute = int.parse(match.group(2)!);
-    if (hour > 24 || minute > 59 || (hour == 24 && minute != 0)) return null;
-    return hour * 60 + minute;
-  }
-
-  ({int open, int close})? _scheduleFor(BakeryLocation location, DateTime day) {
-    const dayNames = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
-    final raw =
-        location.hours[dayNames[day.weekday - 1]] ?? location.hours['daily'];
-    final schedule = _asMap(raw);
-    if (schedule.isEmpty || schedule['closed'] == true) return null;
-    final open = _clockMinutes(schedule['open']);
-    final close = _clockMinutes(schedule['close']);
-    if (open == null || close == null || open >= close) return null;
-    return (open: open, close: close);
-  }
-
-  List<_PickupSlot> _buildTimeSlots() {
-    final now = DateTime.now();
-    final leadMinutes = switch (_orderType) {
-      _OrderType.preorder => 120,
-      _OrderType.delivery => 60,
-      _OrderType.pickup => 30,
-    };
-    final minimum = now.add(Duration(minutes: leadMinutes));
-    final result = <_PickupSlot>[];
-    final location = _effectiveLocation;
-    if (location == null) return result;
-    final days = _orderType == _OrderType.preorder ? 7 : 3;
-    final maximumSlots = _orderType == _OrderType.preorder ? 36 : 24;
-    for (
-      var dayOffset = 0;
-      dayOffset < days && result.length < maximumSlots;
-      dayOffset++
-    ) {
-      final day = DateTime(now.year, now.month, now.day + dayOffset);
-      final schedule = _scheduleFor(location, day);
-      if (schedule == null) continue;
-      final firstMinute = ((schedule.open + 59) ~/ 60) * 60;
-      for (
-        var minute = firstMinute;
-        minute + 60 <= schedule.close && result.length < maximumSlots;
-        minute += 60
-      ) {
-        final start = DateTime(
-          day.year,
-          day.month,
-          day.day,
-        ).add(Duration(minutes: minute));
-        if (start.isBefore(minimum)) continue;
-        result.add(_slotFromDate(start));
-      }
-    }
-    return result;
+  Future<void> _setPreorderFulfillment(_OrderType value) async {
+    if (!_isPreorder || value == _preorderFulfillment) return;
+    _quoteRevision++;
+    setState(() {
+      _preorderFulfillment = value;
+      _scheduledSlot = null;
+      _discount = 0;
+      _deliveryFee = 0;
+      _quotedTotal = null;
+      _etaQuote = null;
+      _isQuoting = false;
+    });
+    await _persistDraft();
   }
 
   @override
@@ -1000,15 +1176,18 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   }
 
   Future<void> _selectBranch() async {
-    final selected = await Navigator.of(context).push<String>(
-      MaterialPageRoute(
-        builder: (_) => LocationsScreen(orderType: _orderType.wireValue),
-      ),
-    );
-    if (!mounted || selected == null || selected.trim().isEmpty) return;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('selected_bakery_location', selected);
-    if (mounted) {
+    if (_isSelectingBranch) return;
+    setState(() => _isSelectingBranch = true);
+    try {
+      final selected = await Navigator.of(context).push<String>(
+        MaterialPageRoute(
+          builder: (_) => LocationsScreen(orderType: _orderType.wireValue),
+        ),
+      );
+      if (!mounted || selected == null || selected.trim().isEmpty) return;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('selected_bakery_location', selected);
+      if (!mounted) return;
       _quoteRevision++;
       setState(() {
         _branch = selected;
@@ -1017,134 +1196,172 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         _deliveryFee = 0;
         _isQuoting = false;
         _quotedTotal = null;
+        _etaQuote = null;
       });
       await _persistDraft();
+    } finally {
+      if (mounted) setState(() => _isSelectingBranch = false);
     }
   }
 
   Future<void> _selectDeliveryAddress() async {
-    final selected = await Navigator.of(context).push<DeliveryAddress>(
-      MaterialPageRoute(
-        builder: (_) => AddressSelectionScreen(api: widget.api),
-      ),
-    );
-    if (!mounted || selected == null) return;
-    _quoteRevision++;
-    setState(() {
-      _deliveryAddress = selected;
-      _scheduledSlot = null;
-      _deliveryFee = 0;
-      _isQuoting = false;
-      _quotedTotal = null;
-    });
-    await _persistDraft();
+    if (_isSelectingAddress) return;
+    setState(() => _isSelectingAddress = true);
+    try {
+      final selected = await Navigator.of(context).push<DeliveryAddress>(
+        MaterialPageRoute(
+          builder: (_) => AddressSelectionScreen(api: widget.api),
+        ),
+      );
+      if (!mounted || selected == null) return;
+      _quoteRevision++;
+      setState(() {
+        _deliveryAddress = selected;
+        _scheduledSlot = null;
+        _deliveryFee = 0;
+        _isQuoting = false;
+        _quotedTotal = null;
+        _etaQuote = null;
+      });
+      await _persistDraft();
+    } finally {
+      if (mounted) setState(() => _isSelectingAddress = false);
+    }
   }
 
   Future<void> _selectScheduledTime() async {
-    if (_orderType != _OrderType.delivery && _branch.trim().isEmpty) {
+    if (_isSelectingTime) return;
+    if (!_usesDelivery && _branch.trim().isEmpty) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('checkout_branch_required'.tr)));
       return;
     }
-    if (_orderType == _OrderType.delivery && _deliveryAddress == null) {
+    if (_usesDelivery && _deliveryAddress == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('checkout_delivery_address_required'.tr)),
       );
       return;
     }
-    if (_orderType == _OrderType.delivery && _deliveryBranchLocation == null) {
+    if (_usesDelivery && _deliveryBranchLocation == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('checkout_delivery_outside_zone'.tr)),
       );
       return;
     }
-    final timeSlots = _buildTimeSlots();
-    if (timeSlots.isEmpty) {
+    final location = _effectiveLocation;
+    if (location == null) return;
+    setState(() => _isSelectingTime = true);
+    try {
+      List<_PickupSlot> timeSlots;
+      final slots = await widget.api.getFulfillmentSlots(
+        branchId: location.id,
+        orderType: _orderType.wireValue,
+        days: _orderType == _OrderType.preorder ? 7 : 1,
+      );
+      timeSlots = slots
+          .map(_slotFromFulfillment)
+          .take(_orderType == _OrderType.preorder ? 50 : 30)
+          .toList();
+      if (!mounted) return;
+      if (slots.isNotEmpty) {
+        _branchTimezoneOffsetMinutes = slots.first.timezoneOffsetMinutes;
+      }
+      if (timeSlots.isEmpty) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('checkout_no_time_slots'.tr)));
+        return;
+      }
+      DateTime? selectedDay;
+      if (_isPreorder) {
+        selectedDay = await showModalBottomSheet<DateTime>(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (sheetContext) => _PreorderCalendarSheet(
+            slots: timeSlots,
+            selected: _scheduledSlot?.startsAt,
+          ),
+        );
+        if (!mounted || selectedDay == null) return;
+      }
+      final selectableSlots = selectedDay == null
+          ? timeSlots
+          : timeSlots
+                .where(
+                  (slot) => DateUtils.isSameDay(slot.startsAt, selectedDay),
+                )
+                .toList();
+      final selected = await showModalBottomSheet<_PickupSlot>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (sheetContext) => _CheckoutTimeSheet(
+          slots: selectableSlots,
+          selectedValue: _scheduledSlot?.value,
+        ),
+      );
+      if (mounted && selected != null) {
+        setState(() => _scheduledSlot = selected);
+        await _persistDraft();
+        await _refreshQuote();
+      }
+    } catch (error) {
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('checkout_no_time_slots'.tr)));
-      return;
-    }
-    final selected = await showModalBottomSheet<_PickupSlot>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (sheetContext) => Container(
-        height: min(MediaQuery.sizeOf(sheetContext).height * 0.72, 620),
-        padding: EdgeInsets.fromLTRB(
-          16,
-          12,
-          16,
-          20 + BulkaLayout.safeBottomInset(sheetContext),
-        ),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
-        ),
-        child: Column(
-          children: [
-            Container(
-              width: 44,
-              height: 5,
-              decoration: BoxDecoration(
-                color: _almond,
-                borderRadius: BorderRadius.circular(3),
-              ),
-            ),
-            const SizedBox(height: 18),
-            Text(
-              'checkout_select_time'.tr,
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 18),
-            Expanded(
-              child: ListView.separated(
-                itemCount: timeSlots.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 8),
-                itemBuilder: (context, index) {
-                  final slot = timeSlots[index];
-                  final isSelected = slot.value == _scheduledSlot?.value;
-                  return ListTile(
-                    onTap: () => Navigator.pop(sheetContext, slot),
-                    selected: isSelected,
-                    selectedTileColor: _lightCardHighlight,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    title: Text(
-                      slot.label,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: isSelected
-                            ? _textDark
-                            : _textDark.withValues(alpha: 0.72),
-                        fontSize: 18,
-                        fontWeight: isSelected
-                            ? FontWeight.w800
-                            : FontWeight.w500,
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (mounted && selected != null) {
-      setState(() => _scheduledSlot = selected);
-      await _persistDraft();
-      await _refreshQuote();
+      ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
+    } finally {
+      if (mounted) setState(() => _isSelectingTime = false);
     }
   }
 
   bool get _canQuote =>
       _scheduledSlot != null &&
-      (_orderType == _OrderType.delivery
+      (_usesDelivery
           ? _deliveryAddress != null && _deliveryBranchLocation != null
           : _branch.trim().isNotEmpty);
+
+  String get _quoteEtaText {
+    final eta = _etaQuote;
+    if (eta == null) return '';
+    final minimumInstant = DateTime.tryParse(_asString(eta['minAt']));
+    final maximumInstant = DateTime.tryParse(_asString(eta['maxAt']));
+    if (minimumInstant != null && maximumInstant != null) {
+      final minimum = branchWallClock(
+        minimumInstant,
+        _branchTimezoneOffsetMinutes,
+      );
+      final maximum = branchWallClock(
+        maximumInstant,
+        _branchTimezoneOffsetMinutes,
+      );
+      final start = _clockLabel(minimum);
+      final end = _clockLabel(maximum);
+      return 'checkout_eta_window'.trArgs({
+        'date': formatUiDate(context, minimum),
+        'min': start,
+        'max': end,
+      });
+    }
+    final minimumMinutes = (eta['minMinutes'] as num?)?.round();
+    final maximumMinutes = (eta['maxMinutes'] as num?)?.round();
+    if (minimumMinutes != null && maximumMinutes != null) {
+      return 'order_eta_range_minutes'.trArgs({
+        'min': minimumMinutes,
+        'max': maximumMinutes,
+      });
+    }
+    return '';
+  }
+
+  String get _quoteEtaConfidence {
+    final confidence = _asString(_etaQuote?['confidence']);
+    return const {'low', 'medium', 'high'}.contains(confidence)
+        ? 'order_eta_confidence_$confidence'.tr
+        : '';
+  }
 
   Future<void> _refreshQuote({bool showFeedback = false}) async {
     if (!_canQuote) return;
@@ -1155,12 +1372,13 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       final quote = await widget.api.quoteKaspiOrder(
         cartItems: widget.cartItems,
         orderType: _orderType.wireValue,
-        branch: _orderType == _OrderType.delivery ? null : _branch,
-        branchId: _orderType == _OrderType.delivery ? null : _branchId,
-        scheduledAt: _scheduledSlot?.value,
-        deliveryAddress: _orderType == _OrderType.delivery
-            ? _deliveryAddress
+        preorderFulfillmentType: _isPreorder
+            ? _preorderFulfillment.wireValue
             : null,
+        branch: _usesDelivery ? null : _branch,
+        branchId: _usesDelivery ? null : _branchId,
+        scheduledAt: _scheduledSlot?.value,
+        deliveryAddress: _usesDelivery ? _deliveryAddress : null,
         promoCode: _promoController.text.trim(),
       );
       if (!mounted || revision != _quoteRevision) return;
@@ -1168,6 +1386,8 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         _discount = (quote['discount'] as num?)?.round() ?? 0;
         _deliveryFee = (quote['deliveryFee'] as num?)?.round() ?? 0;
         _quotedTotal = (quote['total'] as num?)?.round();
+        final eta = _asMap(quote['eta']);
+        _etaQuote = eta.isEmpty ? null : eta;
       });
       if (showFeedback) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1184,7 +1404,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       if (mounted && revision == _quoteRevision) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text(error.toString())));
+        ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
       }
     } finally {
       if (mounted && revision == _quoteRevision) {
@@ -1204,14 +1424,66 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
     await _refreshQuote(showFeedback: true);
   }
 
+  Future<bool> _revalidateScheduledSlot() async {
+    final selected = _scheduledSlot;
+    final location = _effectiveLocation;
+    if (selected == null || location == null) return false;
+    final slots = await widget.api.getFulfillmentSlots(
+      branchId: location.id,
+      orderType: _orderType.wireValue,
+      days: _orderType == _OrderType.preorder ? 7 : 1,
+    );
+    FulfillmentSlot? matchingSlot;
+    final selectedInstant = DateTime.parse(selected.value);
+    for (final slot in slots) {
+      if (slot.startsAt.isAtSameMomentAs(selectedInstant)) {
+        matchingSlot = slot;
+        break;
+      }
+    }
+    if (!mounted) return false;
+    if (matchingSlot == null) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_draftKey('checkout_scheduled_at'));
+      if (!mounted) return false;
+      setState(() {
+        _scheduledSlot = null;
+        _quotedTotal = null;
+        _etaQuote = null;
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('checkout_time_expired'.tr)));
+      return false;
+    }
+    final refreshed = _slotFromFulfillment(matchingSlot);
+    setState(() {
+      _branchTimezoneOffsetMinutes = matchingSlot!.timezoneOffsetMinutes;
+      _scheduledSlot = refreshed;
+    });
+    return true;
+  }
+
   Future<void> _submit() async {
-    if (_orderType != _OrderType.delivery && _branch.trim().isEmpty) {
+    if (!_selectedPaymentAvailable) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _paymentMethod == _CheckoutPaymentMethod.kaspi
+                ? 'checkout_kaspi_unavailable'.tr
+                : 'checkout_forte_unavailable'.tr,
+          ),
+        ),
+      );
+      return;
+    }
+    if (!_usesDelivery && _branch.trim().isEmpty) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('checkout_branch_required'.tr)));
       return;
     }
-    if (_orderType == _OrderType.delivery &&
+    if (_usesDelivery &&
         (_deliveryAddress == null || !_deliveryAddress!.hasValidCoordinates)) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('checkout_delivery_address_required'.tr)),
@@ -1234,16 +1506,22 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
     if (_isSubmitting) return;
     setState(() => _isSubmitting = true);
     try {
+      if (!await _revalidateScheduledSlot()) {
+        if (mounted) setState(() => _isSubmitting = false);
+        return;
+      }
       final completed = await widget.onSubmit(
         _CheckoutDetails(
           checkoutId: _checkoutId,
           orderType: _orderType,
-          branch: _orderType == _OrderType.delivery ? null : _branch,
-          branchId: _orderType == _OrderType.delivery ? null : _branchId,
-          scheduledAt: _scheduledSlot!.value,
-          deliveryAddress: _orderType == _OrderType.delivery
-              ? _deliveryAddress
+          paymentMethod: _paymentMethod,
+          preorderFulfillmentType: _isPreorder
+              ? _preorderFulfillment.wireValue
               : null,
+          branch: _usesDelivery ? null : _branch,
+          branchId: _usesDelivery ? null : _branchId,
+          scheduledAt: _scheduledSlot!.value,
+          deliveryAddress: _usesDelivery ? _deliveryAddress : null,
           additionalPhone: _phoneController.text.trim(),
           promoCode: _promoController.text.trim(),
           comment: _commentController.text.trim(),
@@ -1252,10 +1530,11 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       if (mounted && completed) {
         final prefs = await SharedPreferences.getInstance();
         await Future.wait([
-          prefs.remove('checkout_scheduled_at'),
-          prefs.remove('checkout_phone'),
-          prefs.remove('checkout_promo'),
-          prefs.remove('checkout_comment'),
+          prefs.remove(_draftKey('checkout_scheduled_at')),
+          prefs.remove(_draftKey('checkout_phone')),
+          prefs.remove(_draftKey('checkout_promo')),
+          prefs.remove(_draftKey('checkout_comment')),
+          prefs.remove(_draftKey('checkout_preorder_fulfillment')),
         ]);
         if (mounted) Navigator.pop(context, true);
       }
@@ -1269,7 +1548,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
+      ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
       setState(() => _isSubmitting = false);
     }
   }
@@ -1277,31 +1556,32 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = context.bulkaColors;
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: colors.surfaceCream,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
+        toolbarHeight: BulkaLayout.appBarHeight(context),
         centerTitle: true,
-        backgroundColor: Colors.white,
-        title: Text(
-          'checkout_title'.tr,
-          style: const TextStyle(fontWeight: FontWeight.w700),
-        ),
+        backgroundColor: scheme.surface,
+        title: _BulkaPageTitle('checkout_title'.tr),
+        actions: const [SizedBox(width: BulkaLayout.appBarSideSlot)],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(24, 24, 24, 220),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _OrderTypeSelector(
-              value: _orderType,
-              enabledTypes: {
-                _OrderType.pickup,
-                _OrderType.preorder,
-                if (_deliveryAvailable) _OrderType.delivery,
-              },
-              onChanged: _isSubmitting ? null : _setOrderType,
-            ),
-            if (_deliveryAvailabilityChecked && !_deliveryAvailable) ...[
+            _SelectedOrderTypeCard(value: _orderType),
+            if (_isPreorder) ...[
+              const SizedBox(height: 14),
+              _PreorderFulfillmentSelector(
+                value: _preorderFulfillment,
+                onChanged: _setPreorderFulfillment,
+              ),
+            ],
+            if (_usesDelivery &&
+                _deliveryAvailabilityChecked &&
+                !_deliveryAvailable) ...[
               const SizedBox(height: 10),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1317,7 +1597,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
                       'checkout_delivery_unavailable'.tr,
                       style: TextStyle(
                         color: colors.mutedText,
-                        fontSize: 13,
+                        fontSize: BulkaTypeScale.bodySmall,
                         height: 1.35,
                       ),
                     ),
@@ -1326,7 +1606,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
               ),
             ],
             const SizedBox(height: 28),
-            if (_orderType == _OrderType.delivery) ...[
+            if (_usesDelivery) ...[
               _CheckoutLabel('checkout_delivery_address'.tr, required: true),
               const SizedBox(height: 10),
               _CheckoutField(
@@ -1334,7 +1614,8 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
                     _deliveryAddress?.displayAddress ??
                     'checkout_select_delivery_address'.tr,
                 icon: Icons.location_on_outlined,
-                onTap: _selectDeliveryAddress,
+                onTap: _isSelectingAddress ? null : _selectDeliveryAddress,
+                loading: _isSelectingAddress,
               ),
             ] else ...[
               _CheckoutLabel('checkout_branch'.tr, required: true),
@@ -1342,7 +1623,8 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
               _CheckoutField(
                 label: _branch.isEmpty ? 'checkout_select_branch'.tr : _branch,
                 icon: Icons.storefront_outlined,
-                onTap: _selectBranch,
+                onTap: _isSelectingBranch ? null : _selectBranch,
+                loading: _isSelectingBranch,
               ),
             ],
             const SizedBox(height: 24),
@@ -1404,37 +1686,72 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
             ),
             const SizedBox(height: 26),
             _CheckoutLabel(
-              _orderType == _OrderType.delivery
+              _usesDelivery
                   ? 'checkout_select_delivery_time'.tr
-                  : _orderType == _OrderType.preorder
-                  ? 'checkout_select_preorder_time'.tr
                   : 'checkout_select_pickup_time'.tr,
               required: true,
             ),
             const SizedBox(height: 10),
-            _CheckoutField(
-              label: _scheduledSlot?.label ?? 'checkout_select_time'.tr,
-              icon: Icons.schedule_rounded,
-              onTap: _selectScheduledTime,
-            ),
+            if (_isPreorder && _scheduledSlot != null)
+              _PreorderScheduleField(
+                slot: _scheduledSlot!,
+                onTap: _isSelectingTime ? null : _selectScheduledTime,
+                loading: _isSelectingTime,
+              )
+            else
+              _CheckoutField(
+                label: _scheduledSlot?.label ?? 'checkout_select_time'.tr,
+                icon: Icons.calendar_month_outlined,
+                onTap: _isSelectingTime ? null : _selectScheduledTime,
+                loading: _isSelectingTime,
+              ),
             const SizedBox(height: 28),
             _CheckoutLabel('checkout_payment_method'.tr, required: true),
             const SizedBox(height: 12),
-            Container(
-              width: 152,
-              height: 94,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: _bulkaYellow, width: 1.5),
-              ),
-              child: const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Icon(Icons.credit_card_rounded, color: _textDark),
-                  Text('Kaspi', style: TextStyle(fontWeight: FontWeight.w700)),
+                  Expanded(
+                    child: _CheckoutPaymentCard(
+                      cardKey: const ValueKey('checkout-payment-kaspi'),
+                      title: 'Kaspi Pay',
+                      subtitle: 'checkout_kaspi_card_hint'.tr,
+                      visual: _CheckoutPaymentVisual.kaspi,
+                      available: _kaspiAvailable,
+                      selected: _paymentMethod == _CheckoutPaymentMethod.kaspi,
+                      onTap: () {
+                        if (_kaspiAvailable == true) {
+                          setState(
+                            () => _paymentMethod = _CheckoutPaymentMethod.kaspi,
+                          );
+                        } else {
+                          unawaited(_loadPaymentAvailability());
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _CheckoutPaymentCard(
+                      cardKey: const ValueKey('checkout-payment-card'),
+                      title: 'checkout_card_payment_title'.tr,
+                      subtitle:
+                          _forteSavedCardLabel ?? 'checkout_forte_card_hint'.tr,
+                      visual: _CheckoutPaymentVisual.bankCard,
+                      available: _forteAvailable,
+                      selected: _paymentMethod == _CheckoutPaymentMethod.forte,
+                      onTap: () {
+                        if (_forteAvailable == true) {
+                          setState(
+                            () => _paymentMethod = _CheckoutPaymentMethod.forte,
+                          );
+                        } else {
+                          unawaited(_loadPaymentAvailability());
+                        }
+                      },
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -1469,6 +1786,57 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (_quoteEtaText.isNotEmpty) ...[
+              Semantics(
+                liveRegion: true,
+                label:
+                    '${'orders_eta'.tr}: $_quoteEtaText. $_quoteEtaConfidence',
+                child: Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _bulkaYellow.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(BulkaRadii.control),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.schedule_rounded,
+                        size: 21,
+                        color: _textDark,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _quoteEtaText,
+                              style: const TextStyle(
+                                fontFamily: _headingFont,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            if (_quoteEtaConfidence.isNotEmpty)
+                              Text(
+                                _quoteEtaConfidence,
+                                style: TextStyle(
+                                  fontSize: BulkaTypeScale.caption,
+                                  color: _textDark.withValues(alpha: 0.68),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
             _CheckoutTotalRow(
               label: 'checkout_subtotal'.tr,
               value: '${_formatCartMoney(widget.total)} ₸',
@@ -1498,7 +1866,9 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
             SizedBox(
               width: double.infinity,
               child: GradientButton(
-                onPressed: _isSubmitting ? null : _submit,
+                onPressed: _isSubmitting || !_selectedPaymentAvailable
+                    ? null
+                    : _submit,
                 loading: _isSubmitting,
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
@@ -1506,8 +1876,9 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
                     'cart_checkout'.tr,
                     maxLines: 1,
                     style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w800,
+                      fontFamily: _headingFont,
+                      fontSize: BulkaTypeScale.body,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
@@ -1520,83 +1891,509 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   }
 }
 
-class _OrderTypeSelector extends StatelessWidget {
-  const _OrderTypeSelector({
-    required this.value,
-    required this.enabledTypes,
-    required this.onChanged,
-  });
+class _SelectedOrderTypeCard extends StatelessWidget {
+  const _SelectedOrderTypeCard({required this.value});
 
   final _OrderType value;
-  final Set<_OrderType> enabledTypes;
-  final ValueChanged<_OrderType>? onChanged;
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
       container: true,
-      label: 'checkout_order_type'.tr,
+      label: '${'checkout_order_type'.tr}: ${value.label}',
       child: Container(
-        padding: const EdgeInsets.all(4),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(BulkaRadii.control),
           border: Border.all(color: _almond.withValues(alpha: 0.7)),
         ),
         child: Row(
           children: [
-            for (final type in _OrderType.values)
-              Expanded(
-                child: Semantics(
-                  selected: type == value,
-                  enabled: enabledTypes.contains(type),
-                  button: true,
-                  child: Material(
-                    color: type == value ? _bulkaYellow : Colors.transparent,
-                    borderRadius: BorderRadius.circular(18),
-                    child: InkWell(
-                      onTap: onChanged == null || !enabledTypes.contains(type)
-                          ? null
-                          : () => onChanged!(type),
-                      borderRadius: BorderRadius.circular(18),
-                      child: SizedBox(
-                        height: 62,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              type.icon,
-                              size: 21,
-                              color: enabledTypes.contains(type)
-                                  ? _textDark
-                                  : _textDark.withValues(alpha: 0.32),
-                            ),
-                            const SizedBox(height: 3),
-                            FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Text(
-                                type.label,
-                                maxLines: 1,
-                                style: TextStyle(
-                                  color: enabledTypes.contains(type)
-                                      ? _textDark
-                                      : _textDark.withValues(alpha: 0.32),
-                                  fontSize: 13,
-                                  fontWeight: type == value
-                                      ? FontWeight.w800
-                                      : FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: _bulkaYellow.withValues(alpha: 0.22),
+                borderRadius: BorderRadius.circular(BulkaRadii.control),
+              ),
+              child: Icon(value.icon, color: _textDark, size: 25),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'checkout_order_type'.tr,
+                    style: TextStyle(
+                      color: context.bulkaColors.mutedText,
+                      fontSize: BulkaTypeScale.caption,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    value.label,
+                    style: const TextStyle(
+                      fontFamily: _headingFont,
+                      color: _textDark,
+                      fontSize: BulkaTypeScale.body,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'checkout_catalog_locked'.tr,
+                    style: TextStyle(
+                      color: context.bulkaColors.mutedText,
+                      fontSize: BulkaTypeScale.caption,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.check_circle_rounded, color: Color(0xFF2E7D32)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PreorderFulfillmentSelector extends StatelessWidget {
+  const _PreorderFulfillmentSelector({
+    required this.value,
+    required this.onChanged,
+  });
+
+  final _OrderType value;
+  final Future<void> Function(_OrderType value) onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      container: true,
+      label: 'checkout_preorder_method'.tr,
+      child: Row(
+        children: [
+          for (final type in const [
+            _OrderType.delivery,
+            _OrderType.pickup,
+          ]) ...[
+            if (type == _OrderType.pickup) const SizedBox(width: 10),
+            Expanded(
+              child: InkWell(
+                key: ValueKey('preorder-fulfillment-${type.wireValue}'),
+                onTap: () => onChanged(type),
+                borderRadius: BorderRadius.circular(BulkaRadii.control),
+                child: AnimatedContainer(
+                  duration: BulkaMotion.duration(context, BulkaMotion.fast),
+                  constraints: const BoxConstraints(minHeight: 70),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: value == type
+                        ? const LinearGradient(
+                            colors: [Color(0xFFFFE79A), Color(0xFFFFC447)],
+                          )
+                        : null,
+                    color: value == type ? null : Colors.white,
+                    borderRadius: BorderRadius.circular(BulkaRadii.control),
+                    border: Border.all(
+                      color: value == type
+                          ? _bulkaYellow
+                          : context.bulkaColors.cardBorder,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(type.icon, size: 24, color: _textDark),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          type.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontFamily: _headingFont,
+                            fontSize: BulkaTypeScale.body,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
                 ),
               ),
+            ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _PreorderScheduleField extends StatelessWidget {
+  const _PreorderScheduleField({
+    required this.slot,
+    required this.onTap,
+    this.loading = false,
+  });
+
+  final _PickupSlot slot;
+  final VoidCallback? onTap;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) {
+    final local = slot.startsAt.toLocal();
+    final now = slot.serverNow;
+    final today = DateTime(now.year, now.month, now.day);
+    final day = DateTime(local.year, local.month, local.day);
+    final offset = day.difference(today).inDays;
+    final relative = offset == 0
+        ? 'checkout_today'.tr
+        : offset == 1
+        ? 'checkout_tomorrow'.tr
+        : MaterialLocalizations.of(context).formatShortDate(local);
+    final exact =
+        '${formatUiDate(context, local)}, ${formatUiTime(context, local)}';
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(BulkaRadii.card),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 70),
+          child: Ink(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFFFDA64), Color(0xFFFFB312)],
+              ),
+              borderRadius: BorderRadius.circular(BulkaRadii.card),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    relative,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontFamily: _headingFont,
+                      color: Colors.white,
+                      fontSize: BulkaTypeScale.body,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.82),
+                    borderRadius: BorderRadius.circular(BulkaRadii.control),
+                  ),
+                  child: Text(
+                    exact,
+                    style: TextStyle(
+                      fontFamily: _headingFont,
+                      color: _textDark.withValues(alpha: 0.58),
+                      fontSize: BulkaTypeScale.bodySmall,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                if (loading)
+                  const SizedBox(
+                    key: ValueKey('checkout-time-loading'),
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.4,
+                      color: Colors.white,
+                    ),
+                  )
+                else
+                  const Icon(
+                    Icons.calendar_month_outlined,
+                    color: Colors.white,
+                    size: 27,
+                  ),
+              ],
+            ),
+          ),
         ),
+      ),
+    );
+  }
+}
+
+class _PreorderCalendarSheet extends StatefulWidget {
+  const _PreorderCalendarSheet({required this.slots, this.selected});
+
+  final List<_PickupSlot> slots;
+  final DateTime? selected;
+
+  @override
+  State<_PreorderCalendarSheet> createState() => _PreorderCalendarSheetState();
+}
+
+class _PreorderCalendarSheetState extends State<_PreorderCalendarSheet> {
+  late final List<DateTime> _days;
+  late DateTime _selected;
+
+  DateTime _day(DateTime value) {
+    final local = value.toLocal();
+    return DateTime(local.year, local.month, local.day);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _days = widget.slots.map((slot) => _day(slot.startsAt)).toSet().toList()
+      ..sort();
+    final requested = widget.selected == null ? null : _day(widget.selected!);
+    _selected = requested != null && _days.contains(requested)
+        ? requested
+        : _days.first;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final available = _days.toSet();
+    return Container(
+      height: min(MediaQuery.sizeOf(context).height * 0.82, 700),
+      padding: EdgeInsets.fromLTRB(
+        20,
+        10,
+        20,
+        18 + BulkaLayout.safeBottomInset(context),
+      ),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(BulkaRadii.sheet),
+        ),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 44,
+            height: 5,
+            decoration: BoxDecoration(
+              color: _almond,
+              borderRadius: BorderRadius.circular(BulkaRadii.small),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'checkout_choose_date'.tr,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontFamily: _headingFont,
+                    fontSize: BulkaTypeScale.title,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: () => Navigator.pop(context),
+                tooltip: 'close_tooltip'.tr,
+                icon: const Icon(Icons.close_rounded),
+                style: IconButton.styleFrom(
+                  backgroundColor: _almond.withValues(alpha: 0.65),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: Theme(
+              data: theme.copyWith(
+                colorScheme: theme.colorScheme.copyWith(
+                  primary: const Color(0xFFD2A347),
+                  onPrimary: Colors.white,
+                  surface: Colors.white,
+                ),
+                datePickerTheme: const DatePickerThemeData(
+                  backgroundColor: Colors.white,
+                  surfaceTintColor: Colors.transparent,
+                  headerBackgroundColor: Colors.white,
+                  dividerColor: Colors.transparent,
+                ),
+              ),
+              child: CalendarDatePicker(
+                initialDate: _selected,
+                firstDate: _days.first,
+                lastDate: _days.last,
+                currentDate: widget.slots.first.serverNow,
+                selectableDayPredicate: available.contains,
+                onDateChanged: (value) => setState(() => _selected = value),
+              ),
+            ),
+          ),
+          const Divider(height: 1),
+          const SizedBox(height: 18),
+          SizedBox(
+            width: double.infinity,
+            child: GradientButton(
+              onPressed: () => Navigator.pop(context, _selected),
+              child: Text(
+                'continue_btn'.tr,
+                style: const TextStyle(
+                  fontFamily: _headingFont,
+                  color: Colors.white,
+                  fontSize: BulkaTypeScale.body,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CheckoutTimeSheet extends StatefulWidget {
+  const _CheckoutTimeSheet({required this.slots, this.selectedValue});
+
+  final List<_PickupSlot> slots;
+  final String? selectedValue;
+
+  @override
+  State<_CheckoutTimeSheet> createState() => _CheckoutTimeSheetState();
+}
+
+class _CheckoutTimeSheetState extends State<_CheckoutTimeSheet> {
+  late int _index;
+  late final FixedExtentScrollController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    final selected = widget.slots.indexWhere(
+      (slot) => slot.value == widget.selectedValue,
+    );
+    _index = selected < 0 ? 0 : selected;
+    _controller = FixedExtentScrollController(initialItem: _index);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: min(MediaQuery.sizeOf(context).height * 0.68, 570),
+      padding: EdgeInsets.fromLTRB(
+        16,
+        12,
+        16,
+        18 + BulkaLayout.safeBottomInset(context),
+      ),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(BulkaRadii.sheet),
+        ),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 44,
+            height: 5,
+            decoration: BoxDecoration(
+              color: _almond,
+              borderRadius: BorderRadius.circular(BulkaRadii.small),
+            ),
+          ),
+          const SizedBox(height: 18),
+          Text(
+            'checkout_choose_time'.tr,
+            style: const TextStyle(
+              fontFamily: _headingFont,
+              fontSize: BulkaTypeScale.title,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Expanded(
+            child: ListWheelScrollView.useDelegate(
+              controller: _controller,
+              itemExtent: 64,
+              diameterRatio: 2.4,
+              perspective: 0.002,
+              physics: const FixedExtentScrollPhysics(),
+              onSelectedItemChanged: (index) => setState(() => _index = index),
+              childDelegate: ListWheelChildBuilderDelegate(
+                childCount: widget.slots.length,
+                builder: (context, index) {
+                  final selected = index == _index;
+                  final slot = widget.slots[index];
+                  final start = slot.startsAt.toLocal();
+                  final end = slot.endsAt.toLocal();
+                  return AnimatedContainer(
+                    duration: BulkaMotion.duration(context, BulkaMotion.fast),
+                    alignment: Alignment.center,
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? const Color(0xFFF2F2F4)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(BulkaRadii.control),
+                    ),
+                    child: Text(
+                      '${formatUiTime(context, start)}–${formatUiTime(context, end)}',
+                      style: TextStyle(
+                        color: selected
+                            ? _textDark
+                            : _textDark.withValues(alpha: 0.28),
+                        fontSize: selected ? 20 : 17,
+                        fontWeight: selected
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+          const Divider(height: 1),
+          const SizedBox(height: 18),
+          SizedBox(
+            width: double.infinity,
+            child: GradientButton(
+              onPressed: () => Navigator.pop(context, widget.slots[_index]),
+              child: Text(
+                'continue_btn'.tr,
+                style: const TextStyle(
+                  fontFamily: _headingFont,
+                  color: Colors.white,
+                  fontSize: BulkaTypeScale.body,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1616,12 +2413,16 @@ class _CheckoutLabel extends StatelessWidget {
         children: [
           if (required)
             const TextSpan(
-              text: '*',
-              style: TextStyle(color: _errorRed),
+              text: ' *',
+              style: TextStyle(color: _errorRed, fontFamily: _descriptionFont),
             ),
         ],
       ),
-      style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+      style: const TextStyle(
+        fontFamily: _headingFont,
+        fontSize: BulkaTypeScale.body,
+        fontWeight: FontWeight.w700,
+      ),
     );
   }
 }
@@ -1631,26 +2432,28 @@ class _CheckoutField extends StatelessWidget {
     required this.label,
     required this.icon,
     required this.onTap,
+    this.loading = false,
   });
 
   final String label;
   final IconData icon;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
+  final bool loading;
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(BulkaRadii.control),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(BulkaRadii.control),
         child: ConstrainedBox(
           constraints: const BoxConstraints(minHeight: 62),
           child: Ink(
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(BulkaRadii.control),
               border: Border.all(color: context.bulkaColors.cardBorder),
             ),
             child: Row(
@@ -1660,11 +2463,19 @@ class _CheckoutField extends StatelessWidget {
                     label,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 16),
+                    style: const TextStyle(fontSize: BulkaTypeScale.body),
                   ),
                 ),
                 const SizedBox(width: 12),
-                Icon(icon, color: _textDark.withValues(alpha: 0.72)),
+                if (loading)
+                  const SizedBox(
+                    key: ValueKey('checkout-field-loading'),
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2.2),
+                  )
+                else
+                  Icon(icon, color: _textDark.withValues(alpha: 0.72)),
               ],
             ),
           ),
@@ -1689,7 +2500,7 @@ class _CheckoutTotalRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = TextStyle(
       fontSize: emphasized ? 18 : 16,
-      fontWeight: emphasized ? FontWeight.w900 : FontWeight.w500,
+      fontWeight: emphasized ? FontWeight.w700 : FontWeight.w500,
     );
     return Row(
       children: [
@@ -1715,13 +2526,9 @@ class BalanceHistoryScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          'balance_history_title'.tr,
-          style: const TextStyle(
-            fontFamily: _headingFont,
-            fontWeight: FontWeight.w400,
-          ),
-        ),
+        toolbarHeight: BulkaLayout.appBarHeight(context),
+        title: _BulkaPageTitle('balance_history_title'.tr),
+        actions: const [SizedBox(width: BulkaLayout.appBarSideSlot)],
       ),
       body: transactions.isEmpty
           ? Center(
@@ -1730,7 +2537,7 @@ class BalanceHistoryScreen extends StatelessWidget {
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
                   color: _cream,
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(BulkaRadii.card),
                   boxShadow: _softShadow,
                 ),
                 child: Column(
@@ -1747,7 +2554,7 @@ class BalanceHistoryScreen extends StatelessWidget {
                       style: const TextStyle(
                         color: _textDark,
                         fontFamily: _headingFont,
-                        fontSize: 18,
+                        fontSize: BulkaTypeScale.titleSmall,
                         fontWeight: FontWeight.w400,
                       ),
                     ),
@@ -1757,7 +2564,7 @@ class BalanceHistoryScreen extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: _textDark.withValues(alpha: 0.58),
-                        fontSize: 14,
+                        fontSize: BulkaTypeScale.bodySmall,
                       ),
                     ),
                     if (onExplore != null) ...[
@@ -1806,7 +2613,9 @@ class TransactionCard extends StatelessWidget {
         return Container(
           decoration: const BoxDecoration(
             color: _cream,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(BulkaRadii.card),
+            ),
           ),
           padding: const EdgeInsets.all(24),
           constraints: BoxConstraints(
@@ -1822,7 +2631,7 @@ class TransactionCard extends StatelessWidget {
                   height: 4,
                   decoration: BoxDecoration(
                     color: _almond,
-                    borderRadius: BorderRadius.circular(2),
+                    borderRadius: BorderRadius.circular(BulkaRadii.small),
                   ),
                 ),
               ),
@@ -1835,7 +2644,7 @@ class TransactionCard extends StatelessWidget {
                       style: const TextStyle(
                         color: _textDark,
                         fontFamily: _headingFont,
-                        fontSize: 20,
+                        fontSize: BulkaTypeScale.title,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -1871,7 +2680,7 @@ class TransactionCard extends StatelessWidget {
                               '$name x$qty',
                               style: const TextStyle(
                                 color: _textDark,
-                                fontSize: 16,
+                                fontSize: BulkaTypeScale.body,
                               ),
                             ),
                           ),
@@ -1880,7 +2689,7 @@ class TransactionCard extends StatelessWidget {
                             '${formatMoney(double.tryParse(price.toString()) ?? 0)} ₸',
                             style: const TextStyle(
                               color: _textDark,
-                              fontSize: 16,
+                              fontSize: BulkaTypeScale.body,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -1909,12 +2718,12 @@ class TransactionCard extends StatelessWidget {
       elevation: 0,
       shadowColor: Colors.transparent,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(BulkaRadii.control),
         side: BorderSide(color: _almond.withValues(alpha: 0.45)),
       ),
       child: InkWell(
         onTap: hasItems ? () => _showReceiptDetails(context) : null,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(BulkaRadii.control),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Row(
@@ -1950,7 +2759,7 @@ class TransactionCard extends StatelessWidget {
                             style: const TextStyle(
                               color: _textDark,
                               fontFamily: _headingFont,
-                              fontSize: 16,
+                              fontSize: BulkaTypeScale.body,
                               fontWeight: FontWeight.w400,
                             ),
                           ),
@@ -1958,9 +2767,10 @@ class TransactionCard extends StatelessWidget {
                         Text(
                           '$prefix${formatMoney(transaction.amount)} ₸',
                           style: TextStyle(
+                            fontFamily: _headingFont,
                             color: color,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
+                            fontSize: BulkaTypeScale.body,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ],
@@ -1971,7 +2781,7 @@ class TransactionCard extends StatelessWidget {
                         '${'check_sum'.tr}: ${formatMoney(transaction.orderTotal!)} ₸',
                         style: TextStyle(
                           color: _textDark.withValues(alpha: 0.7),
-                          fontSize: 14,
+                          fontSize: BulkaTypeScale.bodySmall,
                         ),
                       ),
                     ],
@@ -1980,7 +2790,7 @@ class TransactionCard extends StatelessWidget {
                       formatDateTime(transaction.timestamp),
                       style: TextStyle(
                         color: _textDark.withValues(alpha: 0.5),
-                        fontSize: 12,
+                        fontSize: BulkaTypeScale.caption,
                       ),
                     ),
                   ],

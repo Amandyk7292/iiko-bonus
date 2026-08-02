@@ -11,11 +11,12 @@ class PromosScreen extends StatefulWidget {
 
 class _PromosScreenState extends State<PromosScreen>
     with WidgetsBindingObserver {
-  List<StoryGroup> _groups = const [];
+  List<PromoStory> _stories = const [];
   Timer? _refreshTimer;
   bool _loading = true;
   bool _refreshing = false;
   bool _loadFailed = false;
+  final _navigationGate = _AsyncActionGate();
 
   @override
   void initState() {
@@ -53,7 +54,7 @@ class _PromosScreenState extends State<PromosScreen>
       final stories = await widget.api.getStories();
       if (!mounted) return;
       setState(() {
-        _groups = _group(stories);
+        _stories = stories;
         _loading = false;
         _loadFailed = false;
       });
@@ -82,11 +83,13 @@ class _PromosScreenState extends State<PromosScreen>
       final first = items.first;
       return StoryGroup(
         id: entry.key,
-        title: first.groupTitle.isEmpty ? first.title : first.groupTitle,
-        subtitle: first.description,
-        coverUrl: first.groupCoverUrl.isEmpty
-            ? first.imageUrl
-            : first.groupCoverUrl,
+        title: first.localizedGroupTitle.isEmpty
+            ? first.localizedTitle
+            : first.localizedGroupTitle,
+        subtitle: first.localizedDescription,
+        coverUrl: first.localizedGroupCoverUrl.isEmpty
+            ? first.localizedImageUrl
+            : first.localizedGroupCoverUrl,
         stories: items,
       );
     }).toList()..sort(
@@ -95,34 +98,39 @@ class _PromosScreenState extends State<PromosScreen>
   }
 
   Future<void> _open(StoryGroup group) async {
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute(
-        settings: RouteSettings(name: 'promo-${group.id}'),
-        builder: (_) => StoryViewer(
-          stories: group.stories,
-          initialIndex: 0,
-          heroTag: 'promos-${group.id}',
+    await _navigationGate.run(() async {
+      final sequence = _group(
+        _stories,
+      ).expand((item) => item.stories).toList(growable: false);
+      if (sequence.isEmpty) return;
+      final matchedIndex = sequence.indexWhere(
+        (story) => story.id == group.stories.first.id,
+      );
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          settings: RouteSettings(name: 'promo-${group.id}'),
+          builder: (_) => StoryViewer(
+            stories: sequence,
+            initialIndex: matchedIndex < 0 ? 0 : matchedIndex,
+            heroTag: 'promos-${group.id}',
+          ),
         ),
-      ),
-    );
+      );
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final groups = _group(_stories);
     return Scaffold(
-      backgroundColor: context.bulkaColors.surfaceCream,
+      backgroundColor: scheme.surface,
       appBar: AppBar(
+        toolbarHeight: BulkaLayout.appBarHeight(context),
         automaticallyImplyLeading: false,
         centerTitle: true,
-        backgroundColor: Colors.white,
-        title: Text(
-          'nav_promos'.tr,
-          style: const TextStyle(
-            fontFamily: _brandFont,
-            fontSize: 25,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
+        backgroundColor: scheme.surface,
+        title: _BulkaPageTitle('nav_promos'.tr),
       ),
       body: SafeArea(
         top: false,
@@ -135,7 +143,7 @@ class _PromosScreenState extends State<PromosScreen>
                 actionLabel: 'retry_btn'.tr,
                 onAction: _load,
               )
-            : _groups.isEmpty
+            : groups.isEmpty
             ? _PromosState(
                 icon: Icons.local_offer_outlined,
                 title: 'promos_empty'.tr,
@@ -161,12 +169,13 @@ class _PromosScreenState extends State<PromosScreen>
                         crossAxisCount: columns,
                         crossAxisSpacing: 16,
                         mainAxisSpacing: 16,
-                        childAspectRatio: columns == 1 ? 1.72 : 1.55,
+                        childAspectRatio: 1080 / 480,
                       ),
-                      itemCount: _groups.length,
+                      itemCount: groups.length,
                       itemBuilder: (context, index) {
-                        final group = _groups[index];
+                        final group = groups[index];
                         return _PromoGridCard(
+                          key: ValueKey('promos-grid-card-${group.id}'),
                           group: group,
                           onTap: () => _open(group),
                         );
@@ -181,7 +190,7 @@ class _PromosScreenState extends State<PromosScreen>
 }
 
 class _PromoGridCard extends StatelessWidget {
-  const _PromoGridCard({required this.group, required this.onTap});
+  const _PromoGridCard({required this.group, required this.onTap, super.key});
 
   final StoryGroup group;
   final VoidCallback onTap;
@@ -193,7 +202,7 @@ class _PromoGridCard extends StatelessWidget {
       label: 'story_open'.trArgs({'title': group.title}),
       child: Material(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(BulkaRadii.card),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
@@ -230,10 +239,11 @@ class _PromoGridCard extends StatelessWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
+                          fontFamily: _headingFont,
                           color: Colors.white,
-                          fontSize: 20,
+                          fontSize: BulkaTypeScale.title,
                           height: 1.12,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
@@ -280,10 +290,10 @@ class _PromosState extends StatelessWidget {
             Text(
               title,
               textAlign: TextAlign.center,
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: _headingFont,
-                color: _textDark,
-                fontSize: 22,
+                color: Theme.of(context).colorScheme.onSurface,
+                fontSize: BulkaTypeScale.title,
               ),
             ),
             const SizedBox(height: 20),

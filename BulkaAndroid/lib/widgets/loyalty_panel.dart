@@ -38,7 +38,7 @@ class _LoyaltyPanel extends StatelessWidget {
           clipBehavior: Clip.antiAlias,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(26),
+            borderRadius: BorderRadius.circular(BulkaRadii.card),
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
@@ -56,7 +56,7 @@ class _LoyaltyPanel extends StatelessWidget {
                   height: 118,
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(34),
+                    borderRadius: BorderRadius.circular(BulkaRadii.sheet),
                   ),
                 ),
               ),
@@ -74,7 +74,7 @@ class _LoyaltyPanel extends StatelessWidget {
                               style: const TextStyle(
                                 color: Color(0xFF6D3317),
                                 fontFamily: _headingFont,
-                                fontSize: 22,
+                                fontSize: BulkaTypeScale.title,
                                 height: 1.08,
                                 fontWeight: FontWeight.w400,
                               ),
@@ -89,14 +89,16 @@ class _LoyaltyPanel extends StatelessWidget {
                                   backgroundColor: Colors.white,
                                   foregroundColor: const Color(0xFF6D3317),
                                   shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(18),
+                                    borderRadius: BorderRadius.circular(
+                                      BulkaRadii.control,
+                                    ),
                                   ),
                                 ),
                                 child: Text(
                                   'open_qr_btn'.tr,
                                   style: const TextStyle(
                                     color: Color(0xFF6D3317),
-                                    fontSize: 18,
+                                    fontSize: BulkaTypeScale.titleSmall,
                                     fontWeight: FontWeight.w500,
                                   ),
                                 ),
@@ -109,7 +111,7 @@ class _LoyaltyPanel extends StatelessWidget {
                       InkWell(
                         key: const ValueKey('qr-preview-button'),
                         onTap: onQrTap,
-                        borderRadius: BorderRadius.circular(24),
+                        borderRadius: BorderRadius.circular(BulkaRadii.card),
                         child: BulkaHero(
                           tag: 'qr-${customer.phone}',
                           child: _InlineQrPreview(api: api, customer: customer),
@@ -133,7 +135,7 @@ class _LoyaltyPanel extends StatelessWidget {
                                 style: const TextStyle(
                                   color: Color(0xFF6D3317),
                                   fontFamily: _headingFont,
-                                  fontSize: 20,
+                                  fontSize: BulkaTypeScale.title,
                                   fontWeight: FontWeight.w400,
                                 ),
                               ),
@@ -143,36 +145,38 @@ class _LoyaltyPanel extends StatelessWidget {
                               '${'cashback_gift_1'.tr}${tier?.percent ?? customer.cashbackPercent}${'cashback_gift_2'.tr}',
                               style: const TextStyle(
                                 color: Color(0xFF6D3317),
-                                fontSize: 16,
+                                fontSize: BulkaTypeScale.body,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
                           ],
                         ),
                       ),
-                      Tooltip(
-                        message: expanded
+                      Semantics(
+                        button: true,
+                        expanded: expanded,
+                        label: expanded
                             ? 'collapse_tooltip'.tr
                             : 'expand_tooltip'.tr,
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () {
+                        child: IconButton(
+                          tooltip: expanded
+                              ? 'collapse_tooltip'.tr
+                              : 'expand_tooltip'.tr,
+                          onPressed: () {
                             BulkaMotion.selection();
                             onToggle();
                           },
-                          child: SizedBox(
-                            width: 44,
-                            height: 44,
-                            child: Center(
-                              child: AnimatedRotation(
-                                turns: expanded ? 0.5 : 0,
-                                duration: fastDuration,
-                                child: const Icon(
-                                  Icons.keyboard_arrow_down_rounded,
-                                  color: Color(0xFF6D3317),
-                                  size: 22,
-                                ),
-                              ),
+                          style: IconButton.styleFrom(
+                            minimumSize: const Size(48, 48),
+                            tapTargetSize: MaterialTapTargetSize.padded,
+                          ),
+                          icon: AnimatedRotation(
+                            turns: expanded ? 0.5 : 0,
+                            duration: fastDuration,
+                            child: const Icon(
+                              Icons.keyboard_arrow_down_rounded,
+                              color: Color(0xFF6D3317),
+                              size: 22,
                             ),
                           ),
                         ),
@@ -232,7 +236,7 @@ class _LoyaltyPanel extends StatelessWidget {
                             overflow: TextOverflow.fade,
                             textAlign: TextAlign.center,
                             style: const TextStyle(
-                              fontSize: 20,
+                              fontSize: BulkaTypeScale.title,
                               fontWeight: FontWeight.w400,
                             ),
                           ),
@@ -307,7 +311,7 @@ class _TierProgressSection extends StatelessWidget {
                   style: const TextStyle(
                     color: _textDark,
                     fontFamily: _headingFont,
-                    fontSize: 19,
+                    fontSize: BulkaTypeScale.titleSmall,
                     fontWeight: FontWeight.w400,
                   ),
                 ),
@@ -319,8 +323,9 @@ class _TierProgressSection extends StatelessWidget {
                   'total': totalLevels,
                 }),
                 style: TextStyle(
+                  fontFamily: _headingFont,
                   color: _textDark.withValues(alpha: 0.58),
-                  fontSize: 12,
+                  fontSize: BulkaTypeScale.caption,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -331,14 +336,14 @@ class _TierProgressSection extends StatelessWidget {
             description,
             style: TextStyle(
               color: _textDark.withValues(alpha: 0.72),
-              fontSize: 14,
+              fontSize: BulkaTypeScale.bodySmall,
               height: 1.4,
               fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(height: 14),
           ClipRRect(
-            borderRadius: BorderRadius.circular(99),
+            borderRadius: BorderRadius.circular(BulkaRadii.pill),
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 10,
@@ -386,8 +391,8 @@ class _TierChip extends StatelessWidget {
           '${item.localizedName} ${item.percent}%',
           style: TextStyle(
             color: achieved ? _textDark : const Color(0xFFAFA28D),
-            fontSize: 12,
-            fontWeight: achieved ? FontWeight.w800 : FontWeight.w600,
+            fontSize: BulkaTypeScale.caption,
+            fontWeight: achieved ? FontWeight.w700 : FontWeight.w600,
           ),
         ),
       ],
@@ -485,7 +490,7 @@ class _InlineQrPreviewState extends State<_InlineQrPreview> {
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(BulkaRadii.card),
         ),
         child: _loading
             ? const Center(
@@ -567,7 +572,7 @@ class _RewardProgress extends StatelessWidget {
           style: const TextStyle(
             color: Colors.black,
             fontFamily: _headingFont,
-            fontSize: 19,
+            fontSize: BulkaTypeScale.titleSmall,
             height: 1.2,
             fontWeight: FontWeight.w400,
           ),
@@ -584,7 +589,7 @@ class _RewardProgress extends StatelessWidget {
                 height: 8,
                 decoration: BoxDecoration(
                   color: const Color(0xFFF1F0EE),
-                  borderRadius: BorderRadius.circular(99),
+                  borderRadius: BorderRadius.circular(BulkaRadii.pill),
                 ),
               ),
               FractionallySizedBox(
@@ -595,7 +600,7 @@ class _RewardProgress extends StatelessWidget {
                     gradient: const LinearGradient(
                       colors: [Color(0xFFFFD54F), Color(0xFFFFB300)],
                     ),
-                    borderRadius: BorderRadius.circular(99),
+                    borderRadius: BorderRadius.circular(BulkaRadii.pill),
                   ),
                 ),
               ),
@@ -629,7 +634,7 @@ class _RewardProgress extends StatelessWidget {
           '${'remaining_purchases'.tr}: $remaining',
           style: const TextStyle(
             color: Colors.black,
-            fontSize: 20,
+            fontSize: BulkaTypeScale.title,
             fontWeight: FontWeight.w500,
           ),
         ),

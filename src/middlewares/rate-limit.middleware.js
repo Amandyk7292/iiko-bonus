@@ -40,6 +40,14 @@ const authRateLimit = rateLimit({
   legacyHeaders: false,
 });
 
+const courierProofRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 6,
+  message: { error: 'Слишком много попыток подтверждения. Повторите позже.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 const publicApiRateLimit = rateLimit({
   windowMs: 60 * 1000,
   max: 120,
@@ -56,12 +64,25 @@ const globalApiRateLimit = rateLimit({
   legacyHeaders: false,
 });
 
+// Basic application-layer flood protection for pages and static assets. This
+// complements, but does not replace, network-level DDoS protection.
+const siteRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 900,
+  message: { error: 'Too many requests' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => ['/healthz', '/livez', '/readyz'].includes(req.path),
+});
+
 module.exports = {
   adminRateLimit,
   adminLoginRateLimit,
   webhookRateLimit,
   walletRateLimit,
   authRateLimit,
+  courierProofRateLimit,
   publicApiRateLimit,
   globalApiRateLimit,
+  siteRateLimit,
 };

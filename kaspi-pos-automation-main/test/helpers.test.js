@@ -7,7 +7,8 @@ process.env.DEVICE_JSON_B64 = Buffer.from(
   JSON.stringify({ deviceId: 'TEST-DEVICE', installId: 'TEST-INSTALL', pinHash: '0'.repeat(32) }),
 ).toString('base64');
 
-const { generateUUID, nowISO, entranceCookie, extractUserToken } = await import('../src/helpers.js');
+const { generateUUID, nowISO, entranceCookie, extractUserToken, signedQrPayHeaders } = await import('../src/helpers.js');
+const { APP, DEVICE } = await import('../src/config.js');
 
 describe('generateUUID', () => {
   it('should return an uppercase UUID', () => {
@@ -79,5 +80,24 @@ describe('extractUserToken', () => {
       },
     };
     assert.equal(extractUserToken(fakeResp), null);
+  });
+});
+
+describe('signedQrPayHeaders', () => {
+  it('uses the current Kaspi device headers and signs the serialized body', () => {
+    const headers = signedQrPayHeaders(
+      'https://qrpay.kaspi.kz/v01/remote/create',
+      { tokenSN: 'TOKEN', profileId: '42', decryptedSecret: Buffer.alloc(32, 1) },
+      '{"Amount":1000}',
+    );
+    assert.equal(headers['X-PI'], '42');
+    assert.equal(headers['X-Device-ID'], DEVICE.deviceId);
+    assert.equal(headers['X-Platform-Type'], 'iOS');
+    assert.equal(headers['X-Platform-Ver'], APP.platformVer);
+    assert.equal(
+      headers['X-SH'],
+      'url,X-Install-ID,X-PI,X-App-Bld,X-Platform-Ver,X-Locale,X-App-Ver,X-Device-ID,X-SV,X-Time,X-Platform-Type,X-Call,X-Kb-TokenSnMac,X-Kb-TokenSn',
+    );
+    assert.match(headers['X-Sign'], /^[A-Za-z0-9+/]+=*$/);
   });
 });

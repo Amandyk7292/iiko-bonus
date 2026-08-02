@@ -1,20 +1,24 @@
 import { useState, type FormEvent } from 'react';
 import { BellRing, LoaderCircle, Send } from 'lucide-react';
 import { useFeedback } from '../components/Feedback';
-import { api } from '../lib/api';
-import { useI18n } from '../lib/i18n';
+import { api, type LocalizedText } from '../lib/api';
+import { useI18n, type Locale } from '../lib/i18n';
+
+const languages: Locale[] = ['ru', 'kk', 'en'];
+const emptyLocalized = (): LocalizedText => ({ ru: '', kk: '', en: '' });
 
 export default function BroadcastPage() {
   const { t } = useI18n();
   const { toast, confirm } = useFeedback();
-  const [title, setTitle] = useState('');
-  const [body, setBody] = useState('');
+  const [titles, setTitles] = useState<LocalizedText>(emptyLocalized);
+  const [bodies, setBodies] = useState<LocalizedText>(emptyLocalized);
+  const [activeLanguage, setActiveLanguage] = useState<Locale>('ru');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleSend = async (event: FormEvent) => {
     event.preventDefault();
-    if (!title.trim() || !body.trim()) {
+    if (languages.some(language => !titles[language].trim() || !bodies[language].trim())) {
       setError(t('broadcast.validation'));
       return;
     }
@@ -24,10 +28,14 @@ export default function BroadcastPage() {
     setLoading(true);
     setError('');
     try {
-      const response = await api.sendPushMass(title.trim(), body.trim());
+      const response = await api.sendPushMass(
+        { ru: titles.ru.trim(), kk: titles.kk.trim(), en: titles.en.trim() },
+        { ru: bodies.ru.trim(), kk: bodies.kk.trim(), en: bodies.en.trim() },
+      );
       toast(t('broadcast.sent', { count: response.count ?? 0 }));
-      setTitle('');
-      setBody('');
+      setTitles(emptyLocalized());
+      setBodies(emptyLocalized());
+      setActiveLanguage('ru');
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : t('common.error');
       setError(message);
@@ -45,15 +53,30 @@ export default function BroadcastPage() {
           <div><h2>{t('broadcast.title')}</h2><p>{t('broadcast.subtitle')}</p></div>
         </div>
         {error && <div className="inline-alert inline-alert-error" role="alert">{error}</div>}
-        <div className="field-group">
-          <label className="field-label" htmlFor="push-title">{t('broadcast.subject')} *</label>
-          <input id="push-title" type="text" className="input-classic" value={title} onChange={event => setTitle(event.target.value)} placeholder={t('broadcast.subjectPlaceholder')} maxLength={120} required aria-invalid={Boolean(error && !title.trim())} />
-          <span className="character-count" aria-live="polite">{title.length}/120</span>
+        <div className="language-tabs" role="tablist" aria-label={t('broadcast.languages')}>
+          {languages.map(language => (
+            <button
+              key={language}
+              type="button"
+              role="tab"
+              aria-selected={activeLanguage === language}
+              className={activeLanguage === language ? 'language-tab language-tab-active' : 'language-tab'}
+              onClick={() => setActiveLanguage(language)}
+            >
+              {t(`language.${language}`)}
+              {titles[language].trim() && bodies[language].trim() && <span className="tab-complete" aria-hidden="true" />}
+            </button>
+          ))}
         </div>
         <div className="field-group">
-          <label className="field-label" htmlFor="push-body">{t('broadcast.body')} *</label>
-          <textarea id="push-body" className="input-classic" rows={6} value={body} onChange={event => setBody(event.target.value)} placeholder={t('broadcast.bodyPlaceholder')} maxLength={500} required aria-invalid={Boolean(error && !body.trim())} />
-          <span className="character-count" aria-live="polite">{body.length}/500</span>
+          <label className="field-label" htmlFor={`push-title-${activeLanguage}`}>{t('broadcast.subject')} ({t(`language.${activeLanguage}`)}) *</label>
+          <input id={`push-title-${activeLanguage}`} type="text" className="input-classic" value={titles[activeLanguage]} onChange={event => setTitles(current => ({ ...current, [activeLanguage]: event.target.value }))} placeholder={t('broadcast.subjectPlaceholder')} maxLength={120} required aria-invalid={Boolean(error && !titles[activeLanguage].trim())} />
+          <span className="character-count" aria-live="polite">{titles[activeLanguage].length}/120</span>
+        </div>
+        <div className="field-group">
+          <label className="field-label" htmlFor={`push-body-${activeLanguage}`}>{t('broadcast.body')} ({t(`language.${activeLanguage}`)}) *</label>
+          <textarea id={`push-body-${activeLanguage}`} className="input-classic" rows={6} value={bodies[activeLanguage]} onChange={event => setBodies(current => ({ ...current, [activeLanguage]: event.target.value }))} placeholder={t('broadcast.bodyPlaceholder')} maxLength={500} required aria-invalid={Boolean(error && !bodies[activeLanguage].trim())} />
+          <span className="character-count" aria-live="polite">{bodies[activeLanguage].length}/500</span>
         </div>
         <button type="submit" disabled={loading} className="btn-classic broadcast-submit">
           {loading ? <LoaderCircle aria-hidden="true" className="spin" size={18} /> : <Send aria-hidden="true" size={18} />}

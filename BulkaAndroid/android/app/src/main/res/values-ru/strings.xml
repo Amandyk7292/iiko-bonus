@@ -1,4 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Пекарня Bulka</string>
+    <string name="widget_description">Баланс и текущий заказ Bulka</string>
+    <string name="widget_loyalty">Лояльность</string>
+    <string name="widget_balance_label">Баланс</string>
+    <string name="widget_no_active_order">Нет активных заказов</string>
+    <string name="widget_order_number">Заказ №%1$d</string>
+    <string name="widget_status_with_eta">%1$s · к %2$s</string>
+    <string name="widget_signed_out_title">Ваша карта Bulka</string>
+    <string name="widget_signed_out_body">Нажмите, чтобы войти и увидеть баланс</string>
+    <string name="widget_status_received">Заказ получен</string>
+    <string name="widget_status_confirmed">Заказ подтверждён</string>
+    <string name="widget_status_preparing">Готовим</string>
+    <string name="widget_status_ready">Можно забирать</string>
+    <string name="widget_status_handed_over">Заказ передан</string>
+    <string name="widget_status_on_the_way">Курьер в пути</string>
+    <string name="widget_status_delivered">Доставлен</string>
+    <string name="widget_status_cancelled">Отменён</string>
+    <string name="widget_status_active">Заказ активен</string>
+    <string name="widget_accessibility_signed_out">Bulka. Войдите, чтобы увидеть баланс.</string>
+    <string name="widget_accessibility_balance">Баланс Bulka: %1$s. Нажмите, чтобы открыть.</string>
+    <string name="widget_accessibility_order">Баланс Bulka: %1$s. Заказ №%2$d: %3$s. Нажмите, чтобы открыть.</string>
+    <string name="notification_channel_general_name">Уведомления Bulka</string>
+    <string name="notification_channel_general_description">Акции, бонусы и статусы заказов</string>
+    <string name="notification_channel_order_name">Статус заказа</string>
+    <string name="notification_channel_order_description">Постоянный статус активного заказа</string>
+    <string name="order_notification_updating">Заказ обновляется</string>
+    <string name="order_notification_eta">к %1$s</string>
+    <string name="order_notification_title">Заказ №%1$d</string>
+    <string name="order_notification_private_title">Обновление заказа Bulka</string>
+    <string name="order_notification_private_body">Разблокируйте телефон, чтобы посмотреть детали</string>
 </resources>

@@ -1,5 +1,8 @@
 part of '../main.dart';
 
+const _promoCoverAspectRatio = 1080 / 480;
+const _promoMobileMaxWidth = 520.0;
+
 class StoryGroup {
   const StoryGroup({
     required this.id,
@@ -59,35 +62,50 @@ class _PromoBannerShimmerState extends State<PromoBannerShimmer>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        final v = _reduceMotion ? 0.5 : _controller.value;
-        return LayoutBuilder(
-          builder: (context, constraints) => Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: constraints.maxWidth >= 720
-                ? Row(
-                    children: [
-                      Expanded(child: _buildCard(v)),
-                      const SizedBox(width: 18),
-                      Expanded(child: _buildCard(v)),
-                    ],
-                  )
-                : _buildCard(v),
-          ),
-        );
-      },
+    final shimmer = _reduceMotion ? null : _controller;
+    return LayoutBuilder(
+      builder: (context, constraints) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: constraints.maxWidth >= 720
+            ? Row(
+                children: [
+                  Expanded(child: _buildCard(shimmer)),
+                  const SizedBox(width: 18),
+                  Expanded(child: _buildCard(shimmer)),
+                ],
+              )
+            : Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: _promoMobileMaxWidth,
+                  ),
+                  child: _buildCard(shimmer),
+                ),
+              ),
+      ),
     );
   }
 
-  Widget _buildCard(double value) {
-    return Container(
-      height: 146,
-      clipBehavior: Clip.antiAlias,
+  Widget _buildCard(Animation<double>? animation) {
+    final colors = context.bulkaColors;
+    final content = Padding(
       padding: const EdgeInsets.all(22),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _skeletonLine(180, 22, 8, const Color(0xFFE8E3DA)),
+          const SizedBox(height: 12),
+          _skeletonLine(240, 14, 6, colors.skeletonBase),
+          const SizedBox(height: 8),
+          _skeletonLine(140, 14, 6, colors.skeletonBase),
+        ],
+      ),
+    );
+
+    Widget decorated(double value, Widget child) => DecoratedBox(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(BulkaRadii.card),
         border: Border.all(
           color: const Color(0xFF6D3317).withValues(alpha: 0.10),
         ),
@@ -111,16 +129,21 @@ class _PromoBannerShimmerState extends State<PromoBannerShimmer>
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _skeletonLine(180, 22, 8, const Color(0xFFE8E3DA)),
-          const SizedBox(height: 12),
-          _skeletonLine(240, 14, 6, const Color(0xFFF0EBE3)),
-          const SizedBox(height: 8),
-          _skeletonLine(140, 14, 6, const Color(0xFFF0EBE3)),
-        ],
+      child: child,
+    );
+
+    return AspectRatio(
+      aspectRatio: _promoCoverAspectRatio,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(BulkaRadii.card),
+        clipBehavior: Clip.antiAlias,
+        child: animation == null
+            ? decorated(0.5, content)
+            : AnimatedBuilder(
+                animation: animation,
+                child: content,
+                builder: (context, child) => decorated(animation.value, child!),
+              ),
       ),
     );
   }
@@ -190,16 +213,24 @@ class _PromoBannerSliderState extends State<PromoBannerSlider> {
   void _startTimer() {
     _timer?.cancel();
     if (!_reduceMotion && _tickerEnabled && widget.groups.length > 1) {
-      _timer = Timer.periodic(const Duration(seconds: 5), (_) {
+      _timer = Timer(const Duration(seconds: 5), () {
         if (!mounted || !_pageController.hasClients) return;
         final next = (_currentIndex + 1) % widget.groups.length;
-        _pageController.animateToPage(
-          next,
-          duration: BulkaMotion.emphasized,
-          curve: BulkaMotion.enterCurve,
+        unawaited(
+          _pageController.animateToPage(
+            next,
+            duration: BulkaMotion.emphasized,
+            curve: BulkaMotion.enterCurve,
+          ),
         );
       });
     }
+  }
+
+  void _handlePageChanged(int index) {
+    if (!mounted) return;
+    setState(() => _currentIndex = index);
+    _startTimer();
   }
 
   @override
@@ -224,15 +255,17 @@ class _PromoBannerSliderState extends State<PromoBannerSlider> {
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth >= 720) {
+          final gridWidth = constraints.maxWidth - 48;
+          final cardWidth = (gridWidth - 18) / 2;
           return GridView.builder(
             padding: const EdgeInsets.symmetric(horizontal: 24),
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 2,
               crossAxisSpacing: 18,
               mainAxisSpacing: 18,
-              mainAxisExtent: 146,
+              mainAxisExtent: cardWidth / _promoCoverAspectRatio,
             ),
             itemCount: widget.groups.length,
             itemBuilder: (context, index) => _PromoBannerCard(
@@ -245,18 +278,27 @@ class _PromoBannerSliderState extends State<PromoBannerSlider> {
 
         return Column(
           children: [
-            SizedBox(
-              height: 136,
-              child: PageView.builder(
-                controller: _pageController,
-                itemCount: widget.groups.length,
-                onPageChanged: (idx) => setState(() => _currentIndex = idx),
-                itemBuilder: (context, idx) => Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: _PromoBannerCard(
-                    group: widget.groups[idx],
-                    viewed: widget.viewedGroups.contains(widget.groups[idx].id),
-                    onTap: () => widget.onGroupTap(widget.groups[idx]),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: _promoMobileMaxWidth,
+                  ),
+                  child: AspectRatio(
+                    aspectRatio: _promoCoverAspectRatio,
+                    child: PageView.builder(
+                      controller: _pageController,
+                      itemCount: widget.groups.length,
+                      onPageChanged: _handlePageChanged,
+                      itemBuilder: (context, idx) => _PromoBannerCard(
+                        group: widget.groups[idx],
+                        viewed: widget.viewedGroups.contains(
+                          widget.groups[idx].id,
+                        ),
+                        onTap: () => widget.onGroupTap(widget.groups[idx]),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -279,7 +321,7 @@ class _PromoBannerSliderState extends State<PromoBannerSlider> {
                       color: active
                           ? const Color(0xFFFFB300)
                           : const Color(0xFFE4D3BA),
-                      borderRadius: BorderRadius.circular(3),
+                      borderRadius: BorderRadius.circular(BulkaRadii.small),
                     ),
                   );
                 }),
@@ -319,11 +361,11 @@ class _PromoBannerCard extends StatelessWidget {
                 BulkaMotion.lightImpact();
                 onTap();
               },
-              borderRadius: BorderRadius.circular(22),
+              borderRadius: BorderRadius.circular(BulkaRadii.control),
               child: AnimatedContainer(
                 duration: BulkaMotion.duration(context, BulkaMotion.fast),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(22),
+                  borderRadius: BorderRadius.circular(BulkaRadii.control),
                   border: Border.all(
                     color: viewed
                         ? const Color(0xFFEADBBE).withValues(alpha: 0.62)
@@ -339,7 +381,7 @@ class _PromoBannerCard extends StatelessWidget {
                   ],
                 ),
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20.8),
+                  borderRadius: BorderRadius.circular(BulkaRadii.control),
                   child: _BannerFullCoverWidget(group: group),
                 ),
               ),
@@ -359,7 +401,7 @@ class _BannerFullCoverWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (group.coverUrl.startsWith('http')) {
-      return _NetworkImage(url: group.coverUrl, fit: BoxFit.cover);
+      return _NetworkImage(url: group.coverUrl, fit: BoxFit.contain);
     }
     return Container(
       decoration: const BoxDecoration(
@@ -383,8 +425,8 @@ class _BannerFullCoverWidget extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     fontFamily: _headingFont,
-                    fontSize: 22,
-                    fontWeight: FontWeight.w900,
+                    fontSize: BulkaTypeScale.title,
+                    fontWeight: FontWeight.w700,
                     color: Color(0xFFEADBBE),
                   ),
                 ),
@@ -394,7 +436,7 @@ class _BannerFullCoverWidget extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 13,
+                    fontSize: BulkaTypeScale.bodySmall,
                     color: Colors.white70,
                     height: 1.25,
                   ),
@@ -419,13 +461,13 @@ class PromoModalViewer extends StatelessWidget {
     final title = group.title;
     final subtitle =
         group.subtitle ??
-        story?.description ??
-        story?.title ??
+        story?.localizedDescription ??
+        story?.localizedTitle ??
         'story_offer_fallback'.tr;
     final isHappy = group.id == 'happy_hours' || title.contains('2+1');
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFDF8F0),
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Column(
           children: [
@@ -441,7 +483,7 @@ class PromoModalViewer extends StatelessWidget {
                     ),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(BulkaRadii.control),
                       border: Border.all(color: const Color(0xFFEADBBE)),
                       boxShadow: [
                         BoxShadow(
@@ -457,8 +499,8 @@ class PromoModalViewer extends StatelessWidget {
                       'Bulka Cafe & Bakery',
                       style: TextStyle(
                         fontFamily: _headingFont,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
+                        fontSize: BulkaTypeScale.bodySmall,
+                        fontWeight: FontWeight.w700,
                         color: Color(0xFF5A2A18),
                       ),
                     ),
@@ -493,8 +535,8 @@ class PromoModalViewer extends StatelessWidget {
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontFamily: _headingFont,
-                        fontSize: 25,
-                        fontWeight: FontWeight.w900,
+                        fontSize: BulkaTypeScale.titleLarge,
+                        fontWeight: FontWeight.w700,
                         color: Color(0xFF4A2210),
                         height: 1.15,
                       ),
@@ -504,7 +546,7 @@ class PromoModalViewer extends StatelessWidget {
                       subtitle,
                       textAlign: TextAlign.center,
                       style: const TextStyle(
-                        fontSize: 16,
+                        fontSize: BulkaTypeScale.body,
                         color: Color(0xFF7D5034),
                         height: 1.35,
                       ),
@@ -516,18 +558,21 @@ class PromoModalViewer extends StatelessWidget {
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: const Color(0xFFFFFBF4),
-                        borderRadius: BorderRadius.circular(24),
+                        borderRadius: BorderRadius.circular(BulkaRadii.card),
                         border: Border.all(
                           color: const Color(0xFFEADBBE),
                           width: 1.2,
                         ),
                       ),
                       child:
-                          (story != null && story.contentUrl.startsWith('http'))
+                          (story != null &&
+                              story.localizedContentUrl.startsWith('http'))
                           ? ClipRRect(
-                              borderRadius: BorderRadius.circular(23),
+                              borderRadius: BorderRadius.circular(
+                                BulkaRadii.card,
+                              ),
                               child: _NetworkImage(
-                                url: story.contentUrl,
+                                url: story.localizedContentUrl,
                                 fit: BoxFit.cover,
                               ),
                             )
@@ -539,7 +584,7 @@ class PromoModalViewer extends StatelessWidget {
                                   style: TextStyle(
                                     fontFamily: _headingFont,
                                     fontSize: isHappy ? 64 : 68,
-                                    fontWeight: FontWeight.w900,
+                                    fontWeight: FontWeight.w700,
                                     color: const Color(0xFFD38B28),
                                   ),
                                 ),
@@ -547,7 +592,8 @@ class PromoModalViewer extends StatelessWidget {
                                 Text(
                                   subtitle,
                                   style: const TextStyle(
-                                    fontSize: 14,
+                                    fontFamily: _headingFont,
+                                    fontSize: BulkaTypeScale.bodySmall,
                                     fontWeight: FontWeight.w700,
                                     color: Color(0xFF8B5E3C),
                                   ),
@@ -576,14 +622,15 @@ class PromoModalViewer extends StatelessWidget {
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(24),
+                          borderRadius: BorderRadius.circular(BulkaRadii.card),
                         ),
                         elevation: 0,
                       ),
                       child: Text(
                         'catalog_action'.tr,
                         style: const TextStyle(
-                          fontSize: 16,
+                          fontFamily: _headingFont,
+                          fontSize: BulkaTypeScale.body,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -594,6 +641,143 @@ class PromoModalViewer extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+const _desktopStoryBreakpoint = 900.0;
+const _desktopStoryMaxWidth = 540.0;
+const _desktopStoryMaxHeight = 960.0;
+const _storyPortraitAspectRatio = 9 / 16;
+
+bool _usesDesktopStoryLayout(Size viewport) =>
+    viewport.width >= _desktopStoryBreakpoint;
+
+Size _storyRenderSize(Size viewport) {
+  if (!_usesDesktopStoryLayout(viewport)) return viewport;
+  final availableWidth = max(
+    1.0,
+    min(_desktopStoryMaxWidth, viewport.width - 160),
+  );
+  final availableHeight = max(
+    1.0,
+    min(_desktopStoryMaxHeight, viewport.height - 32),
+  );
+  final width = min(
+    availableWidth,
+    availableHeight * _storyPortraitAspectRatio,
+  );
+  return Size(width, width / _storyPortraitAspectRatio);
+}
+
+class _DesktopStoryViewport extends StatelessWidget {
+  const _DesktopStoryViewport({
+    required this.story,
+    required this.onDismiss,
+    required this.child,
+  });
+
+  final PromoStory story;
+  final VoidCallback onDismiss;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final frameSize = _storyRenderSize(constraints.biggest);
+        const radius = BorderRadius.all(Radius.circular(26));
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            Semantics(
+              button: true,
+              label: 'close_tooltip'.tr,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onDismiss,
+                child: _DesktopStoryBackdrop(story: story),
+              ),
+            ),
+            Center(
+              child: SizedBox(
+                key: const ValueKey('story-desktop-frame'),
+                width: frameSize.width,
+                height: frameSize.height,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.black,
+                    borderRadius: radius,
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.16),
+                    ),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Color(0x990F0704),
+                        blurRadius: 48,
+                        spreadRadius: 2,
+                        offset: Offset(0, 18),
+                      ),
+                    ],
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(1),
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.all(Radius.circular(25)),
+                      child: child,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _DesktopStoryBackdrop extends StatelessWidget {
+  const _DesktopStoryBackdrop({required this.story});
+
+  final PromoStory story;
+
+  @override
+  Widget build(BuildContext context) {
+    final url = _storyImageUrl(story);
+    return ExcludeSemantics(
+      child: Stack(
+        key: const ValueKey('story-desktop-backdrop'),
+        fit: StackFit.expand,
+        children: [
+          const ColoredBox(color: Color(0xFF1B0D08)),
+          if (url.startsWith('http'))
+            Opacity(
+              opacity: 0.24,
+              child: ImageFiltered(
+                imageFilter: ui.ImageFilter.blur(sigmaX: 32, sigmaY: 32),
+                child: Transform.scale(
+                  scale: 1.08,
+                  child: _NetworkImage(
+                    url: url,
+                    fit: BoxFit.cover,
+                    loadingPlaceholder: const SizedBox.expand(),
+                    errorPlaceholder: const SizedBox.expand(),
+                  ),
+                ),
+              ),
+            ),
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: RadialGradient(
+                radius: 1.05,
+                colors: [Color(0x221F1009), Color(0xE6140906)],
+                stops: [0.18, 1],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -624,6 +808,10 @@ class _StoryViewerState extends State<StoryViewer>
   bool _forward = true;
   bool _reduceMotion = false;
   bool _dependenciesReady = false;
+  bool _interactiveTransition = false;
+  double _horizontalDragExtent = 0;
+  bool _verticalDragging = false;
+  double _verticalDragOffset = 0;
 
   @override
   void initState() {
@@ -686,10 +874,13 @@ class _StoryViewerState extends State<StoryViewer>
   }
 
   void _precacheNeighbors() {
-    final logicalWidth = MediaQuery.sizeOf(context).width;
-    final cacheWidth = min(
-      2048,
-      max(1, (logicalWidth * MediaQuery.devicePixelRatioOf(context)).ceil()),
+    final media = MediaQuery.of(context);
+    final renderSize = _storyRenderSize(media.size);
+    final pixelWidth = _imagePixelBucket(
+      renderSize.width * media.devicePixelRatio,
+    );
+    final pixelHeight = _imagePixelBucket(
+      renderSize.height * media.devicePixelRatio,
     );
     final indexes = <int>{
       _index,
@@ -699,12 +890,15 @@ class _StoryViewerState extends State<StoryViewer>
     for (final index in indexes) {
       final url = _storyImageUrl(widget.stories[index]);
       if (!url.startsWith('http')) continue;
-      final provider = ResizeImage.resizeIfNeeded(
-        cacheWidth,
-        null,
-        NetworkImage(url),
+      final effectiveUrl = optimizedNetworkImageUrl(
+        url,
+        pixelWidth: pixelWidth,
+        pixelHeight: pixelHeight,
+        resizeMode: 'cover',
       );
-      unawaited(precacheImage(provider, context, onError: (_, _) {}));
+      unawaited(
+        precacheImage(NetworkImage(effectiveUrl), context, onError: (_, _) {}),
+      );
     }
   }
 
@@ -753,131 +947,420 @@ class _StoryViewerState extends State<StoryViewer>
     _precacheNeighbors();
   }
 
+  void _handleHorizontalDragStart(DragStartDetails details) {
+    if (_transitionController.isAnimating || _verticalDragging) return;
+    _progressController.stop();
+    _horizontalDragExtent = 0;
+    _interactiveTransition = true;
+  }
+
+  void _handleHorizontalDragUpdate(DragUpdateDetails details) {
+    if (!_interactiveTransition) return;
+    _horizontalDragExtent += details.delta.dx;
+    final forward = _horizontalDragExtent < 0;
+    final targetIndex = forward ? _index + 1 : _index - 1;
+    if (targetIndex < 0 || targetIndex >= widget.stories.length) {
+      if (_targetIndex != null) setState(() => _targetIndex = null);
+      _transitionController.value = 0;
+      return;
+    }
+    if (_targetIndex != targetIndex || _forward != forward) {
+      setState(() {
+        _targetIndex = targetIndex;
+        _forward = forward;
+      });
+    }
+    final width = _storyRenderSize(
+      MediaQuery.sizeOf(context),
+    ).width.clamp(1.0, double.infinity);
+    _transitionController.value = (_horizontalDragExtent.abs() / width).clamp(
+      0.0,
+      1.0,
+    );
+  }
+
+  void _handleHorizontalDragEnd(DragEndDetails details) {
+    if (!_interactiveTransition) return;
+    _interactiveTransition = false;
+    final targetIndex = _targetIndex;
+    if (targetIndex == null) {
+      _transitionController.reset();
+      _play();
+      return;
+    }
+    final velocity = details.velocity.pixelsPerSecond.dx;
+    final velocityCommits = _forward ? velocity < -600 : velocity > 600;
+    final commit = _transitionController.value >= 0.22 || velocityCommits;
+    unawaited(_settleHorizontalDrag(targetIndex, commit: commit));
+  }
+
+  void _handleHorizontalDragCancel() {
+    if (!_interactiveTransition) return;
+    _interactiveTransition = false;
+    final targetIndex = _targetIndex;
+    if (targetIndex == null) {
+      _transitionController.reset();
+      _play();
+      return;
+    }
+    unawaited(_settleHorizontalDrag(targetIndex, commit: false));
+  }
+
+  Future<void> _settleHorizontalDrag(
+    int targetIndex, {
+    required bool commit,
+  }) async {
+    if (_reduceMotion) {
+      if (!mounted) return;
+      setState(() {
+        if (commit) _index = targetIndex;
+        _targetIndex = null;
+      });
+      _transitionController.reset();
+      _play();
+      if (commit) _precacheNeighbors();
+      return;
+    }
+
+    final remaining = commit
+        ? 1 - _transitionController.value
+        : _transitionController.value;
+    final milliseconds = (BulkaMotion.emphasized.inMilliseconds * remaining)
+        .round()
+        .clamp(90, BulkaMotion.emphasized.inMilliseconds)
+        .toInt();
+    if (commit) {
+      await _transitionController.animateTo(
+        1,
+        duration: Duration(milliseconds: milliseconds),
+        curve: BulkaMotion.enterCurve,
+      );
+    } else {
+      await _transitionController.animateBack(
+        0,
+        duration: Duration(milliseconds: milliseconds),
+        curve: BulkaMotion.exitCurve,
+      );
+    }
+    if (!mounted) return;
+    setState(() {
+      if (commit) _index = targetIndex;
+      _targetIndex = null;
+    });
+    _transitionController.reset();
+    _play();
+    if (commit) _precacheNeighbors();
+  }
+
+  void _handleVerticalDragStart(DragStartDetails details) {
+    if (_transitionController.isAnimating || _interactiveTransition) return;
+    _progressController.stop();
+    setState(() {
+      _verticalDragging = true;
+      _verticalDragOffset = 0;
+    });
+  }
+
+  void _handleVerticalDragUpdate(DragUpdateDetails details) {
+    if (!_verticalDragging) return;
+    setState(() {
+      _verticalDragOffset = max(0.0, _verticalDragOffset + details.delta.dy);
+    });
+  }
+
+  void _handleVerticalDragEnd(DragEndDetails details) {
+    if (!_verticalDragging) return;
+    final shouldDismiss =
+        _verticalDragOffset >= 96 || details.velocity.pixelsPerSecond.dy > 700;
+    if (shouldDismiss) {
+      Navigator.of(context).maybePop();
+      return;
+    }
+    setState(() {
+      _verticalDragging = false;
+      _verticalDragOffset = 0;
+    });
+    _play();
+  }
+
+  void _handleVerticalDragCancel() {
+    if (!_verticalDragging) return;
+    setState(() {
+      _verticalDragging = false;
+      _verticalDragOffset = 0;
+    });
+    _play();
+  }
+
   @override
   Widget build(BuildContext context) {
     final story = widget.stories[_index];
     final targetStory = _targetIndex == null
         ? null
         : widget.stories[_targetIndex!];
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: GestureDetector(
-        onVerticalDragUpdate: (details) {
-          if (details.delta.dy > 12) Navigator.of(context).maybePop();
-        },
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            BulkaHero(
-              tag: widget.heroTag,
-              child: AnimatedBuilder(
-                animation: _transitionController,
-                builder: (context, _) => _StorySharedAxisStage(
-                  current: story,
-                  target: targetStory,
-                  progress: _transitionController.value,
-                  forward: _forward,
+    final viewportSize = MediaQuery.sizeOf(context);
+    final desktopLayout = _usesDesktopStoryLayout(viewportSize);
+    final viewer = CallbackShortcuts(
+      bindings: <ShortcutActivator, VoidCallback>{
+        const SingleActivator(LogicalKeyboardKey.arrowLeft): _previous,
+        const SingleActivator(LogicalKeyboardKey.arrowRight): _next,
+        const SingleActivator(LogicalKeyboardKey.escape): () =>
+            Navigator.of(context).maybePop(),
+      },
+      child: Focus(
+        autofocus: true,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onHorizontalDragStart: _handleHorizontalDragStart,
+          onHorizontalDragUpdate: _handleHorizontalDragUpdate,
+          onHorizontalDragEnd: _handleHorizontalDragEnd,
+          onHorizontalDragCancel: _handleHorizontalDragCancel,
+          onVerticalDragStart: _handleVerticalDragStart,
+          onVerticalDragUpdate: _handleVerticalDragUpdate,
+          onVerticalDragEnd: _handleVerticalDragEnd,
+          onVerticalDragCancel: _handleVerticalDragCancel,
+          child: TweenAnimationBuilder<double>(
+            tween: Tween<double>(end: _verticalDragOffset),
+            duration: _verticalDragging
+                ? Duration.zero
+                : BulkaMotion.duration(context, BulkaMotion.fast),
+            curve: _verticalDragging ? Curves.linear : BulkaMotion.enterCurve,
+            builder: (context, offset, child) {
+              final height = _storyRenderSize(
+                MediaQuery.sizeOf(context),
+              ).height.clamp(1.0, double.infinity);
+              final dismissProgress = (offset / height).clamp(0.0, 1.0);
+              return Transform.translate(
+                offset: Offset(0, offset),
+                transformHitTests: false,
+                child: Opacity(
+                  opacity: 1 - dismissProgress * 0.35,
+                  child: child,
                 ),
-              ),
-            ),
-            DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black.withValues(alpha: 0.55),
-                    Colors.transparent,
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-            ),
-            Row(
+              );
+            },
+            child: Stack(
+              fit: StackFit.expand,
               children: [
-                Expanded(
-                  flex: 3,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.translucent,
-                    onTap: _previous,
+                _StoryLoadingSurface(story: story),
+                BulkaHero(
+                  tag: widget.heroTag,
+                  child: AnimatedBuilder(
+                    animation: _transitionController,
+                    builder: (context, _) => _StoryCubeStage(
+                      current: story,
+                      target: targetStory,
+                      progress: _transitionController.value,
+                      forward: _forward,
+                      interactive: _interactiveTransition,
+                    ),
                   ),
                 ),
-                Expanded(
-                  flex: 7,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.translucent,
-                    onTap: _next,
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: Semantics(
+                        button: true,
+                        label: 'story_previous'.tr,
+                        onTap: _previous,
+                        excludeSemantics: true,
+                        child: GestureDetector(
+                          excludeFromSemantics: true,
+                          behavior: HitTestBehavior.translucent,
+                          onTap: _previous,
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 7,
+                      child: Semantics(
+                        button: true,
+                        label: 'story_next'.tr,
+                        onTap: _next,
+                        excludeSemantics: true,
+                        child: GestureDetector(
+                          excludeFromSemantics: true,
+                          behavior: HitTestBehavior.translucent,
+                          onTap: _next,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                SafeArea(
+                  bottom: false,
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: Container(
+                      key: const ValueKey('story-controls'),
+                      padding: const EdgeInsets.fromLTRB(14, 10, 10, 8),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          AnimatedBuilder(
+                            animation: _progressController,
+                            builder: (_, _) => Row(
+                              children: [
+                                for (var i = 0; i < widget.stories.length; i++)
+                                  Expanded(
+                                    child: Padding(
+                                      padding: EdgeInsets.only(
+                                        right: i == widget.stories.length - 1
+                                            ? 0
+                                            : 4,
+                                      ),
+                                      child: LinearProgressIndicator(
+                                        value: _reduceMotion
+                                            ? (i <= _index ? 1 : 0)
+                                            : i < _index
+                                            ? 1
+                                            : i == _index
+                                            ? _progressController.value
+                                            : 0,
+                                        minHeight: 3,
+                                        color: _bulkaYellow,
+                                        backgroundColor: Colors.white
+                                            .withValues(alpha: 0.52),
+                                        borderRadius: BorderRadius.circular(
+                                          BulkaRadii.small,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.only(left: 4),
+                                  child: Text(
+                                    story.localizedTitle,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontFamily: _headingFont,
+                                      color: Colors.white,
+                                      fontSize: BulkaTypeScale.body,
+                                      fontWeight: FontWeight.w700,
+                                      shadows: [
+                                        Shadow(
+                                          color: Color(0x99000000),
+                                          blurRadius: 8,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                onPressed: () =>
+                                    Navigator.of(context).maybePop(),
+                                tooltip: 'close_tooltip'.tr,
+                                style: IconButton.styleFrom(
+                                  minimumSize: const Size(48, 48),
+                                  backgroundColor: Colors.black.withValues(
+                                    alpha: 0.18,
+                                  ),
+                                  foregroundColor: Colors.white,
+                                ),
+                                icon: const Icon(Icons.close_rounded, size: 29),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ],
             ),
-            SafeArea(
+          ),
+        ),
+      ),
+    );
+    return Scaffold(
+      backgroundColor: desktopLayout ? const Color(0xFF1B0D08) : Colors.white,
+      body: desktopLayout
+          ? _DesktopStoryViewport(
+              story: story,
+              onDismiss: () => Navigator.of(context).maybePop(),
+              child: viewer,
+            )
+          : viewer,
+    );
+  }
+}
+
+class _StoryLoadingSurface extends StatelessWidget {
+  const _StoryLoadingSurface({required this.story});
+
+  final PromoStory story;
+
+  @override
+  Widget build(BuildContext context) {
+    final reduceMotion = BulkaMotion.reduced(context);
+    final previewUrl = story.localizedGroupCoverUrl.isNotEmpty
+        ? story.localizedGroupCoverUrl
+        : story.localizedImageUrl;
+    return ExcludeSemantics(
+      child: ColoredBox(
+        color: Colors.white,
+        child: Stack(
+          key: const ValueKey('story-loading-effect'),
+          fit: StackFit.expand,
+          children: [
+            if (previewUrl.startsWith('http'))
+              ImageFiltered(
+                imageFilter: ui.ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                child: Transform.scale(
+                  scale: 1.1,
+                  child: _NetworkImage(
+                    url: previewUrl,
+                    fit: BoxFit.cover,
+                    loadingPlaceholder: const SizedBox.expand(),
+                    errorPlaceholder: const SizedBox.expand(),
+                  ),
+                ),
+              ),
+            ColoredBox(color: Colors.white.withValues(alpha: 0.52)),
+            Center(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                key: const ValueKey('story-loading-content'),
+                padding: const EdgeInsets.fromLTRB(24, 18, 24, 17),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    AnimatedBuilder(
-                      animation: _progressController,
-                      builder: (_, _) => Row(
-                        children: [
-                          for (var i = 0; i < widget.stories.length; i++)
-                            Expanded(
-                              child: Padding(
-                                padding: EdgeInsets.only(
-                                  right: i == widget.stories.length - 1 ? 0 : 4,
-                                ),
-                                child: LinearProgressIndicator(
-                                  value: _reduceMotion
-                                      ? (i <= _index ? 1 : 0)
-                                      : i < _index
-                                      ? 1
-                                      : i == _index
-                                      ? _progressController.value
-                                      : 0,
-                                  minHeight: 2.5,
-                                  color: Colors.white,
-                                  backgroundColor: Colors.white.withValues(
-                                    alpha: 0.35,
-                                  ),
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                              ),
-                            ),
-                        ],
+                    Image.asset(
+                      'assets/brand/bulka_logo.png',
+                      key: const ValueKey('story-loading-logo'),
+                      width: 160,
+                      fit: BoxFit.contain,
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      'story_loading'.tr,
+                      style: const TextStyle(
+                        fontFamily: _headingFont,
+                        color: _textDark,
+                        fontSize: BulkaTypeScale.bodySmall,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.only(left: 4),
-                            child: Text(
-                              story.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16.5,
-                                fontWeight: FontWeight.w600,
-                                shadows: [
-                                  Shadow(blurRadius: 6, color: Colors.black54),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          onPressed: () => Navigator.of(context).maybePop(),
-                          tooltip: 'close_tooltip'.tr,
-                          icon: const Icon(
-                            Icons.close,
-                            color: Colors.white,
-                            size: 28,
-                          ),
-                        ),
-                      ],
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: 138,
+                      child: LinearProgressIndicator(
+                        value: reduceMotion ? 0.68 : null,
+                        minHeight: 4,
+                        color: _bulkaYellow,
+                        backgroundColor: const Color(0xFFEADBC4),
+                        borderRadius: BorderRadius.circular(BulkaRadii.small),
+                      ),
                     ),
                   ],
                 ),
@@ -891,9 +1374,11 @@ class _StoryViewerState extends State<StoryViewer>
 }
 
 String _storyImageUrl(PromoStory story) {
-  return story.contentUrl.isNotEmpty
-      ? story.contentUrl
-      : (story.imageUrl.isNotEmpty ? story.imageUrl : story.groupCoverUrl);
+  return story.localizedContentUrl.isNotEmpty
+      ? story.localizedContentUrl
+      : (story.localizedImageUrl.isNotEmpty
+            ? story.localizedImageUrl
+            : story.localizedGroupCoverUrl);
 }
 
 class _StoryFullImage extends StatelessWidget {
@@ -905,10 +1390,19 @@ class _StoryFullImage extends StatelessWidget {
   Widget build(BuildContext context) {
     final url = _storyImageUrl(story);
     if (url.startsWith('http')) {
-      return _NetworkImage(url: url, fit: BoxFit.cover);
+      return SizedBox.expand(
+        key: const ValueKey('story-media-frame'),
+        child: _NetworkImage(
+          url: url,
+          fit: BoxFit.cover,
+          semanticLabel: story.localizedTitle,
+          loadingPlaceholder: const SizedBox.expand(),
+          errorPlaceholder: const SizedBox.expand(),
+        ),
+      );
     }
     final isHappy =
-        story.groupId == 'happy_hours' || story.title.contains('2+1');
+        story.groupId == 'happy_hours' || story.localizedTitle.contains('2+1');
     return LayoutBuilder(
       builder: (context, constraints) {
         // During the Hero flight this widget briefly inherits the compact
@@ -933,7 +1427,7 @@ class _StoryFullImage extends StatelessWidget {
                 style: TextStyle(
                   fontFamily: _headingFont,
                   fontSize: compact ? 42 : (isHappy ? 80 : 86),
-                  fontWeight: FontWeight.w900,
+                  fontWeight: FontWeight.w700,
                   color: const Color(0xFFDCAE68),
                 ),
               ),
@@ -941,27 +1435,28 @@ class _StoryFullImage extends StatelessWidget {
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: compact ? 18 : 28),
                 child: Text(
-                  story.title.toUpperCase(),
+                  story.localizedTitle.toUpperCase(),
                   maxLines: compact ? 1 : 3,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontFamily: _headingFont,
                     fontSize: compact ? 18 : 24,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w700,
                     color: Colors.white,
                   ),
                 ),
               ),
-              if (!compact && (story.description ?? '').isNotEmpty) ...[
+              if (!compact &&
+                  (story.localizedDescription ?? '').isNotEmpty) ...[
                 const SizedBox(height: 14),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 36),
                   child: Text(
-                    story.description!,
+                    story.localizedDescription!,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
-                      fontSize: 16,
+                      fontSize: BulkaTypeScale.body,
                       color: Color(0xFFEADBBE),
                       height: 1.4,
                     ),
@@ -976,66 +1471,137 @@ class _StoryFullImage extends StatelessWidget {
   }
 }
 
-class _StorySharedAxisStage extends StatelessWidget {
-  const _StorySharedAxisStage({
+class _StoryCubeStage extends StatelessWidget {
+  const _StoryCubeStage({
     required this.current,
     required this.target,
     required this.progress,
     required this.forward,
+    required this.interactive,
   });
 
   final PromoStory current;
   final PromoStory? target;
   final double progress;
   final bool forward;
+  final bool interactive;
 
   @override
   Widget build(BuildContext context) {
     final next = target;
     if (next == null) {
-      return RepaintBoundary(child: _StoryFullImage(story: current));
+      return KeyedSubtree(
+        key: const ValueKey('story-cube-stage'),
+        child: RepaintBoundary(child: _StoryFullImage(story: current)),
+      );
     }
 
-    final eased = Curves.easeInOutCubicEmphasized.transform(
-      progress.clamp(0, 1),
+    final normalized = progress.clamp(0.0, 1.0);
+    final eased = interactive
+        ? normalized
+        : BulkaMotion.movementCurve.transform(normalized);
+    return KeyedSubtree(
+      key: const ValueKey('story-cube-stage'),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth;
+          final halfWidth = width / 2;
+          final turn = forward ? -1.0 : 1.0;
+          final angle = turn * eased * pi / 2;
+
+          Matrix4 currentTransform() => Matrix4.identity()
+            ..setEntry(3, 2, 0.00135)
+            ..translateByDouble(0.0, 0.0, -halfWidth, 1.0)
+            ..rotateY(angle)
+            ..translateByDouble(0.0, 0.0, halfWidth, 1.0);
+
+          Matrix4 targetTransform() => Matrix4.identity()
+            ..setEntry(3, 2, 0.00135)
+            ..translateByDouble(0.0, 0.0, -halfWidth, 1.0)
+            ..rotateY(angle)
+            ..translateByDouble(-turn * halfWidth, 0.0, 0.0, 1.0)
+            ..rotateY(-turn * pi / 2);
+
+          final currentFace = _StoryCubeFace(
+            key: const ValueKey('story-current-face'),
+            transform: currentTransform(),
+            story: current,
+            shade: 0.24 * eased,
+            shadeFromLeft: forward,
+          );
+          final targetFace = _StoryCubeFace(
+            key: const ValueKey('story-target-face'),
+            transform: targetTransform(),
+            story: next,
+            shade: 0.22 * (1 - eased),
+            shadeFromLeft: !forward,
+          );
+
+          // Flutter does not depth-sort separate widgets. Swap paint order at
+          // the halfway point so the face closest to the viewer stays on top.
+          final faces = eased < 0.5
+              ? <Widget>[targetFace, currentFace]
+              : <Widget>[currentFace, targetFace];
+          return ClipRect(
+            child: ColoredBox(
+              color: Colors.black,
+              child: Stack(fit: StackFit.expand, children: faces),
+            ),
+          );
+        },
+      ),
     );
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final direction = forward ? 1.0 : -1.0;
-        return ClipRect(
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              Transform.translate(
-                offset: Offset(-direction * width * 0.12 * eased, 0),
-                child: Transform.scale(
-                  scale: 1 - (0.015 * eased),
-                  child: RepaintBoundary(
-                    child: _StoryFullImage(story: current),
+  }
+}
+
+class _StoryCubeFace extends StatelessWidget {
+  const _StoryCubeFace({
+    required this.transform,
+    required this.story,
+    required this.shade,
+    required this.shadeFromLeft,
+    super.key,
+  });
+
+  final Matrix4 transform;
+  final PromoStory story;
+  final double shade;
+  final bool shadeFromLeft;
+
+  @override
+  Widget build(BuildContext context) {
+    final shadow = shade.clamp(0.0, 1.0);
+    return Transform(
+      transform: transform,
+      alignment: Alignment.center,
+      transformHitTests: false,
+      child: RepaintBoundary(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            _StoryFullImage(story: story),
+            if (shadow > 0)
+              IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: shadeFromLeft
+                          ? Alignment.centerLeft
+                          : Alignment.centerRight,
+                      end: shadeFromLeft
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
+                      colors: [
+                        Colors.transparent,
+                        Colors.black.withValues(alpha: shadow),
+                      ],
+                    ),
                   ),
                 ),
               ),
-              Transform.translate(
-                offset: Offset(direction * width * (1 - eased), 0),
-                child: RepaintBoundary(
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      _StoryFullImage(story: next),
-                      ColoredBox(
-                        color: Colors.black.withValues(
-                          alpha: 0.12 * (1 - eased),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+          ],
+        ),
+      ),
     );
   }
 }

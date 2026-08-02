@@ -15,7 +15,7 @@ class NewsFeed extends StatelessWidget {
           style: const TextStyle(
             color: _textDark,
             fontFamily: _headingFont,
-            fontSize: 24,
+            fontSize: BulkaTypeScale.titleLarge,
             fontWeight: FontWeight.w400,
           ),
         ),
@@ -24,7 +24,7 @@ class NewsFeed extends StatelessWidget {
           'news_sub'.tr,
           style: TextStyle(
             color: _textDark.withValues(alpha: 0.58),
-            fontSize: 14,
+            fontSize: BulkaTypeScale.bodySmall,
             height: 1.3,
             fontWeight: FontWeight.w600,
           ),
@@ -46,7 +46,10 @@ class NewsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasImage = item.imageUrl.isNotEmpty;
+    final imageUrl = item.localizedImageUrl;
+    final title = item.localizedTitle;
+    final description = item.localizedDescription;
+    final hasImage = imageUrl.isNotEmpty;
     final dateLabel = item.createdAt == null
         ? null
         : formatShortDate(item.createdAt!);
@@ -55,7 +58,7 @@ class NewsCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: _lightCard,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(BulkaRadii.card),
         border: Border.all(color: Colors.white.withValues(alpha: 0.9)),
         boxShadow: [
           BoxShadow(
@@ -76,9 +79,9 @@ class NewsCard extends StatelessWidget {
               children: [
                 if (hasImage)
                   _NetworkImage(
-                    url: item.imageUrl,
+                    url: imageUrl,
                     fit: BoxFit.cover,
-                    semanticLabel: item.title,
+                    semanticLabel: title,
                   )
                 else
                   const _NewsFallbackBanner(),
@@ -108,14 +111,15 @@ class NewsCard extends StatelessWidget {
                         ),
                         decoration: BoxDecoration(
                           color: _lightCard.withValues(alpha: 0.92),
-                          borderRadius: BorderRadius.circular(999),
+                          borderRadius: BorderRadius.circular(BulkaRadii.pill),
                         ),
                         child: Text(
                           'news_badge'.tr,
                           style: const TextStyle(
+                            fontFamily: _headingFont,
                             color: _cocoa,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w900,
+                            fontSize: BulkaTypeScale.caption,
+                            fontWeight: FontWeight.w700,
                             letterSpacing: 0.4,
                           ),
                         ),
@@ -131,7 +135,9 @@ class NewsCard extends StatelessWidget {
                             color: hasImage
                                 ? Colors.black.withValues(alpha: 0.36)
                                 : _cocoa.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(999),
+                            borderRadius: BorderRadius.circular(
+                              BulkaRadii.pill,
+                            ),
                             border: Border.all(
                               color: Colors.white.withValues(alpha: 0.22),
                             ),
@@ -139,9 +145,10 @@ class NewsCard extends StatelessWidget {
                           child: Text(
                             dateLabel,
                             style: TextStyle(
+                              fontFamily: _headingFont,
                               color: hasImage ? Colors.white : _cocoa,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
+                              fontSize: BulkaTypeScale.caption,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                         ),
@@ -158,22 +165,22 @@ class NewsCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  item.title,
+                  title,
                   style: const TextStyle(
                     color: _textDark,
                     fontFamily: _headingFont,
-                    fontSize: 20,
+                    fontSize: BulkaTypeScale.title,
                     height: 1.12,
                     fontWeight: FontWeight.w400,
                   ),
                 ),
-                if ((item.description ?? '').isNotEmpty) ...[
+                if ((description ?? '').isNotEmpty) ...[
                   const SizedBox(height: 10),
                   Text(
-                    item.description!,
+                    description!,
                     style: TextStyle(
                       color: _textDark.withValues(alpha: 0.7),
-                      fontSize: 15,
+                      fontSize: BulkaTypeScale.body,
                       height: 1.48,
                       fontWeight: FontWeight.w500,
                     ),
@@ -202,7 +209,7 @@ class NewsCard extends StatelessWidget {
                         style: const TextStyle(
                           color: _cocoa,
                           fontFamily: _headingFont,
-                          fontSize: 13,
+                          fontSize: BulkaTypeScale.bodySmall,
                           fontWeight: FontWeight.w400,
                         ),
                       ),
@@ -240,7 +247,7 @@ class _NewsFallbackBanner extends StatelessWidget {
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(34),
+                borderRadius: BorderRadius.circular(BulkaRadii.sheet),
               ),
               child: const SizedBox(width: 112, height: 112),
             ),
@@ -262,7 +269,7 @@ class _NewsFallbackBanner extends StatelessWidget {
               height: 58,
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.92),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(BulkaRadii.control),
               ),
               child: const Icon(
                 Icons.bakery_dining_rounded,
@@ -280,7 +287,7 @@ class _NewsFallbackBanner extends StatelessWidget {
               style: const TextStyle(
                 color: _cocoa,
                 fontFamily: _headingFont,
-                fontSize: 28,
+                fontSize: BulkaTypeScale.pageTitle,
                 height: 1,
                 fontWeight: FontWeight.w400,
               ),

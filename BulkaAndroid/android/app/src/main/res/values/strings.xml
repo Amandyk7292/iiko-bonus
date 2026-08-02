@@ -1,4 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Bulka Bakery</string>
+    <string name="widget_description">Balance and current Bulka order</string>
+    <string name="widget_loyalty">Loyalty</string>
+    <string name="widget_balance_label">Balance</string>
+    <string name="widget_no_active_order">No active orders</string>
+    <string name="widget_order_number">Order #%1$d</string>
+    <string name="widget_status_with_eta">%1$s · by %2$s</string>
+    <string name="widget_signed_out_title">Your Bulka card</string>
+    <string name="widget_signed_out_body">Tap to sign in and see your balance</string>
+    <string name="widget_status_received">Order received</string>
+    <string name="widget_status_confirmed">Order confirmed</string>
+    <string name="widget_status_preparing">Preparing</string>
+    <string name="widget_status_ready">Ready for pickup</string>
+    <string name="widget_status_handed_over">Handed over</string>
+    <string name="widget_status_on_the_way">On the way</string>
+    <string name="widget_status_delivered">Delivered</string>
+    <string name="widget_status_cancelled">Cancelled</string>
+    <string name="widget_status_active">Order is active</string>
+    <string name="widget_accessibility_signed_out">Bulka. Sign in to see your balance.</string>
+    <string name="widget_accessibility_balance">Bulka balance: %1$s. Tap to open.</string>
+    <string name="widget_accessibility_order">Bulka balance: %1$s. Order #%2$d: %3$s. Tap to open.</string>
+    <string name="notification_channel_general_name">Bulka notifications</string>
+    <string name="notification_channel_general_description">Offers, rewards, and order updates</string>
+    <string name="notification_channel_order_name">Order status</string>
+    <string name="notification_channel_order_description">Ongoing active order status</string>
+    <string name="order_notification_updating">Order is updating</string>
+    <string name="order_notification_eta">by %1$s</string>
+    <string name="order_notification_title">Order #%1$d</string>
+    <string name="order_notification_private_title">Bulka order update</string>
+    <string name="order_notification_private_body">Unlock your phone to view the details</string>
 </resources>

@@ -6,38 +6,69 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class CartItem {
   final String id;
+  final String cartKey;
   final String name;
   final int price;
+  final int basePrice;
   final String imageUrl;
   final bool isStopListed;
+  final Map<String, dynamic>? configuration;
+  final List<Map<String, dynamic>> modifiers;
   int quantity;
 
   CartItem({
     required this.id,
+    String? cartKey,
     required this.name,
     required this.price,
+    int? basePrice,
     required this.imageUrl,
     this.isStopListed = false,
+    this.configuration,
+    this.modifiers = const [],
     this.quantity = 1,
-  });
+  }) : cartKey = cartKey ?? id,
+       basePrice = basePrice ?? price;
 
   int get total => price * quantity;
 
   Map<String, dynamic> toJson() => {
     'id': id,
+    'cartKey': cartKey,
     'name': name,
     'price': price,
+    'basePrice': basePrice,
     'imageUrl': imageUrl,
     'isStopListed': isStopListed,
     'quantity': quantity,
+    'configuration': configuration,
+    'modifiers': modifiers,
+  };
+
+  Map<String, dynamic> toOrderPayload() => {
+    'id': id,
+    'quantity': quantity,
+    if (configuration != null) 'configuration': configuration,
+    if (modifiers.isNotEmpty) 'modifiers': modifiers,
   };
 
   factory CartItem.fromJson(Map<String, dynamic> json) => CartItem(
     id: json['id']?.toString() ?? '',
+    cartKey: json['cartKey']?.toString(),
     name: json['name']?.toString() ?? '',
     price: (json['price'] as num?)?.toInt() ?? 0,
+    basePrice: (json['basePrice'] as num?)?.toInt(),
     imageUrl: json['imageUrl']?.toString() ?? '',
     isStopListed: json['isStopListed'] == true,
+    configuration: json['configuration'] is Map
+        ? Map<String, dynamic>.from(json['configuration'])
+        : null,
+    modifiers: json['modifiers'] is List
+        ? (json['modifiers'] as List)
+              .whereType<Map>()
+              .map((value) => Map<String, dynamic>.from(value))
+              .toList()
+        : const [],
     quantity: ((json['quantity'] as num?)?.toInt() ?? 1).clamp(1, 99).toInt(),
   );
 }
@@ -77,7 +108,45 @@ class CartProvider extends ChangeNotifier {
   int get totalAmount => _items.values.fold(0, (sum, item) => sum + item.total);
 
   int getQuantity(String productId) {
-    return _items[productId]?.quantity ?? 0;
+    return _items.values
+        .where((item) => item.id == productId)
+        .fold(0, (sum, item) => sum + item.quantity);
+  }
+
+  void addConfiguredItem({
+    required String productId,
+    required String name,
+    required int basePrice,
+    required int unitPrice,
+    required String imageUrl,
+    Map<String, dynamic>? configuration,
+    List<Map<String, dynamic>> modifiers = const [],
+    int quantity = 1,
+  }) {
+    final payload = jsonEncode({
+      'configuration': configuration,
+      'modifiers': modifiers,
+    });
+    final selection = base64Url.encode(utf8.encode(payload));
+    final key = '$productId::$selection';
+    final current = _items[key];
+    if (current != null) {
+      current.quantity = (current.quantity + quantity).clamp(1, 99);
+    } else {
+      _items[key] = CartItem(
+        id: productId,
+        cartKey: key,
+        name: name,
+        price: unitPrice,
+        basePrice: basePrice,
+        imageUrl: imageUrl,
+        configuration: configuration,
+        modifiers: modifiers,
+        quantity: quantity.clamp(1, 99),
+      );
+    }
+    notifyListeners();
+    unawaited(_save());
   }
 
   void addItem({
@@ -141,23 +210,31 @@ class CartProvider extends ChangeNotifier {
     var changed = false;
     for (final entry in _items.entries.toList()) {
       final current = entry.value;
-      final latest = menu[entry.key];
+      final latest = menu[current.id];
       final next = latest == null
           ? CartItem(
               id: current.id,
+              cartKey: current.cartKey,
               name: current.name,
               price: current.price,
+              basePrice: current.basePrice,
               imageUrl: current.imageUrl,
               isStopListed: true,
               quantity: current.quantity,
+              configuration: current.configuration,
+              modifiers: current.modifiers,
             )
           : CartItem(
               id: current.id,
+              cartKey: current.cartKey,
               name: latest.name,
-              price: latest.price,
+              price: latest.price + (current.price - current.basePrice),
+              basePrice: latest.price,
               imageUrl: latest.imageUrl,
               isStopListed: latest.isStopListed,
               quantity: current.quantity,
+              configuration: current.configuration,
+              modifiers: current.modifiers,
             );
       if (current.name != next.name ||
           current.price != next.price ||
@@ -181,7 +258,7 @@ class CartProvider extends ChangeNotifier {
         if (value is! Map) continue;
         final item = CartItem.fromJson(Map<String, dynamic>.from(value));
         if (item.id.isNotEmpty && item.price > 0) {
-          _items[item.id] = item;
+          _items[item.cartKey] = item;
         }
       }
       _applyLatestMenu();

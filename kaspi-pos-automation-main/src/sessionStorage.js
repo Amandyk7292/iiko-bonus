@@ -4,7 +4,10 @@ import { persistRuntimeJson, readRuntimeJson } from './runtimeJson.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const SESSION_FILE = path.join(__dirname, '..', 'session.json');
+const sessionFileOverride = String(process.env.KASPI_SESSION_FILE || '').trim();
+const SESSION_FILE = sessionFileOverride
+  ? path.resolve(sessionFileOverride)
+  : path.join(__dirname, '..', 'session.json');
 let inMemorySession;
 
 const loadSession = () => {
@@ -21,12 +24,37 @@ export const saveGlobalSession = (tokenSN, vtokenSecret, profileId) => {
     updatedAt: new Date().toISOString(),
   };
   inMemorySession = data;
-  persistRuntimeJson(SESSION_FILE, data, 'SESSION_JSON_B64');
+  persistRuntimeJson(SESSION_FILE, data);
+  return data;
+};
+
+export const clearGlobalSession = (reason = 'reauth_required', expectedSession = null) => {
+  const current = getGlobalSession();
+  if (expectedSession) {
+    const expected =
+      typeof expectedSession === 'string' ? { tokenSN: expectedSession } : expectedSession;
+    if (
+      !current ||
+      (expected.tokenSN && current.tokenSN !== expected.tokenSN) ||
+      (expected.vtokenSecret && current.vtokenSecret !== expected.vtokenSecret)
+    ) {
+      return false;
+    }
+  }
+  const data = {
+    revoked: true,
+    reason: String(reason || 'reauth_required').slice(0, 100),
+    updatedAt: new Date().toISOString(),
+  };
+  inMemorySession = data;
+  persistRuntimeJson(SESSION_FILE, data);
+  return true;
 };
 
 export const getGlobalSession = () => {
   try {
     const saved = loadSession();
+    if (saved?.revoked) return null;
     if (saved) return saved;
 
     const tokenSN = String(process.env.KASPI_TOKEN_SN || '').trim();

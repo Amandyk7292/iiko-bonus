@@ -105,7 +105,9 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
         content: Text(message),
         backgroundColor: isError ? Colors.red.shade800 : Colors.green.shade800,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(BulkaRadii.control),
+        ),
       ),
     );
   }
@@ -163,7 +165,9 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
           style: const TextStyle(fontFamily: _headingFont),
         ),
         content: Text('delete_account_message'.tr),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(BulkaRadii.control),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -177,6 +181,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
             child: Text(
               'delete_btn'.tr,
               style: const TextStyle(
+                fontFamily: _headingFont,
                 color: Colors.red,
                 fontWeight: FontWeight.bold,
               ),
@@ -265,6 +270,8 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
   }
 
   Widget _buildCityDropdown() {
+    final colors = context.bulkaColors;
+    final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.only(bottom: 24),
       child: Column(
@@ -272,9 +279,9 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
         children: [
           Text(
             'city_label'.tr,
-            style: const TextStyle(
-              color: Color(0xFF231007),
-              fontSize: 15,
+            style: TextStyle(
+              color: scheme.onSurface,
+              fontSize: BulkaTypeScale.body,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -282,12 +289,9 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: const Color(0xFFE5D5C5).withValues(alpha: 0.5),
-                width: 1.5,
-              ),
+              color: scheme.surface,
+              borderRadius: BorderRadius.circular(BulkaRadii.control),
+              border: Border.all(color: colors.cardBorder, width: 1.5),
               boxShadow: [
                 BoxShadow(
                   color: const Color(0xFF532814).withValues(alpha: 0.04),
@@ -304,7 +308,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                   'select_city'.tr,
                   style: const TextStyle(
                     color: Color(0x66231007),
-                    fontSize: 16,
+                    fontSize: BulkaTypeScale.body,
                   ),
                 ),
                 icon: _citiesLoading
@@ -317,8 +321,8 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                         Icons.keyboard_arrow_down_rounded,
                         color: Color(0xFF532814),
                       ),
-                dropdownColor: Colors.white,
-                borderRadius: BorderRadius.circular(16),
+                dropdownColor: scheme.surface,
+                borderRadius: BorderRadius.circular(BulkaRadii.control),
                 items: [
                   if (_selectedCity != null &&
                       _selectedCity!.isNotEmpty &&
@@ -327,9 +331,9 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                       value: _selectedCity,
                       child: Text(
                         _selectedCity!,
-                        style: const TextStyle(
-                          color: Color(0xFF231007),
-                          fontSize: 16,
+                        style: TextStyle(
+                          color: scheme.onSurface,
+                          fontSize: BulkaTypeScale.body,
                         ),
                       ),
                     ),
@@ -338,9 +342,9 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                       value: city.name,
                       child: Text(
                         city.name,
-                        style: const TextStyle(
-                          color: Color(0xFF231007),
-                          fontSize: 16,
+                        style: TextStyle(
+                          color: scheme.onSurface,
+                          fontSize: BulkaTypeScale.body,
                         ),
                       ),
                     );
@@ -363,7 +367,10 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                 Expanded(
                   child: Text(
                     'error_load_cities'.tr,
-                    style: const TextStyle(color: _errorRed, fontSize: 13),
+                    style: const TextStyle(
+                      color: _errorRed,
+                      fontSize: BulkaTypeScale.bodySmall,
+                    ),
                   ),
                 ),
                 TextButton(onPressed: _loadCities, child: Text('retry_btn'.tr)),
@@ -376,39 +383,34 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
   }
 
   Widget _buildDateField() {
+    final colors = context.bulkaColors;
+    final scheme = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'birthdate_label'.tr,
-          style: const TextStyle(
-            color: Color(0xFF231007),
-            fontSize: 15,
+          style: TextStyle(
+            color: scheme.onSurface,
+            fontSize: BulkaTypeScale.body,
             fontWeight: FontWeight.w600,
           ),
         ),
         const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFF3F3F3)),
+        TextField(
+          controller: _birthDateController,
+          keyboardType: TextInputType.number,
+          onChanged: _onBirthDateChanged,
+          style: TextStyle(
+            fontSize: BulkaTypeScale.body,
+            color: scheme.onSurface,
           ),
-          child: TextField(
-            controller: _birthDateController,
-            keyboardType: TextInputType.number,
-            onChanged: _onBirthDateChanged,
-            style: const TextStyle(fontSize: 16, color: Color(0xFF6D3317)),
-            decoration: InputDecoration(
-              hintText: 'date_hint'.tr,
-              hintStyle: TextStyle(
-                color: const Color(0xFF6D3317).withValues(alpha: 0.3),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 14,
-              ),
-              border: InputBorder.none,
+          decoration: InputDecoration(
+            hintText: 'date_hint'.tr,
+            hintStyle: TextStyle(color: colors.mutedText),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
             ),
           ),
         ),
@@ -425,6 +427,8 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
     Widget? badge,
     TextInputType? keyboardType,
   }) {
+    final colors = context.bulkaColors;
+    final scheme = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -433,9 +437,9 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
           children: [
             Text(
               label,
-              style: const TextStyle(
-                color: Color(0xFF231007),
-                fontSize: 15,
+              style: TextStyle(
+                color: scheme.onSurface,
+                fontSize: BulkaTypeScale.body,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -443,39 +447,32 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
           ],
         ),
         const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFF3F3F3)),
+        TextField(
+          controller: controller,
+          readOnly: readOnly,
+          onTap: onTap,
+          keyboardType: keyboardType,
+          autofillHints: keyboardType == TextInputType.emailAddress
+              ? const [AutofillHints.email]
+              : null,
+          autocorrect: keyboardType != TextInputType.emailAddress,
+          style: TextStyle(
+            fontSize: BulkaTypeScale.body,
+            color: scheme.onSurface,
           ),
-          child: TextField(
-            controller: controller,
-            readOnly: readOnly,
-            onTap: onTap,
-            keyboardType: keyboardType,
-            autofillHints: keyboardType == TextInputType.emailAddress
-                ? const [AutofillHints.email]
-                : null,
-            autocorrect: keyboardType != TextInputType.emailAddress,
-            style: const TextStyle(fontSize: 16, color: Color(0xFF6D3317)),
-            decoration: InputDecoration(
-              hintText: label,
-              hintStyle: TextStyle(
-                color: const Color(0xFF6D3317).withValues(alpha: 0.3),
-              ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 14,
-              ),
-              border: InputBorder.none,
-              suffixIcon: onTap != null
-                  ? const Icon(
-                      Icons.chevron_right_rounded,
-                      color: Color(0xFFFFC107),
-                    )
-                  : null,
+          decoration: InputDecoration(
+            hintText: label,
+            hintStyle: TextStyle(color: colors.mutedText),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 14,
             ),
+            suffixIcon: onTap != null
+                ? const Icon(
+                    Icons.chevron_right_rounded,
+                    color: Color(0xFFFFC107),
+                  )
+                : null,
           ),
         ),
         const SizedBox(height: 20),
@@ -492,7 +489,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
       label: title,
       child: InkWell(
         onTap: () => setState(() => _selectedGender = value),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(BulkaRadii.control),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
           child: Row(
@@ -525,7 +522,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                 child: Text(
                   title,
                   style: const TextStyle(
-                    fontSize: 15,
+                    fontSize: BulkaTypeScale.body,
                     color: Color(0xFF6D3317),
                   ),
                 ),
@@ -539,8 +536,10 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.bulkaColors;
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: const Color(0xFFFCFBF9),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
@@ -550,9 +549,9 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
               child: Row(
                 children: [
                   IconButton(
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.arrow_back_ios_new_rounded,
-                      color: Color(0xFF6D3317),
+                      color: colors.brandBrown,
                       size: 20,
                     ),
                     onPressed: widget.onBack,
@@ -560,13 +559,9 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                   ),
                   Expanded(
                     child: Center(
-                      child: Text(
+                      child: _BulkaPageTitle(
                         'personal_title'.tr,
-                        style: const TextStyle(
-                          color: Color(0xFF231007),
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                        ),
+                        color: scheme.onSurface,
                       ),
                     ),
                   ),
@@ -613,9 +608,9 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                     // Gender Selection
                     Text(
                       'gender_label'.tr,
-                      style: const TextStyle(
-                        color: Color(0xFF231007),
-                        fontSize: 15,
+                      style: TextStyle(
+                        color: scheme.onSurface,
+                        fontSize: BulkaTypeScale.body,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -663,13 +658,16 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                               ),
                               decoration: BoxDecoration(
                                 color: _successGreen.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(
+                                  BulkaRadii.control,
+                                ),
                               ),
                               child: Text(
                                 'email_verified'.tr,
                                 style: const TextStyle(
+                                  fontFamily: _headingFont,
                                   color: _successGreen,
-                                  fontSize: 11,
+                                  fontSize: BulkaTypeScale.caption,
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
@@ -691,7 +689,8 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                         child: Text(
                           'save_btn'.tr,
                           style: const TextStyle(
-                            fontSize: 16,
+                            fontFamily: _headingFont,
+                            fontSize: BulkaTypeScale.body,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -708,7 +707,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                           'delete_account'.tr,
                           style: const TextStyle(
                             color: Color(0xFFD32F2F),
-                            fontSize: 15,
+                            fontSize: BulkaTypeScale.body,
                             fontWeight: FontWeight.w600,
                           ),
                         ),

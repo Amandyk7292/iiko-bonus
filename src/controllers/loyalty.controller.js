@@ -9,7 +9,7 @@ const {
   activatePendingBonusesSafe,
 } = require('../services/customer.service');
 const { notifyBonusChange } = require('../services/push.service');
-const { sendAppleWalletPush } = require('../services/wallet.service');
+const { queueCustomerLoyaltySync } = require('../services/loyalty-sync.service');
 const {
   cancelLoyalty,
   commitLoyalty,
@@ -108,9 +108,7 @@ async function notifyCommittedLoyalty(payload, result) {
   } catch (error) {
     console.error('Push notification failed:', error.message);
   }
-  await sendAppleWalletPush(payload.customerId).catch((error) =>
-    console.error('Apple Wallet push failed:', error.message),
-  );
+  queueCustomerLoyaltySync(payload.customerId);
 }
 
 async function recordCommittedLoyalty(payload, result) {

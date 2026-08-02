@@ -53,7 +53,7 @@ export const generateECDH = () => {
     privateKey: lastEcdhKeyPair.privateKey.export({ type: 'pkcs8', format: 'der' }).toString('base64'),
     publicKey: lastEcdhKeyPair.publicKey.export({ type: 'spki', format: 'der' }).toString('base64'),
   };
-  persistRuntimeJson(ECDH_FILE, saved, 'ECDH_KEYPAIR_JSON_B64');
+  persistRuntimeJson(ECDH_FILE, saved);
   const spki = lastEcdhKeyPair.publicKey.export({ type: 'spki', format: 'der' });
   return spki.toString('base64');
 };
@@ -200,17 +200,15 @@ export const signDataPayload = (dataB64) => ecSign(dataB64);
 
 export const computeXSU = (url) => crypto.createHash('md5').update(url.toLowerCase()).digest('hex');
 
-export const computeXSign = (url, headers, xshList) => {
-  const parts = xshList.split(',').map((name) => {
+export const computeXSign = (url, headers, xshList, body) => {
+  const lines = xshList.split(',').map((name) => {
     if (name === 'url') {
-      try {
-        const u = new URL(url);
-        return u.pathname + u.search;
-      } catch {
-        return url;
-      }
+      return `url:${url.toLowerCase()}`;
     }
-    return headers[name] || '';
+    return `${name.toLowerCase()}:${headers[name] || ''}`;
   });
-  return ecSign(parts.join(''));
+  let signText = lines.join('\n');
+  if (body) signText += `\n${body}`;
+  const hash = crypto.createHash('sha256').update(signText, 'utf8').digest();
+  return ecSign(hash);
 };

@@ -38,4 +38,30 @@ build/
 *.aab
 *.exe
 *.p8
+*.jks
+*.keystore
+*.p12
+BulkaAndroid/android/key.properties
+BulkaAndroid/keystore/
 IikoBonusPlugin/Resto.Front.Api.IikoBonusPlugin.dll.config
+
+# Local Kaspi credential/runtime backup; never include it in a release or commit.
+kaspi-pos-automation-main copy/
+.tmp/
+
+# Generated outputs belong to CI/release artifacts, not source control.
+admin-ui/dist/
+public/app/
+coverage/
+admin-ui/coverage/
+artifacts/
+playwright-report/
+test-results/
+__pycache__/
+*.pyc
+
+# Local design exports, audit captures, and agent metadata.
+/output/
+/tmp/
+/.agents/
+/.superdesign/

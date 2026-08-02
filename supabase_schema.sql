@@ -66,6 +66,21 @@ create unique index if not exists customers_phone_unique on public.customers (ph
 create index if not exists customers_created_at_idx on public.customers (created_at desc);
 create index if not exists customers_phone_idx on public.customers (phone);
 
+-- Passwords are kept outside the customer profile row so wildcard profile
+-- queries cannot expose password hashes.
+create table if not exists public.customer_credentials (
+  customer_id uuid primary key references public.customers(id) on delete cascade,
+  password_hash text not null,
+  auth_version integer not null default 1,
+  password_set_at timestamptz not null default now(),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint customer_credentials_password_hash_check check (
+    password_hash ~ '^\$2[aby]\$[0-9]{2}\$[./A-Za-z0-9]{53}$'
+  ),
+  constraint customer_credentials_auth_version_check check (auth_version between 1 and 2147483647)
+);
+
 -- --------------------------------------------------------------------
 -- Transactions
 -- --------------------------------------------------------------------
@@ -196,7 +211,8 @@ insert into public.settings (key, value) values
   ('bonus_referral', '{"enabled":false,"inviter_bonus":300,"friend_bonus":300,"min_first_order":0}'),
   ('bonus_automailing', '{"enabled":false,"inactive_days":30,"message":"Мы скучаем! Возвращайтесь за свежей выпечкой и бонусами."}'),
   ('bonus_card_media', '{"banner_url":"","logo_url":"","card_title":"Bulka Bonus"}'),
-  ('bonus_corporate', '{"enabled":false,"company_name":"","monthly_limit":0,"employee_cashback_percent":5}')
+  ('bonus_corporate', '{"enabled":false,"company_name":"","monthly_limit":0,"employee_cashback_percent":5}'),
+  ('site_access', '{"enabled":false,"allowed_ips":[]}')
 on conflict (key) do nothing;
 
 -- --------------------------------------------------------------------
@@ -497,6 +513,64 @@ on conflict (two_gis_id) do update set
   sort_order = excluded.sort_order,
   updated_at = now();
 
+create table if not exists public.bulka_cities (
+  id uuid primary key default gen_random_uuid(),
+  name varchar(100) not null,
+  center_latitude numeric(10, 7),
+  center_longitude numeric(10, 7),
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint bulka_cities_center_check check (
+    (center_latitude is null and center_longitude is null)
+    or (
+      center_latitude between -90 and 90
+      and center_longitude between -180 and 180
+    )
+  )
+);
+create unique index if not exists bulka_cities_name_unique_idx
+  on public.bulka_cities ((lower(btrim(name))));
+alter table public.bulka_locations add column if not exists city_id uuid;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'bulka_locations_city_id_fkey'
+      and conrelid = 'public.bulka_locations'::regclass
+  ) then
+    alter table public.bulka_locations
+      add constraint bulka_locations_city_id_fkey
+      foreign key (city_id) references public.bulka_cities(id) on delete restrict;
+  end if;
+end
+$$;
+insert into public.bulka_cities (name, center_latitude, center_longitude)
+select
+  min(btrim(location.city)),
+  case when count(location.latitude) > 0 then round(avg(location.latitude), 7) end,
+  case when count(location.longitude) > 0 then round(avg(location.longitude), 7) end
+from public.bulka_locations location
+where btrim(location.city) <> ''
+group by lower(btrim(location.city))
+on conflict ((lower(btrim(name)))) do update set
+  center_latitude = coalesce(public.bulka_cities.center_latitude, excluded.center_latitude),
+  center_longitude = coalesce(public.bulka_cities.center_longitude, excluded.center_longitude),
+  updated_at = now();
+update public.bulka_locations location
+set city_id = city.id
+from public.bulka_cities city
+where location.city_id is null
+  and lower(btrim(location.city)) = lower(btrim(city.name));
+create index if not exists bulka_locations_city_id_sort_idx
+  on public.bulka_locations(city_id, sort_order, name);
+alter table public.bulka_cities enable row level security;
+drop policy if exists "service role manages bulka cities" on public.bulka_cities;
+create policy "service role manages bulka cities"
+  on public.bulka_cities for all to service_role using (true) with check (true);
+revoke all on public.bulka_cities from public, anon, authenticated;
+grant all on public.bulka_cities to service_role;
+
 delete from public.points point
 using public.cities city
 where point.city_id = city.id
@@ -706,6 +780,7 @@ as $$
 declare
   v_count integer := 0;
   v_amount numeric := 0;
+  v_customer_ids uuid[] := '{}'::uuid[];
 begin
   with due as (
     update public.transactions
@@ -730,13 +805,20 @@ begin
       updated_at = now()
     from due_totals t
     where c.id = t.customer_id
-    returning t.amount
+    returning c.id, t.amount
   )
-  select count(*), coalesce(sum(amount), 0)
-    into v_count, v_amount
+  select
+    count(*),
+    coalesce(sum(amount), 0),
+    coalesce((select array_agg(id) from updated_customers), '{}'::uuid[])
+    into v_count, v_amount, v_customer_ids
     from due;
 
-  return jsonb_build_object('activated_count', v_count, 'activated_amount', v_amount);
+  return jsonb_build_object(
+    'activated_count', v_count,
+    'activated_amount', v_amount,
+    'customer_ids', to_jsonb(v_customer_ids)
+  );
 end;
 $$;
 
@@ -1055,7 +1137,12 @@ begin
     return jsonb_build_object('status', 'invalid', 'attempts', v_attempts);
   end if;
   delete from public.whatsapp_sessions where id = v_session.id;
-  return jsonb_build_object('status', 'success');
+  return jsonb_build_object(
+    'status',
+    'success',
+    'payload',
+    v_payload - 'code' - 'attempts'
+  );
 end;
 $$;
 
@@ -1080,6 +1167,7 @@ on conflict (id) do update set
 -- The stories storage bucket remains publicly readable for app media.
 -- --------------------------------------------------------------------
 alter table public.customers enable row level security;
+alter table public.customer_credentials enable row level security;
 alter table public.transactions enable row level security;
 alter table public.settings enable row level security;
 alter table public.loyalty_tiers enable row level security;
@@ -1099,6 +1187,7 @@ drop policy if exists "Allow all access for Service Role" on public.stories;
 drop policy if exists "Allow all access for Service Role" on public.news;
 drop policy if exists "Allow all access for Service Role" on public.wallet_registrations;
 drop policy if exists "service_role_all_customers" on public.customers;
+drop policy if exists "service_role_all_customer_credentials" on public.customer_credentials;
 drop policy if exists "service_role_all_transactions" on public.transactions;
 drop policy if exists "service_role_all_settings" on public.settings;
 drop policy if exists "service_role_all_loyalty_tiers" on public.loyalty_tiers;
@@ -1112,6 +1201,7 @@ drop policy if exists "service_role_all_cities" on public.cities;
 drop policy if exists "service_role_all_points" on public.points;
 
 create policy "service_role_all_customers" on public.customers for all to service_role using (true) with check (true);
+create policy "service_role_all_customer_credentials" on public.customer_credentials for all to service_role using (true) with check (true);
 create policy "service_role_all_transactions" on public.transactions for all to service_role using (true) with check (true);
 create policy "service_role_all_settings" on public.settings for all to service_role using (true) with check (true);
 create policy "service_role_all_loyalty_tiers" on public.loyalty_tiers for all to service_role using (true) with check (true);
@@ -1127,6 +1217,9 @@ create policy "service_role_all_points" on public.points for all to service_role
 revoke all on table public.loyalty_tiers from public, anon, authenticated;
 grant select on table public.loyalty_tiers to anon, authenticated;
 grant all on table public.loyalty_tiers to service_role;
+
+revoke all on table public.customer_credentials from public, anon, authenticated;
+grant all on table public.customer_credentials to service_role;
 
 drop policy if exists "Public read stories bucket" on storage.objects;
 create policy "Public read stories bucket"
@@ -1189,6 +1282,242 @@ alter table public.customer_notifications enable row level security;
 drop policy if exists "service role manages customer notifications" on public.customer_notifications;
 create policy "service role manages customer notifications"
   on public.customer_notifications for all to service_role using (true) with check (true);
+
+-- --------------------------------------------------------------------
+-- Customer push tokens (one row per app/browser installation)
+-- --------------------------------------------------------------------
+-- Push tokens are stored per app/browser installation so signing in on a
+-- second device does not disable notifications on the first one.
+create table if not exists public.customer_push_tokens (
+  id uuid primary key default gen_random_uuid(),
+  customer_id uuid not null references public.customers(id) on delete cascade,
+  token text not null unique,
+  installation_id varchar(160) not null unique,
+  platform varchar(16) not null default 'unknown'
+    check (platform in ('android', 'ios', 'web', 'unknown')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  last_seen_at timestamptz not null default now(),
+  constraint customer_push_tokens_token_length
+    check (char_length(token) between 20 and 4096),
+  constraint customer_push_tokens_installation_length
+    check (char_length(installation_id) between 8 and 160)
+);
+
+create index if not exists customer_push_tokens_customer_seen_idx
+  on public.customer_push_tokens (customer_id, last_seen_at desc);
+
+alter table public.customer_push_tokens enable row level security;
+drop policy if exists "service role manages customer push tokens"
+  on public.customer_push_tokens;
+create policy "service role manages customer push tokens"
+  on public.customer_push_tokens
+  for all to service_role
+  using (true)
+  with check (true);
+
+revoke all on table public.customer_push_tokens from public, anon, authenticated;
+grant all on table public.customer_push_tokens to service_role;
+
+insert into public.customer_push_tokens (
+  customer_id,
+  token,
+  installation_id,
+  platform,
+  created_at,
+  updated_at,
+  last_seen_at
+)
+select
+  id,
+  fcm_token,
+  'legacy:' || id::text,
+  'unknown',
+  coalesce(created_at, now()),
+  now(),
+  now()
+from public.customers
+where nullif(trim(fcm_token), '') is not null
+on conflict (token) do nothing;
+
+create or replace function public.register_customer_push_token(
+  p_customer_id uuid,
+  p_token text,
+  p_platform text,
+  p_installation_id text,
+  p_language text default null
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_id uuid;
+  v_token text := trim(coalesce(p_token, ''));
+  v_installation_id text := trim(coalesce(p_installation_id, ''));
+  v_platform text := lower(trim(coalesce(p_platform, 'unknown')));
+  v_language text := lower(trim(coalesce(p_language, '')));
+begin
+  if p_customer_id is null then
+    raise exception 'customer id is required';
+  end if;
+  if char_length(v_token) not between 20 and 4096 then
+    raise exception 'invalid push token';
+  end if;
+  if v_installation_id !~ '^[A-Za-z0-9._:-]{8,160}$' then
+    raise exception 'invalid installation id';
+  end if;
+  if v_platform not in ('android', 'ios', 'web', 'unknown') then
+    v_platform := 'unknown';
+  end if;
+  if v_language = 'kz' then
+    v_language := 'kk';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtextextended(v_installation_id, 0));
+
+  delete from public.customer_push_tokens
+  where token = v_token or installation_id = v_installation_id;
+
+  insert into public.customer_push_tokens (
+    customer_id,
+    token,
+    installation_id,
+    platform,
+    created_at,
+    updated_at,
+    last_seen_at
+  )
+  values (
+    p_customer_id,
+    v_token,
+    v_installation_id,
+    v_platform,
+    now(),
+    now(),
+    now()
+  )
+  returning id into v_id;
+
+  update public.customers
+  set
+    fcm_token = v_token,
+    preferred_language = case
+      when v_language in ('ru', 'kk', 'en') then v_language
+      else preferred_language
+    end,
+    updated_at = now()
+  where id = p_customer_id;
+
+  if not found then
+    raise exception 'customer not found';
+  end if;
+
+  return v_id;
+end;
+$$;
+
+create or replace function public.unregister_customer_push_token(
+  p_customer_id uuid,
+  p_installation_id text default null,
+  p_token text default null
+)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_removed integer := 0;
+  v_installation_id text := nullif(trim(coalesce(p_installation_id, '')), '');
+  v_token text := nullif(trim(coalesce(p_token, '')), '');
+begin
+  if p_customer_id is null or (v_installation_id is null and v_token is null) then
+    return 0;
+  end if;
+
+  delete from public.customer_push_tokens
+  where customer_id = p_customer_id
+    and (
+      (v_installation_id is not null and installation_id = v_installation_id)
+      or (v_token is not null and token = v_token)
+    );
+  get diagnostics v_removed = row_count;
+
+  update public.customers
+  set
+    fcm_token = (
+      select token
+      from public.customer_push_tokens
+      where customer_id = p_customer_id
+      order by last_seen_at desc
+      limit 1
+    ),
+    updated_at = now()
+  where id = p_customer_id
+    and (v_removed > 0 or (v_token is not null and fcm_token = v_token));
+
+  return v_removed;
+end;
+$$;
+
+create or replace function public.remove_invalid_customer_push_token(p_token text)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_customer_id uuid;
+  v_removed integer := 0;
+  v_token text := nullif(trim(coalesce(p_token, '')), '');
+begin
+  if v_token is null then
+    return 0;
+  end if;
+
+  delete from public.customer_push_tokens
+  where token = v_token
+  returning customer_id into v_customer_id;
+
+  if found then
+    update public.customers
+    set
+      fcm_token = (
+        select token
+        from public.customer_push_tokens
+        where customer_id = v_customer_id
+        order by last_seen_at desc
+        limit 1
+      ),
+      updated_at = now()
+    where id = v_customer_id;
+    return 1;
+  end if;
+
+  update public.customers
+  set fcm_token = null, updated_at = now()
+  where fcm_token = v_token;
+  get diagnostics v_removed = row_count;
+  return v_removed;
+end;
+$$;
+
+revoke all on function public.register_customer_push_token(uuid, text, text, text, text)
+  from public, anon, authenticated;
+revoke all on function public.unregister_customer_push_token(uuid, text, text)
+  from public, anon, authenticated;
+revoke all on function public.remove_invalid_customer_push_token(text)
+  from public, anon, authenticated;
+
+grant execute on function public.register_customer_push_token(uuid, text, text, text, text)
+  to service_role;
+grant execute on function public.unregister_customer_push_token(uuid, text, text)
+  to service_role;
+grant execute on function public.remove_invalid_customer_push_token(text)
+  to service_role;
+
 
 -- --------------------------------------------------------------------
 -- Kaspi Orders
@@ -1822,6 +2151,147 @@ grant execute on function public.cancel_loyalty_reservation(uuid, text, uuid)
   to service_role;
 
 -- --------------------------------------------------------------------
+-- Public contact center managed through the admin panel
+-- --------------------------------------------------------------------
+create table if not exists public.contact_cards (
+  id uuid primary key default gen_random_uuid(),
+  display_mode text not null default 'standard'
+    check (display_mode in ('standard', 'compact')),
+  title_ru varchar(120) not null check (char_length(btrim(title_ru)) between 1 and 120),
+  title_kk varchar(120) not null check (char_length(btrim(title_kk)) between 1 and 120),
+  title_en varchar(120) not null check (char_length(btrim(title_en)) between 1 and 120),
+  icon_key varchar(40) not null default 'bulka',
+  sort_order integer not null default 0 check (sort_order >= 0),
+  is_active boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.contact_actions (
+  id uuid primary key default gen_random_uuid(),
+  card_id uuid not null references public.contact_cards(id) on delete cascade,
+  action_type text not null
+    check (
+      action_type in (
+        'phone', 'whatsapp', 'telegram', 'instagram', 'vk',
+        'email', 'website', 'online_chat', 'custom_url'
+      )
+    ),
+  label_ru varchar(80) not null check (char_length(btrim(label_ru)) between 1 and 80),
+  label_kk varchar(80) not null check (char_length(btrim(label_kk)) between 1 and 80),
+  label_en varchar(80) not null check (char_length(btrim(label_en)) between 1 and 80),
+  target varchar(500) not null check (char_length(btrim(target)) between 1 and 500),
+  icon_key varchar(40) not null,
+  sort_order integer not null default 0 check (sort_order >= 0),
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists contact_cards_public_order_idx
+  on public.contact_cards (is_active, sort_order, created_at);
+create index if not exists contact_actions_card_order_idx
+  on public.contact_actions (card_id, is_active, sort_order, created_at);
+
+alter table public.contact_cards enable row level security;
+alter table public.contact_actions enable row level security;
+drop policy if exists service_role_all_contact_cards on public.contact_cards;
+drop policy if exists service_role_all_contact_actions on public.contact_actions;
+create policy service_role_all_contact_cards
+  on public.contact_cards for all to service_role using (true) with check (true);
+create policy service_role_all_contact_actions
+  on public.contact_actions for all to service_role using (true) with check (true);
+
+create or replace function public.reorder_contact_cards(p_ids uuid[])
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  requested_count integer := cardinality(coalesce(p_ids, array[]::uuid[]));
+  distinct_count integer;
+  existing_count integer;
+  matching_count integer;
+begin
+  select count(*) into distinct_count
+  from (
+    select distinct requested.id
+    from unnest(coalesce(p_ids, array[]::uuid[])) as requested(id)
+  ) as unique_ids;
+  select count(*) into existing_count from public.contact_cards;
+  select count(*) into matching_count
+  from public.contact_cards
+  where id = any(coalesce(p_ids, array[]::uuid[]));
+  if requested_count <> distinct_count
+    or requested_count <> existing_count
+    or requested_count <> matching_count then
+    raise exception 'contact card reorder must contain the complete unique id set';
+  end if;
+  update public.contact_cards as card
+  set sort_order = ordered.ordinality - 1
+  from unnest(coalesce(p_ids, array[]::uuid[])) with ordinality
+    as ordered(id, ordinality)
+  where card.id = ordered.id;
+end;
+$$;
+
+create or replace function public.reorder_contact_actions(p_card_id uuid, p_ids uuid[])
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  requested_count integer := cardinality(coalesce(p_ids, array[]::uuid[]));
+  distinct_count integer;
+  existing_count integer;
+  matching_count integer;
+begin
+  select count(*) into distinct_count
+  from (
+    select distinct requested.id
+    from unnest(coalesce(p_ids, array[]::uuid[])) as requested(id)
+  ) as unique_ids;
+  select count(*) into existing_count
+  from public.contact_actions
+  where card_id = p_card_id;
+  select count(*) into matching_count
+  from public.contact_actions
+  where card_id = p_card_id
+    and id = any(coalesce(p_ids, array[]::uuid[]));
+  if requested_count <> distinct_count
+    or requested_count <> existing_count
+    or requested_count <> matching_count then
+    raise exception 'contact action reorder must contain the complete unique card id set';
+  end if;
+  update public.contact_actions as action
+  set sort_order = ordered.ordinality - 1
+  from unnest(coalesce(p_ids, array[]::uuid[])) with ordinality
+    as ordered(id, ordinality)
+  where action.card_id = p_card_id
+    and action.id = ordered.id;
+end;
+$$;
+
+revoke all on function public.reorder_contact_cards(uuid[])
+  from public, anon, authenticated;
+revoke all on function public.reorder_contact_actions(uuid, uuid[])
+  from public, anon, authenticated;
+grant execute on function public.reorder_contact_cards(uuid[]) to service_role;
+grant execute on function public.reorder_contact_actions(uuid, uuid[])
+  to service_role;
+
+drop trigger if exists contact_cards_set_updated_at on public.contact_cards;
+create trigger contact_cards_set_updated_at
+before update on public.contact_cards
+for each row execute function public.set_updated_at();
+drop trigger if exists contact_actions_set_updated_at on public.contact_actions;
+create trigger contact_actions_set_updated_at
+before update on public.contact_actions
+for each row execute function public.set_updated_at();
+
+-- --------------------------------------------------------------------
 -- Smoke-check
 -- --------------------------------------------------------------------
 select
@@ -1831,5 +2301,6 @@ select
   (select count(*) from public.bulka_locations) as locations_count,
   (select count(*) from public.customer_addresses) as addresses_count,
   (select count(*) from public.customer_notifications) as notifications_count,
+  (select count(*) from public.contact_cards) as contact_cards_count,
   (select count(*) from public.stories) as stories_count,
   (select count(*) from public.news) as news_count;

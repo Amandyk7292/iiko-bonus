@@ -3,7 +3,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 
-const { signCustomerToken, verifyToken } = require('../src/services/auth.service');
+const {
+  signCustomerToken,
+  signRegistrationToken,
+  verifyToken,
+} = require('../src/services/auth.service');
 const { validateRuntimeConfig, shouldRunBots } = require('../src/config/env');
 const { parseMoney } = require('../src/utils/money.util');
 const { getTierInfo } = require('../src/utils/tier.util');
@@ -27,6 +31,28 @@ test('customer token is signed, scoped and verifiable', () => {
     assert.equal(payload.sub, 'customer-id');
     assert.equal(payload.role, 'customer');
     assert.throws(() => verifyToken(token, 'bulka-admin'));
+  } finally {
+    if (previous === undefined) delete process.env.CUSTOMER_JWT_SECRET;
+    else process.env.CUSTOMER_JWT_SECRET = previous;
+  }
+});
+
+test('password sessions and registration grants carry scoped version claims', () => {
+  const previous = process.env.CUSTOMER_JWT_SECRET;
+  process.env.CUSTOMER_JWT_SECRET = 'b'.repeat(64);
+  try {
+    const session = signCustomerToken(
+      { id: 'customer-id', phone: '+77001234567' },
+      { authVersion: 4 },
+    );
+    assert.equal(verifyToken(session, 'bulka-mobile').av, 4);
+
+    const registration = signRegistrationToken('+77001234567', {
+      credentialGrantId: 'grant-id',
+    });
+    const payload = verifyToken(registration, 'bulka-mobile');
+    assert.equal(payload.role, 'registration');
+    assert.equal(payload.credentialGrantId, 'grant-id');
   } finally {
     if (previous === undefined) delete process.env.CUSTOMER_JWT_SECRET;
     else process.env.CUSTOMER_JWT_SECRET = previous;
@@ -244,6 +270,8 @@ test('tracked source contains no known fallback secrets', () => {
     'src/middlewares/webhook.middleware.js',
     'src/services/telegram.service.js',
     'src/services/whatsapp-baileys.service.js',
+    'src/services/gemini-assistant.service.js',
+    'src/services/bulka-assistant-knowledge.service.js',
   ];
   const source = files.map((file) => fs.readFileSync(path.join(root, file), 'utf8')).join('\n');
   assert.doesNotMatch(source, /225588|bulka_secret_123|8786019464:/);

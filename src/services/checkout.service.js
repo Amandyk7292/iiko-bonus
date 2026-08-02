@@ -107,7 +107,7 @@ const normalizeDeliveryAddress = (raw, env = process.env) => {
   }
 
   const address = boundedText(raw.address ?? raw.formattedAddress ?? raw.label, 500);
-  const city = boundedText(raw.city || 'Актау', 100);
+  const city = boundedText(raw.city || 'Астана', 100);
   if (address.length < 3) throw checkoutError('Укажите полный адрес доставки');
   if (!city) throw checkoutError('Укажите город доставки');
 
@@ -181,6 +181,7 @@ const flattenBranches = (cities) =>
       deliveryFee: finiteNumber(point.deliveryFee ?? point.delivery_fee),
       deliveryMinOrder: finiteNumber(point.deliveryMinOrder ?? point.delivery_min_order),
       deliveryZones: normalizeBranchZones(point),
+      slotMinutes: finiteNumber(point.slotMinutes ?? point.slot_minutes) || 60,
       hours: point.hours && typeof point.hours === 'object' ? point.hours : {},
     })),
   );
@@ -207,7 +208,10 @@ const withResolvedDeliveryZone = (point, zone, distance) => ({
   resolvedDeliveryZone: { ...zone, distanceKm: Number(distance.toFixed(3)) },
 });
 
-const resolveBranch = ({ branchId, branch, orderType, deliveryAddress }, cities) => {
+const resolveBranch = (
+  { branchId, branch, orderType, deliveryAddress, requiresPreorder = false },
+  cities,
+) => {
   const branches = flattenBranches(cities).filter((point) => point.active);
   if (branches.length === 0) throw checkoutError('Филиалы временно недоступны', 503);
 
@@ -236,6 +240,7 @@ const resolveBranch = ({ branchId, branch, orderType, deliveryAddress }, cities)
     const configured = branches.filter(
       (point) =>
         point.deliveryEnabled &&
+        (!requiresPreorder || point.preorderEnabled) &&
         point.latitude !== null &&
         point.longitude !== null &&
         point.deliveryZones.length > 0,
@@ -270,10 +275,13 @@ const resolveBranch = ({ branchId, branch, orderType, deliveryAddress }, cities)
       );
     }
   } else if (selected) {
-    const enabled = orderType === 'preorder' ? selected.preorderEnabled : selected.pickupEnabled;
+    const enabled =
+      orderType === 'preorder' || requiresPreorder
+        ? selected.preorderEnabled
+        : selected.pickupEnabled;
     if (!enabled) {
       throw checkoutError(
-        orderType === 'preorder'
+        orderType === 'preorder' || requiresPreorder
           ? 'Предзаказ в выбранном филиале недоступен'
           : 'Самовывоз из выбранного филиала недоступен',
       );
@@ -304,16 +312,23 @@ const branchHoursFor = (hours, localDate) => {
   return { open, close };
 };
 
-const validateBranchHours = (instant, hours, offsetMinutes) => {
+const validateBranchHours = (instant, hours, offsetMinutes, slotMinutes = 60) => {
   const local = new Date(instant.getTime() + offsetMinutes * 60 * 1000);
   const schedule = branchHoursFor(hours, local);
   if (!schedule) throw checkoutError('Расписание выбранного филиала не настроено', 503);
   const minute = local.getUTCHours() * 60 + local.getUTCMinutes();
-  if (minute < schedule.open || minute >= schedule.close) {
+  const interval =
+    Number.isInteger(slotMinutes) && slotMinutes >= 15 && slotMinutes <= 240 ? slotMinutes : 60;
+  const firstSlot = Math.ceil(schedule.open / interval) * interval;
+  if (
+    minute < firstSlot ||
+    minute + interval > schedule.close ||
+    (minute - firstSlot) % interval !== 0
+  ) {
     const clock = (value) =>
       `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`;
     throw checkoutError(
-      `Филиал принимает заказы с ${clock(schedule.open)} до ${clock(schedule.close)}`,
+      `Выберите доступное время с ${clock(firstSlot)} до ${clock(schedule.close)}`,
     );
   }
 };
@@ -324,18 +339,16 @@ const normalizeSchedule = (
   now = new Date(),
   env = process.env,
   branchHours = {},
+  slotMinutes = 60,
 ) => {
   const value = boundedText(raw, 64);
   if (!value) {
-    if (orderType === 'delivery') {
-      const offsetMinutes = Number.parseInt(env.ORDER_TIMEZONE_OFFSET_MINUTES || '300', 10);
-      const safeOffset =
-        Number.isInteger(offsetMinutes) && Math.abs(offsetMinutes) <= 840 ? offsetMinutes : 300;
-      validateBranchHours(now, branchHours, safeOffset);
-      return null;
-    }
     throw checkoutError(
-      orderType === 'preorder' ? 'Выберите время предзаказа' : 'Выберите время самовывоза',
+      orderType === 'preorder'
+        ? 'Выберите время предзаказа'
+        : orderType === 'delivery'
+          ? 'Выберите время доставки'
+          : 'Выберите время самовывоза',
     );
   }
   const offsetMinutes = Number.parseInt(env.ORDER_TIMEZONE_OFFSET_MINUTES || '300', 10);
@@ -360,7 +373,19 @@ const normalizeSchedule = (
     throw checkoutError('Выберите доступное время заказа');
   }
 
-  validateBranchHours(scheduledAt, branchHours, safeOffset);
+  if (orderType !== 'preorder') {
+    const localNow = new Date(now.getTime() + safeOffset * 60 * 1000);
+    const localScheduled = new Date(scheduledAt.getTime() + safeOffset * 60 * 1000);
+    const sameLocalDay =
+      localNow.getUTCFullYear() === localScheduled.getUTCFullYear() &&
+      localNow.getUTCMonth() === localScheduled.getUTCMonth() &&
+      localNow.getUTCDate() === localScheduled.getUTCDate();
+    if (!sameLocalDay) {
+      throw checkoutError('Для самовывоза и доставки выберите время на сегодня');
+    }
+  }
+
+  validateBranchHours(scheduledAt, branchHours, safeOffset, slotMinutes);
   return scheduledAt.toISOString();
 };
 
@@ -382,14 +407,26 @@ function validateCheckout(payload, cities, options = {}) {
   const env = options.env || process.env;
   const now = options.now instanceof Date ? options.now : new Date();
   const orderType = normalizeOrderType(payload?.orderType ?? payload?.fulfillmentType);
-  const deliveryAddress =
-    orderType === 'delivery' ? normalizeDeliveryAddress(payload?.deliveryAddress, env) : null;
+  const preorderFulfillmentType =
+    orderType === 'preorder' &&
+    String(payload?.preorderFulfillmentType || '')
+      .trim()
+      .toLowerCase() === 'delivery'
+      ? 'delivery'
+      : 'pickup';
+  const isDelivery =
+    orderType === 'delivery' ||
+    (orderType === 'preorder' && preorderFulfillmentType === 'delivery');
+  const deliveryAddress = isDelivery
+    ? normalizeDeliveryAddress(payload?.deliveryAddress, env)
+    : null;
   const branch = resolveBranch(
     {
       branchId: payload?.branchId,
       branch: payload?.branch,
-      orderType,
+      orderType: isDelivery ? 'delivery' : orderType,
       deliveryAddress,
+      requiresPreorder: orderType === 'preorder',
     },
     cities,
   );
@@ -399,12 +436,14 @@ function validateCheckout(payload, cities, options = {}) {
     now,
     env,
     branch.hours,
+    branch.slotMinutes,
   );
-  const deliveryFee = orderType === 'delivery' ? branch.deliveryFee : 0;
-  const minimumOrder = orderType === 'delivery' ? branch.deliveryMinOrder : 0;
+  const deliveryFee = isDelivery ? branch.deliveryFee : 0;
+  const minimumOrder = isDelivery ? branch.deliveryMinOrder : 0;
 
   return {
     orderType,
+    preorderFulfillmentType: orderType === 'preorder' ? preorderFulfillmentType : null,
     branchId: String(branch.id),
     branch: boundedText(branch.label, 160),
     scheduledAt,

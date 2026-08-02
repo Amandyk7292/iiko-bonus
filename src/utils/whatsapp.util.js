@@ -40,6 +40,12 @@ function normalizeWhatsAppBusinessPhone(value) {
   return digits.length >= 10 && digits.length <= 15 ? digits : null;
 }
 
+function isDirectWhatsAppChat(remoteJid) {
+  return ['@s.whatsapp.net', '@lid', '@hosted.lid', '@c.us', '@hosted'].some((suffix) =>
+    String(remoteJid || '').endsWith(suffix),
+  );
+}
+
 // Public support number used by the existing WhatsApp bot.  Render may omit
 // optional environment variables during a redeploy; OTP must still be able to
 // open the bot instead of leaving a customer on a dead confirmation screen.
@@ -60,6 +66,7 @@ function buildWhatsAppContact(requestToken, env = process.env) {
 
 module.exports = {
   buildWhatsAppContact,
+  isDirectWhatsAppChat,
   normalizeWhatsAppBusinessPhone,
   phoneDigitsFromJid,
   resolveWhatsAppSenderDigits,

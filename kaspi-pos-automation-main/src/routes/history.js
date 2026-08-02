@@ -2,8 +2,8 @@ import { Router } from 'express';
 import { KASPI_QRPAY_URL } from '../config.js';
 import { kaspiProxyJson, loggedFetch, signedQrPayHeaders } from '../helpers.js';
 import { decryptSecret } from '../crypto.js';
-import { getGlobalSession } from '../sessionStorage.js';
-import { inactiveSessionResponse, isActiveSession } from '../activeSession.js';
+import { clearGlobalSession, getGlobalSession } from '../sessionStorage.js';
+import { clearActiveSession, inactiveSessionResponse, isActiveSession } from '../activeSession.js';
 
 const router = Router();
 
@@ -23,13 +23,16 @@ const requireAuth = (req, res, next) => {
     }
   }
 
-  if (!session.tokenSN) return res.status(401).json({ error: 'Missing X-Token-SN header or global session.' });
-  if (!session.vtokenSecret) return res.status(401).json({ error: 'Missing X-Vtoken-Secret header or global session.' });
+  if (!session.tokenSN || !session.vtokenSecret) {
+    return res.status(401).json(inactiveSessionResponse());
+  }
   if (!isActiveSession(session.tokenSN)) return res.status(401).json(inactiveSessionResponse());
   try {
     session.decryptedSecret = decryptSecret(session.vtokenSecret);
   } catch {
-    return res.status(401).json({ error: 'Invalid or expired vtokenSecret. Re-authenticate.' });
+    clearActiveSession(session.tokenSN);
+    clearGlobalSession('invalid_vtoken_secret', session);
+    return res.status(401).json(inactiveSessionResponse());
   }
   req.session = session;
   next();
@@ -44,17 +47,18 @@ router.post('/operations', async (req, res) => {
   if (!endDate) return res.status(400).json({ error: 'endDate required' });
   try {
     const url = `${KASPI_QRPAY_URL}/v01/remote/history`;
-    const headers = { ...signedQrPayHeaders(url, req.session), 'Content-Type': 'application/json' };
+    const payload = JSON.stringify({
+      EndDate: endDate,
+      LastTransactionDate: lastTransactionDate || '',
+      StatementPeriodCode: statementPeriodCode ?? 0,
+    });
+    const headers = { ...signedQrPayHeaders(url, req.session, payload), 'Content-Type': 'application/json' };
     const resp = await loggedFetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({
-        EndDate: endDate,
-        LastTransactionDate: lastTransactionDate || '',
-        StatementPeriodCode: statementPeriodCode ?? 0,
-      }),
+      body: payload,
     });
-    return kaspiProxyJson(res, resp);
+    return kaspiProxyJson(res, resp, req.session);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -67,16 +71,17 @@ router.post('/details', async (req, res) => {
   if (!id) return res.status(400).json({ error: 'id required' });
   try {
     const url = `${KASPI_QRPAY_URL}/v01/kaspi-qr/operations/details`;
-    const headers = { ...signedQrPayHeaders(url, req.session), 'Content-Type': 'application/json' };
+    const payload = JSON.stringify({
+      Id: Number(id),
+      OperationMethod: operationMethod ?? 0,
+    });
+    const headers = { ...signedQrPayHeaders(url, req.session, payload), 'Content-Type': 'application/json' };
     const resp = await loggedFetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({
-        Id: Number(id),
-        OperationMethod: operationMethod ?? 0,
-      }),
+      body: payload,
     });
-    return kaspiProxyJson(res, resp);
+    return kaspiProxyJson(res, resp, req.session);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

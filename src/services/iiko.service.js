@@ -32,12 +32,27 @@ const iikoLocalDateTime = (value) => {
   return match ? `${match[1]}:00.000` : null;
 };
 
+const configuredValue = (configuration, key, environmentKey, fallback = '') =>
+  Object.prototype.hasOwnProperty.call(configuration, key)
+    ? configuration[key]
+    : (process.env[environmentKey] ?? fallback);
+
 class IikoAPI {
-  constructor() {
-    this.apiLogin = process.env.IIKO_API_LOGIN;
-    this.appId = process.env.IIKO_APP_ID;
-    this.clientSecret = process.env.IIKO_CLIENT_SECRET;
-    this.organizationId = process.env.IIKO_ORGANIZATION_ID || null;
+  constructor(configuration = {}) {
+    this.profileKey =
+      String(configuration.profileKey || 'default')
+        .trim()
+        .toLocaleLowerCase('en-US')
+        .replace(/[^a-z0-9_-]/g, '')
+        .slice(0, 40) || 'default';
+    this.apiLogin = String(configuredValue(configuration, 'apiLogin', 'IIKO_API_LOGIN')).trim();
+    this.appId = String(configuredValue(configuration, 'appId', 'IIKO_APP_ID')).trim();
+    this.clientSecret = String(
+      configuredValue(configuration, 'clientSecret', 'IIKO_CLIENT_SECRET'),
+    ).trim();
+    this.organizationId =
+      String(configuredValue(configuration, 'organizationId', 'IIKO_ORGANIZATION_ID')).trim() ||
+      null;
     this.baseUrl = 'https://api-ru.iiko.services';
     this.token = null;
     this.tokenExpiresAt = 0;
@@ -47,6 +62,7 @@ class IikoAPI {
     this._menuFetchPromise = null; // Мьютекс: одновременно только 1 запрос меню
     // Stop-list changes must reach checkout quickly without one iiko call per client.
     this._cachedStopIds = null;
+    this._cachedStopSnapshot = null;
     this._stopListExpiresAt = 0;
     this._stopListPromise = null;
     // Счётчик запросов для мониторинга
@@ -304,17 +320,42 @@ class IikoAPI {
         .trim();
     };
 
+    menuData = { ...menuData, profileKey: this.profileKey, organizationId: orgId };
+    const publicId = (value) => {
+      const normalized = String(value || '').trim();
+      if (!normalized || this.profileKey === 'default') return normalized;
+      const prefix = `${this.profileKey}:`;
+      return normalized.startsWith(prefix) ? normalized : `${prefix}${normalized}`;
+    };
     if (menuData && menuData.products) {
-      menuData.products = menuData.products.map((p) => ({
-        ...p,
-        name: cleanIikoName(p.name),
-      }));
+      menuData.products = menuData.products.map((product) => {
+        const iikoProductId = String(product.iikoProductId || product.id || '').trim();
+        const iikoParentGroupId = String(
+          product.iikoParentGroupId || product.parentGroup || '',
+        ).replace(new RegExp(`^${this.profileKey}:`), '');
+        return {
+          ...product,
+          id: publicId(iikoProductId),
+          iikoProductId,
+          parentGroup: publicId(iikoParentGroupId),
+          iikoParentGroupId,
+          name: cleanIikoName(product.name),
+        };
+      });
     }
     if (menuData && menuData.groups) {
-      menuData.groups = menuData.groups.map((g) => ({
-        ...g,
-        name: cleanIikoName(g.name),
-      }));
+      menuData.groups = menuData.groups.map((group) => {
+        const iikoCategoryId = String(group.iikoCategoryId || group.id || '').replace(
+          new RegExp(`^${this.profileKey}:`),
+          '',
+        );
+        return {
+          ...group,
+          id: publicId(iikoCategoryId),
+          iikoCategoryId,
+          name: cleanIikoName(group.name),
+        };
+      });
     }
 
     // Кешируем ЛЮБОЙ ответ (даже пустой), чтобы не получить бан от API
@@ -330,10 +371,10 @@ class IikoAPI {
     return menuData;
   }
 
-  async getStopListProductIds(organizationId, { strict = false } = {}) {
+  async getStopListSnapshot(organizationId, { strict = false } = {}) {
     // Кэш стоп-листа на 5 минут
-    if (this._cachedStopIds && Date.now() < this._stopListExpiresAt) {
-      return this._cachedStopIds;
+    if (this._cachedStopSnapshot && Date.now() < this._stopListExpiresAt) {
+      return this._cachedStopSnapshot;
     }
     // Мьютекс для стоп-листа
     if (this._stopListPromise) {
@@ -345,7 +386,13 @@ class IikoAPI {
     } catch (error) {
       console.error('Ошибка получения стоп-листа из iiko:', error.message);
       if (strict) throw error;
-      return this._cachedStopIds || new Set();
+      return (
+        this._cachedStopSnapshot || {
+          stopIds: this._cachedStopIds || new Set(),
+          groups: [],
+          fetchedAt: null,
+        }
+      );
     } finally {
       this._stopListPromise = null;
     }
@@ -369,21 +416,35 @@ class IikoAPI {
     }
     const data = await res.json();
     const stopIds = new Set();
-    if (data.terminalGroupStopLists) {
-      for (const group of data.terminalGroupStopLists) {
-        if (group.items) {
-          for (const item of group.items) {
-            if (item.balance <= 0 && item.productId) {
-              stopIds.add(item.productId);
-            }
-          }
-        }
+    const groups = (
+      Array.isArray(data.terminalGroupStopLists) ? data.terminalGroupStopLists : []
+    ).map((group) => {
+      const items = (Array.isArray(group?.items) ? group.items : [])
+        .map((item) => ({
+          productId: String(item?.productId || '').trim(),
+          balance: Number(item?.balance),
+        }))
+        .filter((item) => item.productId && Number.isFinite(item.balance));
+      for (const item of items) {
+        if (item.balance <= 0) stopIds.add(item.productId);
       }
-    }
+      return {
+        organizationId: String(group?.organizationId || '').trim() || null,
+        terminalGroupId: String(group?.terminalGroupId || '').trim() || null,
+        items,
+      };
+    });
+    const snapshot = { stopIds, groups, fetchedAt: new Date().toISOString() };
     this._cachedStopIds = stopIds;
+    this._cachedStopSnapshot = snapshot;
     this._stopListExpiresAt = Date.now() + 30 * 1000;
     console.log(`[iiko] Стоп-лист: ${stopIds.size} позиций, кэш 30 сек`);
-    return stopIds;
+    return snapshot;
+  }
+
+  async getStopListProductIds(organizationId, { strict = false } = {}) {
+    const snapshot = await this.getStopListSnapshot(organizationId, { strict });
+    return snapshot.stopIds;
   }
 
   async createDeliveryOrder(order) {
@@ -483,9 +544,13 @@ class IikoAPI {
     this.cachedMenu = null;
     this.cachedMenuExpiresAt = 0;
     this._cachedStopIds = null;
+    this._cachedStopSnapshot = null;
     this._stopListExpiresAt = 0;
     console.log('[iiko] Кэш меню и стоп-листа сброшен');
   }
 }
 
-module.exports = new IikoAPI();
+const defaultIikoApi = new IikoAPI();
+
+module.exports = defaultIikoApi;
+module.exports.IikoAPI = IikoAPI;

@@ -11,7 +11,11 @@ const {
   pendingReconciliationWindowMs,
   paymentStatusCanTransition,
 } = require('../src/services/kaspi.service');
-const { normalizeOrder } = require('../src/services/customer-order.service');
+const {
+  canMarkCustomerArrived,
+  normalizeOrder,
+} = require('../src/services/customer-order.service');
+const { slotHorizonDays, timezoneOffsetMinutes } = require('../src/services/slot.service');
 
 const primaryBranchId = '11111111-1111-4111-8111-111111111111';
 const branchHours = { daily: { open: '08:00', close: '21:00' } };
@@ -62,7 +66,7 @@ test('pickup checkout validates a real branch and normalizes Aktau local time to
     {
       orderType: 'pickup',
       branchId: primaryBranchId,
-      pickupTime: '2026-07-14T10:00:00',
+      pickupTime: '2026-07-13T18:00:00',
       additionalPhone: '8 777 123 45 67',
     },
     cities,
@@ -72,7 +76,7 @@ test('pickup checkout validates a real branch and normalizes Aktau local time to
   assert.equal(checkout.orderType, 'pickup');
   assert.equal(checkout.branchId, primaryBranchId);
   assert.equal(checkout.branch, 'ТЦ Ardager, 9-й микрорайон, 30/3');
-  assert.equal(checkout.scheduledAt, '2026-07-14T05:00:00.000Z');
+  assert.equal(checkout.scheduledAt, '2026-07-13T13:00:00.000Z');
   assert.equal(checkout.additionalPhone, '+77771234567');
   assert.equal(checkout.deliveryFee, 0);
 });
@@ -89,6 +93,7 @@ test('delivery uses only an enabled branch with explicit radius and tariffs', ()
         entrance: '2',
         apartment: '41',
       },
+      scheduledAt: '2026-07-13T18:00:00+05:00',
     },
     cities,
     { now: new Date('2026-07-13T12:00:00.000Z'), env },
@@ -96,7 +101,7 @@ test('delivery uses only an enabled branch with explicit radius and tariffs', ()
 
   assert.equal(checkout.orderType, 'delivery');
   assert.equal(checkout.branchId, primaryBranchId);
-  assert.equal(checkout.scheduledAt, null);
+  assert.equal(checkout.scheduledAt, '2026-07-13T13:00:00.000Z');
   assert.equal(checkout.deliveryFee, 700);
   assert.equal(checkout.deliveryMinimumOrder, 3000);
   assert.equal(checkout.deliveryAddress.apartment, '41');
@@ -118,6 +123,7 @@ test('delivery selects the first matching tariff zone by real distance', () => {
         latitude: 43.654,
         longitude: 51.198,
       },
+      scheduledAt: '2026-07-13T18:00:00+05:00',
     },
     zonedCities,
     { now: new Date('2026-07-13T12:00:00.000Z'), env },
@@ -131,6 +137,7 @@ test('delivery selects the first matching tariff zone by real distance', () => {
         latitude: 43.675,
         longitude: 51.1975,
       },
+      scheduledAt: '2026-07-13T18:00:00+05:00',
     },
     zonedCities,
     { now: new Date('2026-07-13T12:00:00.000Z'), env },
@@ -198,6 +205,84 @@ test('preorder enforces lead time and the selected branch hours', () => {
   );
 });
 
+test('preorder supports delivery with future slots and delivery tariff', () => {
+  const checkout = validateCheckout(
+    {
+      orderType: 'preorder',
+      preorderFulfillmentType: 'delivery',
+      deliveryAddress: {
+        city: 'Актау',
+        address: '11-й микрорайон, дом 25',
+        latitude: 43.654,
+        longitude: 51.198,
+      },
+      scheduledAt: '2026-07-14T09:00:00+05:00',
+    },
+    cities,
+    { now: new Date('2026-07-13T12:00:00.000Z'), env },
+  );
+
+  assert.equal(checkout.orderType, 'preorder');
+  assert.equal(checkout.preorderFulfillmentType, 'delivery');
+  assert.equal(checkout.branchId, primaryBranchId);
+  assert.equal(checkout.deliveryFee, 700);
+  assert.equal(checkout.deliveryMinimumOrder, 3000);
+  assert.equal(checkout.deliveryAddress.address, '11-й микрорайон, дом 25');
+  assert.equal(checkout.scheduledAt, '2026-07-14T04:00:00.000Z');
+});
+
+test('preorder pickup remains the default receiving method', () => {
+  const checkout = validateCheckout(
+    {
+      orderType: 'preorder',
+      branchId: primaryBranchId,
+      scheduledAt: '2026-07-14T09:00:00+05:00',
+    },
+    cities,
+    { now: new Date('2026-07-13T12:00:00.000Z'), env },
+  );
+
+  assert.equal(checkout.preorderFulfillmentType, 'pickup');
+  assert.equal(checkout.deliveryAddress, null);
+  assert.equal(checkout.deliveryFee, 0);
+});
+
+test('pickup and delivery expose only today while preorder keeps future dates', () => {
+  assert.throws(
+    () =>
+      normalizeSchedule(
+        '2026-07-14T09:00:00+05:00',
+        'pickup',
+        new Date('2026-07-13T12:00:00.000Z'),
+        env,
+        branchHours,
+      ),
+    /время на сегодня/,
+  );
+  assert.throws(
+    () =>
+      normalizeSchedule(null, 'delivery', new Date('2026-07-13T12:00:00.000Z'), env, branchHours),
+    /время доставки/,
+  );
+  assert.throws(
+    () =>
+      normalizeSchedule(
+        '2026-07-13T18:30:00+05:00',
+        'pickup',
+        new Date('2026-07-13T12:00:00.000Z'),
+        env,
+        branchHours,
+        60,
+      ),
+    /доступное время/,
+  );
+  assert.equal(slotHorizonDays('pickup', 7), 1);
+  assert.equal(slotHorizonDays('delivery', 3), 1);
+  assert.equal(slotHorizonDays('preorder', 7), 7);
+  assert.equal(timezoneOffsetMinutes({ ORDER_TIMEZONE_OFFSET_MINUTES: '300' }), 300);
+  assert.equal(timezoneOffsetMinutes({ ORDER_TIMEZONE_OFFSET_MINUTES: 'invalid' }), 300);
+});
+
 test('payment state machine never downgrades paid or refunded orders', () => {
   assert.equal(paymentStatusCanTransition('pending', 'paid'), true);
   assert.equal(paymentStatusCanTransition('failed', 'paid'), true);
@@ -244,4 +329,58 @@ test('delivery fee is excluded from loyalty earning and fulfillment metadata is 
   assert.equal(normalizeOrder(databaseOrder).branchId, primaryBranchId);
   assert.equal(normalizeOrder(databaseOrder).fulfillmentType, 'delivery');
   assert.equal(normalizeOrder(databaseOrder).deliveryFee, 700);
+});
+
+test('customer arrival is allowed only for paid ready pickup and preorder orders', () => {
+  const readyPickup = {
+    status: 'paid',
+    fulfillment_status: 'ready',
+    fulfillment_type: 'pickup',
+  };
+
+  assert.equal(canMarkCustomerArrived(readyPickup), true);
+  assert.equal(canMarkCustomerArrived({ ...readyPickup, fulfillment_type: 'preorder' }), true);
+  assert.equal(canMarkCustomerArrived({ ...readyPickup, fulfillment_type: 'delivery' }), false);
+  assert.equal(canMarkCustomerArrived({ ...readyPickup, fulfillment_status: 'preparing' }), false);
+  assert.equal(canMarkCustomerArrived({ ...readyPickup, status: 'pending' }), false);
+});
+
+test('normalized customer order includes the arrival timestamp', () => {
+  const customerArrivedAt = '2026-07-16T12:00:00.000Z';
+  const normalized = normalizeOrder({
+    id: 'arrival-order',
+    order_number: 100124,
+    status: 'paid',
+    fulfillment_status: 'ready',
+    fulfillment_type: 'pickup',
+    amount: 2400,
+    subtotal: 2400,
+    discount_amount: 0,
+    cart_items: [],
+    customer_arrived_at: customerArrivedAt,
+    created_at: customerArrivedAt,
+    updated_at: customerArrivedAt,
+  });
+
+  assert.equal(normalized.customerArrivedAt, customerArrivedAt);
+});
+
+test('unpaid orders are never presented as new fulfillment work', () => {
+  const baseOrder = {
+    id: 'unpaid-order',
+    order_number: 100125,
+    fulfillment_status: 'pending',
+    fulfillment_type: 'pickup',
+    amount: 2400,
+    subtotal: 2400,
+    discount_amount: 0,
+    cart_items: [],
+    created_at: '2026-07-27T12:00:00.000Z',
+    updated_at: '2026-07-27T12:00:00.000Z',
+  };
+
+  assert.equal(normalizeOrder({ ...baseOrder, status: 'pending' }).orderStatus, 'awaiting_payment');
+  assert.equal(normalizeOrder({ ...baseOrder, status: 'failed' }).orderStatus, 'cancelled');
+  assert.equal(normalizeOrder({ ...baseOrder, status: 'expired' }).orderStatus, 'cancelled');
+  assert.equal(normalizeOrder({ ...baseOrder, status: 'paid' }).orderStatus, 'new');
 });

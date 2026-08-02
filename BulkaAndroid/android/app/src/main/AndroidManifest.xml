@@ -7,6 +7,7 @@
         android:label="@string/app_name"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:allowBackup="false"
         android:fullBackupContent="false"
         android:enableOnBackInvokedCallback="true">
@@ -27,6 +28,9 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
+            <meta-data
+              android:name="flutter_deeplinking_enabled"
+              android:value="false" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
@@ -38,12 +42,32 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="bulka-bonus.firebaseapp.com" />
             </intent-filter>
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="bulka.com.kz" android:pathPrefix="/orders" />
+                <data android:scheme="https" android:host="bulka.com.kz" android:pathPrefix="/catalog" />
+                <data android:scheme="https" android:host="bulka.com.kz" android:pathPrefix="/cart" />
+                <data android:scheme="https" android:host="bulka.com.kz" android:pathPrefix="/promos" />
+                <data android:scheme="https" android:host="bulka.com.kz" android:pathPrefix="/profile" />
+            </intent-filter>
             <!-- Custom scheme deep linking -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="bulka" android:host="bonus" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="bulka" android:host="orders" />
+                <data android:scheme="bulka" android:host="catalog" />
+                <data android:scheme="bulka" android:host="cart" />
+                <data android:scheme="bulka" android:host="promos" />
+                <data android:scheme="bulka" android:host="profile" />
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.
@@ -54,6 +78,16 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="bulka_bonus_notifications" />
+        <receiver
+            android:name=".BulkaHomeWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/bulka_home_widget_info" />
+        </receiver>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
@@ -76,6 +110,10 @@
         <intent>
             <action android:name="android.intent.action.VIEW"/>
             <data android:scheme="whatsapp"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.DIAL"/>
+            <data android:scheme="tel"/>
         </intent>
     </queries>
 </manifest>

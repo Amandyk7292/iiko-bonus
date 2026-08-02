@@ -5,8 +5,8 @@ const test = require('node:test');
 
 const { normalizeAddressInput } = require('../src/services/address.service');
 const {
-  AKTAU_BOUNDS,
-  insideAktauBounds,
+  ASTANA_BOUNDS,
+  insideAstanaBounds,
   normalizeLanguage,
 } = require('../src/services/geocode.service');
 const { validateCheckout } = require('../src/services/checkout.service');
@@ -26,7 +26,7 @@ test('saved delivery addresses are normalized and require map coordinates', () =
     {
       label: 'Дом',
       address: '11-й микрорайон, 25',
-      city: 'Актау',
+      city: 'Астана',
       latitude: 43.654,
       longitude: 51.198,
       entrance: null,
@@ -36,15 +36,12 @@ test('saved delivery addresses are normalized and require map coordinates', () =
       isDefault: true,
     },
   );
-  assert.throws(
-    () => normalizeAddressInput({ address: '11-й микрорайон, 25' }),
-    /адрес на карте/,
-  );
+  assert.throws(() => normalizeAddressInput({ address: '11-й микрорайон, 25' }), /адрес на карте/);
 });
 
-test('geocoding is bounded to Aktau and language input is allowlisted', () => {
-  assert.equal(insideAktauBounds(43.65, 51.2), true);
-  assert.equal(insideAktauBounds(AKTAU_BOUNDS.north + 0.01, 51.2), false);
+test('geocoding is bounded to Astana and language input is allowlisted', () => {
+  assert.equal(insideAstanaBounds(51.1282, 71.4304), true);
+  assert.equal(insideAstanaBounds(ASTANA_BOUNDS.north + 0.01, 71.4304), false);
   assert.equal(normalizeLanguage('kk-KZ,ru;q=0.9'), 'kk');
   assert.equal(normalizeLanguage('en-US'), 'en');
   assert.equal(normalizeLanguage('../../etc/passwd'), 'ru');
@@ -56,11 +53,11 @@ test('canonical seeded location UUIDs are accepted by checkout', () => {
     {
       orderType: 'pickup',
       branchId,
-      scheduledAt: '2026-07-14T10:00:00+05:00',
+      scheduledAt: '2026-07-13T18:00:00+05:00',
     },
     [
       {
-        name: 'Актау',
+        name: 'Астана',
         points: [
           {
             id: branchId,
@@ -105,7 +102,13 @@ test('cashier search returns actionable validation errors for stale and forged c
 
 test('migration contains reusable reservations and the full cashier RPC contract', () => {
   const migration = fs.readFileSync(
-    path.join(__dirname, '..', 'migrations', '009_order_fulfillment.sql'),
+    path.join(
+      __dirname,
+      '..',
+      'supabase',
+      'migrations',
+      '20260713190000_order_fulfillment.sql',
+    ),
     'utf8',
   );
   const schema = fs.readFileSync(path.join(__dirname, '..', 'supabase_schema.sql'), 'utf8');
@@ -127,7 +130,10 @@ test('admin menu writes reject invalid prices, URLs and custom products before d
     (error) => error.statusCode === 400 && /цена/.test(error.message),
   );
   await assert.rejects(
-    () => menuService.setCategoryOverride('category-1', { custom_image_url: 'http://example.test/a.jpg' }),
+    () =>
+      menuService.setCategoryOverride('category-1', {
+        custom_image_url: 'http://example.test/a.jpg',
+      }),
     (error) => error.statusCode === 400 && /HTTPS/.test(error.message),
   );
   await assert.rejects(
@@ -139,4 +145,71 @@ test('admin menu writes reject invalid prices, URLs and custom products before d
       }),
     (error) => error.statusCode === 400 && /цена/.test(error.message),
   );
+  await assert.rejects(
+    () => menuService.setProductOverride('product-1', { calories_kcal: -10 }),
+    (error) => error.statusCode === 400 && /калорийность/.test(error.message),
+  );
+  await assert.rejects(
+    () =>
+      menuService.setProductOverride('product-1', {
+        allergens: Array.from({ length: 31 }, (_, index) => `allergen-${index}`),
+      }),
+    (error) => error.statusCode === 400 && /аллергены/.test(error.message),
+  );
+  await assert.rejects(
+    () => menuService.setProductOverride('product-1', { fulfillment_types: [] }),
+    (error) => error.statusCode === 400 && /тип заказа/.test(error.message),
+  );
+  await assert.rejects(
+    () =>
+      menuService.setProductOverride('product-1', {
+        storage_conditions: [{ temperature: '-18 °C', duration_value: 90, duration_unit: 'weeks' }],
+      }),
+    (error) => error.statusCode === 400 && /единицу срока/.test(error.message),
+  );
+  await assert.rejects(
+    () =>
+      menuService.setProductOverride('product-1', {
+        storage_conditions: [
+          { temperature: '-18 °C', duration_value: 90, duration_unit: 'days' },
+          { temperature: '4±2 °C', duration_value: 72, duration_unit: 'hours' },
+          { temperature: '20 °C', duration_value: 1, duration_unit: 'days' },
+        ],
+      }),
+    (error) => error.statusCode === 400 && /Условия хранения/.test(error.message),
+  );
+  await assert.rejects(
+    () =>
+      menuService.upsertCustomProduct({
+        name: 'Товар',
+        category_name: 'Категория',
+        price: 100,
+        fulfillment_types: ['pickup', 'courier'],
+      }),
+    (error) => error.statusCode === 400 && /тип заказа/.test(error.message),
+  );
+});
+
+test('canonical order-type catalog migration is complete', () => {
+  const migration = fs.readFileSync(
+    path.join(__dirname, '..', 'supabase', 'migrations', '20260716200000_order_type_catalogs.sql'),
+    'utf8',
+  );
+  assert.match(migration, /fulfillment_types/);
+  assert.match(migration, /pickup.*delivery.*preorder/s);
+});
+
+test('canonical product storage condition migration is complete', () => {
+  const migration = fs.readFileSync(
+    path.join(
+      __dirname,
+      '..',
+      'supabase',
+      'migrations',
+      '20260719174500_product_storage_conditions.sql',
+    ),
+    'utf8',
+  );
+  assert.match(migration, /storage_conditions jsonb/i);
+  assert.match(migration, /jsonb_array_length\(storage_conditions\) <= 2/i);
 });

@@ -10,6 +10,8 @@ class YandexMapView extends StatelessWidget {
     required this.selectedPoint,
     required this.zoom,
     required this.branches,
+    required this.semanticLabel,
+    required this.unavailableLabel,
     this.onTap,
     this.onCameraChanged,
     this.interactive = true,
@@ -21,13 +23,18 @@ class YandexMapView extends StatelessWidget {
   final LatLng? selectedPoint;
   final double zoom;
   final List<YandexMapBranch> branches;
+  final String semanticLabel;
+  final String unavailableLabel;
   final YandexMapTap? onTap;
   final YandexCameraChanged? onCameraChanged;
   final bool interactive;
 
   @override
-  Widget build(BuildContext context) => const ColoredBox(
-    color: Color(0xFFF7F2E8),
-    child: Center(child: Text('Карта временно недоступна')),
+  Widget build(BuildContext context) => Semantics(
+    label: semanticLabel,
+    child: ColoredBox(
+      color: const Color(0xFFF7F2E8),
+      child: Center(child: Text(unavailableLabel)),
+    ),
   );
 }

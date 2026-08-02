@@ -2,59 +2,169 @@ part of '../main.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseBackgroundMessage(RemoteMessage message) async {
-  await Firebase.initializeApp();
+  if (Firebase.apps.isEmpty) await Firebase.initializeApp();
+  await HomeWidgetSync.updateFromPush(message.data);
 }
 
 abstract final class PushNotifications {
+  static const _installationIdKey = 'pushInstallationIdV1';
+  static const _lastTokenKey = 'lastRegisteredFcmTokenV1';
+  static const _webVapidKey = String.fromEnvironment(
+    'FIREBASE_WEB_VAPID_KEY',
+    defaultValue:
+        'BItWENnHyRNy96PDaiO8Ga76xj3R0bc9ybb1WNNrxNiKuAJHjqOrO9Nqi6mZus4WUlQAYeZnAUyDogjSp46tfhI',
+  );
   static bool _ready = false;
+  static bool _registering = false;
   static StreamSubscription<String>? _tokenSubscription;
   static final StreamController<Map<String, dynamic>> _orderEventController =
       StreamController<Map<String, dynamic>>.broadcast();
+  static final StreamController<Map<String, dynamic>>
+  _openedOrderEventController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  static StreamSubscription<RemoteMessage>? _openedSubscription;
+  static Map<String, dynamic>? _pendingOpenedOrder;
 
   static Stream<Map<String, dynamic>> get orderEvents =>
       _orderEventController.stream;
+  static Stream<Map<String, dynamic>> get openedOrderEvents =>
+      _openedOrderEventController.stream;
+
+  static Map<String, dynamic>? takeInitialOpenedOrder() {
+    final value = _pendingOpenedOrder;
+    _pendingOpenedOrder = null;
+    return value;
+  }
+
+  static bool _opensOrders(Map<String, dynamic> data) {
+    final type = data['type']?.toString();
+    return type == 'order' || type == 'delivery' || type == 'refund';
+  }
+
+  static String get _platform {
+    if (kIsWeb) return 'web';
+    return switch (defaultTargetPlatform) {
+      TargetPlatform.android => 'android',
+      TargetPlatform.iOS => 'ios',
+      _ => 'unknown',
+    };
+  }
+
+  static Future<String> _installationId() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_installationIdKey)?.trim();
+    if (saved != null && RegExp(r'^[A-Za-z0-9._:-]{8,160}$').hasMatch(saved)) {
+      return saved;
+    }
+    final random = Random.secure();
+    final bytes = List<int>.generate(18, (_) => random.nextInt(256));
+    final generated = 'push-${base64UrlEncode(bytes).replaceAll('=', '')}';
+    await prefs.setString(_installationIdKey, generated);
+    return generated;
+  }
+
+  static Future<String> installationId() => _installationId();
+
+  static Future<void> _registerToken(
+    BulkaApiClient api,
+    String token,
+    String installationId,
+  ) async {
+    if (token.trim().isEmpty) return;
+    await api.registerFcmToken(
+      token,
+      platform: _platform,
+      installationId: installationId,
+    );
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_lastTokenKey, token);
+  }
 
   static Future<void> initialize() async {
-    try {
-      await Firebase.initializeApp();
-      _ready = true;
-      FirebaseMessaging.onBackgroundMessage(_firebaseBackgroundMessage);
-      await FirebaseMessaging.instance
-          .setForegroundNotificationPresentationOptions(
-            alert: true,
-            badge: true,
-            sound: true,
+    final attempts = kIsWeb ? 6 : 1;
+    for (var attempt = 0; attempt < attempts; attempt++) {
+      try {
+        if (Firebase.apps.isEmpty) {
+          await Firebase.initializeApp(
+            options: kIsWeb ? DefaultFirebaseOptions.web : null,
           );
-    } catch (error) {
-      debugPrint('Push initialization unavailable: $error');
+        }
+        _ready = true;
+        if (!kIsWeb) {
+          FirebaseMessaging.onBackgroundMessage(_firebaseBackgroundMessage);
+          await FirebaseMessaging.instance
+              .setForegroundNotificationPresentationOptions(
+                alert: true,
+                badge: true,
+                sound: true,
+              );
+        }
+        _openedSubscription ??= FirebaseMessaging.onMessageOpenedApp.listen(
+          _handleOpenedMessage,
+        );
+        final initial = await FirebaseMessaging.instance.getInitialMessage();
+        if (initial != null && _opensOrders(initial.data)) {
+          _pendingOpenedOrder = Map<String, dynamic>.from(initial.data);
+        }
+        return;
+      } catch (error) {
+        _ready = false;
+        if (attempt + 1 >= attempts) {
+          debugPrint('Push initialization unavailable: $error');
+          return;
+        }
+        await Future<void>.delayed(Duration(milliseconds: 350 * (attempt + 1)));
+      }
     }
   }
 
   static StreamSubscription<RemoteMessage>? _messageSubscription;
 
+  static void _handleOpenedMessage(RemoteMessage message) {
+    if (!_opensOrders(message.data)) return;
+    _openedOrderEventController.add(Map<String, dynamic>.from(message.data));
+  }
+
   static Future<void> register(BulkaApiClient api) async {
-    if (!_ready) return;
+    if (!_ready || _registering) return;
+    _registering = true;
     try {
+      final installationId = await _installationId();
       final settings = await FirebaseMessaging.instance.requestPermission(
         alert: true,
         badge: true,
         sound: true,
       );
       if (settings.authorizationStatus == AuthorizationStatus.denied) return;
-      if (defaultTargetPlatform == TargetPlatform.iOS) {
-        final apnsToken = await FirebaseMessaging.instance.getAPNSToken();
-        if (apnsToken == null) return;
-      }
-      final token = await FirebaseMessaging.instance.getToken();
-      if (token != null && token.isNotEmpty) {
-        debugPrint('FCM Token registered: $token');
-        await api.registerFcmToken(token);
-      }
       _tokenSubscription ??= FirebaseMessaging.instance.onTokenRefresh.listen(
-        (nextToken) => api.registerFcmToken(nextToken).catchError((_) {}),
+        (nextToken) => unawaited(
+          _registerToken(api, nextToken, installationId).catchError((_) {}),
+        ),
       );
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+        String? apnsToken;
+        for (var attempt = 0; attempt < 10 && apnsToken == null; attempt++) {
+          apnsToken = await FirebaseMessaging.instance.getAPNSToken();
+          if (apnsToken == null) {
+            await Future<void>.delayed(const Duration(milliseconds: 300));
+          }
+        }
+        if (apnsToken == null) {
+          debugPrint('Push registration is waiting for an APNs token.');
+          return;
+        }
+      }
+      final token = await FirebaseMessaging.instance.getToken(
+        vapidKey: kIsWeb && _webVapidKey.isNotEmpty ? _webVapidKey : null,
+        serviceWorkerScriptPath: kIsWeb ? '/firebase-messaging-sw.js' : null,
+      );
+      if (token != null && token.isNotEmpty) {
+        await _registerToken(api, token, installationId);
+      }
     } catch (error) {
       debugPrint('Push registration unavailable: $error');
+    } finally {
+      _registering = false;
     }
   }
 
@@ -62,9 +172,12 @@ abstract final class PushNotifications {
     if (!_ready) return;
     _messageSubscription?.cancel();
     _messageSubscription = FirebaseMessaging.onMessage.listen((message) {
-      if (message.data['type'] == 'order') {
+      unawaited(HomeWidgetSync.updateFromPush(message.data));
+      if (_opensOrders(message.data)) {
         _orderEventController.add(Map<String, dynamic>.from(message.data));
       }
+      // iOS already shows the foreground system banner configured above.
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) return;
       final notification = message.notification;
       final title = notification?.title ?? message.data['title'];
       final body = notification?.body ?? message.data['body'];
@@ -76,7 +189,7 @@ abstract final class PushNotifications {
             margin: const EdgeInsets.all(16),
             backgroundColor: const Color(0xFF3B2117),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(BulkaRadii.control),
             ),
             content: Column(
               mainAxisSize: MainAxisSize.min,
@@ -94,9 +207,10 @@ abstract final class PushNotifications {
                       child: Text(
                         title.toString(),
                         style: const TextStyle(
+                          fontFamily: _headingFont,
                           color: Colors.white,
                           fontWeight: FontWeight.bold,
-                          fontSize: 14,
+                          fontSize: BulkaTypeScale.bodySmall,
                         ),
                       ),
                     ),
@@ -108,7 +222,7 @@ abstract final class PushNotifications {
                     body.toString(),
                     style: const TextStyle(
                       color: Color(0xFFFDE5C2),
-                      fontSize: 13,
+                      fontSize: BulkaTypeScale.bodySmall,
                     ),
                   ),
                 ],
@@ -123,8 +237,18 @@ abstract final class PushNotifications {
 
   static Future<void> unregister(BulkaApiClient api) async {
     if (!_ready) return;
+    final prefs = await SharedPreferences.getInstance();
+    final installationId = await _installationId();
+    final lastToken = prefs.getString(_lastTokenKey);
     try {
-      await api.clearFcmToken();
+      await api.clearFcmToken(
+        installationId: installationId,
+        fcmToken: lastToken,
+      );
     } catch (_) {}
+    try {
+      await FirebaseMessaging.instance.deleteToken();
+    } catch (_) {}
+    await prefs.remove(_lastTokenKey);
   }
 }

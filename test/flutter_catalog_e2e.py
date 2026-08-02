@@ -7,6 +7,7 @@ from playwright.sync_api import sync_playwright
 
 
 BASE_URL = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:3100/"
+MOBILE_ONLY = "--mobile-only" in sys.argv[2:]
 ROOT = Path(__file__).resolve().parents[1]
 
 CUSTOMER = {
@@ -44,6 +45,17 @@ PRODUCTS = [
         "categoryId": "pies",
         "name": "Вишнёво-яблочный пирог",
         "description": "Песочное тесто и нежная фруктовая начинка",
+        "ingredients": "Пшеничная мука, сливочное масло, яблоко, вишня, сахар",
+        "allergens": ["Глютен", "Молоко"],
+        "dietaryTags": ["Без яиц", "Вегетарианское"],
+        "searchKeywords": ["вишневый", "фруктовый", "пирог"],
+        "weightGrams": 850,
+        "nutrition": {
+            "caloriesKcal": 248,
+            "proteinGrams": 4.2,
+            "fatGrams": 10.5,
+            "carbsGrams": 36.8,
+        },
         "price": 2500,
         "imageUrl": "https://images.unsplash.com/photo-1519915028121-7d3463d20b13?w=500&auto=format&fit=crop&q=80",
         "onlineOrderable": True,
@@ -77,6 +89,8 @@ PRODUCTS = [
     },
 ]
 
+REQUESTED_API_PATHS = []
+
 
 def fulfill(route, payload):
     route.fulfill(status=200, content_type="application/json", body=json.dumps(payload))
@@ -84,6 +98,7 @@ def fulfill(route, payload):
 
 def api_route(route):
     path = urlparse(route.request.url).path
+    REQUESTED_API_PATHS.append(path)
     if path.endswith("/api/guest/profile"):
         fulfill(route, {"success": True, "exists": True, "customer": CUSTOMER, "transactions": []})
     elif path.endswith("/api/customer/loyalty"):
@@ -94,6 +109,25 @@ def api_route(route):
         fulfill(route, {"success": True, "stories": []})
     elif path.endswith("/api/guest/news"):
         fulfill(route, {"success": True, "news": []})
+    elif path.endswith("/api/customer/usual-order"):
+        fulfill(
+            route,
+            {
+                "success": True,
+                "usualOrder": {
+                    "timesOrdered": 10,
+                    "total": 2500,
+                    "items": [
+                        {
+                            "id": "p1",
+                            "name": "Вишнёво-яблочный пирог",
+                            "price": 2500,
+                            "quantity": 1,
+                        }
+                    ],
+                },
+            },
+        )
     else:
         fulfill(route, {"success": True, "notifications": [], "cities": []})
 
@@ -141,6 +175,10 @@ with sync_playwright() as playwright:
     page.mouse.click(112, 768)
     page.wait_for_timeout(3000)
 
+    assert not any(
+        path.endswith("/api/customer/usual-order") for path in REQUESTED_API_PATHS
+    ), "Catalog still requests the removed usual-order feature"
+
     screenshot = ROOT / "scratch" / "flutter-catalog-mobile.png"
     page.screenshot(path=str(screenshot), full_page=True)
     assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
@@ -161,6 +199,14 @@ with sync_playwright() as playwright:
     page.screenshot(path=str(details_screenshot), full_page=True)
     assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
 
+    # Scroll through structured facts so allergens and nutrition are covered too.
+    page.mouse.wheel(0, 620)
+    # SkWasm can briefly expose an incomplete GPU frame after wheel scrolling.
+    page.wait_for_timeout(1800)
+    facts_screenshot = ROOT / "scratch" / "flutter-product-details-facts-mobile.png"
+    page.screenshot(path=str(facts_screenshot), full_page=True)
+    assert page.evaluate("document.documentElement.scrollWidth <= document.documentElement.clientWidth")
+
     page.mouse.click(42, 28)
     page.wait_for_timeout(900)
 
@@ -173,11 +219,15 @@ with sync_playwright() as playwright:
     assert not errors, f"Browser console errors: {errors}"
     print(
         "Flutter catalog E2E passed; screenshots: "
-        f"{screenshot}, {categories_screenshot}, {details_screenshot}, "
+        f"{screenshot}, {categories_screenshot}, {details_screenshot}, {facts_screenshot}, "
         f"{quantity_screenshot}"
     )
 
     context.close()
+
+    if MOBILE_ONLY:
+        browser.close()
+        raise SystemExit(0)
 
     landscape = browser.new_context(
         viewport={"width": 844, "height": 390},
