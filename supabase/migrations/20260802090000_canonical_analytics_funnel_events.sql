@@ -2,6 +2,9 @@
 -- Legacy mobile clients are normalized by the API before insertion.
 begin;
 
+alter table public.customer_app_events
+  drop constraint if exists customer_app_events_type_check;
+
 update public.customer_app_events
 set event_type = 'checkout_started'
 where event_type = 'checkout_start';
@@ -11,13 +14,11 @@ set event_type = 'payment_started'
 where event_type = 'payment_created';
 
 alter table public.customer_app_events
-  drop constraint if exists customer_app_events_type_check;
-
-alter table public.customer_app_events
   add constraint customer_app_events_type_check check (
     event_type in (
       'app_open', 'catalog_view', 'product_view', 'add_to_cart', 'remove_from_cart',
       'checkout_started', 'checkout_quote', 'payment_started', 'payment_paid',
+      'payment_failed', 'payment_cancelled',
       'search', 'promotion_view'
     )
   );
