@@ -567,3 +567,4 @@ $$;
 
 revoke all on function public.get_admin_stats() from public, anon, authenticated;
 grant execute on function public.get_admin_stats() to service_role;
+

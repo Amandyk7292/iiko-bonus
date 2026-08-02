@@ -51,3 +51,4 @@ $$;
 
 revoke all on function public.activate_pending_bonus_transactions() from public;
 grant execute on function public.activate_pending_bonus_transactions() to service_role;
+

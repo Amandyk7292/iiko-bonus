@@ -229,3 +229,4 @@ grant execute on function public.unregister_customer_push_token(uuid, text, text
   to service_role;
 grant execute on function public.remove_invalid_customer_push_token(text)
   to service_role;
+
