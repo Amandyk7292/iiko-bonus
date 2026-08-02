@@ -4,6 +4,10 @@ const { getIikoClientForCity } = require('./iiko-city-profile.service');
 const inventoryError = (message, statusCode = 400) =>
   Object.assign(new Error(message), { statusCode });
 
+const DEFAULT_RESERVATION_TTL_MINUTES = 20;
+const MAX_RESERVATION_TTL_MINUTES = 24 * 60 + 5;
+const COMMITTED_RESERVATION_STATUSES = new Set(['committed', 'already_committed']);
+
 const normalizedKey = (value) =>
   String(value || '')
     .trim()
@@ -126,6 +130,13 @@ async function syncBranchInventory(
         .from('branch_product_inventory')
         .upsert(rows, { onConflict: 'branch_id,product_id' });
       if (error) throw error;
+      const { notifyAvailableStock } = require('./stock-subscription.service');
+      await notifyAvailableStock(
+        String(branchId),
+        rows.map((row) => row.product_id),
+      ).catch((notificationError) =>
+        console.error('Не удалось уведомить о появлении товара:', notificationError.message),
+      );
     }
     return { tracked: true, balances, stopIds: snapshot.stopIds || new Set(), group };
   } catch (error) {
@@ -192,7 +203,50 @@ async function getBranchAvailability(
   );
 }
 
-async function reserveCheckout({ customerId, requestId, branchId, items, orderType, scheduledAt }) {
+const normalizeReservationExpiry = (
+  { reservationExpiresAt = null, reservationTtlMinutes, ttlMinutes } = {},
+  now = new Date(),
+) => {
+  const normalizedTtlMinutes = Number(
+    ttlMinutes ?? reservationTtlMinutes ?? DEFAULT_RESERVATION_TTL_MINUTES,
+  );
+  if (
+    !Number.isInteger(normalizedTtlMinutes) ||
+    normalizedTtlMinutes < 5 ||
+    normalizedTtlMinutes > MAX_RESERVATION_TTL_MINUTES
+  ) {
+    throw inventoryError(`Срок резерва должен быть от 5 до ${MAX_RESERVATION_TTL_MINUTES} минут`);
+  }
+  if (reservationExpiresAt == null || reservationExpiresAt === '') {
+    return { expiresAt: null, ttlMinutes: normalizedTtlMinutes };
+  }
+  const expiresAtMs = Date.parse(String(reservationExpiresAt));
+  const nowMs = now.getTime();
+  if (!Number.isFinite(expiresAtMs) || expiresAtMs <= nowMs) {
+    throw inventoryError('Срок оплаты уже истёк');
+  }
+  if (expiresAtMs - nowMs > MAX_RESERVATION_TTL_MINUTES * 60 * 1000) {
+    throw inventoryError('Срок оплаты превышает допустимый срок резерва');
+  }
+  return { expiresAt: new Date(expiresAtMs).toISOString(), ttlMinutes: normalizedTtlMinutes };
+};
+
+async function reserveCheckout({
+  customerId,
+  requestId,
+  branchId,
+  items,
+  orderType,
+  scheduledAt,
+  reservationExpiresAt = null,
+  reservationTtlMinutes,
+  ttlMinutes,
+}) {
+  const reservation = normalizeReservationExpiry({
+    reservationExpiresAt,
+    reservationTtlMinutes,
+    ttlMinutes,
+  });
   const { data: inventory, error: inventoryRpcError } = await supabase.rpc(
     'reserve_order_inventory',
     {
@@ -200,7 +254,8 @@ async function reserveCheckout({ customerId, requestId, branchId, items, orderTy
       p_request_id: requestId,
       p_branch_id: branchId,
       p_items: items,
-      p_ttl_minutes: 20,
+      p_ttl_minutes: reservation.ttlMinutes,
+      p_expires_at: reservation.expiresAt,
     },
   );
   if (inventoryRpcError) throw inventoryError(inventoryRpcError.message, 409);
@@ -211,7 +266,8 @@ async function reserveCheckout({ customerId, requestId, branchId, items, orderTy
     p_branch_id: branchId,
     p_fulfillment_type: orderType,
     p_scheduled_at: scheduledAt,
-    p_ttl_minutes: 20,
+    p_ttl_minutes: reservation.ttlMinutes,
+    p_expires_at: reservation.expiresAt,
   });
   if (slotRpcError) {
     await releaseCheckoutRequest(customerId, requestId).catch(() => undefined);
@@ -241,17 +297,61 @@ async function releaseCheckoutRequest(customerId, requestId) {
 }
 
 async function attachOrderReservations(customerId, requestId, orderId) {
-  const { error } = await supabase.rpc('attach_order_reservations', {
+  const { data, error } = await supabase.rpc('attach_order_reservations', {
     p_customer_id: customerId,
     p_request_id: requestId,
     p_order_id: orderId,
   });
   if (error) throw error;
+  if (String(data?.status || '') !== 'attached') {
+    throw inventoryError('Не удалось связать резерв с заказом. Повторите оформление.', 409);
+  }
+  return data;
 }
 
-async function commitOrderReservations(orderId) {
-  const { error } = await supabase.rpc('commit_order_reservations', { p_order_id: orderId });
+const normalizeReservationCommitResult = (data) => {
+  const source = Array.isArray(data) ? data[0] : data;
+  const result = source && typeof source === 'object' ? source : {};
+  const number = (key) => Math.max(0, Number(result[key]) || 0);
+  return {
+    status: String(result.status || 'unknown'),
+    inventoryRequested: number('inventoryRequested'),
+    inventoryCommitted: number('inventoryCommitted'),
+    inventoryUnitsRequested: number('inventoryUnitsRequested'),
+    inventoryUnitsCommitted: number('inventoryUnitsCommitted'),
+    slotRequested: number('slotRequested'),
+    slotCommitted: number('slotCommitted'),
+    reacquired: result.reacquired === true,
+    reason: result.reason ? String(result.reason) : null,
+    productId: result.productId ? String(result.productId) : null,
+  };
+};
+
+async function commitOrReacquireOrderReservations(orderId, { allowReacquire = false } = {}) {
+  const { data, error } = await supabase.rpc('commit_order_reservations', {
+    p_order_id: orderId,
+    p_allow_reacquire: allowReacquire === true,
+  });
   if (error) throw error;
+  return normalizeReservationCommitResult(data);
+}
+
+async function commitOrderReservations(orderId, options = {}) {
+  const result = await commitOrReacquireOrderReservations(orderId, options);
+  if (COMMITTED_RESERVATION_STATUSES.has(result.status)) return result;
+
+  const errorDetails = {
+    expired: ['Срок резерва заказа истёк', 'RESERVATION_EXPIRED'],
+    released: ['Резерв заказа уже освобождён', 'RESERVATION_RELEASED'],
+    unavailable: ['Остаток или время заказа больше недоступны', 'RESERVATION_UNAVAILABLE'],
+    not_found: ['Резерв заказа не найден', 'RESERVATION_NOT_FOUND'],
+    unknown: ['Не удалось подтвердить резерв заказа', 'RESERVATION_COMMIT_UNKNOWN'],
+  };
+  const [message, code] = errorDetails[result.status] || errorDetails.unknown;
+  const error = inventoryError(message, 409);
+  error.code = code;
+  error.reservation = result;
+  throw error;
 }
 
 async function releaseOrderReservations(orderId) {
@@ -313,6 +413,10 @@ async function updateInventory(branchId, productId, payload = {}) {
     .select()
     .single();
   if (error) throw error;
+  const { notifyAvailableStock } = require('./stock-subscription.service');
+  await notifyAvailableStock(String(branchId), [row.product_id]).catch((notificationError) =>
+    console.error('Не удалось уведомить о появлении товара:', notificationError.message),
+  );
   return data;
 }
 
@@ -341,6 +445,7 @@ async function syncAllBranchInventory({ strict = false, products = [], branchIds
 
 module.exports = {
   attachOrderReservations,
+  commitOrReacquireOrderReservations,
   commitOrderReservations,
   getBranchAvailability,
   listInventory,
@@ -348,6 +453,8 @@ module.exports = {
   releaseCheckoutRequest,
   releaseOrderReservations,
   reserveCheckout,
+  normalizeReservationCommitResult,
+  normalizeReservationExpiry,
   syncAllBranchInventory,
   syncBranchInventory,
   terminalGroupForLocation,

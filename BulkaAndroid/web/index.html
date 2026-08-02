@@ -9,11 +9,44 @@
         try { saved = JSON.parse(saved); } catch (_) {}
       }
       var browserLanguage = (navigator.language || 'ru').split('-')[0];
-      document.documentElement.lang = supported.indexOf(saved) >= 0
+      var locale = supported.indexOf(saved) >= 0
         ? saved
         : supported.indexOf(browserLanguage) >= 0
         ? browserLanguage
         : 'ru';
+      document.documentElement.lang = locale;
+      var metadata = {
+        ru: {
+          title: 'Bulka — семейная пекарня',
+          description: 'Заказывайте свежую выпечку, десерты и любимые блюда Bulka с доставкой или самовывозом в Астане и Актау.',
+          imageAlt: 'Оригинальный логотип семейной пекарни Bulka'
+        },
+        kk: {
+          title: 'Bulka — отбасылық наубайхана',
+          description: 'Астана мен Ақтауда Bulka-ның жаңа піскен өнімдерін, десерттері мен сүйікті тағамдарын жеткізумен немесе алып кетуге тапсырыс беріңіз.',
+          imageAlt: 'Bulka отбасылық наубайханасының түпнұсқа логотипі'
+        },
+        en: {
+          title: 'Bulka — family bakery',
+          description: 'Order fresh pastries, desserts and Bulka favourites for delivery or pickup in Astana and Aktau.',
+          imageAlt: 'Original Bulka family bakery logo'
+        }
+      };
+      document.addEventListener('DOMContentLoaded', function () {
+        var copy = metadata[locale];
+        document.title = copy.title;
+        [
+          ['meta[name="description"]', 'content', copy.description],
+          ['meta[property="og:title"]', 'content', copy.title],
+          ['meta[property="og:description"]', 'content', copy.description],
+          ['meta[property="og:image:alt"]', 'content', copy.imageAlt],
+          ['meta[name="twitter:title"]', 'content', copy.title],
+          ['meta[name="twitter:description"]', 'content', copy.description]
+        ].forEach(function (entry) {
+          var element = document.querySelector(entry[0]);
+          if (element) element.setAttribute(entry[1], entry[2]);
+        });
+      }, { once: true });
     })();
   </script>
   <!--
@@ -34,7 +67,7 @@
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="description" content="Заказывайте свежую выпечку, десерты и любимые блюда Bulka с доставкой или самовывозом в Актау.">
+  <meta name="description" content="Заказывайте свежую выпечку, десерты и любимые блюда Bulka с доставкой или самовывозом в Астане и Актау.">
   <meta name="theme-color" content="#FFFFFF">
   <meta name="color-scheme" content="light only">
   <link rel="canonical" href="https://bulka.com.kz/">
@@ -42,7 +75,7 @@
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Bulka">
   <meta property="og:title" content="Bulka — семейная пекарня">
-  <meta property="og:description" content="Заказывайте свежую выпечку, десерты и любимые блюда Bulka с доставкой или самовывозом в Актау.">
+  <meta property="og:description" content="Заказывайте свежую выпечку, десерты и любимые блюда Bulka с доставкой или самовывозом в Астане и Актау.">
   <meta property="og:url" content="https://bulka.com.kz/">
   <meta property="og:image" content="https://bulka.com.kz/icons/Icon-512.png?v=20260718-1">
   <meta property="og:image:secure_url" content="https://bulka.com.kz/icons/Icon-512.png?v=20260718-1">
@@ -53,17 +86,17 @@
 
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="Bulka — семейная пекарня">
-  <meta name="twitter:description" content="Заказывайте свежую выпечку, десерты и любимые блюда Bulka с доставкой или самовывозом в Актау.">
+  <meta name="twitter:description" content="Заказывайте свежую выпечку, десерты и любимые блюда Bulka с доставкой или самовывозом в Астане и Актау.">
   <meta name="twitter:image" content="https://bulka.com.kz/icons/Icon-512.png?v=20260718-1">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Bulka">
-  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-touch-icon.png?v=20260718-1">
+  <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=20260730-1">
 
   <!-- Favicon -->
-  <link rel="icon" type="image/png" sizes="48x48" href="favicon.png?v=20260718-1">
+  <link rel="icon" type="image/png" sizes="48x48" href="/favicon.png?v=20260730-1">
 
   <title>Bulka — семейная пекарня</title>
   <link rel="manifest" href="manifest.json">
@@ -240,7 +273,7 @@
           retry: 'Try again',
         },
       };
-      const language = (navigator.language || 'ru').toLowerCase();
+      const language = (document.documentElement.lang || 'ru').toLowerCase();
       const locale = language.startsWith('kk') || language.startsWith('kz')
         ? 'kk'
         : language.startsWith('en')

@@ -44,7 +44,14 @@ const {
   adminCsrfMiddleware,
   adminMutationRoleMiddleware,
 } = require('./middlewares/auth.middleware');
-const { requestBodySafetyMiddleware } = require('./middlewares/validation.middleware');
+const {
+  apiEnvelopeValidationMiddleware,
+  requestBodySafetyMiddleware,
+} = require('./middlewares/validation.middleware');
+
+const publicAppDirectory = path.resolve(
+  process.env.BULKA_PUBLIC_APP_DIR || path.join(process.cwd(), 'public', 'app'),
+);
 
 const app = express();
 validateRuntimeConfig();
@@ -126,6 +133,7 @@ app.use(
 );
 app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 app.use(requestBodySafetyMiddleware);
+app.use(apiEnvelopeValidationMiddleware);
 
 app.locals.kaspiReady = process.env.KASPI_POS_ENABLED !== 'true';
 let embeddedKaspiApp = null;
@@ -190,7 +198,14 @@ app.get('/.well-known/apple-app-site-association', (_req, res) => {
   res.json({
     applinks: {
       apps: [],
-      details: teamId ? [{ appID: `${teamId}.${bundleId}`, paths: ['/orders', '/orders/*'] }] : [],
+      details: teamId
+        ? [
+            {
+              appID: `${teamId}.${bundleId}`,
+              paths: ['/orders', '/orders/*', '/catalog', '/catalog/*'],
+            },
+          ]
+        : [],
     },
   });
 });
@@ -217,6 +232,18 @@ app.get('/.well-known/assetlinks.json', (_req, res) => {
       : [],
   );
 });
+
+const sendBrandPng = (relativePath) => (_req, res) => {
+  res.setHeader('Cache-Control', 'public, max-age=86400, must-revalidate');
+  res.type('image/png').sendFile(path.join(publicAppDirectory, relativePath));
+};
+
+// Keep the browser tab icon available to every surface, including admin and
+// temporary site-access pages. /favicon.ico serves the same PNG for browsers
+// and bookmarks that still request the legacy default path.
+app.get('/favicon.png', sendBrandPng('favicon.png'));
+app.get('/favicon.ico', sendBrandPng('favicon.png'));
+app.get('/icons/apple-touch-icon.png', sendBrandPng('icons/apple-touch-icon.png'));
 
 // Restrict the public web experience without interrupting the admin panel,
 // mobile API, health checks or machine-to-machine integrations.
@@ -326,12 +353,9 @@ app.get('/admin/*', (req, res) => {
 });
 
 // Serve Flutter Web App
-app.use(
-  '/app',
-  express.static(path.join(process.cwd(), 'public/app'), { setHeaders: appStaticHeaders }),
-);
+app.use('/app', express.static(publicAppDirectory, { setHeaders: appStaticHeaders }));
 app.get('/app/*', (req, res) => {
-  res.sendFile(path.join(process.cwd(), 'public/app', 'index.html'));
+  res.sendFile(path.join(publicAppDirectory, 'index.html'));
 });
 
 const sendLegalPage = (slug, language) => (_req, res) => {
@@ -451,12 +475,12 @@ app.get('/courier', (_req, res) => {
 // Serve the Flutter build at the domain root as the canonical web app.
 // Explicit API, admin, wallet and legacy routes are registered above, so
 // only Flutter assets fall through to this static middleware.
-app.use(express.static(path.join(process.cwd(), 'public/app'), { setHeaders: appStaticHeaders }));
+app.use(express.static(publicAppDirectory, { setHeaders: appStaticHeaders }));
 app.get(
   ['/orders', '/orders/*', '/catalog', '/catalog/*', '/cart', '/promos', '/profile'],
   (_req, res) => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.sendFile(path.join(process.cwd(), 'public/app', 'index.html'));
+    res.sendFile(path.join(publicAppDirectory, 'index.html'));
   },
 );
 
@@ -477,7 +501,7 @@ app.use((err, req, res, _next) => {
   const response = {
     error:
       statusCode >= 500
-        ? 'Internal Server Error'
+        ? 'Не удалось выполнить действие. Повторите попытку.'
         : err.expose === false
           ? 'Request failed'
           : err.message || 'Request failed',

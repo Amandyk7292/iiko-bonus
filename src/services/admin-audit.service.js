@@ -3,6 +3,8 @@ const { supabase } = require('../config/supabase');
 const { logger } = require('../config/logger');
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const AUDIT_METHODS = new Set(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']);
+const AUDIT_OUTCOMES = new Set(['success', 'rejected', 'server_error']);
 
 const boundedText = (value, maximum) => {
   const text = String(value || '').trim();
@@ -39,6 +41,55 @@ const setAdminAuditContext = (req, context = {}) => {
     ...(req.adminAudit || {}),
     ...context,
   };
+};
+
+const auditQueryError = (message) =>
+  Object.assign(new Error(message), { statusCode: 400, code: 'AUDIT_QUERY_INVALID' });
+
+const parseAuditLogQuery = (input = {}) => {
+  const pageText = String(input.page ?? '1');
+  const pageSizeText = String(input.pageSize ?? '50');
+  if (!/^\d{1,7}$/.test(pageText) || !/^\d{1,3}$/.test(pageSizeText)) {
+    throw auditQueryError('Некорректная пагинация журнала');
+  }
+  const page = Number(pageText);
+  const pageSize = Number(pageSizeText);
+  if (page < 1 || pageSize < 10 || pageSize > 100) {
+    throw auditQueryError('Некорректная пагинация журнала');
+  }
+  const method = String(input.method || '')
+    .trim()
+    .toUpperCase();
+  const outcome = String(input.outcome || input.status || '')
+    .trim()
+    .toLowerCase();
+  if (method && !AUDIT_METHODS.has(method)) throw auditQueryError('Некорректный HTTP-метод');
+  if (outcome && !AUDIT_OUTCOMES.has(outcome)) throw auditQueryError('Некорректный результат');
+  const search = String(input.search || '').trim();
+  if (search.length > 100 || /[,\n\r()"'\\]/u.test(search)) {
+    throw auditQueryError('Некорректная строка поиска');
+  }
+  return { page, pageSize, method, outcome, search };
+};
+
+const applyAuditLogFilters = (query, filters) => {
+  let result = query;
+  if (filters.method) result = result.eq('action', filters.method);
+  if (filters.outcome) result = result.eq('outcome', filters.outcome);
+  if (filters.search) {
+    const pattern = `%${filters.search.replaceAll('%', '\\%').replaceAll('_', '\\_')}%`;
+    result = result.or(
+      [
+        `action.ilike.${pattern}`,
+        `action_code.ilike.${pattern}`,
+        `path.ilike.${pattern}`,
+        `request_id.ilike.${pattern}`,
+        `admin_subject.ilike.${pattern}`,
+        `target_id.ilike.${pattern}`,
+      ].join(','),
+    );
+  }
+  return result;
 };
 
 const inferredTarget = (req) => {
@@ -109,4 +160,10 @@ async function writeAdminAudit(req, statusCode, { db = supabase } = {}) {
   }
 }
 
-module.exports = { boundedContext, setAdminAuditContext, writeAdminAudit };
+module.exports = {
+  applyAuditLogFilters,
+  boundedContext,
+  parseAuditLogQuery,
+  setAdminAuditContext,
+  writeAdminAudit,
+};

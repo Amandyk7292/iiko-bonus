@@ -13,8 +13,7 @@ function cspHash(content) {
     .digest('base64')}'`;
 }
 
-function inlineHashes(relativePath, tagName) {
-  const file = path.join(projectRoot, relativePath);
+function inlineHashesFromFile(file, tagName) {
   if (!fs.existsSync(file)) return [];
   const html = fs.readFileSync(file, 'utf8');
   const sourceAttributeGuard = tagName === 'script' ? '(?![^>]*\\bsrc\\s*=)' : '';
@@ -23,6 +22,10 @@ function inlineHashes(relativePath, tagName) {
     'gi',
   );
   return [...html.matchAll(expression)].map((match) => cspHash(match[1]));
+}
+
+function inlineHashes(relativePath, tagName) {
+  return inlineHashesFromFile(path.join(projectRoot, relativePath), tagName);
 }
 
 function staticDocumentPolicy(relativePath) {
@@ -42,7 +45,11 @@ function staticDocumentPolicy(relativePath) {
   };
 }
 
-const appScriptHashes = inlineHashes('public/app/index.html', 'script');
+const publicAppIndex = path.resolve(
+  process.env.BULKA_PUBLIC_APP_DIR || path.join(projectRoot, 'public', 'app'),
+  'index.html',
+);
+const appScriptHashes = inlineHashesFromFile(publicAppIndex, 'script');
 const staticDocumentPolicies = new Map([
   ['/courier', staticDocumentPolicy('public/courier.html')],
   ['/account-deletion', staticDocumentPolicy('public/legal/account-deletion.html')],

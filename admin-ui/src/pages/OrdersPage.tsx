@@ -1,22 +1,20 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import {
-  BadgeCheck,
-  Camera,
-  LoaderCircle,
-  MapPin,
-  RefreshCw,
-  Search,
-} from 'lucide-react';
+import { BadgeCheck, Camera, LoaderCircle, MapPin, RefreshCw, Search } from 'lucide-react';
 import { useSearchParams } from '../lib/router';
 import PageState from '../components/PageState';
 import Modal from '../components/Modal';
 import SelectControl from '../components/SelectControl';
 import { useFeedback } from '../components/Feedback';
 import { api, type AdminOrder, type Courier, type DeliveryProof } from '../lib/api';
+import {
+  availableOrderStatuses,
+  canMutateOrders,
+  canRefundOrders,
+  ORDER_STATUSES,
+} from '../lib/admin-permissions';
 import { useAdminRealtimeEvents } from '../lib/admin-realtime';
 import { useI18n } from '../lib/i18n';
 
-const statuses = ['new', 'accepted', 'preparing', 'ready', 'completed', 'cancelled'];
 const deliveryTransitions: Record<string, string[]> = {
   unassigned: [],
   assigned: ['picked_up', 'en_route', 'cancelled'],
@@ -26,9 +24,11 @@ const deliveryTransitions: Record<string, string[]> = {
   cancelled: [],
 };
 
-export default function OrdersPage() {
+export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
   const { t, formatDate, formatNumber } = useI18n();
   const { toast } = useFeedback();
+  const orderMutationsAllowed = canMutateOrders(role);
+  const refundsAllowed = canRefundOrders(role);
   const [params, setParams] = useSearchParams();
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -116,7 +116,7 @@ export default function OrdersPage() {
   }, [load]);
 
   const assignCourier = async (order: AdminOrder, courierId: string) => {
-    if (!courierId || savingId) return;
+    if (!orderMutationsAllowed || !courierId || savingId) return;
     setSavingId(order.id);
     try {
       const eta = new Date(Date.now() + 45 * 60_000).toISOString();
@@ -131,7 +131,7 @@ export default function OrdersPage() {
   };
 
   const changeDeliveryStatus = async (order: AdminOrder, status: string) => {
-    if (!status || savingId) return;
+    if (!orderMutationsAllowed || !status || savingId) return;
     setSavingId(order.id);
     try {
       await api.updateDeliveryStatus(order.id, status);
@@ -145,6 +145,9 @@ export default function OrdersPage() {
   };
 
   const persistStatus = async (order: AdminOrder, status: string, reason = '') => {
+    if (!orderMutationsAllowed || (status === 'cancelled' && !refundsAllowed)) {
+      return false;
+    }
     setSavingId(order.id);
     try {
       const result = await api.updateOrderStatus(order.id, status, reason);
@@ -160,8 +163,9 @@ export default function OrdersPage() {
   };
 
   const changeStatus = (order: AdminOrder, status: string) => {
-    if (status === order.orderStatus || savingId) return;
+    if (!orderMutationsAllowed || status === order.orderStatus || savingId) return;
     if (status === 'cancelled') {
+      if (!refundsAllowed) return;
       setCancellationOrder(order);
       setCancellationReason('');
       return;
@@ -171,7 +175,7 @@ export default function OrdersPage() {
 
   const submitCancellation = async (event: FormEvent) => {
     event.preventDefault();
-    if (!cancellationOrder || savingId) return;
+    if (!refundsAllowed || !cancellationOrder || savingId) return;
     if (await persistStatus(cancellationOrder, 'cancelled', cancellationReason.trim())) {
       setCancellationOrder(null);
       setCancellationReason('');
@@ -230,6 +234,7 @@ export default function OrdersPage() {
             <Search aria-hidden="true" size={18} />
             <input
               id="order-search"
+              name="orderSearch"
               type="search"
               className="input-classic"
               value={search}
@@ -255,6 +260,7 @@ export default function OrdersPage() {
             }}
             options={[
               { value: '', label: t('orders.all') },
+              { value: 'issues', label: t('payment.issues') },
               ...['pending', 'paid', 'refunded', 'failed', 'expired'].map((value) => ({
                 value,
                 label: t(`payment.${value}`),
@@ -275,7 +281,10 @@ export default function OrdersPage() {
             }}
             options={[
               { value: '', label: t('orders.all') },
-              ...statuses.map((value) => ({ value, label: t(`orderStatus.${value}`) })),
+              ...ORDER_STATUSES.map((value) => ({
+                value,
+                label: t(`orderStatus.${value}`),
+              })),
             ]}
           />
         </div>
@@ -335,7 +344,7 @@ export default function OrdersPage() {
                             <small>
                               {order.courier.name} · {order.courier.phone}
                             </small>
-                          ) : (
+                          ) : orderMutationsAllowed ? (
                             <SelectControl
                               compact
                               ariaLabel={t('orders.assignCourier')}
@@ -353,8 +362,11 @@ export default function OrdersPage() {
                                   })),
                               ]}
                             />
+                          ) : (
+                            <small>{t('orders.courierNotAssigned')}</small>
                           )}
-                          {order.courier &&
+                          {orderMutationsAllowed &&
+                            order.courier &&
                             (deliveryTransitions[order.deliveryStatus || 'unassigned']?.length ??
                               0) > 0 && (
                               <SelectControl
@@ -385,10 +397,10 @@ export default function OrdersPage() {
                           {order.deliveryStatus === 'delivered' && (
                             <button
                               type="button"
-                              className="text-button-action"
+                              className="text-button-refund"
                               onClick={() => void openDeliveryProof(order)}
                             >
-                              <Camera size={14} />
+                              <Camera size={14} aria-hidden="true" />
                               Подтверждение
                             </button>
                           )}
@@ -406,9 +418,12 @@ export default function OrdersPage() {
                       )}
                     </td>
                     <td data-label={t('common.status')}>
-                      {['paid', 'refunded'].includes(order.paymentStatus) ? (
+                      {['paid', 'refunded'].includes(order.paymentStatus) &&
+                      orderMutationsAllowed ? (
                         <div className="order-status-control">
-                          {savingId === order.id && <LoaderCircle className="spin" size={16} />}
+                          {savingId === order.id && (
+                            <LoaderCircle className="spin" size={16} aria-hidden="true" />
+                          )}
                           <SelectControl
                             compact
                             ariaLabel={t('orders.changeStatus')}
@@ -419,12 +434,18 @@ export default function OrdersPage() {
                               savingId === order.id ||
                               ['completed', 'cancelled'].includes(order.orderStatus)
                             }
-                            options={statuses.map((value) => ({
-                              value,
-                              label: t(`orderStatus.${value}`),
-                            }))}
+                            options={availableOrderStatuses(order.orderStatus, refundsAllowed).map(
+                              (value) => ({
+                                value,
+                                label: t(`orderStatus.${value}`),
+                              }),
+                            )}
                           />
                         </div>
+                      ) : ['paid', 'refunded'].includes(order.paymentStatus) ? (
+                        <span className="status-pill status-info">
+                          {t(`orderStatus.${order.orderStatus}`)}
+                        </span>
                       ) : (
                         <span className="table-secondary">—</span>
                       )}
@@ -490,6 +511,7 @@ export default function OrdersPage() {
               className="input-classic"
               rows={4}
               maxLength={500}
+              required
               value={cancellationReason}
               onChange={(event) => setCancellationReason(event.target.value)}
               autoFocus

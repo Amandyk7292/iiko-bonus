@@ -8,6 +8,9 @@ const {
   deleteCustomerData,
   exportCustomerData,
 } = require('../src/services/privacy.service');
+const {
+  processPrivacyStorageCleanupJobs,
+} = require('../src/services/privacy-storage-cleanup.service');
 
 class Query {
   constructor(fixture, table) {
@@ -114,7 +117,10 @@ function createDb(tables = {}) {
     },
     async rpc(name, args = {}) {
       fixture.rpcCalls.push({ name, args });
-      return { data: name === 'delete_customer_personal_data' ? { deleted: true } : 0, error: null };
+      return {
+        data: name === 'delete_customer_personal_data' ? { deleted: true } : 0,
+        error: null,
+      };
     },
     storage: {
       from(bucket) {
@@ -178,7 +184,7 @@ test('privacy export is complete enough and never persists its payload', async (
   assert.ok(fixture.rpcCalls.some((call) => call.name === 'purge_expired_customer_exports'));
 });
 
-test('privacy deletion removes object storage and delegates database cleanup to one RPC', async () => {
+test('privacy deletion queues storage cleanup before delegating atomic database cleanup', async () => {
   const customerId = '11111111-1111-4111-8111-111111111111';
   const { db, fixture } = createDb({
     customers: [{ id: customerId, phone: '+77010000000', deleted_at: null }],
@@ -206,28 +212,87 @@ test('privacy deletion removes object storage and delegates database cleanup to 
   });
 
   assert.equal(await deleteCustomerData(customerId, { db }), true);
-  assert.deepEqual(fixture.removals, [
-    {
-      bucket: 'support-attachments',
-      paths: ['customer/request.jpg', 'customer/reply.png'],
-    },
-    { bucket: 'whatsapp-outbox', paths: ['voice/customer.ogg'] },
-  ]);
+  assert.deepEqual(fixture.removals, []);
 
   const deletion = fixture.rpcCalls.find(
-    (call) => call.name === 'delete_customer_personal_data',
+    (call) => call.name === 'delete_customer_personal_data_complete',
   );
   assert.equal(deletion.args.p_customer_id, customerId);
   assert.match(deletion.args.p_deleted_phone, /^deleted-[0-9a-f]{20}$/);
   assert.ok(deletion.args.p_request_id);
+  const cleanup = fixture.inserts.find((entry) => entry.table === 'privacy_storage_cleanup_jobs');
+  assert.equal(cleanup.record.request_id, deletion.args.p_request_id);
+  assert.equal(cleanup.record.status, 'pending');
+  assert.deepEqual(cleanup.record.items, [
+    { bucket: 'support-attachments', path: 'customer/request.jpg' },
+    { bucket: 'support-attachments', path: 'customer/reply.png' },
+    { bucket: 'whatsapp-outbox', path: 'voice/customer.ogg' },
+  ]);
+});
+
+test('failed database anonymisation never deletes queued storage files', async () => {
+  const customerId = '11111111-1111-4111-8111-111111111111';
+  const { db, fixture } = createDb({
+    customers: [{ id: customerId, phone: '+77010000000', deleted_at: null }],
+    customer_support_requests: [
+      {
+        id: 'support-1',
+        customer_id: customerId,
+        attachments: [{ path: 'customer/request.jpg' }],
+      },
+    ],
+  });
+  const defaultRpc = db.rpc;
+  db.rpc = async (name, args = {}) => {
+    if (name !== 'delete_customer_personal_data_complete') return defaultRpc(name, args);
+    fixture.rpcCalls.push({ name, args });
+    return { data: null, error: new Error('customer has active orders or unsettled refunds') };
+  };
+
+  await assert.rejects(
+    () => deleteCustomerData(customerId, { db }),
+    /активных заказов и возвратов/,
+  );
+  assert.deepEqual(fixture.removals, []);
+  const cleanup = fixture.inserts.find((entry) => entry.table === 'privacy_storage_cleanup_jobs');
+  assert.equal(cleanup.record.status, 'pending');
+});
+
+test('activated privacy cleanup job deletes each bucket and completes retry-safely', async () => {
+  const jobId = '33333333-3333-4333-8333-333333333333';
+  const { db, fixture } = createDb({
+    privacy_storage_cleanup_jobs: [{ id: jobId, status: 'processing' }],
+  });
+  db.rpc = async (name) => {
+    assert.equal(name, 'claim_privacy_storage_cleanup_jobs');
+    return {
+      data: [
+        {
+          id: jobId,
+          status: 'processing',
+          attempts: 1,
+          items: [
+            { bucket: 'support-attachments', path: 'customer/request.jpg' },
+            { bucket: 'whatsapp-outbox', path: 'voice/customer.ogg' },
+          ],
+        },
+      ],
+      error: null,
+    };
+  };
+
+  const summary = await processPrivacyStorageCleanupJobs({}, { db });
+  assert.deepEqual(summary, { claimed: 1, completed: 1, failed: 0 });
+  assert.deepEqual(fixture.removals, [
+    { bucket: 'support-attachments', paths: ['customer/request.jpg'] },
+    { bucket: 'whatsapp-outbox', paths: ['voice/customer.ogg'] },
+  ]);
+  assert.equal(fixture.tables.privacy_storage_cleanup_jobs[0].status, 'completed');
 });
 
 test('privacy migration covers WhatsApp, credentials, exports and order redaction', () => {
   const migration = fs.readFileSync(
-    path.join(
-      __dirname,
-      '../supabase/migrations/20260726120000_privacy_lifecycle_hardening.sql',
-    ),
+    path.join(__dirname, '../supabase/migrations/20260726120000_privacy_lifecycle_hardening.sql'),
     'utf8',
   );
 
@@ -237,4 +302,33 @@ test('privacy migration covers WhatsApp, credentials, exports and order redactio
   assert.match(migration, /update public\.kaspi_orders[\s\S]+delivery_address/);
   assert.match(migration, /export_payload = null/);
   assert.match(migration, /delete_customer_personal_data/);
+});
+
+test('payment-token privacy migration blocks active orders and deletes token material', () => {
+  const migration = fs.readFileSync(
+    path.join(
+      __dirname,
+      '../supabase/migrations/20260729120000_privacy_payment_method_lifecycle.sql',
+    ),
+    'utf8',
+  );
+  assert.match(migration, /status = 'pending'/);
+  assert.match(migration, /refund_status[\s\S]+processing[\s\S]+unknown/);
+  assert.match(migration, /delete from public\.customer_payment_method_setups/);
+  assert.match(migration, /delete from public\.customer_payment_methods/);
+  assert.match(migration, /delete_customer_personal_data_complete/);
+  assert.match(migration, /for key share/);
+  assert.match(migration, /for update/);
+  assert.match(migration, /kaspi_orders_active_customer_insert/);
+});
+
+test('privacy storage cleanup activates only after database completion and is reclaimable', () => {
+  const migration = fs.readFileSync(
+    path.join(__dirname, '../supabase/migrations/20260729140000_privacy_storage_cleanup.sql'),
+    'utf8',
+  );
+  assert.match(migration, /new\.status = 'completed'/);
+  assert.match(migration, /status = 'ready'/);
+  assert.match(migration, /for update skip locked/i);
+  assert.match(migration, /processing_started_at <= now\(\) - interval '15 minutes'/);
 });

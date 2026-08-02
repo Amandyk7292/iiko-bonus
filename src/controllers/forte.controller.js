@@ -1,5 +1,6 @@
 const forteService = require('../services/forte.service');
 const forteWidgetService = require('../services/forte-widget.service');
+const kaspiService = require('../services/kaspi.service');
 const paymentOperations = require('../services/payment-operations.service');
 const { isSafeWidgetFallbackError } = paymentOperations;
 const kaspiController = require('./kaspi.controller');
@@ -7,6 +8,11 @@ const { priceOrder } = require('../services/order.service');
 const { getCitiesWithPoints } = require('../services/location.service');
 const { validateCheckout } = require('../services/checkout.service');
 const { SingleFlight } = require('../utils/single-flight.util');
+const {
+  attachPromotionReservation,
+  releasePromotionReservation,
+  reservePromotionForCheckout,
+} = require('../services/commerce-marketing.service');
 const {
   attachOrderReservations,
   commitOrderReservations,
@@ -81,14 +87,27 @@ const createPayment = async (req, res) => {
         );
       }
 
-      await reserveCheckout({
+      await reservePromotionForCheckout(pricing, {
         customerId,
         requestId: checkoutId,
-        branchId: checkout.branchId,
-        items: pricing.canonicalItems,
-        orderType: checkout.orderType,
-        scheduledAt: checkout.scheduledAt,
+        ttlMinutes: 35,
       });
+      try {
+        await reserveCheckout({
+          customerId,
+          requestId: checkoutId,
+          branchId: checkout.branchId,
+          items: pricing.canonicalItems,
+          orderType: checkout.effectiveFulfillmentType,
+          scheduledAt: checkout.scheduledAt,
+          ttlMinutes: 35,
+        });
+      } catch (error) {
+        await releasePromotionReservation({ customerId, requestId: checkoutId }).catch(
+          () => undefined,
+        );
+        throw error;
+      }
       try {
         const decision = await paymentOperations.getForteCheckoutDecision();
         let service =
@@ -131,15 +150,29 @@ const createPayment = async (req, res) => {
         const order = await service.existingRequest(customerId, checkoutId);
         if (order?.id) {
           await attachOrderReservations(customerId, checkoutId, order.id);
+          if (pricing.promotionId) {
+            await attachPromotionReservation(customerId, checkoutId, order.id);
+          }
           if (order.status === 'paid') await commitOrderReservations(order.id);
         }
         return payment;
       } catch (error) {
         const order = await existingForteRequest(customerId, checkoutId);
-        if (!order) {
-          await releaseCheckoutRequest(customerId, checkoutId).catch((releaseError) =>
-            console.error('Не удалось освободить резерв ForteBank:', releaseError.message),
-          );
+        await Promise.allSettled([
+          releaseCheckoutRequest(customerId, checkoutId),
+          releasePromotionReservation({ customerId, requestId: checkoutId }),
+          ...(order?.id ? [releasePromotionReservation({ orderId: order.id })] : []),
+        ]).then((results) => {
+          for (const result of results) {
+            if (result.status === 'rejected') {
+              console.error('Не удалось освободить резерв ForteBank:', result.reason.message);
+            }
+          }
+        });
+        if (order?.status === 'pending') {
+          await kaspiService
+            .updateOrderStatus(order.operation_id, 'expired')
+            .catch(() => undefined);
         }
         throw error;
       }
@@ -252,6 +285,9 @@ const checkCardSetupStatus = async (req, res) => {
       status: setup.status || 'pending',
       paymentStatus: setup.status || 'pending',
       purpose: 'card-setup',
+      cardSaved:
+        setup.status === 'paid' || String(setup.provider_status || '').includes('card_saved'),
+      refundStatus: setup.refund_status || null,
     });
   } catch (error) {
     return res

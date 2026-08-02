@@ -68,15 +68,18 @@ copy_artifacts() {
     "$destination/kaspi-pos-automation-main/public/"
   for script in \
     apply-migrations.js \
+    backup-database.sh \
     setup-google-wallet.js \
     deploy-release.sh \
-    rollback-vps.sh \
-    prepare-cloudflare-origin.sh \
-    harden-nginx-access-logs.sh \
-    backup-database.sh \
-    backup-supabase-storage.js \
+    enable-nginx-upstream-fallback.sh \
+    ensure-postgres-client.sh \
     install-database-backup-timer.sh \
-    verify-database-restore.sh; do
+    rollback-vps.sh \
+    verify-database-restore.sh \
+    prepare-cloudflare-origin.sh \
+    configure-iiko-astana-vps.sh \
+    probe-iiko-city-profile.js \
+    harden-nginx-access-logs.sh; do
     if [[ -f "$source/scripts/$script" ]]; then
       cp "$source/scripts/$script" "$destination/scripts/$script"
     fi
@@ -123,7 +126,10 @@ quarantine_legacy_migrations() {
   resolved_destination=$(realpath -m -- "$destination")
   case "$resolved_destination" in
     "$project") ;;
-    *) echo "Refusing to quarantine migrations outside production project: $legacy" >&2; return 1 ;;
+    *)
+      echo "Refusing to quarantine migrations outside production project: $legacy" >&2
+      return 1
+      ;;
   esac
   quarantine="$release_store/${release_id}-legacy-migrations"
   [[ ! -e $quarantine ]] || {
@@ -178,6 +184,94 @@ wait_for_health() {
   return 1
 }
 
+reload_production() {
+  if env HOST=127.0.0.1 pm2 reload iiko-bonus --update-env; then
+    return 0
+  fi
+  echo 'PM2 reload was unavailable; falling back to a guarded restart.' >&2
+  env HOST=127.0.0.1 pm2 restart iiko-bonus --update-env
+}
+
+start_staging_release() {
+  local source=$1
+  pm2 delete iiko-bonus-staging >/dev/null 2>&1 || true
+  mkdir -p "$staging"
+  copy_artifacts "$source" "$staging"
+  ln -sfn "$project/.env" "$staging/.env"
+  (
+    cd "$staging"
+    npm ci --omit=dev --no-audit --no-fund
+    env \
+      NODE_ENV=production \
+      HOST=127.0.0.1 \
+      PORT=3101 \
+      RUN_BOTS=false \
+      RUN_BACKGROUND_WORKERS=false \
+      RUN_WHATSAPP_OUTBOX_WORKER=false \
+      RUN_YANDEX_DELIVERY_WORKER=false \
+      YANDEX_DELIVERY_ENABLED=false \
+      KASPI_POS_ENABLED=false \
+      GEMINI_ASSISTANT_ENABLED=false \
+      pm2 start src/server.js --name iiko-bonus-staging --cwd "$staging" --update-env
+  )
+  wait_for_health 'http://127.0.0.1:3101/readyz' 20
+  curl -fsS 'http://127.0.0.1:3101/admin/' >/dev/null
+  curl -fsS 'http://127.0.0.1:3101/app/' >/dev/null
+}
+
+create_pre_migration_backup() {
+  if [[ ${BULKA_MANAGED_PITR_CONFIRMED:-false} == 'true' ]]; then
+    echo 'Managed point-in-time recovery was explicitly confirmed.'
+    return 0
+  fi
+  if ! command -v pg_dump >/dev/null || ! command -v pg_restore >/dev/null; then
+    echo 'Deployment stopped: pg_dump and pg_restore are required before migrations.' >&2
+    echo 'Install postgresql-client or explicitly confirm managed PITR.' >&2
+    return 1
+  fi
+  (
+    cd "$temporary_release"
+    BULKA_DATABASE_BACKUP_DIR="$release_store/database-backups" \
+      DOTENV_CONFIG_PATH="$project/.env" \
+      node -r dotenv/config -e '
+        const { spawnSync } = require("node:child_process");
+        const result = spawnSync("bash", ["scripts/backup-database.sh"], {
+          env: process.env,
+          stdio: "inherit",
+        });
+        if (result.error || result.status !== 0) process.exit(1);
+      '
+  )
+}
+
+configure_postgres_client() {
+  local portable_root=/home/deploy/.bulka-tools/postgresql
+  local portable_bin="$portable_root/usr/lib/postgresql/17/bin"
+  local portable_lib="$portable_root/usr/lib/x86_64-linux-gnu"
+  if [[ -x "$portable_bin/pg_dump" && -x "$portable_bin/pg_restore" ]]; then
+    export PATH="$portable_bin:$PATH"
+    export LD_LIBRARY_PATH="$portable_lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    pg_dump --version >/dev/null
+    pg_restore --version >/dev/null
+    return 0
+  fi
+  command -v pg_dump >/dev/null && command -v pg_restore >/dev/null
+}
+
+run_optional_privileged_task() {
+  local label=$1
+  local script=$2
+  if [[ ${EUID:-$(id -u)} -eq 0 ]]; then
+    bash "$script"
+    return 0
+  fi
+  if command -v sudo >/dev/null && sudo -n true >/dev/null 2>&1; then
+    sudo -n bash "$script"
+    return 0
+  fi
+  echo "$label was not changed: run $script once as root after deployment." >&2
+}
+
 stop_preflight() {
   if [[ -n $preflight_pid ]] && kill -0 "$preflight_pid" 2>/dev/null; then
     kill "$preflight_pid" 2>/dev/null || true
@@ -210,8 +304,12 @@ rollback_failed_deploy() {
       npm ci --omit=dev --no-audit --no-fund
       npm --prefix kaspi-pos-automation-main ci --omit=dev --no-audit --no-fund
     )
-    env HOST=127.0.0.1 pm2 restart iiko-bonus --update-env
+    reload_production
     wait_for_health 'http://127.0.0.1:3000/readyz' 20 || true
+    if ! start_staging_release "$backup"; then
+      echo 'Rollback staging failed; disabling it to avoid serving a mismatched release.' >&2
+      pm2 delete iiko-bonus-staging >/dev/null 2>&1 || true
+    fi
     pm2 save
   fi
   cleanup_incomplete_release "$backup"
@@ -242,12 +340,14 @@ for required_file in \
   kaspi-pos-automation-main/server.js \
   supabase/migrations/20260725120000_customer_access_hardening.sql \
   scripts/apply-migrations.js \
-  scripts/deploy-release.sh \
-  scripts/rollback-vps.sh \
   scripts/backup-database.sh \
   scripts/backup-supabase-storage.js \
+  scripts/deploy-release.sh \
+  scripts/ensure-postgres-client.sh \
   scripts/install-database-backup-timer.sh \
-  scripts/verify-database-restore.sh \
+  scripts/configure-iiko-astana-vps.sh \
+  scripts/probe-iiko-city-profile.js \
+  scripts/rollback-vps.sh \
   release-manifest.json; do
   test -f "$temporary_release/$required_file"
 done
@@ -300,6 +400,11 @@ curl -fsS 'http://127.0.0.1:3199/app/' >/dev/null
 stop_preflight
 
 if [[ $migration_mode == 'apply' ]]; then
+  if ! configure_postgres_client; then
+    echo 'Deployment stopped: PostgreSQL backup tools are unavailable.' >&2
+    exit 1
+  fi
+  create_pre_migration_backup
   (
     cd "$temporary_release"
     DOTENV_CONFIG_PATH="$project/.env" \
@@ -316,32 +421,12 @@ printf 'healthy_at=%s\nsource=pre_deploy\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
   >"$backup/.healthy"
 backup_ready=1
 
-pm2 delete iiko-bonus-staging >/dev/null 2>&1 || true
-mkdir -p "$staging"
-copy_artifacts "$temporary_release" "$staging"
-ln -sfn "$project/.env" "$staging/.env"
-(
-  cd "$staging"
-  npm ci --omit=dev --no-audit --no-fund
-)
-(
-  cd "$staging"
-  env \
-    NODE_ENV=production \
-    HOST=127.0.0.1 \
-    PORT=3101 \
-    RUN_BOTS=false \
-    RUN_BACKGROUND_WORKERS=false \
-    RUN_WHATSAPP_OUTBOX_WORKER=false \
-    RUN_YANDEX_DELIVERY_WORKER=false \
-    YANDEX_DELIVERY_ENABLED=false \
-    KASPI_POS_ENABLED=false \
-    GEMINI_ASSISTANT_ENABLED=false \
-    pm2 start src/server.js --name iiko-bonus-staging --cwd "$staging" --update-env
-)
-wait_for_health 'http://127.0.0.1:3101/readyz' 20
-curl -fsS 'http://127.0.0.1:3101/admin/' >/dev/null
-curl -fsS 'http://127.0.0.1:3101/app/' >/dev/null
+start_staging_release "$temporary_release"
+if [[ ${BULKA_CONFIGURE_NGINX_FALLBACK:-true} == 'true' ]]; then
+  run_optional_privileged_task \
+    'Nginx staging fallback' \
+    "$temporary_release/scripts/enable-nginx-upstream-fallback.sh"
+fi
 
 production_changed=1
 copy_artifacts "$temporary_release" "$project"
@@ -351,10 +436,17 @@ quarantine_legacy_migrations "$project"
   npm ci --omit=dev --no-audit --no-fund
   npm --prefix kaspi-pos-automation-main ci --omit=dev --no-audit --no-fund
 )
-env HOST=127.0.0.1 pm2 restart iiko-bonus --update-env
+reload_production
 wait_for_health 'http://127.0.0.1:3000/readyz' 20
 curl -fsS 'http://127.0.0.1:3000/admin/' >/dev/null
 curl -fsS 'http://127.0.0.1:3000/app/' >/dev/null
+if command -v pg_dump >/dev/null && command -v pg_restore >/dev/null; then
+  run_optional_privileged_task \
+    'Database backup timer' \
+    "$project/scripts/install-database-backup-timer.sh"
+else
+  echo 'Database backup timer was not enabled: install postgresql-client on the VPS.' >&2
+fi
 
 copy_artifacts "$temporary_release" "$stored_release"
 printf 'healthy_at=%s\nsource=deployment\ncommit=%s\n' \

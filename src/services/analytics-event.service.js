@@ -11,14 +11,20 @@ const EVENT_TYPES = new Set([
   'checkout_quote',
   'payment_started',
   'payment_paid',
+  'payment_failed',
+  'payment_cancelled',
   'search',
   'promotion_view',
 ]);
+const EVENT_TYPE_ALIASES = new Map([
+  ['checkout_start', 'checkout_started'],
+  ['payment_created', 'payment_started'],
+]);
 
-const EVENT_TYPE_ALIASES = Object.freeze({
-  checkout_start: 'checkout_started',
-  payment_created: 'payment_started',
-});
+const normalizeEventType = (value) => {
+  const eventType = String(value || '').trim();
+  return EVENT_TYPE_ALIASES.get(eventType) || eventType;
+};
 
 const analyticsError = (message, statusCode = 400) =>
   Object.assign(new Error(message), { statusCode });
@@ -27,6 +33,15 @@ const cleanId = (value, max = 100) =>
   String(value || '')
     .trim()
     .slice(0, max) || null;
+
+const cleanUuid = (value) => {
+  const normalized = String(value || '').trim();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    normalized,
+  )
+    ? normalized
+    : crypto.randomUUID();
+};
 
 const cleanProperties = (raw) => {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
@@ -41,11 +56,6 @@ const cleanProperties = (raw) => {
     else if (typeof value === 'boolean' || value === null) result[safeKey] = value;
   }
   return result;
-};
-
-const normalizeEventType = (value) => {
-  const eventType = String(value || '').trim();
-  return EVENT_TYPE_ALIASES[eventType] || eventType;
 };
 
 async function recordCustomerEvents(customerId, events, req) {
@@ -67,6 +77,7 @@ async function recordCustomerEvents(customerId, events, req) {
       throw analyticsError('Некорректное время события');
     }
     return {
+      client_event_id: cleanUuid(event?.eventId),
       customer_id: customerId,
       anonymous_session_id: anonymousSessionId,
       event_type: eventType,
@@ -78,7 +89,9 @@ async function recordCustomerEvents(customerId, events, req) {
       occurred_at: occurredAt.toISOString(),
     };
   });
-  const { error } = await supabase.from('customer_app_events').insert(rows);
+  const { error } = await supabase
+    .from('customer_app_events')
+    .upsert(rows, { onConflict: 'client_event_id', ignoreDuplicates: true });
   if (error) throw error;
   return rows.length;
 }
@@ -87,6 +100,7 @@ async function recordSystemEvent(customerId, event) {
   const eventType = normalizeEventType(event?.type || event?.eventType);
   if (!EVENT_TYPES.has(eventType)) throw analyticsError('Некорректный тип события');
   const row = {
+    client_event_id: cleanUuid(event?.eventId),
     customer_id: customerId || null,
     event_type: eventType,
     product_id: cleanId(event?.productId),
@@ -96,10 +110,12 @@ async function recordSystemEvent(customerId, event) {
     properties: cleanProperties(event?.properties),
     occurred_at: new Date().toISOString(),
   };
-  const { error } = await supabase.from('customer_app_events').insert(row);
+  const { error } = await supabase
+    .from('customer_app_events')
+    .upsert(row, { onConflict: 'client_event_id', ignoreDuplicates: true });
   if (error?.code === '23505') return false;
   if (error) throw error;
   return true;
 }
 
-module.exports = { EVENT_TYPES, recordCustomerEvents, recordSystemEvent };
+module.exports = { EVENT_TYPES, normalizeEventType, recordCustomerEvents, recordSystemEvent };

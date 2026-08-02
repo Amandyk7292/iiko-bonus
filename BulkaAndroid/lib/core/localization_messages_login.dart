@@ -44,9 +44,9 @@ const Map<String, Map<String, String>> _loginTranslations = {
     'en': 'Optional. Helps personalize offers.',
   },
   'reg_terms_checkbox': {
-    'ru': 'Принимаю публичную оферту и политику конфиденциальности',
-    'kk': 'Жария офертаны және құпиялық саясатын қабылдаймын',
-    'en': 'I accept the public offer and privacy policy',
+    'ru': 'Ознакомился (-лась) и подтверждаю принятие условий',
+    'kk': 'Шарттармен таныстым және қабылдаймын',
+    'en': 'I have read and agree to the terms',
   },
   'reg_next_btn': {'ru': 'Далее', 'kk': 'Жалғастыру', 'en': 'Continue'},
   'reg_err_name': {
@@ -55,9 +55,9 @@ const Map<String, Map<String, String>> _loginTranslations = {
     'en': 'Please enter your name',
   },
   'reg_err_terms': {
-    'ru': 'Примите публичную оферту и политику конфиденциальности',
-    'kk': 'Жария офертаны және құпиялық саясатын қабылдаңыз',
-    'en': 'Accept the public offer and privacy policy',
+    'ru': 'Необходимо принять условия',
+    'kk': 'Шарттарды қабылдау қажет',
+    'en': 'You must agree to the terms',
   },
   'splash_loading': {'ru': 'Загрузка…', 'kk': 'Жүктелуде…', 'en': 'Loading…'},
   'splash_loading_profile': {

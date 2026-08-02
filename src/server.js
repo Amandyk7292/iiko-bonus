@@ -21,9 +21,14 @@ const {
 const { syncActiveDeliveries } = require('./services/yandex-delivery.service');
 const { registerWorker, runMonitoredWorker } = require('./services/operational-health.service');
 const { cleanupExpiredPayments } = require('./services/payment-cleanup.service');
+const { processPrivacyStorageCleanupJobs } = require('./services/privacy-storage-cleanup.service');
+const paymentOperations = require('./services/payment-operations.service');
+const { reconcileUnknownPartialRefunds } = require('./services/partial-refund.service');
+const { flushPushOutbox } = require('./services/push.service');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
+const PAYMENT_PROVIDER_PROBE_INTERVAL_MS = 30 * 60 * 1000;
 
 if (!process.env.VERCEL) {
   const runWorkers = process.env.RUN_BACKGROUND_WORKERS === 'true';
@@ -47,6 +52,11 @@ if (!process.env.VERCEL) {
     });
 
   if (runWorkers) {
+    const deliverQueuedPush = () => runMonitoredWorker('push-outbox', () => flushPushOutbox(100));
+    setTimeout(deliverQueuedPush, 12 * 1000);
+    const pushOutboxTimer = setInterval(deliverQueuedPush, 10 * 1000);
+    pushOutboxTimer.unref?.();
+
     setTimeout(runDailyChecks, 5000);
     setInterval(runDailyChecks, 24 * 60 * 60 * 1000);
 
@@ -78,10 +88,30 @@ if (!process.env.VERCEL) {
       });
     setTimeout(runMarketing, 30 * 1000);
     setInterval(runMarketing, 10 * 60 * 1000);
+
+    const cleanupPrivacyStorage = () =>
+      runMonitoredWorker('privacy-storage-cleanup', processPrivacyStorageCleanupJobs);
+    setTimeout(cleanupPrivacyStorage, 35 * 1000);
+    setInterval(cleanupPrivacyStorage, 60 * 1000);
+
+    const probePaymentProviders = () =>
+      runMonitoredWorker('payment-provider-probe', () => paymentOperations.runScheduledSafeProbe());
+    setTimeout(probePaymentProviders, 2 * 60 * 1000);
+    setInterval(probePaymentProviders, PAYMENT_PROVIDER_PROBE_INTERVAL_MS);
+
+    const reconcilePartialRefunds = () =>
+      runMonitoredWorker('partial-refund-reconciliation', reconcileUnknownPartialRefunds);
+    setTimeout(reconcilePartialRefunds, 40 * 1000);
+    setInterval(reconcilePartialRefunds, 60 * 1000);
   }
   registerWorker('kaspi-reconciliation', {
     enabled: runWorkers && process.env.KASPI_POS_ENABLED === 'true',
     intervalMs: 60 * 1000,
+    critical: true,
+  });
+  registerWorker('push-outbox', {
+    enabled: runWorkers,
+    intervalMs: 10 * 1000,
     critical: true,
   });
   registerWorker('forte-reconciliation', {
@@ -99,6 +129,21 @@ if (!process.env.VERCEL) {
   registerWorker('marketing-automation', {
     enabled: runWorkers,
     intervalMs: 10 * 60 * 1000,
+  });
+  registerWorker('privacy-storage-cleanup', {
+    enabled: runWorkers,
+    intervalMs: 60 * 1000,
+    critical: true,
+  });
+  registerWorker('payment-provider-probe', {
+    enabled: runWorkers,
+    intervalMs: PAYMENT_PROVIDER_PROBE_INTERVAL_MS,
+    critical: true,
+  });
+  registerWorker('partial-refund-reconciliation', {
+    enabled: runWorkers,
+    intervalMs: 60 * 1000,
+    critical: true,
   });
 
   // Delivery tracking is part of the request lifecycle, not an optional
@@ -120,7 +165,7 @@ if (!process.env.VERCEL) {
     critical: true,
   });
 
-  app.listen(PORT, HOST, () => {
+  const server = app.listen(PORT, HOST, () => {
     logger.info({ event: 'server_started', host: HOST, port: Number(PORT) }, 'Server started');
 
     if (runBots) {
@@ -150,6 +195,38 @@ if (!process.env.VERCEL) {
       }
     }
   });
+
+  let shuttingDown = false;
+  const shutdown = (signal) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    logger.info({ event: 'server_shutdown_started', signal }, 'Server shutdown started');
+
+    const forceTimer = setTimeout(
+      () => {
+        logger.error(
+          { event: 'server_shutdown_forced', signal },
+          'Server shutdown exceeded its grace period',
+        );
+        process.exit(1);
+      },
+      Number(process.env.SHUTDOWN_GRACE_MS || 10_000),
+    );
+    forceTimer.unref?.();
+
+    server.close((error) => {
+      clearTimeout(forceTimer);
+      if (error) {
+        logger.error({ err: error, event: 'server_shutdown_failed', signal }, 'Shutdown failed');
+        process.exit(1);
+      }
+      logger.info({ event: 'server_shutdown_completed', signal }, 'Server shutdown completed');
+      process.exit(0);
+    });
+  };
+
+  process.once('SIGTERM', () => shutdown('SIGTERM'));
+  process.once('SIGINT', () => shutdown('SIGINT'));
 }
 
 module.exports = app;

@@ -13,6 +13,7 @@ class _AddressSelectionScreenState extends State<AddressSelectionScreen> {
   late final AddressRepository _repository;
   List<DeliveryAddress> _addresses = const [];
   String? _selectedId;
+  String? _busyAddressId;
   bool _loading = true;
   bool _loadFailed = false;
   final _navigationGate = _AsyncActionGate();
@@ -56,8 +57,76 @@ class _AddressSelectionScreenState extends State<AddressSelectionScreen> {
   Future<void> _addAddress() async {
     await _navigationGate.run(() async {
       BulkaMotion.lightImpact();
+      DeliveryLocation? initialLocation;
+      for (final address in _addresses) {
+        if (address.id == _selectedId) {
+          initialLocation = address.location;
+          break;
+        }
+      }
+      if (initialLocation == null) {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          final selectedIds =
+              [
+                    prefs.getString('selected_bakery_location_id'),
+                    prefs.getString('selected_bakery_location_id_delivery'),
+                    prefs.getString('selected_bakery_location_id_preorder'),
+                    prefs.getString('selected_bakery_location_id_pickup'),
+                  ]
+                  .whereType<String>()
+                  .map((value) => value.trim())
+                  .where((value) => value.isNotEmpty);
+          final selectedLabels =
+              [
+                    prefs.getString('selected_bakery_location'),
+                    prefs.getString('selected_bakery_location_delivery'),
+                    prefs.getString('selected_bakery_location_preorder'),
+                    prefs.getString('selected_bakery_location_pickup'),
+                  ]
+                  .whereType<String>()
+                  .map((value) => value.trim())
+                  .where((value) => value.isNotEmpty);
+          final locations = await (widget.api ?? BulkaApiClient())
+              .getFulfillmentLocations();
+          BakeryLocation? selectedBranch;
+          for (final id in selectedIds) {
+            selectedBranch = locations
+                .where((location) => location.id == id)
+                .firstOrNull;
+            if (selectedBranch != null) break;
+          }
+          if (selectedBranch == null) {
+            for (final label in selectedLabels) {
+              selectedBranch = locations
+                  .where((location) => location.displayLabel == label)
+                  .firstOrNull;
+              if (selectedBranch != null) break;
+            }
+          }
+          if (selectedBranch?.latitude != null &&
+              selectedBranch?.longitude != null) {
+            initialLocation = DeliveryLocation(
+              city: selectedBranch!.city,
+              address: selectedBranch.address,
+              latitude: selectedBranch.latitude!,
+              longitude: selectedBranch.longitude!,
+            );
+          }
+        } catch (_) {
+          // The map still opens with its safe default if branch lookup fails.
+        }
+      }
+      if (!mounted) return;
       final address = await Navigator.of(context).push<DeliveryAddress>(
-        MaterialPageRoute(builder: (_) => AddressMapScreen(api: widget.api)),
+        MaterialPageRoute(
+          builder: (_) => AddressMapScreen(
+            api: widget.api,
+            initialCity: initialLocation?.city,
+            initialLatitude: initialLocation?.latitude,
+            initialLongitude: initialLocation?.longitude,
+          ),
+        ),
       );
       if (!mounted || address == null) return;
 
@@ -135,6 +204,38 @@ class _AddressSelectionScreenState extends State<AddressSelectionScreen> {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
+      }
+    });
+  }
+
+  Future<void> _editAddress(DeliveryAddress address) async {
+    if (_busyAddressId != null) return;
+    await _navigationGate.run(() async {
+      final edited = await Navigator.of(context).push<DeliveryAddress>(
+        MaterialPageRoute(
+          builder: (_) =>
+              AddressMapScreen(api: widget.api, initialAddress: address),
+        ),
+      );
+      if (!mounted || edited == null) return;
+      setState(() => _busyAddressId = address.id);
+      try {
+        final saved = await _repository.updateAddress(edited);
+        if (!mounted) return;
+        setState(() {
+          _addresses = [
+            for (final item in _addresses)
+              if (item.id == saved.id) saved else item,
+          ];
+        });
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('address_updated'.tr)));
+      } catch (error) {
+        if (!mounted) return;
+        showApiErrorSnackBar(context, error, fallbackKey: 'error_save');
+      } finally {
+        if (mounted) setState(() => _busyAddressId = null);
       }
     });
   }
@@ -229,7 +330,9 @@ class _AddressSelectionScreenState extends State<AddressSelectionScreen> {
                         return _AddressListTile(
                           address: address,
                           selected: address.id == _selectedId,
+                          busy: address.id == _busyAddressId,
                           onTap: () => _selectAddress(address.id),
+                          onEdit: () => _editAddress(address),
                           onDelete: () => _deleteAddress(address),
                         );
                       },
@@ -330,23 +433,45 @@ class _AddressListTile extends StatelessWidget {
   const _AddressListTile({
     required this.address,
     required this.selected,
+    required this.busy,
     required this.onTap,
+    required this.onEdit,
     required this.onDelete,
   });
 
   final DeliveryAddress address;
   final bool selected;
+  final bool busy;
   final VoidCallback onTap;
+  final VoidCallback onEdit;
   final VoidCallback onDelete;
+
+  String get _savedDetails {
+    final parts = <String>[
+      if (address.house.trim().isNotEmpty)
+        '${'house_label'.tr} ${address.house.trim()}',
+      if ((address.entrance ?? '').trim().isNotEmpty)
+        '${'entrance_label'.tr} ${address.entrance!.trim()}',
+      if ((address.floor ?? '').trim().isNotEmpty)
+        '${'floor_label'.tr} ${address.floor!.trim()}',
+      if ((address.apartment ?? '').trim().isNotEmpty)
+        '${'apartment_label'.tr} ${address.apartment!.trim()}',
+    ];
+    return parts.join(' · ');
+  }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.bulkaColors;
     final scheme = Theme.of(context).colorScheme;
+    final savedDetails = _savedDetails;
     return Semantics(
       button: true,
       selected: selected,
-      label: '${address.title}. ${address.displayAddress}',
+      label: [
+        address.title,
+        savedDetails,
+      ].where((value) => value.isNotEmpty).join('. '),
       child: Material(
         color: scheme.surface,
         borderRadius: BorderRadius.circular(BulkaRadii.card),
@@ -354,7 +479,7 @@ class _AddressListTile extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(BulkaRadii.card),
           child: Container(
-            constraints: const BoxConstraints(minHeight: 96),
+            constraints: const BoxConstraints(minHeight: 82),
             padding: const EdgeInsets.fromLTRB(22, 16, 16, 16),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(BulkaRadii.card),
@@ -381,18 +506,20 @@ class _AddressListTile extends StatelessWidget {
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        address.displayAddress,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: colors.mutedText,
-                          fontSize: BulkaTypeScale.body,
-                          height: 1.18,
-                          fontWeight: FontWeight.w300,
+                      if (savedDetails.isNotEmpty) ...[
+                        const SizedBox(height: 7),
+                        Text(
+                          savedDetails,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: colors.mutedText,
+                            fontSize: BulkaTypeScale.body,
+                            height: 1.18,
+                            fontWeight: FontWeight.w400,
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),
@@ -417,28 +544,48 @@ class _AddressListTile extends StatelessWidget {
                             )
                           : null,
                     ),
-                    PopupMenuButton<String>(
-                      tooltip: 'address_actions'.tr,
-                      icon: const Icon(Icons.more_vert_rounded),
-                      onSelected: (value) {
-                        if (value == 'delete') onDelete();
-                      },
-                      itemBuilder: (_) => [
-                        PopupMenuItem(
-                          value: 'delete',
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.delete_outline_rounded,
-                                color: _errorRed,
-                              ),
-                              const SizedBox(width: 10),
-                              Text('delete_btn'.tr),
-                            ],
-                          ),
+                    if (busy)
+                      const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: SizedBox.square(
+                          dimension: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2),
                         ),
-                      ],
-                    ),
+                      )
+                    else
+                      PopupMenuButton<String>(
+                        tooltip: 'address_actions'.tr,
+                        icon: const Icon(Icons.more_vert_rounded),
+                        onSelected: (value) {
+                          if (value == 'edit') onEdit();
+                          if (value == 'delete') onDelete();
+                        },
+                        itemBuilder: (_) => [
+                          PopupMenuItem(
+                            value: 'edit',
+                            child: Row(
+                              children: [
+                                const Icon(Icons.edit_outlined),
+                                const SizedBox(width: 10),
+                                Text('edit_btn'.tr),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: 'delete',
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.delete_outline_rounded,
+                                  color: _errorRed,
+                                ),
+                                const SizedBox(width: 10),
+                                Text('delete_btn'.tr),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                   ],
                 ),
               ],

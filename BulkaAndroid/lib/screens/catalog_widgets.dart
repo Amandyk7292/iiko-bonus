@@ -1,5 +1,101 @@
 part of '../main.dart';
 
+extension _CatalogStockSubscriptionController on _CatalogScreenState {
+  String _stockSubscriptionKey(String productId, String branchId) =>
+      '$productId::$branchId';
+
+  Future<void> _loadStockSubscriptions() async {
+    if (!_api.isAuthenticated) {
+      if (mounted) _updateCatalogState(() => _stockSubscriptions = const {});
+      return;
+    }
+    try {
+      final subscriptions = await _api.getStockSubscriptions();
+      if (!mounted) return;
+      _updateCatalogState(() {
+        _stockSubscriptions = {
+          for (final subscription in subscriptions)
+            if (subscription.status != 'cancelled')
+              _stockSubscriptionKey(
+                subscription.productId,
+                subscription.branchId,
+              ): subscription,
+        };
+      });
+    } catch (_) {
+      // The catalog remains usable if notification state cannot be loaded.
+    }
+  }
+
+  Future<void> _toggleStockSubscription(CatalogProduct product) async {
+    if (!_api.isAuthenticated) {
+      final authenticated = await widget.onRequireAuth?.call() ?? false;
+      if (!authenticated || !_api.isAuthenticated || !mounted) return;
+      await _loadStockSubscriptions();
+    }
+    if (_selectedBakeryId.isEmpty) {
+      await _selectFulfillmentSource();
+      if (!mounted || _selectedBakeryId.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('stock_notify_select_branch'.tr)),
+          );
+        }
+        return;
+      }
+    }
+    final key = _stockSubscriptionKey(product.id, _selectedBakeryId);
+    if (_stockSubscriptionBusy.contains(key)) return;
+    final existing = _stockSubscriptions[key];
+    _updateCatalogState(() {
+      _stockSubscriptionBusy = {..._stockSubscriptionBusy, key};
+    });
+    try {
+      if (existing == null) {
+        final created = await _api.createStockSubscription(
+          productId: product.id,
+          branchId: _selectedBakeryId,
+        );
+        if (!mounted) return;
+        _updateCatalogState(() {
+          _stockSubscriptions = {..._stockSubscriptions, key: created};
+        });
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('stock_notify_enabled'.tr)));
+      } else {
+        await _api.deleteStockSubscription(existing.id);
+        if (!mounted) return;
+        final next = {..._stockSubscriptions}..remove(key);
+        _updateCatalogState(() => _stockSubscriptions = next);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('stock_notify_disabled'.tr)));
+      }
+    } catch (error) {
+      if (!mounted) return;
+      showApiErrorSnackBar(
+        context,
+        error,
+        fallbackKey: 'stock_notify_save_error',
+      );
+    } finally {
+      if (mounted) {
+        final next = {..._stockSubscriptionBusy}..remove(key);
+        _updateCatalogState(() => _stockSubscriptionBusy = next);
+      }
+    }
+  }
+}
+
+int _catalogProductQuantityLimit(CatalogProduct product) => min(
+  product.inStockCount ?? CartProvider.maxItemQuantity,
+  CartProvider.maxItemQuantity,
+);
+
+String _catalogOpenProductLabel(CatalogProduct product) =>
+    'catalog_open_product'.trArgs({'name': product.title});
+
 class _CatalogProductImage extends StatelessWidget {
   const _CatalogProductImage({
     required this.url,
@@ -296,7 +392,7 @@ class _CatalogImageQuantityControl extends StatelessWidget {
   final bool stopListed;
   final VoidCallback onAdd;
   final VoidCallback onDecrease;
-  final VoidCallback onIncrease;
+  final VoidCallback? onIncrease;
 
   @override
   Widget build(BuildContext context) {
@@ -354,14 +450,19 @@ class _CatalogImageQuantityControl extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            IconButton(
-              onPressed: onDecrease,
-              tooltip: 'catalog_decrease_quantity'.tr,
-              style: IconButton.styleFrom(
-                minimumSize: const Size(44, 48),
-                foregroundColor: colors.brandBrown,
+            Semantics(
+              button: true,
+              label: 'catalog_decrease_quantity'.tr,
+              child: ExcludeSemantics(
+                child: IconButton(
+                  onPressed: onDecrease,
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(44, 48),
+                    foregroundColor: colors.brandBrown,
+                  ),
+                  icon: const Icon(Icons.remove_rounded, size: 22),
+                ),
               ),
-              icon: const Icon(Icons.remove_rounded, size: 22),
             ),
             SizedBox(
               width: 28,
@@ -377,14 +478,24 @@ class _CatalogImageQuantityControl extends StatelessWidget {
                 ),
               ),
             ),
-            IconButton(
-              onPressed: onIncrease,
-              tooltip: 'catalog_increase_quantity'.tr,
-              style: IconButton.styleFrom(
-                minimumSize: const Size(44, 48),
-                foregroundColor: colors.brandBrown,
+            Semantics(
+              button: true,
+              enabled: onIncrease != null,
+              label: onIncrease == null
+                  ? 'catalog_quantity_limit_reached'.trArgs({
+                      'count': CartProvider.maxItemQuantity,
+                    })
+                  : 'catalog_increase_quantity'.tr,
+              child: ExcludeSemantics(
+                child: IconButton(
+                  onPressed: onIncrease,
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(44, 48),
+                    foregroundColor: colors.brandBrown,
+                  ),
+                  icon: const Icon(Icons.add_rounded, size: 22),
+                ),
               ),
-              icon: const Icon(Icons.add_rounded, size: 22),
             ),
           ],
         ),

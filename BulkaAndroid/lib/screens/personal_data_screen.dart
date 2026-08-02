@@ -29,6 +29,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
   String? _selectedGender;
   String? _selectedCity;
   String? _birthDate;
+  String? _selectedAvatarKey;
   bool _isLoading = false;
   bool _citiesLoading = true;
   bool _citiesFailed = false;
@@ -44,6 +45,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
       text: widget.customer.lastName ?? '',
     );
     _selectedCity = widget.customer.region;
+    _selectedAvatarKey = widget.customer.avatarKey;
     _emailController = TextEditingController(text: widget.customer.email ?? '');
 
     _selectedGender = widget.customer.gender;
@@ -139,6 +141,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
         birthDate: _birthDate,
         email: email.isEmpty ? null : email,
         region: _selectedCity ?? widget.customer.region ?? '',
+        avatarKey: _selectedAvatarKey,
       );
 
       await widget.onProfileUpdated();
@@ -154,6 +157,15 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  Future<void> _chooseAvatar() async {
+    final selected = await showCustomerAvatarPicker(
+      context,
+      selectedKey: _selectedAvatarKey,
+    );
+    if (!mounted || selected == null || selected == _selectedAvatarKey) return;
+    setState(() => _selectedAvatarKey = selected);
   }
 
   Future<void> _deleteAccount() async {
@@ -581,29 +593,55 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                   children: [
                     // Avatar
                     Center(
-                      child: Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFFFC107),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 4),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x1A000000),
-                              blurRadius: 10,
-                              offset: Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.person_rounded,
-                          color: Colors.white,
-                          size: 40,
+                      child: Semantics(
+                        button: true,
+                        label: 'avatar_choose'.tr,
+                        child: InkWell(
+                          key: const ValueKey('choose-customer-avatar'),
+                          onTap: _isLoading ? null : _chooseAvatar,
+                          customBorder: const CircleBorder(),
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              CustomerAvatar(
+                                avatarKey: _selectedAvatarKey,
+                                size: 96,
+                              ),
+                              Positioned(
+                                right: -2,
+                                bottom: 1,
+                                child: Container(
+                                  width: 34,
+                                  height: 34,
+                                  decoration: BoxDecoration(
+                                    color: colors.brandGold,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: scheme.surface,
+                                      width: 3,
+                                    ),
+                                    boxShadow: BulkaShadows.floatingAction,
+                                  ),
+                                  child: Icon(
+                                    Icons.edit_rounded,
+                                    color: colors.brandBrown,
+                                    size: 18,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 32),
+                    const SizedBox(height: 12),
+                    Center(
+                      child: TextButton(
+                        onPressed: _isLoading ? null : _chooseAvatar,
+                        child: Text('avatar_choose'.tr),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
 
                     // Gender Selection
                     Text(

@@ -28,6 +28,15 @@ const validateRequest =
   };
 
 const emptyBodySchema = z.object({}).strict().default({});
+const apiQueryValueSchema = z.union([
+  z.string().max(2_000),
+  z.array(z.string().max(2_000)).max(100),
+]);
+const apiQueryEnvelopeSchema = z.record(z.string().max(120), apiQueryValueSchema);
+const apiBodyEnvelopeSchema = z.union([
+  z.record(z.string().max(160), z.unknown()),
+  z.array(z.unknown()).max(2_000),
+]);
 
 const requestBodySafetyMiddleware = (req, _res, next) => {
   if (!req.body || typeof req.body !== 'object') return next();
@@ -81,7 +90,44 @@ const requestBodySafetyMiddleware = (req, _res, next) => {
   return next();
 };
 
+const apiEnvelopeValidationMiddleware = (req, _res, next) => {
+  if (!req.path.startsWith('/api/') && !req.path.startsWith('/admin/api/')) return next();
+  const queryResult = apiQueryEnvelopeSchema.safeParse(req.query || {});
+  if (!queryResult.success) {
+    return next(
+      new AppError('Некорректные параметры запроса', {
+        statusCode: 400,
+        expose: true,
+        code: 'QUERY_VALIDATION_ERROR',
+        fields: queryResult.error.issues.slice(0, 20).map(validationIssue),
+      }),
+    );
+  }
+  req.query = queryResult.data;
+  if (
+    !['GET', 'HEAD'].includes(req.method) &&
+    String(req.headers['content-type'] || '')
+      .toLowerCase()
+      .includes('application/json')
+  ) {
+    const bodyResult = apiBodyEnvelopeSchema.safeParse(req.body);
+    if (!bodyResult.success) {
+      return next(
+        new AppError('Некорректное тело запроса', {
+          statusCode: 400,
+          expose: true,
+          code: 'BODY_VALIDATION_ERROR',
+          fields: bodyResult.error.issues.slice(0, 20).map(validationIssue),
+        }),
+      );
+    }
+    req.body = bodyResult.data;
+  }
+  return next();
+};
+
 module.exports = {
+  apiEnvelopeValidationMiddleware,
   emptyBodySchema,
   requestBodySafetyMiddleware,
   validateRequest,

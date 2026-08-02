@@ -7,6 +7,7 @@ class CustomerOrdersScreen extends StatefulWidget {
     this.onScopeChanged,
     this.cacheScope = 'session',
     this.paymentReturnNotice,
+    this.initialOrderId,
     super.key,
   });
 
@@ -15,6 +16,7 @@ class CustomerOrdersScreen extends StatefulWidget {
   final ValueChanged<bool>? onScopeChanged;
   final String cacheScope;
   final PaymentReturnNotice? paymentReturnNotice;
+  final String? initialOrderId;
 
   @override
   State<CustomerOrdersScreen> createState() => _CustomerOrdersScreenState();
@@ -33,6 +35,7 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
   List<CustomerOrder> _orders = const [];
   bool _usingOfflineCache = false;
   PaymentReturnNotice? _paymentReturnNotice;
+  String? _pendingInitialOrderId;
 
   String get _cacheKey =>
       'customer_orders_cache_${widget.cacheScope}_${_completed ? 'completed' : 'active'}';
@@ -42,6 +45,7 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
     super.initState();
     _completed = widget.initialCompleted;
     _paymentReturnNotice = widget.paymentReturnNotice;
+    _pendingInitialOrderId = widget.initialOrderId?.trim();
     WidgetsBinding.instance.addObserver(this);
     _startRefreshTimer();
     _pushOrderSubscription = PushNotifications.orderEvents.listen(
@@ -111,6 +115,7 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
         _error = null;
         _usingOfflineCache = false;
       });
+      _scheduleInitialOrderOpen();
     } catch (_) {
       if (!mounted) return;
       final restored = await _restoreCache();
@@ -156,6 +161,32 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
     unawaited(_load());
   }
 
+  void _scheduleInitialOrderOpen() {
+    final id = _pendingInitialOrderId;
+    if (id == null || id.isEmpty || !mounted) return;
+    CustomerOrder? match;
+    for (final order in _orders) {
+      if (order.id == id) {
+        match = order;
+        break;
+      }
+    }
+    if (match != null) {
+      _pendingInitialOrderId = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_openDetails(match!));
+      });
+      return;
+    }
+    if (!_completed) {
+      Future<void>.delayed(Duration.zero, () {
+        if (mounted && _pendingInitialOrderId == id) _selectTab(true);
+      });
+    } else {
+      _pendingInitialOrderId = null;
+    }
+  }
+
   Future<void> _repeatOrder(CustomerOrder order) async {
     try {
       final items = await widget.api.reorder(order.id);
@@ -195,6 +226,18 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
       }
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('selected_order_type', order.fulfillmentType);
+      final preorderFulfillmentKey = customerPreferenceKey(
+        'checkout_preorder_fulfillment',
+        widget.api.sessionCacheScope,
+      );
+      if (order.fulfillmentType == 'preorder') {
+        await prefs.setString(
+          preorderFulfillmentKey,
+          order.effectiveFulfillmentType,
+        );
+      } else {
+        await prefs.remove(preorderFulfillmentKey);
+      }
       if (order.branch.trim().isNotEmpty) {
         await prefs.setString('selected_bakery_location', order.branch);
       }
@@ -515,6 +558,103 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
   }
 }
 
+class _RefundProgressCard extends StatelessWidget {
+  const _RefundProgressCard({required this.order});
+
+  final CustomerOrder order;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = order.paymentStatus == 'refunded'
+        ? 'succeeded'
+        : (order.refundStatus ?? 'processing');
+    final (titleKey, hintKey, icon, color) = switch (status) {
+      'succeeded' => (
+        'refund_stage_sent',
+        order.paymentProvider == 'forte'
+            ? 'orders_card_refund_notice'
+            : 'orders_kaspi_refund_notice',
+        Icons.check_circle_rounded,
+        context.bulkaColors.success,
+      ),
+      'unknown' => (
+        'refund_stage_checking',
+        'refund_stage_checking_hint',
+        Icons.sync_rounded,
+        context.bulkaColors.warning,
+      ),
+      'failed' => (
+        'refund_stage_attention',
+        'refund_stage_attention_hint',
+        Icons.error_outline_rounded,
+        _errorRed,
+      ),
+      _ => (
+        'refund_stage_processing',
+        'refund_stage_processing_hint',
+        Icons.hourglass_top_rounded,
+        context.bulkaColors.warning,
+      ),
+    };
+    final title = titleKey.tr;
+    final hint = hintKey.tr;
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      label: '$title. $hint',
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(BulkaRadii.control),
+          border: Border.all(color: color.withValues(alpha: 0.35)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: color),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontFamily: _headingFont,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    hint,
+                    style: TextStyle(
+                      color: context.bulkaColors.mutedText,
+                      fontSize: BulkaTypeScale.bodySmall,
+                    ),
+                  ),
+                  if (status == 'succeeded') ...[
+                    const SizedBox(height: 7),
+                    Text(
+                      '${_formatCartMoney(order.refundAmount ?? order.amount)} ₸',
+                      style: TextStyle(
+                        color: color,
+                        fontFamily: _headingFont,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _PaymentCancellationNotice extends StatelessWidget {
   const _PaymentCancellationNotice({
     required this.onDismiss,
@@ -770,7 +910,7 @@ class _CustomerOrderCard extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final canReportArrival =
         order.paymentStatus == 'paid' &&
-        ['pickup', 'preorder'].contains(order.fulfillmentType) &&
+        !order.usesDelivery &&
         order.orderStatus == 'ready';
     return Container(
       padding: const EdgeInsets.all(18),
@@ -851,7 +991,7 @@ class _CustomerOrderCard extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           _OrderInfoRow(label: 'orders_branch'.tr, value: order.branch),
-          if (order.fulfillmentType == 'delivery') ...[
+          if (order.usesDelivery) ...[
             _DeliveryProgress(status: order.deliveryStatus),
             if (order.deliveryPin?.isNotEmpty == true &&
                 order.deliveryStatus != 'delivered')

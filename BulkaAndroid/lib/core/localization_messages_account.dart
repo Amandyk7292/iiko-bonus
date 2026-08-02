@@ -2,11 +2,111 @@ part of '../main.dart';
 
 const Map<String, Map<String, String>> _accountTranslations = {
   // Profile, account and loyalty tiers
+  'admin_portal_title': {
+    'ru': 'Панель управления',
+    'kk': 'Басқару панелі',
+    'en': 'Management panel',
+  },
+  'admin_portal_staff_login': {
+    'ru': 'Вход для сотрудников',
+    'kk': 'Қызметкерлерге кіру',
+    'en': 'Staff sign-in',
+  },
+  'admin_portal_secure': {
+    'ru': 'Защищённый вход для сотрудников',
+    'kk': 'Қызметкерлерге арналған қауіпсіз кіру',
+    'en': 'Secure staff sign-in',
+  },
+  'admin_portal_semantics': {
+    'ru': 'Встроенная панель управления Bulka',
+    'kk': 'Bulka кірістірілген басқару панелі',
+    'en': 'Embedded Bulka management panel',
+  },
+  'admin_portal_error_title': {
+    'ru': 'Панель не загрузилась',
+    'kk': 'Панель жүктелмеді',
+    'en': 'The panel did not load',
+  },
+  'admin_portal_error_body': {
+    'ru': 'Проверьте интернет-соединение и повторите попытку.',
+    'kk': 'Интернет байланысын тексеріп, қайталап көріңіз.',
+    'en': 'Check your internet connection and try again.',
+  },
+  'admin_portal_external_error': {
+    'ru': 'Не удалось открыть внешнюю страницу.',
+    'kk': 'Сыртқы бетті ашу мүмкін болмады.',
+    'en': 'Could not open the external page.',
+  },
+  'admin_portal_open_browser': {
+    'ru': 'Открыть в браузере',
+    'kk': 'Браузерде ашу',
+    'en': 'Open in browser',
+  },
+  'close': {'ru': 'Закрыть', 'kk': 'Жабу', 'en': 'Close'},
+  'retry': {'ru': 'Повторить', 'kk': 'Қайталау', 'en': 'Retry'},
   'guest_name': {'ru': 'Гость', 'kk': 'Қонақ', 'en': 'Guest'},
   'profile_saved': {
     'ru': 'Профиль сохранён.',
     'kk': 'Профиль сақталды.',
     'en': 'Profile saved.',
+  },
+  'avatar_title': {
+    'ru': 'Выберите аватар',
+    'kk': 'Аватарды таңдаңыз',
+    'en': 'Choose an avatar',
+  },
+  'avatar_choose': {
+    'ru': 'Изменить аватар',
+    'kk': 'Аватарды өзгерту',
+    'en': 'Change avatar',
+  },
+  'avatar_not_selected': {
+    'ru': 'Аватар не выбран',
+    'kk': 'Аватар таңдалмаған',
+    'en': 'No avatar selected',
+  },
+  'avatar_selected': {
+    'ru': 'Выбранный аватар',
+    'kk': 'Таңдалған аватар',
+    'en': 'Selected avatar',
+  },
+  'avatar_option': {
+    'ru': 'Аватар {number}',
+    'kk': 'Аватар {number}',
+    'en': 'Avatar {number}',
+  },
+  'app_update_title': {
+    'ru': 'Обновите Bulka',
+    'kk': 'Bulka қолданбасын жаңартыңыз',
+    'en': 'Update Bulka',
+  },
+  'app_update_body': {
+    'ru':
+        'Эта версия больше не поддерживается. Установите обновление, чтобы продолжить пользоваться приложением.',
+    'kk':
+        'Бұл нұсқаға енді қолдау көрсетілмейді. Қолданбаны пайдалану үшін жаңартуды орнатыңыз.',
+    'en':
+        'This version is no longer supported. Install the update to keep using the app.',
+  },
+  'app_update_version': {
+    'ru': 'Доступна версия {version}',
+    'kk': '{version} нұсқасы қолжетімді',
+    'en': 'Version {version} is available',
+  },
+  'app_update_button': {
+    'ru': 'Обновить приложение',
+    'kk': 'Қолданбаны жаңарту',
+    'en': 'Update app',
+  },
+  'app_update_store_error': {
+    'ru': 'Не удалось открыть магазин приложений. Повторите попытку.',
+    'kk': 'Қолданбалар дүкенін ашу мүмкін болмады. Қайталап көріңіз.',
+    'en': 'Could not open the app store. Please try again.',
+  },
+  'app_update_illustration_semantics': {
+    'ru': 'Доступно обязательное обновление Bulka',
+    'kk': 'Bulka міндетті жаңартуы қолжетімді',
+    'en': 'A required Bulka update is available',
   },
   'delete_account': {
     'ru': 'Удалить аккаунт',
@@ -135,9 +235,9 @@ const Map<String, Map<String, String>> _accountTranslations = {
     'en': 'Link card',
   },
   'card_setup_hint': {
-    'ru': 'Подтвердите привязку на защищённой форме ForteBank.',
-    'kk': 'ForteBank қорғалған нысанында байланыстыруды растаңыз.',
-    'en': 'Confirm the link on the secure ForteBank form.',
+    'ru': 'На странице банка включите «Сохранить карту».',
+    'kk': 'Банк бетінде «Картаны сақтау» опциясын қосыңыз.',
+    'en': 'Turn on “Save card” on the bank page.',
   },
   'card_setup_verifying': {
     'ru': 'Проверяем карту',
@@ -145,9 +245,9 @@ const Map<String, Map<String, String>> _accountTranslations = {
     'en': 'Verifying card',
   },
   'card_setup_verifying_hint': {
-    'ru': 'Подождите подтверждения ForteBank.',
-    'kk': 'ForteBank растауын күтіңіз.',
-    'en': 'Waiting for confirmation from ForteBank.',
+    'ru': 'Сохраняем карту и возвращаем 30 ₸.',
+    'kk': 'Картаны сақтап, 30 ₸ қайтарып жатырмыз.',
+    'en': 'Saving the card and refunding 30 ₸.',
   },
   'card_setup_success': {
     'ru': 'Карта сохранена',
@@ -155,9 +255,14 @@ const Map<String, Map<String, String>> _accountTranslations = {
     'en': 'Card saved',
   },
   'card_setup_success_hint': {
-    'ru': 'Теперь её можно выбирать при следующих покупках.',
-    'kk': 'Енді оны келесі сатып алуларда таңдауға болады.',
-    'en': 'You can now select it for future purchases.',
+    'ru': 'Карта сохранена, возврат 30 ₸ отправлен.',
+    'kk': 'Карта сақталды, 30 ₸ қайтарылды.',
+    'en': 'Card saved and the 30 ₸ refund was sent.',
+  },
+  'card_setup_saved_refund_pending': {
+    'ru': 'Карта сохранена. Возврат 30 ₸ обрабатывается банком.',
+    'kk': 'Карта сақталды. 30 ₸ қайтаруды банк өңдеп жатыр.',
+    'en': 'Card saved. The bank is processing the 30 ₸ refund.',
   },
   'card_setup_failed': {
     'ru': 'Карта не сохранена',
@@ -165,9 +270,25 @@ const Map<String, Map<String, String>> _accountTranslations = {
     'en': 'Card not saved',
   },
   'card_setup_failed_hint': {
-    'ru': 'Деньги не списаны. Попробуйте ещё раз или выберите другую карту.',
-    'kk': 'Ақша алынбады. Қайталап көріңіз немесе басқа картаны таңдаңыз.',
-    'en': 'No payment was taken. Try again or use another card.',
+    'ru':
+        'Карта не сохранена. Если списывались 30 ₸, банк вернёт их автоматически.',
+    'kk':
+        'Карта сақталмады. Егер 30 ₸ алынған болса, банк оны автоматты түрде қайтарады.',
+    'en':
+        'The card was not saved. If 30 ₸ was charged, the bank will refund it automatically.',
+  },
+  'card_setup_cancelled': {
+    'ru': 'Добавление карты отменено.',
+    'kk': 'Карта қосу тоқтатылды.',
+    'en': 'Card linking was cancelled.',
+  },
+  'card_setup_token_missing': {
+    'ru':
+        'Карта не сохранена. Повторите и включите «Сохранить карту» на странице банка.',
+    'kk':
+        'Карта сақталмады. Қайталап, банк бетінде «Картаны сақтау» опциясын қосыңыз.',
+    'en':
+        'The card was not saved. Try again and turn on “Save card” on the bank page.',
   },
   'support_message': {
     'ru': 'Напишите нам в Telegram — мы поможем.',

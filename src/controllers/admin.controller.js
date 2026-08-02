@@ -206,6 +206,7 @@ const pushMassHandler = async (req, res) => {
     );
 
     let count = 0;
+    let queuedCount = 0;
     let totalTokens = 0;
     for (let offset = 0; offset < customers.length; offset += 25) {
       const batch = customers.slice(offset, offset + 25);
@@ -228,11 +229,18 @@ const pushMassHandler = async (req, res) => {
       );
       totalTokens += results.reduce((sum, result) => sum + result.attempted, 0);
       count += results.reduce((sum, result) => sum + result.delivered, 0);
+      queuedCount += results.reduce((sum, result) => sum + (result.queued ? 1 : 0), 0);
     }
     console.log(
       `[PUSH MASS] Всего клиентов: ${customers.length}, с fcm_token: ${totalTokens}, успешно отправлено push: ${count}`,
     );
-    res.json({ success: true, count, savedCount: customers.length, totalTokens });
+    res.json({
+      success: true,
+      count,
+      queuedCount,
+      savedCount: customers.length,
+      totalTokens,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

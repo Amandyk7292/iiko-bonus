@@ -75,6 +75,7 @@ abstract final class SessionStore {
     'checkout_scheduled_at_',
     'checkout_preorder_fulfillment_',
     'customer_orders_cache_',
+    'pending_gift_purchase_v1_',
   };
 
   static Future<void> write(String accessToken, String? refreshToken) async {

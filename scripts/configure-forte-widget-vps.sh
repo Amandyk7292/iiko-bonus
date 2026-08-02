@@ -22,7 +22,7 @@ sudo -u "$service_user" -H bash -lc 'command -v pm2 >/dev/null'
 
 restart_production() {
   sudo -u "$service_user" -H bash -lc \
-    "cd '$project' && env HOST=127.0.0.1 pm2 restart iiko-bonus --update-env"
+    "cd '$project' && env HOST=127.0.0.1 pm2 reload iiko-bonus --update-env"
 }
 
 save_process_list() {

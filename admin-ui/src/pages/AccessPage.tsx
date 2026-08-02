@@ -45,6 +45,7 @@ const roleLabelKeys: Record<string, string> = {
   operator: 'access.role.operator',
   marketer: 'access.role.marketer',
   courier: 'access.role.courier',
+  editor: 'access.role.editor',
   viewer: 'access.role.viewer',
 };
 const emptyDraft = (): StaffDraft => ({
@@ -69,7 +70,9 @@ export default function AccessPage() {
   const { toast } = useFeedback();
   const { t } = useI18n();
   const roleLabels = Object.fromEntries(Object.entries(roleLabelKeys).map(([role, key]) => [role, t(key)]));
-  const staffRoleLabels = Object.fromEntries(Object.entries(roleLabels).filter(([role]) => role !== 'owner'));
+  const staffRoleLabels = Object.fromEntries(
+    Object.entries(roleLabels).filter(([role]) => !['owner', 'editor'].includes(role)),
+  );
   const [profiles, setProfiles] = useState<AccessProfile[]>([]);
   const [configured, setConfigured] = useState<string[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);

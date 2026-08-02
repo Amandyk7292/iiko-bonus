@@ -35,6 +35,7 @@ class OrdersScreen extends StatefulWidget {
     this.transactions = const [],
     this.onExplore,
     this.onRequireAuth,
+    this.onOpenOrders,
     super.key,
   });
 
@@ -43,6 +44,7 @@ class OrdersScreen extends StatefulWidget {
   final List<BonusTransaction> transactions;
   final VoidCallback? onExplore;
   final Future<bool> Function()? onRequireAuth;
+  final Future<void> Function()? onOpenOrders;
 
   @override
   State<OrdersScreen> createState() => _OrdersScreenState();

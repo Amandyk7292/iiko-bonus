@@ -3,12 +3,16 @@ part of '../main.dart';
 @pragma('vm:entry-point')
 Future<void> _firebaseBackgroundMessage(RemoteMessage message) async {
   if (Firebase.apps.isEmpty) await Firebase.initializeApp();
+  if (!await PushNotifications.claimMessage(message.data)) return;
   await HomeWidgetSync.updateFromPush(message.data);
 }
 
 abstract final class PushNotifications {
   static const _installationIdKey = 'pushInstallationIdV1';
   static const _lastTokenKey = 'lastRegisteredFcmTokenV1';
+  static const _seenPushIdsKey = 'seenPushOutboxIdsV1';
+  static const _permissionPromptedKey = 'pushPermissionPromptedV1';
+  static final Set<String> _seenPushIds = <String>{};
   static const _webVapidKey = String.fromEnvironment(
     'FIREBASE_WEB_VAPID_KEY',
     defaultValue:
@@ -20,25 +24,45 @@ abstract final class PushNotifications {
   static final StreamController<Map<String, dynamic>> _orderEventController =
       StreamController<Map<String, dynamic>>.broadcast();
   static final StreamController<Map<String, dynamic>>
-  _openedOrderEventController =
+  _openedTargetEventController =
       StreamController<Map<String, dynamic>>.broadcast();
   static StreamSubscription<RemoteMessage>? _openedSubscription;
-  static Map<String, dynamic>? _pendingOpenedOrder;
+  static Map<String, dynamic>? _pendingOpenedTarget;
 
   static Stream<Map<String, dynamic>> get orderEvents =>
       _orderEventController.stream;
-  static Stream<Map<String, dynamic>> get openedOrderEvents =>
-      _openedOrderEventController.stream;
+  static Stream<Map<String, dynamic>> get openedTargets =>
+      _openedTargetEventController.stream;
 
-  static Map<String, dynamic>? takeInitialOpenedOrder() {
-    final value = _pendingOpenedOrder;
-    _pendingOpenedOrder = null;
+  static Map<String, dynamic>? takeInitialOpenedTarget() {
+    final value = _pendingOpenedTarget;
+    _pendingOpenedTarget = null;
     return value;
   }
 
+  static NotificationTarget _target(Map<String, dynamic> data) =>
+      resolveNotificationPayload(data, fallbackType: _asString(data['type']));
+
+  static Future<bool> claimMessage(Map<String, dynamic> data) async {
+    final id = _asString(data['pushOutboxId']).trim();
+    if (id.isEmpty) return true;
+    if (!_seenPushIds.add(id)) return false;
+    final prefs = await SharedPreferences.getInstance();
+    final persisted = prefs.getStringList(_seenPushIdsKey) ?? const <String>[];
+    if (persisted.contains(id)) return false;
+    final next = <String>[...persisted.where((value) => value != id), id];
+    if (next.length > 100) next.removeRange(0, next.length - 100);
+    await prefs.setStringList(_seenPushIdsKey, next);
+    return true;
+  }
+
+  static bool _isActionable(Map<String, dynamic> data) =>
+      _target(data).kind != NotificationTargetKind.none;
+
   static bool _opensOrders(Map<String, dynamic> data) {
-    final type = data['type']?.toString();
-    return type == 'order' || type == 'delivery' || type == 'refund';
+    final kind = _target(data).kind;
+    return kind == NotificationTargetKind.order ||
+        kind == NotificationTargetKind.orders;
   }
 
   static String get _platform {
@@ -103,9 +127,7 @@ abstract final class PushNotifications {
           _handleOpenedMessage,
         );
         final initial = await FirebaseMessaging.instance.getInitialMessage();
-        if (initial != null && _opensOrders(initial.data)) {
-          _pendingOpenedOrder = Map<String, dynamic>.from(initial.data);
-        }
+        if (initial != null) _publishOpenedTarget(initial.data);
         return;
       } catch (error) {
         _ready = false;
@@ -118,11 +140,56 @@ abstract final class PushNotifications {
     }
   }
 
+  static Future<void> requestPermissionOnFirstLaunch(BulkaApiClient api) async {
+    if (kIsWeb) return;
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(_permissionPromptedKey) == true) return;
+    if (!_ready) await initialize();
+    if (!_ready) return;
+    try {
+      final current = await FirebaseMessaging.instance
+          .getNotificationSettings();
+      final shouldRequest =
+          defaultTargetPlatform == TargetPlatform.android ||
+          current.authorizationStatus == AuthorizationStatus.notDetermined;
+      final settings = shouldRequest
+          ? await FirebaseMessaging.instance.requestPermission(
+              alert: true,
+              badge: true,
+              sound: true,
+            )
+          : current;
+      await prefs.setBool(_permissionPromptedKey, true);
+      if (api.isAuthenticated &&
+          (settings.authorizationStatus == AuthorizationStatus.authorized ||
+              settings.authorizationStatus ==
+                  AuthorizationStatus.provisional)) {
+        await register(api);
+      }
+    } catch (error) {
+      debugPrint('Notification permission prompt unavailable: $error');
+    }
+  }
+
   static StreamSubscription<RemoteMessage>? _messageSubscription;
 
+  static void _publishOpenedTarget(Map<String, dynamic> data) {
+    if (!_isActionable(data)) return;
+    final payload = Map<String, dynamic>.from(data);
+    if (_openedTargetEventController.hasListener) {
+      _openedTargetEventController.add(payload);
+    } else {
+      _pendingOpenedTarget = payload;
+    }
+  }
+
+  @visibleForTesting
+  static void publishOpenedTargetForTesting(Map<String, dynamic> data) {
+    _publishOpenedTarget(data);
+  }
+
   static void _handleOpenedMessage(RemoteMessage message) {
-    if (!_opensOrders(message.data)) return;
-    _openedOrderEventController.add(Map<String, dynamic>.from(message.data));
+    _publishOpenedTarget(message.data);
   }
 
   static Future<void> register(BulkaApiClient api) async {
@@ -130,12 +197,17 @@ abstract final class PushNotifications {
     _registering = true;
     try {
       final installationId = await _installationId();
-      final settings = await FirebaseMessaging.instance.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
-      if (settings.authorizationStatus == AuthorizationStatus.denied) return;
+      final settings = kIsWeb
+          ? await FirebaseMessaging.instance.requestPermission(
+              alert: true,
+              badge: true,
+              sound: true,
+            )
+          : await FirebaseMessaging.instance.getNotificationSettings();
+      if (settings.authorizationStatus != AuthorizationStatus.authorized &&
+          settings.authorizationStatus != AuthorizationStatus.provisional) {
+        return;
+      }
       _tokenSubscription ??= FirebaseMessaging.instance.onTokenRefresh.listen(
         (nextToken) => unawaited(
           _registerToken(api, nextToken, installationId).catchError((_) {}),
@@ -171,7 +243,8 @@ abstract final class PushNotifications {
   static void listenForeground(BuildContext context) {
     if (!_ready) return;
     _messageSubscription?.cancel();
-    _messageSubscription = FirebaseMessaging.onMessage.listen((message) {
+    _messageSubscription = FirebaseMessaging.onMessage.listen((message) async {
+      if (!await claimMessage(message.data)) return;
       unawaited(HomeWidgetSync.updateFromPush(message.data));
       if (_opensOrders(message.data)) {
         _orderEventController.add(Map<String, dynamic>.from(message.data));
@@ -181,6 +254,7 @@ abstract final class PushNotifications {
       final notification = message.notification;
       final title = notification?.title ?? message.data['title'];
       final body = notification?.body ?? message.data['body'];
+      final actionable = _isActionable(message.data);
       if (title != null && title.toString().isNotEmpty) {
         if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -229,6 +303,15 @@ abstract final class PushNotifications {
               ],
             ),
             duration: const Duration(seconds: 4),
+            action: actionable
+                ? SnackBarAction(
+                    label: 'notification_open_hint'.tr,
+                    textColor: const Color(0xFFFFD36A),
+                    onPressed: () => _openedTargetEventController.add(
+                      Map<String, dynamic>.from(message.data),
+                    ),
+                  )
+                : null,
           ),
         );
       }

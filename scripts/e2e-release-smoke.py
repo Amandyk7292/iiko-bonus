@@ -53,8 +53,19 @@ with sync_playwright() as playwright:
     require(health.ok and health.json().get("status") == "ok", "Health check failed")
     aasa = api.get(f"{BASE_URL}/.well-known/apple-app-site-association")
     require(aasa.ok and "applinks" in aasa.json(), "AASA endpoint failed")
+    aasa_paths = [
+        path
+        for detail in aasa.json().get("applinks", {}).get("details", [])
+        for path in detail.get("paths", [])
+    ]
+    require("/catalog/*" in aasa_paths, "AASA does not allow catalog links")
     asset_links = api.get(f"{BASE_URL}/.well-known/assetlinks.json")
-    require(asset_links.ok and isinstance(asset_links.json(), list), "Asset Links endpoint failed")
+    require(
+        asset_links.ok
+        and isinstance(asset_links.json(), list)
+        and len(asset_links.json()) > 0,
+        "Asset Links endpoint is empty",
+    )
 
     browser.close()
     require(not errors, "Browser errors: " + " | ".join(errors))

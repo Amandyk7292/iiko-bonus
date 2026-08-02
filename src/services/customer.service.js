@@ -347,34 +347,49 @@ async function getTransactions({
   };
 }
 
-const FUNNEL_EVENT_ALIASES = Object.freeze({
-  checkout_start: 'checkout_started',
-  payment_created: 'payment_started',
-});
-
-const normalizeStatsFunnel = (stats) => {
-  if (!stats || typeof stats !== 'object') return stats;
-  const source = stats.funnel && typeof stats.funnel === 'object' ? stats.funnel : {};
-  const funnel = { ...source };
-  for (const [legacyName, canonicalName] of Object.entries(FUNNEL_EVENT_ALIASES)) {
-    const legacyCount = Number(source[legacyName] || 0);
-    if (legacyCount) funnel[canonicalName] = Number(funnel[canonicalName] || 0) + legacyCount;
-    delete funnel[legacyName];
-  }
-  return { ...stats, funnel };
-};
-
 async function getStats({ branchIds = null } = {}) {
   const scopedBranches = Array.isArray(branchIds) ? branchIds.map(String).filter(Boolean) : [];
+  const attachFunnel = async (stats) => {
+    const { data, error } = await supabase.rpc('get_app_funnel', {
+      p_branch_ids: scopedBranches.length ? scopedBranches : null,
+    });
+    if (error) {
+      console.warn('Не удалось получить уникальную воронку приложения:', error.message);
+      return stats;
+    }
+    const payload = Array.isArray(data) ? data[0] : data;
+    const funnel = payload?.funnel && typeof payload.funnel === 'object' ? payload.funnel : {};
+    const funnelStartEvent = payload?.funnelStartEvent || 'app_open';
+    const steps = [
+      funnelStartEvent,
+      ...(funnelStartEvent === 'app_open' ? ['catalog_view'] : []),
+      'add_to_cart',
+      'checkout_started',
+      'payment_started',
+      'payment_paid',
+    ];
+    const funnelConversions = {};
+    steps.forEach((eventType, index) => {
+      if (index === 0) {
+        funnelConversions[eventType] = Number(funnel[eventType] || 0) > 0 ? 100 : 0;
+        return;
+      }
+      const previous = Number(funnel[steps[index - 1]] || 0);
+      const current = Number(funnel[eventType] || 0);
+      funnelConversions[eventType] =
+        previous > 0 ? Math.round((current / previous) * 1000) / 10 : 0;
+    });
+    return { ...stats, funnel, funnelConversions, funnelStartEvent };
+  };
   if (scopedBranches.length) {
     const { data, error } = await supabase.rpc('get_admin_stats_scoped', {
       p_branch_ids: scopedBranches,
     });
     if (error) throw new Error(error.message);
-    return normalizeStatsFunnel(Array.isArray(data) ? data[0] : data);
+    return attachFunnel(Array.isArray(data) ? data[0] : data);
   }
   const { data: aggregate, error: aggregateError } = await supabase.rpc('get_admin_stats');
-  if (!aggregateError && aggregate) return normalizeStatsFunnel(aggregate);
+  if (!aggregateError && aggregate) return attachFunnel(aggregate);
 
   const { data: customers } = await supabase
     .from('customers')
@@ -424,7 +439,7 @@ async function getStats({ branchIds = null } = {}) {
   const bonusPaymentPercent =
     totalGrossRevenue > 0 ? ((totalBurned / totalGrossRevenue) * 100).toFixed(1) : '0.0';
 
-  return {
+  return attachFunnel({
     totalCustomers: customers ? customers.length : 0,
     newCustomersLast30Days,
     totalSales: totalSpent,
@@ -434,7 +449,7 @@ async function getStats({ branchIds = null } = {}) {
     burnedLast30Days,
     bonusPaymentPercent,
     currentLiabilities: totalIssued,
-  };
+  });
 }
 
 async function addManualBonus(customerId, amount, reason, { branchId = null } = {}) {
@@ -576,7 +591,7 @@ async function searchCustomers(query) {
 
 async function updateCustomerInfo(
   customerId,
-  { name, last_name, gender, email, region, birth_date, phone },
+  { name, last_name, gender, email, region, birth_date, phone, avatar_key },
 ) {
   const updates = {};
   if (name !== undefined && name !== null) updates.name = name;
@@ -586,6 +601,7 @@ async function updateCustomerInfo(
   if (region !== undefined) updates.region = region;
   if (birth_date !== undefined) updates.birth_date = birth_date || null;
   if (phone !== undefined && phone !== null) updates.phone = phone;
+  if (avatar_key !== undefined) updates.avatar_key = avatar_key || null;
   const { error } = await supabase.from('customers').update(updates).eq('id', customerId);
   if (error) throw new Error(error.message);
   if (['name', 'phone'].some((key) => key in updates)) {
@@ -863,7 +879,7 @@ async function checkAndNotifyBirthdays(settings = {}) {
         {},
         c.fcm_token,
       );
-      if (pushResult.delivered > 0) {
+      if (pushResult.delivered > 0 || pushResult.queued) {
         notifiedCount++;
       }
     }

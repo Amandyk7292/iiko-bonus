@@ -20,6 +20,8 @@ const Map<String, Map<String, String>> _commonTranslations = {
   'confirm_btn': {'ru': 'Подтвердить', 'kk': 'Растау', 'en': 'Confirm'},
   'cancel_btn': {'ru': 'Отмена', 'kk': 'Болдырмау', 'en': 'Cancel'},
   'save_btn': {'ru': 'Сохранить', 'kk': 'Сақтау', 'en': 'Save'},
+  'edit_btn': {'ru': 'Изменить', 'kk': 'Өзгерту', 'en': 'Edit'},
+  'close_btn': {'ru': 'Закрыть', 'kk': 'Жабу', 'en': 'Close'},
   'delete_btn': {'ru': 'Удалить', 'kk': 'Жою', 'en': 'Delete'},
   'search_hint': {'ru': 'Поиск', 'kk': 'Іздеу', 'en': 'Search'},
   'error_generic': {
@@ -142,5 +144,16 @@ const Map<String, Map<String, String>> _commonTranslations = {
     'ru': 'Проверьте адрес e-mail',
     'kk': 'E-mail мекенжайын тексеріңіз',
     'en': 'Check the email address',
+  },
+  'support_code': {
+    'ru': 'Код для поддержки: {code}',
+    'kk': 'Қолдау қызметіне арналған код: {code}',
+    'en': 'Support code: {code}',
+  },
+  'copy_support_code': {'ru': 'Копировать', 'kk': 'Көшіру', 'en': 'Copy'},
+  'support_code_copied': {
+    'ru': 'Код скопирован',
+    'kk': 'Код көшірілді',
+    'en': 'Code copied',
   },
 };

@@ -10,6 +10,7 @@ class HomeScreen extends StatefulWidget {
     required this.onRequireAuth,
     required this.onOpenCatalog,
     this.onOpenNotificationTab,
+    this.onOpenOrders,
     super.key,
   });
 
@@ -21,6 +22,7 @@ class HomeScreen extends StatefulWidget {
   final Future<bool> Function() onRequireAuth;
   final Future<void> Function(String orderType) onOpenCatalog;
   final ValueChanged<int>? onOpenNotificationTab;
+  final Future<void> Function(String? orderId)? onOpenOrders;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -33,6 +35,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Timer? _feedRefreshTimer;
   bool _feedLoading = false;
   bool _initialLoading = true;
+  bool _storiesLoadFailed = false;
+  bool _newsLoadFailed = false;
   bool _loyaltyExpanded = true;
   final _navigationGate = _AsyncActionGate();
 
@@ -94,6 +98,12 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadFeed() async {
     if (_feedLoading) return;
     _feedLoading = true;
+    if (mounted) {
+      setState(() {
+        _storiesLoadFailed = false;
+        _newsLoadFailed = false;
+      });
+    }
     try {
       final results = await Future.wait<Object?>([
         widget.api
@@ -109,6 +119,8 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         final stories = results[0];
         final news = results[1];
+        _storiesLoadFailed = stories == null;
+        _newsLoadFailed = news == null;
         if (stories is List<PromoStory>) {
           _stories = stories;
           SharedPreferences.getInstance().then((prefs) {
@@ -141,6 +153,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _openDeliveryAddresses() async {
     await _navigationGate.run(() async {
+      if (widget.customer == null && !await widget.onRequireAuth()) return;
       try {
         final locations = await widget.api.getFulfillmentLocations();
         final deliveryAvailable = locations.any(
@@ -161,26 +174,12 @@ class _HomeScreenState extends State<HomeScreen> {
         return;
       }
       if (!mounted) return;
-      final wasGuest = widget.customer == null;
       final address = await Navigator.of(context).push<DeliveryAddress>(
         MaterialPageRoute(
-          builder: (_) =>
-              AddressSelectionScreen(api: wasGuest ? null : widget.api),
+          builder: (_) => AddressSelectionScreen(api: widget.api),
         ),
       );
       if (!mounted || address == null) return;
-      if (wasGuest) {
-        if (!await widget.onRequireAuth()) return;
-        try {
-          await AddressRepository(api: widget.api).saveAddress(address);
-        } catch (error) {
-          if (!mounted) return;
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
-          return;
-        }
-      }
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('selected_order_type', 'delivery');
       await Future.wait([
@@ -224,6 +223,7 @@ class _HomeScreenState extends State<HomeScreen> {
             api: widget.api,
             onRequireAuth: widget.onRequireAuth,
             onOpenTab: widget.onOpenNotificationTab,
+            onOpenOrders: widget.onOpenOrders,
           ),
         ),
       );
@@ -311,14 +311,24 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                       ),
-                      if (_initialLoading || storyGroups.isNotEmpty) ...[
+                      if (_initialLoading ||
+                          storyGroups.isNotEmpty ||
+                          (_storiesLoadFailed && _stories.isEmpty)) ...[
                         if (_initialLoading)
                           const PromoBannerShimmer()
-                        else
+                        else if (storyGroups.isNotEmpty)
                           PromoBannerSlider(
                             groups: storyGroups,
                             viewedGroups: _viewedStoryGroups,
                             onGroupTap: _openStoryGroup,
+                          )
+                        else
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: _HomeFeedErrorCard(
+                              message: 'home_promos_load_error'.tr,
+                              onRetry: _loadFeed,
+                            ),
                           ),
                         const SizedBox(height: 18),
                       ],
@@ -362,6 +372,15 @@ class _HomeScreenState extends State<HomeScreen> {
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 16),
                           child: NewsFeed(news: _news),
+                        ),
+                      ] else if (_newsLoadFailed) ...[
+                        const SizedBox(height: 24),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: _HomeFeedErrorCard(
+                            message: 'home_news_load_error'.tr,
+                            onRetry: _loadFeed,
+                          ),
                         ),
                       ],
                     ],
@@ -440,6 +459,53 @@ class _HomeScreenState extends State<HomeScreen> {
     await prefs.setStringList('viewed_story_groups', next.toList());
     if (!mounted) return;
     setState(() => _viewedStoryGroups = next);
+  }
+}
+
+class _HomeFeedErrorCard extends StatelessWidget {
+  const _HomeFeedErrorCard({required this.message, required this.onRetry});
+
+  final String message;
+  final Future<void> Function() onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.bulkaColors;
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      explicitChildNodes: true,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+        decoration: BoxDecoration(
+          color: colors.surfaceCream,
+          borderRadius: BorderRadius.circular(BulkaRadii.control),
+          border: Border.all(color: colors.cardBorder),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.cloud_off_rounded, color: colors.mutedText, size: 24),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(
+                  color: colors.mutedText,
+                  fontSize: BulkaTypeScale.bodySmall,
+                  height: 1.35,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            TextButton(
+              onPressed: () => unawaited(onRetry()),
+              child: Text('retry_btn'.tr),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

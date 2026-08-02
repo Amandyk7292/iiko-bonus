@@ -29,6 +29,8 @@ jobs:
       - run: npm ci
       - run: npm ci --prefix admin-ui
       - run: npm ci --prefix kaspi-pos-automation-main
+      - name: Detect committed secrets
+        run: npm run check:secrets
       - run: npm run db:migrate:check
       - run: npm run verify
       - name: Audit JavaScript dependencies

@@ -5,47 +5,55 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="robots" content="noindex,nofollow,noarchive" />
     <meta name="referrer" content="no-referrer" />
+    <link rel="icon" type="image/png" sizes="48x48" href="/favicon.png?v=20260730-1" />
     <title>Оплата картой — Bulka</title>
-    <link rel="stylesheet" href="/assets/forte-widget.css?v=2" />
+    <link rel="stylesheet" href="/assets/forte-widget.css?v=4" />
     <script defer src="https://js.fortebank.com/widget/be_gateway.js"></script>
-    <script defer src="/assets/forte-widget.js?v=2"></script>
+    <script defer src="/assets/forte-widget.js?v=4"></script>
   </head>
   <body>
-    <header class="payment-header">
-      <button class="close-button" id="close-payment" type="button" aria-label="Закрыть">
-        <span aria-hidden="true">×</span>
-      </button>
-      <img
-        class="bulka-logo"
-        src="/app/assets/assets/brand/bulka_logo.png"
-        width="62"
-        height="32"
-        alt="Bulka"
-      />
-      <span class="header-divider" aria-hidden="true"></span>
-      <strong id="page-title">Оплата картой</strong>
-    </header>
+    <div class="payment-backdrop">
+      <div class="phone-frame">
+        <span class="phone-speaker" aria-hidden="true"></span>
+        <div class="phone-screen">
+          <header class="payment-header">
+            <button class="close-button" id="close-payment" type="button" aria-label="Закрыть">
+              <span aria-hidden="true">×</span>
+            </button>
+            <img
+              class="bulka-logo"
+              src="/app/assets/assets/brand/bulka_logo.png"
+              width="62"
+              height="32"
+              alt="Bulka"
+            />
+            <span class="header-divider" aria-hidden="true"></span>
+            <strong id="page-title">Оплата картой</strong>
+          </header>
 
-    <div class="secure-strip">
-      <span class="lock" aria-hidden="true">▣</span>
-      <span id="secure-label">Защищённая страница банка</span>
+          <div class="secure-strip">
+            <span class="lock" aria-hidden="true">▣</span>
+            <span id="secure-label">Защищённая страница банка</span>
+          </div>
+
+          <main>
+            <section class="payment-state" id="payment-state" aria-live="polite">
+              <div class="spinner" aria-hidden="true"></div>
+              <h1 id="state-title">Открываем безопасную оплату</h1>
+              <p id="state-message">Не закрывайте страницу. Данные карты обрабатывает ForteBank.</p>
+              <button class="back-button" id="back-to-orders" type="button" hidden>
+                Вернуться к заказам
+              </button>
+            </section>
+          </main>
+
+          <footer>
+            <span>Visa</span>
+            <span>Mastercard</span>
+            <span>Google Pay</span>
+          </footer>
+        </div>
+      </div>
     </div>
-
-    <main>
-      <section class="payment-state" id="payment-state" aria-live="polite">
-        <div class="spinner" aria-hidden="true"></div>
-        <h1 id="state-title">Открываем безопасную оплату</h1>
-        <p id="state-message">Не закрывайте страницу. Данные карты обрабатывает ForteBank.</p>
-        <button class="back-button" id="back-to-orders" type="button" hidden>
-          Вернуться к заказам
-        </button>
-      </section>
-    </main>
-
-    <footer>
-      <span>Visa</span>
-      <span>Mastercard</span>
-      <span>Google Pay</span>
-    </footer>
   </body>
 </html>

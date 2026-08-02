@@ -36,6 +36,37 @@ describe('admin production invariants', () => {
     }
   });
 
+  it('uses one payment-issues deep link across the admin workspaces', () => {
+    const topbar = readFileSync(resolve(root, 'src/components/Topbar.tsx'), 'utf8');
+    const operations = readFileSync(resolve(root, 'src/pages/OperationsPage.tsx'), 'utf8');
+    const orders = readFileSync(resolve(root, 'src/pages/OrdersPage.tsx'), 'utf8');
+    for (const source of [topbar, operations]) {
+      expect(source).toContain('/orders?payment=issues');
+      expect(source).not.toContain('/orders?payment=failed');
+    }
+    expect(orders).toContain("{ value: 'issues', label: t('payment.issues') }");
+  });
+
+  it('keeps the topbar focused on operational actions', () => {
+    const topbar = readFileSync(resolve(root, 'src/components/Topbar.tsx'), 'utf8');
+    expect(topbar).toContain('<AdminGlobalSearch />');
+    expect(topbar).toContain('topbar-branch-select');
+    expect(topbar).toContain('topbar-notifications');
+    expect(topbar).toContain('topbar-logout');
+    expect(topbar).not.toContain('LanguageSelect');
+    expect(topbar).not.toContain('realtime-status');
+  });
+
+  it('keeps long product labels inside container-responsive cards', () => {
+    const commerce = readFileSync(resolve(root, 'src/styles/commerce.css'), 'utf8');
+    const index = readFileSync(resolve(root, 'src/index.css'), 'utf8');
+    expect(commerce).toContain(
+      'grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));',
+    );
+    expect(commerce).toMatch(/\.product-fact-choice span\s*\{[^}]*overflow-wrap:\s*anywhere;/s);
+    expect(index).toMatch(/\.modal-title\s*\{[^}]*overflow-wrap:\s*anywhere;/s);
+  });
+
   it('ships every locally referenced font and product mark', () => {
     const assets = [
       'GolosText-Regular.ttf',
@@ -57,5 +88,24 @@ describe('admin production invariants', () => {
     for (const mark of ['halal.png', 'eac.png', 'iso.png', 'under-3.png']) {
       expect(existsSync(resolve(root, 'public/assets/product_marks', mark)), mark).toBe(true);
     }
+  });
+
+  it('uses canonical backend analytics event names in the checkout funnel', () => {
+    const analyticsPage = readFileSync(resolve(root, 'src/pages/AnalyticsPage.tsx'), 'utf8');
+    const analyticsService = readFileSync(
+      resolve(root, '../src/services/analytics-event.service.js'),
+      'utf8',
+    );
+    for (const eventName of [
+      'checkout_started',
+      'payment_started',
+      'payment_failed',
+      'payment_cancelled',
+    ]) {
+      expect(analyticsPage, eventName).toContain(eventName);
+      expect(analyticsService, eventName).toContain(eventName);
+    }
+    expect(analyticsPage).not.toContain("'checkout_start'");
+    expect(analyticsPage).not.toContain("'payment_created'");
   });
 });

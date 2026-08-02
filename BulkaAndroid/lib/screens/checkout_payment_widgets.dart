@@ -6,6 +6,14 @@ enum _CheckoutPaymentMethod { kaspi, forte }
 
 enum _CheckoutPaymentVisual { kaspi, bankCard }
 
+String _paymentMethodAddErrorMessage(Object error) {
+  if (error is ApiException &&
+      error.code == 'FORTE_WIDGET_PAYMENT_METHOD_LIMIT') {
+    return 'payment_methods_limit_reached'.tr;
+  }
+  return 'payment_methods_add_error'.tr;
+}
+
 @visibleForTesting
 Widget buildCheckoutSavedCardsPanelForTest({
   required BulkaApiClient api,

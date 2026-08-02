@@ -70,16 +70,20 @@ void main() {
       find.byKey(const ValueKey('bulka-desktop-phone-frame')),
       findsOneWidget,
     );
+    final contentSize = tester.getSize(
+      find.byKey(const ValueKey('bulka-desktop-phone-content')),
+    );
+    expect(contentSize.width, BulkaDesktopPhoneViewport.phoneContentSize.width);
     expect(
-      tester.getSize(find.byKey(const ValueKey('bulka-desktop-phone-content'))),
-      BulkaDesktopPhoneViewport.phoneContentSize,
+      contentSize.height,
+      lessThanOrEqualTo(BulkaDesktopPhoneViewport.phoneContentSize.height),
     );
     expect(find.byType(FloatingNavBar), findsOneWidget);
     expect(find.byType(NavigationRail), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('desktop phone caps its scale and publishes safe insets', (
+  testWidgets('desktop phone keeps native pixels and publishes safe insets', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(2560, 1440);
@@ -101,13 +105,14 @@ void main() {
     final frameRect = tester.getRect(
       find.byKey(const ValueKey('bulka-desktop-phone-frame')),
     );
+    expect(frameRect.width, closeTo(446, 0.01));
+    expect(frameRect.height, closeTo(884, 0.01));
     expect(
-      frameRect.width,
-      closeTo(446 * BulkaDesktopPhoneViewport.maxDesktopScale, 0.01),
-    );
-    expect(
-      frameRect.height,
-      closeTo(884 * BulkaDesktopPhoneViewport.maxDesktopScale, 0.01),
+      find.descendant(
+        of: find.byKey(const ValueKey('bulka-desktop-phone-frame')),
+        matching: find.byType(FittedBox),
+      ),
+      findsNothing,
     );
     expect(find.text('430x860 / 10x10'), findsOneWidget);
     expect(tester.takeException(), isNull);

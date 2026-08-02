@@ -68,6 +68,43 @@ namespace Resto.Front.Api.IikoBonusPlugin
     }
 
     [System.Runtime.Serialization.DataContract]
+    public class PickupHandoffRequest
+    {
+        [System.Runtime.Serialization.DataMember]
+        public string branchId { get; set; }
+        [System.Runtime.Serialization.DataMember(EmitDefaultValue = false)]
+        public string token { get; set; }
+        [System.Runtime.Serialization.DataMember(EmitDefaultValue = false)]
+        public int orderNumber { get; set; }
+        [System.Runtime.Serialization.DataMember(EmitDefaultValue = false)]
+        public string pin { get; set; }
+        [System.Runtime.Serialization.DataMember(EmitDefaultValue = false)]
+        public string iikoOrderId { get; set; }
+    }
+
+    [System.Runtime.Serialization.DataContract]
+    public class PickupHandoffData
+    {
+        [System.Runtime.Serialization.DataMember]
+        public string orderId { get; set; }
+        [System.Runtime.Serialization.DataMember]
+        public int orderNumber { get; set; }
+        [System.Runtime.Serialization.DataMember]
+        public string orderStatus { get; set; }
+        [System.Runtime.Serialization.DataMember]
+        public string verifiedAt { get; set; }
+    }
+
+    [System.Runtime.Serialization.DataContract]
+    public class PickupHandoffResponse
+    {
+        [System.Runtime.Serialization.DataMember]
+        public bool success { get; set; }
+        [System.Runtime.Serialization.DataMember]
+        public PickupHandoffData handoff { get; set; }
+    }
+
+    [System.Runtime.Serialization.DataContract]
     public class SearchRequest
     {
         [System.Runtime.Serialization.DataMember]
@@ -198,10 +235,13 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private static readonly string ApiToken = ReadPluginSetting("IIKO_LOYALTY_API_TOKEN") ?? ReadPluginSetting("API_TOKEN");
         private static readonly string DiscountTypeId = ReadPluginSetting("IIKO_LOYALTY_DISCOUNT_TYPE_ID");
         private static readonly string DiscountTypeName = ReadPluginSetting("IIKO_LOYALTY_DISCOUNT_TYPE_NAME") ?? "Bulka Bonus";
+        private static readonly string BranchId = ReadPluginSetting("IIKO_BRANCH_ID");
+        private static readonly string BranchPosToken = ReadPluginSetting("IIKO_BRANCH_POS_TOKEN");
         private static readonly int RetryIntervalSec = Clamp(ReadIntSetting("IIKO_LOYALTY_RETRY_INTERVAL_SEC", 60), 10, 3600);
         private static readonly int MaxAttempts = Clamp(ReadIntSetting("IIKO_LOYALTY_MAX_ATTEMPTS", 0), 0, 1000);
         private static readonly string AssemblyDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location) ?? AppDomain.CurrentDomain.BaseDirectory;
         private static readonly string DataDirectory = ResolveDataDirectory();
+        internal static string DataDirectoryPath => DataDirectory;
         private static readonly string QueuePath = Path.Combine(DataDirectory, "BulkaBonusPendingApplies.json");
         private static readonly string ActiveOrdersPath = Path.Combine(DataDirectory, "BulkaBonusActiveOrders.json");
         private static readonly object QueueLock = new object();
@@ -260,7 +300,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             }
         }
 
-        private static string ReadPluginSetting(string key)
+        internal static string ReadPluginSetting(string key)
         {
             var envValue = Environment.GetEnvironmentVariable(key);
             if (!string.IsNullOrWhiteSpace(envValue)) return envValue.Trim();
@@ -409,7 +449,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                    string.IsNullOrEmpty(uri.Query) && string.IsNullOrEmpty(uri.Fragment);
         }
 
-        private static bool EnsureApiConfiguration(IViewManager vm)
+        internal static bool EnsureApiConfiguration(IViewManager vm)
         {
             if (!IsApiUrlConfigured())
             {
@@ -419,6 +459,23 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 return false;
             }
             return EnsureApiToken(vm);
+        }
+
+        internal static bool EnsureBranchPosConfiguration(IViewManager vm)
+        {
+            if (!EnsureApiConfiguration(vm)) return false;
+            Guid branchId;
+            if (!Guid.TryParse(BranchId, out branchId) ||
+                string.IsNullOrWhiteSpace(BranchPosToken) ||
+                BranchPosToken.Trim().Length < 40)
+            {
+                const string message =
+                    "Для защищённых операций задайте IIKO_BRANCH_ID и IIKO_BRANCH_POS_TOKEN этой кассы.";
+                PluginContext.Log.Error("IikoBonusPlugin: Branch POS credentials are not configured.");
+                try { vm.ShowErrorPopup(message, "ОК"); } catch { }
+                return false;
+            }
+            return true;
         }
 
         private static bool EnsureApiConfiguration()
@@ -447,14 +504,14 @@ namespace Resto.Front.Api.IikoBonusPlugin
             return false;
         }
 
-        private sealed class ApiResponse
+        internal sealed class ApiResponse
         {
             public HttpStatusCode StatusCode { get; set; }
             public string Body { get; set; }
             public bool IsSuccessStatusCode { get; set; }
         }
 
-        private static ApiResponse SendApiRequest(HttpMethod method, string relativePath, object payload = null)
+        internal static ApiResponse SendApiRequest(HttpMethod method, string relativePath, object payload = null)
         {
             if (!EnsureApiConfiguration()) throw new InvalidOperationException("Конфигурация API лояльности не заполнена.");
 
@@ -464,6 +521,14 @@ namespace Resto.Front.Api.IikoBonusPlugin
             {
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ApiToken);
                 request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+                if (!string.IsNullOrWhiteSpace(BranchId) &&
+                    !string.IsNullOrWhiteSpace(BranchPosToken))
+                {
+                    request.Headers.TryAddWithoutValidation("X-Bulka-Branch-Id", BranchId);
+                    request.Headers.TryAddWithoutValidation(
+                        "X-Bulka-Pos-Token",
+                        BranchPosToken);
+                }
                 if (payload != null)
                 {
                     request.Content = new StringContent(SerializeJson(payload), Encoding.UTF8, "application/json");
@@ -495,7 +560,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             }
         }
 
-        private static T DeserializeJson<T>(string json)
+        internal static T DeserializeJson<T>(string json)
         {
             var serializer = new DataContractJsonSerializer(typeof(T));
             using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(json ?? "")))
@@ -510,7 +575,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             return normalized.Length <= 500 ? normalized : normalized.Substring(0, 500);
         }
 
-        private static string GetApiErrorMessage(string body, string fallback)
+        internal static string GetApiErrorMessage(string body, string fallback)
         {
             try
             {
@@ -525,7 +590,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             return fallback;
         }
 
-        private static bool IsRetryableStatus(HttpStatusCode statusCode)
+        internal static bool IsRetryableStatus(HttpStatusCode statusCode)
         {
             var code = (int)statusCode;
             return statusCode == HttpStatusCode.RequestTimeout || code == 429 || code >= 500;
@@ -855,6 +920,18 @@ namespace Resto.Front.Api.IikoBonusPlugin
             // Обычные EAN-штрихкоды товаров часто состоят из 10-15 цифр. Их нельзя перехватывать.
             // Телефон принимается только с явным знаком "+", карта и QR — только с префиксом Bulka.
             var normalizedBarcode = barcode.Trim();
+            if (normalizedBarcode.StartsWith("bulka:pickup:", StringComparison.OrdinalIgnoreCase))
+            {
+                VerifyPickupHandoff(
+                    new PickupHandoffRequest
+                    {
+                        branchId = BranchId,
+                        token = normalizedBarcode,
+                        iikoOrderId = order?.Id.ToString()
+                    },
+                    vm);
+                return true;
+            }
             string digitsOnly = new string(normalizedBarcode.Where(char.IsDigit).ToArray());
             var isExplicitPhone = normalizedBarcode.StartsWith("+") && digitsOnly.Length >= 10 && digitsOnly.Length <= 15;
             var isLoyaltyCode = normalizedBarcode.StartsWith("BULKA-OTP-", StringComparison.OrdinalIgnoreCase) ||
@@ -882,6 +959,122 @@ namespace Resto.Front.Api.IikoBonusPlugin
             }
 
             return false;
+        }
+
+        public static void RunPickupHandoffByPin(IOrder order, IViewManager vm)
+        {
+            try
+            {
+                var orderResult = vm.ShowInputDialog(
+                    "Введите номер онлайн-заказа",
+                    Resto.Front.Api.Data.View.InputDialogTypes.Number,
+                    null,
+                    "Далее",
+                    "Отмена");
+                if (orderResult == null) return;
+                int orderNumber;
+                if (orderResult is Resto.Front.Api.Data.View.NumberInputDialogResult numberResult)
+                {
+                    orderNumber = numberResult.Number;
+                }
+                else if (orderResult is Resto.Front.Api.Data.View.DecimalInputDialogResult decimalResult)
+                {
+                    orderNumber = Convert.ToInt32(decimalResult.Decimal);
+                }
+                else
+                {
+                    vm.ShowErrorPopup("Не удалось прочитать номер заказа.", "ОК");
+                    return;
+                }
+                if (orderNumber <= 0)
+                {
+                    vm.ShowErrorPopup("Введите корректный номер заказа.", "ОК");
+                    return;
+                }
+
+                var pinResult = vm.ShowInputDialog(
+                    "Введите 6-значный код клиента",
+                    Resto.Front.Api.Data.View.InputDialogTypes.Number,
+                    null,
+                    "Выдать",
+                    "Отмена");
+                if (pinResult == null) return;
+                int pinNumber;
+                if (pinResult is Resto.Front.Api.Data.View.NumberInputDialogResult pinInput)
+                {
+                    pinNumber = pinInput.Number;
+                }
+                else if (pinResult is Resto.Front.Api.Data.View.DecimalInputDialogResult decimalPin)
+                {
+                    pinNumber = Convert.ToInt32(decimalPin.Decimal);
+                }
+                else
+                {
+                    vm.ShowErrorPopup("Не удалось прочитать код выдачи.", "ОК");
+                    return;
+                }
+                if (pinNumber < 0 || pinNumber > 999999)
+                {
+                    vm.ShowErrorPopup("Код выдачи должен содержать 6 цифр.", "ОК");
+                    return;
+                }
+                VerifyPickupHandoff(
+                    new PickupHandoffRequest
+                    {
+                        branchId = BranchId,
+                        orderNumber = orderNumber,
+                        pin = pinNumber.ToString("D6"),
+                        iikoOrderId = order?.Id.ToString()
+                    },
+                    vm);
+            }
+            catch (Exception ex)
+            {
+                PluginContext.Log.Error("IikoBonusPlugin: Pickup PIN verification failed: " + ex);
+                try { vm.ShowErrorPopup("Не удалось проверить код выдачи.", "ОК"); } catch { }
+            }
+        }
+
+        private static void VerifyPickupHandoff(PickupHandoffRequest request, IViewManager vm)
+        {
+            if (!EnsureBranchPosConfiguration(vm)) return;
+            Guid branchId;
+            if (!Guid.TryParse(request?.branchId, out branchId))
+            {
+                vm.ShowErrorPopup(
+                    "Для выдачи онлайн-заказов задайте IIKO_BRANCH_ID этого филиала в конфигурации плагина.",
+                    "ОК");
+                return;
+            }
+            try
+            {
+                vm.ChangeProgressBarMessage("Проверяем код выдачи...");
+                var response = SendApiRequest(HttpMethod.Post, "pickup-handoff/verify", request);
+                if (!response.IsSuccessStatusCode)
+                {
+                    var message = GetApiErrorMessage(
+                        response.Body,
+                        "Код выдачи не подтверждён. Код: " + (int)response.StatusCode);
+                    vm.ShowErrorPopup(message, "ОК");
+                    return;
+                }
+                var result = DeserializeJson<PickupHandoffResponse>(response.Body);
+                if (result?.success != true || result.handoff == null)
+                {
+                    vm.ShowErrorPopup("Сервис не подтвердил выдачу заказа.", "ОК");
+                    return;
+                }
+                vm.ShowOkPopup(
+                    "Заказ выдан",
+                    "Онлайн-заказ №" + result.handoff.orderNumber +
+                    " отмечен как выданный. Повторно использовать код нельзя.",
+                    "ОК");
+            }
+            catch (Exception ex)
+            {
+                PluginContext.Log.Error("IikoBonusPlugin: Pickup QR verification failed: " + ex);
+                vm.ShowErrorPopup("Нет связи с Bulka. Заказ не отмечен как выданный.", "ОК");
+            }
         }
 
         private static void RunSearchAndApply(IOrder order, IOperationService os, IViewManager vm, string query)

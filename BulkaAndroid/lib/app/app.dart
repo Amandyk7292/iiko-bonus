@@ -1,7 +1,38 @@
 part of '../main.dart';
 
+@visibleForTesting
+Future<void> reconcileReturnedForteCheckout({
+  required BulkaApiClient api,
+  required CartProvider cart,
+  required SharedPreferences prefs,
+}) async {
+  await cart.restored;
+  final pending = await PendingForteOperationStore.load(api);
+  if (pending != null) {
+    try {
+      final result = await api.checkFortePaymentStatus(pending.operationId);
+      final status = _asString(
+        result['paymentStatus'] ?? result['status'],
+        fallback: 'pending',
+      ).toLowerCase();
+      if (status == 'paid') {
+        await PendingForteOperationStore.clear(api);
+        await cart.clearAndWait();
+      } else if (isTerminalForteFailure(status)) {
+        await PendingForteOperationStore.clear(api);
+      }
+    } catch (_) {
+      // Keep the pending operation and cart. Reconciliation continues from the
+      // orders screen without creating another checkout.
+    }
+  }
+  await prefs.setString('lastAppScreen', 'customer-orders');
+}
+
 class BulkaBonusApp extends StatefulWidget {
-  const BulkaBonusApp({super.key});
+  const BulkaBonusApp({super.key, this.appReleaseChecksEnabled = true});
+
+  final bool appReleaseChecksEnabled;
 
   @override
   State<BulkaBonusApp> createState() => _BulkaBonusAppState();
@@ -24,6 +55,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   bool _profileRefreshInFlight = false;
   bool _widgetRefreshInFlight = false;
   bool _loginRouteOpen = false;
+  bool _notificationPermissionScheduled = false;
   bool _booting = true;
   String? _savedPhone;
   String? _accessToken;
@@ -37,6 +69,8 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   bool _restoreOrdersScreen = false;
   bool _ordersRouteOpen = false;
   PaymentReturnNotice? _pendingPaymentReturnNotice;
+  NotificationTarget? _pendingPushTarget;
+  RequiredAppUpdate? _requiredAppUpdate;
 
   @override
   void initState() {
@@ -47,12 +81,15 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     _customerEventSubscription = _api.customerEvents.listen(
       _handleCustomerEvent,
     );
-    _pushOpenSubscription = PushNotifications.openedOrderEvents.listen((_) {
-      _restoreOrdersScreen = true;
-      if (_savedPhone != null) unawaited(_openCustomerOrders());
-    });
-    if (PushNotifications.takeInitialOpenedOrder() != null) {
-      _restoreOrdersScreen = true;
+    _pushOpenSubscription = PushNotifications.openedTargets.listen(
+      _handlePushPayload,
+    );
+    final initialPush = PushNotifications.takeInitialOpenedTarget();
+    if (initialPush != null) {
+      _pendingPushTarget = resolveNotificationPayload(
+        initialPush,
+        fallbackType: _asString(initialPush['type']),
+      );
     }
     _appLinkSubscription = _appLinks.uriLinkStream.listen(_handleIncomingLink);
     _bootstrap();
@@ -71,6 +108,9 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_refreshRequiredAppUpdate());
+    }
     final phone = _savedPhone;
     if (state == AppLifecycleState.resumed && phone != null) {
       unawaited(_refreshProfile(phone));
@@ -120,7 +160,11 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   Future<void> _bootstrap() async {
     // Keep the brand transition stable on warm starts without introducing a
     // multi-second artificial wait that feels like startup lag.
+    final cart = context.read<CartProvider>();
     final minimumSplashDelay = Future<void>.delayed(_minimumSplashDuration);
+    final requiredUpdateFuture = widget.appReleaseChecksEnabled
+        ? resolveRequiredAppUpdate(_api)
+        : Future<RequiredAppUpdate?>.value();
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('app_theme_mode');
     await SessionStore.clearLegacyCustomerData(prefs);
@@ -151,6 +195,11 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
         refreshToken = null;
       }
     }
+    if (paymentReturnNotice != null &&
+        prefs.getString('lastAppScreen') == 'checkout' &&
+        accessToken != null) {
+      await reconcileReturnedForteCheckout(api: _api, cart: cart, prefs: prefs);
+    }
 
     await minimumSplashDelay;
     if (!mounted) return;
@@ -167,6 +216,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       _pendingPaymentReturnNotice = paymentReturnNotice;
       _booting = false;
     });
+    unawaited(_applyRequiredAppUpdate(requiredUpdateFuture));
     if (paymentReturnNotice != null && kIsWeb) {
       publishClientRoute(Uri(path: '/orders'), replace: true);
     }
@@ -182,6 +232,11 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
           (_) => unawaited(_openCustomerOrders()),
         );
       }
+      if (_pendingPushTarget != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) unawaited(_openPendingPushTarget());
+        });
+      }
     }
   }
 
@@ -191,13 +246,68 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     await prefs.setInt('lastMainTab', _lastMainTab);
   }
 
+  Future<void> _refreshRequiredAppUpdate() async {
+    await _applyRequiredAppUpdate(resolveRequiredAppUpdate(_api));
+  }
+
+  Future<void> _applyRequiredAppUpdate(
+    Future<RequiredAppUpdate?> requirementFuture,
+  ) async {
+    final requirement = await requirementFuture;
+    if (!mounted) return;
+    final current = _requiredAppUpdate;
+    if (current?.targetVersion == requirement?.targetVersion &&
+        current?.storeUri == requirement?.storeUri) {
+      if (requirement == null) _scheduleFirstLaunchNotificationPermission();
+      return;
+    }
+    setState(() => _requiredAppUpdate = requirement);
+    if (requirement == null) _scheduleFirstLaunchNotificationPermission();
+  }
+
+  void _scheduleFirstLaunchNotificationPermission() {
+    if (kIsWeb ||
+        !widget.appReleaseChecksEnabled ||
+        _notificationPermissionScheduled) {
+      return;
+    }
+    _notificationPermissionScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _requiredAppUpdate != null) return;
+      unawaited(PushNotifications.requestPermissionOnFirstLaunch(_api));
+    });
+  }
+
+  Future<void> _openRequiredUpdateStore() async {
+    final requirement = _requiredAppUpdate;
+    if (requirement == null) return;
+    try {
+      final opened = await launchUrl(
+        requirement.storeUri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (opened) return;
+    } catch (_) {}
+    final context = _navigatorKey.currentContext;
+    if (context == null || !context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('app_update_store_error'.tr),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(BulkaRadii.control),
+        ),
+      ),
+    );
+  }
+
   Future<void> _saveOrdersScope(bool completed) async {
     _ordersCompleted = completed;
     final prefs = _prefs ?? await SharedPreferences.getInstance();
     await prefs.setBool('ordersCompleted', completed);
   }
 
-  Future<void> _openCustomerOrders() async {
+  Future<void> _openCustomerOrders({String? initialOrderId}) async {
     if (_ordersRouteOpen || _savedPhone == null) return;
     final navigator = _navigatorKey.currentState;
     if (navigator == null) return;
@@ -216,6 +326,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
             initialCompleted: _ordersCompleted,
             onScopeChanged: (value) => unawaited(_saveOrdersScope(value)),
             paymentReturnNotice: paymentReturnNotice,
+            initialOrderId: initialOrderId,
           ),
         ),
       );
@@ -224,6 +335,80 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       _restoreOrdersScreen = false;
       await prefs.setString('lastAppScreen', 'main');
       unawaited(_refreshWidgetOrder());
+    }
+  }
+
+  void _handlePushPayload(Map<String, dynamic> payload) {
+    _pendingPushTarget = resolveNotificationPayload(
+      payload,
+      fallbackType: _asString(payload['type']),
+    );
+    if (!_booting) unawaited(_openPendingPushTarget());
+  }
+
+  Future<void> _openPendingPushTarget() async {
+    final target = _pendingPushTarget;
+    if (target == null) return;
+    final requiresAuth = {
+      NotificationTargetKind.order,
+      NotificationTargetKind.orders,
+      NotificationTargetKind.support,
+    }.contains(target.kind);
+    if (requiresAuth && _savedPhone == null) return;
+    _pendingPushTarget = null;
+    switch (target.kind) {
+      case NotificationTargetKind.order:
+        _restoreOrdersScreen = true;
+        await _openCustomerOrders(initialOrderId: target.resourceId);
+        return;
+      case NotificationTargetKind.orders:
+        _restoreOrdersScreen = true;
+        await _openCustomerOrders();
+        return;
+      case NotificationTargetKind.cart:
+        publishClientRoute(Uri(path: '/cart'));
+        return;
+      case NotificationTargetKind.promos:
+        publishClientRoute(Uri(path: '/promos'));
+        return;
+      case NotificationTargetKind.support:
+        final navigator = _navigatorKey.currentState;
+        if (navigator != null) {
+          await navigator.push<void>(
+            MaterialPageRoute(
+              builder: (_) => OrderSupportScreen(
+                api: _api,
+                initialRequestId: target.resourceId,
+              ),
+            ),
+          );
+        }
+        return;
+      case NotificationTargetKind.notifications:
+        final navigator = _navigatorKey.currentState;
+        if (navigator != null) {
+          await navigator.push<void>(
+            MaterialPageRoute(
+              builder: (_) => NotificationsScreen(
+                api: _api,
+                onRequireAuth: _requireAuthentication,
+                onOpenOrders: (orderId) =>
+                    _openCustomerOrders(initialOrderId: orderId),
+              ),
+            ),
+          );
+        }
+        return;
+      case NotificationTargetKind.external:
+        final uri = target.uri;
+        if (uri != null) {
+          try {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+          } catch (_) {}
+        }
+        return;
+      case NotificationTargetKind.none:
+        return;
     }
   }
 
@@ -543,10 +728,17 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
           ),
         ),
       );
-      return authenticated == true &&
+      final succeeded =
+          authenticated == true &&
           _savedPhone != null &&
           _customer != null &&
           _api.isAuthenticated;
+      if (succeeded && _pendingPushTarget != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) unawaited(_openPendingPushTarget());
+        });
+      }
+      return succeeded;
     } finally {
       _loginRouteOpen = false;
     }
@@ -679,6 +871,14 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
         text: 'splash_loading'.tr,
       );
     }
+    final requiredUpdate = _requiredAppUpdate;
+    if (requiredUpdate != null) {
+      return RequiredAppUpdateScreen(
+        key: const ValueKey('app-stage-required-update'),
+        requirement: requiredUpdate,
+        onUpdate: () => unawaited(_openRequiredUpdateStore()),
+      );
+    }
     final customer = _customer;
     if (_savedPhone != null && customer == null) {
       return SplashScreen(
@@ -700,6 +900,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       initialTab: _lastMainTab,
       onTabChanged: (tab) => unawaited(_saveMainTab(tab)),
       onOpenOrders: _openCustomerOrders,
+      onOpenOrder: (orderId) => _openCustomerOrders(initialOrderId: orderId),
     );
   }
 }

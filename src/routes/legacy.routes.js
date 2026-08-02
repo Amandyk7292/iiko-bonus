@@ -59,6 +59,25 @@ const {
   sendCustomerSession,
   usesCustomerRefreshCookie,
 } = require('../utils/customer-session-cookie.util');
+const { emptyBodySchema, validateRequest } = require('../middlewares/validation.middleware');
+const { customerRegistrationBodySchema } = require('../contracts/backend-safety.contract');
+const {
+  customerFcmTokenBodySchema,
+  customerFcmTokenDeleteBodySchema,
+  customerLoginBodySchema,
+  customerOtpRequestBodySchema,
+  customerOtpVerifyBodySchema,
+  customerPasswordResetCompleteBodySchema,
+  customerPasswordResetStartBodySchema,
+  customerRegistrationStartBodySchema,
+  customerSessionBodySchema,
+  guestProfileBodySchema,
+  notificationParamsSchema,
+} = require('../contracts/legacy-api.contract');
+const {
+  recordCustomerLegalConsent,
+  validateLegalConsent,
+} = require('../services/legal-consent.service');
 
 // --- Helper functions (originally in old index.js) ---
 
@@ -174,246 +193,326 @@ function sendOtpFailure(res, consumed) {
   return null;
 }
 
-router.post('/api/auth/login', authRateLimit, async (req, res) => {
-  try {
-    const { customer } = await authenticateCustomerPassword(req.body || {});
-    res.json(await buildAuthenticatedCustomerPayload(customer, req, res));
-  } catch (error) {
-    sendCustomerAuthError(res, error);
-  }
-});
+router.post(
+  '/api/auth/login',
+  authRateLimit,
+  validateRequest({ body: customerLoginBodySchema }),
+  async (req, res) => {
+    try {
+      const { customer } = await authenticateCustomerPassword(req.body || {});
+      res.json(await buildAuthenticatedCustomerPayload(customer, req, res));
+    } catch (error) {
+      sendCustomerAuthError(res, error);
+    }
+  },
+);
 
-router.post('/api/auth/register/start', authRateLimit, async (req, res) => {
-  try {
-    const result = await startCustomerRegistration({
-      phone: req.body?.phone,
-      password: req.body?.password,
-      requestToken: req.body?.token,
-    });
-    res.json({ success: true, ...result });
-  } catch (error) {
-    sendCustomerAuthError(res, error);
-  }
-});
-
-router.post('/api/auth/password-reset/start', authRateLimit, async (req, res) => {
-  try {
-    const result = await startCustomerPasswordReset({
-      phone: req.body?.phone,
-      requestToken: req.body?.token,
-    });
-    res.json({
-      success: true,
-      whatsappPhone: result.whatsappPhone,
-      whatsappUrl: result.whatsappUrl,
-    });
-  } catch (error) {
-    sendCustomerAuthError(res, error);
-  }
-});
-
-router.post('/api/auth/password-reset/complete', authRateLimit, async (req, res) => {
-  try {
-    const phone = normalizeCustomerPhone(req.body?.phone);
-    validateNewPassword(req.body?.password);
-    const code = String(req.body?.code || '').trim();
-    if (!/^\d{4}$/.test(code)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid confirmation code',
-        code: 'INVALID_OTP',
+router.post(
+  '/api/auth/register/start',
+  authRateLimit,
+  validateRequest({ body: customerRegistrationStartBodySchema }),
+  async (req, res) => {
+    try {
+      const result = await startCustomerRegistration({
+        phone: req.body?.phone,
+        password: req.body?.password,
+        requestToken: req.body?.token,
       });
+      res.json({ success: true, ...result });
+    } catch (error) {
+      sendCustomerAuthError(res, error);
     }
-    const consumed = await otpStore.consume(phone, code);
-    const failure = sendOtpFailure(res, consumed);
-    if (failure) return failure;
-    if (consumed.payload?.purpose !== AUTH_PURPOSES.passwordReset) {
-      return res.status(400).json({
-        success: false,
-        error: 'Confirmation code cannot be used for password recovery',
-        code: 'WRONG_OTP_PURPOSE',
+  },
+);
+
+router.post(
+  '/api/auth/password-reset/start',
+  authRateLimit,
+  validateRequest({ body: customerPasswordResetStartBodySchema }),
+  async (req, res) => {
+    try {
+      const result = await startCustomerPasswordReset({
+        phone: req.body?.phone,
+        requestToken: req.body?.token,
       });
-    }
-
-    const customer = await getCustomerByPhone(phone);
-    const credential = customer ? await getCustomerCredential(customer.id) : null;
-    if (!customer || (!credential && !isEstablishedCustomer(customer))) {
-      return res.status(404).json({
-        success: false,
-        error: 'Customer account was not found',
-        code: 'ACCOUNT_NOT_FOUND',
+      res.json({
+        success: true,
+        whatsappPhone: result.whatsappPhone,
+        whatsappUrl: result.whatsappUrl,
       });
+    } catch (error) {
+      sendCustomerAuthError(res, error);
     }
-    await resetCustomerPassword({ customerId: customer.id, password: req.body.password });
-    res.json(await buildAuthenticatedCustomerPayload(customer, req, res));
-  } catch (error) {
-    sendCustomerAuthError(res, error);
-  }
-});
+  },
+);
 
-router.post('/api/auth/request-otp', authRateLimit, async (req, res) => {
-  try {
-    const { token } = req.body;
-    const phone = normalizePhone(req.body.phone);
-    if (!phone || phone.replace(/[^0-9]/g, '').length < 10)
-      return res.status(400).json({ error: 'Valid phone required' });
-
-    // Don't create customer here тАФ only create after OTP is verified
-
-    // If a token was provided, save it so the WhatsApp bot can map it to this phone number
-    if (!/^[A-Za-z0-9]{12,64}$/.test(String(token || ''))) {
-      return res.status(400).json({ error: 'Valid request token required' });
-    }
-    if (token) {
-      await supabase.from('whatsapp_sessions').delete().lt('expires_at', new Date().toISOString());
-      const { error } = await supabase.from('whatsapp_sessions').upsert({
-        id: `token_${token}`,
-        data: JSON.stringify({ phone, expires: Date.now() + 10 * 60 * 1000 }),
-        expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-      });
-      if (error) throw error;
-    }
-
-    res.json({
-      success: true,
-      viaTelegram: false,
-      ...buildWhatsAppContact(token),
-    });
-  } catch (err) {
-    sendApiError(res, err, { success: false });
-  }
-});
-
-router.post('/api/auth/verify-otp', authRateLimit, async (req, res) => {
-  try {
-    const phone = normalizePhone(req.body.phone);
-    const { code } = req.body;
-    if (!phone || !code) return res.status(400).json({ error: 'Phone and code required' });
-
-    const consumed = await otpStore.consume(phone, code);
-    const failure = sendOtpFailure(res, consumed);
-    if (failure) return failure;
-
-    if (consumed.payload?.purpose === AUTH_PURPOSES.passwordReset) {
-      return res.status(400).json({
-        success: false,
-        error: 'Confirmation code cannot be used to sign in',
-        code: 'WRONG_OTP_PURPOSE',
-      });
-    }
-
-    let existingCustomer = await getCustomerByPhone(phone);
-    const isPlaceholder = existingCustomer && !isEstablishedCustomer(existingCustomer);
-    if (consumed.payload?.purpose === AUTH_PURPOSES.registration) {
-      const credential = existingCustomer ? await getCustomerCredential(existingCustomer.id) : null;
-      if (credential || isEstablishedCustomer(existingCustomer)) {
-        return res.status(409).json({
+router.post(
+  '/api/auth/password-reset/complete',
+  authRateLimit,
+  validateRequest({ body: customerPasswordResetCompleteBodySchema }),
+  async (req, res) => {
+    try {
+      const phone = normalizeCustomerPhone(req.body?.phone);
+      validateNewPassword(req.body?.password);
+      const code = String(req.body?.code || '').trim();
+      if (!/^\d{4}$/.test(code)) {
+        return res.status(400).json({
           success: false,
-          error: 'Customer account already exists',
-          code: credential ? 'ACCOUNT_EXISTS' : 'PASSWORD_SETUP_REQUIRED',
+          error: 'Invalid confirmation code',
+          code: 'INVALID_OTP',
         });
       }
-      const credentialGrantId = await createRegistrationCredentialGrant({
-        phone,
-        passwordHash: consumed.payload?.passwordHash,
-      });
-      return res.json({
+      const consumed = await otpStore.consume(phone, code);
+      const failure = sendOtpFailure(res, consumed);
+      if (failure) return failure;
+      if (consumed.payload?.purpose !== AUTH_PURPOSES.passwordReset) {
+        return res.status(400).json({
+          success: false,
+          error: 'Confirmation code cannot be used for password recovery',
+          code: 'WRONG_OTP_PURPOSE',
+        });
+      }
+
+      const customer = await getCustomerByPhone(phone);
+      const credential = customer ? await getCustomerCredential(customer.id) : null;
+      if (!customer || (!credential && !isEstablishedCustomer(customer))) {
+        return res.status(404).json({
+          success: false,
+          error: 'Customer account was not found',
+          code: 'ACCOUNT_NOT_FOUND',
+        });
+      }
+      await resetCustomerPassword({ customerId: customer.id, password: req.body.password });
+      res.json(await buildAuthenticatedCustomerPayload(customer, req, res));
+    } catch (error) {
+      sendCustomerAuthError(res, error);
+    }
+  },
+);
+
+router.post(
+  '/api/auth/request-otp',
+  authRateLimit,
+  validateRequest({ body: customerOtpRequestBodySchema }),
+  async (req, res) => {
+    try {
+      const { token } = req.body;
+      const phone = normalizePhone(req.body.phone);
+      if (!phone || phone.replace(/[^0-9]/g, '').length < 10)
+        return res.status(400).json({ error: 'Valid phone required' });
+
+      // Don't create customer here тАФ only create after OTP is verified
+
+      // If a token was provided, save it so the WhatsApp bot can map it to this phone number
+      if (!/^[A-Za-z0-9]{12,64}$/.test(String(token || ''))) {
+        return res.status(400).json({ error: 'Valid request token required' });
+      }
+      if (token) {
+        await supabase
+          .from('whatsapp_sessions')
+          .delete()
+          .lt('expires_at', new Date().toISOString());
+        const { error } = await supabase.from('whatsapp_sessions').upsert({
+          id: `token_${token}`,
+          data: JSON.stringify({ phone, expires: Date.now() + 10 * 60 * 1000 }),
+          expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+        });
+        if (error) throw error;
+      }
+
+      res.json({
         success: true,
-        exists: false,
-        registrationToken: signRegistrationToken(phone, { credentialGrantId }),
+        viaTelegram: false,
+        ...buildWhatsAppContact(token),
       });
+    } catch (err) {
+      sendApiError(res, err, { success: false });
     }
-    if (!existingCustomer || isPlaceholder) {
-      return res.json({
-        success: true,
-        exists: false,
-        registrationToken: signRegistrationToken(phone),
-      });
+  },
+);
+
+router.post(
+  '/api/auth/verify-otp',
+  authRateLimit,
+  validateRequest({ body: customerOtpVerifyBodySchema }),
+  async (req, res) => {
+    try {
+      const phone = normalizePhone(req.body.phone);
+      const { code } = req.body;
+      if (!phone || !code) return res.status(400).json({ error: 'Phone and code required' });
+
+      const consumed = await otpStore.consume(phone, code);
+      const failure = sendOtpFailure(res, consumed);
+      if (failure) return failure;
+
+      if (consumed.payload?.purpose === AUTH_PURPOSES.passwordReset) {
+        return res.status(400).json({
+          success: false,
+          error: 'Confirmation code cannot be used to sign in',
+          code: 'WRONG_OTP_PURPOSE',
+        });
+      }
+
+      let existingCustomer = await getCustomerByPhone(phone);
+      const isPlaceholder = existingCustomer && !isEstablishedCustomer(existingCustomer);
+      if (consumed.payload?.purpose === AUTH_PURPOSES.registration) {
+        const credential = existingCustomer
+          ? await getCustomerCredential(existingCustomer.id)
+          : null;
+        if (credential || isEstablishedCustomer(existingCustomer)) {
+          return res.status(409).json({
+            success: false,
+            error: 'Customer account already exists',
+            code: credential ? 'ACCOUNT_EXISTS' : 'PASSWORD_SETUP_REQUIRED',
+          });
+        }
+        const credentialGrantId = await createRegistrationCredentialGrant({
+          phone,
+          passwordHash: consumed.payload?.passwordHash,
+        });
+        return res.json({
+          success: true,
+          exists: false,
+          registrationToken: signRegistrationToken(phone, { credentialGrantId }),
+        });
+      }
+      if (!existingCustomer || isPlaceholder) {
+        return res.json({
+          success: true,
+          exists: false,
+          registrationToken: signRegistrationToken(phone),
+        });
+      }
+
+      res.json(await buildAuthenticatedCustomerPayload(existingCustomer, req, res));
+    } catch (err) {
+      sendApiError(res, err, { success: false });
     }
+  },
+);
 
-    res.json(await buildAuthenticatedCustomerPayload(existingCustomer, req, res));
-  } catch (err) {
-    sendApiError(res, err, { success: false });
-  }
-});
+router.post(
+  '/api/auth/register',
+  authRateLimit,
+  registrationAuthMiddleware,
+  validateRequest({ body: customerRegistrationBodySchema }),
+  async (req, res) => {
+    try {
+      const phone = normalizePhone(req.registrationAuth.phone);
+      const { name, surname, gender, birthdate, email } = req.body;
+      if (!phone) return res.status(400).json({ success: false, error: 'Phone required' });
+      // Consent is validated before any placeholder customer or credential is
+      // created. The server records canonical document hashes, not client claims.
+      const legalConsent = validateLegalConsent(req.body || {});
 
-router.post('/api/auth/register', authRateLimit, registrationAuthMiddleware, async (req, res) => {
-  try {
-    const phone = normalizePhone(req.registrationAuth.phone);
-    const { name, surname, gender, birthdate, email } = req.body;
-    if (!phone) return res.status(400).json({ success: false, error: 'Phone required' });
+      const safeName = typeof name === 'string' ? name.trim() : '';
+      const safeSurname = typeof surname === 'string' ? surname.trim() : '';
+      const safeEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+      const safeGender = typeof gender === 'string' ? gender.trim().toLowerCase() : '';
+      const safeBirthdate = typeof birthdate === 'string' ? birthdate.trim() : '';
+      const fullName = [safeName, safeSurname].filter(Boolean).join(' ').trim().slice(0, 160);
+      if (!fullName) return res.status(400).json({ success: false, error: 'Name required' });
+      if (safeName.length > 80 || safeSurname.length > 80) {
+        return res.status(400).json({ success: false, error: 'Name is too long' });
+      }
+      if (email != null && (!safeEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(safeEmail))) {
+        return res.status(400).json({ success: false, error: 'Invalid email' });
+      }
+      if (safeEmail.length > 254) {
+        return res.status(400).json({ success: false, error: 'Invalid email' });
+      }
+      if (birthdate != null) {
+        const parsedBirthdate = new Date(`${safeBirthdate}T00:00:00.000Z`);
+        if (
+          !/^\d{4}-\d{2}-\d{2}$/.test(safeBirthdate) ||
+          Number.isNaN(parsedBirthdate.getTime()) ||
+          parsedBirthdate.toISOString().slice(0, 10) !== safeBirthdate ||
+          parsedBirthdate > new Date()
+        ) {
+          return res.status(400).json({ success: false, error: 'Invalid birthdate' });
+        }
+      }
+      if (gender != null && !['m', 'f', 'male', 'female', 'other'].includes(safeGender)) {
+        return res.status(400).json({ success: false, error: 'Invalid gender' });
+      }
 
-    const fullName = [name, surname].filter(Boolean).join(' ').trim().slice(0, 160);
-    if (!fullName) return res.status(400).json({ success: false, error: 'Name required' });
-    const existingCustomer = await getCustomerByPhone(phone);
-    if (isEstablishedCustomer(existingCustomer)) {
-      return res.status(409).json({ success: false, error: 'Customer is already registered' });
+      // Validate every user-controlled field before a placeholder customer can
+      // be created. Invalid registration attempts must not leave orphan rows.
+      const existingCustomer = await getCustomerByPhone(phone);
+      if (isEstablishedCustomer(existingCustomer)) {
+        return res.status(409).json({ success: false, error: 'Customer is already registered' });
+      }
+      let customer = existingCustomer || (await getOrCreateCustomerByPhone(phone, fullName));
+      if (!customer)
+        return res.status(404).json({ success: false, error: 'Cannot create customer' });
+
+      // Persist the legal audit before consuming a one-time credential grant.
+      // A transient audit failure must remain safely retryable for the client.
+      await recordCustomerLegalConsent(customer.id, legalConsent);
+      if (req.registrationAuth.credentialGrantId) {
+        const passwordHash = await consumeRegistrationCredentialGrant({
+          phone,
+          grantId: req.registrationAuth.credentialGrantId,
+        });
+        await createCustomerCredential({ customerId: customer.id, passwordHash });
+      }
+
+      const updateData = { name: fullName };
+      if (safeSurname) updateData.last_name = safeSurname;
+      if (safeEmail) updateData.email = safeEmail;
+      if (safeGender) updateData.gender = safeGender;
+      if (safeBirthdate) updateData.birth_date = safeBirthdate;
+
+      const { error: updateError } = await supabase
+        .from('customers')
+        .update(updateData)
+        .eq('id', customer.id);
+      if (updateError) throw updateError;
+      Object.assign(customer, updateData);
+
+      res.json(await buildAuthenticatedCustomerPayload(customer, req, res));
+    } catch (err) {
+      sendCustomerAuthError(res, err);
     }
-    let customer = existingCustomer || (await getOrCreateCustomerByPhone(phone, fullName));
-    if (!customer) return res.status(404).json({ success: false, error: 'Cannot create customer' });
+  },
+);
 
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email))) {
-      return res.status(400).json({ success: false, error: 'Invalid email' });
+router.post(
+  '/api/auth/refresh',
+  authRateLimit,
+  validateRequest({ body: customerSessionBodySchema }),
+  async (req, res) => {
+    try {
+      const rawToken = req.body?.refreshToken || readCustomerRefreshCookie(req);
+      const session = await rotateCustomerSession(rawToken, req);
+      res.json({ success: true, ...sendCustomerSession(req, res, session) });
+    } catch (error) {
+      sendApiError(res, error, { success: false });
     }
-    if (birthdate && !/^\d{4}-\d{2}-\d{2}$/.test(String(birthdate))) {
-      return res.status(400).json({ success: false, error: 'Invalid birthdate' });
+  },
+);
+
+router.post(
+  '/api/auth/logout',
+  authRateLimit,
+  validateRequest({ body: customerSessionBodySchema }),
+  async (req, res) => {
+    try {
+      const rawToken = req.body?.refreshToken || readCustomerRefreshCookie(req);
+      await revokeCustomerSession(rawToken);
+      if (usesCustomerRefreshCookie(req)) clearCustomerSessionCookie(req, res);
+      res.json({ success: true });
+    } catch (error) {
+      sendApiError(res, error, { success: false });
     }
-    if (gender && !['m', 'f', 'male', 'female', 'other'].includes(String(gender))) {
-      return res.status(400).json({ success: false, error: 'Invalid gender' });
-    }
-
-    if (req.registrationAuth.credentialGrantId) {
-      const passwordHash = await consumeRegistrationCredentialGrant({
-        phone,
-        grantId: req.registrationAuth.credentialGrantId,
-      });
-      await createCustomerCredential({ customerId: customer.id, passwordHash });
-    }
-
-    const updateData = { name: fullName };
-    if (surname) updateData.last_name = surname;
-    if (email) updateData.email = email;
-    if (gender) updateData.gender = gender;
-    if (birthdate) updateData.birth_date = birthdate;
-
-    const { error: updateError } = await supabase
-      .from('customers')
-      .update(updateData)
-      .eq('id', customer.id);
-    if (updateError) throw updateError;
-    Object.assign(customer, updateData);
-
-    res.json(await buildAuthenticatedCustomerPayload(customer, req, res));
-  } catch (err) {
-    sendCustomerAuthError(res, err);
-  }
-});
-
-router.post('/api/auth/refresh', authRateLimit, async (req, res) => {
-  try {
-    const rawToken = req.body?.refreshToken || readCustomerRefreshCookie(req);
-    const session = await rotateCustomerSession(rawToken, req);
-    res.json({ success: true, ...sendCustomerSession(req, res, session) });
-  } catch (error) {
-    sendApiError(res, error, { success: false });
-  }
-});
-
-router.post('/api/auth/logout', authRateLimit, async (req, res) => {
-  try {
-    const rawToken = req.body?.refreshToken || readCustomerRefreshCookie(req);
-    await revokeCustomerSession(rawToken);
-    if (usesCustomerRefreshCookie(req)) clearCustomerSessionCookie(req, res);
-    res.json({ success: true });
-  } catch (error) {
-    sendApiError(res, error, { success: false });
-  }
-});
+  },
+);
 
 router.post(
   '/api/customer/fcm-token',
   publicApiRateLimit,
   customerAuthMiddleware,
+  validateRequest({ body: customerFcmTokenBodySchema }),
   async (req, res) => {
     try {
       const { fcmToken, language, platform, installationId } = req.body;
@@ -434,6 +533,7 @@ router.delete(
   '/api/customer/fcm-token',
   publicApiRateLimit,
   customerAuthMiddleware,
+  validateRequest({ body: customerFcmTokenDeleteBodySchema }),
   async (req, res) => {
     try {
       await unregisterPushTokenByCustomerId(req.customerAuth.id, {
@@ -471,6 +571,7 @@ router.post(
   '/api/customer/notifications/read-all',
   publicApiRateLimit,
   customerAuthMiddleware,
+  validateRequest({ body: emptyBodySchema }),
   async (req, res) => {
     try {
       const { error } = await supabase
@@ -490,6 +591,7 @@ router.post(
   '/api/customer/notifications/:id/read',
   publicApiRateLimit,
   customerAuthMiddleware,
+  validateRequest({ params: notificationParamsSchema, body: emptyBodySchema }),
   async (req, res) => {
     try {
       const { error } = await supabase
@@ -505,62 +607,76 @@ router.post(
   },
 );
 
-router.post('/api/guest/profile', publicApiRateLimit, customerAuthMiddleware, async (req, res) => {
-  try {
-    const { fcmToken } = req.body;
-    const customer = await getCustomerById(req.customerAuth.id);
-    if (!customer) return res.status(404).json({ exists: false });
+router.post(
+  '/api/guest/profile',
+  publicApiRateLimit,
+  customerAuthMiddleware,
+  validateRequest({ body: guestProfileBodySchema }),
+  async (req, res) => {
+    try {
+      const { fcmToken } = req.body;
+      const customer = await getCustomerById(req.customerAuth.id);
+      if (!customer) return res.status(404).json({ exists: false });
 
-    if (fcmToken && customer.fcm_token !== fcmToken) {
-      await updateFcmTokenByCustomerId(customer.id, fcmToken);
-      customer.fcm_token = fcmToken;
+      if (fcmToken && customer.fcm_token !== fcmToken) {
+        await updateFcmTokenByCustomerId(customer.id, fcmToken);
+        customer.fcm_token = fcmToken;
+      }
+
+      const { tier, vipThreshold, isVip, cashbackPercent } =
+        await getCustomerTierSnapshot(customer);
+
+      // Получаем последние транзакции клиента.
+      const { data: transactions } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('customer_id', customer.id)
+        .order('timestamp', { ascending: false })
+        .limit(20);
+
+      res.json({
+        exists: true,
+        customer: {
+          id: customer.id,
+          last_name: customer.last_name,
+          gender: customer.gender,
+          birth_date: customer.birth_date,
+          email: customer.email,
+          region: customer.region,
+          avatar_key: customer.avatar_key,
+          name: customer.name,
+          phone: customer.phone,
+          balance: customer.balance,
+          total_spent: customer.total_spent,
+          created_at: customer.created_at,
+          isVip,
+          cashbackPercent,
+          vipThreshold,
+          tier,
+        },
+        transactions: transactions || [],
+      });
+    } catch (err) {
+      sendApiError(res, err);
     }
+  },
+);
 
-    const { tier, vipThreshold, isVip, cashbackPercent } = await getCustomerTierSnapshot(customer);
-
-    // Получаем последние транзакции клиента.
-    const { data: transactions } = await supabase
-      .from('transactions')
-      .select('*')
-      .eq('customer_id', customer.id)
-      .order('timestamp', { ascending: false })
-      .limit(20);
-
-    res.json({
-      exists: true,
-      customer: {
-        id: customer.id,
-        last_name: customer.last_name,
-        gender: customer.gender,
-        birth_date: customer.birth_date,
-        email: customer.email,
-        region: customer.region,
-        name: customer.name,
-        phone: customer.phone,
-        balance: customer.balance,
-        total_spent: customer.total_spent,
-        created_at: customer.created_at,
-        isVip,
-        cashbackPercent,
-        vipThreshold,
-        tier,
-      },
-      transactions: transactions || [],
-    });
-  } catch (err) {
-    sendApiError(res, err);
-  }
-});
-
-router.post('/api/guest/qr-token', publicApiRateLimit, customerAuthMiddleware, async (req, res) => {
-  try {
-    const customer = await getCustomerById(req.customerAuth.id);
-    if (!customer) return res.status(404).json({ success: false, error: 'Customer not found' });
-    res.json({ success: true, ...buildDynamicQrToken(customer.phone) });
-  } catch (err) {
-    sendApiError(res, err, { success: false });
-  }
-});
+router.post(
+  '/api/guest/qr-token',
+  publicApiRateLimit,
+  customerAuthMiddleware,
+  validateRequest({ body: emptyBodySchema }),
+  async (req, res) => {
+    try {
+      const customer = await getCustomerById(req.customerAuth.id);
+      if (!customer) return res.status(404).json({ success: false, error: 'Customer not found' });
+      res.json({ success: true, ...buildDynamicQrToken(customer.phone) });
+    } catch (err) {
+      sendApiError(res, err, { success: false });
+    }
+  },
+);
 
 router.get('/api/guest/menu', async (req, res) => {
   try {
@@ -604,19 +720,22 @@ router.get('/api/guest/menu', async (req, res) => {
             ['hours', 'days', 'months'].includes(condition.durationUnit),
         );
 
-    const { data: menuBranch, error: menuBranchError } = branchId
+    const { data: branchSettings, error: branchSettingsError } = branchId
       ? await supabase
           .from('bulka_locations')
-          .select('city')
+          .select(
+            'city,default_preparation_minutes,pickup_enabled,delivery_enabled,preorder_enabled',
+          )
           .eq('id', branchId)
           .eq('active', true)
           .maybeSingle()
       : { data: null, error: null };
-    if (menuBranchError) throw menuBranchError;
-    if (branchId && !menuBranch) {
+    if (branchSettingsError) throw branchSettingsError;
+    if (branchId && !branchSettings) {
       return res.status(404).json({ success: false, error: 'Филиал больше недоступен' });
     }
-    const selectedIikoApi = getIikoClientForCity(menuBranch?.city);
+
+    const selectedIikoApi = getIikoClientForCity(branchSettings?.city);
     const rawMenu = await selectedIikoApi.getMenu({ strict: true });
     const rawGroups = Array.isArray(rawMenu.groups) ? rawMenu.groups : [];
     const rawProducts = Array.isArray(rawMenu.products) ? rawMenu.products : [];
@@ -643,18 +762,6 @@ router.get('/api/guest/menu', async (req, res) => {
 
     const prodOverridesMap = new Map(productOverrides.map((o) => [o.iiko_product_id, o]));
     const catOverridesMap = new Map(categoryOverrides.map((o) => [o.iiko_category_id, o]));
-    const { data: branchSettings, error: branchSettingsError } = branchId
-      ? await supabase
-          .from('bulka_locations')
-          .select('default_preparation_minutes,pickup_enabled,delivery_enabled,preorder_enabled')
-          .eq('id', branchId)
-          .eq('active', true)
-          .maybeSingle()
-      : { data: null, error: null };
-    if (branchSettingsError) throw branchSettingsError;
-    if (branchId && !branchSettings) {
-      return res.status(404).json({ success: false, error: 'Филиал больше недоступен' });
-    }
     const branchSupportsOrderType =
       !branchSettings ||
       (orderType === 'pickup' && branchSettings.pickup_enabled !== false) ||
@@ -857,6 +964,7 @@ router.get('/api/guest/menu', async (req, res) => {
       ),
       branchId: branchId || null,
       orderType,
+      iikoProfile: rawMenu.profileKey || 'default',
     });
   } catch (error) {
     console.error('Ошибка получения меню:', error);

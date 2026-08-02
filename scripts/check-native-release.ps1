@@ -47,6 +47,11 @@ if (-not $SkipNetwork) {
     $aasa = Invoke-RestMethod -Uri "$ApiBaseUrl/.well-known/apple-app-site-association" -TimeoutSec 15
     if (-not $aasa.applinks.details -or $aasa.applinks.details.Count -lt 1) {
       $errors.Add('APPLE_TEAM_ID is not published: AASA details is empty')
+    } else {
+      $paths = @($aasa.applinks.details | ForEach-Object { @($_.paths) })
+      if ($paths -notcontains '/catalog/*') {
+        $errors.Add('AASA does not allow /catalog/* Universal Links')
+      }
     }
   } catch {
     $errors.Add("AASA is unavailable: $($_.Exception.Message)")

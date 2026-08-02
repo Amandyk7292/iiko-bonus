@@ -147,14 +147,17 @@ const Map<String, Map<String, String>> _locationTranslations = {
     'en': 'Order #{number} was cancelled.',
   },
   'notification_order_refunded_title': {
-    'ru': 'Заказ отменён, деньги возвращены',
-    'kk': 'Тапсырыс тоқтатылды, ақша қайтарылды',
-    'en': 'Order cancelled and refunded',
+    'ru': 'Заказ отменён, возврат отправлен',
+    'kk': 'Тапсырыс тоқтатылды, қайтарым жіберілді',
+    'en': 'Order cancelled, refund submitted',
   },
   'notification_order_refunded_body': {
-    'ru': 'Возврат по заказу №{number} оформлен.',
-    'kk': '№{number} тапсырыс бойынша ақша қайтару рәсімделді.',
-    'en': 'The refund for order #{number} has been processed.',
+    'ru':
+        'Возврат по заказу №{number} отправлен. Срок зачисления зависит от банка.',
+    'kk':
+        '№{number} тапсырыс бойынша қайтарым жіберілді. Түсу мерзімі банкке байланысты.',
+    'en':
+        'The refund for order #{number} was submitted. Posting time depends on the bank.',
   },
   'bakery_selected': {
     'ru': 'Выбрана локация: {name}',
@@ -176,6 +179,11 @@ const Map<String, Map<String, String>> _locationTranslations = {
     'kk': 'Жеткізу мекенжайы',
     'en': 'Delivery address',
   },
+  'edit_address_title': {
+    'ru': 'Изменить адрес',
+    'kk': 'Мекенжайды өзгерту',
+    'en': 'Edit address',
+  },
   'selected_delivery_address': {
     'ru': 'Выбранный адрес',
     'kk': 'Таңдалған мекенжай',
@@ -185,6 +193,16 @@ const Map<String, Map<String, String>> _locationTranslations = {
     'ru': 'Сохранить адрес',
     'kk': 'Мекенжайды сақтау',
     'en': 'Save address',
+  },
+  'update_address_btn': {
+    'ru': 'Сохранить изменения',
+    'kk': 'Өзгерістерді сақтау',
+    'en': 'Save changes',
+  },
+  'address_updated': {
+    'ru': 'Адрес обновлён',
+    'kk': 'Мекенжай жаңартылды',
+    'en': 'Address updated',
   },
   'no_addresses_sub': {
     'ru': 'Добавьте адрес для быстрого оформления доставки.',

@@ -15,11 +15,84 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
   String? _error;
   String? _busyMethodId;
   bool _adding = false;
+  bool _reconcilingReturn = false;
 
   @override
   void initState() {
     super.initState();
-    unawaited(_load());
+    final cardSetupReturn = forteCardSetupReturnFromUri(currentClientUri());
+    if (cardSetupReturn == null) {
+      unawaited(_load());
+    } else {
+      _reconcilingReturn = true;
+      publishClientRoute(Uri(path: '/profile'), replace: true);
+      unawaited(_reconcileCardSetupReturn(cardSetupReturn));
+    }
+  }
+
+  Future<void> _reconcileCardSetupReturn(
+    ({String operationId, ForteCheckoutReturn outcome}) cardSetupReturn,
+  ) async {
+    if (cardSetupReturn.outcome == ForteCheckoutReturn.cancelled) {
+      _reconcilingReturn = false;
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('card_setup_cancelled'.tr)));
+      }
+      return;
+    }
+
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
+    var status = 'pending';
+    var cardSaved = false;
+    String? refundStatus;
+    try {
+      for (var attempt = 0; attempt < 10; attempt++) {
+        final result = await widget.api.checkForteCardSetupStatus(
+          cardSetupReturn.operationId,
+        );
+        status = (result['paymentStatus'] ?? result['status'] ?? 'pending')
+            .toString()
+            .toLowerCase();
+        cardSaved = result['cardSaved'] == true;
+        refundStatus = result['refundStatus']?.toString().toLowerCase();
+        if (cardSaved || const {'paid', 'failed', 'expired'}.contains(status)) {
+          break;
+        }
+        await Future<void>.delayed(const Duration(seconds: 2));
+      }
+      await _load();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            cardSaved && refundStatus != 'succeeded'
+                ? 'card_setup_saved_refund_pending'.tr
+                : status == 'paid'
+                ? 'card_setup_success_hint'.tr
+                : status == 'pending'
+                ? 'card_setup_token_missing'.tr
+                : 'card_setup_failed_hint'.tr,
+          ),
+        ),
+      );
+    } catch (_) {
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('card_setup_token_missing'.tr)));
+      }
+    } finally {
+      if (mounted) setState(() => _reconcilingReturn = false);
+    }
   }
 
   Future<void> _load() async {
@@ -60,6 +133,12 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
 
   Future<void> _addCard() async {
     if (_adding || _busyMethodId != null) return;
+    if (_methods.length >= _maximumSavedPaymentMethods) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('payment_methods_limit_reached'.tr)),
+      );
+      return;
+    }
     setState(() => _adding = true);
     try {
       final result = await widget.api.createForteCardSetup();
@@ -69,7 +148,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
         throw ApiException('payment_methods_add_error'.tr);
       }
       if (!mounted) return;
-      final saved = await Navigator.of(context).push<bool>(
+      final setupResult = await Navigator.of(context).push<FortePaymentResult>(
         MaterialPageRoute(
           builder: (_) => FortePaymentScreen(
             api: widget.api,
@@ -79,15 +158,15 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
           ),
         ),
       );
-      if (saved == true) {
+      if (setupResult?.paid == true) {
         await widget.api.isFortePaymentAvailable();
         await _load();
       }
-    } catch (_) {
+    } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('payment_methods_add_error'.tr)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_paymentMethodAddErrorMessage(error))),
+        );
       }
     } finally {
       if (mounted) setState(() => _adding = false);
@@ -145,6 +224,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = context.bulkaColors;
+    final reachedLimit = _methods.length >= _maximumSavedPaymentMethods;
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -159,7 +239,38 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
           color: colors.brandGold,
           onRefresh: _load,
           child: _loading
-              ? const Center(child: CircularProgressIndicator())
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(28),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(),
+                        if (_reconcilingReturn) ...[
+                          const SizedBox(height: 20),
+                          Text(
+                            'card_setup_verifying'.tr,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontFamily: _headingFont,
+                              fontSize: BulkaTypeScale.title,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'card_setup_verifying_hint'.tr,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: colors.mutedText,
+                              height: 1.4,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                )
               : ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 36),
@@ -167,11 +278,35 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                     SizedBox(
                       width: double.infinity,
                       child: GradientButton(
-                        onPressed: _adding ? null : _addCard,
+                        onPressed: _adding || reachedLimit ? null : _addCard,
                         loading: _adding,
                         child: Text('payment_methods_add'.tr),
                       ),
                     ),
+                    if (reachedLimit) ...[
+                      const SizedBox(height: 10),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.info_outline_rounded,
+                            size: 20,
+                            color: colors.brandBrown,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'payment_methods_limit_reached'.tr,
+                              style: TextStyle(
+                                color: colors.mutedText,
+                                fontSize: BulkaTypeScale.bodySmall,
+                                height: 1.35,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 20),
                     if (_error != null)
                       _PaymentMethodsEmpty(

@@ -1,7 +1,9 @@
 const assert = require('node:assert/strict');
 const http = require('node:http');
+const path = require('node:path');
 const test = require('node:test');
 
+process.env.BULKA_PUBLIC_APP_DIR = path.join(__dirname, 'fixtures', 'flutter-app');
 const app = require('../src/app');
 
 test('health check stays independent from external services', async (t) => {
@@ -62,6 +64,40 @@ test('readiness and metrics endpoints expose bounded operational state', async (
   assert.match(await metrics.text(), /bulka_http_requests_total/);
 });
 
+test('mobile association files open catalog links in installed apps', async (t) => {
+  const previousFingerprints = process.env.ANDROID_APP_SHA256_CERT_FINGERPRINTS;
+  const fingerprint =
+    '1D:46:30:E7:F2:29:8D:19:B8:A8:39:5F:26:D3:43:5C:B8:30:79:D1:D3:1A:08:0B:DD:18:08:9C:D7:EB:4D:30';
+  process.env.ANDROID_APP_SHA256_CERT_FINGERPRINTS = fingerprint;
+  t.after(() => {
+    if (previousFingerprints === undefined) {
+      delete process.env.ANDROID_APP_SHA256_CERT_FINGERPRINTS;
+    } else {
+      process.env.ANDROID_APP_SHA256_CERT_FINGERPRINTS = previousFingerprints;
+    }
+  });
+
+  const server = http.createServer(app);
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  t.after(() => server.close());
+  const origin = `http://127.0.0.1:${server.address().port}`;
+
+  const aasaResponse = await fetch(`${origin}/.well-known/apple-app-site-association`);
+  const aasa = await aasaResponse.json();
+  assert.equal(aasaResponse.status, 200);
+  assert.equal(aasa.applinks.details[0].appID, 'GKRRT4JU9G.com.bulka.bonus');
+  assert.ok(aasa.applinks.details[0].paths.includes('/catalog/*'));
+
+  const assetLinksResponse = await fetch(`${origin}/.well-known/assetlinks.json`);
+  const assetLinks = await assetLinksResponse.json();
+  assert.equal(assetLinksResponse.status, 200);
+  assert.equal(assetLinks[0].target.package_name, 'com.bulka.bonus');
+  assert.deepEqual(assetLinks[0].target.sha256_cert_fingerprints, [fingerprint]);
+});
+
 test('admin and Flutter CSP remove general-purpose script evaluation', async (t) => {
   const server = http.createServer(app);
   await new Promise((resolve, reject) => {
@@ -109,11 +145,31 @@ test('Forte widget shell is private, pinned to official hosts and never reflects
   assert.equal(response.headers.get('cross-origin-embedder-policy'), null);
   assert.doesNotMatch(html, new RegExp(leakedToken));
   assert.match(html, /https:\/\/js\.fortebank\.com\/widget\/be_gateway\.js/);
-  assert.match(html, /\/assets\/forte-widget\.js\?v=2/);
-  assert.match(html, /\/assets\/forte-widget\.css\?v=2/);
+  assert.match(html, /\/assets\/forte-widget\.js\?v=4/);
+  assert.match(html, /\/assets\/forte-widget\.css\?v=4/);
+  assert.match(html, /class="phone-frame"/);
+  assert.match(html, /class="phone-screen"/);
   assert.match(csp, /script-src 'self' https:\/\/js\.fortebank\.com/);
   assert.match(csp, /frame-src https:\/\/securepayments\.fortebank\.com/);
   assert.doesNotMatch(csp, /script-src[^;]*unsafe-eval/);
+
+  const styleResponse = await fetch(
+    `http://127.0.0.1:${server.address().port}/assets/forte-widget.css?v=4`,
+  );
+  const styles = await styleResponse.text();
+  assert.equal(styleResponse.status, 200);
+  assert.match(styles, /@media \(min-width: 900px\)/);
+  assert.match(styles, /--phone-screen-width/);
+  assert.match(styles, /\.payment-widget-app:not\(\.payment-widget-app_full\)/);
+  assert.match(styles, /html\.embedded-app \.payment-header/);
+
+  const scriptResponse = await fetch(
+    `http://127.0.0.1:${server.address().port}/assets/forte-widget.js?v=4`,
+  );
+  const script = await scriptResponse.text();
+  assert.equal(scriptResponse.status, 200);
+  assert.match(script, /get\('embedded'\) === 'app'/);
+  assert.match(script, /classList\.add\('embedded-app'\)/);
 });
 
 test('payment and refund policy is publicly available as a stable HTML page', async (t) => {

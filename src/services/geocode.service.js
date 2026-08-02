@@ -6,6 +6,26 @@ const ASTANA_BOUNDS = Object.freeze({
   north: 51.35,
   east: 71.85,
 });
+const AKTAU_BOUNDS = Object.freeze({
+  south: 43.5,
+  west: 50.95,
+  north: 43.82,
+  east: 51.35,
+});
+const SUPPORTED_CITY_REGIONS = Object.freeze([
+  Object.freeze({
+    key: 'astana',
+    name: 'Астана',
+    aliases: Object.freeze(['астана', 'нур султан', 'нұр сұлтан', 'astana', 'nur sultan']),
+    bounds: ASTANA_BOUNDS,
+  }),
+  Object.freeze({
+    key: 'aktau',
+    name: 'Актау',
+    aliases: Object.freeze(['актау', 'ақтау', 'aktau', 'aqtau']),
+    bounds: AKTAU_BOUNDS,
+  }),
+]);
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const CACHE_LIMIT = 500;
 const cache = new Map();
@@ -15,11 +35,50 @@ let nextRequestAt = 0;
 const geocodeError = (message, statusCode = 400) =>
   Object.assign(new Error(message), { statusCode });
 
+const insideBounds = (latitude, longitude, bounds) =>
+  Number.isFinite(Number(latitude)) &&
+  Number.isFinite(Number(longitude)) &&
+  Number(latitude) >= bounds.south &&
+  Number(latitude) <= bounds.north &&
+  Number(longitude) >= bounds.west &&
+  Number(longitude) <= bounds.east;
+
 const insideAstanaBounds = (latitude, longitude) =>
-  latitude >= ASTANA_BOUNDS.south &&
-  latitude <= ASTANA_BOUNDS.north &&
-  longitude >= ASTANA_BOUNDS.west &&
-  longitude <= ASTANA_BOUNDS.east;
+  insideBounds(latitude, longitude, ASTANA_BOUNDS);
+
+const insideAktauBounds = (latitude, longitude) => insideBounds(latitude, longitude, AKTAU_BOUNDS);
+
+const normalizeCityToken = (value) =>
+  String(value || '')
+    .toLocaleLowerCase('ru-RU')
+    .replace(/[^a-zа-яёәіңғүұқөһ]+/giu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const cityRegion = (value) => {
+  const normalized = normalizeCityToken(value);
+  if (!normalized) return null;
+  return (
+    SUPPORTED_CITY_REGIONS.find((region) =>
+      region.aliases.some((alias) => normalized === normalizeCityToken(alias)),
+    ) || null
+  );
+};
+
+const cityRegionFromQuery = (value) => {
+  const normalized = ` ${normalizeCityToken(value)} `;
+  return (
+    SUPPORTED_CITY_REGIONS.find((region) =>
+      region.aliases.some((alias) => normalized.includes(` ${normalizeCityToken(alias)} `)),
+    ) || null
+  );
+};
+
+const cityRegionForCoordinates = (latitude, longitude) =>
+  SUPPORTED_CITY_REGIONS.find((region) => insideBounds(latitude, longitude, region.bounds)) || null;
+
+const insideSupportedCityBounds = (latitude, longitude) =>
+  cityRegionForCoordinates(latitude, longitude) !== null;
 
 const fromCache = (key) => {
   const entry = cache.get(key);
@@ -81,7 +140,7 @@ const nominatim = async (path, parameters, language) => {
   });
 };
 
-const normalizedAddress = (item) => ({
+const normalizedAddress = (item, fallbackCity = '') => ({
   displayName: String(item?.display_name || '').slice(0, 500),
   address: String(
     item?.address?.road ||
@@ -90,12 +149,12 @@ const normalizedAddress = (item) => ({
       item?.display_name ||
       '',
   ).slice(0, 500),
-  city: String(item?.address?.city || item?.address?.town || 'Астана').slice(0, 100),
+  city: String(fallbackCity || item?.address?.city || item?.address?.town || '').slice(0, 100),
   latitude: Number(item?.lat),
   longitude: Number(item?.lon),
 });
 
-async function searchAddresses(query, language = 'ru') {
+async function searchAddresses(query, language = 'ru', requestedCity = '') {
   const cleanQuery = String(query || '')
     .replace(/\p{Cc}/gu, ' ')
     .replace(/\s+/g, ' ')
@@ -103,45 +162,68 @@ async function searchAddresses(query, language = 'ru') {
     .slice(0, 160);
   if (cleanQuery.length < 3) throw geocodeError('Введите не менее 3 символов адреса');
   const normalizedLanguage = normalizeLanguage(language);
-  const key = `search:${normalizedLanguage}:${cleanQuery.toLocaleLowerCase('ru-RU')}`;
+  const explicitRegion = requestedCity ? cityRegion(requestedCity) : null;
+  if (requestedCity && !explicitRegion) {
+    throw geocodeError('Доставка в выбранном городе пока недоступна');
+  }
+  const queryRegion = explicitRegion || cityRegionFromQuery(cleanQuery);
+  const regions = queryRegion ? [queryRegion] : SUPPORTED_CITY_REGIONS;
+  const regionKey = regions.map((region) => region.key).join(',');
+  const key = `search:${normalizedLanguage}:${regionKey}:${cleanQuery.toLocaleLowerCase('ru-RU')}`;
   const cached = fromCache(key);
   if (cached) return cached;
-  const data = await nominatim(
-    'search',
-    {
-      q: `${cleanQuery}, Астана, Казахстан`,
-      format: 'jsonv2',
-      addressdetails: 1,
-      limit: 5,
-      bounded: 1,
-      viewbox: `${ASTANA_BOUNDS.west},${ASTANA_BOUNDS.north},${ASTANA_BOUNDS.east},${ASTANA_BOUNDS.south}`,
-    },
-    normalizedLanguage,
-  );
-  const results = (Array.isArray(data) ? data : [])
-    .map(normalizedAddress)
-    .filter(
-      (item) =>
-        Number.isFinite(item.latitude) &&
-        Number.isFinite(item.longitude) &&
-        insideAstanaBounds(item.latitude, item.longitude),
+  const results = [];
+  const seen = new Set();
+  for (const region of regions) {
+    const data = await nominatim(
+      'search',
+      {
+        q: `${cleanQuery}, ${region.name}, Казахстан`,
+        format: 'jsonv2',
+        addressdetails: 1,
+        limit: 5,
+        bounded: 1,
+        viewbox: `${region.bounds.west},${region.bounds.north},${region.bounds.east},${region.bounds.south}`,
+      },
+      normalizedLanguage,
     );
+    for (const item of Array.isArray(data) ? data : []) {
+      const normalized = normalizedAddress(item, region.name);
+      if (
+        !Number.isFinite(normalized.latitude) ||
+        !Number.isFinite(normalized.longitude) ||
+        !insideBounds(normalized.latitude, normalized.longitude, region.bounds)
+      ) {
+        continue;
+      }
+      const coordinateKey = `${normalized.latitude.toFixed(6)}:${normalized.longitude.toFixed(6)}`;
+      if (seen.has(coordinateKey)) continue;
+      seen.add(coordinateKey);
+      results.push(normalized);
+      if (results.length >= 5) break;
+    }
+    if (results.length >= 5) break;
+  }
   saveCache(key, results);
   return results;
 }
 
-async function reverseAddress(latitudeValue, longitudeValue, language = 'ru') {
+async function reverseAddress(latitudeValue, longitudeValue, language = 'ru', requestedCity = '') {
   const latitude = Number(latitudeValue);
   const longitude = Number(longitudeValue);
-  if (
-    !Number.isFinite(latitude) ||
-    !Number.isFinite(longitude) ||
-    !insideAstanaBounds(latitude, longitude)
-  ) {
-    throw geocodeError('Координаты находятся за пределами Астаны');
+  const region = cityRegionForCoordinates(latitude, longitude);
+  if (!region) {
+    throw geocodeError('Координаты находятся за пределами поддерживаемых городов');
+  }
+  const expectedRegion = requestedCity ? cityRegion(requestedCity) : null;
+  if (requestedCity && !expectedRegion) {
+    throw geocodeError('Доставка в выбранном городе пока недоступна');
+  }
+  if (expectedRegion && expectedRegion.key !== region.key) {
+    throw geocodeError(`Выберите точку в городе ${expectedRegion.name}`);
   }
   const normalizedLanguage = normalizeLanguage(language);
-  const key = `reverse:${normalizedLanguage}:${latitude.toFixed(5)}:${longitude.toFixed(5)}`;
+  const key = `reverse:${normalizedLanguage}:${region.key}:${latitude.toFixed(5)}:${longitude.toFixed(5)}`;
   const cached = fromCache(key);
   if (cached) return cached;
   const data = await nominatim(
@@ -155,8 +237,12 @@ async function reverseAddress(latitudeValue, longitudeValue, language = 'ru') {
     },
     normalizedLanguage,
   );
-  const result = normalizedAddress(data);
-  if (!Number.isFinite(result.latitude) || !Number.isFinite(result.longitude)) {
+  const result = normalizedAddress(data, region.name);
+  if (
+    !Number.isFinite(result.latitude) ||
+    !Number.isFinite(result.longitude) ||
+    !insideBounds(result.latitude, result.longitude, region.bounds)
+  ) {
     throw geocodeError('Адрес по координатам не найден', 404);
   }
   saveCache(key, result);
@@ -164,8 +250,14 @@ async function reverseAddress(latitudeValue, longitudeValue, language = 'ru') {
 }
 
 module.exports = {
+  AKTAU_BOUNDS,
   ASTANA_BOUNDS,
+  SUPPORTED_CITY_REGIONS,
+  cityRegion,
+  cityRegionForCoordinates,
+  insideAktauBounds,
   insideAstanaBounds,
+  insideSupportedCityBounds,
   normalizeLanguage,
   reverseAddress,
   searchAddresses,

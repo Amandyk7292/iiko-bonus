@@ -108,6 +108,9 @@ class _YandexMapViewState extends State<YandexMapView> {
   Map<String, Object?> _statePayload() => {
     'type': 'state',
     'mode': widget.interactive ? 'customer' : 'preview',
+    // Web cannot overlay Flutter controls reliably above an iframe, so the
+    // map document owns the controls in this implementation.
+    'showControls': true,
     'center': [widget.center.latitude, widget.center.longitude],
     'selected': widget.selectedPoint == null
         ? null

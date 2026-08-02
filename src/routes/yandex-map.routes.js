@@ -11,7 +11,9 @@ router.get('/maps/yandex', (_req, res) => {
     return res
       .status(503)
       .type('html')
-      .send('<!doctype html><meta charset="utf-8"><p>Яндекс Карты временно недоступны.</p>');
+      .send(
+        '<!doctype html><meta charset="utf-8"><link rel="icon" type="image/png" sizes="48x48" href="/favicon.png?v=20260730-1"><p>Яндекс Карты временно недоступны.</p>',
+      );
   }
 
   res.set('Cache-Control', 'private, no-store');
@@ -21,6 +23,7 @@ router.get('/maps/yandex', (_req, res) => {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <link rel="icon" type="image/png" sizes="48x48" href="/favicon.png?v=20260730-1">
   <title>Карта доставки Bulka</title>
   <style nonce="${nonce}">
     html,body,#map{width:100%;height:100%;margin:0;overflow:hidden;background:#f7f2e8}
@@ -239,7 +242,7 @@ router.get('/maps/yandex', (_req, res) => {
       };
       const applyState = next => {
         state = {...state,...next};
-        controls.style.display = 'flex';
+        controls.style.display = state.showControls === false ? 'none' : 'flex';
         const center = point(state.center) || point(state.selected) || defaults.center;
         const minimumZoom = state.mode === 'admin' ? 4 : 9;
         const zoom = Math.max(minimumZoom,Math.min(19,number(state.zoom) || 13));

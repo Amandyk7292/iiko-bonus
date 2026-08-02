@@ -11,9 +11,8 @@ const _caramel = Color(0xFFFFB814);
 const _cream = Color(0xFFFFFFFF);
 const _almond = Color(0xFFF2DAA9);
 const _sage = Color(0xFF6E7F57);
-const _mutedText = Color(0xFF7A6C65);
 const _errorRed = Color(0xFFD14343);
-const _successGreen = Color(0xFF2B7A4B);
+const _successGreen = Color(0xFF2F8A55);
 // Keep the customer interface on exactly two locally bundled typefaces.
 // Golos Text is the display/control face with native Kazakh Cyrillic support;
 // Montserrat is for readable descriptions, supporting copy and secondary labels.
@@ -59,9 +58,30 @@ class _BulkaPageTitle extends StatelessWidget {
   }
 }
 
-const _softShadow = [
-  BoxShadow(color: Color(0x1F6D3317), blurRadius: 24, offset: Offset(0, 14)),
-];
+abstract final class BulkaShadows {
+  static const card = [
+    BoxShadow(color: Color(0x146D3317), blurRadius: 22, offset: Offset(0, 9)),
+  ];
+
+  static const primaryAction = [
+    BoxShadow(color: Color(0x185A260D), blurRadius: 20, offset: Offset(0, 8)),
+    BoxShadow(color: Color(0x28FFA000), blurRadius: 12, offset: Offset(0, 4)),
+  ];
+
+  static const floatingAction = [
+    BoxShadow(color: Color(0x265A260D), blurRadius: 16, offset: Offset(0, 6)),
+  ];
+
+  static const avatar = [
+    BoxShadow(color: Color(0x145A260D), blurRadius: 14, offset: Offset(0, 5)),
+  ];
+
+  static const selectedAvatar = [
+    BoxShadow(color: Color(0x34FFB814), blurRadius: 14, offset: Offset(0, 5)),
+  ];
+}
+
+const List<BoxShadow> _softShadow = BulkaShadows.card;
 
 /// Shared type scale for the whole client application.
 ///
@@ -174,7 +194,7 @@ class BulkaThemeColors extends ThemeExtension<BulkaThemeColors> {
     brandGold: _bulkaYellow,
     goldSoft: Color(0xFFDEC588),
     surfaceCream: Colors.white,
-    mutedText: _mutedText,
+    mutedText: Color(0xFF7A6C65),
     cardBorder: Color(0xFFEADBBE),
     priceGold: Color(0xFFC8902E),
     skeletonBase: Color(0xFFF0EBE3),
@@ -433,8 +453,8 @@ ThemeData buildBulkaTheme() {
         color: _textDark,
         fontFamily: _descriptionFont,
       ),
-      helperStyle: const TextStyle(
-        color: _mutedText,
+      helperStyle: TextStyle(
+        color: _textDark.withValues(alpha: 0.55),
         fontFamily: _descriptionFont,
       ),
       errorStyle: const TextStyle(

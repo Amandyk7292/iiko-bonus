@@ -19,7 +19,7 @@ export interface IikoGroup {
 export type StorageDurationUnit = 'hours' | 'days' | 'months';
 
 export interface ProductStorageCondition {
-  temperature: string;
+  temperature?: string;
   duration_value?: number;
   duration_unit?: StorageDurationUnit | '';
 }
@@ -30,20 +30,20 @@ export interface ProductOverride {
   name_translations?: Record<string, string>;
   custom_price?: number;
   custom_image_url?: string;
-  custom_description?: string;
+  custom_description?: string | null;
   description_translations?: Record<string, string>;
   is_hidden?: boolean;
   is_stop_listed?: boolean;
-  ingredients?: string;
+  ingredients?: string | null;
   ingredients_translations?: Record<string, string>;
   allergens?: string[] | string;
   dietary_tags?: string[] | string;
   search_keywords?: string[] | string;
-  weight_grams?: number;
-  calories_kcal?: number;
-  protein_grams?: number;
-  fat_grams?: number;
-  carbs_grams?: number;
+  weight_grams?: number | null;
+  calories_kcal?: number | null;
+  protein_grams?: number | null;
+  fat_grams?: number | null;
+  carbs_grams?: number | null;
   storage_conditions?: ProductStorageCondition[];
   fulfillment_types?: FulfillmentType[];
 }
@@ -56,8 +56,25 @@ export interface CategoryOverride {
   is_hidden?: boolean;
 }
 
+export const resolveIikoProductPrices = (products: IikoProduct[] = []): IikoProduct[] =>
+  products.map((product) => ({
+    ...product,
+    price: product.price || (product.sizePrices?.[0]?.price?.currentPrice ?? 0),
+  }));
+
+export const indexProductOverrides = (
+  overrides: ProductOverride[] = [],
+): Record<string, ProductOverride> =>
+  Object.fromEntries(overrides.map((override) => [override.iiko_product_id, override]));
+
+export const indexCategoryOverrides = (
+  overrides: CategoryOverride[] = [],
+): Record<string, CategoryOverride> =>
+  Object.fromEntries(overrides.map((override) => [override.iiko_category_id, override]));
+
 export interface CustomProduct {
   id?: string;
+  iiko_profile?: string;
   name: string;
   description?: string;
   price: number;
@@ -65,16 +82,17 @@ export interface CustomProduct {
   image_url?: string;
   is_available?: boolean;
   sort_order?: number;
+  preparation_minutes?: number | null;
   ingredients?: string;
   ingredients_translations?: Record<string, string>;
   allergens?: string[] | string;
   dietary_tags?: string[] | string;
   search_keywords?: string[] | string;
-  weight_grams?: number;
-  calories_kcal?: number;
-  protein_grams?: number;
-  fat_grams?: number;
-  carbs_grams?: number;
+  weight_grams?: number | null;
+  calories_kcal?: number | null;
+  protein_grams?: number | null;
+  fat_grams?: number | null;
+  carbs_grams?: number | null;
   storage_conditions?: ProductStorageCondition[];
   fulfillment_types?: FulfillmentType[];
 }
@@ -118,6 +136,86 @@ export const normalizeFulfillmentTypes = (value?: string[]): FulfillmentType[] =
   return fulfillmentTypeOptions.map((option) => option.value).filter((type) => requested.has(type));
 };
 
+const productOverridePatchKeys = [
+  'custom_name',
+  'name_translations',
+  'custom_price',
+  'custom_image_url',
+  'custom_description',
+  'description_translations',
+  'is_hidden',
+  'is_stop_listed',
+  'ingredients',
+  'ingredients_translations',
+  'allergens',
+  'dietary_tags',
+  'search_keywords',
+  'weight_grams',
+  'calories_kcal',
+  'protein_grams',
+  'fat_grams',
+  'carbs_grams',
+  'storage_conditions',
+  'fulfillment_types',
+] as const satisfies ReadonlyArray<keyof Omit<ProductOverride, 'iiko_product_id'>>;
+
+export const normalizeStorageConditionsForSave = (value: unknown): ProductStorageCondition[] => {
+  if (value == null) return [];
+  if (!Array.isArray(value) || value.length > 2) {
+    throw new Error('Условия хранения заполнены некорректно');
+  }
+
+  return value.flatMap((raw, index) => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      throw new Error(`Условие хранения ${index + 1} заполнено некорректно`);
+    }
+    const source = raw as Record<string, unknown>;
+    const temperature = String(source.temperature ?? '').trim();
+    const rawDuration = source.duration_value ?? source.durationValue;
+    const durationUnit = String(source.duration_unit ?? source.durationUnit ?? '').trim();
+    const hasDuration = rawDuration !== undefined && rawDuration !== null && rawDuration !== '';
+
+    if (!temperature && !hasDuration && !durationUnit) return [];
+    // A storage row is optional. Keep a partially entered row as a local draft
+    // and publish it only after temperature, duration and unit are complete.
+    if (!temperature || !hasDuration || !durationUnit) return [];
+    if (temperature.length > 40) {
+      throw new Error(`Температура в условии хранения ${index + 1} слишком длинная`);
+    }
+    const durationValue = Number(rawDuration);
+    if (!Number.isInteger(durationValue) || durationValue < 1 || durationValue > 10_000) {
+      throw new Error(`Укажите срок хранения от 1 до 10000 для условия ${index + 1}`);
+    }
+    if (!['hours', 'days', 'months'].includes(durationUnit)) {
+      throw new Error(`Выберите единицу срока хранения ${index + 1}`);
+    }
+    return [
+      {
+        temperature,
+        duration_value: durationValue,
+        duration_unit: durationUnit as StorageDurationUnit,
+      },
+    ];
+  });
+};
+
+export const sanitizeProductOverridePatch = (
+  value: unknown,
+): Omit<ProductOverride, 'iiko_product_id'> => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('Настройки товара заполнены некорректно');
+  }
+  const source = value as Record<string, unknown>;
+  const patch: Record<string, unknown> = {};
+  for (const key of productOverridePatchKeys) {
+    if (source[key] !== undefined) patch[key] = source[key];
+  }
+  if (source.storage_conditions !== undefined) {
+    patch.storage_conditions = normalizeStorageConditionsForSave(source.storage_conditions);
+  }
+  return patch as Omit<ProductOverride, 'iiko_product_id'>;
+};
+
 export function FulfillmentTypeFields({
   value,
   onChange,
@@ -134,14 +232,14 @@ export function FulfillmentTypeFields({
       <p className="field-hint mb-3">
         Товар появится только в отмеченных каталогах. Выберите минимум один вариант.
       </p>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="fulfillment-type-grid">
         {fulfillmentTypeOptions.map((option) => {
           const checked = selected.includes(option.value);
           return (
             <label
               key={option.value}
               htmlFor={`${idPrefix}-${option.value}`}
-              className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition-colors ${
+              className={`fulfillment-type-choice flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition-colors ${
                 checked
                   ? 'border-amber-400 bg-amber-50 text-amber-950'
                   : 'border-gray-200 bg-white text-gray-600 hover:border-amber-200'
@@ -163,7 +261,7 @@ export function FulfillmentTypeFields({
                 }}
                 className="h-5 w-5 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
               />
-              <span className="text-sm font-semibold">{option.label}</span>
+              <span className="min-w-0 text-sm font-semibold">{option.label}</span>
             </label>
           );
         })}
@@ -200,11 +298,11 @@ export interface ProductFactsDraft {
   allergens?: string[] | string;
   dietary_tags?: string[] | string;
   search_keywords?: string[] | string;
-  weight_grams?: number;
-  calories_kcal?: number;
-  protein_grams?: number;
-  fat_grams?: number;
-  carbs_grams?: number;
+  weight_grams?: number | null;
+  calories_kcal?: number | null;
+  protein_grams?: number | null;
+  fat_grams?: number | null;
+  carbs_grams?: number | null;
   storage_conditions?: ProductStorageCondition[];
 }
 
@@ -290,7 +388,7 @@ export function ProductFactsFields({
   value: ProductFactsDraft;
   onChange: (
     key: ProductFactKey,
-    value: string | string[] | number | ProductStorageCondition[] | undefined,
+    value: string | string[] | number | ProductStorageCondition[] | null | undefined,
   ) => void;
   idPrefix: string;
 }) {
@@ -313,7 +411,7 @@ export function ProductFactsFields({
         step={step}
         value={value[key] ?? ''}
         onChange={(event) =>
-          onChange(key, event.target.value === '' ? undefined : Number(event.target.value))
+          onChange(key, event.target.value === '' ? null : Number(event.target.value))
         }
         className="input-classic"
       />
@@ -378,9 +476,10 @@ export function ProductFactsFields({
     <fieldset className="form-section">
       <legend>Карточка товара</legend>
       <p className="field-hint mb-3">
-        Эти данные видит клиент. Значения КБЖУ указываются на весь товар.
+        Все поля необязательны. Клиент увидит только заполненные данные; значения КБЖУ указываются
+        на 100 г продукта.
       </p>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="product-facts-number-grid">
         {numberField('weight_grams', 'Вес, г')}
         {numberField('calories_kcal', 'Калорийность, ккал', '0.1')}
         {numberField('protein_grams', 'Белки, г', '0.1')}
@@ -389,14 +488,17 @@ export function ProductFactsFields({
       </div>
       <section className="product-storage-editor" aria-labelledby={`${idPrefix}-storage-title`}>
         <div className="product-storage-editor__heading">
-          <strong id={`${idPrefix}-storage-title`}>Срок и условия хранения</strong>
-          <p>Температура показывается как введена. Срок автоматически переводится в приложении.</p>
+          <strong id={`${idPrefix}-storage-title`}>Срок и условия хранения (необязательно)</strong>
+          <p>
+            Незаполненные условия не публикуются. Заполните температуру, срок и единицу, чтобы
+            показать условие клиенту.
+          </p>
         </div>
         <div className="product-storage-editor__rows">
           {storageRows.map((condition, index) => (
             <div className="product-storage-row" key={`${idPrefix}-storage-${index}`}>
               <strong className="product-storage-row__title">
-                {index === 0 ? 'Условие 1' : 'Условие 2 (необязательно)'}
+                {index === 0 ? 'Условие 1 (необязательно)' : 'Условие 2 (необязательно)'}
               </strong>
               <div className="product-storage-row__fields">
                 <div className="field-group">

@@ -95,17 +95,50 @@ class CartProvider extends ChangeNotifier {
   }
 
   static const _storageKey = 'bulka_cart_v1';
+  static const maxItemQuantity = 99;
   final Map<String, CartItem> _items = {};
+  final Completer<void> _restoreCompleter = Completer<void>();
   Map<String, CartProductSnapshot>? _latestMenu;
   bool _restored = false;
 
   Map<String, CartItem> get items => {..._items};
   bool get isRestored => _restored;
+  Future<void> get restored => _restoreCompleter.future;
 
   int get itemCount =>
       _items.values.fold(0, (sum, item) => sum + item.quantity);
 
   int get totalAmount => _items.values.fold(0, (sum, item) => sum + item.total);
+
+  static String configuredCartKey(
+    String productId,
+    Map<String, dynamic>? configuration,
+    List<Map<String, dynamic>> modifiers,
+  ) {
+    final payload = jsonEncode({
+      'configuration': configuration,
+      'modifiers': modifiers,
+    });
+    final selection = base64Url.encode(utf8.encode(payload));
+    return '$productId::$selection';
+  }
+
+  static CartItem copyItem(CartItem item, {int? quantity}) => CartItem(
+    id: item.id,
+    cartKey: item.cartKey,
+    name: item.name,
+    price: item.price,
+    basePrice: item.basePrice,
+    imageUrl: item.imageUrl,
+    isStopListed: item.isStopListed,
+    configuration: item.configuration == null
+        ? null
+        : Map<String, dynamic>.from(item.configuration!),
+    modifiers: item.modifiers
+        .map((value) => Map<String, dynamic>.from(value))
+        .toList(growable: false),
+    quantity: quantity ?? item.quantity,
+  );
 
   int getQuantity(String productId) {
     return _items.values
@@ -123,12 +156,7 @@ class CartProvider extends ChangeNotifier {
     List<Map<String, dynamic>> modifiers = const [],
     int quantity = 1,
   }) {
-    final payload = jsonEncode({
-      'configuration': configuration,
-      'modifiers': modifiers,
-    });
-    final selection = base64Url.encode(utf8.encode(payload));
-    final key = '$productId::$selection';
+    final key = configuredCartKey(productId, configuration, modifiers);
     final current = _items[key];
     if (current != null) {
       current.quantity = (current.quantity + quantity).clamp(1, 99);
@@ -158,7 +186,10 @@ class CartProvider extends ChangeNotifier {
   }) {
     if (isStopListed) return;
     if (_items.containsKey(productId)) {
-      _items[productId]!.quantity += 1;
+      _items[productId]!.quantity = (_items[productId]!.quantity + 1).clamp(
+        1,
+        maxItemQuantity,
+      );
     } else {
       _items[productId] = CartItem(
         id: productId,
@@ -179,7 +210,7 @@ class CartProvider extends ChangeNotifier {
     if (quantity <= 0) {
       _items.remove(productId);
     } else {
-      _items[productId]!.quantity = quantity;
+      _items[productId]!.quantity = quantity.clamp(1, maxItemQuantity);
     }
     notifyListeners();
     unawaited(_save());
@@ -193,6 +224,57 @@ class CartProvider extends ChangeNotifier {
 
   void clear() {
     _items.clear();
+    notifyListeners();
+    unawaited(_save());
+  }
+
+  Future<void> clearAndWait() async {
+    _items.clear();
+    notifyListeners();
+    await _save();
+  }
+
+  void replaceWithItems(Iterable<CartItem> items) {
+    final next = <String, CartItem>{};
+    for (final item in items) {
+      if (item.id.trim().isEmpty || item.quantity <= 0) continue;
+      final copy = copyItem(
+        item,
+        quantity: item.quantity.clamp(1, maxItemQuantity),
+      );
+      next[copy.cartKey] = copy;
+    }
+    _items
+      ..clear()
+      ..addAll(next);
+    _applyLatestMenu();
+    notifyListeners();
+    unawaited(_save());
+  }
+
+  void mergeItems(Iterable<CartItem> items) {
+    final next = {
+      for (final entry in _items.entries) entry.key: copyItem(entry.value),
+    };
+    for (final item in items) {
+      if (item.id.trim().isEmpty || item.quantity <= 0) continue;
+      final current = next[item.cartKey];
+      if (current == null) {
+        next[item.cartKey] = copyItem(
+          item,
+          quantity: item.quantity.clamp(1, maxItemQuantity),
+        );
+      } else {
+        current.quantity = (current.quantity + item.quantity).clamp(
+          1,
+          maxItemQuantity,
+        );
+      }
+    }
+    _items
+      ..clear()
+      ..addAll(next);
+    _applyLatestMenu();
     notifyListeners();
     unawaited(_save());
   }
@@ -266,6 +348,7 @@ class CartProvider extends ChangeNotifier {
       await prefs.remove(_storageKey);
     } finally {
       _restored = true;
+      if (!_restoreCompleter.isCompleted) _restoreCompleter.complete();
       notifyListeners();
     }
   }

@@ -2,6 +2,7 @@ const {
   listAdminOrders,
   listCustomerOrders,
   markCustomerArrived,
+  cancelCustomerOrder,
   updateAdminOrderStatus,
 } = require('../services/customer-order.service');
 const { branchScopeForAdmin } = require('../utils/admin-scope.util');
@@ -75,6 +76,26 @@ const markArrived = async (req, res) => {
   }
 };
 
+const cancelCustomer = async (req, res) => {
+  try {
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        req.params.id,
+      )
+    ) {
+      return res.status(400).json({ success: false, error: 'Некорректный идентификатор заказа' });
+    }
+    const order = await cancelCustomerOrder(req.customerAuth.id, req.params.id);
+    return res.json({ success: true, order });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      error: error.statusCode ? error.message : 'Не удалось отменить заказ',
+      code: error.statusCode ? error.code : undefined,
+    });
+  }
+};
+
 const updateAdminStatus = async (req, res) => {
   try {
     if (
@@ -110,4 +131,4 @@ const updateAdminStatus = async (req, res) => {
   }
 };
 
-module.exports = { listAdmin, listCustomer, markArrived, updateAdminStatus };
+module.exports = { listAdmin, listCustomer, markArrived, cancelCustomer, updateAdminStatus };

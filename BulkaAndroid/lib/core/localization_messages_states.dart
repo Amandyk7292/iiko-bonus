@@ -88,6 +88,36 @@ const Map<String, Map<String, String>> _featureStateTranslations = {
     'kk': 'Қоймада жоқ',
     'en': 'Unavailable',
   },
+  'stock_notify_enable': {
+    'ru': 'Сообщить о наличии',
+    'kk': 'Қолда болғанда хабарлау',
+    'en': 'Notify when available',
+  },
+  'stock_notify_enabled': {
+    'ru': 'Сообщим, когда появится',
+    'kk': 'Қолда болғанда хабарлаймыз',
+    'en': 'We’ll notify you',
+  },
+  'stock_notify_disabled': {
+    'ru': 'Уведомление отключено',
+    'kk': 'Хабарландыру өшірілді',
+    'en': 'Notification disabled',
+  },
+  'stock_notify_select_branch': {
+    'ru': 'Сначала выберите пекарню',
+    'kk': 'Алдымен наубайхананы таңдаңыз',
+    'en': 'Select a bakery first',
+  },
+  'stock_notify_load_error': {
+    'ru': 'Не удалось загрузить уведомления о наличии',
+    'kk': 'Қолжетімділік хабарландыруларын жүктеу мүмкін болмады',
+    'en': 'Could not load stock notifications',
+  },
+  'stock_notify_save_error': {
+    'ru': 'Не удалось изменить уведомление',
+    'kk': 'Хабарландыруды өзгерту мүмкін болмады',
+    'en': 'Could not update the notification',
+  },
   'catalog_add_to_cart': {
     'ru': 'В корзину',
     'kk': 'Себетке',
@@ -244,6 +274,16 @@ const Map<String, Map<String, String>> _featureStateTranslations = {
     'ru': 'Увеличить количество',
     'kk': 'Санын арттыру',
     'en': 'Increase quantity',
+  },
+  'catalog_quantity_limit_reached': {
+    'ru': 'Максимум {count} шт.',
+    'kk': 'Ең көбі {count} дана',
+    'en': 'Maximum {count} items',
+  },
+  'catalog_open_product': {
+    'ru': 'Открыть товар «{name}»',
+    'kk': '«{name}» тауарын ашу',
+    'en': 'Open {name}',
   },
   'catalog_added_to_cart': {
     'ru': 'Товар добавлен в корзину',

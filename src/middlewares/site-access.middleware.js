@@ -66,6 +66,7 @@ function renderAccessPage({ clientIp, unavailable = false }) {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex,nofollow" />
     <meta name="theme-color" content="#fcfbf9" />
+    <link rel="icon" type="image/png" sizes="48x48" href="/favicon.png?v=20260730-1" />
     <title>${title} — Bulka</title>
     <style>
       :root { color-scheme: light; --page:#fcfbf9; --surface:#fff; --text:#3b2117; --muted:#6f6259; --accent:#9a714a; --border:#e8dccb; --soft:#fff5e6; }

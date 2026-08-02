@@ -1,4 +1,4 @@
-import { Building2, CheckCircle2, CircleAlert, MapPin } from 'lucide-react';
+import { Building2, CheckCircle2, CircleAlert, Cloud, MapPin } from 'lucide-react';
 import type { AdminScopeLocation } from '../../lib/api';
 
 export interface MenuProfileStatus {
@@ -97,11 +97,12 @@ export default function MenuCityScope({
   );
   const activeProfile = activeProfileKey ? profiles[activeProfileKey] : undefined;
 
-  const chooseCity = (city: MenuCityGroup) => {
-    const branch = preferredBranch(city);
-    if (!branch) return;
-    window.localStorage.setItem(storedBranchKey(city.key), branch.id);
-    void onBranchChange(branch.id);
+  const chooseBranch = (branchId: string) => {
+    const branch = locations.find((item) => item.id === branchId);
+    if (branch && typeof window !== 'undefined') {
+      window.localStorage.setItem(storedBranchKey(normalizeCity(branch.city)), branch.id);
+    }
+    void onBranchChange(branchId);
   };
 
   return (
@@ -118,12 +119,14 @@ export default function MenuCityScope({
             Меню по городам
           </h2>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-stone-600">
-            Выберите город: меню, цены и ручные блюда изолированы от других городов.
+            Сначала выберите город. Изменения блюд, категорий и своих товаров будут применены только
+            к меню этого города.
           </p>
         </div>
+
         {selectedCity && (
           <div
-            className={`inline-flex min-h-10 items-center gap-2 self-start rounded-full px-3 py-2 text-sm font-semibold ${
+            className={`inline-flex min-h-11 items-center gap-2 self-start rounded-full px-3 py-2 text-sm font-semibold ${
               hasError || activeProfile?.configured === false
                 ? 'bg-red-50 text-red-700'
                 : 'bg-emerald-50 text-emerald-700'
@@ -138,10 +141,10 @@ export default function MenuCityScope({
             {loading
               ? 'Проверяем iiko…'
               : hasError
-                ? 'Не удалось загрузить меню'
+                ? 'Не удалось проверить iiko'
                 : activeProfile?.configured === false
-                  ? 'Используется основной профиль iiko'
-                  : 'Профиль iiko подключён'}
+                  ? 'iiko не настроен'
+                  : 'iiko подключён'}
           </div>
         )}
       </div>
@@ -165,7 +168,10 @@ export default function MenuCityScope({
                 key={city.key}
                 aria-label={`Редактировать меню города ${city.name}, ${branchCountLabel(city.branches.length)}`}
                 aria-pressed={isSelected}
-                onClick={() => chooseCity(city)}
+                onClick={() => {
+                  const branch = preferredBranch(city);
+                  if (branch) chooseBranch(branch.id);
+                }}
                 className={`flex min-h-20 items-center gap-3 rounded-2xl border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 ${
                   isSelected
                     ? 'border-amber-500 bg-amber-50'
@@ -201,10 +207,10 @@ export default function MenuCityScope({
       )}
 
       {selectedCity && selectedBranch && (
-        <div className="mt-4 grid gap-3 rounded-2xl bg-stone-50 p-4 sm:grid-cols-3">
+        <div className="mt-4 grid gap-3 rounded-2xl bg-stone-50 p-4 lg:grid-cols-[minmax(0,1fr)_minmax(220px,0.75fr)_auto] lg:items-stretch">
           <div className="flex min-w-0 items-start gap-3">
             <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-white text-amber-700 shadow-sm">
-              <MapPin aria-hidden="true" size={20} />
+              <Cloud aria-hidden="true" size={20} />
             </span>
             <div className="min-w-0">
               <span className="block text-xs font-semibold uppercase tracking-wide text-stone-500">
@@ -213,21 +219,41 @@ export default function MenuCityScope({
               <strong className="mt-0.5 block truncate text-base text-stone-900">
                 Меню города {selectedCity.name}
               </strong>
+              <span className="mt-0.5 block text-sm text-stone-600">
+                {!activeProfileKey
+                  ? 'Определяем профиль iiko'
+                  : activeProfileKey === 'default'
+                    ? 'Основной профиль iiko'
+                    : 'Отдельный профиль iiko'}
+              </span>
             </div>
           </div>
+
           <div className="flex min-w-0 items-center gap-3 rounded-xl border border-stone-200 bg-white px-3 py-2.5">
-            <Building2 aria-hidden="true" className="shrink-0 text-amber-700" size={18} />
-            <div>
-              <span className="block text-xs font-semibold text-stone-500">Область применения</span>
+            <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-amber-50 text-amber-700">
+              <Building2 aria-hidden="true" size={18} />
+            </span>
+            <div className="min-w-0">
+              <span className="block text-xs font-semibold text-stone-500">
+                Область применения
+              </span>
               <strong className="mt-0.5 block text-sm text-stone-900">
-                Все доступные филиалы города
+                Все филиалы города
               </strong>
+              <span className="mt-0.5 block text-xs text-stone-600">
+                {branchCountLabel(selectedCity.branches.length)}
+              </span>
             </div>
           </div>
-          <div className="rounded-xl border border-stone-200 bg-white px-3 py-2.5">
+
+          <div className="min-w-[170px] rounded-xl border border-stone-200 bg-white px-3 py-2.5">
             <span className="block text-xs font-semibold text-stone-500">Состав меню</span>
             <strong className="mt-0.5 block text-sm text-stone-900">
-              {loading ? 'Загружаем…' : hasError ? 'Не загружено' : `${productsCount} блюд · ${categoriesCount} категорий`}
+              {loading
+                ? 'Загружаем…'
+                : hasError
+                  ? 'Не загружено'
+                  : `${productsCount} блюд · ${categoriesCount} категорий`}
             </strong>
           </div>
         </div>

@@ -27,7 +27,6 @@ export default function BonusPage() {
     try {
       const data = await api.getSettings();
       setSettings({
-        ...data,
         base_cashback_percent: Number(data.base_cashback_percent ?? 0),
         max_discount_percent: Number(data.max_discount_percent ?? 0),
         bonus_expiration: {
@@ -43,7 +42,9 @@ export default function BonusPage() {
     }
   }, [t]);
 
-  useEffect(() => { void fetchSettings(); }, [fetchSettings]);
+  useEffect(() => {
+    void fetchSettings();
+  }, [fetchSettings]);
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
@@ -77,13 +78,22 @@ export default function BonusPage() {
 
       <form className="card settings-form" onSubmit={save}>
         <div className="section-heading">
-          <div><h2>{t('bonus.heading')}</h2><p>{t('page.bonus.subtitle')}</p></div>
+          <div>
+            <h2>{t('bonus.heading')}</h2>
+            <p>{t('page.bonus.subtitle')}</p>
+          </div>
         </div>
-        {error && <div className="inline-alert inline-alert-error" role="alert">{error}</div>}
+        {error && (
+          <div className="inline-alert inline-alert-error" role="alert">
+            {error}
+          </div>
+        )}
 
         <div className="form-grid form-grid-2">
           <div className="field-group">
-            <label className="field-label" htmlFor="base-cashback">{t('bonus.baseCashback')}</label>
+            <label className="field-label" htmlFor="base-cashback">
+              {t('bonus.baseCashback')}
+            </label>
             <input
               id="base-cashback"
               type="number"
@@ -91,14 +101,21 @@ export default function BonusPage() {
               max="100"
               step="0.01"
               value={settings.base_cashback_percent}
-              onChange={event => setSettings(current => current && ({ ...current, base_cashback_percent: Number(event.target.value) }))}
+              onChange={(event) =>
+                setSettings(
+                  (current) =>
+                    current && { ...current, base_cashback_percent: Number(event.target.value) },
+                )
+              }
               className="input-classic"
               required
             />
             <p className="field-hint">{t('bonus.baseHint')}</p>
           </div>
           <div className="field-group">
-            <label className="field-label" htmlFor="max-discount">{t('bonus.maxDiscount')}</label>
+            <label className="field-label" htmlFor="max-discount">
+              {t('bonus.maxDiscount')}
+            </label>
             <input
               id="max-discount"
               type="number"
@@ -106,7 +123,12 @@ export default function BonusPage() {
               max="100"
               step="1"
               value={settings.max_discount_percent}
-              onChange={event => setSettings(current => current && ({ ...current, max_discount_percent: Number(event.target.value) }))}
+              onChange={(event) =>
+                setSettings(
+                  (current) =>
+                    current && { ...current, max_discount_percent: Number(event.target.value) },
+                )
+              }
               className="input-classic"
               required
             />
@@ -120,10 +142,18 @@ export default function BonusPage() {
             <input
               type="checkbox"
               checked={settings.bonus_expiration.enabled}
-              onChange={event => setSettings(current => current && ({
-                ...current,
-                bonus_expiration: { ...current.bonus_expiration, enabled: event.target.checked },
-              }))}
+              onChange={(event) =>
+                setSettings(
+                  (current) =>
+                    current && {
+                      ...current,
+                      bonus_expiration: {
+                        ...current.bonus_expiration,
+                        enabled: event.target.checked,
+                      },
+                    },
+                )
+              }
             />
             <span className="switch-control" aria-hidden="true" />
             <span>{t('bonus.expirationEnable')}</span>
@@ -132,20 +162,70 @@ export default function BonusPage() {
           {settings.bonus_expiration.enabled && (
             <div className="form-grid form-grid-2 reveal-panel">
               <div className="field-group">
-                <label className="field-label" htmlFor="expiration-days">{t('bonus.inactiveDays')}</label>
-                <input id="expiration-days" type="number" min="1" value={settings.bonus_expiration.expiration_days} onChange={event => setSettings(current => current && ({ ...current, bonus_expiration: { ...current.bonus_expiration, expiration_days: Number(event.target.value) } }))} className="input-classic" required />
+                <label className="field-label" htmlFor="expiration-days">
+                  {t('bonus.inactiveDays')}
+                </label>
+                <input
+                  id="expiration-days"
+                  type="number"
+                  min="1"
+                  value={settings.bonus_expiration.expiration_days}
+                  onChange={(event) =>
+                    setSettings(
+                      (current) =>
+                        current && {
+                          ...current,
+                          bonus_expiration: {
+                            ...current.bonus_expiration,
+                            expiration_days: Number(event.target.value),
+                          },
+                        },
+                    )
+                  }
+                  className="input-classic"
+                  required
+                />
               </div>
               <div className="field-group">
-                <label className="field-label" htmlFor="notify-days">{t('bonus.notifyDays')}</label>
-                <input id="notify-days" type="number" min="1" value={settings.bonus_expiration.notify_before_days} onChange={event => setSettings(current => current && ({ ...current, bonus_expiration: { ...current.bonus_expiration, notify_before_days: Number(event.target.value) } }))} className="input-classic" required />
+                <label className="field-label" htmlFor="notify-days">
+                  {t('bonus.notifyDays')}
+                </label>
+                <input
+                  id="notify-days"
+                  type="number"
+                  min="1"
+                  value={settings.bonus_expiration.notify_before_days}
+                  onChange={(event) =>
+                    setSettings(
+                      (current) =>
+                        current && {
+                          ...current,
+                          bonus_expiration: {
+                            ...current.bonus_expiration,
+                            notify_before_days: Number(event.target.value),
+                          },
+                        },
+                    )
+                  }
+                  className="input-classic"
+                  required
+                />
               </div>
             </div>
           )}
         </fieldset>
 
         <div className="form-footer">
-          <button type="submit" className="btn-classic px-6 inline-flex items-center gap-2" disabled={saving}>
-            {saving ? <LoaderCircle className="spin" aria-hidden="true" size={18} /> : <Save aria-hidden="true" size={18} />}
+          <button
+            type="submit"
+            className="btn-classic px-6 inline-flex items-center gap-2"
+            disabled={saving}
+          >
+            {saving ? (
+              <LoaderCircle className="spin" aria-hidden="true" size={18} />
+            ) : (
+              <Save aria-hidden="true" size={18} />
+            )}
             {saving ? t('common.saving') : t('common.save')}
           </button>
         </div>

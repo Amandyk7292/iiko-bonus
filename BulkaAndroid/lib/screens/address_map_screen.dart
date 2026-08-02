@@ -1,9 +1,20 @@
 part of '../main.dart';
 
 class AddressMapScreen extends StatefulWidget {
-  const AddressMapScreen({this.api, super.key});
+  const AddressMapScreen({
+    this.api,
+    this.initialAddress,
+    this.initialCity,
+    this.initialLatitude,
+    this.initialLongitude,
+    super.key,
+  });
 
   final BulkaApiClient? api;
+  final DeliveryAddress? initialAddress;
+  final String? initialCity;
+  final double? initialLatitude;
+  final double? initialLongitude;
 
   @override
   State<AddressMapScreen> createState() => _AddressMapScreenState();
@@ -21,11 +32,12 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
   final _floorController = TextEditingController();
   final _apartmentController = TextEditingController();
   final _commentController = TextEditingController();
-  LatLng _point = _defaultPoint;
+  late LatLng _point;
   double _zoom = 14.5;
   List<BakeryLocation> _locations = const [];
   String _address = '';
-  String _city = 'Астана';
+  late String _city;
+  late bool _hasPreferredCenter;
   bool _addressResolved = false;
   bool _resolving = false;
   bool _locating = false;
@@ -38,8 +50,39 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
   void initState() {
     super.initState();
     _api = widget.api ?? BulkaApiClient();
-    _titleController.text = 'house_label'.tr;
-    _address = 'map_select_point'.tr;
+    final initialAddress = widget.initialAddress;
+    final latitude =
+        initialAddress?.location.latitude ?? widget.initialLatitude;
+    final longitude =
+        initialAddress?.location.longitude ?? widget.initialLongitude;
+    _hasPreferredCenter =
+        latitude != null &&
+        longitude != null &&
+        latitude.isFinite &&
+        longitude.isFinite &&
+        latitude >= -90 &&
+        latitude <= 90 &&
+        longitude >= -180 &&
+        longitude <= 180;
+    _point = _hasPreferredCenter
+        ? LatLng(latitude!, longitude!)
+        : _defaultPoint;
+    final initialCity =
+        initialAddress?.location.city.trim() ??
+        widget.initialCity?.trim() ??
+        '';
+    _city = initialCity.isEmpty ? 'Астана' : initialCity;
+    // A new address starts empty. "Дом" is a hint, not customer data that
+    // must be selected and deleted before typing a custom address name.
+    _titleController.text = initialAddress?.title ?? '';
+    _houseController.text = initialAddress?.house ?? '';
+    _entranceController.text = initialAddress?.entrance ?? '';
+    _floorController.text = initialAddress?.floor ?? '';
+    _apartmentController.text = initialAddress?.apartment ?? '';
+    _commentController.text = initialAddress?.courierComment ?? '';
+    _address = initialAddress?.location.address ?? 'map_select_point'.tr;
+    _addressResolved = initialAddress != null;
+    _pointSelected = initialAddress != null;
     unawaited(_loadLocations());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scheduleLocateOnOpen();
@@ -51,6 +94,7 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
     // permission prompt. If the customer already touched the map, preserve
     // that explicit choice instead of moving the pin underneath them.
     _locateOnOpenTimer?.cancel();
+    if (_hasPreferredCenter) return;
     _locateOnOpenTimer = Timer(const Duration(milliseconds: 250), () {
       if (!mounted || _pointSelected) return;
       unawaited(_goToMyLocation());
@@ -283,7 +327,9 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
     if (!_formKey.currentState!.validate()) return;
     Navigator.of(context).pop(
       DeliveryAddress(
-        id: DateTime.now().microsecondsSinceEpoch.toString(),
+        id:
+            widget.initialAddress?.id ??
+            DateTime.now().microsecondsSinceEpoch.toString(),
         title: _titleController.text.trim(),
         location: _selectedLocation(),
         house: _houseController.text.trim(),
@@ -291,6 +337,7 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
         floor: _emptyToNull(_floorController.text),
         apartment: _emptyToNull(_apartmentController.text),
         courierComment: _emptyToNull(_commentController.text),
+        isDefault: widget.initialAddress?.isDefault ?? false,
       ),
     );
   }
@@ -339,7 +386,9 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
     final colors = context.bulkaColors;
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      // The form sheet, app bar and bottom safe area intentionally share one
+      // surface color so iOS does not expose a visible horizontal seam.
+      backgroundColor: scheme.surface,
       appBar: AppBar(
         toolbarHeight: BulkaLayout.appBarHeight(context),
         centerTitle: true,
@@ -351,18 +400,31 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
           color: colors.mutedText,
           tooltip: 'back_tooltip'.tr,
         ),
-        title: _BulkaPageTitle('delivery_address_title'.tr),
+        title: _BulkaPageTitle(
+          widget.initialAddress == null
+              ? 'delivery_address_title'.tr
+              : 'edit_address_title'.tr,
+        ),
         actions: const [SizedBox(width: BulkaLayout.appBarSideSlot)],
       ),
       body: SafeArea(
         top: false,
+        bottom: false,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final compact = constraints.maxHeight < 700;
-            final mapHeight = min(
-              360.0,
-              max(245.0, constraints.maxHeight * 0.42),
-            );
+            final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+            final textScale = MediaQuery.textScalerOf(context).scale(1);
+            final keyboardVisible = keyboardInset > 0;
+            final compact =
+                constraints.maxHeight < 700 ||
+                keyboardVisible ||
+                textScale > 1.15;
+            final mapHeight = keyboardVisible
+                ? min(118.0, max(88.0, constraints.maxHeight * 0.2))
+                : min(
+                    textScale > 1.15 ? 270.0 : 360.0,
+                    max(210.0, constraints.maxHeight * 0.42),
+                  );
             const sheetOverlap = 20.0;
             return Stack(
               children: [
@@ -438,13 +500,17 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
                     ),
                     child: Form(
                       key: _formKey,
-                      child: Padding(
+                      child: SingleChildScrollView(
                         key: const ValueKey('delivery-address-form'),
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
                         padding: EdgeInsets.fromLTRB(
                           16,
                           compact ? 12 : 16,
                           16,
-                          12 + BulkaLayout.safeBottomInset(context),
+                          12 +
+                              BulkaLayout.safeBottomInset(context) +
+                              (keyboardVisible ? 12 : 0),
                         ),
                         child: Column(
                           children: [
@@ -452,50 +518,63 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
                               label: 'address_title_label'.tr,
                               controller: _titleController,
                               validator: _requiredField,
+                              hintText: 'house_label'.tr,
                             ),
                             SizedBox(height: compact ? 8 : 10),
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: _BulkaTextField(
-                                    label: 'house_label'.tr,
-                                    controller: _houseController,
-                                    validator: _requiredField,
-                                    compact: true,
-                                    hintText: '—',
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: _BulkaTextField(
-                                    label: 'entrance_label'.tr,
-                                    controller: _entranceController,
-                                    keyboardType: TextInputType.number,
-                                    compact: true,
-                                    hintText: '—',
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: _BulkaTextField(
-                                    label: 'floor_label'.tr,
-                                    controller: _floorController,
-                                    keyboardType: TextInputType.number,
-                                    compact: true,
-                                    hintText: '—',
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: _BulkaTextField(
-                                    label: 'apartment_label'.tr,
-                                    controller: _apartmentController,
-                                    compact: true,
-                                    hintText: '—',
-                                  ),
-                                ),
-                              ],
+                            LayoutBuilder(
+                              builder: (context, fieldConstraints) {
+                                final twoColumns =
+                                    MediaQuery.textScalerOf(context).scale(1) >
+                                    1.15;
+                                final width = twoColumns
+                                    ? (fieldConstraints.maxWidth - 8) / 2
+                                    : (fieldConstraints.maxWidth - 24) / 4;
+                                return Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    SizedBox(
+                                      width: width,
+                                      child: _BulkaTextField(
+                                        label: 'house_label'.tr,
+                                        controller: _houseController,
+                                        validator: _requiredField,
+                                        compact: true,
+                                        hintText: '—',
+                                      ),
+                                    ),
+                                    SizedBox(
+                                      width: width,
+                                      child: _BulkaTextField(
+                                        label: 'entrance_label'.tr,
+                                        controller: _entranceController,
+                                        keyboardType: TextInputType.number,
+                                        compact: true,
+                                        hintText: '—',
+                                      ),
+                                    ),
+                                    SizedBox(
+                                      width: width,
+                                      child: _BulkaTextField(
+                                        label: 'floor_label'.tr,
+                                        controller: _floorController,
+                                        keyboardType: TextInputType.number,
+                                        compact: true,
+                                        hintText: '—',
+                                      ),
+                                    ),
+                                    SizedBox(
+                                      width: width,
+                                      child: _BulkaTextField(
+                                        label: 'apartment_label'.tr,
+                                        controller: _apartmentController,
+                                        compact: true,
+                                        hintText: '—',
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
                             ),
                             SizedBox(height: compact ? 8 : 10),
                             _BulkaTextField(
@@ -509,7 +588,10 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
                               onPressed: _saveAddress,
                               height: compact ? 48 : 52,
                               child: Text(
-                                'save_address_btn'.tr,
+                                (widget.initialAddress == null
+                                        ? 'save_address_btn'
+                                        : 'update_address_btn')
+                                    .tr,
                                 style: const TextStyle(
                                   fontSize: BulkaTypeScale.body,
                                   fontWeight: FontWeight.w600,
@@ -639,6 +721,9 @@ class _BulkaTextField extends StatelessWidget {
           textInputAction: maxLines > 1
               ? TextInputAction.newline
               : TextInputAction.next,
+          scrollPadding: EdgeInsets.only(
+            bottom: MediaQuery.viewInsetsOf(context).bottom + 120,
+          ),
           style: const TextStyle(
             fontSize: BulkaTypeScale.body,
             fontWeight: FontWeight.w500,

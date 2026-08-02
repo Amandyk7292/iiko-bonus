@@ -106,12 +106,9 @@ const cleanStorageConditions = (value) => {
       const temperature = cleanText(raw.temperature, 40);
       const rawDuration = raw.duration_value ?? raw.durationValue;
       const durationUnit = cleanText(raw.duration_unit ?? raw.durationUnit, 16).toLowerCase();
-      const isEmpty =
-        !temperature && (rawDuration === undefined || rawDuration === '') && !durationUnit;
-      if (isEmpty) return null;
-      if (!temperature) {
-        throw menuError(`Укажите температуру для условия хранения ${index + 1}`);
-      }
+      const hasDuration = rawDuration !== undefined && rawDuration !== null && rawDuration !== '';
+      const isEmpty = !temperature && !hasDuration && !durationUnit;
+      if (isEmpty || !temperature || !hasDuration || !durationUnit) return null;
       if (!STORAGE_DURATION_UNITS.has(durationUnit)) {
         throw menuError(`Выберите единицу срока хранения ${index + 1}`);
       }

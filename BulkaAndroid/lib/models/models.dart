@@ -75,6 +75,7 @@ class Customer {
     this.birthDate,
     this.email,
     this.region,
+    this.avatarKey,
     this.emailVerified = false,
   });
 
@@ -93,6 +94,7 @@ class Customer {
   final String? birthDate;
   final String? email;
   final String? region;
+  final String? avatarKey;
   final bool emailVerified;
 
   factory Customer.fromJson(Map<String, dynamic> json) {
@@ -136,6 +138,7 @@ class Customer {
       birthDate: _nullableString(json['birth_date'] ?? json['birthdate']),
       email: _nullableString(json['email']),
       region: _nullableString(json['region']),
+      avatarKey: _nullableString(json['avatar_key'] ?? json['avatarKey']),
       emailVerified:
           json['emailVerified'] == true || json['email_verified'] == true,
     );
@@ -157,9 +160,11 @@ class Customer {
     'birth_date': birthDate,
     'email': email,
     'region': region,
+    'avatar_key': avatarKey,
+    'email_verified': emailVerified,
   };
 
-  Customer copyWith({Tier? tier}) {
+  Customer copyWith({Tier? tier, String? avatarKey}) {
     return Customer(
       id: id,
       name: name,
@@ -176,6 +181,7 @@ class Customer {
       birthDate: birthDate,
       email: email,
       region: region,
+      avatarKey: avatarKey ?? this.avatarKey,
       emailVerified: emailVerified,
     );
   }
@@ -412,186 +418,80 @@ class BonusTransaction {
   };
 }
 
-class CustomerOrder {
-  const CustomerOrder({
-    required this.id,
-    required this.number,
-    required this.paymentStatus,
-    required this.orderStatus,
+class BonusExpiryBucket {
+  const BonusExpiryBucket({
+    required this.expiresAt,
     required this.amount,
-    required this.subtotal,
-    required this.discount,
-    required this.branch,
-    required this.items,
-    required this.earnedBonus,
+    required this.daysRemaining,
+  });
+
+  final DateTime expiresAt;
+  final double amount;
+  final int daysRemaining;
+
+  factory BonusExpiryBucket.fromJson(Map<String, dynamic> json) {
+    return BonusExpiryBucket(
+      expiresAt:
+          DateTime.tryParse(_asString(json['expiresAt'])) ?? DateTime.now(),
+      amount: _asDouble(json['amount']),
+      daysRemaining: _asInt(json['daysRemaining']),
+    );
+  }
+}
+
+class BonusExpirySummary {
+  const BonusExpirySummary({
+    required this.currentBalance,
+    required this.totalExpiring,
+    required this.buckets,
+    this.nextExpiryAt,
+  });
+
+  final double currentBalance;
+  final double totalExpiring;
+  final DateTime? nextExpiryAt;
+  final List<BonusExpiryBucket> buckets;
+
+  factory BonusExpirySummary.fromJson(Map<String, dynamic> json) {
+    return BonusExpirySummary(
+      currentBalance: _asDouble(json['currentBalance']),
+      totalExpiring: _asDouble(json['totalExpiring']),
+      nextExpiryAt: DateTime.tryParse(_asString(json['nextExpiryAt'])),
+      buckets: (json['buckets'] as List? ?? const [])
+          .map((item) => BonusExpiryBucket.fromJson(_asMap(item)))
+          .toList(growable: false),
+    );
+  }
+}
+
+class StockSubscription {
+  const StockSubscription({
+    required this.id,
+    required this.productId,
+    required this.branchId,
+    required this.status,
     required this.createdAt,
-    required this.fulfillmentType,
-    required this.deliveryStatus,
-    this.pickupTime,
-    this.comment,
-    this.cancellationReason,
-    this.refundStatus,
-    this.refundAmount,
-    this.refundedAt,
-    this.estimatedDeliveryAt,
-    this.promisedReadyAt,
-    this.etaMinAt,
-    this.etaMaxAt,
-    this.etaConfidence,
-    this.etaUpdatedAt,
-    this.routeDistanceKm,
-    this.preparationMinutes,
-    this.trackingCode,
-    this.trackingUrl,
-    this.deliveryProvider,
-    this.providerDeliveryStatus,
-    this.providerDeliveryPrice,
-    this.deliveryPin,
-    this.customerArrivedAt,
-    this.courier,
-    this.receiptUrl,
+    this.notifiedAt,
   });
 
   final String id;
-  final int number;
-  final String paymentStatus;
-  final String orderStatus;
-  final int amount;
-  final int subtotal;
-  final int discount;
-  final String branch;
-  final List<Map<String, dynamic>> items;
-  final int earnedBonus;
+  final String productId;
+  final String branchId;
+  final String status;
   final DateTime createdAt;
-  final String fulfillmentType;
-  final String deliveryStatus;
-  final DateTime? pickupTime;
-  final String? comment;
-  final String? cancellationReason;
-  final String? refundStatus;
-  final int? refundAmount;
-  final DateTime? refundedAt;
-  final DateTime? estimatedDeliveryAt;
-  final DateTime? promisedReadyAt;
-  final DateTime? etaMinAt;
-  final DateTime? etaMaxAt;
-  final String? etaConfidence;
-  final DateTime? etaUpdatedAt;
-  final double? routeDistanceKm;
-  final int? preparationMinutes;
-  final String? trackingCode;
-  final String? trackingUrl;
-  final String? deliveryProvider;
-  final String? providerDeliveryStatus;
-  final int? providerDeliveryPrice;
-  final String? deliveryPin;
-  final DateTime? customerArrivedAt;
-  final OrderCourier? courier;
-  final String? receiptUrl;
+  final DateTime? notifiedAt;
 
-  factory CustomerOrder.fromJson(Map<String, dynamic> json) {
-    final rawItems = json['items'];
-    return CustomerOrder(
+  factory StockSubscription.fromJson(Map<String, dynamic> json) {
+    return StockSubscription(
       id: _asString(json['id']),
-      number: _asInt(json['number']),
-      paymentStatus: _asString(json['paymentStatus']),
-      orderStatus: _asString(json['orderStatus']),
-      amount: _asDouble(json['amount']).round(),
-      subtotal: _asDouble(json['subtotal']).round(),
-      discount: _asDouble(json['discount']).round(),
-      branch: _asString(json['branch']),
-      items: rawItems is List
-          ? rawItems.map((item) => _asMap(item)).toList()
-          : const [],
-      earnedBonus: _asDouble(json['earnedBonus']).round(),
+      productId: _asString(json['productId']),
+      branchId: _asString(json['branchId']),
+      status: _asString(json['status'], fallback: 'active'),
       createdAt:
           DateTime.tryParse(_asString(json['createdAt'])) ?? DateTime.now(),
-      fulfillmentType: _asString(
-        json['fulfillmentType'] ?? json['orderType'],
-        fallback: 'pickup',
-      ),
-      deliveryStatus: _asString(json['deliveryStatus'], fallback: 'unassigned'),
-      pickupTime: DateTime.tryParse(_asString(json['pickupTime'])),
-      comment: _nullableString(json['comment']),
-      cancellationReason: _nullableString(json['cancellationReason']),
-      refundStatus: _nullableString(json['refundStatus']),
-      refundAmount: _nullableInt(json['refundAmount']),
-      refundedAt: DateTime.tryParse(_asString(json['refundedAt'])),
-      estimatedDeliveryAt: DateTime.tryParse(
-        _asString(json['estimatedDeliveryAt']),
-      ),
-      promisedReadyAt: DateTime.tryParse(_asString(json['promisedReadyAt'])),
-      etaMinAt: DateTime.tryParse(_asString(json['etaMinAt'])),
-      etaMaxAt: DateTime.tryParse(_asString(json['etaMaxAt'])),
-      etaConfidence: _nullableString(json['etaConfidence']),
-      etaUpdatedAt: DateTime.tryParse(_asString(json['etaUpdatedAt'])),
-      routeDistanceKm: json['routeDistanceKm'] == null
-          ? null
-          : _asDouble(json['routeDistanceKm']),
-      preparationMinutes: _nullableInt(json['preparationMinutes']),
-      trackingCode: _nullableString(json['trackingCode']),
-      trackingUrl: _nullableString(json['trackingUrl']),
-      deliveryProvider: _nullableString(json['deliveryProvider']),
-      providerDeliveryStatus: _nullableString(json['providerDeliveryStatus']),
-      providerDeliveryPrice: _nullableInt(json['providerDeliveryPrice']),
-      deliveryPin: _nullableString(json['deliveryPin']),
-      customerArrivedAt: DateTime.tryParse(
-        _asString(json['customerArrivedAt']),
-      ),
-      receiptUrl: _nullableString(json['receiptUrl']),
-      courier: _asMap(json['courier']).isEmpty
-          ? null
-          : OrderCourier.fromJson(_asMap(json['courier'])),
+      notifiedAt: DateTime.tryParse(_asString(json['notifiedAt'])),
     );
   }
-
-  DateTime? get eta => fulfillmentType == 'delivery'
-      ? estimatedDeliveryAt ?? promisedReadyAt
-      : promisedReadyAt ?? pickupTime;
-
-  bool get isClosed =>
-      orderStatus == 'completed' ||
-      orderStatus == 'cancelled' ||
-      deliveryStatus == 'delivered';
-
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'number': number,
-    'paymentStatus': paymentStatus,
-    'orderStatus': orderStatus,
-    'amount': amount,
-    'subtotal': subtotal,
-    'discount': discount,
-    'branch': branch,
-    'items': items,
-    'earnedBonus': earnedBonus,
-    'createdAt': createdAt.toUtc().toIso8601String(),
-    'fulfillmentType': fulfillmentType,
-    'deliveryStatus': deliveryStatus,
-    'pickupTime': pickupTime?.toUtc().toIso8601String(),
-    'comment': comment,
-    'cancellationReason': cancellationReason,
-    'refundStatus': refundStatus,
-    'refundAmount': refundAmount,
-    'refundedAt': refundedAt?.toUtc().toIso8601String(),
-    'estimatedDeliveryAt': estimatedDeliveryAt?.toUtc().toIso8601String(),
-    'promisedReadyAt': promisedReadyAt?.toUtc().toIso8601String(),
-    'etaMinAt': etaMinAt?.toUtc().toIso8601String(),
-    'etaMaxAt': etaMaxAt?.toUtc().toIso8601String(),
-    'etaConfidence': etaConfidence,
-    'etaUpdatedAt': etaUpdatedAt?.toUtc().toIso8601String(),
-    'routeDistanceKm': routeDistanceKm,
-    'preparationMinutes': preparationMinutes,
-    'trackingCode': trackingCode,
-    'trackingUrl': trackingUrl,
-    'deliveryProvider': deliveryProvider,
-    'providerDeliveryStatus': providerDeliveryStatus,
-    'providerDeliveryPrice': providerDeliveryPrice,
-    'deliveryPin': deliveryPin,
-    'customerArrivedAt': customerArrivedAt?.toUtc().toIso8601String(),
-    'receiptUrl': receiptUrl,
-    'courier': courier?.toJson(),
-  };
 }
 
 class OrderCourier {
@@ -804,6 +704,159 @@ class SupportThread {
           .toList(),
     );
   }
+}
+
+class PromoStory {
+  const PromoStory({
+    required this.id,
+    required this.title,
+    required this.imageUrl,
+    required this.contentUrl,
+    required this.groupId,
+    required this.groupTitle,
+    required this.groupCoverUrl,
+    this.sortOrder = 0,
+    this.description,
+    this.details,
+    this.duration = 15,
+    this.promoType = 'promotion',
+    this.startsAt,
+    this.endsAt,
+    this.remaining,
+    this.qrValue,
+    this.createdAt,
+    this.localizedTitles = const {},
+    this.localizedDescriptions = const {},
+    this.localizedDetails = const {},
+    this.localizedCoverUrls = const {},
+    this.localizedContentUrls = const {},
+  });
+
+  final int id;
+  final String title;
+  final String imageUrl;
+  final String contentUrl;
+  final String groupId;
+  final String groupTitle;
+  final String groupCoverUrl;
+  final int sortOrder;
+  final String? description;
+  final String? details;
+  final int duration;
+  final String promoType;
+  final String? startsAt;
+  final String? endsAt;
+  final int? remaining;
+  final String? qrValue;
+  final String? createdAt;
+  final Map<String, String> localizedTitles;
+  final Map<String, String> localizedDescriptions;
+  final Map<String, String> localizedDetails;
+  final Map<String, String> localizedCoverUrls;
+  final Map<String, String> localizedContentUrls;
+
+  String get localizedTitle => _localizedValue(title, localizedTitles);
+  String? get localizedDescription {
+    final value = _localizedValue(description ?? '', localizedDescriptions);
+    return value.isEmpty ? null : value;
+  }
+
+  String? get localizedLongDescription {
+    final value = _localizedValue(
+      details ?? description ?? '',
+      localizedDetails,
+    );
+    return value.isEmpty ? localizedDescription : value;
+  }
+
+  String get localizedImageUrl => _localizedValue(imageUrl, localizedCoverUrls);
+  String get localizedContentUrl =>
+      _localizedValue(contentUrl, localizedContentUrls);
+  String get localizedGroupTitle =>
+      _localizedValue(groupTitle, localizedTitles);
+  String get localizedGroupCoverUrl =>
+      _localizedValue(groupCoverUrl, localizedCoverUrls);
+
+  factory PromoStory.fromJson(Map<String, dynamic> json) {
+    final image = _asString(json['coverUrl'] ?? json['cover_url']);
+    final id = _asInt(json['id']);
+    final title = _asString(json['title']);
+    final localizedTitles = _nestedLocalizedValues(json, 'title');
+    final localizedDescriptions = _nestedLocalizedValues(json, 'description');
+    final localizedDetails = _nestedLocalizedValues(json, 'details');
+    final localizedCoverUrls = _nestedLocalizedValues(json, 'coverUrl');
+    final localizedContentUrls = _nestedLocalizedValues(json, 'contentUrl');
+    final rawType = _asString(
+      json['promoType'] ?? json['promo_type'],
+      fallback: 'promotion',
+    ).trim();
+    const supportedTypes = {'discount', 'promotion', 'subscription'};
+    return PromoStory(
+      id: id,
+      title: title,
+      imageUrl: image,
+      contentUrl: _asString(
+        json['contentUrl'] ?? json['content_url'],
+        fallback: image,
+      ),
+      groupId: _asString(
+        json['groupId'] ?? json['group_id'] ?? json['groupid'],
+        fallback: id.toString(),
+      ),
+      groupTitle: _asString(
+        json['groupTitle'] ?? json['group_title'] ?? json['grouptitle'],
+        fallback: title,
+      ),
+      groupCoverUrl: _asString(
+        json['groupCoverUrl'] ??
+            json['group_coverurl'] ??
+            json['group_cover_url'],
+        fallback: image,
+      ),
+      sortOrder: _asInt(json['sortOrder'] ?? json['sort_order']),
+      description: _nullableString(json['description']),
+      details: _nullableString(json['details']),
+      duration: _asInt(json['duration'], fallback: 15),
+      promoType: supportedTypes.contains(rawType) ? rawType : 'promotion',
+      startsAt: _nullableString(json['startsAt'] ?? json['starts_at']),
+      endsAt: _nullableString(json['endsAt'] ?? json['ends_at']),
+      remaining: _nullableInt(json['remaining']),
+      qrValue: _nullableString(json['qrValue'] ?? json['qr_value']),
+      createdAt: _nullableString(json['createdAt'] ?? json['created_at']),
+      localizedTitles: localizedTitles,
+      localizedDescriptions: localizedDescriptions,
+      localizedDetails: localizedDetails,
+      localizedCoverUrls: localizedCoverUrls,
+      localizedContentUrls: localizedContentUrls,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'title': title,
+    'coverUrl': imageUrl,
+    'contentUrl': contentUrl,
+    'groupId': groupId,
+    'groupTitle': groupTitle,
+    'groupCoverUrl': groupCoverUrl,
+    'sortOrder': sortOrder,
+    'description': description,
+    'details': details,
+    'duration': duration,
+    'promoType': promoType,
+    'startsAt': startsAt,
+    'endsAt': endsAt,
+    'remaining': remaining,
+    'qrValue': qrValue,
+    'createdAt': createdAt,
+    'i18n': _localizedContentJson(
+      titles: localizedTitles,
+      descriptions: localizedDescriptions,
+      details: localizedDetails,
+      imageUrls: localizedCoverUrls,
+      contentUrls: localizedContentUrls,
+    ),
+  };
 }
 
 class NewsItem {
@@ -1062,6 +1115,9 @@ class AppNotification {
       'заказ отменён, деньги возвращены': 'order_refunded',
       'тапсырыс тоқтатылды, ақша қайтарылды': 'order_refunded',
       'order cancelled and refunded': 'order_refunded',
+      'заказ отменён, возврат отправлен': 'order_refunded',
+      'тапсырыс тоқтатылды, қайтарым жіберілді': 'order_refunded',
+      'order cancelled, refund submitted': 'order_refunded',
     };
     return legacyTitles[normalizedTitle];
   }
@@ -1163,10 +1219,13 @@ class DeliveryAddress {
 
   Map<String, dynamic> toOrderPayload() => {
     'label': title,
-    'address': streetAddress,
+    // Keep the geocoded street and customer-entered house in separate
+    // fields. Combining them made the house impossible to restore for edit.
+    'address': location.address,
     'city': location.city,
     'latitude': location.latitude,
     'longitude': location.longitude,
+    'house': house,
     'entrance': entrance,
     'floor': floor,
     'apartment': apartment,

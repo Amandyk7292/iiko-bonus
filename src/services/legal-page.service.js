@@ -1683,8 +1683,8 @@ function renderLegalPage(slug, language = 'ru') {
     <meta name="robots" content="index,follow" />
     <link rel="canonical" href="${canonical}" />
     ${alternateLinks(slug)}
-    <link rel="icon" type="image/png" sizes="660x660"
-      href="/assets/wallet/bulka-wallet-logo.png?v=20260715" />
+    <link rel="icon" type="image/png" sizes="48x48"
+      href="/favicon.png?v=20260730-1" />
     <link rel="stylesheet" href="/assets/legal/legal.css?v=20260725" />
     <title>${content.title} — Bulka</title>
   </head>

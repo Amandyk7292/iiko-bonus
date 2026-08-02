@@ -11,7 +11,11 @@ const Map<String, Map<String, String>> _navigationAndProfileTranslations = {
   // Order types
   'order_pickup': {'ru': 'Самовывоз', 'kk': 'Алып кету', 'en': 'Pickup'},
   'order_delivery': {'ru': 'Доставка', 'kk': 'Жеткізу', 'en': 'Delivery'},
-  'order_preorder': {'ru': 'Предзаказ', 'kk': 'Алдын ала', 'en': 'Preorder'},
+  'order_preorder': {
+    'ru': 'Предзаказ',
+    'kk': 'Алдын ала тапсырыс',
+    'en': 'Preorder',
+  },
 
   // Home screen sections
   'home_interesting': {

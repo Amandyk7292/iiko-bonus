@@ -39,8 +39,7 @@ abstract final class OrderLiveStatus {
   }
 
   static String _status(CustomerOrder order) {
-    if (order.fulfillmentType == 'delivery' &&
-        order.deliveryStatus != 'unassigned') {
+    if (order.usesDelivery && order.deliveryStatus != 'unassigned') {
       return 'delivery_status_${order.deliveryStatus}'.tr;
     }
     return 'order_status_${order.orderStatus}'.tr;
@@ -73,7 +72,7 @@ abstract final class OrderLiveStatus {
       'status': _status(order),
       'orderStatus': order.orderStatus,
       'deliveryStatus': order.deliveryStatus,
-      'fulfillmentType': order.fulfillmentType,
+      'fulfillmentType': order.effectiveFulfillmentType,
       'etaMillis': eta?.millisecondsSinceEpoch,
       'progress': _progress(order),
       'courierName': order.courier?.name ?? '',
@@ -100,7 +99,7 @@ abstract final class OrderLiveStatus {
           'status': _status(order),
           'orderStatus': order.orderStatus,
           'deliveryStatus': order.deliveryStatus,
-          'fulfillmentType': order.fulfillmentType,
+          'fulfillmentType': order.effectiveFulfillmentType,
           'progress': 1.0,
           'branch': order.branch,
         },

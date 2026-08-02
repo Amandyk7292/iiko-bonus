@@ -129,14 +129,78 @@ async function resolveTargetedPromotion(subtotal, code, { customerId, branchId }
   return { promoCode: normalized, discount, total: subtotal - discount, promotionId: promotion.id };
 }
 
-async function recordPromotionRedemption(order) {
-  const code = normalizeCode(order?.promo_code);
-  if (!code || !order?.customer_id) return false;
-  const { data, error } = await supabase.rpc('record_order_promotion_redemption', {
-    p_order_id: order.id,
+const promotionReservationError = (error) => {
+  const message = String(error?.message || '').toLowerCase();
+  if (message.includes('customer limit')) {
+    return commerceError('Вы уже использовали или оформляете заказ с этим промокодом', 409);
+  }
+  if (message.includes('usage limit')) {
+    return commerceError('Лимит использования промокода исчерпан', 409);
+  }
+  if (message.includes('not active')) {
+    return commerceError('Промокод больше не действует', 409);
+  }
+  if (message.includes('another promotion')) {
+    return commerceError('Это оформление уже использует другой промокод', 409);
+  }
+  return error;
+};
+
+async function reservePromotionForCheckout(
+  pricing,
+  { customerId, requestId, ttlMinutes = 30 } = {},
+) {
+  if (!pricing?.promotionId) return { status: 'no_promotion' };
+  const { data, error } = await supabase.rpc('reserve_order_promotion', {
+    p_promotion_id: pricing.promotionId,
+    p_customer_id: customerId,
+    p_client_request_id: requestId,
+    p_ttl_minutes: ttlMinutes,
+  });
+  if (error) throw promotionReservationError(error);
+  return data || { status: 'active' };
+}
+
+async function attachPromotionReservation(customerId, requestId, orderId) {
+  const { data, error } = await supabase.rpc('attach_order_promotion_reservation', {
+    p_customer_id: customerId,
+    p_client_request_id: requestId,
+    p_order_id: orderId,
+  });
+  if (error) throw error;
+  if (!data) {
+    throw commerceError('Резерв промокода истёк. Повторите оформление.', 409);
+  }
+  return true;
+}
+
+async function releasePromotionReservation({
+  orderId = null,
+  customerId = null,
+  requestId = null,
+}) {
+  const { data, error } = await supabase.rpc('release_order_promotion_reservation', {
+    p_order_id: orderId,
+    p_customer_id: customerId,
+    p_client_request_id: requestId,
   });
   if (error) throw error;
   return Boolean(data);
+}
+
+async function recordPromotionRedemption(order) {
+  const result = await consumePromotionReservation(order);
+  return ['consumed', 'already_consumed', 'no_promotion'].includes(result.status);
+}
+
+async function consumePromotionReservation(order) {
+  const code = normalizeCode(order?.promo_code);
+  if (!code || !order?.customer_id) return { status: 'no_promotion' };
+  const { data, error } = await supabase.rpc('consume_order_promotion_reservation', {
+    p_order_id: order.id,
+  });
+  if (error) throw error;
+  return data && typeof data === 'object' ? data : { status: 'unavailable' };
 }
 
 async function getOrCreateReferralCode(customerId) {
@@ -159,96 +223,35 @@ async function getOrCreateReferralCode(customerId) {
 
 async function redeemReferralCode(customerId, code) {
   const normalized = normalizeCode(code);
-  const { data: referral, error } = await supabase
-    .from('referral_codes')
-    .select('*')
-    .eq('code', normalized)
-    .eq('active', true)
-    .maybeSingle();
-  if (error) throw error;
-  if (!referral) throw commerceError('Реферальный код не найден');
-  if (String(referral.customer_id) === String(customerId))
-    throw commerceError('Нельзя применить свой код');
-  if (referral.expires_at && new Date(referral.expires_at) <= new Date())
-    throw commerceError('Код истёк');
-  if (referral.max_uses && Number(referral.uses_count) >= Number(referral.max_uses)) {
-    throw commerceError('Лимит кода исчерпан');
+  const { data, error } = await supabase.rpc('redeem_referral_code', {
+    p_customer_id: customerId,
+    p_code: normalized,
+  });
+  if (error) {
+    const message = String(error.message || '').toLowerCase();
+    if (message.includes('own referral')) throw commerceError('Нельзя применить свой код');
+    if (message.includes('expired')) throw commerceError('Код истёк');
+    if (message.includes('limit')) throw commerceError('Лимит кода исчерпан');
+    if (message.includes('first order'))
+      throw commerceError('Реферальный код действует до первого заказа');
+    if (message.includes('already redeemed'))
+      throw commerceError('Вы уже применили реферальный код', 409);
+    if (message.includes('not found')) throw commerceError('Реферальный код не найден');
+    throw error;
   }
-  const { data: paidOrder } = await supabase
-    .from('kaspi_orders')
-    .select('id')
-    .eq('customer_id', customerId)
-    .eq('status', 'paid')
-    .limit(1)
-    .maybeSingle();
-  if (paidOrder) throw commerceError('Реферальный код действует до первого заказа');
-  const { data, error: insertError } = await supabase
-    .from('referral_redemptions')
-    .insert({ referral_code_id: referral.id, referred_customer_id: customerId })
-    .select('*')
-    .single();
-  if (insertError?.code === '23505') throw commerceError('Вы уже применили реферальный код', 409);
-  if (insertError) throw insertError;
   return data;
 }
 
 async function qualifyReferralForOrder(order) {
   if (!order?.customer_id || order.status !== 'paid') return false;
-  const { data: redemption, error } = await supabase
-    .from('referral_redemptions')
-    .select('*,referral_codes(*)')
-    .eq('referred_customer_id', order.customer_id)
-    .eq('status', 'registered')
-    .maybeSingle();
+  const { data, error } = await supabase.rpc('qualify_referral_for_order', {
+    p_order_id: order.id,
+  });
   if (error) throw error;
-  if (!redemption) return false;
-  const referral = redemption.referral_codes;
-  const friendReward = Number(referral.reward_friend || 0);
-  const ownerReward = Number(referral.reward_referrer || 0);
-  const now = new Date().toISOString();
-  const { data: claimed, error: claimError } = await supabase
-    .from('referral_redemptions')
-    .update({ status: 'qualified', order_id: order.id })
-    .eq('id', redemption.id)
-    .eq('status', 'registered')
-    .select('id')
-    .maybeSingle();
-  if (claimError) throw claimError;
-  if (!claimed) return false;
-  for (const [customerId, amount, label] of [
-    [order.customer_id, friendReward, 'Бонус по приглашению'],
-    [referral.customer_id, ownerReward, 'Друг совершил первый заказ'],
-  ]) {
-    if (amount <= 0) continue;
-    const { data: customer, error: readCustomerError } = await supabase
-      .from('customers')
-      .select('balance')
-      .eq('id', customerId)
-      .single();
-    if (readCustomerError) throw readCustomerError;
-    const { error: updateError } = await supabase
-      .from('customers')
-      .update({ balance: Number(customer.balance || 0) + amount, updated_at: now })
-      .eq('id', customerId);
-    if (updateError) throw updateError;
-    await supabase.from('transactions').insert({
-      customer_id: customerId,
-      order_id: `REFERRAL-${redemption.id}`,
-      type: 'deposit',
-      amount,
-      description: label,
-      branch_id: order.branch_id || null,
-    });
+  if (!['rewarded', 'already_rewarded'].includes(String(data?.status || ''))) return false;
+  for (const customerId of [data?.friendCustomerId, data?.ownerCustomerId].filter(Boolean)) {
     queueCustomerLoyaltySync(customerId);
   }
-  await supabase
-    .from('referral_redemptions')
-    .update({ status: 'rewarded', rewarded_at: now })
-    .eq('id', redemption.id);
-  await supabase
-    .from('referral_codes')
-    .update({ uses_count: Number(referral.uses_count || 0) + 1 })
-    .eq('id', referral.id);
   return true;
 }
 
@@ -607,7 +610,7 @@ async function deliverAutomatedMessages(limit = 100) {
           .eq('id', delivery.id);
         continue;
       }
-      if (pushResult.delivered === 0) {
+      if (pushResult.delivered === 0 && !pushResult.queued) {
         throw new Error('FCM отклонил все push-токены клиента');
       }
       await supabase
@@ -640,6 +643,10 @@ module.exports = {
   listPromotions,
   matchesPromotionAudience,
   qualifyReferralForOrder,
+  consumePromotionReservation,
+  releasePromotionReservation,
+  reservePromotionForCheckout,
+  attachPromotionReservation,
   recordPromotionRedemption,
   redeemGiftCard,
   redeemReferralCode,

@@ -7,17 +7,21 @@ const realtime = require('./realtime.service');
 const { sendOrderLiveActivity } = require('./live-activity.service');
 const { paymentReceiptUrl } = require('./payment-receipt.service');
 const { paymentProviderName, refundPaymentForOrder } = require('./payment-gateway.service');
+const { effectiveFulfillmentType, isDeliveryFulfillment } = require('../utils/fulfillment.util');
 
 const ORDER_FIELDS = [
   'id',
   'order_number',
   'status',
   'fulfillment_status',
+  'payment_method',
+  'provider_payment_system',
   'amount',
   'subtotal',
   'discount_amount',
   'promo_code',
   'fulfillment_type',
+  'preorder_fulfillment_type',
   'branch_id',
   'branch_name',
   'scheduled_at',
@@ -25,6 +29,7 @@ const ORDER_FIELDS = [
   'delivery_address',
   'delivery_fee',
   'comment',
+  'substitution_preference',
   'cart_items',
   'earned_bonus',
   'bonus_awarded_at',
@@ -36,6 +41,7 @@ const ORDER_FIELDS = [
   'refund_requested_at',
   'refunded_at',
   'refund_error',
+  'last_error',
   'courier_id',
   'delivery_status',
   'estimated_delivery_at',
@@ -61,6 +67,10 @@ const ORDER_FIELDS = [
 
 const ORDER_STATUSES = ['new', 'accepted', 'preparing', 'ready', 'completed', 'cancelled'];
 const CLOSED_STATUSES = ['completed', 'cancelled'];
+const PAYMENT_ISSUES_FILTER =
+  'status.in.(failed,expired),refund_status.in.(failed,unknown),last_error.not.is.null';
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const SAFE_REFUND_RETRY_WINDOW_MS = 23 * 60 * 60 * 1000;
 const STATUS_TRANSITIONS = {
   new: ['accepted', 'preparing', 'ready', 'completed', 'cancelled'],
   accepted: ['preparing', 'ready', 'completed', 'cancelled'],
@@ -74,6 +84,23 @@ const httpError = (statusCode, message) => Object.assign(new Error(message), { s
 
 const refundError = (statusCode, message, code) =>
   Object.assign(new Error(message), { statusCode, code });
+
+const safeUnknownRefundRequestId = (order, now = Date.now()) => {
+  if (order?.refund_status !== 'unknown') return null;
+  const requestId = String(order?.refund_request_id || '');
+  const requestedAt = Date.parse(String(order?.refund_requested_at || ''));
+  const age = Number(now) - requestedAt;
+  if (
+    !UUID_PATTERN.test(requestId) ||
+    !Number.isFinite(requestedAt) ||
+    !Number.isFinite(age) ||
+    age < 0 ||
+    age >= SAFE_REFUND_RETRY_WINDOW_MS
+  ) {
+    return null;
+  }
+  return requestId;
+};
 
 const latestExternalDelivery = (order) =>
   Array.isArray(order?.delivery_jobs)
@@ -136,6 +163,29 @@ const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
         locationUpdatedAt: order.couriers.location_updated_at || null,
       }
     : null;
+  const substitutions = (order.order_substitution_requests || []).map((request) => ({
+    id: String(request.id),
+    orderId: String(order.id),
+    lineKey: request.line_key,
+    productId: request.product_id,
+    productName: request.product_name,
+    quantity: Number(request.quantity || 0),
+    action: request.action,
+    status: request.status,
+    replacementProductId: request.replacement_product_id || null,
+    replacementProductName: request.replacement_product_name || null,
+    note: request.note || null,
+    error: request.error || null,
+    refundId: request.refund_id || null,
+    createdAt: request.created_at,
+    updatedAt: request.updated_at,
+    respondedAt: request.responded_at || null,
+    completedAt: request.completed_at || null,
+  }));
+  const latestSubstitutionUpdate = substitutions.reduce(
+    (latest, request) => (request.updatedAt > latest ? request.updatedAt : latest),
+    '',
+  );
   return {
     id: order.id,
     number: Number(order.order_number),
@@ -143,6 +193,7 @@ const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
       order.status === 'refunded' || order.refund_status === 'succeeded'
         ? 'refunded'
         : order.status,
+    paymentProvider: order.payment_method === 'forte_card' ? 'forte' : 'kaspi',
     orderStatus: normalizedOrderStatus(order),
     amount: Number(order.amount || 0),
     subtotal: Number(order.subtotal ?? order.amount ?? 0),
@@ -150,6 +201,8 @@ const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
     promoCode: order.promo_code || null,
     orderType: order.fulfillment_type || 'pickup',
     fulfillmentType: order.fulfillment_type || 'pickup',
+    preorderFulfillmentType: order.preorder_fulfillment_type || null,
+    effectiveFulfillmentType: effectiveFulfillmentType(order),
     branchId: order.branch_id == null ? null : String(order.branch_id),
     branch: order.branch_name || '',
     scheduledAt: order.scheduled_at || order.pickup_time || null,
@@ -160,11 +213,15 @@ const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
         : null,
     deliveryFee: Number(order.delivery_fee || 0),
     comment: order.comment || null,
+    substitutionPreference: order.substitution_preference || 'call_customer',
+    substitutions,
     items: Array.isArray(order.cart_items) ? order.cart_items : [],
     earnedBonus: Number(order.earned_bonus || 0),
     refundStatus: order.refund_status || null,
     refundAmount: order.refund_amount == null ? null : Number(order.refund_amount),
     refundedAt: order.refunded_at || null,
+    refundError: order.refund_error || null,
+    lastError: order.last_error || null,
     deliveryStatus: order.delivery_status || 'unassigned',
     deliveryConfirmedAt: order.delivery_confirmed_at || null,
     ...(includeDeliveryPin && order.delivery_pin ? { deliveryPin: order.delivery_pin } : {}),
@@ -189,7 +246,10 @@ const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
     cancellationReason: order.cancellation_reason || null,
     receiptUrl: orderReceiptUrl(order),
     createdAt: order.created_at,
-    updatedAt: order.updated_at,
+    updatedAt:
+      latestSubstitutionUpdate > String(order.updated_at || '')
+        ? latestSubstitutionUpdate
+        : order.updated_at,
     ...(order.customers
       ? {
           customer: {
@@ -203,6 +263,8 @@ const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
 
 const DELIVERY_JOB_FIELDS =
   'delivery_jobs(id,provider,provider_status,internal_status,provider_price,currency,tracking_url,courier_name,courier_phone,courier_transport_type,courier_car_model,courier_car_number,courier_car_color,eta_minutes,created_at,updated_at)';
+const SUBSTITUTION_FIELDS =
+  'order_substitution_requests(id,line_key,product_id,product_name,quantity,action,status,replacement_product_id,replacement_product_name,note,error,refund_id,created_at,updated_at,responded_at,completed_at)';
 
 async function listCustomerOrders(customerId, { scope = 'active', page = 1, pageSize = 30 } = {}) {
   const safePage = Math.max(1, Number.parseInt(page, 10) || 1);
@@ -210,7 +272,7 @@ async function listCustomerOrders(customerId, { scope = 'active', page = 1, page
   let query = supabase
     .from('kaspi_orders')
     .select(
-      `${ORDER_FIELDS},payment_receipts(id,language),couriers(id,name,phone,vehicle,current_latitude,current_longitude,location_updated_at),${DELIVERY_JOB_FIELDS}`,
+      `${ORDER_FIELDS},payment_receipts(id,language),couriers(id,name,phone,vehicle,current_latitude,current_longitude,location_updated_at),${DELIVERY_JOB_FIELDS},${SUBSTITUTION_FIELDS}`,
       { count: 'exact' },
     )
     .eq('customer_id', customerId)
@@ -237,9 +299,16 @@ async function listCustomerOrders(customerId, { scope = 'active', page = 1, page
 
 function canMarkCustomerArrived(order) {
   if (!order || order.status !== 'paid') return false;
+  if (isDeliveryFulfillment(order)) return false;
   if (!['pickup', 'preorder'].includes(order.fulfillment_type || 'pickup')) return false;
   const status = order.fulfillment_status === 'pending' ? 'new' : order.fulfillment_status;
   return status === 'ready';
+}
+
+function canCustomerCancelOrder(order) {
+  if (!order || order.status !== 'paid') return false;
+  const status = order.fulfillment_status === 'pending' ? 'new' : order.fulfillment_status;
+  return status === 'new' && !order.refund_status;
 }
 
 async function markCustomerArrived(customerId, orderId) {
@@ -300,11 +369,13 @@ async function listAdminOrders({
   let query = supabase
     .from('kaspi_orders')
     .select(
-      `${ORDER_FIELDS},customers(name,phone),payment_receipts(id,language),couriers(id,name,phone,vehicle,current_latitude,current_longitude,location_updated_at),${DELIVERY_JOB_FIELDS}`,
+      `${ORDER_FIELDS},customers(name,phone),payment_receipts(id,language),couriers(id,name,phone,vehicle,current_latitude,current_longitude,location_updated_at),${DELIVERY_JOB_FIELDS},${SUBSTITUTION_FIELDS}`,
       { count: 'exact' },
     );
 
-  if (
+  if (paymentStatus === 'issues') {
+    query = query.or(PAYMENT_ISSUES_FILTER);
+  } else if (
     paymentStatus &&
     ['pending', 'paid', 'refunded', 'failed', 'expired'].includes(paymentStatus)
   ) {
@@ -344,6 +415,12 @@ async function notifyOrderStatus(order) {
   if (!order.customer_id) return;
   const number = order.order_number;
   const refundAmount = Number(order.refund_amount || order.amount || 0).toLocaleString('ru-RU');
+  const cancellationReason = String(order.cancellation_reason || '').trim();
+  const cancellationReasonByLanguage = {
+    ru: cancellationReason ? ` Причина: ${cancellationReason}.` : '',
+    kk: cancellationReason ? ` Себебі: ${cancellationReason}.` : '',
+    en: cancellationReason ? ` Reason: ${cancellationReason}.` : '',
+  };
   const cancellationSuffix = order.cancellation_reason ? `: ${order.cancellation_reason}` : '.';
   const copiesByLanguage = {
     ru: {
@@ -354,8 +431,10 @@ async function notifyOrderStatus(order) {
       cancelled:
         order.status === 'refunded'
           ? [
-              'Заказ отменён, деньги возвращены',
-              `Возврат ${refundAmount} ₸ по заказу №${number} оформлен.`,
+              'Заказ отменён, возврат отправлен',
+              order.payment_method === 'forte_card'
+                ? `Возврат ${refundAmount} ₸ по заказу №${number} отправлен на карту. Срок зачисления зависит от банка карты.${cancellationReasonByLanguage.ru}`
+                : `Возврат ${refundAmount} ₸ по заказу №${number} оформлен через Kaspi Pay.${cancellationReasonByLanguage.ru}`,
             ]
           : ['Заказ отменён', `Заказ №${number} отменён${cancellationSuffix}`],
     },
@@ -367,8 +446,10 @@ async function notifyOrderStatus(order) {
       cancelled:
         order.status === 'refunded'
           ? [
-              'Тапсырыс тоқтатылды, ақша қайтарылды',
-              `№${number} тапсырыс бойынша ${refundAmount} ₸ қайтару рәсімделді.`,
+              'Тапсырыс тоқтатылды, қайтарым жіберілді',
+              order.payment_method === 'forte_card'
+                ? `№${number} тапсырыс бойынша ${refundAmount} ₸ картаға қайтаруға жіберілді. Түсу мерзімі картаны шығарған банкке байланысты.${cancellationReasonByLanguage.kk}`
+                : `№${number} тапсырыс бойынша ${refundAmount} ₸ Kaspi Pay арқылы қайтарылды.${cancellationReasonByLanguage.kk}`,
             ]
           : ['Тапсырыс тоқтатылды', `№${number} тапсырыс тоқтатылды${cancellationSuffix}`],
     },
@@ -380,8 +461,10 @@ async function notifyOrderStatus(order) {
       cancelled:
         order.status === 'refunded'
           ? [
-              'Order cancelled and refunded',
-              `The ${refundAmount} ₸ refund for order #${number} has been processed.`,
+              'Order cancelled, refund submitted',
+              order.payment_method === 'forte_card'
+                ? `The ${refundAmount} ₸ refund for order #${number} was sent to the card. Posting time depends on the card issuer.${cancellationReasonByLanguage.en}`
+                : `The ${refundAmount} ₸ refund for order #${number} was processed through Kaspi Pay.${cancellationReasonByLanguage.en}`,
             ]
           : ['Order cancelled', `Order #${number} was cancelled${cancellationSuffix}`],
     },
@@ -445,7 +528,7 @@ async function notifyOrderStatus(order) {
         orderId: String(order.id),
         orderNumber: String(order.order_number),
         orderStatus: String(order.fulfillment_status || ''),
-        fulfillmentType: String(order.fulfillment_type || 'pickup'),
+        fulfillmentType: effectiveFulfillmentType(order),
         orderEta: String(order.promised_ready_at || order.estimated_delivery_at || ''),
         deepLink: `${String(process.env.PUBLIC_BASE_URL || 'https://bulka.com.kz').replace(/\/$/, '')}/orders?order=${encodeURIComponent(order.id)}`,
         notificationId: String(saved?.id || ''),
@@ -472,7 +555,15 @@ async function markRefundFailure(order, error) {
     .eq('refund_status', 'processing');
 }
 
-async function cancelPaidOrder(current, cancellationReason) {
+async function cancelPaidOrder(
+  current,
+  cancellationReason,
+  {
+    allowedFulfillmentStatuses = [],
+    cancelBeforeRefund = false,
+    reuseRefundRequestId = false,
+  } = {},
+) {
   const currentStatus =
     current.fulfillment_status === 'pending' ? 'new' : current.fulfillment_status;
   if (current.status === 'refunded' && currentStatus === 'cancelled') {
@@ -488,41 +579,66 @@ async function cancelPaidOrder(current, cancellationReason) {
   if (current.status !== 'paid') {
     throw httpError(409, 'Возврат доступен только для оплаченного заказа');
   }
-  if (current.refund_status === 'processing') {
-    throw refundError(409, 'Возврат по заказу уже выполняется', 'KASPI_REFUND_PROCESSING');
-  }
-  if (current.refund_status === 'unknown') {
+  const allowedStatuses = Array.isArray(allowedFulfillmentStatuses)
+    ? allowedFulfillmentStatuses.map(String).filter(Boolean)
+    : [];
+  if (allowedStatuses.length && !allowedStatuses.includes(String(current.fulfillment_status))) {
     throw refundError(
       409,
-      'Результат предыдущего возврата неизвестен. Проверьте операцию в Kaspi Pay.',
-      'KASPI_REFUND_UNKNOWN',
+      'Отменить заказ самостоятельно можно только до принятия в работу',
+      'CUSTOMER_ORDER_CANCELLATION_CLOSED',
     );
   }
-  if (current.refund_status && !['failed', 'partial'].includes(current.refund_status)) {
-    throw refundError(
-      409,
-      'Текущее состояние возврата не позволяет повтор',
-      'KASPI_REFUND_CONFLICT',
-    );
-  }
-
   const reason = String(cancellationReason || '')
     .trim()
     .slice(0, 500);
+  if (!reason) {
+    throw refundError(
+      400,
+      'Укажите причину отмены — клиент увидит её вместе с сообщением о возврате',
+      'CANCELLATION_REASON_REQUIRED',
+    );
+  }
+  if (current.refund_status === 'processing') {
+    throw refundError(409, 'Возврат по заказу уже выполняется', 'PAYMENT_REFUND_PROCESSING');
+  }
+  const existingRefundRequestId = /^[0-9a-f-]{36}$/i.test(String(current.refund_request_id || ''))
+    ? String(current.refund_request_id)
+    : null;
+  const retryRequestId =
+    safeUnknownRefundRequestId(current) ||
+    (reuseRefundRequestId && current.refund_status === 'failed' ? existingRefundRequestId : null);
+  if (current.refund_status === 'unknown' && !retryRequestId) {
+    throw refundError(
+      409,
+      `Безопасный срок повтора истёк. Проверьте возврат в ${paymentProviderName(current)} и свяжитесь с администратором.`,
+      'PAYMENT_REFUND_UNKNOWN',
+    );
+  }
+  if (current.refund_status && !['failed', 'partial', 'unknown'].includes(current.refund_status)) {
+    throw refundError(
+      409,
+      'Текущее состояние возврата не позволяет повтор',
+      'PAYMENT_REFUND_CONFLICT',
+    );
+  }
+
   const requestedAt = new Date().toISOString();
-  const refundRequestId = crypto.randomUUID();
+  const refundRequestId = retryRequestId || crypto.randomUUID();
   let claim = supabase
     .from('kaspi_orders')
     .update({
       refund_status: 'processing',
-      refund_requested_at: requestedAt,
+      refund_requested_at: retryRequestId ? current.refund_requested_at : requestedAt,
       refund_error: null,
       cancellation_reason: reason || null,
+      ...(cancelBeforeRefund && { fulfillment_status: 'cancelled', fulfilled_at: null }),
       last_error: null,
       refund_request_id: refundRequestId,
     })
     .eq('id', current.id)
     .eq('status', 'paid');
+  if (allowedStatuses.length) claim = claim.in('fulfillment_status', allowedStatuses);
   claim = current.refund_status
     ? claim.eq('refund_status', current.refund_status)
     : claim.is('refund_status', null);
@@ -532,15 +648,42 @@ async function cancelPaidOrder(current, cancellationReason) {
     throw refundError(
       409,
       'Состояние заказа изменилось. Обновите список перед возвратом.',
-      'KASPI_REFUND_CONFLICT',
+      'PAYMENT_REFUND_CONFLICT',
+    );
+  }
+
+  if (cancelBeforeRefund) {
+    await releaseOrderReservations(claimed.id).catch((error) =>
+      console.error('Не удалось освободить резерв отменённого заказа:', error.message),
+    );
+    realtime.publish(
+      'order.updated',
+      {
+        orderId: claimed.id,
+        orderNumber: claimed.order_number,
+        paymentStatus: claimed.status,
+        orderStatus: claimed.fulfillment_status,
+        refundStatus: claimed.refund_status,
+      },
+      {
+        customerId: claimed.customer_id,
+        includeAdmins: true,
+        branchId: claimed.branch_id,
+      },
     );
   }
 
   let refund;
+  let giftRefundPrepared = false;
   try {
+    if (claimed.order_kind === 'gift_certificate') {
+      const { prepareGiftCertificateRefund } = require('./gift-certificate-purchase.service');
+      await prepareGiftCertificateRefund(claimed);
+      giftRefundPrepared = true;
+    }
     const remainingRefund = Number(claimed.amount) - Number(claimed.partially_refunded_amount || 0);
     if (!Number.isFinite(remainingRefund) || remainingRefund <= 0) {
-      throw refundError(409, 'Заказ уже полностью возвращён', 'KASPI_REFUND_CONFLICT');
+      throw refundError(409, 'Заказ уже полностью возвращён', 'PAYMENT_REFUND_CONFLICT');
     }
     refund = await refundPaymentForOrder(claimed, remainingRefund, {
       reason,
@@ -550,6 +693,15 @@ async function cancelPaidOrder(current, cancellationReason) {
     await markRefundFailure(claimed, error).catch((saveError) =>
       console.error('Не удалось сохранить ошибку возврата:', saveError.message),
     );
+    if (giftRefundPrepared && error?.refundUncertain !== true) {
+      const { rollbackGiftCertificateRefund } = require('./gift-certificate-purchase.service');
+      await rollbackGiftCertificateRefund(claimed).catch((rollbackError) =>
+        console.error(
+          'Не удалось восстановить сертификат после отклонённого возврата:',
+          rollbackError.message,
+        ),
+      );
+    }
     throw refundError(
       error.statusCode || 502,
       error.message || `${paymentProviderName(claimed)} не подтвердил возврат`,
@@ -586,6 +738,21 @@ async function cancelPaidOrder(current, cancellationReason) {
     );
   }
 
+  if (giftRefundPrepared) {
+    const { finalizeGiftCertificateRefund } = require('./gift-certificate-purchase.service');
+    await finalizeGiftCertificateRefund(refunded).catch(async (giftError) => {
+      console.error('Не удалось завершить деактивацию сертификата:', giftError.message);
+      await supabase
+        .from('kaspi_orders')
+        .update({
+          last_error: `Возврат выполнен, сертификат ожидает сверки: ${String(
+            giftError.message || '',
+          ).slice(0, 800)}`,
+        })
+        .eq('id', refunded.id);
+    });
+  }
+
   let finalOrder = refunded;
   try {
     finalOrder = await kaspiService.reverseOrderLoyalty(refunded);
@@ -617,6 +784,46 @@ async function cancelPaidOrder(current, cancellationReason) {
     },
   );
   return normalizeOrder(finalOrder);
+}
+
+async function cancelCustomerOrder(customerId, orderId) {
+  const { data: current, error } = await supabase
+    .from('kaspi_orders')
+    .select('*,payment_receipts(id,language)')
+    .eq('id', orderId)
+    .eq('customer_id', customerId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!current) throw httpError(404, 'Заказ не найден');
+  if (
+    current.fulfillment_status === 'cancelled' &&
+    current.cancellation_reason === 'Отменено клиентом'
+  ) {
+    if (
+      current.status === 'refunded' ||
+      ['processing', 'unknown'].includes(current.refund_status)
+    ) {
+      return normalizeOrder(current);
+    }
+    if (current.refund_status === 'failed') {
+      throw refundError(
+        409,
+        'Заказ отменён, но возврат требует проверки. Напишите в поддержку.',
+        'PAYMENT_REFUND_FAILED',
+      );
+    }
+  }
+  if (!canCustomerCancelOrder(current)) {
+    throw refundError(
+      409,
+      'Отменить заказ самостоятельно можно только до принятия в работу',
+      'CUSTOMER_ORDER_CANCELLATION_CLOSED',
+    );
+  }
+  return cancelPaidOrder(current, 'Отменено клиентом', {
+    allowedFulfillmentStatuses: ['pending', 'new'],
+    cancelBeforeRefund: true,
+  });
 }
 
 async function updateAdminOrderStatus(
@@ -654,7 +861,10 @@ async function updateAdminOrderStatus(
   }
   if (current.status !== 'paid') throw httpError(409, 'Статус неоплаченного заказа менять нельзя');
   if (['processing', 'unknown'].includes(current.refund_status)) {
-    throw httpError(409, 'Нельзя изменить заказ, пока проверяется возврат Kaspi');
+    throw httpError(
+      409,
+      `Нельзя изменить заказ, пока проверяется возврат через ${paymentProviderName(current)}`,
+    );
   }
   if (nextStatus === currentStatus) return normalizeOrder(current);
   if (!(STATUS_TRANSITIONS[currentStatus] || []).includes(nextStatus)) {
@@ -670,13 +880,13 @@ async function updateAdminOrderStatus(
     fulfilled_at: nextStatus === 'completed' ? new Date().toISOString() : null,
     last_error: null,
   };
-  const { data, error } = await supabase
+  let updateQuery = supabase
     .from('kaspi_orders')
     .update(updates)
     .eq('id', id)
-    .eq('fulfillment_status', current.fulfillment_status)
-    .select('*')
-    .maybeSingle();
+    .eq('fulfillment_status', current.fulfillment_status);
+  updateQuery = updateQuery.or('refund_status.is.null,refund_status.not.in.(processing,unknown)');
+  const { data, error } = await updateQuery.select('*').maybeSingle();
   if (error) throw error;
   if (!data) throw httpError(409, 'Статус уже изменён. Обновите список.');
   await notifyOrderStatus(data).catch((error) =>
@@ -706,7 +916,11 @@ module.exports = {
   listAdminOrders,
   listCustomerOrders,
   canMarkCustomerArrived,
+  canCustomerCancelOrder,
+  cancelPaidOrder,
   markCustomerArrived,
+  cancelCustomerOrder,
   notifyOrderStatus,
+  safeUnknownRefundRequestId,
   updateAdminOrderStatus,
 };

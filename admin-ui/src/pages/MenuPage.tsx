@@ -38,12 +38,16 @@ import {
   emptyProductOptions,
   emptyTranslations,
   fulfillmentSummary,
+  indexCategoryOverrides,
+  indexProductOverrides,
   menuLanguages,
   normalizeFulfillmentTypes,
   normalizeTranslations,
   optionLanguages,
+  resolveIikoProductPrices,
   resolvedCategoryName,
   resolvedProductName,
+  sanitizeProductOverridePatch,
   type BuilderOptionKey,
   type CategoryOverride,
   type CustomProduct,
@@ -130,11 +134,11 @@ export default function MenuPage({
     allergens: '' as string | string[],
     dietary_tags: '' as string | string[],
     search_keywords: '' as string | string[],
-    weight_grams: undefined as number | undefined,
-    calories_kcal: undefined as number | undefined,
-    protein_grams: undefined as number | undefined,
-    fat_grams: undefined as number | undefined,
-    carbs_grams: undefined as number | undefined,
+    weight_grams: undefined as number | null | undefined,
+    calories_kcal: undefined as number | null | undefined,
+    protein_grams: undefined as number | null | undefined,
+    fat_grams: undefined as number | null | undefined,
+    carbs_grams: undefined as number | null | undefined,
     storage_conditions: [] as ProductStorageCondition[],
     fulfillment_types: [...defaultFulfillmentTypes] as FulfillmentType[],
   });
@@ -173,7 +177,6 @@ export default function MenuPage({
       setCategoryOverrides({});
       setCustomProducts([]);
       setActiveProfileKey(undefined);
-      setProfileStatuses({});
       return;
     }
     setLoading(true);
@@ -182,26 +185,10 @@ export default function MenuPage({
     try {
       const data = await api.getAdminMenu();
       const raw = data.rawMenu || {};
-      // Извлекаем цену из sizePrices
-      const prods = (raw.products || []).map((p: IikoProduct) => ({
-        ...p,
-        price: p.price || (p.sizePrices?.[0]?.price?.currentPrice ?? 0),
-      }));
-      setRawProducts(prods);
+      setRawProducts(resolveIikoProductPrices(raw.products));
       setRawGroups(raw.groups || []);
-
-      const pMap: Record<string, ProductOverride> = {};
-      (data.overrides?.products || []).forEach((o: ProductOverride) => {
-        pMap[o.iiko_product_id] = o;
-      });
-      setProductOverrides(pMap);
-
-      const cMap: Record<string, CategoryOverride> = {};
-      (data.overrides?.categories || []).forEach((o: CategoryOverride) => {
-        cMap[o.iiko_category_id] = o;
-      });
-      setCategoryOverrides(cMap);
-
+      setProductOverrides(indexProductOverrides(data.overrides?.products));
+      setCategoryOverrides(indexCategoryOverrides(data.overrides?.categories));
       setCustomProducts(data.overrides?.customProducts || []);
       setActiveProfileKey(data.profileKey);
       setProfileStatuses(data.profiles || {});
@@ -250,7 +237,6 @@ export default function MenuPage({
     }
   };
 
-  // Загрузка фото для блюда iiko
   const handleUploadPhoto = async (productId: string, file: File) => {
     setUploadingId(productId);
     try {
@@ -269,7 +255,6 @@ export default function MenuPage({
     }
   };
 
-  // Загрузка фото для категории
   const handleUploadCategoryPhoto = async (categoryId: string, file: File) => {
     setUploadingId(categoryId);
     try {
@@ -288,7 +273,6 @@ export default function MenuPage({
     }
   };
 
-  // Переключение видимости товара
   const handleToggleProductHidden = async (productId: string, curHidden?: boolean) => {
     const cur = productOverrides[productId] || { iiko_product_id: productId };
     const updated = { ...cur, is_hidden: !curHidden };
@@ -301,7 +285,6 @@ export default function MenuPage({
     }
   };
 
-  // Переключение стоп-листа вручную
   const handleToggleStopList = async (productId: string, curStop?: boolean) => {
     const cur = productOverrides[productId] || { iiko_product_id: productId };
     const updated = { ...cur, is_stop_listed: !curStop };
@@ -314,7 +297,6 @@ export default function MenuPage({
     }
   };
 
-  // Переключение видимости категории
   const handleToggleCategoryHidden = async (categoryId: string, curHidden?: boolean) => {
     const cur = categoryOverrides[categoryId] || { iiko_category_id: categoryId };
     const updated = { ...cur, is_hidden: !curHidden };
@@ -374,7 +356,6 @@ export default function MenuPage({
     }
   };
 
-  // Сохранение кастомного блюда
   const handleSaveCustom = async (e: FormEvent) => {
     e.preventDefault();
     if (!customForm.name || !customForm.price) return;
@@ -395,8 +376,6 @@ export default function MenuPage({
     }
   };
 
-  // Открытие модалки редактирования товара iiko
-  // Открытие модалки редактирования товара iiko
   const openEditModal = (product: IikoProduct) => {
     const override = productOverrides[product.id];
     setEditingProduct(product);
@@ -423,7 +402,6 @@ export default function MenuPage({
     setEditModalOpen(true);
   };
 
-  // Сохранение изменений товара iiko
   const handleSaveProductEdit = async (e: FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
@@ -441,11 +419,11 @@ export default function MenuPage({
         custom_price: editForm.price !== (editingProduct.price || 0) ? editForm.price : undefined,
         custom_description:
           editForm.description !== (editingProduct.description || '')
-            ? editForm.description
-            : undefined,
+            ? editForm.description.trim() || null
+            : null,
         description_translations: editForm.description_translations,
         custom_image_url: editForm.imageUrl || cur.custom_image_url || undefined,
-        ingredients: editForm.ingredients || undefined,
+        ingredients: editForm.ingredients.trim() || null,
         ingredients_translations: editForm.ingredients_translations,
         allergens: editForm.allergens,
         dietary_tags: editForm.dietary_tags,
@@ -458,7 +436,7 @@ export default function MenuPage({
         storage_conditions: editForm.storage_conditions,
         fulfillment_types: editForm.fulfillment_types,
       };
-      await api.setProductOverride(editingProduct.id, updated);
+      await api.setProductOverride(editingProduct.id, sanitizeProductOverridePatch(updated));
       setProductOverrides((prev) => ({ ...prev, [editingProduct.id]: updated }));
       toast('Изменения сохранены', 'success');
       setEditModalOpen(false);
@@ -502,7 +480,6 @@ export default function MenuPage({
     }
   };
 
-  // Удаление кастомного блюда
   const handleDeleteCustom = async (id: string) => {
     if (
       !(await confirm({
@@ -869,19 +846,26 @@ export default function MenuPage({
           aria-labelledby="menu-tab-products"
           className="space-y-4"
         >
-          {/* Фильтры */}
           <div className="flex flex-col sm:flex-row gap-4 bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
             <div className="relative flex-1">
+              <label className="sr-only" htmlFor="menu-product-search">
+                Поиск блюда по названию
+              </label>
               <Search
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
                 size={18}
+                aria-hidden="true"
               />
               <input
-                type="text"
+                id="menu-product-search"
+                name="menuProductSearch"
+                type="search"
                 placeholder="Поиск блюда по названию…"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-gray-50 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm"
+                autoComplete="off"
+                spellCheck="false"
+                className="w-full pl-10 pr-4 py-2 bg-gray-50 rounded-xl border border-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 text-sm"
               />
             </div>
             <SelectControl
@@ -1257,10 +1241,25 @@ export default function MenuPage({
                           type="button"
                           onClick={() => {
                             setCustomForm({
-                              ...cp,
+                              id: cp.id,
+                              name: cp.name,
+                              description: cp.description || '',
+                              price: Number(cp.price || 0),
+                              category_name: cp.category_name,
+                              image_url: cp.image_url || '',
+                              is_available: cp.is_available !== false,
+                              sort_order: cp.sort_order,
+                              preparation_minutes: cp.preparation_minutes,
+                              ingredients: cp.ingredients || '',
+                              ingredients_translations: cp.ingredients_translations,
                               allergens: cp.allergens || [],
                               dietary_tags: cp.dietary_tags || [],
                               search_keywords: cp.search_keywords || [],
+                              weight_grams: cp.weight_grams,
+                              calories_kcal: cp.calories_kcal,
+                              protein_grams: cp.protein_grams,
+                              fat_grams: cp.fat_grams,
+                              carbs_grams: cp.carbs_grams,
                               storage_conditions: cp.storage_conditions || [],
                               fulfillment_types: normalizeFulfillmentTypes(cp.fulfillment_types),
                             });

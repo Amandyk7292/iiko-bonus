@@ -28,6 +28,10 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
   Timer? _clock;
   bool _refreshing = false;
   bool _arrivalLoading = false;
+  bool _cancellationLoading = false;
+  PickupHandoff? _pickupHandoff;
+  Object? _pickupHandoffError;
+  bool _pickupHandoffLoading = false;
   DateTime _now = DateTime.now();
 
   @override
@@ -47,6 +51,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
     _clock = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) setState(() => _now = DateTime.now());
     });
+    unawaited(_loadPickupHandoff());
   }
 
   @override
@@ -79,11 +84,52 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
           _now = DateTime.now();
         });
         widget.onOrderChanged(updated);
+        unawaited(_loadPickupHandoff(silent: true));
       }
     } catch (_) {
       // Keep the last realtime snapshot visible while the connection recovers.
     } finally {
       _refreshing = false;
+    }
+  }
+
+  bool get _canHavePickupHandoff =>
+      !_order.usesDelivery &&
+      _order.paymentStatus == 'paid' &&
+      !_order.isClosed;
+
+  Future<void> _loadPickupHandoff({bool silent = false}) async {
+    if (!_canHavePickupHandoff) {
+      if (mounted && (_pickupHandoff != null || _pickupHandoffError != null)) {
+        setState(() {
+          _pickupHandoff = null;
+          _pickupHandoffError = null;
+          _pickupHandoffLoading = false;
+        });
+      }
+      return;
+    }
+    if (_pickupHandoffLoading) return;
+    if (mounted && !silent) {
+      setState(() {
+        _pickupHandoffLoading = true;
+        _pickupHandoffError = null;
+      });
+    } else {
+      _pickupHandoffLoading = true;
+    }
+    try {
+      final handoff = await widget.api.getPickupHandoff(_order.id);
+      if (mounted) {
+        setState(() {
+          _pickupHandoff = handoff;
+          _pickupHandoffError = null;
+        });
+      }
+    } catch (error) {
+      if (mounted) setState(() => _pickupHandoffError = error);
+    } finally {
+      if (mounted) setState(() => _pickupHandoffLoading = false);
     }
   }
 
@@ -171,9 +217,57 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
     }
   }
 
+  Future<void> _cancelOrder() async {
+    if (_cancellationLoading || !_order.canCancel) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('order_cancel_title'.tr),
+        content: Text('order_cancel_body'.tr),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text('cancel_btn'.tr),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: FilledButton.styleFrom(backgroundColor: _errorRed),
+            child: Text('order_cancel_confirm'.tr),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _cancellationLoading = true);
+    try {
+      final updated = await widget.api.cancelCustomerOrder(_order.id);
+      if (!mounted) return;
+      setState(() => _order = updated);
+      widget.onOrderChanged(updated);
+      await BulkaMotion.confirm();
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('order_cancel_success'.tr)));
+      }
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            localizeErrorMessage(error, fallbackKey: 'order_cancel_error'),
+          ),
+        ),
+      );
+      await _reload();
+    } finally {
+      if (mounted) setState(() => _cancellationLoading = false);
+    }
+  }
+
   bool get _canReportArrival =>
       _order.paymentStatus == 'paid' &&
-      const {'pickup', 'preorder'}.contains(_order.fulfillmentType) &&
+      !_order.usesDelivery &&
       _order.orderStatus == 'ready';
 
   String _formatDateTime(DateTime value) {
@@ -331,6 +425,16 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
             ),
             const SizedBox(height: 16),
             _OrderTimeline(order: _order),
+            if (_canHavePickupHandoff &&
+                (_order.orderStatus == 'ready' || _pickupHandoff != null)) ...[
+              const SizedBox(height: 16),
+              _buildPickupHandoff(),
+            ],
+            if (_order.refundStatus?.isNotEmpty == true ||
+                _order.paymentStatus == 'refunded') ...[
+              const SizedBox(height: 16),
+              _RefundProgressCard(order: _order),
+            ],
             if (_order.trackingUrl?.isNotEmpty == true) ...[
               const SizedBox(height: 16),
               SizedBox(
@@ -489,6 +593,24 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
               ),
               const SizedBox(height: 10),
             ],
+            if (_order.canCancel) ...[
+              OutlinedButton.icon(
+                onPressed: _cancellationLoading ? null : _cancelOrder,
+                icon: _cancellationLoading
+                    ? const SizedBox.square(
+                        dimension: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.cancel_outlined),
+                label: Text('order_cancel_action'.tr),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(52),
+                  foregroundColor: _errorRed,
+                  side: const BorderSide(color: _errorRed),
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
             OutlinedButton.icon(
               onPressed: () => Navigator.of(context).push<void>(
                 MaterialPageRoute(
@@ -532,6 +654,101 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildPickupHandoff() {
+    final handoff = _pickupHandoff;
+    if (_pickupHandoffLoading && handoff == null) {
+      return _OrderSection(
+        title: 'pickup_handoff_title'.tr,
+        child: const Center(
+          child: SizedBox.square(
+            dimension: 28,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+    if (handoff == null) {
+      return _OrderSection(
+        title: 'pickup_handoff_title'.tr,
+        child: Column(
+          children: [
+            Text('pickup_handoff_load_error'.tr, textAlign: TextAlign.center),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: _pickupHandoffLoading ? null : _loadPickupHandoff,
+              icon: const Icon(Icons.refresh_rounded),
+              label: Text('retry_btn'.tr),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    if (handoff.isUsed || handoff.isExpired) {
+      return _OrderNotice(
+        icon: handoff.isUsed
+            ? Icons.check_circle_rounded
+            : Icons.schedule_rounded,
+        text: handoff.isUsed
+            ? 'pickup_handoff_used'.tr
+            : 'pickup_handoff_expired'.tr,
+        color: handoff.isUsed
+            ? context.bulkaColors.success
+            : context.bulkaColors.warning,
+      );
+    }
+    final pinLabel = 'pickup_handoff_pin'.trArgs({'pin': handoff.pin});
+    return _OrderSection(
+      title: 'pickup_handoff_title'.tr,
+      child: Column(
+        children: [
+          Text('pickup_handoff_hint'.tr, textAlign: TextAlign.center),
+          const SizedBox(height: 14),
+          Semantics(
+            image: true,
+            label: '${'pickup_handoff_title'.tr}. $pinLabel',
+            excludeSemantics: true,
+            child: Center(
+              child: QrImageView(
+                data: handoff.qrPayload,
+                size: 190,
+                backgroundColor: Colors.white,
+                errorCorrectionLevel: QrErrorCorrectLevel.H,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Semantics(
+            label: pinLabel,
+            child: SelectableText(
+              handoff.pin,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFamily: _headingFont,
+                fontSize: BulkaTypeScale.display,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 8,
+                fontFeatures: [FontFeature.tabularFigures()],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'pickup_handoff_expires'.trArgs({
+              'time': formatUiDateTime(context, handoff.expiresAt.toLocal()),
+            }),
+            style: TextStyle(
+              color: context.bulkaColors.mutedText,
+              fontSize: BulkaTypeScale.caption,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -625,7 +842,7 @@ class _OrderTimeline extends StatelessWidget {
     (key: 'accepted', icon: Icons.thumb_up_alt_rounded),
     (key: 'preparing', icon: Icons.bakery_dining_rounded),
     (key: 'ready', icon: Icons.inventory_2_rounded),
-    if (order.fulfillmentType == 'delivery')
+    if (order.usesDelivery)
       (key: 'en_route', icon: Icons.delivery_dining_rounded),
     (key: 'completed', icon: Icons.check_circle_rounded),
   ];
@@ -639,7 +856,7 @@ class _OrderTimeline extends StatelessWidget {
       'completed' => _steps.length - 1,
       _ => 0,
     };
-    if (order.fulfillmentType == 'delivery') {
+    if (order.usesDelivery) {
       if (const {'picked_up', 'en_route'}.contains(order.deliveryStatus)) {
         return _steps.length - 2;
       }

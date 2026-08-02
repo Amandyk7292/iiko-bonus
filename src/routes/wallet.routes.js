@@ -3,6 +3,12 @@ const router = express.Router();
 const walletController = require('../controllers/wallet.controller');
 const { walletRateLimit } = require('../middlewares/rate-limit.middleware');
 const { customerAuthMiddleware } = require('../middlewares/customer-auth.middleware');
+const { emptyBodySchema, validateRequest } = require('../middlewares/validation.middleware');
+const {
+  appleWalletLogBodySchema,
+  appleWalletRegistrationBodySchema,
+  appleWalletRegistrationParamsSchema,
+} = require('../contracts/wallet.contract');
 const asyncHandler = (handler) => (req, res, next) =>
   Promise.resolve(handler(req, res, next)).catch(next);
 
@@ -11,6 +17,7 @@ router.post(
   '/api/wallet/token',
   walletRateLimit,
   customerAuthMiddleware,
+  validateRequest({ body: emptyBodySchema }),
   asyncHandler(walletController.createToken),
 );
 
@@ -35,11 +42,16 @@ router.get(
 router.post(
   '/api/wallet/v1/devices/:deviceLibraryIdentifier/registrations/:passTypeIdentifier/:serialNumber',
   walletRateLimit,
+  validateRequest({
+    params: appleWalletRegistrationParamsSchema,
+    body: appleWalletRegistrationBodySchema,
+  }),
   asyncHandler(walletController.handleAppleWalletWebService),
 );
 router.delete(
   '/api/wallet/v1/devices/:deviceLibraryIdentifier/registrations/:passTypeIdentifier/:serialNumber',
   walletRateLimit,
+  validateRequest({ params: appleWalletRegistrationParamsSchema }),
   asyncHandler(walletController.handleAppleWalletWebService),
 );
 router.get(
@@ -55,6 +67,7 @@ router.get(
 router.post(
   '/api/wallet/v1/log',
   walletRateLimit,
+  validateRequest({ body: appleWalletLogBodySchema }),
   asyncHandler(walletController.logAppleWalletError),
 );
 

@@ -11,6 +11,7 @@ class MainShell extends StatefulWidget {
     this.initialTab = 0,
     this.onTabChanged,
     this.onOpenOrders,
+    this.onOpenOrder,
     super.key,
   });
 
@@ -23,6 +24,7 @@ class MainShell extends StatefulWidget {
   final int initialTab;
   final ValueChanged<int>? onTabChanged;
   final Future<void> Function()? onOpenOrders;
+  final Future<void> Function(String? orderId)? onOpenOrder;
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -188,6 +190,7 @@ class _MainShellState extends State<MainShell> {
         onRequireAuth: _requireAuth,
         onOpenCatalog: _openCatalogFor,
         onOpenNotificationTab: _changeTab,
+        onOpenOrders: widget.onOpenOrder,
       ),
       CatalogScreen(
         key: _catalogKey,
@@ -196,6 +199,7 @@ class _MainShellState extends State<MainShell> {
         hasSelectedOrderType: _hasCatalogOrderType,
         selectionRevision: _catalogSelectionRevision,
         onRequestOrderType: () => _changeTab(0),
+        onRequireAuth: _requireAuth,
         initialClientUri: clientRouteNotifier.value,
       ),
       OrdersScreen(
@@ -205,6 +209,7 @@ class _MainShellState extends State<MainShell> {
         transactions: widget.transactions,
         onExplore: () => _changeTab(1),
         onRequireAuth: _requireAuth,
+        onOpenOrders: widget.onOpenOrders,
       ),
       PromosScreen(key: const PageStorageKey('promos-tab'), api: widget.api),
       if (customer == null)
@@ -754,18 +759,16 @@ class _GuestProfileScreen extends StatelessWidget {
           children: [
             Text(
               'guest_profile_title'.tr,
-              key: const ValueKey('guest-profile-title'),
               style: const TextStyle(
                 fontFamily: _headingFont,
                 fontSize: BulkaTypeScale.pageTitle,
-                fontWeight: FontWeight.w400,
+                fontWeight: FontWeight.w700,
               ),
             ),
             const SizedBox(height: 20),
             Semantics(
               container: true,
-              label:
-                  '${'guest_profile_heading'.tr}. ${'guest_profile_body'.tr}',
+              explicitChildNodes: true,
               child: Container(
                 padding: const EdgeInsets.all(22),
                 decoration: BoxDecoration(
@@ -782,10 +785,12 @@ class _GuestProfileScreen extends StatelessWidget {
                         color: colors.brandGold.withValues(alpha: 0.18),
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(
-                        Icons.person_outline_rounded,
-                        size: 38,
-                        color: colors.brandBrown,
+                      child: ExcludeSemantics(
+                        child: Icon(
+                          Icons.person_outline_rounded,
+                          size: 38,
+                          color: colors.brandBrown,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 16),

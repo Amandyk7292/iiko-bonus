@@ -5,6 +5,12 @@ const _apiBaseUrl = String.fromEnvironment(
   defaultValue: 'https://bulka.com.kz',
 );
 
+@visibleForTesting
+const bulkaPublicOfferVersion = '2026-07-27';
+
+@visibleForTesting
+const bulkaPrivacyPolicyVersion = '2026-07-27';
+
 String preferredWalletPath(Map<String, dynamic> json, TargetPlatform platform) {
   if (platform == TargetPlatform.iOS) return _asString(json['appleUrl']);
   if (platform == TargetPlatform.android) return _asString(json['googleUrl']);
@@ -22,6 +28,7 @@ class BulkaApiClient {
        _onSessionChanged = onSessionChanged;
 
   final http.Client _client;
+  final String _analyticsSessionId = _newAnalyticsId();
   Future<void> Function(String? accessToken, String? refreshToken)?
   _onSessionChanged;
   String? _accessToken;
@@ -91,6 +98,7 @@ class BulkaApiClient {
       if (json) 'Content-Type': 'application/json',
       if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
       'Accept-Language': AppLang.current,
+      'X-Bulka-Session': _analyticsSessionId,
       if (kIsWeb) 'X-Bulka-Session-Transport': 'cookie',
     };
   }
@@ -121,6 +129,15 @@ class BulkaApiClient {
       return Tier.fromJson(json);
     }
     return null;
+  }
+
+  Future<BonusExpirySummary> getBonusExpiry({int days = 30}) async {
+    final json = await _get('/api/customer/bonus-expiry?days=$days');
+    final summary = _asMap(json['summary']);
+    if (json['success'] != true || summary.isEmpty) {
+      throw ApiException(_messageFrom(json, 'bonus_expiry_load_error'.tr));
+    }
+    return BonusExpirySummary.fromJson(summary);
   }
 
   Future<List<City>> getCities() async {
@@ -237,6 +254,14 @@ class BulkaApiClient {
       'gender': gender,
       'birthdate': birthdate,
       'email': email,
+      'acceptedLegal': true,
+      'legalConsent': {
+        'offerVersion': bulkaPublicOfferVersion,
+        'privacyVersion': bulkaPrivacyPolicyVersion,
+        'locale': AppLang.current,
+        'channel': kIsWeb ? 'web' : 'mobile_app',
+        'acceptedAt': DateTime.now().toUtc().toIso8601String(),
+      },
     }, bearerToken: registrationToken);
     final response = ProfileResponse.fromJson(json);
     if (!response.success) {
@@ -255,6 +280,7 @@ class BulkaApiClient {
     String? birthDate,
     String? email,
     String? region,
+    String? avatarKey,
   }) async {
     final json = await _put('/api/customer/profile', {
       'name': ?name,
@@ -263,10 +289,22 @@ class BulkaApiClient {
       'birth_date': ?birthDate,
       'email': ?email,
       'region': ?region,
+      'avatar_key': ?avatarKey,
     });
     if (json['success'] != true) {
       throw ApiException(_messageFrom(json, 'error_save'.tr));
     }
+  }
+
+  Future<AppReleasePolicy> getAppReleasePolicy(String platform) async {
+    final normalized = platform.toLowerCase();
+    final json = await _get(
+      '/api/public/app-release?platform=${Uri.encodeQueryComponent(normalized)}',
+    );
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'error_network'.tr));
+    }
+    return AppReleasePolicy.fromJson(json);
   }
 
   Future<void> deleteAccount(String phone) async {
@@ -420,6 +458,7 @@ class BulkaApiClient {
     String? additionalPhone,
     String? promoCode,
     String? comment,
+    String substitutionPreference = 'call_customer',
   }) async {
     final json = await _post('/api/customer/kaspi-pay/create', {
       'items': cartItems,
@@ -434,6 +473,7 @@ class BulkaApiClient {
       'additionalPhone': additionalPhone,
       'promoCode': promoCode,
       'comment': comment,
+      'substitutionPreference': substitutionPreference,
     });
     if (json['success'] != true) {
       throw ApiException(_messageFrom(json, 'error_kaspi_payment'.tr));
@@ -497,6 +537,7 @@ class BulkaApiClient {
     String? additionalPhone,
     String? promoCode,
     String? comment,
+    String substitutionPreference = 'call_customer',
   }) async {
     final json = await _post('/api/customer/forte-pay/create', {
       'items': cartItems,
@@ -512,10 +553,15 @@ class BulkaApiClient {
       'additionalPhone': additionalPhone,
       'promoCode': promoCode,
       'comment': comment,
+      'substitutionPreference': substitutionPreference,
       'language': AppLang.current,
     });
     if (json['success'] != true) {
-      throw ApiException(_messageFrom(json, 'error_forte_payment'.tr));
+      throw ApiException(
+        _messageFrom(json, 'error_forte_payment'.tr),
+        code: _nullableString(json['code']),
+        requestId: _requestIdFrom(json),
+      );
     }
     return json;
   }
@@ -565,7 +611,11 @@ class BulkaApiClient {
       '/api/customer/forte-pay/card-setup/${Uri.encodeComponent(operationId)}',
     );
     if (json['success'] != true) {
-      throw ApiException(_messageFrom(json, 'payment_methods_add_error'.tr));
+      throw ApiException(
+        _messageFrom(json, 'payment_methods_add_error'.tr),
+        code: _nullableString(json['code']),
+        requestId: _requestIdFrom(json),
+      );
     }
     return json;
   }
@@ -597,7 +647,11 @@ class BulkaApiClient {
       '/api/customer/forte-pay/status/${Uri.encodeComponent(operationId)}',
     );
     if (json['success'] != true) {
-      throw ApiException(_messageFrom(json, 'error_forte_status'.tr));
+      throw ApiException(
+        _messageFrom(json, 'error_forte_status'.tr),
+        code: _nullableString(json['code']),
+        requestId: _requestIdFrom(json),
+      );
     }
     return json;
   }
@@ -637,9 +691,16 @@ class BulkaApiClient {
     return const [];
   }
 
-  Future<List<Map<String, dynamic>>> searchDeliveryAddress(String query) async {
+  Future<List<Map<String, dynamic>>> searchDeliveryAddress(
+    String query, {
+    String? city,
+  }) async {
+    final normalizedCity = city?.trim() ?? '';
+    final cityParameter = normalizedCity.isEmpty
+        ? ''
+        : '&city=${Uri.encodeQueryComponent(normalizedCity)}';
     final uri =
-        '/api/public/geocode/search?q=${Uri.encodeQueryComponent(query)}';
+        '/api/public/geocode/search?q=${Uri.encodeQueryComponent(query)}$cityParameter';
     final json = await _get(uri);
     final results = json['results'];
     if (json['success'] != true || results is! List) return const [];
@@ -740,11 +801,81 @@ class BulkaApiClient {
     return CustomerOrder.fromJson(order);
   }
 
+  Future<CustomerOrder> cancelCustomerOrder(String orderId) async {
+    final json = await _post(
+      '/api/customer/orders/${Uri.encodeComponent(orderId)}/cancel',
+      const {},
+    );
+    final order = _asMap(json['order']);
+    if (json['success'] != true || order.isEmpty) {
+      throw ApiException(
+        _messageFrom(json, 'order_cancel_error'.tr),
+        code: _asString(json['code']),
+      );
+    }
+    return CustomerOrder.fromJson(order);
+  }
+
+  Future<PickupHandoff> getPickupHandoff(String orderId) async {
+    final json = await _get(
+      '/api/customer/orders/${Uri.encodeComponent(orderId)}/pickup-handoff',
+    );
+    final handoff = _asMap(json['handoff']);
+    if (json['success'] != true || handoff.isEmpty) {
+      throw ApiException(_messageFrom(json, 'pickup_handoff_load_error'.tr));
+    }
+    return PickupHandoff.fromJson(handoff);
+  }
+
+  Future<OrderSubstitution> respondToOrderSubstitution({
+    required String orderId,
+    required String requestId,
+    required bool approved,
+  }) async {
+    final json = await _post(
+      '/api/customer/orders/${Uri.encodeComponent(orderId)}/substitutions/'
+      '${Uri.encodeComponent(requestId)}/respond',
+      {'approved': approved},
+    );
+    final substitution = _asMap(json['substitution']);
+    if (json['success'] != true || substitution.isEmpty) {
+      throw ApiException(
+        _messageFrom(json, 'substitution_response_error'.tr),
+        code: _asString(json['code']),
+      );
+    }
+    return OrderSubstitution.fromJson(substitution);
+  }
+
   Future<Map<String, dynamic>> getProductOptions(String productId) async {
     final json = await _get(
       '/api/public/product-options?ids=${Uri.encodeQueryComponent(productId)}',
     );
     return _asMap(_asMap(json['products'])[productId]);
+  }
+
+  Future<Map<String, Map<String, dynamic>>> getProductOptionsBatch(
+    Iterable<String> productIds,
+  ) async {
+    final ids = productIds
+        .map((value) => value.trim())
+        .where((value) => value.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    final result = <String, Map<String, dynamic>>{};
+    for (var offset = 0; offset < ids.length; offset += 40) {
+      final end = min(offset + 40, ids.length);
+      final batch = ids.sublist(offset, end);
+      final json = await _get(
+        '/api/public/product-options'
+        '?ids=${Uri.encodeQueryComponent(batch.join(','))}',
+      );
+      final products = _asMap(json['products']);
+      for (final id in batch) {
+        result[id] = _asMap(products[id]);
+      }
+    }
+    return result;
   }
 
   Future<Set<String>> getFavorites() async {
@@ -764,6 +895,47 @@ class BulkaApiClient {
     });
     if (json['success'] != true) {
       throw ApiException(_messageFrom(json, 'error_save'.tr));
+    }
+  }
+
+  Future<List<StockSubscription>> getStockSubscriptions() async {
+    final json = await _get('/api/customer/stock-subscriptions');
+    final values = json['subscriptions'];
+    if (json['success'] != true || values is! List) {
+      throw ApiException(_messageFrom(json, 'stock_notify_load_error'.tr));
+    }
+    return values
+        .map((value) => StockSubscription.fromJson(_asMap(value)))
+        .where(
+          (value) =>
+              value.id.isNotEmpty &&
+              value.productId.isNotEmpty &&
+              value.branchId.isNotEmpty,
+        )
+        .toList(growable: false);
+  }
+
+  Future<StockSubscription> createStockSubscription({
+    required String productId,
+    required String branchId,
+  }) async {
+    final json = await _post('/api/customer/stock-subscriptions', {
+      'productId': productId,
+      'branchId': branchId,
+    });
+    final value = _asMap(json['subscription']);
+    if (json['success'] != true || value.isEmpty) {
+      throw ApiException(_messageFrom(json, 'stock_notify_save_error'.tr));
+    }
+    return StockSubscription.fromJson(value);
+  }
+
+  Future<void> deleteStockSubscription(String id) async {
+    final json = await _delete(
+      '/api/customer/stock-subscriptions/${Uri.encodeComponent(id)}',
+    );
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'stock_notify_save_error'.tr));
     }
   }
 
@@ -958,6 +1130,73 @@ class BulkaApiClient {
     return (json['amount'] as num?)?.round() ?? 0;
   }
 
+  Future<Map<String, dynamic>> createGiftCertificatePurchase({
+    required String requestId,
+    required int amount,
+    required String recipientPhone,
+    String? recipientName,
+    String? message,
+    DateTime? deliveryAt,
+    required String paymentMethod,
+  }) async {
+    final json = await _post('/api/customer/gift-certificate-purchases', {
+      'requestId': requestId,
+      'amount': amount,
+      'recipient': {
+        'phone': recipientPhone,
+        if (recipientName?.trim().isNotEmpty == true)
+          'name': recipientName!.trim(),
+        if (message?.trim().isNotEmpty == true) 'message': message!.trim(),
+      },
+      if (deliveryAt != null)
+        'deliveryAt': deliveryAt.toUtc().toIso8601String(),
+      'paymentMethod': paymentMethod,
+      'locale': AppLang.current,
+    });
+    final purchase = _asMap(json['purchase']);
+    final payment = _asMap(json['payment']);
+    final purchaseStatus = _asString(purchase['status']).trim().toLowerCase();
+    if (json['success'] != true ||
+        purchase.isEmpty ||
+        (payment.isEmpty && purchaseStatus != 'active')) {
+      throw ApiException(_messageFrom(json, 'gift_purchase_error'.tr));
+    }
+    return {'purchase': purchase, 'payment': payment};
+  }
+
+  Future<List<Map<String, dynamic>>> getGiftCertificatePurchases() async {
+    final json = await _get('/api/customer/gift-certificate-purchases');
+    if (json['success'] != true || json['purchases'] is! List) {
+      throw ApiException(_messageFrom(json, 'gift_purchase_error'.tr));
+    }
+    return (json['purchases'] as List)
+        .map(_asMap)
+        .where((purchase) => purchase.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  Future<Map<String, dynamic>> getGiftCertificatePurchase(String id) async {
+    final json = await _get(
+      '/api/customer/gift-certificate-purchases/${Uri.encodeComponent(id)}',
+    );
+    final purchase = _asMap(json['purchase']);
+    if (json['success'] != true || purchase.isEmpty) {
+      throw ApiException(_messageFrom(json, 'gift_purchase_error'.tr));
+    }
+    return purchase;
+  }
+
+  Future<List<Map<String, dynamic>>> getReceivedGiftCards() async {
+    final json = await _get('/api/customer/gift-cards');
+    if (json['success'] != true || json['cards'] is! List) {
+      throw ApiException(_messageFrom(json, 'gift_purchase_error'.tr));
+    }
+    return (json['cards'] as List)
+        .map(_asMap)
+        .where((card) => card.isNotEmpty)
+        .toList(growable: false);
+  }
+
   Future<Map<String, dynamic>> exportPersonalData() async {
     final json = await _get('/api/customer/profile/export');
     if (json['success'] != true || json['export'] is! Map) {
@@ -1050,6 +1289,7 @@ class BulkaApiClient {
     unawaited(
       recordAnalyticsEvents([
         {
+          'eventId': _newAnalyticsId(),
           'type': type,
           'occurredAt': DateTime.now().toUtc().toIso8601String(),
           if (productId?.isNotEmpty == true) 'productId': productId,
@@ -1060,6 +1300,18 @@ class BulkaApiClient {
         },
       ]).catchError((_) {}),
     );
+  }
+
+  static String _newAnalyticsId() {
+    final random = Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    final hex = bytes
+        .map((value) => value.toRadixString(16).padLeft(2, '0'))
+        .join();
+    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
+        '${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
   }
 
   Future<void> logoutSession() async {
@@ -1361,23 +1613,57 @@ class BulkaApiClient {
     final text = utf8.decode(response.bodyBytes);
     final decoded = text.isEmpty ? <String, dynamic>{} : jsonDecode(text);
     final json = _asMap(decoded);
+    final responseRequestId =
+        _requestIdFrom(json) ??
+        _nullableString(
+          response.headers['x-request-id'] ?? response.headers['request-id'],
+        );
     if (response.statusCode >= 400) {
       throw ApiException(
         _messageFrom(json, 'error_network'.tr),
         statusCode: response.statusCode,
         code: _nullableString(json['code']),
+        requestId: responseRequestId,
       );
+    }
+    if (responseRequestId != null && !json.containsKey('_requestId')) {
+      json['_requestId'] = responseRequestId;
     }
     return json;
   }
 }
 
+String? _requestIdFrom(Map<String, dynamic> json) {
+  final nested = _asMap(json['error']);
+  final value = _nullableString(
+    json['requestId'] ??
+        json['request_id'] ??
+        json['_requestId'] ??
+        nested['requestId'] ??
+        nested['request_id'],
+  );
+  if (value == null ||
+      value.length > 160 ||
+      !RegExp(r'^[A-Za-z0-9._:-]+$').hasMatch(value)) {
+    return null;
+  }
+  return value;
+}
+
 class ApiException implements Exception {
-  ApiException(this.message, {this.statusCode, this.code});
+  ApiException(this.message, {this.statusCode, this.code, this.requestId});
 
   final String message;
   final int? statusCode;
   final String? code;
+  final String? requestId;
+
+  String? get supportCode {
+    final raw = requestId?.replaceAll(RegExp(r'[^A-Za-z0-9]'), '');
+    if (raw == null || raw.isEmpty) return null;
+    final short = raw.length <= 10 ? raw : raw.substring(raw.length - 10);
+    return short.toUpperCase();
+  }
 
   @override
   String toString() => message;

@@ -35,7 +35,15 @@ test('request context accepts only bounded request IDs and always returns one', 
   assert.equal(generatedResponse.headers['x-request-id'], generatedRequest.id);
 });
 
-test('error guard strips internal 500 details in every runtime and adds request ID', () => {
+test('error guard strips Supabase/SDK secrets from 500 JSON and adds request ID', () => {
+  const privateDatabaseUrl = [
+    'postgres',
+    '://',
+    'internal-user',
+    ':',
+    'internal-password',
+    '@database.example/private',
+  ].join('');
   const req = {
     id: 'request-guard-1234',
     path: '/api/example',
@@ -44,14 +52,15 @@ test('error guard strips internal 500 details in every runtime and adds request 
   const res = responseDouble();
   safeErrorResponseMiddleware(req, res, () => {});
   res.json({
-    error: 'relation private_table does not exist',
-    details: 'sensitive database diagnostics',
-    message: 'connection string contained a secret',
+    error: 'SupabaseError: relation private_table does not exist',
+    details: 'service_role JWT secret=super-private-sdk-token',
+    message: privateDatabaseUrl,
     success: false,
   });
 
   assert.deepEqual(res.body, {
-    error: 'Internal Server Error',
+    success: false,
+    error: 'Не удалось выполнить действие. Повторите попытку.',
     code: 'INTERNAL_ERROR',
     requestId: 'request-guard-1234',
   });

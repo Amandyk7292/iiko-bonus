@@ -7,15 +7,11 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'kk': 'Баланс тарихы',
     'en': 'Balance history',
   },
-  'cart_empty_title': {
-    'ru': 'Корзина пуста',
-    'kk': 'Себет бос',
-    'en': 'Your cart is empty',
-  },
+  'cart_empty_title': {'ru': 'Ой!', 'kk': 'Ой!', 'en': 'Oops!'},
   'cart_empty_sub': {
-    'ru': 'Добавьте товары из каталога, чтобы оформить заказ.',
-    'kk': 'Тапсырыс беру үшін каталогтан тауар қосыңыз.',
-    'en': 'Add products from the catalog to place an order.',
+    'ru': 'Ничего не найдено!',
+    'kk': 'Ештеңе табылмады!',
+    'en': 'Nothing found!',
   },
   'cart_action': {
     'ru': 'Перейти в каталог',
@@ -66,6 +62,11 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'ru': 'Увеличить количество',
     'kk': 'Санын көбейту',
     'en': 'Increase quantity',
+  },
+  'cart_quantity_limit_reached': {
+    'ru': 'Максимум {count} шт.',
+    'kk': 'Ең көбі {count} дана',
+    'en': 'Maximum {count} items',
   },
   'cart_quantity': {'ru': 'Количество', 'kk': 'Саны', 'en': 'Quantity'},
   'checkout_title': {
@@ -180,6 +181,46 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'ru': 'Оставьте свой комментарий',
     'kk': 'Пікіріңізді жазыңыз',
     'en': 'Add a comment',
+  },
+  'checkout_substitution_title': {
+    'ru': 'Если товара не будет',
+    'kk': 'Тауар болмаса',
+    'en': 'If an item is unavailable',
+  },
+  'checkout_substitution_hint': {
+    'ru': 'Выберите, как поступить с отсутствующей позицией.',
+    'kk': 'Жоқ позициямен не істеу керегін таңдаңыз.',
+    'en': 'Choose what should happen to an unavailable item.',
+  },
+  'checkout_substitution_remove_refund': {
+    'ru': 'Убрать позицию и вернуть деньги',
+    'kk': 'Позицияны алып тастап, ақшаны қайтару',
+    'en': 'Remove it and refund the amount',
+  },
+  'checkout_substitution_remove_refund_hint': {
+    'ru': 'Вернём стоимость этой позиции тем же способом оплаты.',
+    'kk': 'Осы позицияның құнын бастапқы төлем тәсілімен қайтарамыз.',
+    'en': 'We will refund that item to the original payment method.',
+  },
+  'checkout_substitution_call_customer': {
+    'ru': 'Позвонить мне',
+    'kk': 'Маған қоңырау шалу',
+    'en': 'Call me',
+  },
+  'checkout_substitution_call_customer_hint': {
+    'ru': 'Сотрудник уточнит решение по телефону.',
+    'kk': 'Қызметкер шешімді телефон арқылы нақтылайды.',
+    'en': 'A team member will confirm the choice by phone.',
+  },
+  'checkout_substitution_replace_approval': {
+    'ru': 'Заменить после согласования',
+    'kk': 'Келісілгеннен кейін ауыстыру',
+    'en': 'Replace it after approval',
+  },
+  'checkout_substitution_replace_approval_hint': {
+    'ru': 'Ничего не заменяем без вашего подтверждения.',
+    'kk': 'Сіздің растауыңызсыз ештеңе ауыстырылмайды.',
+    'en': 'Nothing will be replaced without your approval.',
   },
   'checkout_subtotal': {
     'ru': 'Сумма заказа',
@@ -366,6 +407,11 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'kk': 'Банктің қорғалған беті',
     'en': 'Secure bank page',
   },
+  'forte_payment_loading': {
+    'ru': 'Загружается защищённая страница оплаты',
+    'kk': 'Қорғалған төлем беті жүктелуде',
+    'en': 'Loading the secure payment page',
+  },
   'forte_payment_verifying_title': {
     'ru': 'Проверяем оплату',
     'kk': 'Төлемді тексеріп жатырмыз',
@@ -378,6 +424,42 @@ const Map<String, Map<String, String>> _commerceTranslations = {
         'Банк беті жабылды. Бірнеше секунд күтіңіз — төлем нәтижесін растап жатырмыз.',
     'en':
         'The bank page is closed. Please wait a few seconds while we confirm the payment result.',
+  },
+  'forte_payment_pending_title': {
+    'ru': 'Результат ещё уточняется',
+    'kk': 'Нәтиже әлі тексеріліп жатыр',
+    'en': 'The result is still being checked',
+  },
+  'forte_payment_pending_hint': {
+    'ru':
+        'Не начинайте новую оплату. Сначала проверьте эту операцию или откройте «Мои заказы».',
+    'kk':
+        'Жаңа төлемді бастамаңыз. Алдымен осы операцияны тексеріңіз немесе «Менің тапсырыстарым» бөлімін ашыңыз.',
+    'en':
+        'Do not start another payment. Check this operation first or open My orders.',
+  },
+  'forte_payment_check_status': {
+    'ru': 'Проверить статус',
+    'kk': 'Күйін тексеру',
+    'en': 'Check status',
+  },
+  'forte_payment_my_orders': {
+    'ru': 'Мои заказы',
+    'kk': 'Менің тапсырыстарым',
+    'en': 'My orders',
+  },
+  'forte_payment_close_confirm_title': {
+    'ru': 'Закрыть страницу оплаты?',
+    'kk': 'Төлем бетін жабу керек пе?',
+    'en': 'Close the payment page?',
+  },
+  'forte_payment_close_confirm_hint': {
+    'ru':
+        'Банк ещё может подтвердить операцию. Мы сохраним её и не создадим повторную оплату.',
+    'kk':
+        'Банк операцияны әлі растауы мүмкін. Біз оны сақтап, қайталама төлем жасамаймыз.',
+    'en':
+        'The bank may still confirm this operation. We will keep it and prevent a duplicate payment.',
   },
   'forte_payment_embed_failed': {
     'ru':
@@ -481,6 +563,16 @@ const Map<String, Map<String, String>> _commerceTranslations = {
   },
   'orders_total': {'ru': 'Итоговая цена', 'kk': 'Жалпы баға', 'en': 'Total'},
   'orders_refund': {'ru': 'Возвращено', 'kk': 'Қайтарылды', 'en': 'Refunded'},
+  'orders_card_refund_notice': {
+    'ru': 'Возврат отправлен на карту. Срок зачисления зависит от банка.',
+    'kk': 'Қайтарым картаға жіберілді. Түсу мерзімі банкке байланысты.',
+    'en': 'The refund was sent to the card. Posting time depends on the bank.',
+  },
+  'orders_kaspi_refund_notice': {
+    'ru': 'Возврат выполнен через Kaspi Pay.',
+    'kk': 'Қайтарым Kaspi Pay арқылы орындалды.',
+    'en': 'The refund was completed through Kaspi Pay.',
+  },
   'orders_cancel_reason': {
     'ru': 'Причина отмены',
     'kk': 'Бас тарту себебі',

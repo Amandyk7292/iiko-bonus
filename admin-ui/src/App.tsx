@@ -11,6 +11,14 @@ import {
 } from './lib/api';
 import { useI18n } from './lib/i18n';
 import { AdminRealtimeProvider } from './lib/admin-realtime';
+import { ADMIN_ALLOWED_PATHS } from './lib/admin-permissions';
+import {
+  adminCityScopeValue,
+  getAdminCityScopes,
+  parseAdminScopeSelection,
+  primaryBranchIdForAdminScope,
+} from './lib/admin-city-scope';
+import { isEmbeddedAdminPortal } from './lib/embedded-admin';
 import PageState from './components/PageState';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
@@ -94,7 +102,9 @@ function LoginScreen({ onLogin }: { onLogin: (user: AdminUser) => void }) {
         setPhoneCodeRequested(true);
         setPhoneCode('');
         if (response.whatsappUrl) {
-          window.open(response.whatsappUrl, '_blank', 'noopener,noreferrer');
+          if (isEmbeddedAdminPortal(window.location.search))
+            window.location.assign(response.whatsappUrl);
+          else window.open(response.whatsappUrl, '_blank', 'noopener,noreferrer');
         }
       } else {
         const response = await api.verifyAdminPhoneLogin(phone, phoneCode);
@@ -430,7 +440,27 @@ export default function App() {
         if (!active) return;
         setScopeLocations(response.locations);
         const stored = getAdminBranchScope();
-        if (stored && !response.locations.some((location) => location.id === stored)) {
+        const selection = parseAdminScopeSelection(stored);
+        if (selection.kind === 'city') {
+          const city = getAdminCityScopes(response.locations).find(
+            (candidate) => candidate.key === selection.cityKey,
+          );
+          if (!city) {
+            setAdminBranchScope('');
+            setSelectedBranchIdState('');
+            return;
+          }
+          const refreshedScope = adminCityScopeValue(city);
+          if (refreshedScope !== stored) {
+            setAdminBranchScope(refreshedScope);
+            setSelectedBranchIdState(refreshedScope);
+          }
+          return;
+        }
+        if (
+          selection.kind === 'branch' &&
+          !response.locations.some((location) => location.id === selection.branchId)
+        ) {
           setAdminBranchScope('');
           setSelectedBranchIdState('');
         }
@@ -464,70 +494,9 @@ export default function App() {
     );
 
   const role = adminUser?.role || 'viewer';
-  const allowedPaths: Record<string, string[]> = {
-    branch_manager: [
-      '/operations',
-      '/analytics',
-      '/customers',
-      '/whatsapp',
-      '/orders',
-      '/menu',
-      '/inventory',
-      '/couriers',
-      '/dispatch',
-      '/kitchen',
-      '/locations',
-      '/reviews',
-      '/support',
-      '/transactions',
-      '/integrations',
-    ],
-    operator: [
-      '/operations',
-      '/customers',
-      '/whatsapp',
-      '/orders',
-      '/dispatch',
-      '/kitchen',
-      '/reviews',
-      '/support',
-    ],
-    marketer: [
-      '/operations',
-      '/analytics',
-      '/customers',
-      '/broadcast',
-      '/contacts',
-      '/stories',
-      '/news',
-      '/bonus',
-      '/tiers',
-      '/marketing',
-      '/reviews',
-      '/support',
-    ],
-    courier: ['/couriers', '/dispatch'],
-    viewer: [
-      '/operations',
-      '/analytics',
-      '/customers',
-      '/whatsapp',
-      '/orders',
-      '/menu',
-      '/inventory',
-      '/couriers',
-      '/dispatch',
-      '/kitchen',
-      '/locations',
-      '/reviews',
-      '/support',
-      '/transactions',
-      '/integrations',
-    ],
-    whatsapp_operator: ['/whatsapp'],
-  };
-  const canOpen = (path: string) => !allowedPaths[role] || allowedPaths[role].includes(path);
-  const firstPath = allowedPaths[role]?.[0] || '/operations';
+  const canOpen = (path: string) =>
+    !ADMIN_ALLOWED_PATHS[role] || ADMIN_ALLOWED_PATHS[role].includes(path);
+  const firstPath = ADMIN_ALLOWED_PATHS[role]?.[0] || '/operations';
   const guard = (path: string, element: React.ReactNode) =>
     canOpen(path) ? element : <Navigate to={firstPath} replace />;
 
@@ -536,6 +505,7 @@ export default function App() {
     setAdminBranchScope(branchId);
     setSelectedBranchIdState(branchId);
   };
+  const menuSelectedBranchId = primaryBranchIdForAdminScope(selectedBranchId);
 
   return (
     <AdminRealtimeProvider branchId={selectedBranchId} role={role}>
@@ -573,53 +543,62 @@ export default function App() {
           <div className="sagi-page" key={selectedBranchId || 'all-branches'}>
             <Suspense fallback={<PageState type="loading" />}>
               <Routes>
-              <Route path="/" element={<Navigate to={firstPath} replace />} />
-              <Route path="/operations" element={guard('/operations', <OperationsPage />)} />
-              <Route path="/analytics" element={guard('/analytics', <AnalyticsPage />)} />
-              <Route path="/transactions" element={guard('/transactions', <TransactionsPage />)} />
-              <Route path="/iiko" element={guard('/iiko', <IikoPage />)} />
-              <Route path="/broadcast" element={guard('/broadcast', <BroadcastPage />)} />
-              <Route path="/contacts" element={guard('/contacts', <ContactCenterPage />)} />
-              <Route path="/whatsapp" element={guard('/whatsapp', <WhatsAppPage role={role} />)} />
-              <Route
-                path="/customers"
-                element={guard('/customers', <CustomersPage user={adminUser} />)}
-              />
-              <Route path="/orders" element={guard('/orders', <OrdersPage />)} />
-              <Route
-                path="/menu"
-                element={guard(
-                  '/menu',
-                  <MenuPage
-                    scopeLocations={scopeLocations}
-                    selectedBranchId={selectedBranchId}
-                    onBranchChange={handleBranchChange}
-                  />,
-                )}
-              />
-              <Route path="/settings" element={guard('/settings', <SettingsPage />)} />
-              <Route path="/stories" element={guard('/stories', <StoriesPage />)} />
-              <Route path="/news" element={guard('/news', <NewsPage />)} />
-              <Route path="/bonus" element={guard('/bonus', <BonusPage />)} />
-              <Route path="/tiers" element={guard('/tiers', <LoyaltyTiersPage />)} />
-              <Route
-                path="/locations"
-                element={guard('/locations', <LocationsPage user={adminUser} />)}
-              />
-              <Route path="/inventory" element={guard('/inventory', <InventoryPage />)} />
-              <Route path="/couriers" element={guard('/couriers', <CouriersPage />)} />
-              <Route path="/dispatch" element={guard('/dispatch', <DispatchPage />)} />
-              <Route path="/kitchen" element={guard('/kitchen', <KitchenPage />)} />
-              <Route path="/marketing" element={guard('/marketing', <MarketingPage />)} />
-              <Route path="/reviews" element={guard('/reviews', <ReviewsPage />)} />
-              <Route path="/support" element={guard('/support', <SupportPage />)} />
-              <Route
-                path="/integrations"
-                element={guard('/integrations', <IntegrationsPage />)}
-              />
-              <Route path="/access" element={guard('/access', <AccessPage />)} />
-              <Route path="/security" element={guard('/security', <SecurityPage />)} />
-              <Route path="*" element={<Navigate to={firstPath} replace />} />
+                <Route path="/" element={<Navigate to={firstPath} replace />} />
+                <Route path="/operations" element={guard('/operations', <OperationsPage />)} />
+                <Route path="/analytics" element={guard('/analytics', <AnalyticsPage />)} />
+                <Route
+                  path="/transactions"
+                  element={guard('/transactions', <TransactionsPage />)}
+                />
+                <Route path="/iiko" element={guard('/iiko', <IikoPage />)} />
+                <Route path="/broadcast" element={guard('/broadcast', <BroadcastPage />)} />
+                <Route path="/contacts" element={guard('/contacts', <ContactCenterPage />)} />
+                <Route
+                  path="/whatsapp"
+                  element={guard('/whatsapp', <WhatsAppPage role={role} />)}
+                />
+                <Route
+                  path="/customers"
+                  element={guard('/customers', <CustomersPage user={adminUser} />)}
+                />
+                <Route path="/orders" element={guard('/orders', <OrdersPage role={role} />)} />
+                <Route
+                  path="/menu"
+                  element={guard(
+                    '/menu',
+                    <MenuPage
+                      scopeLocations={scopeLocations}
+                      selectedBranchId={menuSelectedBranchId}
+                      onBranchChange={handleBranchChange}
+                    />,
+                  )}
+                />
+                <Route path="/settings" element={guard('/settings', <SettingsPage />)} />
+                <Route path="/stories" element={guard('/stories', <StoriesPage />)} />
+                <Route path="/news" element={guard('/news', <NewsPage />)} />
+                <Route path="/bonus" element={guard('/bonus', <BonusPage />)} />
+                <Route path="/tiers" element={guard('/tiers', <LoyaltyTiersPage />)} />
+                <Route
+                  path="/locations"
+                  element={guard('/locations', <LocationsPage user={adminUser} />)}
+                />
+                <Route
+                  path="/inventory"
+                  element={guard('/inventory', <InventoryPage role={role} />)}
+                />
+                <Route path="/couriers" element={guard('/couriers', <CouriersPage />)} />
+                <Route path="/dispatch" element={guard('/dispatch', <DispatchPage />)} />
+                <Route path="/kitchen" element={guard('/kitchen', <KitchenPage />)} />
+                <Route path="/marketing" element={guard('/marketing', <MarketingPage />)} />
+                <Route path="/reviews" element={guard('/reviews', <ReviewsPage />)} />
+                <Route path="/support" element={guard('/support', <SupportPage />)} />
+                <Route
+                  path="/integrations"
+                  element={guard('/integrations', <IntegrationsPage />)}
+                />
+                <Route path="/access" element={guard('/access', <AccessPage />)} />
+                <Route path="/security" element={guard('/security', <SecurityPage />)} />
+                <Route path="*" element={<Navigate to={firstPath} replace />} />
               </Routes>
             </Suspense>
           </div>

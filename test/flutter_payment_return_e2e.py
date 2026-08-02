@@ -4,13 +4,18 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from pathlib import Path
 from urllib.parse import urlparse
 
 from playwright.sync_api import Page, sync_playwright
 
 
-BASE_URL = os.environ.get("BULKA_UI_URL", "http://127.0.0.1:4174")
+BASE_URL = (
+    os.environ.get("BULKA_UI_URL")
+    or (sys.argv[1] if len(sys.argv) > 1 else None)
+    or "http://127.0.0.1:4174"
+).rstrip("/")
 SCREENSHOT = Path(
     os.environ.get(
         "BULKA_UI_SCREENSHOT",

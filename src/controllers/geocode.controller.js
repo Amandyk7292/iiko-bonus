@@ -8,7 +8,7 @@ const language = (req) => normalizeLanguage(req.get('accept-language'));
 
 const search = async (req, res) => {
   try {
-    const results = await searchAddresses(req.query.q, language(req));
+    const results = await searchAddresses(req.query.q, language(req), req.query.city);
     res.set('Cache-Control', 'public, max-age=300');
     res.json({ success: true, results });
   } catch (error) {
@@ -18,7 +18,12 @@ const search = async (req, res) => {
 
 const reverse = async (req, res) => {
   try {
-    const result = await reverseAddress(req.query.lat, req.query.lon, language(req));
+    const result = await reverseAddress(
+      req.query.lat,
+      req.query.lon,
+      language(req),
+      req.query.city,
+    );
     res.set('Cache-Control', 'public, max-age=300');
     res.json({ success: true, result });
   } catch (error) {

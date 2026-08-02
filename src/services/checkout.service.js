@@ -403,6 +403,22 @@ const normalizeAdditionalPhone = (value) => {
   return `+${normalized}`;
 };
 
+const SUBSTITUTION_PREFERENCES = new Set([
+  'remove_refund',
+  'call_customer',
+  'replace_with_approval',
+]);
+
+const normalizeSubstitutionPreference = (value) => {
+  const preference = String(value || 'call_customer')
+    .trim()
+    .toLowerCase();
+  if (!SUBSTITUTION_PREFERENCES.has(preference)) {
+    throw checkoutError('Некорректное правило замены отсутствующего товара');
+  }
+  return preference;
+};
+
 function validateCheckout(payload, cities, options = {}) {
   const env = options.env || process.env;
   const now = options.now instanceof Date ? options.now : new Date();
@@ -417,6 +433,7 @@ function validateCheckout(payload, cities, options = {}) {
   const isDelivery =
     orderType === 'delivery' ||
     (orderType === 'preorder' && preorderFulfillmentType === 'delivery');
+  const effectiveFulfillmentType = isDelivery ? 'delivery' : 'pickup';
   const deliveryAddress = isDelivery
     ? normalizeDeliveryAddress(payload?.deliveryAddress, env)
     : null;
@@ -444,6 +461,7 @@ function validateCheckout(payload, cities, options = {}) {
   return {
     orderType,
     preorderFulfillmentType: orderType === 'preorder' ? preorderFulfillmentType : null,
+    effectiveFulfillmentType,
     branchId: String(branch.id),
     branch: boundedText(branch.label, 160),
     scheduledAt,
@@ -454,6 +472,7 @@ function validateCheckout(payload, cities, options = {}) {
     deliveryZone: branch.resolvedDeliveryZone || null,
     additionalPhone: normalizeAdditionalPhone(payload?.additionalPhone),
     comment: boundedText(payload?.comment, 500) || null,
+    substitutionPreference: normalizeSubstitutionPreference(payload?.substitutionPreference),
   };
 }
 
@@ -462,5 +481,6 @@ module.exports = {
   normalizeDeliveryAddress,
   normalizeOrderType,
   normalizeSchedule,
+  normalizeSubstitutionPreference,
   validateCheckout,
 };

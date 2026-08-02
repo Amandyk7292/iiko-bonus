@@ -1,4 +1,5 @@
 import type { PaymentDiagnostics } from './payment-diagnostics';
+import { parseAdminScopeSelection } from './admin-city-scope';
 const BASE_URL = '/admin/api';
 const BRANCH_SCOPE_STORAGE_KEY = 'adminSelectedBranchId';
 
@@ -12,490 +13,241 @@ export function setAdminBranchScope(branchId: string) {
   else localStorage.removeItem(BRANCH_SCOPE_STORAGE_KEY);
 }
 
+export function applyAdminScopeHeaders(
+  headers: Headers,
+  endpoint: string,
+  storedScope = getAdminBranchScope(),
+) {
+  if (
+    !storedScope ||
+    endpoint === '/session' ||
+    endpoint === '/scope' ||
+    endpoint.startsWith('/login')
+  ) {
+    return;
+  }
+  const selection = parseAdminScopeSelection(storedScope);
+  if (selection.kind === 'branch') {
+    headers.set('X-Bulka-Branch-Id', selection.branchId);
+    return;
+  }
+  if (selection.kind !== 'city') return;
+
+  const isMenuEndpoint = endpoint === '/menu' || endpoint.startsWith('/menu/');
+  if (isMenuEndpoint) {
+    headers.set('X-Bulka-Branch-Id', selection.branchIds[0] || 'invalid-city-scope');
+    return;
+  }
+  headers.set(
+    'X-Bulka-Branch-Ids',
+    selection.branchIds.length ? selection.branchIds.join(',') : 'invalid-city-scope',
+  );
+}
+
 export class ApiError extends Error {
   status: number;
   code?: string;
   details?: unknown;
+  requestId?: string;
 
-  constructor(message: string, status: number, code?: string, details?: unknown) {
+  constructor(
+    message: string,
+    status: number,
+    code?: string,
+    details?: unknown,
+    requestId?: string,
+  ) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
     this.details = details;
+    this.requestId = requestId;
   }
 }
 
-export interface LocalizedText {
-  ru: string;
-  kk: string;
-  en: string;
+type ApiErrorPayload = {
+  error?: string;
+  message?: string;
+  code?: string;
+  details?: unknown;
+  fields?: Array<{ path?: string; message?: string }>;
+  requestId?: string;
+};
+
+export function adminApiErrorMessage(payload: ApiErrorPayload, status: number) {
+  const rawMessage = String(payload.error || payload.message || '').trim();
+  const validationMessage =
+    status < 500 && payload.code === 'VALIDATION_ERROR'
+      ? (payload.fields || [])
+          .map((field) => String(field?.message || '').trim())
+          .find((message) => /[А-Яа-яЁё]/.test(message))
+      : '';
+  const requestId = String(payload.requestId || '').trim();
+  const requestHint = requestId ? `Код запроса: ${requestId}.` : '';
+  if (status >= 500 || rawMessage === 'Internal Server Error') {
+    return [
+      'Не удалось выполнить действие. Обновите данные и повторите попытку.',
+      requestHint ? `Если ошибка повторится, сообщите поддержке. ${requestHint}` : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
+  }
+  return [validationMessage || rawMessage || `Ошибка запроса (${status})`, requestHint]
+    .filter(Boolean)
+    .join(' ');
 }
 
-export interface LoyaltyTier {
-  id: string;
-  code: string;
-  names: LocalizedText;
-  descriptions: LocalizedText;
-  minSpend: number;
-  cashbackPercent: number;
-  sortOrder: number;
-  isActive: boolean;
-}
+const responseRequestId = (response: Response) =>
+  String(
+    response.headers.get('x-request-id') || response.headers.get('x-correlation-id') || '',
+  ).trim();
 
-export type LoyaltyTierInput = Omit<LoyaltyTier, 'id'>;
+const REQUEST_TIMEOUT_MS = 30000;
 
-export type ContactDisplayMode = 'standard' | 'compact';
+export function composeRequestAbortSignal(
+  callerSignal?: AbortSignal | null,
+  timeoutMs = REQUEST_TIMEOUT_MS,
+) {
+  const controller = new AbortController();
+  let timedOut = false;
+  let cleanedUp = false;
+  const abortFromCaller = () => controller.abort();
 
-export type ContactActionType =
-  | 'phone'
-  | 'whatsapp'
-  | 'telegram'
-  | 'instagram'
-  | 'vk'
-  | 'email'
-  | 'website'
-  | 'online_chat'
-  | 'custom_url';
+  if (callerSignal?.aborted) controller.abort();
+  else callerSignal?.addEventListener('abort', abortFromCaller, { once: true });
 
-export interface ContactAction {
-  id: string;
-  cardId: string;
-  type: ContactActionType;
-  labels: LocalizedText;
-  target: string;
-  iconKey: string;
-  sortOrder: number;
-  isActive: boolean;
-}
+  const timeout = window.setTimeout(() => {
+    if (controller.signal.aborted) return;
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
 
-export interface ContactCard {
-  id: string;
-  displayMode: ContactDisplayMode;
-  titles: LocalizedText;
-  iconKey: string;
-  sortOrder: number;
-  isActive: boolean;
-  actions: ContactAction[];
-}
-
-export type ContactCardInput = Omit<ContactCard, 'id' | 'actions'>;
-export type ContactActionInput = Omit<ContactAction, 'id' | 'cardId'>;
-
-export interface AdminOrder {
-  id: string;
-  number: number;
-  paymentStatus: string;
-  orderStatus: string;
-  amount: number;
-  subtotal: number;
-  discount: number;
-  branch: string;
-  branchId?: string | null;
-  orderType?: 'pickup' | 'preorder' | 'delivery' | string;
-  deliveryStatus?: string;
-  estimatedDeliveryAt?: string | null;
-  trackingCode?: string | null;
-  trackingUrl?: string | null;
-  deliveryProvider?: 'bulka' | 'yandex' | string | null;
-  providerDeliveryStatus?: string | null;
-  providerDeliveryPrice?: number | null;
-  customerArrivedAt?: string | null;
-  courier?: {
-    id: string;
-    name: string;
-    phone: string;
-    vehicle?: string | null;
-    latitude?: number | null;
-    longitude?: number | null;
-    locationUpdatedAt?: string | null;
-  } | null;
-  pickupTime?: string | null;
-  comment?: string | null;
-  items: Array<{ name?: string; quantity?: number; price?: number }>;
-  earnedBonus: number;
-  refundStatus?: string | null;
-  refundAmount?: number | null;
-  refundedAt?: string | null;
-  cancellationReason?: string | null;
-  createdAt: string;
-  updatedAt: string;
-  customer?: { name?: string; phone?: string };
-}
-
-export interface InventoryItem {
-  branch_id: string;
-  product_id: string;
-  product_name: string;
-  source_quantity: number | null;
-  manual_stop: boolean;
-  preparation_minutes?: number | null;
-  source: string;
-  last_synced_at?: string | null;
-  updated_at?: string | null;
-  bulka_locations?: { name?: string; address?: string } | null;
-}
-
-export interface Courier {
-  id: string;
-  name: string;
-  phone: string;
-  vehicle?: string | null;
-  active: boolean;
-  latitude?: number | null;
-  longitude?: number | null;
-  locationUpdatedAt?: string | null;
-  createdAt?: string;
-  updatedAt?: string;
-  accessUrl?: string | null;
-  availabilityStatus?: string;
-  maxActiveOrders?: number;
-  activeSessions?: number;
-  lastLoginAt?: string | null;
-}
-
-export interface CourierActivity {
-  id: string;
-  orderId?: string | null;
-  type: string;
-  latitude?: number | null;
-  longitude?: number | null;
-  metadata?: Record<string, unknown>;
-  createdAt: string;
-}
-
-export interface DeliveryProof {
-  id: string;
-  orderId: string;
-  courierId: string;
-  courier?: { name?: string; phone?: string } | null;
-  pinVerified: boolean;
-  latitude?: number | null;
-  longitude?: number | null;
-  createdAt: string;
-  photoUrl: string;
-  photoExpiresIn: number;
-}
-
-export interface ExternalDelivery {
-  id: string;
-  provider: 'yandex';
-  claimId?: string | null;
-  status: string;
-  statusLabel: string;
-  deliveryStatus: string;
-  quotedPrice?: number | null;
-  price?: number | null;
-  currency: string;
-  etaMinutes?: number | null;
-  distanceMeters?: number | null;
-  trackingUrl?: string | null;
-  courier?: { name: string; phone?: string; vehicle?: string | null } | null;
-  canCancel: boolean;
-  terminal: boolean;
-  lastError?: string | null;
-  lastSyncedAt?: string | null;
-}
-
-export interface DispatchOrder {
-  id: string;
-  number: number;
-  amount: number;
-  branchId?: string | null;
-  branchName?: string;
-  branchLatitude?: number | null;
-  branchLongitude?: number | null;
-  deliveryLatitude?: number | null;
-  deliveryLongitude?: number | null;
-  deliveryAddress?: string | null;
-  courierId?: string | null;
-  deliveryStatus?: string;
-  routeDistanceKm?: number | null;
-  routeEtaMinutes?: number | null;
-  externalDelivery?: ExternalDelivery | null;
-}
-
-export interface YandexDeliveryConfiguration {
-  enabled: boolean;
-  configured: boolean;
-  canManage: boolean;
-  missing: string[];
-  taxiClass: string;
-}
-
-export interface AdminUser {
-  username: string;
-  role: string;
-  branchIds?: string[];
-  actions?: string[];
-}
-
-export interface AdminScopeLocation {
-  id: string;
-  name: string;
-  address: string;
-  city: string;
-  active: boolean;
-}
-
-export interface AdminLocationCity {
-  id: string;
-  name: string;
-  latitude: number | null;
-  longitude: number | null;
-  active: boolean;
-  branchCount: number;
-}
-
-export interface OperationsSummary {
-  updatedAt: string;
-  capabilities: {
-    orders: boolean;
-    kitchen: boolean;
-    dispatch: boolean;
-    support: boolean;
-    whatsapp: boolean;
-    inventory: boolean;
-  };
-  counts: {
-    newOrders: number;
-    activeOrders: number;
-    kitchenOverdue: number;
-    deliveryAttention: number;
-    paymentIssues: number;
-    supportNew: number;
-    supportOverdue: number;
-    supportMine: number;
-    whatsappUnread: number;
-    whatsappDialogs: number;
-    stoppedProducts: number;
-  };
-  orders: Array<{
-    id: string;
-    number: number;
-    amount: number;
-    branchId: string | null;
-    branch: string;
-    paymentStatus: string;
-    orderStatus: string;
-    kitchenStatus: string | null;
-    deliveryStatus: string | null;
-    promisedReadyAt: string | null;
-    createdAt: string;
-    lastError: string | null;
-  }>;
-  support: Array<{
-    id: string;
-    category: string;
-    status: string;
-    priority: string;
-    assignedTo: string | null;
-    dueAt: string | null;
-    lastMessageAt: string;
-    createdAt: string;
-    orderNumber: number | null;
-    branchId: string | null;
-    branch: string;
-    customer: { name?: string; phone?: string } | null;
-    preview: string;
-  }>;
-  whatsapp: Array<{
-    id: string;
-    displayName: string;
-    phone: string;
-    unreadCount: number;
-    preview: string;
-    lastMessageAt: string | null;
-  }>;
-}
-
-export interface IntegrationHealthService {
-  id: string;
-  name: string;
-  state: 'healthy' | 'attention' | 'error' | 'disabled';
-  summary: string;
-  detail: string;
-  updatedAt: string | null;
-}
-
-export interface SupportRequest {
-  id: string;
-  orderId: string | null;
-  orderNumber: number | null;
-  branchId: string | null;
-  branch: string;
-  customer: { name?: string; phone?: string } | null;
-  category: string;
-  message: string;
-  preview: string;
-  status: 'new' | 'in_review' | 'resolved' | 'rejected';
-  priority: 'low' | 'normal' | 'high' | 'urgent';
-  refundRequested: boolean;
-  attachments: Array<{ path: string; url: string | null }>;
-  resolution: string | null;
-  assignedTo: string | null;
-  createdAt: string;
-  updatedAt: string;
-  resolvedAt: string | null;
-  dueAt: string | null;
-  firstRespondedAt: string | null;
-  lastMessageAt: string;
-  overdue: boolean;
-}
-
-export interface SupportMessage {
-  id: string;
-  requestId: string;
-  senderType: 'customer' | 'admin' | 'system';
-  senderId: string | null;
-  body: string;
-  attachments: Array<{ path: string; url: string | null }>;
-  internal: boolean;
-  createdAt: string;
-}
-
-export interface AdminPhoneLoginChallenge {
-  success: boolean;
-  accepted: boolean;
-  expiresIn: number;
-  whatsappPhone?: string | null;
-  whatsappUrl?: string | null;
-}
-
-export interface WhatsAppAssistantSettings {
-  assistantEnabled: boolean;
-  autoReplyEnabled: boolean;
-  memoryEnabled: boolean;
-  provider: 'gemini' | 'qwen' | 'deepseek';
-  model: string;
-  keyConfigured: boolean;
-  providerKeys: Record<'gemini' | 'qwen' | 'deepseek', boolean>;
-  botName: string;
-  tone: 'friendly' | 'warm' | 'concise' | 'formal';
-  supportedLanguages: Array<'ru' | 'kk' | 'en'>;
-  historyMessages: number;
-  businessDescription: string;
-  customInstructions: string;
-  welcomeMessage: string;
-  fallbackMessage: string;
-  storageReady: boolean;
-  updatedAt: string | null;
-}
-
-export interface WhatsAppConnectionStatus {
-  state:
-    | 'starting'
-    | 'connecting'
-    | 'awaiting_scan'
-    | 'connected'
-    | 'reconnecting'
-    | 'logged_out'
-    | 'error';
-  connected: boolean;
-  connectedAt: string | null;
-  updatedAt: string;
-  phone: string;
-  qrDataUrl: string;
-  qrReceivedAt: string | null;
-  lastError: string;
-  assistant: {
-    environmentEnabled: boolean;
-    provider: 'gemini' | 'qwen' | 'deepseek';
-    keyConfigured: boolean;
-    model: string;
+  return {
+    signal: controller.signal,
+    didTimeout: () => timedOut,
+    cleanup: () => {
+      if (cleanedUp) return;
+      cleanedUp = true;
+      window.clearTimeout(timeout);
+      callerSignal?.removeEventListener('abort', abortFromCaller);
+    },
   };
 }
 
-export interface WhatsAppConversation {
-  id: string;
-  chatJid: string;
-  phone: string;
-  displayName: string;
-  status: 'open' | 'closed' | 'spam';
-  assistantEnabled: boolean;
-  contextResetAt: string | null;
-  unreadCount: number;
-  lastMessagePreview: string;
-  lastMessageAt: string | null;
-  lastCustomerMessageAt: string | null;
-  lastOperatorMessageAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface WhatsAppMessage {
-  id: string;
-  conversationId: string;
-  whatsappMessageId: string | null;
-  outboxId: string | null;
-  direction: 'inbound' | 'outbound';
-  senderType: 'customer' | 'assistant' | 'operator' | 'system';
-  content: string;
-  deliveryStatus: 'received' | 'pending' | 'sent' | 'delivered' | 'read' | 'failed';
-  createdAt: string;
-}
-
-export interface WhatsAppMemory {
-  id: string;
-  conversationId: string;
-  label: string;
-  content: string;
-  sourceType: 'manual' | 'message' | 'assistant';
-  sourceMessageId: string | null;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface WhatsAppKnowledgeDocument {
-  id: string;
-  title: string;
-  category: string;
-  content: string;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface SecurityStatus {
-  user: { username: string; role: string };
-  multiAdmin: boolean;
-  configuredUsers: Array<{ username: string; role: string; mfa: boolean }>;
-  mfaRequired: boolean;
-  legacySingleAdmin: boolean;
-}
-
-export interface SiteAccessConfig {
-  enabled: boolean;
-  allowedIps: string[];
-}
-
-export interface SiteAccessResponse {
-  success: boolean;
-  config: SiteAccessConfig;
-  currentIp: string;
-}
-
-export interface AuditLog {
-  id: string;
-  admin_username?: string | null;
-  admin_role?: string | null;
-  method: string;
-  path: string;
-  status_code?: number | null;
-  ip?: string | null;
-  user_agent?: string | null;
-  created_at: string;
-}
+import type {
+  LocalizedText,
+  LoyaltyTier,
+  LoyaltyTierInput,
+  ContactDisplayMode,
+  ContactActionType,
+  ContactAction,
+  ContactCard,
+  ContactCardInput,
+  ContactActionInput,
+  OrderSubstitution,
+  AdminOrder,
+  InventoryItem,
+  PartialRefundOptions,
+  PartialRefundPreview,
+  PartialRefundResult,
+  Courier,
+  CourierActivity,
+  DeliveryProof,
+  ExternalDelivery,
+  DispatchOrder,
+  YandexDeliveryConfiguration,
+  AdminUser,
+  AdminScopeLocation,
+  AdminLocationCity,
+  BranchPosCredentialStatus,
+  BranchPosCredentialSecret,
+  OperationsSummary,
+  IntegrationHealthService,
+  SupportRequest,
+  SupportMessage,
+  AdminGlobalEntityType,
+  AdminGlobalSearchResult,
+  AdminGlobalDetail,
+  AdminGlobalTimelineEvent,
+  AdminGlobalCustomerProfile,
+  AdminGlobalSupportSummary,
+  AdminPhoneLoginChallenge,
+  WhatsAppAssistantSettings,
+  WhatsAppConnectionStatus,
+  WhatsAppConversation,
+  WhatsAppMessage,
+  WhatsAppMemory,
+  WhatsAppKnowledgeDocument,
+  SecurityStatus,
+  SiteAccessConfig,
+  SiteAccessResponse,
+  AuditLog,
+} from './api-types';
+export type {
+  LocalizedText,
+  LoyaltyTier,
+  LoyaltyTierInput,
+  ContactDisplayMode,
+  ContactActionType,
+  ContactAction,
+  ContactCard,
+  ContactCardInput,
+  ContactActionInput,
+  OrderSubstitution,
+  AdminOrder,
+  InventoryItem,
+  PartialRefundOptions,
+  PartialRefundPreview,
+  PartialRefundResult,
+  Courier,
+  CourierActivity,
+  DeliveryProof,
+  ExternalDelivery,
+  DispatchOrder,
+  YandexDeliveryConfiguration,
+  AdminUser,
+  AdminScopeLocation,
+  AdminLocationCity,
+  BranchPosCredentialStatus,
+  BranchPosCredentialSecret,
+  OperationsSummary,
+  IntegrationHealthService,
+  SupportRequest,
+  SupportMessage,
+  AdminGlobalEntityType,
+  AdminGlobalSearchResult,
+  AdminGlobalDetail,
+  AdminGlobalTimelineEvent,
+  AdminGlobalCustomerProfile,
+  AdminGlobalSupportSummary,
+  AdminPhoneLoginChallenge,
+  WhatsAppAssistantSettings,
+  WhatsAppConnectionStatus,
+  WhatsAppConversation,
+  WhatsAppMessage,
+  WhatsAppMemory,
+  WhatsAppKnowledgeDocument,
+  SecurityStatus,
+  SiteAccessConfig,
+  SiteAccessResponse,
+  AuditLog,
+} from './api-types';
 
 async function parseResponse<T>(response: Response): Promise<T> {
   if (response.status === 204) return undefined as T;
   const contentType = response.headers.get('content-type') ?? '';
   if (!contentType.includes('application/json')) {
+    const requestId = responseRequestId(response);
     throw new ApiError(
-      'Сервер вернул некорректный ответ API',
+      adminApiErrorMessage(
+        { error: 'Сервер вернул некорректный ответ API', requestId },
+        response.status,
+      ),
       response.status,
       'INVALID_API_RESPONSE',
+      undefined,
+      requestId || undefined,
     );
   }
   return response.json() as Promise<T>;
@@ -507,51 +259,44 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   if (options.body && !(options.body instanceof FormData))
     headers.set('Content-Type', 'application/json');
   headers.set('Accept', 'application/json');
-  const selectedBranchId = getAdminBranchScope();
-  if (
-    selectedBranchId &&
-    endpoint !== '/session' &&
-    endpoint !== '/scope' &&
-    !endpoint.startsWith('/login')
-  ) {
-    headers.set('X-Bulka-Branch-Id', selectedBranchId);
-  }
+  applyAdminScopeHeaders(headers, endpoint);
 
   let response: Response;
-  const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 30000);
+  const requestAbort = composeRequestAbortSignal(options.signal);
   try {
     response = await fetch(`${BASE_URL}${endpoint}`, {
       ...options,
       headers,
       credentials: 'same-origin',
-      signal: options.signal ?? controller.signal,
+      signal: requestAbort.signal,
     });
   } catch (error) {
     throw new ApiError(
-      error instanceof Error && error.name === 'AbortError'
-        ? 'Request timed out'
-        : 'Network request failed',
+      requestAbort.didTimeout() || (error instanceof Error && error.name === 'AbortError')
+        ? 'Сервер не ответил вовремя. Повторите попытку.'
+        : 'Нет связи с сервером. Проверьте интернет и повторите попытку.',
       0,
       'NETWORK_ERROR',
     );
   } finally {
-    window.clearTimeout(timeout);
+    requestAbort.cleanup();
   }
 
   if (!response.ok) {
-    const errorData: { error?: string; message?: string; code?: string; details?: unknown } =
-      await parseResponse<{ error?: string; message?: string; code?: string; details?: unknown }>(
-        response,
-      ).catch(() => ({}));
+    const errorData = await parseResponse<ApiErrorPayload>(response).catch(
+      (): ApiErrorPayload => ({}),
+    );
+    const requestId = errorData.requestId || responseRequestId(response) || undefined;
+    const payload = { ...errorData, requestId };
     if (response.status === 401) {
       window.dispatchEvent(new Event('unauthorized'));
     }
     throw new ApiError(
-      errorData.error || errorData.message || `HTTP ${response.status}`,
+      adminApiErrorMessage(payload, response.status),
       response.status,
       errorData.code,
-      errorData.details,
+      errorData.details ?? errorData.fields,
+      requestId,
     );
   }
 
@@ -569,17 +314,28 @@ async function publicAuthRequest<T>(endpoint: string, data: Record<string, unkno
     credentials: 'same-origin',
     body: JSON.stringify(data),
   }).catch(() => {
-    throw new ApiError('Network request failed', 0, 'NETWORK_ERROR');
+    throw new ApiError(
+      'Нет связи с сервером. Проверьте интернет и повторите попытку.',
+      0,
+      'NETWORK_ERROR',
+    );
   });
   if (!response.ok) {
-    const errorData: { error?: string; code?: string } = await parseResponse<{
-      error?: string;
-      code?: string;
-    }>(response).catch(() => ({}));
+    const errorData = await parseResponse<ApiErrorPayload>(response).catch(
+      (): ApiErrorPayload => ({}),
+    );
+    const requestId = errorData.requestId || responseRequestId(response) || undefined;
+    const payload = {
+      ...errorData,
+      error: errorData.error || 'Не удалось выполнить вход',
+      requestId,
+    };
     throw new ApiError(
-      errorData.error || 'Не удалось выполнить вход',
+      adminApiErrorMessage(payload, response.status),
       response.status,
       errorData.code,
+      errorData.details,
+      requestId,
     );
   }
   return parseResponse<T>(response);
@@ -587,24 +343,37 @@ async function publicAuthRequest<T>(endpoint: string, data: Record<string, unkno
 
 export const api = {
   login: async (username: string, password: string, code: string) => {
-    const body: { username: string; password: string; code?: string } = { username, password };
-    if (code.trim()) body.code = code.trim();
+    const loginData = { username, password, ...(code.trim() && { code: code.trim() }) };
     const response = await fetch(`${BASE_URL}/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       credentials: 'same-origin',
-      body: JSON.stringify(body),
+      body: JSON.stringify(loginData),
     }).catch(() => {
-      throw new ApiError('Network request failed', 0, 'NETWORK_ERROR');
+      throw new ApiError(
+        'Нет связи с сервером. Проверьте интернет и повторите попытку.',
+        0,
+        'NETWORK_ERROR',
+      );
     });
     if (!response.ok) {
-      const errorData: { error?: string } = await parseResponse<{ error?: string }>(response).catch(
-        () => ({}),
+      const errorData = await parseResponse<ApiErrorPayload>(response).catch(
+        (): ApiErrorPayload => ({}),
       );
+      const requestId = errorData.requestId || responseRequestId(response) || undefined;
       throw new ApiError(
-        errorData.error || 'Invalid credentials',
+        adminApiErrorMessage(
+          {
+            ...errorData,
+            error: errorData.error || 'Не удалось выполнить вход',
+            requestId,
+          },
+          response.status,
+        ),
         response.status,
         response.status === 401 ? 'AUTH_INVALID' : 'AUTH_CONFIG',
+        errorData.details,
+        requestId,
       );
     }
     return parseResponse<{ user: AdminUser }>(response);
@@ -632,6 +401,21 @@ export const api = {
   },
 
   getStats: () => request<Record<string, any>>('/stats'),
+  globalSearch: (query: string, limit = 20, signal?: AbortSignal) => {
+    const params = new URLSearchParams({
+      q: query.trim(),
+      limit: String(Math.max(1, Math.min(20, limit))),
+    });
+    return request<{ success: boolean; results: AdminGlobalSearchResult[] }>(
+      `/global-search?${params}`,
+      { signal },
+    );
+  },
+  getGlobalSearchDetail: (type: AdminGlobalEntityType, id: string, signal?: AbortSignal) =>
+    request<{ success: boolean; detail: AdminGlobalDetail }>(
+      `/global-search/${encodeURIComponent(type)}/${encodeURIComponent(id)}`,
+      { signal },
+    ),
   getOperationsSummary: () =>
     request<OperationsSummary & { success: boolean }>('/operations/summary'),
   getIntegrationHealth: () =>
@@ -687,6 +471,71 @@ export const api = {
     request<{ success: boolean; order: AdminOrder }>(
       `/orders/${encodeURIComponent(id)}/delivery-status`,
       json('PATCH', { status }),
+    ),
+  getRefundOptions: (id: string) =>
+    request<{ success: boolean; refund: PartialRefundOptions }>(
+      `/orders/${encodeURIComponent(id)}/refund-options`,
+    ),
+  previewPartialRefund: (
+    id: string,
+    data: {
+      reason?: string;
+      items: Array<{ lineKey: string; quantity: number }>;
+    },
+    signal?: AbortSignal,
+  ) =>
+    request<{ success: boolean; preview: PartialRefundPreview }>(
+      `/orders/${encodeURIComponent(id)}/partial-refund-preview`,
+      { ...json('POST', data), signal },
+    ),
+  partialRefund: (
+    id: string,
+    data: {
+      idempotencyKey: string;
+      reason?: string;
+      items: Array<{ lineKey: string; quantity: number }>;
+    },
+  ) =>
+    request<{ success: boolean; refund: PartialRefundResult }>(
+      `/orders/${encodeURIComponent(id)}/partial-refund`,
+      json('POST', data),
+    ),
+  getSubstitutionOptions: (id: string) =>
+    request<{
+      success: boolean;
+      options: {
+        lines: Array<{
+          lineKey: string;
+          productId: string;
+          name: string;
+          quantity: number;
+          refundableQuantity: number;
+        }>;
+        replacements: Array<{
+          productId: string;
+          productName: string;
+          availableQuantity: number | null;
+        }>;
+      };
+    }>(`/orders/${encodeURIComponent(id)}/substitution-options`),
+  createSubstitution: (
+    id: string,
+    data: {
+      lineKey: string;
+      quantity: number;
+      action: OrderSubstitution['action'];
+      replacementProductId?: string;
+      note?: string;
+    },
+  ) =>
+    request<{ success: boolean; substitution: OrderSubstitution }>(
+      `/orders/${encodeURIComponent(id)}/substitutions`,
+      json('POST', data),
+    ),
+  completeSubstitution: (id: string, requestId: string) =>
+    request<{ success: boolean; substitution: OrderSubstitution }>(
+      `/orders/${encodeURIComponent(id)}/substitutions/${encodeURIComponent(requestId)}/complete`,
+      json('PATCH'),
     ),
   updateCustomer: (id: string, data: Record<string, unknown>) =>
     request<{ success: boolean }>('/customers/update', json('POST', { customerId: id, ...data })),
@@ -744,7 +593,10 @@ export const api = {
       '/whatsapp/settings',
       json('PUT', data),
     ),
-  getWhatsAppConversations: ({ search = '', status = '', page = 1, pageSize = 50 } = {}) => {
+  getWhatsAppConversations: (
+    { search = '', status = '', page = 1, pageSize = 50 } = {},
+    signal?: AbortSignal,
+  ) => {
     const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
     if (search.trim()) params.set('search', search.trim());
     if (status) params.set('status', status);
@@ -755,15 +607,15 @@ export const api = {
       unread: number;
       page: number;
       pageSize: number;
-    }>(`/whatsapp/conversations${params.size ? `?${params}` : ''}`);
+    }>(`/whatsapp/conversations${params.size ? `?${params}` : ''}`, { signal });
   },
-  getWhatsAppConversation: (id: string) =>
+  getWhatsAppConversation: (id: string, signal?: AbortSignal) =>
     request<{
       success: boolean;
       conversation: WhatsAppConversation;
       messages: WhatsAppMessage[];
       memories: WhatsAppMemory[];
-    }>(`/whatsapp/conversations/${encodeURIComponent(id)}`),
+    }>(`/whatsapp/conversations/${encodeURIComponent(id)}`, { signal }),
   updateWhatsAppConversation: (
     id: string,
     data: Partial<Pick<WhatsAppConversation, 'status' | 'assistantEnabled' | 'displayName'>> & {
@@ -880,6 +732,15 @@ export const api = {
     request<{ success: boolean; location: any }>(
       `/locations/${encodeURIComponent(id)}`,
       json('PATCH', data),
+    ),
+  getBranchPosCredential: (id: string) =>
+    request<{ success: boolean; credential: BranchPosCredentialStatus }>(
+      `/locations/${encodeURIComponent(id)}/pos-credential`,
+    ),
+  rotateBranchPosCredential: (id: string) =>
+    request<{ success: boolean; credential: BranchPosCredentialSecret }>(
+      `/locations/${encodeURIComponent(id)}/pos-credential/rotate`,
+      json('POST'),
     ),
   updateAllFulfillmentDeliveryZones: (data: {
     deliveryZones: Array<Record<string, unknown>>;
@@ -1035,12 +896,12 @@ export const api = {
       pageSize: number;
     }>(`/support?${params}`);
   },
-  getSupportRequest: (id: string) =>
+  getSupportRequest: (id: string, signal?: AbortSignal) =>
     request<{
       success: boolean;
       request: SupportRequest;
       messages: SupportMessage[];
-    }>(`/support/${encodeURIComponent(id)}`),
+    }>(`/support/${encodeURIComponent(id)}`, { signal }),
   updateSupportRequest: (
     id: string,
     data: {
@@ -1092,10 +953,31 @@ export const api = {
     request<SiteAccessResponse>('/site-access', json('PUT', data)),
 
   getSecurityStatus: () => request<SecurityStatus & { success: boolean }>('/security/status'),
-  getAuditLogs: ({ page = 1, pageSize = 50 } = {}) =>
-    request<{ success: boolean; logs: AuditLog[]; total: number; page: number; pageSize: number }>(
-      `/audit-logs?page=${page}&pageSize=${pageSize}`,
-    ),
+  getAuditLogs: ({
+    page = 1,
+    pageSize = 50,
+    search = '',
+    method = '',
+    outcome = '',
+  }: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    method?: string;
+    outcome?: string;
+  } = {}) => {
+    const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+    if (search.trim()) params.set('search', search.trim());
+    if (method) params.set('method', method);
+    if (outcome) params.set('outcome', outcome);
+    return request<{
+      success: boolean;
+      logs: AuditLog[];
+      total: number;
+      page: number;
+      pageSize: number;
+    }>(`/audit-logs?${params}`);
+  },
 
   uploadPhoto: (base64: string, filename: string) =>
     request<{ success: boolean; url?: string }>(
@@ -1183,13 +1065,23 @@ export const api = {
       success: boolean;
       rawMenu: any;
       overrides: any;
-      profileKey?: string;
-      profiles?: Record<string, { key: string; configured: boolean; city?: string }>;
+      profileKey: 'default' | 'astana';
+      profiles: Record<
+        string,
+        {
+          key: string;
+          configured: boolean;
+          city?: string;
+          organizationConfigured?: boolean;
+          externalMenuConfigured?: boolean;
+          priceCategoryConfigured?: boolean;
+        }
+      >;
     }>('/menu'),
   syncIikoMenu: () =>
     request<{
       success: boolean;
-      profileKey?: string;
+      profileKey: 'default' | 'astana';
       productsCount: number;
       categoriesCount: number;
       syncedAt: string;
@@ -1212,15 +1104,33 @@ export const api = {
     const formData = new FormData();
     formData.append('image', file);
     const headers = new Headers();
-    const selectedBranchId = getAdminBranchScope();
-    if (selectedBranchId) headers.set('X-Bulka-Branch-Id', selectedBranchId);
+    applyAdminScopeHeaders(headers, '/menu/upload-image');
     const response = await fetch(`${BASE_URL}/menu/upload-image`, {
       method: 'POST',
       headers,
       body: formData,
       credentials: 'same-origin',
     });
-    if (!response.ok) throw new ApiError('Ошибка загрузки фото', response.status);
+    if (!response.ok) {
+      const errorData = await parseResponse<ApiErrorPayload>(response).catch(
+        (): ApiErrorPayload => ({}),
+      );
+      const requestId = errorData.requestId || responseRequestId(response) || undefined;
+      throw new ApiError(
+        adminApiErrorMessage(
+          {
+            ...errorData,
+            error: errorData.error || 'Не удалось загрузить фото. Повторите попытку.',
+            requestId,
+          },
+          response.status,
+        ),
+        response.status,
+        errorData.code,
+        errorData.details,
+        requestId,
+      );
+    }
     return response.json();
   },
   translate: (text: string, targetLang: string) =>

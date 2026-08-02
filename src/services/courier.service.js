@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const { supabase } = require('../config/supabase');
+const { isDeliveryFulfillment } = require('../utils/fulfillment.util');
 const { buildWhatsAppContact } = require('../utils/whatsapp.util');
 const otpStore = require('./otpStore.service');
 const { sendPushToCustomer } = require('./push.service');
@@ -614,7 +615,7 @@ async function assignCourier(orderId, courierId, estimatedDeliveryAt = null) {
   if (courierReadError) throw courierReadError;
   if (!order) throw courierError('Заказ не найден', 404);
   if (!courier) throw courierError('Курьер не найден или выключен', 404);
-  if (order.fulfillment_type !== 'delivery') throw courierError('Курьер нужен только для доставки');
+  if (!isDeliveryFulfillment(order)) throw courierError('Курьер нужен только для доставки');
   if (order.status !== 'paid') throw courierError('Назначить курьера можно после оплаты', 409);
   if (['completed', 'cancelled'].includes(order.fulfillment_status)) {
     throw courierError('Заказ уже закрыт', 409);

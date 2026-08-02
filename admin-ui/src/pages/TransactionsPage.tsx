@@ -191,10 +191,12 @@ export default function TransactionsPage() {
             <Search aria-hidden="true" size={18} />
             <input
               id="transactions-search"
+              name="transactionSearch"
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder={t('transactions.searchPlaceholder')}
+              autoComplete="off"
               className="input-classic"
             />
           </div>

@@ -2,6 +2,15 @@ part of '../main.dart';
 
 const _catalogAllCategoryKey = '__all_categories__';
 
+@visibleForTesting
+bool catalogProductOptionsRequireDetails(Map<String, dynamic> options) {
+  final configuration = _asMap(options['configuration']);
+  final groups = options['modifierGroups'] as List? ?? const [];
+  return (configuration['enabled'] == true &&
+          _asString(configuration['productKind']) != 'standard') ||
+      groups.isNotEmpty;
+}
+
 String? _catalogCategoryFallbackAsset(String category) {
   final normalized = normalizeCatalogSearch(category);
   if (normalized.contains('блин') ||
@@ -35,118 +44,6 @@ String? _catalogCategoryFallbackAsset(String category) {
     return 'assets/order/pickup_banner.jpg';
   }
   return null;
-}
-
-@immutable
-class ProductStorageCondition {
-  const ProductStorageCondition({
-    required this.temperature,
-    required this.durationValue,
-    required this.durationUnit,
-  });
-
-  final String temperature;
-  final int durationValue;
-  final String durationUnit;
-}
-
-List<ProductStorageCondition> productStorageConditionsFromJson(dynamic value) {
-  final source = value is List ? value : const [];
-  return source
-      .take(2)
-      .map((raw) {
-        final condition = _asMap(raw);
-        final temperature = _asString(condition['temperature']).trim();
-        final durationRaw =
-            condition['durationValue'] ?? condition['duration_value'];
-        final durationValue = durationRaw is num
-            ? durationRaw.round()
-            : int.tryParse('$durationRaw') ?? 0;
-        final durationUnit = _asString(
-          condition['durationUnit'] ?? condition['duration_unit'],
-        ).trim();
-        if (temperature.isEmpty ||
-            durationValue <= 0 ||
-            !const {'hours', 'days', 'months'}.contains(durationUnit)) {
-          return null;
-        }
-        return ProductStorageCondition(
-          temperature: temperature,
-          durationValue: durationValue,
-          durationUnit: durationUnit,
-        );
-      })
-      .whereType<ProductStorageCondition>()
-      .toList();
-}
-
-String productStorageDurationLabel(ProductStorageCondition condition) {
-  final value = condition.durationValue;
-  final language = appLanguageNotifier.value;
-  final form = language == 'ru'
-      ? (value % 10 == 1 && value % 100 != 11
-            ? 'one'
-            : value % 10 >= 2 &&
-                  value % 10 <= 4 &&
-                  (value % 100 < 12 || value % 100 > 14)
-            ? 'few'
-            : 'many')
-      : language == 'en' && value == 1
-      ? 'one'
-      : 'many';
-  return 'catalog_storage_${condition.durationUnit}_$form'.trArgs({
-    'count': value,
-  });
-}
-
-class CatalogProduct {
-  const CatalogProduct({
-    required this.id,
-    required this.title,
-    required this.price,
-    required this.category,
-    required this.imageUrl,
-    required this.inStockCount,
-    required this.preparationMinutes,
-    this.description = '',
-    this.isStopListed = false,
-    this.ingredients = '',
-    this.allergens = const [],
-    this.dietaryTags = const [],
-    this.searchKeywords = const [],
-    this.weightGrams,
-    this.caloriesKcal,
-    this.proteinGrams,
-    this.fatGrams,
-    this.carbsGrams,
-    this.storageConditions = const [],
-  });
-
-  final String id;
-  final String title;
-  final int price;
-  final String category;
-  final String imageUrl;
-  final int? inStockCount;
-  final int preparationMinutes;
-  final String description;
-  final bool isStopListed;
-  final String ingredients;
-  final List<String> allergens;
-  final List<String> dietaryTags;
-  final List<String> searchKeywords;
-  final int? weightGrams;
-  final double? caloriesKcal;
-  final double? proteinGrams;
-  final double? fatGrams;
-  final double? carbsGrams;
-  final List<ProductStorageCondition> storageConditions;
-
-  bool get hasNutrition =>
-      caloriesKcal != null ||
-      proteinGrams != null ||
-      fatGrams != null ||
-      carbsGrams != null;
 }
 
 String _catalogDisplayName(dynamic value) {
@@ -315,6 +212,7 @@ class CatalogScreen extends StatefulWidget {
     this.hasSelectedOrderType = false,
     this.selectionRevision = 0,
     this.onRequestOrderType,
+    this.onRequireAuth,
     this.initialClientUri,
     super.key,
   });
@@ -324,6 +222,7 @@ class CatalogScreen extends StatefulWidget {
   final bool hasSelectedOrderType;
   final int selectionRevision;
   final VoidCallback? onRequestOrderType;
+  final Future<bool> Function()? onRequireAuth;
   final Uri? initialClientUri;
 
   @override
@@ -347,6 +246,9 @@ class _CatalogScreenState extends State<CatalogScreen>
   Set<String> _dietaryFilters = const {};
   Set<String> _excludedAllergens = const {};
   Set<String> _favoriteProductIds = const {};
+  Map<String, StockSubscription> _stockSubscriptions = const {};
+  Set<String> _stockSubscriptionBusy = const {};
+  Set<String> _configurableProductIds = const {};
   bool _favoritesOnly = false;
   Map<String, String> _apiCategoryImages = {};
   String? _openedCategory;
@@ -363,6 +265,7 @@ class _CatalogScreenState extends State<CatalogScreen>
   String? _loadError;
   String _trackedCatalogKey = '';
   int _menuLoadRevision = 0;
+  int _productOptionsRevision = 0;
 
   // Авто-обновление меню каждую минуту
   Timer? _autoRefreshTimer;
@@ -391,6 +294,7 @@ class _CatalogScreenState extends State<CatalogScreen>
     _pendingClientUri = widget.initialClientUri;
     unawaited(_loadSelectedBakery().then((_) => _loadMenu()));
     unawaited(_loadFavorites());
+    unawaited(_loadStockSubscriptions());
     _menuEventSubscription = _api.customerEvents.listen((event) {
       if (event['type'] == 'menu.updated') unawaited(_silentRefresh());
     });
@@ -410,6 +314,8 @@ class _CatalogScreenState extends State<CatalogScreen>
       queryParameters: {'category': product.category},
     );
   }
+
+  void _updateCatalogState(VoidCallback update) => setState(update);
 
   void applyClientUri(Uri uri) {
     _pendingClientUri = normalizedClientUri(uri);
@@ -562,38 +468,6 @@ class _CatalogScreenState extends State<CatalogScreen>
         }
       }
 
-      final changed =
-          jsonEncode(
-            products
-                .map(
-                  (p) => [
-                    p.id,
-                    p.title,
-                    p.price,
-                    p.category,
-                    p.imageUrl,
-                    p.isStopListed,
-                    p.preparationMinutes,
-                  ],
-                )
-                .toList(),
-          ) !=
-          jsonEncode(
-            _allProducts
-                .map(
-                  (p) => [
-                    p.id,
-                    p.title,
-                    p.price,
-                    p.category,
-                    p.imageUrl,
-                    p.isStopListed,
-                    p.preparationMinutes,
-                  ],
-                )
-                .toList(),
-          );
-
       final cachedAt = await _cacheMenu(json, cacheKey: cacheKey);
       if (!_isCurrentMenuRequest(revision, endpoint)) return;
       _syncCartWithMenu(products);
@@ -606,12 +480,8 @@ class _CatalogScreenState extends State<CatalogScreen>
         _menuCachedAt = cachedAt;
         _loadError = null;
       });
+      unawaited(_refreshProductOptionFlags(products));
       unawaited(_warmProductImages(products));
-      if (changed && mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('catalog_menu_updated'.tr)));
-      }
     } catch (_) {
       // Тихая ошибка — не показываем пользователю
     }
@@ -674,6 +544,7 @@ class _CatalogScreenState extends State<CatalogScreen>
         _usingCachedMenu = false;
         _menuCachedAt = cachedAt;
       });
+      unawaited(_refreshProductOptionFlags(products));
       _applyPendingClientUri();
       unawaited(_warmProductImages(products));
       final analyticsKey = '${AppLang.current}:$_orderType:$_selectedBakeryId';
@@ -713,6 +584,47 @@ class _CatalogScreenState extends State<CatalogScreen>
 
   bool _isCurrentMenuRequest(int revision, String endpoint) =>
       mounted && revision == _menuLoadRevision && endpoint == _menuEndpoint;
+
+  Future<void> _refreshProductOptionFlags(List<CatalogProduct> products) async {
+    final revision = ++_productOptionsRevision;
+    try {
+      final options = await _api.getProductOptionsBatch(
+        products.map((product) => product.id),
+      );
+      if (!mounted || revision != _productOptionsRevision) return;
+      final currentIds = _allProducts.map((product) => product.id).toSet();
+      setState(() {
+        _configurableProductIds = options.entries
+            .where(
+              (entry) =>
+                  currentIds.contains(entry.key) &&
+                  catalogProductOptionsRequireDetails(entry.value),
+            )
+            .map((entry) => entry.key)
+            .toSet();
+      });
+    } catch (_) {
+      // Product details still performs authoritative option validation.
+    }
+  }
+
+  Future<bool> _productRequiresDetails(CatalogProduct product) async {
+    if (_configurableProductIds.contains(product.id)) return true;
+    try {
+      final options = await _api.getProductOptions(product.id);
+      final requiresDetails = catalogProductOptionsRequireDetails(options);
+      if (mounted && requiresDetails) {
+        setState(() {
+          _configurableProductIds = {..._configurableProductIds, product.id};
+        });
+      }
+      return requiresDetails;
+    } catch (_) {
+      // Do not risk adding an incomplete configured line while metadata is
+      // unavailable. The details screen can retry and explain the state.
+      return true;
+    }
+  }
 
   Future<void> _loadFavorites() async {
     try {
@@ -895,6 +807,7 @@ class _CatalogScreenState extends State<CatalogScreen>
         _menuCachedAt = cachedAt;
         _loadError = null;
       });
+      unawaited(_refreshProductOptionFlags(products));
       _applyPendingClientUri();
       unawaited(_warmProductImages(products));
       return true;
@@ -1400,9 +1313,13 @@ class _CatalogScreenState extends State<CatalogScreen>
 
   Future<void> _setProductQuantity(CatalogProduct product, int quantity) async {
     if (product.isStopListed) return;
-    final next = quantity.clamp(0, product.inStockCount ?? 999);
+    final next = quantity.clamp(0, _catalogProductQuantityLimit(product));
     final cart = context.read<CartProvider>();
     final previous = cart.getQuantity(product.id);
+    if (next != previous && await _productRequiresDetails(product)) {
+      if (mounted) await _openProductDetails(product);
+      return;
+    }
     if (next > previous && !await _ensureOrderTypeSelected()) return;
     if (!mounted) return;
     if (next <= 0) {
@@ -1437,26 +1354,6 @@ class _CatalogScreenState extends State<CatalogScreen>
           ? BulkaMotion.lightImpact()
           : BulkaMotion.selection(),
     );
-    if (next > previous && previous == 0 && mounted) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            behavior: SnackBarBehavior.floating,
-            content: Row(
-              children: [
-                const Icon(
-                  Icons.thumb_up_alt_rounded,
-                  color: Colors.white,
-                  size: 20,
-                ),
-                const SizedBox(width: 10),
-                Expanded(child: Text('catalog_added_to_cart'.tr)),
-              ],
-            ),
-          ),
-        );
-    }
   }
 
   double _catalogContentBottomInset(BuildContext context) =>
@@ -1633,7 +1530,7 @@ class _CatalogScreenState extends State<CatalogScreen>
                             style: TextStyle(
                               color: colors.danger,
                               fontFamily: _descriptionFont,
-                              fontSize: BulkaTypeScale.caption,
+                              fontSize: BulkaTypeScale.badge,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -2551,6 +2448,9 @@ class _CatalogScreenState extends State<CatalogScreen>
     final scheme = Theme.of(context).colorScheme;
     final favorite = _favoriteProductIds.contains(product.id);
     final unavailable = product.isStopListed;
+    final stockKey = _stockSubscriptionKey(product.id, _selectedBakeryId);
+    final stockSubscribed = _stockSubscriptions.containsKey(stockKey);
+    final stockBusy = _stockSubscriptionBusy.contains(stockKey);
 
     return Semantics(
       container: true,
@@ -2573,12 +2473,16 @@ class _CatalogScreenState extends State<CatalogScreen>
                 pressedScale: 0.975,
                 child: Material(
                   color: Colors.transparent,
-                  child: InkWell(
-                    onTap: unavailable
-                        ? null
-                        : () => _openProductDetails(product),
-                    borderRadius: BorderRadius.circular(BulkaRadii.card),
-                    child: ExcludeSemantics(
+                  child: Semantics(
+                    button: true,
+                    enabled: !unavailable,
+                    label: _catalogOpenProductLabel(product),
+                    excludeSemantics: true,
+                    child: InkWell(
+                      onTap: unavailable
+                          ? null
+                          : () => _openProductDetails(product),
+                      borderRadius: BorderRadius.circular(BulkaRadii.card),
                       child: _CatalogProductImage(
                         key: ValueKey('catalog-product-image-${product.id}'),
                         url: product.imageUrl,
@@ -2659,7 +2563,7 @@ class _CatalogScreenState extends State<CatalogScreen>
                         style: TextStyle(
                           color: colors.mutedText,
                           fontFamily: _descriptionFont,
-                          fontSize: BulkaTypeScale.caption,
+                          fontSize: BulkaTypeScale.badge,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -2669,13 +2573,57 @@ class _CatalogScreenState extends State<CatalogScreen>
               Positioned(
                 right: 7,
                 bottom: -20,
-                child: _CatalogImageQuantityControl(
-                  quantity: quantity,
-                  stopListed: unavailable,
-                  onAdd: () => _setProductQuantity(product, 1),
-                  onDecrease: () => _setProductQuantity(product, quantity - 1),
-                  onIncrease: () => _setProductQuantity(product, quantity + 1),
-                ),
+                child: unavailable
+                    ? Semantics(
+                        button: true,
+                        toggled: stockSubscribed,
+                        label: stockSubscribed
+                            ? 'stock_notify_enabled'.tr
+                            : 'stock_notify_enable'.tr,
+                        child: IconButton.filled(
+                          key: ValueKey('stock-notify-${product.id}'),
+                          tooltip: stockSubscribed
+                              ? 'stock_notify_enabled'.tr
+                              : 'stock_notify_enable'.tr,
+                          onPressed: stockBusy
+                              ? null
+                              : () => unawaited(
+                                  _toggleStockSubscription(product),
+                                ),
+                          style: IconButton.styleFrom(
+                            minimumSize: const Size(48, 48),
+                            backgroundColor: stockSubscribed
+                                ? colors.brandBrown
+                                : _bulkaYellow,
+                            foregroundColor: stockSubscribed
+                                ? Colors.white
+                                : _textDark,
+                          ),
+                          icon: stockBusy
+                              ? const SizedBox.square(
+                                  dimension: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : Icon(
+                                  stockSubscribed
+                                      ? Icons.notifications_active_rounded
+                                      : Icons.add_alert_rounded,
+                                ),
+                        ),
+                      )
+                    : _CatalogImageQuantityControl(
+                        quantity: quantity,
+                        stopListed: false,
+                        onAdd: () => _setProductQuantity(product, 1),
+                        onDecrease: () =>
+                            _setProductQuantity(product, quantity - 1),
+                        onIncrease:
+                            quantity >= _catalogProductQuantityLimit(product)
+                            ? null
+                            : () => _setProductQuantity(product, quantity + 1),
+                      ),
               ),
             ],
           ),

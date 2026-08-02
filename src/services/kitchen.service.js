@@ -1,8 +1,10 @@
 const { supabase } = require('../config/supabase');
+const { effectiveFulfillmentType, isDeliveryFulfillment } = require('../utils/fulfillment.util');
 const realtime = require('./realtime.service');
-const { notifyOrderStatus } = require('./customer-order.service');
+const { cancelPaidOrder, notifyOrderStatus } = require('./customer-order.service');
 const { notifyDeliveryStatus } = require('./courier.service');
 const { refreshOrderEta } = require('./eta.service');
+const { releaseOrderReservations } = require('./inventory.service');
 
 const kitchenError = (message, statusCode = 400) =>
   Object.assign(new Error(message), { statusCode });
@@ -22,7 +24,8 @@ const normalize = (order) => ({
   branch: order.branch_name || '',
   items: Array.isArray(order.cart_items) ? order.cart_items : [],
   comment: order.comment || null,
-  fulfillmentType: order.fulfillment_type,
+  substitutionPreference: order.substitution_preference || 'call_customer',
+  fulfillmentType: effectiveFulfillmentType(order),
   fulfillmentStatus: order.fulfillment_status,
   kitchenStatus: order.kitchen_status || 'queued',
   createdAt: order.created_at,
@@ -55,7 +58,7 @@ async function updateKitchenStatus(
   orderId,
   nextStatus,
   preparationMinutes = null,
-  { branchIds = [] } = {},
+  { branchIds = [], cancellationReason = '' } = {},
 ) {
   if (!Object.hasOwn(TRANSITIONS, nextStatus)) throw kitchenError('Некорректный статус кухни');
   const { data: current, error: readError } = await supabase
@@ -72,13 +75,40 @@ async function updateKitchenStatus(
   ) {
     throw kitchenError('Заказ не найден', 404);
   }
-  if (current.status !== 'paid') throw kitchenError('Заказ ещё не оплачен', 409);
   const from = current.kitchen_status || 'queued';
   if (from === nextStatus) return normalize(current);
+  if (current.status !== 'paid') throw kitchenError('Заказ ещё не оплачен', 409);
+  if (['processing', 'unknown'].includes(String(current.refund_status || ''))) {
+    throw kitchenError('Нельзя менять кухонный статус, пока проверяется возврат', 409);
+  }
   if (!(TRANSITIONS[from] || []).includes(nextStatus)) {
     throw kitchenError(`Нельзя изменить «${from}» на «${nextStatus}»`, 409);
   }
   const now = new Date().toISOString();
+  if (nextStatus === 'cancelled') {
+    const reason =
+      String(cancellationReason || '')
+        .trim()
+        .slice(0, 500) || 'Заказ отменён сотрудником точки: товар недоступен';
+    await cancelPaidOrder(current, reason, {
+      allowedFulfillmentStatuses: [String(current.fulfillment_status || 'new')],
+      cancelBeforeRefund: true,
+      reuseRefundRequestId: true,
+    });
+    const { data: cancelled, error: cancelledError } = await supabase
+      .from('kaspi_orders')
+      .update({ kitchen_status: 'cancelled', updated_at: now })
+      .eq('id', orderId)
+      .eq('kitchen_status', from)
+      .eq('status', 'refunded')
+      .eq('fulfillment_status', 'cancelled')
+      .eq('refund_status', 'succeeded')
+      .select('*')
+      .maybeSingle();
+    if (cancelledError) throw cancelledError;
+    if (!cancelled) throw kitchenError('Заказ уже изменился. Обновите экран.', 409);
+    return normalize(cancelled);
+  }
   const updates = { kitchen_status: nextStatus, updated_at: now };
   if (preparationMinutes != null) {
     const duration = Number(preparationMinutes);
@@ -98,23 +128,32 @@ async function updateKitchenStatus(
   }
   if (nextStatus === 'handed_over') {
     updates.handed_to_courier_at = now;
-    if (current.fulfillment_type === 'delivery') {
+    if (isDeliveryFulfillment(current)) {
       updates.delivery_status = current.courier_id ? 'picked_up' : current.delivery_status;
     } else {
       updates.fulfillment_status = 'completed';
       updates.fulfilled_at = now;
     }
   }
-  if (nextStatus === 'cancelled') updates.fulfillment_status = 'cancelled';
-  const { data, error } = await supabase
+  let updateQuery = supabase
     .from('kaspi_orders')
     .update(updates)
     .eq('id', orderId)
     .eq('kitchen_status', from)
-    .select('*')
-    .maybeSingle();
+    .eq('status', 'paid');
+  updateQuery =
+    current.fulfillment_status == null
+      ? updateQuery.is('fulfillment_status', null)
+      : updateQuery.eq('fulfillment_status', current.fulfillment_status);
+  updateQuery = updateQuery.or('refund_status.is.null,refund_status.not.in.(processing,unknown)');
+  const { data, error } = await updateQuery.select('*').maybeSingle();
   if (error) throw error;
   if (!data) throw kitchenError('Заказ уже изменился. Обновите экран.', 409);
+  if (nextStatus === 'handed_over') {
+    await releaseOrderReservations(data.id).catch((releaseError) =>
+      console.error('Kitchen reservation release failed:', releaseError.message),
+    );
+  }
   const refreshed = await refreshOrderEta(data).catch((etaError) => {
     console.error('Kitchen ETA refresh failed:', etaError.message);
     return data;
@@ -134,7 +173,7 @@ async function updateKitchenStatus(
     { customerId: data.customer_id, includeAdmins: true, branchId: data.branch_id },
   );
   const notify =
-    nextStatus === 'handed_over' && data.fulfillment_type === 'delivery'
+    nextStatus === 'handed_over' && isDeliveryFulfillment(data)
       ? notifyDeliveryStatus
       : notifyOrderStatus;
   await notify(refreshed).catch((notificationError) =>

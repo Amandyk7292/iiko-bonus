@@ -1,5 +1,15 @@
 part of '../main.dart';
 
+const _explicitFulfillmentCityKey = 'selected_fulfillment_city_explicit';
+const _confirmedFulfillmentCityKey = 'selected_fulfillment_city_confirmed';
+
+String _explicitFulfillmentCityTypeKey(String orderType) =>
+    '${_explicitFulfillmentCityKey}_${_orderTypeFromWire(orderType).wireValue}';
+
+String _confirmedFulfillmentCityTypeKey(String orderType) =>
+    'selected_fulfillment_city_confirmed_'
+    '${_orderTypeFromWire(orderType).wireValue}';
+
 class LocationsScreen extends StatefulWidget {
   const LocationsScreen({this.orderType = 'pickup', this.api, super.key});
 
@@ -11,9 +21,10 @@ class LocationsScreen extends StatefulWidget {
 }
 
 class _LocationsScreenState extends State<LocationsScreen> {
-  bool _showCities = false;
+  bool _showCities = true;
   String _selectedCity = '';
   String _searchQuery = '';
+  final _searchController = TextEditingController();
   bool _loading = true;
   bool _loadFailed = false;
 
@@ -33,12 +44,21 @@ class _LocationsScreenState extends State<LocationsScreen> {
       });
     }
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final preferredCity = prefs.getString('selected_bakery_city')?.trim();
-      final preferredLocationId = prefs
-          .getString('selected_bakery_location_id')
-          ?.trim();
       final api = widget.api ?? BulkaApiClient();
+      final prefs = await SharedPreferences.getInstance();
+      final hasConfirmedTypeCity =
+          prefs.getBool(_confirmedFulfillmentCityTypeKey(widget.orderType)) ??
+          false;
+      final hasConfirmedSharedCity =
+          prefs.getBool(_confirmedFulfillmentCityKey) ?? false;
+      final savedCity = hasConfirmedTypeCity
+          ? prefs.getString(
+                  _explicitFulfillmentCityTypeKey(widget.orderType),
+                ) ??
+                ''
+          : hasConfirmedSharedCity
+          ? prefs.getString(_explicitFulfillmentCityKey) ?? ''
+          : '';
       final locations = await api.getFulfillmentLocations();
       final locs = <String, List<BakeryLocation>>{};
       for (final location in locations) {
@@ -48,27 +68,11 @@ class _LocationsScreenState extends State<LocationsScreen> {
             : location.city.trim();
         locs.putIfAbsent(city, () => []).add(location);
       }
-      String? cityFromLocation;
-      if (preferredLocationId != null && preferredLocationId.isNotEmpty) {
-        for (final entry in locs.entries) {
-          if (entry.value.any(
-            (location) => location.id == preferredLocationId,
-          )) {
-            cityFromLocation = entry.key;
-            break;
-          }
-        }
-      }
       if (!mounted) return;
       setState(() {
         _cityLocations = locs;
-        if (_cityLocations.isNotEmpty) {
-          final nextCity =
-              preferredCity != null && _cityLocations.containsKey(preferredCity)
-              ? preferredCity
-              : cityFromLocation;
-          _selectedCity = nextCity ?? _cityLocations.keys.first;
-        }
+        _selectedCity = _cityLocations.containsKey(savedCity) ? savedCity : '';
+        _showCities = _selectedCity.isEmpty;
         _loading = false;
       });
     } catch (e) {
@@ -81,28 +85,54 @@ class _LocationsScreenState extends State<LocationsScreen> {
     }
   }
 
-  void _onCityTapped(String city) {
+  Future<void> _onCityTapped(String city) async {
+    final prefs = await SharedPreferences.getInstance();
+    await Future.wait([
+      prefs.setString(_explicitFulfillmentCityKey, city),
+      prefs.setString(_explicitFulfillmentCityTypeKey(widget.orderType), city),
+      prefs.setBool(_confirmedFulfillmentCityKey, true),
+      prefs.setBool(_confirmedFulfillmentCityTypeKey(widget.orderType), true),
+    ]);
+    if (!mounted) return;
     setState(() {
       _selectedCity = city;
       _showCities = false;
       _searchQuery = '';
     });
-    unawaited(
-      SharedPreferences.getInstance().then(
-        (prefs) => prefs.setString('selected_bakery_city', city),
-      ),
-    );
+    _searchController.clear();
+  }
+
+  void _clearSearch() {
+    _searchController.clear();
+    if (_searchQuery.isNotEmpty) setState(() => _searchQuery = '');
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _onLocationTapped(BakeryLocation location) async {
     final prefs = await SharedPreferences.getInstance();
+    final city = location.city.trim();
+    if (city.isNotEmpty) {
+      await Future.wait([
+        prefs.setString(_explicitFulfillmentCityKey, city),
+        prefs.setString(
+          _explicitFulfillmentCityTypeKey(widget.orderType),
+          city,
+        ),
+        prefs.setBool(_confirmedFulfillmentCityKey, true),
+        prefs.setBool(_confirmedFulfillmentCityTypeKey(widget.orderType), true),
+      ]);
+    }
     if (location.id.isEmpty) {
       await prefs.remove('selected_bakery_location_id');
     } else {
       await prefs.setString('selected_bakery_location_id', location.id);
     }
     await prefs.setString('selected_bakery_location', location.displayLabel);
-    await prefs.setString('selected_bakery_city', _selectedCity);
     await prefs.setString(
       'selected_bakery_location_${widget.orderType}',
       location.displayLabel,
@@ -131,43 +161,59 @@ class _LocationsScreenState extends State<LocationsScreen> {
         )
         .toList();
 
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        toolbarHeight: BulkaLayout.appBarHeight(context),
-        backgroundColor: scheme.surface,
-        centerTitle: true,
-        leading: IconButton(
-          onPressed: () {
-            if (_showCities) {
-              setState(() => _showCities = false);
-            } else {
-              Navigator.of(context).pop();
-            }
-          },
-          icon: const Icon(Icons.chevron_left_rounded, size: 34),
-          color: colors.mutedText,
-          tooltip: 'back_tooltip'.tr,
+    return PopScope(
+      canPop: _showCities,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && !_showCities) {
+          setState(() {
+            _showCities = true;
+            _searchQuery = '';
+          });
+          _searchController.clear();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        appBar: AppBar(
+          toolbarHeight: BulkaLayout.appBarHeight(context),
+          backgroundColor: scheme.surface,
+          centerTitle: true,
+          leading: IconButton(
+            onPressed: () {
+              if (!_showCities) {
+                setState(() {
+                  _showCities = true;
+                  _searchQuery = '';
+                });
+                _searchController.clear();
+                return;
+              }
+              Navigator.of(context).maybePop();
+            },
+            icon: const Icon(Icons.chevron_left_rounded, size: 34),
+            color: colors.mutedText,
+            tooltip: 'back_tooltip'.tr,
+          ),
+          title: _BulkaPageTitle('locations_title'.tr, color: scheme.onSurface),
+          actions: const [SizedBox(width: BulkaLayout.appBarSideSlot)],
+          elevation: 0,
         ),
-        title: _BulkaPageTitle('locations_title'.tr, color: scheme.onSurface),
-        actions: const [SizedBox(width: BulkaLayout.appBarSideSlot)],
-        elevation: 0,
-      ),
-      body: SafeArea(
-        child: _loading
-            ? const Center(
-                child: CircularProgressIndicator(color: Colors.orange),
-              )
-            : _loadFailed
-            ? _LocationsState(
-                icon: Icons.cloud_off_rounded,
-                title: 'locations_error'.tr,
-                actionLabel: 'retry_btn'.tr,
-                onAction: _loadLocations,
-              )
-            : (_showCities
-                  ? _buildCitiesList()
-                  : _buildLocationsList(filteredLocations)),
+        body: SafeArea(
+          child: _loading
+              ? const Center(
+                  child: CircularProgressIndicator(color: Colors.orange),
+                )
+              : _loadFailed
+              ? _LocationsState(
+                  icon: Icons.cloud_off_rounded,
+                  title: 'locations_error'.tr,
+                  actionLabel: 'retry_btn'.tr,
+                  onAction: _loadLocations,
+                )
+              : (_showCities
+                    ? _buildCitiesList()
+                    : _buildLocationsList(filteredLocations)),
+        ),
       ),
     );
   }
@@ -201,7 +247,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
             ),
           ),
           trailing: const Icon(Icons.chevron_right_rounded, color: _almond),
-          onTap: () => _onCityTapped(city),
+          onTap: () => unawaited(_onCityTapped(city)),
         );
       },
     );
@@ -246,6 +292,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
           child: TextField(
+            controller: _searchController,
             onChanged: (val) => setState(() => _searchQuery = val),
             textInputAction: TextInputAction.search,
             decoration: InputDecoration(
@@ -254,7 +301,16 @@ class _LocationsScreenState extends State<LocationsScreen> {
                 color: colors.mutedText,
                 fontSize: BulkaTypeScale.body,
               ),
-              suffixIcon: const Icon(Icons.search, color: Color(0xFFD3AD72)),
+              suffixIcon: _searchQuery.isEmpty
+                  ? const Icon(Icons.search, color: Color(0xFFD3AD72))
+                  : IconButton(
+                      onPressed: _clearSearch,
+                      tooltip: 'catalog_clear_search'.tr,
+                      icon: const Icon(
+                        Icons.close_rounded,
+                        color: Color(0xFFD3AD72),
+                      ),
+                    ),
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 20,
                 vertical: 16,
@@ -269,10 +325,12 @@ class _LocationsScreenState extends State<LocationsScreen> {
                   title: _searchQuery.isEmpty
                       ? 'locations_empty'.tr
                       : 'locations_search_empty'.tr,
-                  actionLabel: 'refresh_btn'.tr,
+                  actionLabel: _searchQuery.isEmpty
+                      ? 'retry_btn'.tr
+                      : 'catalog_clear_search'.tr,
                   onAction: _searchQuery.isEmpty
                       ? _loadLocations
-                      : () => setState(() => _searchQuery = ''),
+                      : _clearSearch,
                 )
               : ListView.separated(
                   padding: const EdgeInsets.symmetric(horizontal: 24),

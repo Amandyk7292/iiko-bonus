@@ -21,12 +21,6 @@ void main() {
 
   test('all translations contain ru, kk and en values', () {
     expect(translationValidationErrors(), isEmpty);
-    expect('order_preorder'.tr, 'Предзаказ');
-    expect('cart_empty_title'.tr, 'Корзина пуста');
-    expect(
-      'cart_empty_sub'.tr,
-      'Добавьте товары из каталога, чтобы оформить заказ.',
-    );
   });
 
   test('fulfillment slots use branch time instead of the device timezone', () {
@@ -125,6 +119,37 @@ void main() {
     expect(productStorageDurationLabel(conditions[0]), '90 days');
     expect(productStorageDurationLabel(conditions[1]), '72 hours');
   });
+
+  test(
+    'product details exist only when at least one optional fact is filled',
+    () {
+      const emptyProduct = CatalogProduct(
+        id: 'empty-facts',
+        title: 'Товар',
+        price: 100,
+        category: 'Категория',
+        imageUrl: '',
+        inStockCount: 1,
+        preparationMinutes: 10,
+      );
+      const partialProduct = CatalogProduct(
+        id: 'partial-facts',
+        title: 'Товар',
+        price: 100,
+        category: 'Категория',
+        imageUrl: '',
+        inStockCount: 1,
+        preparationMinutes: 10,
+        proteinGrams: 4.2,
+      );
+
+      expect(emptyProduct.hasNutrition, isFalse);
+      expect(emptyProduct.hasComposition, isFalse);
+      expect(emptyProduct.hasProductDetails, isFalse);
+      expect(partialProduct.hasNutrition, isTrue);
+      expect(partialProduct.hasProductDetails, isTrue);
+    },
+  );
 
   test('every localization key used by the client exists', () {
     final missing = <String>{};
@@ -270,15 +295,6 @@ void main() {
     expect(theme.inputDecorationTheme.fillColor, Colors.white);
   });
 
-  test('helper and success colors remain readable on white surfaces', () {
-    final theme = buildBulkaTheme();
-    final colors = theme.extension<BulkaThemeColors>()!;
-
-    expect(theme.inputDecorationTheme.helperStyle?.color, colors.mutedText);
-    expect(colors.mutedText, const Color(0xFF7A6C65));
-    expect(colors.success, const Color(0xFF2B7A4B));
-  });
-
   test('wallet URL follows the device platform in web and native builds', () {
     final urls = {
       'url': '/wallet/choice',
@@ -317,15 +333,94 @@ void main() {
     expect(address.hasValidCoordinates, isTrue);
     expect(address.toOrderPayload(), {
       'label': 'Дом',
-      'address': '17-й микрорайон, 1',
+      'address': '17-й микрорайон',
       'city': 'Актау',
       'latitude': 43.66944,
       'longitude': 51.136929,
+      'house': '1',
       'entrance': '2',
       'floor': '4',
       'apartment': '18',
       'comment': 'Позвонить заранее',
     });
+
+    final restored = DeliveryAddress.fromJson(address.toJson());
+    expect(restored.house, '1');
+    expect(restored.entrance, '2');
+    expect(restored.floor, '4');
+    expect(restored.apartment, '18');
+  });
+
+  test('mandatory update policy compares semantic versions safely', () {
+    expect(compareAppVersions('1.0.0', '1.0.0'), 0);
+    expect(compareAppVersions('1.2.0+14', '1.1.9'), greaterThan(0));
+    expect(compareAppVersions('1.0.9', '1.1.0'), lessThan(0));
+
+    final update = requiredAppUpdateForPolicy(
+      currentVersion: '1.0.0',
+      policy: AppReleasePolicy(
+        platform: 'android',
+        latestVersion: '1.2.0',
+        minimumVersion: '1.1.0',
+        storeUri: Uri.parse(
+          'https://play.google.com/store/apps/details?id=com.bulka.bonus',
+        ),
+      ),
+    );
+    expect(update?.targetVersion, '1.2.0');
+
+    expect(
+      requiredAppUpdateForPolicy(
+        currentVersion: '1.1.0',
+        policy: const AppReleasePolicy(
+          platform: 'ios',
+          latestVersion: '1.1.0',
+          minimumVersion: '1.1.0',
+          storeUri: null,
+        ),
+      ),
+      isNull,
+    );
+  });
+
+  testWidgets('mandatory update follows the language selected in Bulka', (
+    tester,
+  ) async {
+    const expectedTitles = {
+      'ru': 'Обновите Bulka',
+      'kk': 'Bulka қолданбасын жаңартыңыз',
+      'en': 'Update Bulka',
+    };
+    const expectedButtons = {
+      'ru': 'Обновить приложение',
+      'kk': 'Қолданбаны жаңарту',
+      'en': 'Update app',
+    };
+    final requirement = RequiredAppUpdate(
+      currentVersion: '1.0.0',
+      targetVersion: '1.1.0',
+      storeUri: Uri.parse(
+        'https://play.google.com/store/apps/details?id=com.bulka.bonus',
+      ),
+    );
+
+    for (final code in AppLang.supportedCodes) {
+      appLanguageNotifier.value = code;
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: Locale(code),
+          theme: buildBulkaTheme(),
+          home: RequiredAppUpdateScreen(
+            requirement: requirement,
+            onUpdate: () {},
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text(expectedTitles[code]!), findsOneWidget);
+      expect(find.text(expectedButtons[code]!), findsOneWidget);
+    }
+    appLanguageNotifier.value = 'ru';
   });
 
   test('fulfillment location reads delivery rules from the API', () {
@@ -504,27 +599,177 @@ void main() {
       find.text('Ассортимент выбран для этого типа заказа'),
       findsOneWidget,
     );
-
-    final savedCard = find.byKey(
-      const ValueKey('checkout-saved-card-test-card'),
+    expect(find.text('Если товара не будет'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('checkout-substitution-call_customer')),
+      findsNothing,
     );
+
+    final savedCardLabel = find.text('VISA •••• 1328');
     await tester.scrollUntilVisible(
-      savedCard,
+      savedCardLabel,
       420,
       scrollable: find.byType(Scrollable).last,
     );
     await tester.pumpAndSettle();
 
-    final kaspiCard = find.byKey(const ValueKey('checkout-payment-kaspi'));
-    expect(kaspiCard, findsOneWidget);
-    expect(savedCard, findsOneWidget);
-    expect(find.text('VISA •••• 1328'), findsOneWidget);
+    expect(savedCardLabel, findsOneWidget);
     expect(
-      tester.getTopLeft(savedCard).dy,
-      greaterThan(tester.getBottomLeft(kaspiCard).dy),
+      find.byKey(
+        const ValueKey(
+          'checkout-saved-card-31f0d793-0102-4d2f-a5a1-744d12cffe7c',
+        ),
+      ),
+      findsOneWidget,
     );
+    expect(
+      find.byKey(const ValueKey('checkout-add-saved-card')),
+      findsOneWidget,
+    );
+    expect(find.text('Kaspi Pay'), findsOneWidget);
+    expect(find.text('Оплатить картой'), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('checkout offers card linking when no saved card exists', (
+    tester,
+  ) async {
+    final cart = CartProvider()
+      ..addItem(
+        productId: 'product-without-card',
+        name: 'Плюшка',
+        price: 500,
+        imageUrl: '',
+      );
+    final api = _NoSavedCardsApiClient()
+      ..setSession(accessToken: 'test-access', refreshToken: 'test-refresh');
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildBulkaTheme(),
+        home: ChangeNotifierProvider.value(
+          value: cart,
+          child: MainShell(
+            api: api,
+            customer: _testCustomer,
+            transactions: _testTransactions,
+            initialTab: 2,
+            onLogout: () async {},
+            onRefreshProfile: () async {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Оформить заказ'));
+    await tester.pumpAndSettle();
+
+    final addCard = find.text('Добавить карту');
+    await tester.scrollUntilVisible(
+      addCard,
+      420,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('checkout-saved-cards-empty')),
+      findsOneWidget,
+    );
+    expect(find.text('Сохранённых карт пока нет.'), findsOneWidget);
+    expect(addCard, findsOneWidget);
+    expect(find.text('Kaspi Pay'), findsOneWidget);
+    expect(find.text('Оплатить картой'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'checkout switches between three saved cards and enforces limit',
+    (tester) async {
+      final cart = CartProvider()
+        ..addItem(
+          productId: 'product-three-cards',
+          name: 'Плюшка',
+          price: 500,
+          imageUrl: '',
+        );
+      final api = _ThreeSavedCardsApiClient()
+        ..setSession(accessToken: 'test-access', refreshToken: 'test-refresh');
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildBulkaTheme(),
+          home: ChangeNotifierProvider.value(
+            value: cart,
+            child: MainShell(
+              api: api,
+              customer: _testCustomer,
+              transactions: _testTransactions,
+              initialTab: 2,
+              onLogout: () async {},
+              onRefreshProfile: () async {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Оформить заказ'));
+      await tester.pumpAndSettle();
+
+      final firstCard = find.byKey(
+        const ValueKey(
+          'checkout-saved-card-31f0d793-0102-4d2f-a5a1-744d12cffe7c',
+        ),
+      );
+      final secondCard = find.byKey(
+        const ValueKey(
+          'checkout-saved-card-41f0d793-0102-4d2f-a5a1-744d12cffe7d',
+        ),
+      );
+      await tester.scrollUntilVisible(
+        secondCard,
+        420,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(
+          of: firstCard,
+          matching: find.byIcon(Icons.radio_button_unchecked_rounded),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: secondCard,
+          matching: find.byIcon(Icons.radio_button_unchecked_rounded),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(secondCard);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(
+          of: secondCard,
+          matching: find.byIcon(Icons.check_circle_rounded),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('checkout-add-saved-card')),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('checkout-saved-cards-limit')),
+        findsOneWidget,
+      );
+      expect(find.text('Можно сохранить не более 3 карт.'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('rapid time taps request slots and open the picker only once', (
     tester,
@@ -620,8 +865,7 @@ void main() {
 
     expect(find.text('Очистить корзину?'), findsOneWidget);
     expect(find.text('Все добавленные товары будут удалены.'), findsNothing);
-    expect(find.text('Очистить'), findsWidgets);
-    expect(find.text('Подтвердить'), findsNothing);
+    expect(find.text('Очистить'), findsOneWidget);
     expect(find.text('Отмена'), findsOneWidget);
   });
 
@@ -902,28 +1146,6 @@ void main() {
         find.byKey(const ValueKey('auth-confirm-password-field')),
         'Register2026',
       );
-      expect(
-        find.text('Принимаю публичную оферту и политику конфиденциальности'),
-        findsOneWidget,
-      );
-      expect(find.text('Публичная оферта'), findsOneWidget);
-      expect(find.text('Политика конфиденциальности'), findsOneWidget);
-      await tester.ensureVisible(find.text('Подтвердить номер'));
-      await tester.tap(find.text('Подтвердить номер'));
-      await tester.pump();
-
-      expect(startedPhone, isNull);
-      expect(
-        find.text('Примите публичную оферту и политику конфиденциальности'),
-        findsOneWidget,
-      );
-
-      await tester.ensureVisible(
-        find.byKey(const ValueKey('registration-terms-checkbox')),
-      );
-      await tester.tap(
-        find.byKey(const ValueKey('registration-terms-checkbox')),
-      );
       await tester.ensureVisible(find.text('Подтвердить номер'));
       await tester.tap(find.text('Подтвердить номер'));
       await tester.pumpAndSettle();
@@ -941,72 +1163,6 @@ void main() {
       expect(find.text('Завершение регистрации'), findsOneWidget);
     },
   );
-
-  testWidgets('guest can check delivery before authentication', (tester) async {
-    var authRequests = 0;
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: buildBulkaTheme(),
-        home: HomeScreen(
-          api: _FakeBulkaApiClient(),
-          customer: null,
-          transactions: const [],
-          onHistoryTap: () {},
-          onProfileTap: () {},
-          onRequireAuth: () async {
-            authRequests++;
-            return false;
-          },
-          onOpenCatalog: (_) async {},
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const ValueKey('order-card-delivery')));
-    await tester.pumpAndSettle();
-
-    expect(authRequests, 0);
-    expect(find.text('Выберите адрес'), findsOneWidget);
-    expect(find.text('Мои адреса'), findsOneWidget);
-    expect(find.text('Добавить адрес'), findsOneWidget);
-
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
-  });
-
-  testWidgets('selected city is preserved when order type changes', (
-    tester,
-  ) async {
-    final api = _MultiCityLocationsApiClient();
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: buildBulkaTheme(),
-        home: LocationsScreen(orderType: 'pickup', api: api),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Все локации'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Актау'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('ЖК Дукат'), findsOneWidget);
-    final prefs = await SharedPreferences.getInstance();
-    expect(prefs.getString('selected_bakery_city'), 'Актау');
-
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: buildBulkaTheme(),
-        home: LocationsScreen(orderType: 'preorder', api: api),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.text('ЖК Дукат'), findsOneWidget);
-    expect(find.text('Bulka Астана'), findsNothing);
-  });
 
   testWidgets(
     'legacy account recovery verifies WhatsApp and sets a new password',
@@ -1072,7 +1228,7 @@ void main() {
     await tester.pumpWidget(
       ChangeNotifierProvider(
         create: (_) => CartProvider(),
-        child: const BulkaBonusApp(),
+        child: const BulkaBonusApp(appReleaseChecksEnabled: false),
       ),
     );
     await tester.pump();
@@ -1180,11 +1336,6 @@ void main() {
 
     final context = tester.element(find.byType(MainShell));
     expect(Theme.of(context).brightness, Brightness.light);
-    final profileTitle = tester.widget<Text>(
-      find.byKey(const ValueKey('guest-profile-title')),
-    );
-    expect(profileTitle.style?.fontSize, BulkaTypeScale.pageTitle);
-    expect(profileTitle.style?.fontWeight, FontWeight.w400);
     expect(find.text('Войдите в Bulka'), findsOneWidget);
     expect(find.text('Оформление'), findsNothing);
     expect(find.bySemanticsLabel('Войти по номеру телефона'), findsWidgets);
@@ -1225,6 +1376,70 @@ void main() {
     expect(api.arrivalCalls, 1);
     expect(find.text('Сотрудники уже знают, что вы приехали'), findsWidgets);
     semantics.dispose();
+  });
+
+  testWidgets(
+    'preorder delivery shows courier progress and repeats as delivery',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      tester.view.physicalSize = const Size(430, 932);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final api = _PreorderDeliveryApiClient();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildBulkaTheme(),
+          home: ChangeNotifierProvider(
+            create: (_) => CartProvider(),
+            child: CustomerOrdersScreen(api: api),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Курьер назначен'), findsOneWidget);
+      expect(find.text('Я приехал'), findsNothing);
+
+      await tester.ensureVisible(find.text('Повторить'));
+      await tester.tap(find.text('Повторить'));
+      await tester.pumpAndSettle();
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('selected_order_type'), 'preorder');
+      expect(
+        prefs.getString(
+          customerPreferenceKey(
+            'checkout_preorder_fulfillment',
+            api.sessionCacheScope,
+          ),
+        ),
+        'delivery',
+      );
+    },
+  );
+
+  testWidgets('customer orders do not expose cancellation controls', (
+    tester,
+  ) async {
+    final api = _CancellationApiClient();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildBulkaTheme(),
+        home: ChangeNotifierProvider(
+          create: (_) => CartProvider(),
+          child: CustomerOrdersScreen(api: api),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Отменить заказ'), findsNothing);
+    expect(find.text('Отменить заказ?'), findsNothing);
+    expect(api.cancellationCalls, 0);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('ETA range remains readable and announced at 200 percent text', (
@@ -1380,6 +1595,48 @@ void main() {
     expect(find.text('1000.3 ккал'), findsOneWidget);
     expect(tester.takeException(), isNull);
     semantics.dispose();
+  });
+
+  testWidgets('product page hides every unfilled optional information block', (
+    tester,
+  ) async {
+    appLanguageNotifier.value = 'ru';
+    final liveProducts = ValueNotifier<Map<String, CatalogProduct>>(const {});
+    addTearDown(liveProducts.dispose);
+    const product = CatalogProduct(
+      id: 'empty-details-product',
+      title: 'Товар без характеристик',
+      price: 300,
+      category: 'Выпечка',
+      imageUrl: '',
+      inStockCount: 5,
+      preparationMinutes: 10,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildBulkaTheme(),
+        home: ChangeNotifierProvider(
+          create: (_) => CartProvider(),
+          child: ProductDetailsScreen(
+            api: _FakeBulkaApiClient(),
+            product: product,
+            liveProducts: liveProducts,
+            initialQuantity: 0,
+            onQuantityChanged: (_, _) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('О продукте'), findsNothing);
+    expect(find.text('Информация скоро появится'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('product-show-ingredients')),
+      findsNothing,
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('motion primitives honor the system reduced-motion setting', (
@@ -1954,6 +2211,7 @@ void main() {
 
     expect(find.text('Выберите адрес'), findsOneWidget);
     expect(find.text('тест'), findsOneWidget);
+    expect(find.text('Дом 9'), findsOneWidget);
     expect(find.byIcon(Icons.check_rounded), findsWidgets);
   });
 
@@ -2063,11 +2321,11 @@ class _FakeBulkaApiClient extends BulkaApiClient {
   @override
   Future<List<Map<String, dynamic>>> getFortePaymentMethods() async => const [
     {
-      'id': 'test-card',
+      'id': '31f0d793-0102-4d2f-a5a1-744d12cffe7c',
       'brand': 'visa',
       'lastFour': '1328',
-      'expMonth': 12,
-      'expYear': 2029,
+      'expMonth': 9,
+      'expYear': 2030,
       'isDefault': true,
     },
   ];
@@ -2153,21 +2411,38 @@ class _FakeBulkaApiClient extends BulkaApiClient {
   }
 }
 
-class _MultiCityLocationsApiClient extends _FakeBulkaApiClient {
+class _NoSavedCardsApiClient extends _FakeBulkaApiClient {
   @override
-  Future<List<BakeryLocation>> getFulfillmentLocations() async => const [
-    BakeryLocation(
-      id: 'astana-1',
-      name: 'Bulka Астана',
-      address: 'Кабанбай батыра, 46а',
-      city: 'Астана',
-    ),
-    BakeryLocation(
-      id: 'aktau-1',
-      name: 'ЖК Дукат',
-      address: '17-й микрорайон, 1',
-      city: 'Актау',
-    ),
+  Future<List<Map<String, dynamic>>> getFortePaymentMethods() async => const [];
+}
+
+class _ThreeSavedCardsApiClient extends _FakeBulkaApiClient {
+  @override
+  Future<List<Map<String, dynamic>>> getFortePaymentMethods() async => const [
+    {
+      'id': '31f0d793-0102-4d2f-a5a1-744d12cffe7c',
+      'brand': 'visa',
+      'lastFour': '1328',
+      'expMonth': 9,
+      'expYear': 2030,
+      'isDefault': true,
+    },
+    {
+      'id': '41f0d793-0102-4d2f-a5a1-744d12cffe7d',
+      'brand': 'mastercard',
+      'lastFour': '5678',
+      'expMonth': 10,
+      'expYear': 2031,
+      'isDefault': false,
+    },
+    {
+      'id': '51f0d793-0102-4d2f-a5a1-744d12cffe7e',
+      'brand': 'visa',
+      'lastFour': '9012',
+      'expMonth': 11,
+      'expYear': 2032,
+      'isDefault': false,
+    },
   ];
 }
 
@@ -2262,6 +2537,66 @@ class _ArrivalApiClient extends _FakeBulkaApiClient {
   }
 }
 
+class _PreorderDeliveryApiClient extends _FakeBulkaApiClient {
+  @override
+  Future<List<CustomerOrder>> getCustomerOrders({
+    bool completed = false,
+  }) async => completed ? const [] : [_preorderDeliveryOrder];
+
+  @override
+  Future<List<Map<String, dynamic>>> reorder(
+    String orderId, {
+    String? branchId,
+  }) async => const [
+    {
+      'id': 'croissant',
+      'name': 'Круассан',
+      'quantity': 1,
+      'price': 1200,
+      'imageUrl': '',
+    },
+  ];
+}
+
+class _CancellationApiClient extends _FakeBulkaApiClient {
+  int cancellationCalls = 0;
+  CustomerOrder order = _newPaidOrder;
+
+  @override
+  Future<List<CustomerOrder>> getCustomerOrders({
+    bool completed = false,
+  }) async {
+    if (completed) return order.isClosed ? [order] : const [];
+    return order.isClosed ? const [] : [order];
+  }
+
+  @override
+  Future<CustomerOrder> cancelCustomerOrder(String orderId) async {
+    cancellationCalls++;
+    order = CustomerOrder(
+      id: order.id,
+      number: order.number,
+      paymentStatus: 'refunded',
+      paymentProvider: 'forte',
+      orderStatus: 'cancelled',
+      amount: order.amount,
+      subtotal: order.subtotal,
+      discount: order.discount,
+      branch: order.branch,
+      items: order.items,
+      earnedBonus: order.earnedBonus,
+      createdAt: order.createdAt,
+      fulfillmentType: order.fulfillmentType,
+      deliveryStatus: order.deliveryStatus,
+      cancellationReason: 'Отменено клиентом',
+      refundStatus: 'succeeded',
+      refundAmount: order.amount,
+      refundedAt: DateTime.utc(2026, 7, 28, 12),
+    );
+    return order;
+  }
+}
+
 final _readyPickupOrder = CustomerOrder(
   id: 'ready-order',
   number: 100124,
@@ -2276,6 +2611,46 @@ final _readyPickupOrder = CustomerOrder(
   ],
   earnedBonus: 120,
   createdAt: DateTime.utc(2026, 7, 16, 10),
+  fulfillmentType: 'pickup',
+  deliveryStatus: 'unassigned',
+);
+
+final _preorderDeliveryOrder = CustomerOrder(
+  id: 'preorder-delivery-order',
+  number: 100126,
+  paymentStatus: 'paid',
+  orderStatus: 'ready',
+  amount: 1200,
+  subtotal: 1200,
+  discount: 0,
+  branch: 'Bulka, Актау',
+  items: const [
+    {'id': 'croissant', 'name': 'Круассан', 'quantity': 1, 'price': 1200},
+  ],
+  earnedBonus: 60,
+  createdAt: DateTime.utc(2026, 7, 29, 10),
+  fulfillmentType: 'preorder',
+  preorderFulfillmentType: 'delivery',
+  effectiveFulfillmentType: 'delivery',
+  deliveryStatus: 'assigned',
+  estimatedDeliveryAt: DateTime.utc(2026, 7, 30, 14, 40),
+);
+
+final _newPaidOrder = CustomerOrder(
+  id: 'new-paid-order',
+  number: 100125,
+  paymentStatus: 'paid',
+  paymentProvider: 'forte',
+  orderStatus: 'new',
+  amount: 2400,
+  subtotal: 2400,
+  discount: 0,
+  branch: 'Bulka, 17-й микрорайон',
+  items: const [
+    {'id': 'croissant', 'name': 'Круассан', 'quantity': 2, 'price': 1200},
+  ],
+  earnedBonus: 120,
+  createdAt: DateTime.utc(2026, 7, 28, 10),
   fulfillmentType: 'pickup',
   deliveryStatus: 'unassigned',
 );

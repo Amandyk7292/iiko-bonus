@@ -27,6 +27,18 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final _navigationGate = _AsyncActionGate();
 
+  @override
+  void initState() {
+    super.initState();
+    if (forteCardSetupReturnFromUri(currentClientUri()) != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          unawaited(_openPage((_) => PaymentMethodsScreen(api: widget.api)));
+        }
+      });
+    }
+  }
+
   String get _langCode {
     return AppLang.shortLabel(AppLang.current);
   }
@@ -191,29 +203,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await _navigationGate.run(widget.onOpenOrders);
   }
 
-  Future<void> _openContact() async {
-    await _navigationGate.run(() => _openTelegram(context));
-  }
-
-  Future<void> _openAbout() async {
-    await _navigationGate.run(() async {
-      if (!mounted) return;
-      await showDialog<void>(
-        context: context,
-        builder: (dialogContext) => AboutDialog(
-          applicationName: 'app_title'.tr,
-          applicationVersion: '1.0.0',
-          applicationIcon: Image.asset(
-            'assets/brand/bulka_logo.png',
-            width: 72,
-            height: 72,
-          ),
-          children: [Text('about_app_body'.tr)],
-        ),
-      );
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
     final colors = context.bulkaColors;
@@ -315,41 +304,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   padding: const EdgeInsets.all(18),
                   child: Row(
                     children: [
-                      Container(
-                        width: 64,
-                        height: 64,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF8F5EE),
-                          borderRadius: BorderRadius.circular(
-                            BulkaRadii.control,
-                          ),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x0A000000),
-                              blurRadius: 8,
-                              offset: Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Center(
-                          child: Container(
-                            width: 44,
-                            height: 44,
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [Color(0xFFE5C583), Color(0xFFB8924B)],
-                              ),
-                            ),
-                            child: const Icon(
-                              Icons.person_rounded,
-                              color: Colors.white,
-                              size: 28,
-                            ),
-                          ),
-                        ),
+                      CustomerAvatar(
+                        avatarKey: widget.customer.avatarKey,
+                        size: 64,
                       ),
                       const SizedBox(width: 16),
                       Expanded(
@@ -503,34 +460,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       color: Color(0xFFF3F3F3),
                     ),
                     _ProfileMenuItem(
-                      icon: Icons.notifications_active_outlined,
-                      title: 'notifications_settings_title'.tr,
-                      onTap: () => _openPage(
-                        (_) => NotificationSettingsScreen(api: widget.api),
-                      ),
-                    ),
-                    Divider(
-                      height: 1,
-                      indent: 60,
-                      endIndent: 20,
-                      color: colors.cardBorder,
-                    ),
-                    _ProfileMenuItem(
                       icon: Icons.support_agent_outlined,
                       title: 'support_title'.tr,
                       onTap: () =>
                           _openPage((_) => OrderSupportScreen(api: widget.api)),
-                    ),
-                    Divider(
-                      height: 1,
-                      indent: 60,
-                      endIndent: 20,
-                      color: colors.cardBorder,
-                    ),
-                    _ProfileMenuItem(
-                      icon: Icons.mail_outline_rounded,
-                      title: 'menu_contact'.tr,
-                      onTap: _openContact,
                     ),
                     const Divider(
                       height: 1,
@@ -543,17 +476,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       title: 'legal_documents_title'.tr,
                       onTap: () =>
                           _openPage((_) => const LegalDocumentsScreen()),
-                    ),
-                    const Divider(
-                      height: 1,
-                      indent: 60,
-                      endIndent: 20,
-                      color: Color(0xFFF3F3F3),
-                    ),
-                    _ProfileMenuItem(
-                      icon: Icons.menu_book_rounded,
-                      title: 'menu_info'.tr,
-                      onTap: _openAbout,
                     ),
                   ],
                 ),

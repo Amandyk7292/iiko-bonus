@@ -1,4 +1,5 @@
 const { supabase } = require('../config/supabase');
+const { effectiveFulfillmentType } = require('../utils/fulfillment.util');
 
 const ETA_VERSION = 'eta-v3';
 const MINUTE_MS = 60 * 1000;
@@ -280,7 +281,9 @@ async function forecastOrderEta({
             .select('id')
             .eq('branch_id', branchId)
             .eq('status', 'paid')
-            .eq('fulfillment_type', 'delivery')
+            .or(
+              'fulfillment_type.eq.delivery,and(fulfillment_type.eq.preorder,preorder_fulfillment_type.eq.delivery)',
+            )
             .in('delivery_status', ['unassigned', 'assigned', 'picked_up', 'en_route'])
             .limit(200)
         : Promise.resolve({ data: [] }),
@@ -403,9 +406,10 @@ async function refreshOrderEta(orderOrId) {
     if (!data) return null;
     order = data;
   }
+  const orderType = effectiveFulfillmentType(order);
   const eta = await forecastOrderEta({
     branchId: order.branch_id,
-    orderType: order.fulfillment_type || 'pickup',
+    orderType,
     scheduledAt: order.scheduled_at,
     preparationMinutes: order.preparation_minutes,
     deliveryAddress: order.delivery_address,
@@ -413,14 +417,12 @@ async function refreshOrderEta(orderOrId) {
   });
   const { data, error } = await supabase
     .from('kaspi_orders')
-    .update(etaDatabaseFields(eta, order.fulfillment_type || 'pickup'))
+    .update(etaDatabaseFields(eta, orderType))
     .eq('id', order.id)
     .select('*,couriers(name)')
     .maybeSingle();
   if (error) throw error;
-  return data
-    ? { ...order, ...data }
-    : { ...order, ...etaDatabaseFields(eta, order.fulfillment_type || 'pickup') };
+  return data ? { ...order, ...data } : { ...order, ...etaDatabaseFields(eta, orderType) };
 }
 
 module.exports = {

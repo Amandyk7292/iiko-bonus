@@ -12,7 +12,7 @@ const adminLoginBodySchema = z
     username: z.string().trim().toLowerCase().min(1).max(160).default('admin'),
     password: z.string().min(1).max(512),
     code: z.preprocess(
-      (value) => (value === '' ? undefined : value),
+      (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
       z
         .string()
         .trim()

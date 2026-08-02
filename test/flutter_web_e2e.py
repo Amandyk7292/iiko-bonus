@@ -1,4 +1,6 @@
 from pathlib import Path
+from urllib.parse import urlparse
+import json
 import sys
 
 from playwright.sync_api import sync_playwright
@@ -23,6 +25,23 @@ with sync_playwright() as playwright:
         if message.type == "error"
         else None,
     )
+
+    def route_public_bootstrap(route):
+        path = urlparse(route.request.url).path
+        payload = {"success": True}
+        if path.endswith("/api/guest/stories"):
+            payload["stories"] = []
+        elif path.endswith("/api/guest/news"):
+            payload["news"] = []
+        else:
+            return route.fallback()
+        route.fulfill(
+            status=200,
+            content_type="application/json",
+            body=json.dumps(payload),
+        )
+
+    page.route("**/api/guest/**", route_public_bootstrap)
 
     response = page.goto(BASE_URL, wait_until="domcontentloaded", timeout=120_000)
     assert response is not None and response.ok

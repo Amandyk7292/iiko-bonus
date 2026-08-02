@@ -75,6 +75,28 @@ void main() {
     );
   });
 
+  test('recognizes a returned card setup for profile reconciliation', () {
+    const operationId = '3ebcf588-1d59-4231-8806-3c805fd6db7c';
+    final result = forteCardSetupReturnFromUri(
+      Uri.parse(
+        'https://bulka.com.kz/profile'
+        '?payment=forte&setup=$operationId&status=returned',
+      ),
+    );
+
+    expect(result?.operationId, operationId);
+    expect(result?.outcome, ForteCheckoutReturn.completed);
+    expect(
+      forteCardSetupReturnFromUri(
+        Uri.parse(
+          'https://bulka.com.kz.attacker.example/profile'
+          '?payment=forte&setup=$operationId&status=returned',
+        ),
+      ),
+      isNull,
+    );
+  });
+
   test('embedded checkout is limited to Android and iOS apps', () {
     expect(
       supportsEmbeddedForteCheckout(
@@ -101,6 +123,19 @@ void main() {
       ),
       isFalse,
     );
+  });
+
+  test('embedded checkout mode hides only the in-page duplicate chrome', () {
+    final uri = forteEmbeddedCheckoutUri(
+      Uri.parse(
+        'https://bulka.com.kz/payments/forte-widget'
+        '#token=abc1234567890123&order=117615f9-b35f-4eb4-9f6d-777f2236bb25',
+      ),
+    );
+
+    expect(uri.queryParameters, {'embedded': 'app'});
+    expect(uri.fragment, contains('token=abc1234567890123'));
+    expect(uri.query, isNot(contains('token')));
   });
 
   testWidgets(

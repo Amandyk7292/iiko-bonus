@@ -12,8 +12,12 @@ const { getActiveLoyaltyTiers } = require('../services/tier.service');
 const { getTierInfo } = require('../utils/tier.util');
 const { sendApiError } = require('../utils/http.util');
 
+const publicAppDirectory = path.resolve(
+  process.env.BULKA_PUBLIC_APP_DIR || path.join(process.cwd(), 'public', 'app'),
+);
+
 const renderApp = (req, res) => {
-  res.sendFile(path.join(process.cwd(), 'public', 'app', 'index.html'));
+  res.sendFile(path.join(publicAppDirectory, 'index.html'));
 };
 
 const renderAdmin = (req, res) => {
@@ -98,6 +102,7 @@ const updateProfile = async (req, res) => {
     }
     if (req.body.region !== undefined)
       updates.region = String(req.body.region).trim().slice(0, 160);
+    if (req.body.avatar_key !== undefined) updates.avatar_key = req.body.avatar_key;
     if (req.body.birth_date !== undefined) {
       const birthDate = String(req.body.birth_date || '');
       if (birthDate && !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {

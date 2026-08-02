@@ -2,6 +2,11 @@ const { initializeApp, cert } = require('firebase-admin/app');
 const { getMessaging } = require('firebase-admin/messaging');
 const { supabase } = require('../config/supabase');
 const { notificationAllowed } = require('./notification-preferences.service');
+const {
+  PUSH_OUTBOX_SCHEMA_MISSING_CODES,
+  deliverPushOutbox,
+  enqueuePushNotification,
+} = require('./push-outbox.service');
 
 let initialized = false;
 let messagingInstance = null;
@@ -104,15 +109,17 @@ async function removeInvalidPushToken(fcmToken) {
   }
 }
 
-async function sendPushNotification(fcmToken, title, body, data = {}) {
+async function sendPushNotificationDetailed(fcmToken, title, body, data = {}) {
   const token = String(fcmToken || '').trim();
-  if (!token) return false;
+  if (!token) {
+    return { delivered: false, terminal: true, error: 'Push token is missing' };
+  }
   if (!initialized || !messagingInstance) {
     initFirebase();
   }
   if (!initialized || !messagingInstance) {
     console.log('[PUSH PREVIEW] Уведомление не отправлено: Firebase не настроен.');
-    return false;
+    return { delivered: false, terminal: false, error: 'Firebase is not configured' };
   }
   try {
     const normalizedData = {
@@ -133,6 +140,9 @@ async function sendPushNotification(fcmToken, title, body, data = {}) {
       data: normalizedData,
       android: {
         priority: isOrderStatus ? 'normal' : 'high',
+        ...(normalizedData.pushDedupeKey
+          ? { collapseKey: `bulka-${normalizedData.pushDedupeKey}`.slice(0, 64) }
+          : {}),
         notification: {
           ...(isOrderStatus
             ? {
@@ -148,10 +158,20 @@ async function sendPushNotification(fcmToken, title, body, data = {}) {
                 channelId: 'bulka_bonus_notifications',
                 priority: 'high',
                 defaultSound: true,
+                ...(normalizedData.pushDedupeKey
+                  ? { tag: `bulka-${normalizedData.pushDedupeKey}`.slice(0, 160) }
+                  : {}),
               }),
         },
       },
       apns: {
+        ...(normalizedData.pushDedupeKey
+          ? {
+              headers: {
+                'apns-collapse-id': `bulka-${normalizedData.pushDedupeKey}`.slice(0, 64),
+              },
+            }
+          : {}),
         payload: {
           aps: {
             sound: 'default',
@@ -163,6 +183,9 @@ async function sendPushNotification(fcmToken, title, body, data = {}) {
         notification: {
           icon: '/icons/Icon-192.png',
           badge: '/icons/Icon-192.png',
+          ...(normalizedData.pushDedupeKey
+            ? { tag: `bulka-${normalizedData.pushDedupeKey}`.slice(0, 160) }
+            : {}),
         },
         fcmOptions: {
           link: webPushLink(normalizedData),
@@ -171,14 +194,24 @@ async function sendPushNotification(fcmToken, title, body, data = {}) {
     };
     const response = await messagingInstance.send(message);
     console.log('Successfully sent push notification:', response);
-    return true;
+    return { delivered: true, terminal: true, providerMessageId: response };
   } catch (error) {
     console.error('Error sending push notification:', error.message);
-    if (INVALID_TOKEN_CODES.has(String(error.code || ''))) {
+    const terminal = INVALID_TOKEN_CODES.has(String(error.code || ''));
+    if (terminal) {
       await removeInvalidPushToken(token);
     }
-    return false;
+    return {
+      delivered: false,
+      terminal,
+      error: String(error.code || error.message || 'FCM delivery failed').slice(0, 500),
+    };
   }
+}
+
+async function sendPushNotification(fcmToken, title, body, data = {}) {
+  const result = await sendPushNotificationDetailed(fcmToken, title, body, data);
+  return result.delivered;
 }
 
 async function getCustomerPushTokens(customerId, fallbackToken = null) {
@@ -209,15 +242,75 @@ async function sendPushToCustomer(customerId, title, body, data = {}, fallbackTo
   }
   const tokens = await getCustomerPushTokens(customerId, fallbackToken);
   if (!tokens.length) return { attempted: 0, delivered: 0, failed: 0 };
+  if (customerId) {
+    let queued;
+    try {
+      queued = await enqueuePushNotification({
+        customerId,
+        title,
+        body,
+        data,
+        tokens,
+        dedupeKey: data?.pushDedupeKey,
+      });
+    } catch (outboxError) {
+      const schemaUnavailable = PUSH_OUTBOX_SCHEMA_MISSING_CODES.has(
+        String(outboxError?.code || ''),
+      );
+      if (!schemaUnavailable) throw outboxError;
+      console.error('Push outbox migration is not installed; using immediate delivery.');
+    }
+    if (queued) {
+      if (!queued.id) return { attempted: 0, delivered: 0, failed: 0, queued: false };
+      try {
+        const [outcome] = await deliverPushOutbox({
+          sendToken: sendPushNotificationDetailed,
+          isAllowed: notificationAllowed,
+          limit: 1,
+          messageId: queued.id,
+        });
+        if (outcome) return outcome;
+        return {
+          attempted: queued.attemptedTokens,
+          delivered: queued.deliveredTokens,
+          failed: Math.max(0, queued.attemptedTokens - queued.deliveredTokens),
+          queued: ['queued', 'processing', 'retry'].includes(queued.status),
+          outboxId: queued.id,
+          status: queued.status,
+        };
+      } catch (outboxError) {
+        console.error(
+          'Push remains queued after immediate delivery attempt:',
+          outboxError?.message,
+        );
+        return {
+          attempted: queued.attemptedTokens,
+          delivered: queued.deliveredTokens,
+          failed: Math.max(0, queued.attemptedTokens - queued.deliveredTokens),
+          queued: true,
+          outboxId: queued.id,
+          status: 'queued',
+        };
+      }
+    }
+  }
   const results = await Promise.all(
-    tokens.map((token) => sendPushNotification(token, title, body, data)),
+    tokens.map((token) => sendPushNotificationDetailed(token, title, body, data)),
   );
-  const delivered = results.filter(Boolean).length;
+  const delivered = results.filter((result) => result.delivered).length;
   return {
     attempted: tokens.length,
     delivered,
     failed: tokens.length - delivered,
   };
+}
+
+async function flushPushOutbox(limit = 50) {
+  return deliverPushOutbox({
+    sendToken: sendPushNotificationDetailed,
+    isAllowed: notificationAllowed,
+    limit,
+  });
 }
 
 async function notifyBonusChange({
@@ -377,6 +470,7 @@ async function notifyBonusChange({
 
 module.exports = {
   getCustomerPushTokens,
+  flushPushOutbox,
   sendPushNotification,
   sendPushToCustomer,
   notifyBonusChange,

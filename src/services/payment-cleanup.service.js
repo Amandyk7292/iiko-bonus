@@ -6,6 +6,7 @@ const forteWidgetService = require('./forte-widget.service');
 const { releaseOrderReservations } = require('./inventory.service');
 const paymentOperations = require('./payment-operations.service');
 const realtime = require('./realtime.service');
+const { releasePromotionReservation } = require('./commerce-marketing.service');
 
 const MINIMUM_PENDING_AGE_MS = 10 * 60 * 1000;
 const WIDGET_EXPIRATION_GRACE_MS = 5 * 60 * 1000;
@@ -71,6 +72,7 @@ class PaymentCleanupService {
     listUnfinishedOrders = defaultListUnfinishedOrders,
     updateFulfillment = defaultUpdateFulfillment,
     releaseReservations = releaseOrderReservations,
+    releasePromotion,
     kaspi = kaspiService,
     forte = forteService,
     widget = forteWidgetService,
@@ -83,6 +85,11 @@ class PaymentCleanupService {
     this.listUnfinishedOrders = listUnfinishedOrders;
     this.updateFulfillment = updateFulfillment;
     this.releaseReservations = releaseReservations;
+    this.releasePromotion =
+      releasePromotion ||
+      (releaseReservations === releaseOrderReservations
+        ? releasePromotionReservation
+        : async () => false);
     this.kaspi = kaspi;
     this.forte = forte;
     this.widget = widget;
@@ -97,6 +104,7 @@ class PaymentCleanupService {
     const updated = await this.updateFulfillment(order, status, now);
     if (!updated) return null;
     await this.releaseReservations(updated.id);
+    await this.releasePromotion({ orderId: updated.id });
     this.publish(
       'order.updated',
       {

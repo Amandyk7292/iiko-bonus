@@ -38,6 +38,7 @@ export default function MenuWorkspaceToolbar({
         <RefreshCw aria-hidden="true" className={syncing ? 'spin' : ''} size={17} />
         {syncing ? 'Синхронизация…' : 'Синхронизировать выбранный город'}
       </button>
+
       <div
         className="grid grid-cols-1 gap-1 rounded-xl bg-gray-100 p-1 sm:flex"
         role="tablist"
