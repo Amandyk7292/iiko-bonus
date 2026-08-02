@@ -16,9 +16,11 @@ import { api } from '../lib/api';
 import { contentLanguage, useI18n } from '../lib/i18n';
 
 type ContentLanguage = 'ru' | 'kz' | 'en';
+type PromoType = 'discount' | 'promotion' | 'subscription';
 interface LocalizedStory {
   title: string;
   description: string;
+  details: string;
   coverUrl: string;
   contentUrl: string;
 }
@@ -26,23 +28,66 @@ interface StoryForm {
   groupId: string;
   duration: number;
   sortOrder: number;
+  promoType: PromoType;
+  startsAt: string;
+  endsAt: string;
+  remaining: string;
+  qrValue: string;
 }
 const languages: ContentLanguage[] = ['ru', 'kz', 'en'];
+const promoTypes: PromoType[] = ['discount', 'promotion', 'subscription'];
 const storyImageDimensions = {
   coverUrl: { width: 1080, height: 480 },
   contentUrl: { width: 1080, height: 1920 },
 } as const;
 const localeKey = (language: ContentLanguage) => (language === 'kz' ? 'kk' : language);
-const placeholders: Record<ContentLanguage, { title: string; description: string }> = {
-  ru: { title: 'СЧАСТЛИВЫЕ ЧАСЫ', description: 'После 21:00 — 3 булочки по цене 2' },
-  kz: { title: 'БАҚЫТТЫ САҒАТТАР', description: '21:00-ден кейін — 2 бағасына 3 бәліш' },
-  en: { title: 'HAPPY HOURS', description: 'After 9 PM — get 3 pastries for the price of 2' },
+const placeholders: Record<
+  ContentLanguage,
+  { title: string; description: string; details: string }
+> = {
+  ru: {
+    title: 'СЧАСТЛИВЫЕ ЧАСЫ',
+    description: 'После 21:00 — 3 булочки по цене 2',
+    details: 'Расскажите об условиях, сроках действия и товарах, участвующих в акции.',
+  },
+  kz: {
+    title: 'БАҚЫТТЫ САҒАТТАР',
+    description: '21:00-ден кейін — 2 бағасына 3 бәліш',
+    details: 'Акция шарттарын, мерзімін және қатысатын тауарларды сипаттаңыз.',
+  },
+  en: {
+    title: 'HAPPY HOURS',
+    description: 'After 9 PM — get 3 pastries for the price of 2',
+    details: 'Describe the terms, dates and products included in the promotion.',
+  },
 };
 const blankI18n = (): Record<ContentLanguage, LocalizedStory> => ({
-  ru: { title: '', description: '', coverUrl: '', contentUrl: '' },
-  kz: { title: '', description: '', coverUrl: '', contentUrl: '' },
-  en: { title: '', description: '', coverUrl: '', contentUrl: '' },
+  ru: { title: '', description: '', details: '', coverUrl: '', contentUrl: '' },
+  kz: { title: '', description: '', details: '', coverUrl: '', contentUrl: '' },
+  en: { title: '', description: '', details: '', coverUrl: '', contentUrl: '' },
 });
+const blankForm = (sortOrder = 0): StoryForm => ({
+  groupId: '',
+  duration: 15,
+  sortOrder,
+  promoType: 'promotion',
+  startsAt: '',
+  endsAt: '',
+  remaining: '',
+  qrValue: '',
+});
+const toDateTimeInput = (value: unknown) => {
+  if (!value) return '';
+  const parsed = new Date(String(value));
+  if (Number.isNaN(parsed.getTime())) return '';
+  const local = new Date(parsed.getTime() - parsed.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+};
+const toIsoDate = (value: string) => {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+};
 
 const imageDimensions = (file: File) =>
   new Promise<{ width: number; height: number }>((resolve, reject) => {
@@ -70,7 +115,7 @@ export default function StoriesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
   const [activeLanguage, setActiveLanguage] = useState<ContentLanguage>('ru');
-  const [form, setForm] = useState<StoryForm>({ groupId: '', duration: 15, sortOrder: 0 });
+  const [form, setForm] = useState<StoryForm>(() => blankForm());
   const [i18n, setI18n] = useState<Record<ContentLanguage, LocalizedStory>>(blankI18n);
   const [uploadingField, setUploadingField] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -102,12 +147,13 @@ export default function StoriesPage() {
         ? Math.max(...stories.map((item) => Number(item.sortOrder) || 0)) + 1
         : 0;
       setI18n(blankI18n());
-      setForm({ groupId: '', duration: 15, sortOrder: nextOrder });
+      setForm(blankForm(nextOrder));
     } else {
       const data = story.i18n ?? {};
       const ru = {
         title: story.title ?? '',
         description: story.description ?? '',
+        details: story.details ?? '',
         coverUrl: story.coverUrl || story.groupCoverUrl || '',
         contentUrl: story.contentUrl || '',
       };
@@ -116,20 +162,29 @@ export default function StoriesPage() {
         kz: {
           title: data.kz?.title ?? '',
           description: data.kz?.description ?? '',
+          details: data.kz?.details ?? '',
           coverUrl: data.kz?.coverUrl ?? '',
           contentUrl: data.kz?.contentUrl ?? '',
         },
         en: {
           title: data.en?.title ?? '',
           description: data.en?.description ?? '',
+          details: data.en?.details ?? '',
           coverUrl: data.en?.coverUrl ?? '',
           contentUrl: data.en?.contentUrl ?? '',
         },
       });
+      const promoType = promoTypes.includes(story.promoType) ? story.promoType : 'promotion';
       setForm({
         groupId: story.groupId ?? '',
         duration: Number(story.duration) || 15,
         sortOrder: Number(story.sortOrder) || 0,
+        promoType,
+        startsAt: toDateTimeInput(story.startsAt),
+        endsAt: toDateTimeInput(story.endsAt),
+        remaining:
+          story.remaining === null || story.remaining === undefined ? '' : String(story.remaining),
+        qrValue: story.qrValue ?? '',
       });
     }
     setModalOpen(true);
@@ -212,17 +267,37 @@ export default function StoriesPage() {
       );
       return;
     }
+    const startsAt = toIsoDate(form.startsAt);
+    const endsAt = toIsoDate(form.endsAt);
+    if (startsAt && endsAt && new Date(endsAt).getTime() < new Date(startsAt).getTime()) {
+      setFormError(t('stories.validationDates'));
+      window.requestAnimationFrame(() => document.getElementById('story-ends-at')?.focus());
+      return;
+    }
+    const remaining = form.remaining.trim() === '' ? null : Number(form.remaining);
+    if (remaining !== null && (!Number.isInteger(remaining) || remaining < 0)) {
+      setFormError(t('stories.validationRemaining'));
+      window.requestAnimationFrame(() => document.getElementById('story-remaining')?.focus());
+      return;
+    }
     setSubmitting(true);
     setFormError('');
     const payload = {
       title: i18n.ru.title.trim(),
       groupTitle: i18n.ru.title.trim(),
       description: i18n.ru.description.trim(),
+      details: i18n.ru.details.trim(),
       coverUrl: i18n.ru.coverUrl,
       contentUrl: i18n.ru.contentUrl,
       groupId: form.groupId.trim() || i18n.ru.title.trim().toLocaleLowerCase().replace(/\s+/g, '-'),
       duration: Math.min(120, Math.max(3, Number(form.duration) || 15)),
       sortOrder: Math.max(0, Number(form.sortOrder) || 0),
+      promoType: form.promoType,
+      startsAt,
+      endsAt,
+      remaining,
+      qrValue: form.qrValue.trim() || null,
+      createdAt: editing?.createdAt ?? null,
       i18n,
     };
     try {
@@ -350,6 +425,12 @@ export default function StoriesPage() {
                         <p className="table-description">
                           {localized.description || story.description || '—'}
                         </p>
+                        <p className="field-hint">
+                          {t(`stories.promoType.${story.promoType || 'promotion'}`)}
+                          {story.remaining !== null && story.remaining !== undefined
+                            ? ` · ${t('stories.remainingValue', { count: story.remaining })}`
+                            : ''}
+                        </p>
                       </td>
                       <td data-label={t('stories.languages')}>
                         <div className="language-badges">
@@ -466,9 +547,22 @@ export default function StoriesPage() {
               />
             </div>
           </div>
-          {activeLanguage !== 'ru' && (
-            <p className="field-hint">{t('stories.fallbackText')}</p>
-          )}
+          <div className="field-group">
+            <label className="field-label" htmlFor={`story-details-${activeLanguage}`}>
+              {t('stories.promoDetails')} ({t(`content.${localeKey(activeLanguage)}`)})
+            </label>
+            <textarea
+              id={`story-details-${activeLanguage}`}
+              className="input-classic"
+              rows={6}
+              value={current.details}
+              onChange={(event) => updateField(activeLanguage, 'details', event.target.value)}
+              placeholder={placeholders[activeLanguage].details}
+              maxLength={20_000}
+            />
+            <p className="field-hint">{t('stories.promoDetailsHint')}</p>
+          </div>
+          {activeLanguage !== 'ru' && <p className="field-hint">{t('stories.fallbackText')}</p>}
           <div className="story-upload-grid">
             <ImageUpload
               inputId={`story-cover-${activeLanguage}`}
@@ -500,6 +594,109 @@ export default function StoriesPage() {
               vertical
             />
           </div>
+          <fieldset className="form-section">
+            <legend>{t('stories.publishingSettings')}</legend>
+            <p className="field-hint">{t('stories.publishingHint')}</p>
+            <div className="form-grid form-grid-2 mt-4">
+              <div className="field-group">
+                <label className="field-label" htmlFor="story-promo-type">
+                  {t('stories.promoType')}
+                </label>
+                <select
+                  id="story-promo-type"
+                  className="input-classic"
+                  value={form.promoType}
+                  onChange={(event) =>
+                    setForm((currentForm) => ({
+                      ...currentForm,
+                      promoType: event.target.value as PromoType,
+                    }))
+                  }
+                >
+                  {promoTypes.map((type) => (
+                    <option key={type} value={type}>
+                      {t(`stories.promoType.${type}`)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="field-group">
+                <label className="field-label" htmlFor="story-remaining">
+                  {t('stories.remaining')}
+                </label>
+                <input
+                  id="story-remaining"
+                  type="number"
+                  min="0"
+                  step="1"
+                  className="input-classic"
+                  value={form.remaining}
+                  onChange={(event) =>
+                    setForm((currentForm) => ({
+                      ...currentForm,
+                      remaining: event.target.value,
+                    }))
+                  }
+                  placeholder={t('stories.remainingPlaceholder')}
+                />
+              </div>
+              <div className="field-group">
+                <label className="field-label" htmlFor="story-starts-at">
+                  {t('stories.startsAt')}
+                </label>
+                <input
+                  id="story-starts-at"
+                  type="datetime-local"
+                  className="input-classic"
+                  value={form.startsAt}
+                  onChange={(event) =>
+                    setForm((currentForm) => ({
+                      ...currentForm,
+                      startsAt: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div className="field-group">
+                <label className="field-label" htmlFor="story-ends-at">
+                  {t('stories.endsAt')}
+                </label>
+                <input
+                  id="story-ends-at"
+                  type="datetime-local"
+                  min={form.startsAt || undefined}
+                  className="input-classic"
+                  value={form.endsAt}
+                  onChange={(event) =>
+                    setForm((currentForm) => ({
+                      ...currentForm,
+                      endsAt: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+            </div>
+            <div className="field-group mt-4">
+              <label className="field-label" htmlFor="story-qr-value">
+                {t('stories.qrValue')}
+              </label>
+              <textarea
+                id="story-qr-value"
+                className="input-classic"
+                rows={3}
+                value={form.qrValue}
+                onChange={(event) =>
+                  setForm((currentForm) => ({
+                    ...currentForm,
+                    qrValue: event.target.value,
+                  }))
+                }
+                placeholder={t('stories.qrValuePlaceholder')}
+                maxLength={2_000}
+              />
+              <p className="field-hint">{t('stories.qrValueHint')}</p>
+            </div>
+          </fieldset>
           <div className="form-grid form-grid-2">
             <div className="field-group">
               <label className="field-label icon-label" htmlFor="story-duration">
@@ -564,9 +761,9 @@ export default function StoriesPage() {
     </div>
   );
 
-function ImageUpload({
-  inputId,
-  title,
+  function ImageUpload({
+    inputId,
+    title,
     required,
     image,
     fallback,
@@ -574,9 +771,9 @@ function ImageUpload({
     onFile,
     onReset,
     vertical,
-}: {
-  inputId: string;
-  title: string;
+  }: {
+    inputId: string;
+    title: string;
     required?: boolean;
     image: string;
     fallback: boolean;

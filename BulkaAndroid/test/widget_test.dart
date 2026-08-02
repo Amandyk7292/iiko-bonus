@@ -505,23 +505,23 @@ void main() {
       findsOneWidget,
     );
 
-    final cardPayment = find.text('Оплатить картой');
+    final savedCard = find.byKey(
+      const ValueKey('checkout-saved-card-test-card'),
+    );
     await tester.scrollUntilVisible(
-      cardPayment,
+      savedCard,
       420,
       scrollable: find.byType(Scrollable).last,
     );
     await tester.pumpAndSettle();
 
     final kaspiCard = find.byKey(const ValueKey('checkout-payment-kaspi'));
-    final bankCard = find.byKey(const ValueKey('checkout-payment-card'));
     expect(kaspiCard, findsOneWidget);
-    expect(bankCard, findsOneWidget);
-    expect(find.text('ForteBank'), findsNothing);
-    expect(tester.getTopLeft(kaspiCard).dy, tester.getTopLeft(bankCard).dy);
+    expect(savedCard, findsOneWidget);
+    expect(find.text('VISA •••• 1328'), findsOneWidget);
     expect(
-      tester.getRect(kaspiCard).right,
-      lessThan(tester.getRect(bankCard).left),
+      tester.getTopLeft(savedCard).dy,
+      greaterThan(tester.getBottomLeft(kaspiCard).dy),
     );
     expect(tester.takeException(), isNull);
   });
@@ -2056,6 +2056,21 @@ void main() {
 
 class _FakeBulkaApiClient extends BulkaApiClient {
   final List<DeliveryAddress> _addresses = [];
+
+  @override
+  Future<bool> isFortePaymentAvailable() async => true;
+
+  @override
+  Future<List<Map<String, dynamic>>> getFortePaymentMethods() async => const [
+    {
+      'id': 'test-card',
+      'brand': 'visa',
+      'lastFour': '1328',
+      'expMonth': 12,
+      'expYear': 2029,
+      'isDefault': true,
+    },
+  ];
 
   @override
   Future<Map<String, dynamic>> getReferral() async => const {

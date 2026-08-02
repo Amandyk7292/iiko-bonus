@@ -37,6 +37,32 @@ CART = [
         "quantity": 2,
     },
 ]
+SAVED_CARDS = [
+    {
+        "id": "visa-1328",
+        "brand": "visa",
+        "lastFour": "1328",
+        "expMonth": 12,
+        "expYear": 2029,
+        "isDefault": True,
+    },
+    {
+        "id": "mastercard-2046",
+        "brand": "mastercard",
+        "lastFour": "2046",
+        "expMonth": 8,
+        "expYear": 2030,
+        "isDefault": False,
+    },
+    {
+        "id": "visa-7781",
+        "brand": "visa",
+        "lastFour": "7781",
+        "expMonth": 4,
+        "expYear": 2031,
+        "isDefault": False,
+    },
+]
 
 
 def fulfill(route, payload):
@@ -72,6 +98,10 @@ def api_route(route):
         fulfill(route, {"success": True, "stories": []})
     elif path.endswith("/api/guest/news"):
         fulfill(route, {"success": True, "news": []})
+    elif path.endswith("/api/customer/forte-pay/availability"):
+        fulfill(route, {"success": True, "available": True})
+    elif path.endswith("/api/customer/forte-pay/methods"):
+        fulfill(route, {"success": True, "methods": SAVED_CARDS})
     else:
         fulfill(route, {"success": True, "notifications": [], "cities": []})
 
@@ -113,7 +143,15 @@ with sync_playwright() as playwright:
     page.wait_for_timeout(800)
     checkout_screenshot = ROOT / "scratch" / "flutter-checkout-mobile.png"
     page.screenshot(path=str(checkout_screenshot), full_page=True)
-    print(f"Flutter cart E2E passed; screenshots: {screenshot}, {checkout_screenshot}")
+    page.mouse.move(196, 600)
+    page.mouse.wheel(0, 900)
+    page.wait_for_timeout(500)
+    payment_screenshot = ROOT / "scratch" / "flutter-checkout-saved-cards-mobile.png"
+    page.screenshot(path=str(payment_screenshot), full_page=True)
+    print(
+        "Flutter cart E2E passed; screenshots: "
+        f"{screenshot}, {checkout_screenshot}, {payment_screenshot}"
+    )
 
     context.close()
     browser.close()

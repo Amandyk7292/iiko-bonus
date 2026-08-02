@@ -58,6 +58,7 @@ part 'core/push_notifications.dart';
 part 'core/theme.dart';
 part 'models/fulfillment_slot.dart';
 part 'models/models.dart';
+part 'models/promo_story.dart';
 part 'repositories/address_repository.dart';
 part 'repositories/contact_center_repository.dart';
 part 'screens/address_map_screen.dart';

@@ -157,6 +157,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
             scheduledAt: details.scheduledAt,
             deliveryAddress: details.deliveryAddress,
             checkoutId: details.checkoutId,
+            savedPaymentMethodId: details.savedPaymentMethodId,
             additionalPhone: details.additionalPhone,
             promoCode: details.promoCode,
             comment: details.comment,
@@ -843,7 +844,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   bool _isSelectingTime = false;
   bool? _kaspiAvailable;
   bool? _forteAvailable;
-  String? _forteSavedCardLabel;
+  String? _selectedPaymentMethodId;
   _CheckoutPaymentMethod _paymentMethod = _CheckoutPaymentMethod.kaspi;
   int _discount = 0;
   int _deliveryFee = 0;
@@ -875,7 +876,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   bool get _selectedPaymentAvailable =>
       _paymentMethod == _CheckoutPaymentMethod.kaspi
       ? _kaspiAvailable == true
-      : _forteAvailable == true;
+      : _forteAvailable == true && _selectedPaymentMethodId != null;
 
   Future<void> _loadPaymentAvailability() async {
     if (mounted) {
@@ -892,7 +893,6 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
     setState(() {
       _kaspiAvailable = availability[0];
       _forteAvailable = availability[1];
-      _forteSavedCardLabel = widget.api.forteSavedCardLabel;
       if (_paymentMethod == _CheckoutPaymentMethod.kaspi &&
           _kaspiAvailable != true &&
           _forteAvailable == true) {
@@ -902,6 +902,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
           _kaspiAvailable == true) {
         _paymentMethod = _CheckoutPaymentMethod.kaspi;
       }
+      if (_forteAvailable != true) _selectedPaymentMethodId = null;
     });
   }
 
@@ -1471,6 +1472,8 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
           content: Text(
             _paymentMethod == _CheckoutPaymentMethod.kaspi
                 ? 'checkout_kaspi_unavailable'.tr
+                : _selectedPaymentMethodId == null
+                ? 'payment_methods_empty'.tr
                 : 'checkout_forte_unavailable'.tr,
           ),
         ),
@@ -1515,6 +1518,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
           checkoutId: _checkoutId,
           orderType: _orderType,
           paymentMethod: _paymentMethod,
+          savedPaymentMethodId: _selectedPaymentMethodId,
           preorderFulfillmentType: _isPreorder
               ? _preorderFulfillment.wireValue
               : null,
@@ -1708,52 +1712,51 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
             const SizedBox(height: 28),
             _CheckoutLabel('checkout_payment_method'.tr, required: true),
             const SizedBox(height: 12),
-            IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    child: _CheckoutPaymentCard(
-                      cardKey: const ValueKey('checkout-payment-kaspi'),
-                      title: 'Kaspi Pay',
-                      subtitle: 'checkout_kaspi_card_hint'.tr,
-                      visual: _CheckoutPaymentVisual.kaspi,
-                      available: _kaspiAvailable,
-                      selected: _paymentMethod == _CheckoutPaymentMethod.kaspi,
-                      onTap: () {
-                        if (_kaspiAvailable == true) {
-                          setState(
-                            () => _paymentMethod = _CheckoutPaymentMethod.kaspi,
-                          );
-                        } else {
-                          unawaited(_loadPaymentAvailability());
-                        }
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _CheckoutPaymentCard(
-                      cardKey: const ValueKey('checkout-payment-card'),
-                      title: 'checkout_card_payment_title'.tr,
-                      subtitle:
-                          _forteSavedCardLabel ?? 'checkout_forte_card_hint'.tr,
-                      visual: _CheckoutPaymentVisual.bankCard,
-                      available: _forteAvailable,
-                      selected: _paymentMethod == _CheckoutPaymentMethod.forte,
-                      onTap: () {
-                        if (_forteAvailable == true) {
-                          setState(
-                            () => _paymentMethod = _CheckoutPaymentMethod.forte,
-                          );
-                        } else {
-                          unawaited(_loadPaymentAvailability());
-                        }
-                      },
-                    ),
-                  ),
-                ],
-              ),
+            _CheckoutPaymentCard(
+              cardKey: const ValueKey('checkout-payment-kaspi'),
+              title: 'Kaspi Pay',
+              subtitle: 'checkout_kaspi_card_hint'.tr,
+              visual: _CheckoutPaymentVisual.kaspi,
+              available: _kaspiAvailable,
+              selected: _paymentMethod == _CheckoutPaymentMethod.kaspi,
+              onTap: () {
+                if (_kaspiAvailable == true) {
+                  setState(() => _paymentMethod = _CheckoutPaymentMethod.kaspi);
+                } else {
+                  unawaited(_loadPaymentAvailability());
+                }
+              },
+            ),
+            const SizedBox(height: 18),
+            _CheckoutLabel('payment_methods_title'.tr),
+            const SizedBox(height: 10),
+            _CheckoutSavedCardsPanel(
+              api: widget.api,
+              available: _forteAvailable,
+              selected: _paymentMethod == _CheckoutPaymentMethod.forte,
+              selectedMethodId: _selectedPaymentMethodId,
+              onDefaultResolved: (methodId) {
+                if (_selectedPaymentMethodId == methodId) return;
+                setState(() {
+                  _selectedPaymentMethodId = methodId;
+                  if (methodId == null &&
+                      _paymentMethod == _CheckoutPaymentMethod.forte &&
+                      _kaspiAvailable == true) {
+                    _paymentMethod = _CheckoutPaymentMethod.kaspi;
+                  } else if (methodId != null &&
+                      _kaspiAvailable != true &&
+                      _forteAvailable == true) {
+                    _paymentMethod = _CheckoutPaymentMethod.forte;
+                  }
+                });
+              },
+              onSelect: (methodId) {
+                setState(() {
+                  _selectedPaymentMethodId = methodId;
+                  _paymentMethod = _CheckoutPaymentMethod.forte;
+                });
+              },
+              onRetryAvailability: () => unawaited(_loadPaymentAvailability()),
             ),
             const SizedBox(height: 28),
             _CheckoutLabel('checkout_comment'.tr),

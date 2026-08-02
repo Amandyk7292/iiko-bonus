@@ -258,6 +258,11 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'kk': 'Visa, Mastercard',
     'en': 'Visa, Mastercard',
   },
+  'checkout_saved_card_oneclick_hint': {
+    'ru': 'Данные подставятся; банк может запросить CVV или код.',
+    'kk': 'Деректер толтырылады; банк CVV немесе код сұрауы мүмкін.',
+    'en': 'Card details will be filled in; the bank may request CVV or a code.',
+  },
   'payment_method_unavailable': {
     'ru': 'Сейчас недоступно',
     'kk': 'Қазір қолжетімсіз',
