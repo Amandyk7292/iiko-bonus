@@ -109,6 +109,7 @@ test('release scripts finalize and verify the public Flutter bundle', () => {
   assert.match(windowsDeploy, /release-version\.json/);
   assert.match(windowsDeploy, /publicFlutterHash/);
   assert.match(windowsDeploy, /remoteFlutterHash/);
+  assert.match(remoteDeploy, /flutter_release_details=\$\(/);
   assert.match(remoteDeploy, /expected_flutter_hash/);
   assert.match(remoteDeploy, /production_flutter_hash/);
 });

@@ -369,7 +369,7 @@ if [[ ${manifest_commit:0:12} != "${release_id#*-}" ]]; then
   exit 1
 fi
 
-read -r flutter_version expected_flutter_hash < <(
+flutter_release_details=$(
   node -e '
     const manifest = require(process.argv[1]);
     if (
@@ -377,9 +377,10 @@ read -r flutter_version expected_flutter_hash < <(
       || !/^[A-Za-z0-9][A-Za-z0-9._-]{5,63}$/.test(String(manifest.version || ""))
       || !/^[0-9a-f]{64}$/.test(String(manifest.mainSha256 || ""))
     ) process.exit(1);
-    process.stdout.write(`${manifest.version} ${manifest.mainSha256}`);
+    console.log(`${manifest.version} ${manifest.mainSha256}`);
   ' "$temporary_release/public/app/release-version.json"
 )
+read -r flutter_version expected_flutter_hash <<<"$flutter_release_details"
 if [[ $flutter_version != "${manifest_commit:0:12}" && $flutter_version != "$manifest_commit" ]]; then
   echo 'Flutter release version does not match the release commit.' >&2
   exit 1
