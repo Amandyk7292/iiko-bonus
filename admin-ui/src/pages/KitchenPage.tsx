@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { CheckCircle2, ChefHat, Clock3, LoaderCircle, PackageCheck, RefreshCw } from 'lucide-react';
 import Modal from '../components/Modal';
 import PageState from '../components/PageState';
@@ -36,16 +36,45 @@ const elapsedMinutes = (value?: string | null) => {
   return Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 60_000));
 };
 
+const optimisticKitchenOrder = (order: any, next: string, minutes?: number) => {
+  const now = new Date();
+  const updates: Record<string, unknown> = {
+    kitchenStatus: next,
+    updatedAt: now.toISOString(),
+  };
+  if (next === 'preparing') {
+    updates.fulfillmentStatus = 'preparing';
+    updates.kitchenStartedAt = now.toISOString();
+    updates.preparationMinutes = minutes;
+    if (minutes) updates.promisedReadyAt = new Date(now.getTime() + minutes * 60_000).toISOString();
+  } else if (next === 'ready') {
+    updates.fulfillmentStatus = 'ready';
+    updates.kitchenReadyAt = now.toISOString();
+  } else if (next === 'handed_over') {
+    updates.handedToCourierAt = now.toISOString();
+  }
+  return { ...order, ...updates };
+};
+
 export default function KitchenPage() {
   const { formatDate, t } = useI18n();
   const { toast } = useFeedback();
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [saving, setSaving] = useState('');
+  const [, setSavingIds] = useState<Set<string>>(() => new Set());
+  const savingIdsRef = useRef(new Set<string>());
   const [preparationOrder, setPreparationOrder] = useState<any | null>(null);
   const [preparationMinutes, setPreparationMinutes] = useState('30');
   const [, setTick] = useState(0);
+  const isSaving = (id?: string) => Boolean(id && savingIdsRef.current.has(id));
+  const modalSaving = isSaving(preparationOrder?.id);
+
+  const setOrderSaving = (id: string, value: boolean) => {
+    if (value) savingIdsRef.current.add(id);
+    else savingIdsRef.current.delete(id);
+    setSavingIds(new Set(savingIdsRef.current));
+  };
 
   const load = useCallback(
     async (silent = false) => {
@@ -82,20 +111,34 @@ export default function KitchenPage() {
   );
 
   const persistUpdate = async (order: any, next: string, minutes?: number) => {
-    setSaving(order.id);
+    if (isSaving(order.id)) return false;
+    const optimistic = optimisticKitchenOrder(order, next, minutes);
+    setOrderSaving(order.id, true);
+    setOrders((current) =>
+      next === 'handed_over'
+        ? current.filter((item) => item.id !== order.id)
+        : current.map((item) => (item.id === order.id ? optimistic : item)),
+    );
     try {
-      await api.updateKitchenStatus(order.id, next, minutes);
-      await load(true);
+      const result = await api.updateKitchenStatus(order.id, next, minutes);
+      if (next !== 'handed_over') {
+        setOrders((current) => current.map((item) => (item.id === order.id ? result.order : item)));
+      }
       return true;
     } catch (caught) {
+      setOrders((current) => {
+        const restored = current.map((item) => (item.id === order.id ? order : item));
+        return restored.some((item) => item.id === order.id) ? restored : [...restored, order];
+      });
       toast(caught instanceof Error ? caught.message : t('kitchen.statusError'), 'error');
       return false;
     } finally {
-      setSaving('');
+      setOrderSaving(order.id, false);
     }
   };
 
   const update = (order: any, next: string) => {
+    if (isSaving(order.id)) return;
     if (next === 'preparing') {
       setPreparationOrder(order);
       setPreparationMinutes(String(order.preparationMinutes || 30));
@@ -106,11 +149,13 @@ export default function KitchenPage() {
 
   const submitPreparation = async (event: FormEvent) => {
     event.preventDefault();
-    if (!preparationOrder || saving) return;
+    if (!preparationOrder || modalSaving) return;
     const minutes = Number(preparationMinutes);
     if (!Number.isFinite(minutes) || minutes < 1 || minutes > 240) return;
-    if (await persistUpdate(preparationOrder, 'preparing', minutes)) {
-      setPreparationOrder(null);
+    const order = preparationOrder;
+    setPreparationOrder(null);
+    if (!(await persistUpdate(order, 'preparing', minutes))) {
+      setPreparationOrder(order);
     }
   };
 
@@ -231,10 +276,10 @@ export default function KitchenPage() {
                         <button
                           className="btn-classic kitchen-action"
                           type="button"
-                          disabled={Boolean(saving)}
+                          disabled={isSaving(order.id)}
                           onClick={() => update(order, column.next)}
                         >
-                          {saving === order.id ? (
+                          {isSaving(order.id) ? (
                             <LoaderCircle aria-hidden="true" className="spin" size={17} />
                           ) : (
                             <PackageCheck aria-hidden="true" size={17} />
@@ -254,7 +299,7 @@ export default function KitchenPage() {
         open={Boolean(preparationOrder)}
         title={t('kitchen.actionStart')}
         description={preparationOrder ? `№${preparationOrder.number}` : undefined}
-        onClose={() => !saving && setPreparationOrder(null)}
+        onClose={() => !modalSaving && setPreparationOrder(null)}
         size="sm"
       >
         <form className="modal-body form-stack" onSubmit={(event) => void submitPreparation(event)}>
@@ -282,16 +327,16 @@ export default function KitchenPage() {
               type="button"
               className="btn-outline px-5"
               onClick={() => setPreparationOrder(null)}
-              disabled={Boolean(saving)}
+              disabled={modalSaving}
             >
               {t('common.cancel')}
             </button>
             <button
               type="submit"
               className="btn-classic px-5 inline-flex items-center gap-2"
-              disabled={Boolean(saving)}
+              disabled={modalSaving}
             >
-              {saving && <LoaderCircle aria-hidden="true" className="spin" size={17} />}
+              {modalSaving && <LoaderCircle aria-hidden="true" className="spin" size={17} />}
               {t('kitchen.actionStart')}
             </button>
           </div>

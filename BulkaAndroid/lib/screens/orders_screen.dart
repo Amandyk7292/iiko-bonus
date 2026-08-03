@@ -172,7 +172,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
       throw ApiException('forte_checkout_invalid'.tr);
     }
     if (!mounted) return false;
-    final paid = await Navigator.of(context).push<bool>(
+    final paymentResult = await Navigator.of(context).push<FortePaymentResult>(
       MaterialPageRoute(
         builder: (_) => FortePaymentScreen(
           api: widget.api,
@@ -181,8 +181,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
         ),
       ),
     );
-    if (paid == true) cart.clear();
-    return paid == true;
+    if (paymentResult?.paid == true) cart.clear();
+    return paymentResult?.paid == true;
   }
 
   Future<void> _openCheckout(BuildContext context, CartProvider cart) async {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { BadgeCheck, Camera, LoaderCircle, MapPin, RefreshCw, Search } from 'lucide-react';
 import { useSearchParams } from '../lib/router';
 import PageState from '../components/PageState';
@@ -24,6 +24,13 @@ const deliveryTransitions: Record<string, string[]> = {
   cancelled: [],
 };
 
+const mergeMutationResult = (current: AdminOrder, updated: AdminOrder): AdminOrder => ({
+  ...current,
+  ...updated,
+  customer: updated.customer ?? current.customer,
+  courier: updated.courier ?? current.courier,
+});
+
 export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
   const { t, formatDate, formatNumber } = useI18n();
   const { toast } = useFeedback();
@@ -38,13 +45,21 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
   const [orderStatus, setOrderStatus] = useState(params.get('status') || '');
   const [page, setPage] = useState(Math.max(1, Number(params.get('page')) || 1));
   const [total, setTotal] = useState(0);
-  const [savingId, setSavingId] = useState('');
+  const [, setSavingIds] = useState<Set<string>>(() => new Set());
+  const savingIdsRef = useRef(new Set<string>());
   const [couriers, setCouriers] = useState<Courier[]>([]);
   const [deliveryProof, setDeliveryProof] = useState<DeliveryProof | null>(null);
   const [proofLoading, setProofLoading] = useState(false);
   const [cancellationOrder, setCancellationOrder] = useState<AdminOrder | null>(null);
   const [cancellationReason, setCancellationReason] = useState('');
   const pageSize = 50;
+  const isSaving = (id?: string) => Boolean(id && savingIdsRef.current.has(id));
+  const cancellationSaving = isSaving(cancellationOrder?.id);
+  const setOrderSaving = (id: string, value: boolean) => {
+    if (value) savingIdsRef.current.add(id);
+    else savingIdsRef.current.delete(id);
+    setSavingIds(new Set(savingIdsRef.current));
+  };
 
   const load = useCallback(
     async (silent = false) => {
@@ -116,31 +131,58 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
   }, [load]);
 
   const assignCourier = async (order: AdminOrder, courierId: string) => {
-    if (!orderMutationsAllowed || !courierId || savingId) return;
-    setSavingId(order.id);
+    if (!orderMutationsAllowed || !courierId || isSaving(order.id)) return;
+    const selectedCourier = couriers.find((courier) => courier.id === courierId);
+    const optimistic: AdminOrder = {
+      ...order,
+      deliveryStatus: 'assigned',
+      courier: selectedCourier
+        ? {
+            id: selectedCourier.id,
+            name: selectedCourier.name,
+            phone: selectedCourier.phone,
+            vehicle: selectedCourier.vehicle,
+          }
+        : order.courier,
+    };
+    setOrderSaving(order.id, true);
+    setOrders((current) => current.map((item) => (item.id === order.id ? optimistic : item)));
     try {
       const eta = new Date(Date.now() + 45 * 60_000).toISOString();
-      await api.assignCourier(order.id, courierId, eta);
-      await load(true);
+      const result = await api.assignCourier(order.id, courierId, eta);
+      setOrders((current) =>
+        current.map((item) =>
+          item.id === order.id ? mergeMutationResult(item, result.order) : item,
+        ),
+      );
       toast(t('orders.courierAssigned'));
     } catch (caught) {
+      setOrders((current) => current.map((item) => (item.id === order.id ? order : item)));
       toast(caught instanceof Error ? caught.message : t('common.error'), 'error');
     } finally {
-      setSavingId('');
+      setOrderSaving(order.id, false);
     }
   };
 
   const changeDeliveryStatus = async (order: AdminOrder, status: string) => {
-    if (!orderMutationsAllowed || !status || savingId) return;
-    setSavingId(order.id);
+    if (!orderMutationsAllowed || !status || isSaving(order.id)) return;
+    setOrderSaving(order.id, true);
+    setOrders((current) =>
+      current.map((item) => (item.id === order.id ? { ...item, deliveryStatus: status } : item)),
+    );
     try {
-      await api.updateDeliveryStatus(order.id, status);
-      await load(true);
+      const result = await api.updateDeliveryStatus(order.id, status);
+      setOrders((current) =>
+        current.map((item) =>
+          item.id === order.id ? mergeMutationResult(item, result.order) : item,
+        ),
+      );
       toast(t('orders.deliverySaved'));
     } catch (caught) {
+      setOrders((current) => current.map((item) => (item.id === order.id ? order : item)));
       toast(caught instanceof Error ? caught.message : t('common.error'), 'error');
     } finally {
-      setSavingId('');
+      setOrderSaving(order.id, false);
     }
   };
 
@@ -148,22 +190,37 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
     if (!orderMutationsAllowed || (status === 'cancelled' && !refundsAllowed)) {
       return false;
     }
-    setSavingId(order.id);
+    if (isSaving(order.id)) return false;
+    const optimistic =
+      status === 'cancelled'
+        ? order
+        : { ...order, orderStatus: status, updatedAt: new Date().toISOString() };
+    setOrderSaving(order.id, true);
+    if (status !== 'cancelled') {
+      setOrders((current) => current.map((item) => (item.id === order.id ? optimistic : item)));
+    }
     try {
       const result = await api.updateOrderStatus(order.id, status, reason);
-      setOrders((current) => current.map((item) => (item.id === order.id ? result.order : item)));
+      setOrders((current) =>
+        current.map((item) =>
+          item.id === order.id ? mergeMutationResult(item, result.order) : item,
+        ),
+      );
       toast(status === 'cancelled' ? t('orders.refundSucceeded') : t('orders.statusSaved'));
       return true;
     } catch (caught) {
+      if (status !== 'cancelled') {
+        setOrders((current) => current.map((item) => (item.id === order.id ? order : item)));
+      }
       toast(caught instanceof Error ? caught.message : t('common.error'), 'error');
       return false;
     } finally {
-      setSavingId('');
+      setOrderSaving(order.id, false);
     }
   };
 
   const changeStatus = (order: AdminOrder, status: string) => {
-    if (!orderMutationsAllowed || status === order.orderStatus || savingId) return;
+    if (!orderMutationsAllowed || status === order.orderStatus || isSaving(order.id)) return;
     if (status === 'cancelled') {
       if (!refundsAllowed) return;
       setCancellationOrder(order);
@@ -175,7 +232,7 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
 
   const submitCancellation = async (event: FormEvent) => {
     event.preventDefault();
-    if (!refundsAllowed || !cancellationOrder || savingId) return;
+    if (!refundsAllowed || !cancellationOrder || cancellationSaving) return;
     if (await persistStatus(cancellationOrder, 'cancelled', cancellationReason.trim())) {
       setCancellationOrder(null);
       setCancellationReason('');
@@ -351,7 +408,7 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
                               className="compact-select"
                               value=""
                               onChange={(value) => void assignCourier(order, value)}
-                              disabled={savingId === order.id}
+                              disabled={isSaving(order.id)}
                               options={[
                                 { value: '', label: t('orders.assignCourier') },
                                 ...couriers
@@ -377,7 +434,7 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
                                 className="compact-select"
                                 value=""
                                 onChange={(value) => void changeDeliveryStatus(order, value)}
-                                disabled={savingId === order.id}
+                                disabled={isSaving(order.id)}
                                 options={[
                                   {
                                     value: '',
@@ -421,7 +478,7 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
                       {['paid', 'refunded'].includes(order.paymentStatus) &&
                       orderMutationsAllowed ? (
                         <div className="order-status-control">
-                          {savingId === order.id && (
+                          {isSaving(order.id) && (
                             <LoaderCircle className="spin" size={16} aria-hidden="true" />
                           )}
                           <SelectControl
@@ -431,7 +488,7 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
                             value={order.orderStatus}
                             onChange={(value) => void changeStatus(order, value)}
                             disabled={
-                              savingId === order.id ||
+                              isSaving(order.id) ||
                               ['completed', 'cancelled'].includes(order.orderStatus)
                             }
                             options={availableOrderStatuses(order.orderStatus, refundsAllowed).map(
@@ -488,7 +545,7 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
       )}
       <Modal
         open={Boolean(cancellationOrder)}
-        onClose={() => !savingId && setCancellationOrder(null)}
+        onClose={() => !cancellationSaving && setCancellationOrder(null)}
         title={t('orderStatus.cancelled')}
         description={
           cancellationOrder
@@ -522,16 +579,16 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
               type="button"
               className="btn-outline px-5"
               onClick={() => setCancellationOrder(null)}
-              disabled={Boolean(savingId)}
+              disabled={cancellationSaving}
             >
               {t('common.cancel')}
             </button>
             <button
               type="submit"
               className="btn-danger px-5 inline-flex items-center gap-2"
-              disabled={Boolean(savingId)}
+              disabled={cancellationSaving}
             >
-              {savingId && <LoaderCircle aria-hidden="true" className="spin" size={17} />}
+              {cancellationSaving && <LoaderCircle aria-hidden="true" className="spin" size={17} />}
               {t('common.confirm')}
             </button>
           </div>

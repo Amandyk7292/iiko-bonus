@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const { supabase } = require('../config/supabase');
 const { isDeliveryFulfillment } = require('../utils/fulfillment.util');
 const { buildWhatsAppContact } = require('../utils/whatsapp.util');
+const { runBackgroundTask } = require('../utils/background-task.util');
 const otpStore = require('./otpStore.service');
 const { sendPushToCustomer } = require('./push.service');
 const { sendOrderLiveActivity } = require('./live-activity.service');
@@ -605,7 +606,12 @@ async function notifyDeliveryStatus(order) {
   );
 }
 
-async function assignCourier(orderId, courierId, estimatedDeliveryAt = null) {
+async function assignCourier(
+  orderId,
+  courierId,
+  estimatedDeliveryAt = null,
+  { branchIds = [] } = {},
+) {
   const [{ data: order, error: orderError }, { data: courier, error: courierReadError }] =
     await Promise.all([
       supabase.from('kaspi_orders').select('*').eq('id', orderId).maybeSingle(),
@@ -615,6 +621,10 @@ async function assignCourier(orderId, courierId, estimatedDeliveryAt = null) {
   if (courierReadError) throw courierReadError;
   if (!order) throw courierError('Заказ не найден', 404);
   if (!courier) throw courierError('Курьер не найден или выключен', 404);
+  const scopedBranchIds = Array.isArray(branchIds) ? branchIds.map(String).filter(Boolean) : [];
+  if (scopedBranchIds.length && !scopedBranchIds.includes(String(order.branch_id || ''))) {
+    throw courierError('Заказ не найден', 404);
+  }
   if (!isDeliveryFulfillment(order)) throw courierError('Курьер нужен только для доставки');
   if (order.status !== 'paid') throw courierError('Назначить курьера можно после оплаты', 409);
   if (['completed', 'cancelled'].includes(order.fulfillment_status)) {
@@ -636,26 +646,33 @@ async function assignCourier(orderId, courierId, estimatedDeliveryAt = null) {
       updated_at: now,
     })
     .eq('id', orderId)
-    .select('*')
+    .select(
+      '*,couriers(id,name,phone,vehicle,current_latitude,current_longitude,location_updated_at)',
+    )
     .maybeSingle();
   if (error) throw error;
   if (!data) throw courierError('Заказ уже изменился. Обновите список.', 409);
-  await notifyDeliveryPin(data, courier, pin).catch((notificationError) =>
-    console.error('Delivery PIN notification failed:', notificationError.message),
-  );
-  await sendOrderLiveActivity({ ...data, couriers: courier }).catch((activityError) =>
-    console.error('Live Activity assignment update failed:', activityError.message),
-  );
-  await recordCourierEvent({
-    courierId,
-    orderId,
-    eventType: 'assigned',
-    metadata: { orderNumber: Number(data.order_number || 0) },
-  }).catch(() => {});
+  runBackgroundTask(`Courier assignment ${orderId} side effects`, async () => {
+    const results = await Promise.allSettled([
+      notifyDeliveryPin(data, courier, pin),
+      sendOrderLiveActivity({ ...data, couriers: courier }),
+      recordCourierEvent({
+        courierId,
+        orderId,
+        eventType: 'assigned',
+        metadata: { orderNumber: Number(data.order_number || 0) },
+      }),
+    ]);
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        console.error('Courier assignment side effect failed:', result.reason?.message);
+      }
+    }
+  });
   return data;
 }
 
-async function updateDeliveryStatus(orderId, nextStatus) {
+async function updateDeliveryStatus(orderId, nextStatus, { branchIds = [] } = {}) {
   if (!Object.hasOwn(DELIVERY_TRANSITIONS, nextStatus)) {
     throw courierError('Некорректный статус доставки');
   }
@@ -673,6 +690,10 @@ async function updateDeliveryStatus(orderId, nextStatus) {
     .maybeSingle();
   if (readError) throw readError;
   if (!order) throw courierError('Заказ не найден', 404);
+  const scopedBranchIds = Array.isArray(branchIds) ? branchIds.map(String).filter(Boolean) : [];
+  if (scopedBranchIds.length && !scopedBranchIds.includes(String(order.branch_id || ''))) {
+    throw courierError('Заказ не найден', 404);
+  }
   const current = order.delivery_status || 'unassigned';
   if (current === nextStatus) return order;
   if (!(DELIVERY_TRANSITIONS[current] || []).includes(nextStatus)) {
@@ -686,18 +707,38 @@ async function updateDeliveryStatus(orderId, nextStatus) {
     .update(updates)
     .eq('id', orderId)
     .eq('delivery_status', current)
-    .select('*,couriers(name)')
+    .select(
+      '*,couriers(id,name,phone,vehicle,current_latitude,current_longitude,location_updated_at)',
+    )
     .maybeSingle();
   if (error) throw error;
   if (!data) throw courierError('Статус уже изменён. Обновите список.', 409);
-  const refreshed = await refreshOrderEta(data).catch((etaError) => {
-    console.error('Courier status ETA refresh failed:', etaError.message);
-    return data;
+  runBackgroundTask(`Delivery status ${orderId} side effects`, async () => {
+    const refreshed = await refreshOrderEta(data).catch((etaError) => {
+      console.error('Courier status ETA refresh failed:', etaError.message);
+      return data;
+    });
+    await notifyDeliveryStatus(refreshed).catch((notificationError) => {
+      console.error('Delivery status notification failed:', notificationError.message);
+    });
+    realtime.publish(
+      'order.updated',
+      {
+        orderId: refreshed.id,
+        orderNumber: refreshed.order_number,
+        orderStatus: refreshed.fulfillment_status,
+        deliveryStatus: refreshed.delivery_status,
+        etaMinAt: refreshed.eta_min_at || null,
+        etaMaxAt: refreshed.eta_max_at || null,
+      },
+      {
+        customerId: refreshed.customer_id,
+        includeAdmins: true,
+        branchId: refreshed.branch_id,
+      },
+    );
   });
-  await notifyDeliveryStatus(refreshed).catch((notificationError) =>
-    console.error('Delivery status notification failed:', notificationError.message),
-  );
-  return refreshed;
+  return data;
 }
 
 async function updateCourierLocation(courierId, latitude, longitude, sessionId = null) {

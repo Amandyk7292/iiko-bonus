@@ -74,6 +74,14 @@ const defaultSettings = {
   },
 };
 
+const configuredSettingsCacheTtl = Number(process.env.SETTINGS_CACHE_TTL_MS);
+const SETTINGS_CACHE_TTL_MS = Number.isFinite(configuredSettingsCacheTtl)
+  ? Math.max(1_000, configuredSettingsCacheTtl)
+  : 30_000;
+let cachedSettings = null;
+let settingsCacheExpiresAt = 0;
+let settingsRequest = null;
+
 function parseSettingValue(value) {
   if (value === null || value === undefined) return value;
   const text = String(value);
@@ -92,24 +100,45 @@ function parseSettingValue(value) {
   return text;
 }
 
-async function getSettings() {
+async function loadSettings() {
   const { data, error } = await supabase.from('settings').select('*');
   if (error || !data) {
-    console.warn('Could not load settings from DB, using defaults.', error?.message);
-    return defaultSettings;
+    console.warn('Could not load settings from DB, using cached defaults.', error?.message);
+    return cachedSettings || { ...defaultSettings };
   }
-
   const settings = { ...defaultSettings };
-  for (const row of data) {
-    settings[row.key] = parseSettingValue(row.value);
-  }
+  for (const row of data) settings[row.key] = parseSettingValue(row.value);
   return settings;
+}
+
+async function getSettings({ forceRefresh = false } = {}) {
+  if (!forceRefresh && cachedSettings && Date.now() < settingsCacheExpiresAt) {
+    return cachedSettings;
+  }
+  if (settingsRequest) return settingsRequest;
+  settingsRequest = loadSettings()
+    .then((settings) => {
+      cachedSettings = settings;
+      settingsCacheExpiresAt = Date.now() + SETTINGS_CACHE_TTL_MS;
+      return settings;
+    })
+    .finally(() => {
+      settingsRequest = null;
+    });
+  return settingsRequest;
+}
+
+function clearSettingsCache() {
+  cachedSettings = null;
+  settingsCacheExpiresAt = 0;
 }
 
 async function updateSettings(newSettings) {
   if (!newSettings || typeof newSettings !== 'object' || Array.isArray(newSettings))
     throw new Error('Settings payload must be an object');
   const allowedKeys = new Set(Object.keys(defaultSettings));
+  const normalizedSettings = {};
+  const rows = [];
   for (const key of Object.keys(newSettings)) {
     if (!allowedKeys.has(key)) throw new Error(`Unknown setting: ${key}`);
     if (/_cb$|percent$/.test(key)) {
@@ -122,10 +151,10 @@ async function updateSettings(newSettings) {
       if (!Number.isFinite(numeric) || numeric < 0) throw new Error(`Invalid threshold: ${key}`);
     }
     if (key === 'bonus_promocodes') {
-      const promos = newSettings[key];
-      if (!Array.isArray(promos) || promos.length > 100) {
+      if (!Array.isArray(newSettings[key]) || newSettings[key].length > 100) {
         throw new Error('bonus_promocodes must be an array with at most 100 items');
       }
+      const promos = newSettings[key].map((promo) => ({ ...promo }));
       const codes = new Set();
       for (const promo of promos) {
         const code = String(promo?.code || '')
@@ -149,14 +178,21 @@ async function updateSettings(newSettings) {
         promo.code = code;
         codes.add(code);
       }
+      normalizedSettings[key] = promos;
+    } else {
+      normalizedSettings[key] = newSettings[key];
     }
     const value =
-      typeof newSettings[key] === 'object' && newSettings[key] !== null
-        ? JSON.stringify(newSettings[key])
-        : String(newSettings[key]);
-    const { error } = await supabase.from('settings').upsert({ key, value }, { onConflict: 'key' });
-    if (error) throw new Error(`Error updating setting ${key}: ` + error.message);
+      typeof normalizedSettings[key] === 'object' && normalizedSettings[key] !== null
+        ? JSON.stringify(normalizedSettings[key])
+        : String(normalizedSettings[key]);
+    rows.push({ key, value });
   }
+  if (!rows.length) return;
+  const { error } = await supabase.from('settings').upsert(rows, { onConflict: 'key' });
+  if (error) throw new Error(`Error updating settings: ${error.message}`);
+  cachedSettings = { ...(cachedSettings || defaultSettings), ...normalizedSettings };
+  settingsCacheExpiresAt = Date.now() + SETTINGS_CACHE_TTL_MS;
 }
 
 function getTierInfo(totalSpent, settings) {
@@ -164,6 +200,7 @@ function getTierInfo(totalSpent, settings) {
 }
 
 module.exports = {
+  clearSettingsCache,
   getSettings,
   updateSettings,
   getTierInfo,

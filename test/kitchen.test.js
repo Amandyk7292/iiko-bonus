@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
+const { waitForBackgroundTasks } = require('../src/utils/background-task.util');
 
 const modulePath = (value) => require.resolve(value);
 
@@ -13,7 +14,15 @@ function installModule(t, path, exports) {
   });
 }
 
-function loadKitchen(t, initialOrder, { beforeKitchenUpdate = null } = {}) {
+function loadKitchen(
+  t,
+  initialOrder,
+  {
+    beforeKitchenUpdate = null,
+    refreshOrderEta = async (value) => value,
+    notifyOrderStatus = async () => {},
+  } = {},
+) {
   let order = structuredClone(initialOrder);
   const events = [];
   const db = {
@@ -87,7 +96,10 @@ function loadKitchen(t, initialOrder, { beforeKitchenUpdate = null } = {}) {
       };
       return order;
     },
-    notifyOrderStatus: async () => events.push(['notify']),
+    notifyOrderStatus: async (...args) => {
+      events.push(['notify']);
+      return notifyOrderStatus(...args);
+    },
   });
   installModule(t, '../src/services/courier.service', {
     notifyDeliveryStatus: async () => events.push(['delivery-notify']),
@@ -99,7 +111,7 @@ function loadKitchen(t, initialOrder, { beforeKitchenUpdate = null } = {}) {
     publish: () => events.push(['publish']),
   });
   installModule(t, '../src/services/eta.service', {
-    refreshOrderEta: async (value) => value,
+    refreshOrderEta,
   });
   const servicePath = modulePath('../src/services/kitchen.service');
   const previous = require.cache[servicePath];
@@ -151,12 +163,43 @@ test('handed-over transition releases reservations and repeated close is idempot
   );
   const first = await service.updateKitchenStatus(ORDER_ID, 'handed_over');
   const second = await service.updateKitchenStatus(ORDER_ID, 'handed_over');
+  await waitForBackgroundTasks();
   assert.equal(first.kitchenStatus, 'handed_over');
   assert.equal(second.kitchenStatus, 'handed_over');
   assert.deepEqual(
     events.filter(([name]) => name === 'release'),
     [['release', '11111111-1111-4111-8111-111111111111']],
   );
+});
+
+test('kitchen status responds before slow ETA and notification side effects finish', async (t) => {
+  let releaseEta;
+  let releaseNotification;
+  const etaPending = new Promise((resolve) => {
+    releaseEta = resolve;
+  });
+  const notificationPending = new Promise((resolve) => {
+    releaseNotification = resolve;
+  });
+  const { service } = loadKitchen(t, baseOrder(), {
+    refreshOrderEta: async (order) => {
+      await etaPending;
+      return order;
+    },
+    notifyOrderStatus: async () => notificationPending,
+  });
+
+  const result = await Promise.race([
+    service.updateKitchenStatus(ORDER_ID, 'preparing', 15),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('status update waited for side effects')), 100),
+    ),
+  ]);
+  assert.equal(result.kitchenStatus, 'preparing');
+
+  releaseEta();
+  releaseNotification();
+  await waitForBackgroundTasks();
 });
 
 test('stale kitchen transition cannot overwrite a concurrent refund claim', async (t) => {

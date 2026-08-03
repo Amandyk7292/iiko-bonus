@@ -674,9 +674,31 @@ const forteCheckoutSchema = z
     redirect_url: z.url().max(2_000).nullable().optional(),
   })
   .strict();
+const forteWebhookTransactionSchema = z
+  .object({
+    uid: forteProviderIdSchema.optional(),
+    id: forteProviderIdSchema.optional(),
+    tracking_id: uuidSchema,
+    status: z.string().trim().min(1).max(60).optional(),
+  })
+  .passthrough()
+  .refine((value) => Boolean(value.uid || value.id), {
+    message: 'transaction uid is required',
+  });
+const forteWebhookCheckoutSchema = z
+  .object({
+    token: z.string().trim().min(32).max(512).optional(),
+    order: z
+      .object({
+        tracking_id: uuidSchema,
+      })
+      .passthrough(),
+    status: z.string().trim().min(1).max(60).optional(),
+  })
+  .passthrough();
 const forteWidgetWebhookBodySchema = z.union([
-  z.object({ transaction: forteTransactionSchema }).strict(),
-  z.object({ checkout: forteCheckoutSchema }).strict(),
+  z.object({ transaction: forteWebhookTransactionSchema }).strict(),
+  z.object({ checkout: forteWebhookCheckoutSchema }).strict(),
   forteCheckoutSchema,
   forteTransactionSchema,
 ]);

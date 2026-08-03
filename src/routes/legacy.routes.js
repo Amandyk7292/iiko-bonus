@@ -18,7 +18,10 @@ const {
   revokeCustomerSession,
   rotateCustomerSession,
 } = require('../services/customer-session.service');
-const { getBranchAvailability } = require('../services/inventory.service');
+const {
+  getBranchAvailability,
+  refreshBranchInventoryInBackground,
+} = require('../services/inventory.service');
 const {
   customerAuthMiddleware,
   registrationAuthMiddleware,
@@ -120,14 +123,19 @@ async function getCustomerTierSnapshot(customer) {
 }
 
 async function buildAuthenticatedCustomerPayload(customer, req, res) {
-  const { tier, vipThreshold, isVip, cashbackPercent } = await getCustomerTierSnapshot(customer);
-  const { data: transactions } = await supabase
-    .from('transactions')
-    .select('*')
-    .eq('customer_id', customer.id)
-    .order('timestamp', { ascending: false })
-    .limit(20);
-  const session = sendCustomerSession(req, res, await issueCustomerSession(customer, req));
+  const [tierSnapshot, transactionResult, issuedSession] = await Promise.all([
+    getCustomerTierSnapshot(customer),
+    supabase
+      .from('transactions')
+      .select('*')
+      .eq('customer_id', customer.id)
+      .order('timestamp', { ascending: false })
+      .limit(20),
+    issueCustomerSession(customer, req),
+  ]);
+  const { tier, vipThreshold, isVip, cashbackPercent } = tierSnapshot;
+  const transactions = transactionResult.data;
+  const session = sendCustomerSession(req, res, issuedSession);
   return {
     success: true,
     exists: true,
@@ -623,16 +631,17 @@ router.post(
         customer.fcm_token = fcmToken;
       }
 
-      const { tier, vipThreshold, isVip, cashbackPercent } =
-        await getCustomerTierSnapshot(customer);
-
-      // Получаем последние транзакции клиента.
-      const { data: transactions } = await supabase
-        .from('transactions')
-        .select('*')
-        .eq('customer_id', customer.id)
-        .order('timestamp', { ascending: false })
-        .limit(20);
+      const [tierSnapshot, transactionResult] = await Promise.all([
+        getCustomerTierSnapshot(customer),
+        supabase
+          .from('transactions')
+          .select('*')
+          .eq('customer_id', customer.id)
+          .order('timestamp', { ascending: false })
+          .limit(20),
+      ]);
+      const { tier, vipThreshold, isVip, cashbackPercent } = tierSnapshot;
+      const transactions = transactionResult.data;
 
       res.json({
         exists: true,
@@ -774,13 +783,14 @@ router.get('/api/guest/menu', async (req, res) => {
       });
     }
     const branchPreparationMinutes = Number(branchSettings?.default_preparation_minutes || 15);
+    if (branchId) {
+      refreshBranchInventoryInBackground(branchId, {
+        products: rawProducts,
+        iikoClient: selectedIikoApi,
+      });
+    }
     const branchAvailability = branchId
-      ? await getBranchAvailability(branchId, {
-          sync: true,
-          strict: true,
-          products: rawProducts,
-          iikoClient: selectedIikoApi,
-        })
+      ? await getBranchAvailability(branchId, { strict: true })
       : new Map();
 
     // Categories

@@ -1,4 +1,5 @@
 const { supabase } = require('../config/supabase');
+const { runBackgroundTask } = require('../utils/background-task.util');
 const { getIikoClientForCity } = require('./iiko-city-profile.service');
 
 const inventoryError = (message, statusCode = 400) =>
@@ -7,6 +8,11 @@ const inventoryError = (message, statusCode = 400) =>
 const DEFAULT_RESERVATION_TTL_MINUTES = 20;
 const MAX_RESERVATION_TTL_MINUTES = 24 * 60 + 5;
 const COMMITTED_RESERVATION_STATUSES = new Set(['committed', 'already_committed']);
+const configuredBackgroundSyncInterval = Number(process.env.INVENTORY_BACKGROUND_SYNC_INTERVAL_MS);
+const BACKGROUND_SYNC_MIN_INTERVAL_MS = Number.isFinite(configuredBackgroundSyncInterval)
+  ? Math.max(5_000, configuredBackgroundSyncInterval)
+  : 30_000;
+const backgroundSyncState = new Map();
 
 const normalizedKey = (value) =>
   String(value || '')
@@ -144,6 +150,30 @@ async function syncBranchInventory(
     console.error(`Не удалось синхронизировать остатки филиала ${branchId}:`, error.message);
     return { tracked: false, balances: new Map(), stopIds: new Set() };
   }
+}
+
+function refreshBranchInventoryInBackground(
+  branchId,
+  { products = [], iikoClient = null, minIntervalMs = BACKGROUND_SYNC_MIN_INTERVAL_MS } = {},
+) {
+  const key = String(branchId || '').trim();
+  if (!key) return false;
+  const now = Date.now();
+  const state = backgroundSyncState.get(key);
+  const safeInterval = Math.max(5_000, Number(minIntervalMs) || BACKGROUND_SYNC_MIN_INTERVAL_MS);
+  if (state?.running || now - Number(state?.startedAt || 0) < safeInterval) return false;
+  backgroundSyncState.set(key, { running: true, startedAt: now });
+  runBackgroundTask(`Inventory refresh ${key}`, async () => {
+    try {
+      await syncBranchInventory(key, { strict: false, products, iikoClient });
+    } finally {
+      const current = backgroundSyncState.get(key);
+      if (current?.startedAt === now) {
+        backgroundSyncState.set(key, { running: false, startedAt: now });
+      }
+    }
+  });
+  return true;
 }
 
 async function getBranchAvailability(
@@ -450,6 +480,7 @@ module.exports = {
   getBranchAvailability,
   listInventory,
   parseTerminalMappings,
+  refreshBranchInventoryInBackground,
   releaseCheckoutRequest,
   releaseOrderReservations,
   reserveCheckout,

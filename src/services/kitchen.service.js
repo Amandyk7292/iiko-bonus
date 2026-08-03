@@ -5,6 +5,31 @@ const { cancelPaidOrder, notifyOrderStatus } = require('./customer-order.service
 const { notifyDeliveryStatus } = require('./courier.service');
 const { refreshOrderEta } = require('./eta.service');
 const { releaseOrderReservations } = require('./inventory.service');
+const { runBackgroundTask } = require('../utils/background-task.util');
+
+const KITCHEN_ORDER_FIELDS = [
+  'id',
+  'order_number',
+  'branch_id',
+  'branch_name',
+  'cart_items',
+  'comment',
+  'substitution_preference',
+  'fulfillment_type',
+  'preorder_fulfillment_type',
+  'fulfillment_status',
+  'kitchen_status',
+  'created_at',
+  'promised_ready_at',
+  'scheduled_at',
+  'kitchen_started_at',
+  'kitchen_ready_at',
+  'handed_to_courier_at',
+  'preparation_minutes',
+  'courier_id',
+  'delivery_status',
+  'customer_arrived_at',
+].join(',');
 
 const kitchenError = (message, statusCode = 400) =>
   Object.assign(new Error(message), { statusCode });
@@ -42,7 +67,7 @@ const normalize = (order) => ({
 async function listKitchenOrders({ branchId = null, branchIds = [], includeClosed = false } = {}) {
   let query = supabase
     .from('kaspi_orders')
-    .select('*')
+    .select(KITCHEN_ORDER_FIELDS)
     .eq('status', 'paid')
     .order('promised_ready_at', { ascending: true, nullsFirst: false })
     .order('created_at');
@@ -52,6 +77,44 @@ async function listKitchenOrders({ branchId = null, branchIds = [], includeClose
   const { data, error } = await query.limit(300);
   if (error) throw error;
   return (data || []).map(normalize);
+}
+
+function runPostUpdateTasks(data, nextStatus) {
+  runBackgroundTask(`Kitchen order ${data.id} post-update`, async () => {
+    const notify =
+      nextStatus === 'handed_over' && isDeliveryFulfillment(data)
+        ? notifyDeliveryStatus
+        : notifyOrderStatus;
+    const etaPromise = refreshOrderEta(data);
+    const sideEffectsPromise = Promise.allSettled([
+      notify(data),
+      ...(nextStatus === 'handed_over' ? [releaseOrderReservations(data.id)] : []),
+    ]);
+    const refreshed = await etaPromise.catch((error) => {
+      console.error('Kitchen ETA refresh failed:', error.message);
+      return data;
+    });
+    realtime.publish(
+      'order.updated',
+      {
+        orderId: data.id,
+        orderNumber: data.order_number,
+        kitchenStatus: data.kitchen_status,
+        orderStatus: data.fulfillment_status,
+        deliveryStatus: data.delivery_status,
+        etaMinAt: refreshed.eta_min_at || null,
+        etaMaxAt: refreshed.eta_max_at || null,
+        etaConfidence: refreshed.eta_confidence || null,
+      },
+      { customerId: data.customer_id, includeAdmins: true, branchId: data.branch_id },
+    );
+    const results = await sideEffectsPromise;
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        console.error('Kitchen post-update side effect failed:', result.reason?.message);
+      }
+    }
+  });
 }
 
 async function updateKitchenStatus(
@@ -149,15 +212,6 @@ async function updateKitchenStatus(
   const { data, error } = await updateQuery.select('*').maybeSingle();
   if (error) throw error;
   if (!data) throw kitchenError('Заказ уже изменился. Обновите экран.', 409);
-  if (nextStatus === 'handed_over') {
-    await releaseOrderReservations(data.id).catch((releaseError) =>
-      console.error('Kitchen reservation release failed:', releaseError.message),
-    );
-  }
-  const refreshed = await refreshOrderEta(data).catch((etaError) => {
-    console.error('Kitchen ETA refresh failed:', etaError.message);
-    return data;
-  });
   realtime.publish(
     'order.updated',
     {
@@ -166,20 +220,14 @@ async function updateKitchenStatus(
       kitchenStatus: data.kitchen_status,
       orderStatus: data.fulfillment_status,
       deliveryStatus: data.delivery_status,
-      etaMinAt: refreshed.eta_min_at || null,
-      etaMaxAt: refreshed.eta_max_at || null,
-      etaConfidence: refreshed.eta_confidence || null,
+      etaMinAt: data.eta_min_at || null,
+      etaMaxAt: data.eta_max_at || null,
+      etaConfidence: data.eta_confidence || null,
     },
     { customerId: data.customer_id, includeAdmins: true, branchId: data.branch_id },
   );
-  const notify =
-    nextStatus === 'handed_over' && isDeliveryFulfillment(data)
-      ? notifyDeliveryStatus
-      : notifyOrderStatus;
-  await notify(refreshed).catch((notificationError) =>
-    console.error('Kitchen customer notification failed:', notificationError.message),
-  );
-  return normalize(refreshed);
+  runPostUpdateTasks(data, nextStatus);
+  return normalize(data);
 }
 
 module.exports = { TRANSITIONS, listKitchenOrders, updateKitchenStatus };

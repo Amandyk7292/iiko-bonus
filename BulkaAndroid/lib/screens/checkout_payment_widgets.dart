@@ -169,7 +169,7 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
         throw ApiException('payment_methods_add_error'.tr);
       }
       if (!mounted) return;
-      final saved = await Navigator.of(context).push<bool>(
+      final setupResult = await Navigator.of(context).push<FortePaymentResult>(
         MaterialPageRoute(
           builder: (_) => FortePaymentScreen(
             api: widget.api,
@@ -179,7 +179,7 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
           ),
         ),
       );
-      if (saved != true || !mounted) return;
+      if (setupResult?.paid != true || !mounted) return;
       await _load();
       if (!mounted) return;
       String? addedMethodId;

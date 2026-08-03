@@ -135,6 +135,19 @@ test('payment webhook contracts accept documented envelopes and reject forged fi
   assert.equal(forteWidgetWebhookBodySchema.safeParse(fortePayload).success, true);
   assert.equal(
     forteWidgetWebhookBodySchema.safeParse({
+      transaction: {
+        ...fortePayload.transaction,
+        provider_extension: { reconciliation: 'complete' },
+        credit_card: {
+          ...fortePayload.transaction.credit_card,
+          provider_card_id: 'card-123',
+        },
+      },
+    }).success,
+    true,
+  );
+  assert.equal(
+    forteWidgetWebhookBodySchema.safeParse({
       checkout: {
         token: 'a'.repeat(64),
         shop_id: 32828,

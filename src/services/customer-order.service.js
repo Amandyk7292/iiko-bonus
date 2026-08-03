@@ -8,6 +8,7 @@ const { sendOrderLiveActivity } = require('./live-activity.service');
 const { paymentReceiptUrl } = require('./payment-receipt.service');
 const { paymentProviderName, refundPaymentForOrder } = require('./payment-gateway.service');
 const { effectiveFulfillmentType, isDeliveryFulfillment } = require('../utils/fulfillment.util');
+const { runBackgroundTask } = require('../utils/background-task.util');
 
 const ORDER_FIELDS = [
   'id',
@@ -369,7 +370,7 @@ async function listAdminOrders({
   let query = supabase
     .from('kaspi_orders')
     .select(
-      `${ORDER_FIELDS},customers(name,phone),payment_receipts(id,language),couriers(id,name,phone,vehicle,current_latitude,current_longitude,location_updated_at),${DELIVERY_JOB_FIELDS},${SUBSTITUTION_FIELDS}`,
+      `${ORDER_FIELDS},customers(name,phone),couriers(id,name,phone,vehicle,current_latitude,current_longitude,location_updated_at),${DELIVERY_JOB_FIELDS}`,
       { count: 'exact' },
     );
 
@@ -889,14 +890,6 @@ async function updateAdminOrderStatus(
   const { data, error } = await updateQuery.select('*').maybeSingle();
   if (error) throw error;
   if (!data) throw httpError(409, 'Статус уже изменён. Обновите список.');
-  await notifyOrderStatus(data).catch((error) =>
-    console.error('Не удалось отправить уведомление о заказе:', error.message),
-  );
-  if (['completed', 'cancelled'].includes(nextStatus)) {
-    await releaseOrderReservations(data.id).catch((error) =>
-      console.error('Не удалось освободить резерв закрытого заказа:', error.message),
-    );
-  }
   realtime.publish(
     'order.updated',
     {
@@ -907,6 +900,19 @@ async function updateAdminOrderStatus(
     },
     { customerId: data.customer_id, includeAdmins: true, branchId: data.branch_id },
   );
+  runBackgroundTask(`Order ${data.id} status side effects`, async () => {
+    const results = await Promise.allSettled([
+      notifyOrderStatus(data),
+      ...(['completed', 'cancelled'].includes(nextStatus)
+        ? [releaseOrderReservations(data.id)]
+        : []),
+    ]);
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        console.error('Order status side effect failed:', result.reason?.message);
+      }
+    }
+  });
   return normalizeOrder(data);
 }
 

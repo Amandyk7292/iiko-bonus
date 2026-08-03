@@ -766,11 +766,11 @@ router.patch(
   validateRequest(adminMutationSchemas.assignCourier),
   async (req, res) => {
     try {
-      await assertOrderAccess(req, req.params.id);
       const order = await assignCourier(
         req.params.id,
         req.body?.courierId,
         req.body?.estimatedDeliveryAt,
+        { branchIds: scopedBranchIds(req) },
       );
       realtime.publish(
         'order.updated',
@@ -792,14 +792,15 @@ router.patch(
   validateRequest(adminMutationSchemas.deliveryStatus),
   async (req, res) => {
     try {
-      await assertOrderAccess(req, req.params.id);
       if (req.body?.status === 'delivered') {
         return res.status(409).json({
           success: false,
           error: 'Курьер завершает доставку по PIN клиента и фото подтверждения',
         });
       }
-      const order = await updateDeliveryStatus(req.params.id, req.body?.status);
+      const order = await updateDeliveryStatus(req.params.id, req.body?.status, {
+        branchIds: scopedBranchIds(req),
+      });
       realtime.publish(
         'order.updated',
         {
@@ -1289,7 +1290,6 @@ router.patch(
   validateRequest({ params: orderParamsSchema, body: kitchenStatusBodySchema }),
   async (req, res) => {
     try {
-      await assertOrderAccess(req, req.params.id);
       res.json({
         success: true,
         order: await kitchenService.updateKitchenStatus(
