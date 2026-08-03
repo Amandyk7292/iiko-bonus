@@ -179,9 +179,12 @@ const Map<String, Map<String, String>> _accountTranslations = {
     'en': 'You can save up to 3 cards.',
   },
   'payment_methods_empty': {
-    'ru': 'Сохранённых карт пока нет.',
-    'kk': 'Сақталған карта жоқ.',
-    'en': 'No saved cards yet.',
+    'ru':
+        'Привяжите карту один раз. Следующие покупки — без повторного ввода CVV.',
+    'kk':
+        'Картаны бір рет байланыстырыңыз. Келесі сатып алуларда CVV қайта енгізілмейді.',
+    'en':
+        'Link a card once. Future purchases will not ask you to enter CVV again.',
   },
   'payment_methods_loading': {
     'ru': 'Загружаем сохранённые карты…',
@@ -235,9 +238,11 @@ const Map<String, Map<String, String>> _accountTranslations = {
     'en': 'Link card',
   },
   'card_setup_hint': {
-    'ru': 'На странице банка включите «Сохранить карту».',
-    'kk': 'Банк бетінде «Картаны сақтау» опциясын қосыңыз.',
-    'en': 'Turn on “Save card” on the bank page.',
+    'ru':
+        'Введите CVV один раз и включите «Сохранить карту» на странице банка.',
+    'kk':
+        'CVV кодын бір рет енгізіп, банк бетінде «Картаны сақтау» опциясын қосыңыз.',
+    'en': 'Enter CVV once and turn on “Save card” on the bank page.',
   },
   'card_setup_verifying': {
     'ru': 'Проверяем карту',

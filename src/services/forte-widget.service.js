@@ -14,6 +14,8 @@ const FORTE_WIDGET_INTEGRATION = 'forte_widget';
 const CARD_SETUP_AMOUNT = 30;
 const CARD_SETUP_AMOUNT_MINOR = 3000;
 const MAX_SAVED_PAYMENT_METHODS = 3;
+const CARD_ON_FILE_PROVIDER_CONTRACT = Object.freeze(['recurring', 'card_on_file']);
+const CARD_ON_FILE_TOKEN_CONTRACT = 'recurring_card_on_file';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const PROVIDER_TOKEN_PATTERN = /^[A-Za-z0-9._~-]{16,512}$/;
 const FINAL_PAYMENT_STATUSES = new Set(['paid', 'failed', 'expired', 'refunded']);
@@ -682,7 +684,7 @@ class ForteWidgetService {
     const { data, error } = await this.db
       .from('customer_payment_methods')
       .select(
-        'id,provider,brand,last_four,exp_month,exp_year,is_default,status,created_at,last_used_at',
+        'id,provider,brand,last_four,exp_month,exp_year,is_default,status,token_contract,created_at,last_used_at',
       )
       .eq('customer_id', customerId)
       .eq('provider', FORTE_WIDGET_INTEGRATION)
@@ -697,6 +699,8 @@ class ForteWidgetService {
       expMonth: method.exp_month,
       expYear: method.exp_year,
       isDefault: method.is_default === true,
+      tokenContract: method.token_contract,
+      requiresRelink: method.token_contract !== CARD_ON_FILE_TOKEN_CONTRACT,
     }));
   }
 
@@ -773,7 +777,7 @@ class ForteWidgetService {
     return Array.isArray(data) ? data[0] : data;
   }
 
-  async savePaymentMethod(customerId, card) {
+  async savePaymentMethod(customerId, card, { replaceMethodId } = {}) {
     if (!normalizeProviderToken(card?.token) || !/^\d{4}$/.test(String(card?.lastFour || ''))) {
       return null;
     }
@@ -786,10 +790,27 @@ class ForteWidgetService {
       .eq('token_fingerprint', fingerprint)
       .maybeSingle();
     if (existingError) throw existingError;
-    if (!existing || existing.status !== 'active') {
+    let replacement = null;
+    if (
+      (!existing || existing.status !== 'active') &&
+      UUID_PATTERN.test(String(replaceMethodId || ''))
+    ) {
+      const { data, error } = await this.db
+        .from('customer_payment_methods')
+        .select('*')
+        .eq('id', String(replaceMethodId))
+        .eq('customer_id', customerId)
+        .eq('provider', FORTE_WIDGET_INTEGRATION)
+        .eq('status', 'active')
+        .maybeSingle();
+      if (error) throw error;
+      replacement = data || null;
+    }
+    const target = existing?.status === 'active' ? existing : replacement || existing;
+    if (!target || target.status !== 'active') {
       await this.assertPaymentMethodCapacity(customerId);
     }
-    const id = existing?.id || crypto.randomUUID();
+    const id = target?.id || crypto.randomUUID();
     const tokenCiphertext = encryptProviderToken(
       card.token,
       'payment-method',
@@ -813,11 +834,12 @@ class ForteWidgetService {
       exp_month: hasValidExpiry ? card.expMonth : null,
       exp_year: hasValidExpiry ? card.expYear : null,
       status: 'active',
+      token_contract: CARD_ON_FILE_TOKEN_CONTRACT,
       consented_at: new Date().toISOString(),
       revoked_at: null,
       last_used_at: new Date().toISOString(),
     };
-    if (existing) {
+    if (target) {
       const { data, error } = await this.db
         .from('customer_payment_methods')
         .update(values)
@@ -893,10 +915,25 @@ class ForteWidgetService {
     trackingId,
     description,
     savedCardToken,
+    savedCardContract,
     purpose = 'order',
   }) {
     const config = this.assertCheckoutAvailable();
     const localized = localizedWidgetText(language);
+    const normalizedSavedCardToken = normalizeProviderToken(savedCardToken);
+    if (savedCardToken && !normalizedSavedCardToken) {
+      throw widgetError(
+        'Сохранённая карта повреждена. Удалите её и привяжите снова.',
+        409,
+        'FORTE_WIDGET_INVALID_PAYMENT_METHOD_TOKEN',
+      );
+    }
+    // A legacy oneclick token is not valid proof of the recurring/card-on-file
+    // consent. Do not mix contracts: reopen the bank form once and replace the
+    // legacy method with the newly issued card-on-file token after success.
+    const hasSavedCardToken =
+      Boolean(normalizedSavedCardToken) && savedCardContract === CARD_ON_FILE_TOKEN_CONTRACT;
+    const automaticSavedCardPayment = hasSavedCardToken;
     const returnBase =
       purpose === 'card-setup'
         ? `${config.publicBaseUrl}/profile?payment=forte&setup=${encodeURIComponent(trackingId)}`
@@ -915,7 +952,10 @@ class ForteWidgetService {
           tracking_id: trackingId,
           expired_at: expiresAt,
           additional_data: {
-            contract: ['oneclick'],
+            contract: [...CARD_ON_FILE_PROVIDER_CONTRACT],
+            ...(hasSavedCardToken && {
+              card_on_file: { initiator: 'customer' },
+            }),
           },
         },
         settings: {
@@ -925,28 +965,38 @@ class ForteWidgetService {
           auto_return: 0,
           button_next_text: localized.returnButton,
           language: localized.language,
-          save_card_toggle: {
-            // Forte issues the oneclick token only after this bank-controlled
-            // consent toggle is enabled by the customer. Hiding it is treated
-            // by the provider as a refusal, even in the dedicated card flow.
-            display: true,
-            customer_contract: true,
-            text: localized.saveCard,
-            ...(purpose !== 'card-setup' && {
-              hint: localized.saveCardHint,
-            }),
-          },
-          another_card_toggle: { display: true },
-          agreement_toggle: {
-            value: false,
-            url: `${config.publicBaseUrl}/public-offer`,
-            text:
-              localized.language === 'kk'
-                ? '[Жария оферта] шарттарымен келісемін'
-                : localized.language === 'en'
-                  ? 'I accept the [public offer]'
-                  : 'Принимаю условия [публичной оферты]',
-          },
+          ...(automaticSavedCardPayment
+            ? {
+                // The customer has selected this saved card and confirmed the
+                // order in Bulka. Forte can therefore start the customer-
+                // initiated card-on-file payment without requesting CVV again.
+                auto_pay: true,
+                agreed: true,
+                another_card_toggle: { display: false },
+              }
+            : {
+                save_card_toggle: {
+                  // The bank-owned toggle records explicit consent and is the
+                  // only condition under which Forte returns a reusable token.
+                  display: true,
+                  customer_contract: true,
+                  text: localized.saveCard,
+                  ...(purpose !== 'card-setup' && {
+                    hint: localized.saveCardHint,
+                  }),
+                },
+                another_card_toggle: { display: true },
+                agreement_toggle: {
+                  value: false,
+                  url: `${config.publicBaseUrl}/public-offer`,
+                  text:
+                    localized.language === 'kk'
+                      ? '[Жария оферта] шарттарымен келісемін'
+                      : localized.language === 'en'
+                        ? 'I accept the [public offer]'
+                        : 'Принимаю условия [публичной оферты]',
+                },
+              }),
           style: {
             widget: {
               buttonsColor: '#FFB814',
@@ -961,7 +1011,9 @@ class ForteWidgetService {
         payment_method: {
           types: ['credit_card'],
           ...(!config.applePayEnabled && { excluded_brands: ['apple_pay'] }),
-          ...(savedCardToken && { credit_card: { token: savedCardToken } }),
+          ...(hasSavedCardToken && {
+            credit_card: { token: normalizedSavedCardToken },
+          }),
         },
       },
     };
@@ -1119,6 +1171,7 @@ class ForteWidgetService {
       trackingId: operationId,
       description,
       savedCardToken: selectedMethod?.token,
+      savedCardContract: selectedMethod?.token_contract,
     });
     const orderRecord = {
       ...this.orderService.orderRecord({
@@ -1133,6 +1186,7 @@ class ForteWidgetService {
       }),
       id: internalOrderId,
       provider_payment_system: FORTE_WIDGET_INTEGRATION,
+      saved_payment_method_id: selectedMethod?.id || null,
       provider_checkout_token_ciphertext: encryptProviderToken(
         providerCheckout.token,
         'checkout',
@@ -1636,7 +1690,9 @@ class ForteWidgetService {
     }
     if (nextStatus === 'paid') {
       if (normalized.card.token) {
-        await this.savePaymentMethod(order.customer_id, normalized.card).catch((error) =>
+        await this.savePaymentMethod(order.customer_id, normalized.card, {
+          replaceMethodId: order.saved_payment_method_id,
+        }).catch((error) =>
           console.error('Не удалось сохранить токен карты ForteBank:', error.message),
         );
       }

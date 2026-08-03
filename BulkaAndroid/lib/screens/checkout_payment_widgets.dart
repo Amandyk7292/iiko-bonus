@@ -295,7 +295,7 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
         Padding(
           padding: const EdgeInsets.only(bottom: 12),
           child: Semantics(
-            label: 'checkout_saved_card_oneclick_hint'.tr,
+            label: _selectedCardHint,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -307,7 +307,7 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'checkout_saved_card_oneclick_hint'.tr,
+                    _selectedCardHint,
                     style: TextStyle(
                       color: colors.mutedText,
                       fontSize: BulkaTypeScale.caption,
@@ -347,6 +347,26 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
           ),
       ],
     );
+  }
+
+  String get _selectedCardHint {
+    final selectedId = widget.selectedMethodId;
+    Map<String, dynamic>? selectedMethod;
+    for (final method in _methods) {
+      if ((method['id'] ?? '').toString() == selectedId) {
+        selectedMethod = method;
+        break;
+      }
+    }
+    if (selectedMethod == null && _methods.isNotEmpty) {
+      selectedMethod = _methods.firstWhere(
+        (method) => method['isDefault'] == true,
+        orElse: () => _methods.first,
+      );
+    }
+    return selectedMethod?['requiresRelink'] == true
+        ? 'checkout_saved_card_relink_hint'.tr
+        : 'checkout_saved_card_token_hint'.tr;
   }
 }
 

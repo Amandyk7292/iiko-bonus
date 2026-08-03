@@ -677,7 +677,12 @@ void main() {
       find.byKey(const ValueKey('checkout-saved-cards-empty')),
       findsOneWidget,
     );
-    expect(find.text('Сохранённых карт пока нет.'), findsOneWidget);
+    expect(
+      find.text(
+        'Привяжите карту один раз. Следующие покупки — без повторного ввода CVV.',
+      ),
+      findsOneWidget,
+    );
     expect(addCard, findsOneWidget);
     expect(find.text('Выберите способ оплаты'), findsNothing);
     expect(find.text('Kaspi Pay'), findsNothing);

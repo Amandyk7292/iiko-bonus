@@ -359,7 +359,7 @@ test('card binding waits for a transaction webhook when checkout succeeds first'
   assert.equal(resolveCardSetupStatus('failed', false), 'failed');
 });
 
-test('Forte card binding uses the bank-approved oneclick contract and amount', async () => {
+test('Forte card binding uses the bank-approved card-on-file contract and amount', async () => {
   const requests = [];
   const service = new ForteWidgetService({
     env,
@@ -393,7 +393,7 @@ test('Forte card binding uses the bank-approved oneclick contract and amount', a
   assert.equal(body.checkout.order.amount, CARD_SETUP_AMOUNT_MINOR);
   assert.equal(body.checkout.order.currency, 'KZT');
   assert.deepEqual(body.checkout.order.additional_data, {
-    contract: ['oneclick'],
+    contract: ['recurring', 'card_on_file'],
   });
   assert.equal(body.checkout.settings.language, 'ru');
   assert.equal(
@@ -410,6 +410,161 @@ test('Forte card binding uses the bank-approved oneclick contract and amount', a
   assert.equal('hint' in body.checkout.settings.save_card_toggle, false);
   assert.deepEqual(body.checkout.payment_method.types, ['credit_card']);
   assert.deepEqual(body.checkout.payment_method.excluded_brands, ['apple_pay']);
+});
+
+test('Forte saved card uses customer-initiated auto-pay without requesting CVV', async () => {
+  const requests = [];
+  const savedCardToken = 'd'.repeat(64);
+  const service = new ForteWidgetService({
+    env,
+    fetchImpl: async (url, options) => {
+      requests.push({ url, options });
+      return response({ checkout: { token: checkoutToken } });
+    },
+  });
+  await service.createProviderCheckout({
+    amountMinor: 7000,
+    customerId: '317615f9-b35f-4eb4-9f6d-777f2236bb25',
+    phone: '+77012772233',
+    language: 'ru',
+    trackingId: operationId,
+    description: 'Заказ Bulka',
+    savedCardToken,
+    savedCardContract: 'recurring_card_on_file',
+  });
+  const body = JSON.parse(requests[0].options.body);
+  assert.deepEqual(body.checkout.order.additional_data, {
+    contract: ['recurring', 'card_on_file'],
+    card_on_file: { initiator: 'customer' },
+  });
+  assert.equal(body.checkout.settings.auto_pay, true);
+  assert.equal(body.checkout.settings.agreed, true);
+  assert.equal(body.checkout.settings.another_card_toggle.display, false);
+  assert.equal('save_card_toggle' in body.checkout.settings, false);
+  assert.equal('agreement_toggle' in body.checkout.settings, false);
+  assert.deepEqual(body.checkout.payment_method.credit_card, {
+    token: savedCardToken,
+  });
+});
+
+test('Forte legacy saved card is relinked once instead of mixing token contracts', async () => {
+  const requests = [];
+  const savedCardToken = 'e'.repeat(64);
+  const service = new ForteWidgetService({
+    env,
+    fetchImpl: async (url, options) => {
+      requests.push({ url, options });
+      return response({ checkout: { token: checkoutToken } });
+    },
+  });
+  await service.createProviderCheckout({
+    amountMinor: 7000,
+    customerId: '317615f9-b35f-4eb4-9f6d-777f2236bb25',
+    phone: '+77012772233',
+    language: 'ru',
+    trackingId: operationId,
+    description: 'Заказ Bulka',
+    savedCardToken,
+    savedCardContract: 'oneclick',
+  });
+  const body = JSON.parse(requests[0].options.body);
+  assert.equal('auto_pay' in body.checkout.settings, false);
+  assert.equal(body.checkout.settings.save_card_toggle.display, true);
+  assert.equal(body.checkout.settings.save_card_toggle.customer_contract, true);
+  assert.equal('credit_card' in body.checkout.payment_method, false);
+  assert.deepEqual(body.checkout.order.additional_data, {
+    contract: ['recurring', 'card_on_file'],
+  });
+});
+
+test('successful legacy-card confirmation replaces its token in place', async () => {
+  const legacyMethodId = '417615f9-b35f-4eb4-9f6d-777f2236bb25';
+  const customerId = '517615f9-b35f-4eb4-9f6d-777f2236bb25';
+  const newCardToken = 'f'.repeat(64);
+  let updatedValues;
+  let updatedMethodId;
+  const db = {
+    from(table) {
+      assert.equal(table, 'customer_payment_methods');
+      const filters = {};
+      const query = {
+        select() {
+          return query;
+        },
+        eq(field, value) {
+          filters[field] = value;
+          return query;
+        },
+        async maybeSingle() {
+          if (filters.token_fingerprint) return { data: null, error: null };
+          if (filters.id === legacyMethodId) {
+            return {
+              data: {
+                id: legacyMethodId,
+                customer_id: customerId,
+                provider: 'forte_widget',
+                status: 'active',
+                token_contract: 'oneclick',
+              },
+              error: null,
+            };
+          }
+          return { data: null, error: null };
+        },
+        update(values) {
+          updatedValues = values;
+          const updateQuery = {
+            eq(field, value) {
+              if (field === 'id') updatedMethodId = value;
+              return updateQuery;
+            },
+            select() {
+              return updateQuery;
+            },
+            async single() {
+              return {
+                data: { id: legacyMethodId, ...values },
+                error: null,
+              };
+            },
+          };
+          return updateQuery;
+        },
+      };
+      return query;
+    },
+  };
+  const service = new ForteWidgetService({ env, db });
+  let capacityChecked = false;
+  service.assertPaymentMethodCapacity = async () => {
+    capacityChecked = true;
+  };
+
+  const saved = await service.savePaymentMethod(
+    customerId,
+    {
+      token: newCardToken,
+      brand: 'visa',
+      lastFour: '1234',
+      expMonth: 9,
+      expYear: 2030,
+    },
+    { replaceMethodId: legacyMethodId },
+  );
+
+  assert.equal(capacityChecked, false);
+  assert.equal(updatedMethodId, legacyMethodId);
+  assert.equal(updatedValues.token_contract, 'recurring_card_on_file');
+  assert.equal(saved.id, legacyMethodId);
+  assert.equal(
+    decryptProviderToken(
+      updatedValues.token_ciphertext,
+      'payment-method',
+      `${customerId}:${legacyMethodId}`,
+      env,
+    ),
+    newCardToken,
+  );
 });
 
 test('Forte card binding reads a reusable token from transaction details', async () => {
@@ -806,4 +961,20 @@ test('saved-card migration encrypts provider tokens and keeps tables service-onl
   assert.match(refundSql, /refund_request_id uuid/i);
   assert.match(refundSql, /refund_status varchar\(24\)/i);
   assert.match(refundSql, /unique index.*refund_request/ims);
+
+  const cardOnFileSql = fs.readFileSync(
+    path.join(
+      __dirname,
+      '..',
+      'supabase',
+      'migrations',
+      '20260803130000_forte_card_on_file_tokens.sql',
+    ),
+    'utf8',
+  );
+  assert.match(cardOnFileSql, /token_contract varchar\(32\)/i);
+  assert.match(cardOnFileSql, /recurring_card_on_file/i);
+  assert.match(cardOnFileSql, /saved_payment_method_id uuid/i);
+  assert.match(cardOnFileSql, /on delete set null/i);
+  assert.doesNotMatch(cardOnFileSql, /token_ciphertext\s*=\s*null/i);
 });

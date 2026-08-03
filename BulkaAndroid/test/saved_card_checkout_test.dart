@@ -89,6 +89,12 @@ void main() {
     );
     expect(find.text('VISA •••• 1328'), findsOneWidget);
     expect(find.text('MASTERCARD •••• 2046'), findsOneWidget);
+    expect(
+      find.text(
+        'Оплата пройдёт по защищённому токену без ввода CVV. Банк может запросить 3‑D Secure.',
+      ),
+      findsOneWidget,
+    );
 
     await tester.tap(
       find.byKey(const ValueKey('checkout-saved-card-card-two')),
@@ -97,6 +103,12 @@ void main() {
 
     expect(selectedMethodId, 'card-two');
     expect(cardPaymentSelected, isTrue);
+    expect(
+      find.text(
+        'Эта карта сохранена в старом режиме. Подтвердите её данные и CVV ещё один раз и включите «Сохранить карту» — дальше CVV не понадобится.',
+      ),
+      findsOneWidget,
+    );
   });
 }
 
@@ -110,6 +122,7 @@ class _SavedCardsApi extends BulkaApiClient {
       'expMonth': 12,
       'expYear': 2029,
       'isDefault': true,
+      'requiresRelink': false,
     },
     {
       'id': 'card-two',
@@ -118,6 +131,7 @@ class _SavedCardsApi extends BulkaApiClient {
       'expMonth': 8,
       'expYear': 2030,
       'isDefault': false,
+      'requiresRelink': true,
     },
   ];
 }
