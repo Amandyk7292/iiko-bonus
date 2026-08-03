@@ -512,6 +512,32 @@ class BulkaApiClient {
     return json;
   }
 
+  Future<Map<String, dynamic>> quoteForteOrder({
+    required List<Map<String, dynamic>> cartItems,
+    String? orderType,
+    String? branch,
+    String? branchId,
+    String? scheduledAt,
+    String? preorderFulfillmentType,
+    DeliveryAddress? deliveryAddress,
+    String? promoCode,
+  }) async {
+    final json = await _post('/api/customer/forte-pay/quote', {
+      'items': cartItems,
+      'orderType': orderType,
+      'preorderFulfillmentType': preorderFulfillmentType,
+      'branch': branch,
+      'branchId': branchId,
+      'scheduledAt': scheduledAt,
+      'deliveryAddress': deliveryAddress?.toOrderPayload(),
+      'promoCode': promoCode,
+    });
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'error_forte_payment'.tr));
+    }
+    return json;
+  }
+
   Future<Map<String, dynamic>> checkKaspiPaymentStatus(
     String operationId,
   ) async {

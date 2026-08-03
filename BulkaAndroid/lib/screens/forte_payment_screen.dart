@@ -515,16 +515,14 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
         : verifying
         ? 'forte_payment_pending_title'.tr
         : 'payment_confirm'.tr;
-    final message = widget.cardSetup
+    final String? message = widget.cardSetup
         ? paid
               ? _cardSaved && !refundComplete
                     ? 'card_setup_saved_refund_pending'.tr
-                    : 'card_setup_success_hint'.tr
+                    : null
               : terminalFailure
               ? 'card_setup_failed_hint'.tr
-              : verifying
-              ? 'card_setup_verifying_hint'.tr
-              : 'card_setup_hint'.tr
+              : null
         : paid
         ? 'payment_saved'.tr
         : terminalFailure
@@ -655,7 +653,7 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
                         Semantics(
                           container: true,
                           liveRegion: true,
-                          label: '$title. $message',
+                          label: message == null ? title : '$title. $message',
                           excludeSemantics: true,
                           child: Column(
                             children: [
@@ -682,16 +680,18 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
-                              const SizedBox(height: 12),
-                              Text(
-                                message,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: BulkaTypeScale.body,
-                                  height: 1.4,
-                                  color: _textDark.withValues(alpha: 0.72),
+                              if (message != null) ...[
+                                const SizedBox(height: 12),
+                                Text(
+                                  message,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: BulkaTypeScale.body,
+                                    height: 1.4,
+                                    color: _textDark.withValues(alpha: 0.72),
+                                  ),
                                 ),
-                              ),
+                              ],
                             ],
                           ),
                         ),

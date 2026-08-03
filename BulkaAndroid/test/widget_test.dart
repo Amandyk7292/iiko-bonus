@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:bulka_bonus/main.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -677,12 +678,7 @@ void main() {
       find.byKey(const ValueKey('checkout-saved-cards-empty')),
       findsOneWidget,
     );
-    expect(
-      find.text(
-        'Привяжите карту один раз. Следующие покупки — без повторного ввода CVV.',
-      ),
-      findsOneWidget,
-    );
+    expect(find.text('Сохранённых карт пока нет.'), findsOneWidget);
     expect(addCard, findsOneWidget);
     expect(find.text('Выберите способ оплаты'), findsNothing);
     expect(find.text('Kaspi Pay'), findsNothing);
@@ -743,7 +739,7 @@ void main() {
       expect(
         find.descendant(
           of: firstCard,
-          matching: find.byIcon(Icons.radio_button_unchecked_rounded),
+          matching: find.byIcon(Icons.check_circle_rounded),
         ),
         findsOneWidget,
       );
@@ -777,6 +773,87 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('saved card checkout routes only through Forte', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    addTearDown(() => debugDefaultTargetPlatformOverride = null);
+    SharedPreferences.setMockInitialValues({
+      'selected_order_type': 'pickup',
+      'selected_bakery_location': 'Bulka, Астана',
+      'selected_bakery_location_id': 'astana-1',
+    });
+    final cart = CartProvider()
+      ..addItem(
+        productId: 'saved-card-product',
+        name: 'Плюшка',
+        price: 500,
+        imageUrl: '',
+      );
+    final api = _CheckoutPaymentRoutingApiClient()
+      ..setSession(accessToken: 'test-access', refreshToken: 'test-refresh');
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildBulkaTheme(),
+        home: ChangeNotifierProvider.value(
+          value: cart,
+          child: MainShell(
+            api: api,
+            customer: _testCustomer,
+            transactions: _testTransactions,
+            initialTab: 2,
+            onLogout: () async {},
+            onRefreshProfile: () async {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Оформить заказ'));
+    await tester.pumpAndSettle();
+
+    final selectTime = find.text('Выберите время');
+    await tester.scrollUntilVisible(
+      selectTime,
+      420,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(selectTime);
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.byType(BottomSheet), findsOneWidget);
+    final continueButton = tester.widget<GradientButton>(
+      find.ancestor(
+        of: find.text('Продолжить'),
+        matching: find.byType(GradientButton),
+      ),
+    );
+    continueButton.onPressed!();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    final submitButton = tester.widget<GradientButton>(
+      find.ancestor(
+        of: find.text('Оформить заказ'),
+        matching: find.byType(GradientButton),
+      ),
+    );
+    expect(submitButton.onPressed, isNotNull);
+    submitButton.onPressed!();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(api.forteQuoteCalls, 1);
+    expect(api.kaspiQuoteCalls, 0);
+    expect(api.forteCreateCalls, 1);
+    expect(api.kaspiCreateCalls, 0);
+    expect(api.savedPaymentMethodId, '31f0d793-0102-4d2f-a5a1-744d12cffe7c');
+    expect(find.text('Оплата картой'), findsOneWidget);
+    expect(find.text('Оплата Kaspi'), findsNothing);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    debugDefaultTargetPlatformOverride = null;
+  });
 
   testWidgets('rapid time taps request slots and open the picker only once', (
     tester,
@@ -2451,6 +2528,115 @@ class _ThreeSavedCardsApiClient extends _FakeBulkaApiClient {
       'isDefault': false,
     },
   ];
+}
+
+class _CheckoutPaymentRoutingApiClient extends _FakeBulkaApiClient {
+  final DateTime _slotStartsAt = DateTime.now().toUtc().add(
+    const Duration(hours: 2),
+  );
+  int forteQuoteCalls = 0;
+  int kaspiQuoteCalls = 0;
+  int forteCreateCalls = 0;
+  int kaspiCreateCalls = 0;
+  String? savedPaymentMethodId;
+
+  @override
+  Future<List<FulfillmentSlot>> getFulfillmentSlots({
+    required String branchId,
+    required String orderType,
+    int days = 7,
+  }) async => [
+    FulfillmentSlot(
+      startsAt: _slotStartsAt,
+      endsAt: _slotStartsAt.add(const Duration(hours: 1)),
+      capacity: 10,
+      remaining: 9,
+    ),
+  ];
+
+  @override
+  Future<Map<String, dynamic>> quoteForteOrder({
+    required List<Map<String, dynamic>> cartItems,
+    String? orderType,
+    String? branch,
+    String? branchId,
+    String? scheduledAt,
+    String? preorderFulfillmentType,
+    DeliveryAddress? deliveryAddress,
+    String? promoCode,
+  }) async {
+    forteQuoteCalls++;
+    return const {
+      'subtotal': 500,
+      'discount': 0,
+      'deliveryFee': 0,
+      'total': 500,
+    };
+  }
+
+  @override
+  Future<Map<String, dynamic>> quoteKaspiOrder({
+    required List<Map<String, dynamic>> cartItems,
+    String? orderType,
+    String? branch,
+    String? branchId,
+    String? scheduledAt,
+    String? preorderFulfillmentType,
+    DeliveryAddress? deliveryAddress,
+    String? promoCode,
+  }) async {
+    kaspiQuoteCalls++;
+    throw StateError('Kaspi quote must not be used for saved-card checkout.');
+  }
+
+  @override
+  Future<Map<String, dynamic>> createFortePayment({
+    required List<Map<String, dynamic>> cartItems,
+    required String orderType,
+    required String scheduledAt,
+    required String checkoutId,
+    String? savedPaymentMethodId,
+    String? preorderFulfillmentType,
+    String? branch,
+    String? branchId,
+    DeliveryAddress? deliveryAddress,
+    String? additionalPhone,
+    String? promoCode,
+    String? comment,
+    String substitutionPreference = 'call_customer',
+  }) async {
+    forteCreateCalls++;
+    this.savedPaymentMethodId = savedPaymentMethodId;
+    return const {
+      'operationId': 'f5557b78-8344-44f8-ab5d-bdeb6e313547',
+      'redirectUrl':
+          'https://bulka.com.kz/payments/forte-widget#checkout-token',
+    };
+  }
+
+  @override
+  Future<Map<String, dynamic>> createKaspiPayment({
+    required List<Map<String, dynamic>> cartItems,
+    required String orderType,
+    required String scheduledAt,
+    required String checkoutId,
+    String? preorderFulfillmentType,
+    String? branch,
+    String? branchId,
+    DeliveryAddress? deliveryAddress,
+    String? additionalPhone,
+    String? promoCode,
+    String? comment,
+    String substitutionPreference = 'call_customer',
+  }) async {
+    kaspiCreateCalls++;
+    throw StateError('Kaspi payment must not be used for saved-card checkout.');
+  }
+
+  @override
+  Future<Map<String, dynamic>> checkFortePaymentStatus(
+    String operationId,
+  ) async => const {'paymentStatus': 'pending'};
 }
 
 class _OutsideDeliveryApiClient extends _FakeBulkaApiClient {

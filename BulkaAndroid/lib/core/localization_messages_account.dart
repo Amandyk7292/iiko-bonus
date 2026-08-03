@@ -179,12 +179,9 @@ const Map<String, Map<String, String>> _accountTranslations = {
     'en': 'You can save up to 3 cards.',
   },
   'payment_methods_empty': {
-    'ru':
-        'Привяжите карту один раз. Следующие покупки — без повторного ввода CVV.',
-    'kk':
-        'Картаны бір рет байланыстырыңыз. Келесі сатып алуларда CVV қайта енгізілмейді.',
-    'en':
-        'Link a card once. Future purchases will not ask you to enter CVV again.',
+    'ru': 'Сохранённых карт пока нет.',
+    'kk': 'Сақталған карта жоқ.',
+    'en': 'No saved cards yet.',
   },
   'payment_methods_loading': {
     'ru': 'Загружаем сохранённые карты…',
@@ -237,32 +234,15 @@ const Map<String, Map<String, String>> _accountTranslations = {
     'kk': 'Картаны байланыстыру',
     'en': 'Link card',
   },
-  'card_setup_hint': {
-    'ru':
-        'Введите CVV один раз и включите «Сохранить карту» на странице банка.',
-    'kk':
-        'CVV кодын бір рет енгізіп, банк бетінде «Картаны сақтау» опциясын қосыңыз.',
-    'en': 'Enter CVV once and turn on “Save card” on the bank page.',
-  },
   'card_setup_verifying': {
     'ru': 'Проверяем карту',
     'kk': 'Картаны тексеріп жатырмыз',
     'en': 'Verifying card',
   },
-  'card_setup_verifying_hint': {
-    'ru': 'Банк проверяет карту и создаёт защищённый токен.',
-    'kk': 'Банк картаны тексеріп, қорғалған токен жасап жатыр.',
-    'en': 'The bank is verifying the card and creating a secure token.',
-  },
   'card_setup_success': {
     'ru': 'Карта сохранена',
     'kk': 'Карта сақталды',
     'en': 'Card saved',
-  },
-  'card_setup_success_hint': {
-    'ru': 'Карта сохранена. Следующие оплаты — без повторного ввода CVV.',
-    'kk': 'Карта сақталды. Келесі төлемдерде CVV қайта енгізілмейді.',
-    'en': 'Card saved. Future payments will not ask for CVV again.',
   },
   'card_setup_saved_refund_pending': {
     'ru': 'Карта сохранена. Возврат 30 ₸ обрабатывается банком.',

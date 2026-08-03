@@ -2,8 +2,6 @@ part of '../main.dart';
 
 const int _maximumSavedPaymentMethods = 3;
 
-enum _CheckoutPaymentMethod { kaspi, forte }
-
 String _paymentMethodAddErrorMessage(Object error) {
   if (error is ApiException &&
       error.code == 'FORTE_WIDGET_PAYMENT_METHOD_LIMIT') {
@@ -15,7 +13,6 @@ String _paymentMethodAddErrorMessage(Object error) {
 @visibleForTesting
 Widget buildCheckoutSavedCardsPanelForTest({
   required BulkaApiClient api,
-  required bool selected,
   required String? selectedMethodId,
   required ValueChanged<String?> onDefaultResolved,
   required ValueChanged<String> onSelect,
@@ -23,7 +20,6 @@ Widget buildCheckoutSavedCardsPanelForTest({
   return _CheckoutSavedCardsPanel(
     api: api,
     available: true,
-    selected: selected,
     selectedMethodId: selectedMethodId,
     onDefaultResolved: onDefaultResolved,
     onSelect: onSelect,
@@ -36,7 +32,6 @@ class _CheckoutDetails {
     required this.checkoutId,
     required this.orderType,
     required this.scheduledAt,
-    required this.paymentMethod,
     this.savedPaymentMethodId,
     this.preorderFulfillmentType,
     this.branch,
@@ -50,7 +45,6 @@ class _CheckoutDetails {
   final String checkoutId;
   final _OrderType orderType;
   final String scheduledAt;
-  final _CheckoutPaymentMethod paymentMethod;
   final String? savedPaymentMethodId;
   final String? preorderFulfillmentType;
   final String? branch;
@@ -65,7 +59,6 @@ class _CheckoutSavedCardsPanel extends StatefulWidget {
   const _CheckoutSavedCardsPanel({
     required this.api,
     required this.available,
-    required this.selected,
     required this.selectedMethodId,
     required this.onDefaultResolved,
     required this.onSelect,
@@ -74,7 +67,6 @@ class _CheckoutSavedCardsPanel extends StatefulWidget {
 
   final BulkaApiClient api;
   final bool? available;
-  final bool selected;
   final String? selectedMethodId;
   final ValueChanged<String?> onDefaultResolved;
   final ValueChanged<String> onSelect;
@@ -287,38 +279,11 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
             padding: const EdgeInsets.only(bottom: 10),
             child: _CheckoutSavedCardTile(
               method: method,
-              selected: widget.selected && widget.selectedMethodId == id,
+              selected: widget.selectedMethodId == id,
               onTap: () => widget.onSelect(id),
             ),
           );
         }),
-        Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Semantics(
-            label: _selectedCardHint,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  Icons.info_outline_rounded,
-                  size: 18,
-                  color: colors.mutedText,
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    _selectedCardHint,
-                    style: TextStyle(
-                      color: colors.mutedText,
-                      fontSize: BulkaTypeScale.caption,
-                      height: 1.35,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
         if (_methods.length < _maximumSavedPaymentMethods)
           SizedBox(
             width: double.infinity,
@@ -347,26 +312,6 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
           ),
       ],
     );
-  }
-
-  String get _selectedCardHint {
-    final selectedId = widget.selectedMethodId;
-    Map<String, dynamic>? selectedMethod;
-    for (final method in _methods) {
-      if ((method['id'] ?? '').toString() == selectedId) {
-        selectedMethod = method;
-        break;
-      }
-    }
-    if (selectedMethod == null && _methods.isNotEmpty) {
-      selectedMethod = _methods.firstWhere(
-        (method) => method['isDefault'] == true,
-        orElse: () => _methods.first,
-      );
-    }
-    return selectedMethod?['requiresRelink'] == true
-        ? 'checkout_saved_card_relink_hint'.tr
-        : 'checkout_saved_card_token_hint'.tr;
   }
 }
 

@@ -80,7 +80,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
             cardSaved && !refundComplete
                 ? 'card_setup_saved_refund_pending'.tr
                 : status == 'paid'
-                ? 'card_setup_success_hint'.tr
+                ? 'card_setup_success'.tr
                 : status == 'pending'
                 ? 'card_setup_token_missing'.tr
                 : 'card_setup_failed_hint'.tr,
@@ -259,15 +259,6 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                               fontFamily: _headingFont,
                               fontSize: BulkaTypeScale.title,
                               fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'card_setup_verifying_hint'.tr,
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: colors.mutedText,
-                              height: 1.4,
                             ),
                           ),
                         ],

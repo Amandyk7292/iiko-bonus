@@ -299,22 +299,6 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'kk': 'Visa, Mastercard',
     'en': 'Visa, Mastercard',
   },
-  'checkout_saved_card_token_hint': {
-    'ru':
-        'Оплата пройдёт по защищённому токену без ввода CVV. Банк может запросить 3‑D Secure.',
-    'kk':
-        'Төлем CVV енгізусіз қорғалған токенмен өтеді. Банк 3‑D Secure растауын сұрауы мүмкін.',
-    'en':
-        'Payment uses a secure token without CVV entry. The bank may still request 3-D Secure.',
-  },
-  'checkout_saved_card_relink_hint': {
-    'ru':
-        'Эта карта сохранена в старом режиме. Подтвердите её данные и CVV ещё один раз и включите «Сохранить карту» — дальше CVV не понадобится.',
-    'kk':
-        'Бұл карта ескі режимде сақталған. Карта деректері мен CVV кодын тағы бір рет растап, «Картаны сақтау» опциясын қосыңыз — кейін CVV қажет болмайды.',
-    'en':
-        'This card uses the old mode. Confirm its details and CVV once more and turn on “Save card”; future payments will not ask for CVV.',
-  },
   'payment_method_unavailable': {
     'ru': 'Сейчас недоступно',
     'kk': 'Қазір қолжетімсіз',

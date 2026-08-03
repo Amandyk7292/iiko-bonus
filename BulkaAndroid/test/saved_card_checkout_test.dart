@@ -7,6 +7,37 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  test('checkout quote uses the Forte endpoint', () async {
+    Uri? requestUri;
+    final client = MockClient((request) async {
+      requestUri = request.url;
+      return http.Response(
+        jsonEncode({
+          'success': true,
+          'subtotal': 500,
+          'discount': 0,
+          'deliveryFee': 0,
+          'total': 500,
+        }),
+        200,
+        headers: {'content-type': 'application/json'},
+      );
+    });
+    final api = BulkaApiClient(client: client)
+      ..setSession(accessToken: 'access-token');
+
+    await api.quoteForteOrder(
+      cartItems: const [
+        {'productId': 'product-1', 'quantity': 1},
+      ],
+      orderType: 'pickup',
+      scheduledAt: '2026-07-28T16:00:00.000Z',
+      branchId: 'branch-1',
+    );
+
+    expect(requestUri?.path, '/api/customer/forte-pay/quote');
+  });
+
   test('Forte checkout sends the selected saved card id', () async {
     Map<String, dynamic>? requestBody;
     final client = MockClient((request) async {
@@ -47,7 +78,6 @@ void main() {
     tester,
   ) async {
     String? selectedMethodId;
-    var cardPaymentSelected = false;
     late StateSetter updateHarness;
     final api = _SavedCardsApi();
 
@@ -60,16 +90,12 @@ void main() {
               updateHarness = setState;
               return buildCheckoutSavedCardsPanelForTest(
                 api: api,
-                selected: cardPaymentSelected,
                 selectedMethodId: selectedMethodId,
                 onDefaultResolved: (methodId) {
                   updateHarness(() => selectedMethodId = methodId);
                 },
                 onSelect: (methodId) {
-                  updateHarness(() {
-                    selectedMethodId = methodId;
-                    cardPaymentSelected = true;
-                  });
+                  updateHarness(() => selectedMethodId = methodId);
                 },
               );
             },
@@ -89,12 +115,16 @@ void main() {
     );
     expect(find.text('VISA •••• 1328'), findsOneWidget);
     expect(find.text('MASTERCARD •••• 2046'), findsOneWidget);
+    expect(selectedMethodId, 'card-one');
     expect(
-      find.text(
-        'Оплата пройдёт по защищённому токену без ввода CVV. Банк может запросить 3‑D Secure.',
+      find.descendant(
+        of: find.byKey(const ValueKey('checkout-saved-card-card-one')),
+        matching: find.byIcon(Icons.check_circle_rounded),
       ),
       findsOneWidget,
     );
+    expect(find.textContaining('CVV'), findsNothing);
+    expect(find.textContaining('защищённому токену'), findsNothing);
 
     await tester.tap(
       find.byKey(const ValueKey('checkout-saved-card-card-two')),
@@ -102,13 +132,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(selectedMethodId, 'card-two');
-    expect(cardPaymentSelected, isTrue);
     expect(
-      find.text(
-        'Эта карта сохранена в старом режиме. Подтвердите её данные и CVV ещё один раз и включите «Сохранить карту» — дальше CVV не понадобится.',
+      find.descendant(
+        of: find.byKey(const ValueKey('checkout-saved-card-card-two')),
+        matching: find.byIcon(Icons.check_circle_rounded),
       ),
       findsOneWidget,
     );
+    expect(find.textContaining('CVV'), findsNothing);
   });
 }
 
