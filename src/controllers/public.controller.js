@@ -17,6 +17,7 @@ const publicAppDirectory = path.resolve(
 );
 
 const renderApp = (req, res) => {
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.sendFile(path.join(publicAppDirectory, 'index.html'));
 };
 

@@ -1,0 +1,1 @@
+window.bulkaFixtureBootstrap = true;

@@ -277,7 +277,7 @@ const kaspiAdminStaticHeaders = (res, filePath) => {
 
 const appStaticHeaders = (res, filePath) => {
   if (
-    /index\.html$|flutter_bootstrap\.js$|flutter_service_worker\.js$|firebase-messaging-sw\.js$|main\.dart\.(?:js|mjs|wasm)$|manifest\.json$/.test(
+    /index\.html$|app_bootstrap\.js$|flutter_bootstrap\.js$|flutter_service_worker\.js$|firebase-messaging-sw\.js$|main\.dart\.(?:js|mjs|wasm)$|manifest\.json$|release-version\.json$/.test(
       filePath,
     )
   ) {
@@ -355,6 +355,7 @@ app.get('/admin/*', (req, res) => {
 // Serve Flutter Web App
 app.use('/app', express.static(publicAppDirectory, { setHeaders: appStaticHeaders }));
 app.get('/app/*', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.sendFile(path.join(publicAppDirectory, 'index.html'));
 });
 

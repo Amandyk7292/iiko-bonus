@@ -1,5 +1,5 @@
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 import json
 import sys
 
@@ -19,6 +19,8 @@ with sync_playwright() as playwright:
     )
     page = context.new_page()
     console_errors = []
+    requested_urls = []
+    page.on("request", lambda request: requested_urls.append(request.url))
     page.on(
         "console",
         lambda message: console_errors.append(message.text)
@@ -54,6 +56,35 @@ with sync_playwright() as playwright:
     )
     assert page.evaluate("crossOriginIsolated") is True
     assert not [error for error in console_errors if "favicon" not in error.lower()], console_errors
+
+    release_response = context.request.get(f"{BASE_URL}release-version.json")
+    assert release_response.ok
+    release_version = release_response.json()["version"]
+    mutable_requests = [
+        urlparse(url)
+        for url in requested_urls
+        if urlparse(url).path.endswith(
+            (
+                "app_bootstrap.js",
+                "flutter_bootstrap.js",
+                "main.dart.js",
+                "main.dart.mjs",
+                "main.dart.wasm",
+            )
+        )
+    ]
+    for asset_name in ("app_bootstrap.js", "flutter_bootstrap.js"):
+        matching = [url for url in mutable_requests if url.path.endswith(asset_name)]
+        assert matching, f"{asset_name} was not requested"
+        assert parse_qs(matching[-1].query).get("v") == [release_version], matching[-1].geturl()
+    main_requests = [
+        url
+        for url in mutable_requests
+        if url.path.endswith(("main.dart.js", "main.dart.mjs", "main.dart.wasm"))
+    ]
+    assert main_requests, "Flutter main bundle was not requested"
+    for main_request in main_requests:
+        assert parse_qs(main_request.query).get("v") == [release_version], main_request.geturl()
 
     screenshot = ROOT / "scratch" / "flutter-web-mobile.png"
     screenshot.parent.mkdir(exist_ok=True)

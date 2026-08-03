@@ -5,6 +5,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Net.Http
 if ($ApplyMigrations -and $SkipMigrations) {
     throw 'Use either -ApplyMigrations or -SkipMigrations, not both.'
 }
@@ -19,6 +20,30 @@ $remotePostgresScript = '/tmp/bulka-ensure-postgres-client.sh'
 # New migrations are applied by default. -ApplyMigrations remains accepted for
 # compatibility with older deployment commands.
 $migrationMode = if ($SkipMigrations) { 'check' } else { 'apply' }
+
+function Get-FileSha256Hex {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $stream = [IO.File]::OpenRead($Path)
+    $algorithm = [Security.Cryptography.SHA256]::Create()
+    try {
+        return ([BitConverter]::ToString($algorithm.ComputeHash($stream))).Replace('-', '').ToLowerInvariant()
+    } finally {
+        $algorithm.Dispose()
+        $stream.Dispose()
+    }
+}
+
+function Get-BytesSha256Hex {
+    param([Parameter(Mandatory = $true)][byte[]]$Bytes)
+
+    $algorithm = [Security.Cryptography.SHA256]::Create()
+    try {
+        return ([BitConverter]::ToString($algorithm.ComputeHash($Bytes))).Replace('-', '').ToLowerInvariant()
+    } finally {
+        $algorithm.Dispose()
+    }
+}
 
 function Assert-CleanWorkingTree {
     $changes = @(git -C $projectRoot status --porcelain=v1 --untracked-files=all)
@@ -52,6 +77,21 @@ if (-not $SkipBuild) {
     }
 }
 Assert-CleanWorkingTree
+
+$flutterBundlePath = Join-Path $projectRoot 'public\app\main.dart.js'
+$flutterVersionPath = Join-Path $projectRoot 'public\app\release-version.json'
+if (-not (Test-Path -LiteralPath $flutterBundlePath) -or
+    -not (Test-Path -LiteralPath $flutterVersionPath)) {
+    throw 'The finalized Flutter web release is missing.'
+}
+$flutterRelease = Get-Content -LiteralPath $flutterVersionPath -Raw | ConvertFrom-Json
+$expectedFlutterHash = Get-FileSha256Hex -Path $flutterBundlePath
+if ($flutterRelease.version -notin @($shortCommit, $commitSha)) {
+    throw 'The Flutter web release version does not match the Git commit.'
+}
+if ($flutterRelease.mainSha256 -ne $expectedFlutterHash) {
+    throw 'The Flutter web release manifest does not match main.dart.js.'
+}
 
 $scratchFull = [IO.Path]::GetFullPath($scratchRoot).TrimEnd('\')
 $stageFull = [IO.Path]::GetFullPath($stageRoot)
@@ -134,7 +174,7 @@ tar -a -cf $archivePath -C $stageFull `
     public admin-ui src supabase scripts kaspi-pos-automation-main `
     index.js package.json package-lock.json supabase_schema.sql release-manifest.json
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-$archiveSha256 = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+$archiveSha256 = Get-FileSha256Hex -Path $archivePath
 
 scp $archivePath "bulka-vps:$remoteArchive"
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -155,7 +195,32 @@ if ($publicReadiness.status -ne 'ready') {
     throw 'Public readiness check failed.'
 }
 
+$remoteFlutterHashOutput = @(
+    ssh bulka-vps "sha256sum /var/www/iiko-bonus/public/app/main.dart.js | cut -d' ' -f1"
+)
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+$remoteFlutterHash = ($remoteFlutterHashOutput | Select-Object -Last 1).Trim().ToLowerInvariant()
+if ($remoteFlutterHash -ne $expectedFlutterHash) {
+    throw 'The VPS Flutter bundle hash does not match the release artifact.'
+}
+
+$httpClient = [Net.Http.HttpClient]::new()
+try {
+    $httpClient.DefaultRequestHeaders.CacheControl =
+        [Net.Http.Headers.CacheControlHeaderValue]::Parse('no-cache')
+    $publicFlutterBytes = $httpClient.GetByteArrayAsync(
+        "https://bulka.com.kz/main.dart.js?release=$shortCommit"
+    ).GetAwaiter().GetResult()
+} finally {
+    $httpClient.Dispose()
+}
+$publicFlutterHash = Get-BytesSha256Hex -Bytes $publicFlutterBytes
+if ($publicFlutterHash -ne $expectedFlutterHash) {
+    throw 'The public Flutter bundle hash does not match the release artifact.'
+}
+
 Write-Host 'Deployment completed: https://bulka.com.kz' -ForegroundColor Green
+Write-Host "Flutter bundle verified: $expectedFlutterHash" -ForegroundColor Green
 Write-Host 'Staging is running privately on the VPS at 127.0.0.1:3101.' -ForegroundColor Green
 Write-Host 'The three latest healthy versions are available through scripts/rollback-vps.sh.' `
     -ForegroundColor Green

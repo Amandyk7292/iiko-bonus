@@ -23,6 +23,23 @@ if ($LASTEXITCODE -ne 0) {
 }
 Pop-Location
 
+$releaseVersion = $env:BULKA_RELEASE_VERSION
+if ([string]::IsNullOrWhiteSpace($releaseVersion)) {
+    $releaseVersion = (git -C $projectRoot rev-parse --short=12 HEAD).Trim()
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Could not resolve the Flutter release version!" -ForegroundColor Red
+        exit $LASTEXITCODE
+    }
+}
+
+node (Join-Path $projectRoot "scripts\finalize-flutter-web.js") `
+    --directory (Join-Path $flutterRoot "build\web") `
+    --version $releaseVersion
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Flutter web finalization failed!" -ForegroundColor Red
+    exit $LASTEXITCODE
+}
+
 Write-Host "Copying files to public/app..." -ForegroundColor Cyan
 if (Test-Path $webOutput) {
     Remove-Item -Recurse -Force $webOutput

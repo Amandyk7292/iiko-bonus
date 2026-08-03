@@ -22,6 +22,7 @@ IikoBonusPlugin/obj/
 !BulkaAndroid/android/app/google-services.json
 !BulkaAndroid/web/manifest.json
 !admin-ui/tsconfig.json
+!test/fixtures/flutter-app/release-version.json
 render_env.txt
 generate-csr.js
 setup-pass.js

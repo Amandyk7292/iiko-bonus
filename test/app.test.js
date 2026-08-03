@@ -125,6 +125,30 @@ test('admin and Flutter CSP remove general-purpose script evaluation', async (t)
   assert.doesNotMatch(clientScriptPolicy, /(?:^|\s)'unsafe-inline'(?:\s|$)/);
 });
 
+test('Flutter shell and mutable release files are never cached', async (t) => {
+  const server = http.createServer(app);
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  t.after(() => server.close());
+  const origin = `http://127.0.0.1:${server.address().port}`;
+
+  for (const route of [
+    '/',
+    '/app/catalog/test',
+    '/app/app_bootstrap.js',
+    '/app/flutter_bootstrap.js',
+    '/app/flutter_service_worker.js',
+    '/app/main.dart.js',
+    '/app/release-version.json',
+  ]) {
+    const response = await fetch(`${origin}${route}`);
+    assert.equal(response.status, 200, route);
+    assert.match(response.headers.get('cache-control') || '', /no-store/, route);
+  }
+});
+
 test('Forte widget shell is private, pinned to official hosts and never reflects query tokens', async (t) => {
   const server = http.createServer(app);
   await new Promise((resolve, reject) => {

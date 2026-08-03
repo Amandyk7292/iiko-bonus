@@ -1,0 +1,1 @@
+window.bulkaFixtureMain = true;

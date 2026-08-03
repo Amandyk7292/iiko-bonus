@@ -333,6 +333,7 @@ unzip -oq "$archive" -d "$temporary_release"
 for required_file in \
   src/server.js \
   public/app/index.html \
+  public/app/release-version.json \
   public/legal/privacy.html \
   public/legal/terms.html \
   public/courier.html \
@@ -365,6 +366,27 @@ manifest_commit=$(
 )
 if [[ ${manifest_commit:0:12} != "${release_id#*-}" ]]; then
   echo 'Release manifest does not match the release id.' >&2
+  exit 1
+fi
+
+read -r flutter_version expected_flutter_hash < <(
+  node -e '
+    const manifest = require(process.argv[1]);
+    if (
+      manifest.schemaVersion !== 1
+      || !/^[A-Za-z0-9][A-Za-z0-9._-]{5,63}$/.test(String(manifest.version || ""))
+      || !/^[0-9a-f]{64}$/.test(String(manifest.mainSha256 || ""))
+    ) process.exit(1);
+    process.stdout.write(`${manifest.version} ${manifest.mainSha256}`);
+  ' "$temporary_release/public/app/release-version.json"
+)
+if [[ $flutter_version != "${manifest_commit:0:12}" && $flutter_version != "$manifest_commit" ]]; then
+  echo 'Flutter release version does not match the release commit.' >&2
+  exit 1
+fi
+actual_flutter_hash=$(sha256sum "$temporary_release/public/app/main.dart.js" | cut -d' ' -f1)
+if [[ $actual_flutter_hash != "$expected_flutter_hash" ]]; then
+  echo 'Flutter release manifest does not match main.dart.js.' >&2
   exit 1
 fi
 
@@ -430,6 +452,11 @@ fi
 
 production_changed=1
 copy_artifacts "$temporary_release" "$project"
+production_flutter_hash=$(sha256sum "$project/public/app/main.dart.js" | cut -d' ' -f1)
+if [[ $production_flutter_hash != "$expected_flutter_hash" ]]; then
+  echo 'Production Flutter bundle does not match the staged release.' >&2
+  exit 1
+fi
 quarantine_legacy_migrations "$project"
 (
   cd "$project"

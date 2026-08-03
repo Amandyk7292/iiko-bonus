@@ -170,6 +170,11 @@ jobs:
           --build-number=${{ github.run_number }}
           --dart-define=BULKA_API_BASE_URL=https://bulka.com.kz
       - run: flutter build web --release --wasm --base-href /app/ --pwa-strategy=none
+      - name: Finalize versioned Flutter web release
+        run: >
+          node ../scripts/finalize-flutter-web.js
+          --directory build/web
+          --version ${{ github.sha }}
       - name: Enforce Flutter web bundle budgets
         run: node ../scripts/check-build-budgets.js --flutter build/web
       - name: Generate Flutter dependency inventory
