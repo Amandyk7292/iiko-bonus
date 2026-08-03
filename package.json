@@ -26,7 +26,7 @@
   "dependencies": {
     "@parse/node-apn": "^8.1.0",
     "@supabase/supabase-js": "^2.110.0",
-    "@whiskeysockets/baileys": "^7.0.0-rc13",
+    "@whiskeysockets/baileys": "7.0.0-rc14",
     "anylang": "^3.4.1",
     "bcryptjs": "^3.0.3",
     "compression": "^1.8.1",

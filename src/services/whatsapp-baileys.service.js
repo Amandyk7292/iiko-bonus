@@ -3,6 +3,7 @@ const {
   DisconnectReason,
   initAuthCreds,
   BufferJSON,
+  fetchLatestBaileysVersion,
 } = require('@whiskeysockets/baileys');
 const pino = require('pino');
 const qrcode = require('qrcode-terminal');
@@ -151,6 +152,8 @@ let reconnectTimer = null;
 let loggedOutRecovery = null;
 let whatsappGeneration = 0;
 let runtimeWhatsAppDependencies = null;
+let whatsappVersionPromise = null;
+let whatsappVersionRefreshAfter = 0;
 let assistantConfigurationLogged = false;
 let outboxFlushPromise = null;
 const whatsappConnection = {
@@ -275,6 +278,34 @@ function detachWhatsAppSocket(currentSocket) {
   } catch (_error) {
     // Socket may already be closed. Auth cleanup below remains authoritative.
   }
+}
+
+async function resolveWhatsAppWebVersion(fetchVersion = fetchLatestBaileysVersion) {
+  try {
+    const result = await fetchVersion({
+      signal: AbortSignal.timeout(5000),
+      headers: { 'user-agent': 'Bulka-WhatsApp-Service/1.0' },
+    });
+    const version = Array.isArray(result?.version) ? result.version.map(Number) : [];
+    if (version.length !== 3 || version.some((part) => !Number.isInteger(part) || part < 0)) {
+      return null;
+    }
+    return { version, isLatest: result.isLatest === true };
+  } catch (_error) {
+    return null;
+  }
+}
+
+async function getWhatsAppWebVersion() {
+  whatsappVersionPromise ??= resolveWhatsAppWebVersion();
+  return whatsappVersionPromise;
+}
+
+function refreshWhatsAppVersionAfterProtocolRejection(statusCode) {
+  if (statusCode !== 405 || Date.now() < whatsappVersionRefreshAfter) return;
+  whatsappVersionPromise = null;
+  whatsappVersionRefreshAfter = Date.now() + 60_000;
+  console.warn('[WHATSAPP] Сервер отклонил версию протокола. Версия будет проверена повторно.');
 }
 
 async function sendClaimedOutboxMessage(message) {
@@ -428,12 +459,21 @@ async function initWhatsApp(otpStore, getOrCreateCustomerByPhone) {
     const assistantConfig = await logAssistantConfiguration();
     if (assistantConfig) warmBulkaKnowledge();
     const { state, saveCreds } = await useSupabaseAuthState();
+    const versionDetails = await getWhatsAppWebVersion();
     if (generation !== whatsappGeneration) return null;
+    if (versionDetails) {
+      console.log(
+        `[WHATSAPP] Версия Web-протокола ${versionDetails.version.join('.')} (${versionDetails.isLatest ? 'актуальная' : 'закреплённая'}).`,
+      );
+    } else {
+      console.warn('[WHATSAPP] Проверка версии недоступна. Используется версия из Baileys.');
+    }
 
     const currentSocket = makeWASocket({
       auth: state,
       printQRInTerminal: false,
       logger: pino({ level: 'silent' }),
+      ...(versionDetails ? { version: versionDetails.version } : {}),
     });
     if (generation !== whatsappGeneration) {
       detachWhatsAppSocket(currentSocket);
@@ -483,6 +523,7 @@ async function initWhatsApp(otpStore, getOrCreateCustomerByPhone) {
 
       if (connection === 'close') {
         const { action, statusCode } = getWhatsAppDisconnectAction(lastDisconnect);
+        refreshWhatsAppVersionAfterProtocolRejection(statusCode);
         const shouldReconnect = action === 'reconnect';
         const shouldResetAuth = action === 'reset_auth';
         updateWhatsAppConnection({
@@ -1075,6 +1116,7 @@ module.exports = {
   getWhatsAppStatus,
   initWhatsApp,
   isWhatsAppAuthStorageId,
+  resolveWhatsAppWebVersion,
   resetWhatsAppPairing,
   resetSupabaseWhatsAppAuth,
   sendWhatsAppChatMessage,

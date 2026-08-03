@@ -5,6 +5,7 @@ const {
   getWhatsAppDisconnectAction,
   getWhatsAppDisconnectStatusCode,
   isWhatsAppAuthStorageId,
+  resolveWhatsAppWebVersion,
   resetSupabaseWhatsAppAuth,
 } = require('../src/services/whatsapp-baileys.service');
 
@@ -113,4 +114,35 @@ test('WhatsApp clears revoked auth, retries network errors and stops replaced se
     action: 'stop',
     statusCode: 440,
   });
+});
+
+test('WhatsApp uses a validated current Web protocol version', async () => {
+  let receivedOptions = null;
+  const result = await resolveWhatsAppWebVersion(async (options) => {
+    receivedOptions = options;
+    return { version: [2, 3000, 1043857760], isLatest: true };
+  });
+
+  assert.deepEqual(result, {
+    version: [2, 3000, 1043857760],
+    isLatest: true,
+  });
+  assert.equal(receivedOptions.headers['user-agent'], 'Bulka-WhatsApp-Service/1.0');
+  assert.ok(receivedOptions.signal instanceof AbortSignal);
+});
+
+test('WhatsApp rejects malformed versions and falls back when discovery fails', async () => {
+  assert.equal(
+    await resolveWhatsAppWebVersion(async () => ({
+      version: [2, 3000, Number.NaN],
+      isLatest: true,
+    })),
+    null,
+  );
+  assert.equal(
+    await resolveWhatsAppWebVersion(async () => {
+      throw new Error('network unavailable');
+    }),
+    null,
+  );
 });
