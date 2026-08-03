@@ -494,6 +494,10 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
     final paid = _paid;
     final terminalFailure = _terminalFailure;
     final verifying = _checkoutReturned && !paid && !terminalFailure;
+    final refundComplete = const {
+      'succeeded',
+      'not_required',
+    }.contains(_refundStatus);
     final showEmbeddedCheckout =
         _embeddedCheckoutVisible && !paid && !terminalFailure;
     final title = widget.cardSetup
@@ -513,7 +517,7 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
         : 'payment_confirm'.tr;
     final message = widget.cardSetup
         ? paid
-              ? _cardSaved && _refundStatus != 'succeeded'
+              ? _cardSaved && !refundComplete
                     ? 'card_setup_saved_refund_pending'.tr
                     : 'card_setup_success_hint'.tr
               : terminalFailure

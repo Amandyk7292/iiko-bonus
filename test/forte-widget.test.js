@@ -28,6 +28,8 @@ const checkoutToken = 'a'.repeat(64);
 const operationId = '117615f9-b35f-4eb4-9f6d-777f2236bb25';
 const providerTransactionId = '217615f9-b35f-4eb4-9f6d-777f2236bb25';
 const refundRequestId = '317615f9-b35f-4eb4-9f6d-777f2236bb25';
+const LEGACY_CARD_SETUP_AMOUNT = 30;
+const LEGACY_CARD_SETUP_AMOUNT_MINOR = 3000;
 const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', {
   modulusLength: 2048,
 });
@@ -80,6 +82,49 @@ test('card setup stops before Forte when three cards are already saved', async (
     (error) => error.statusCode === 409 && error.code === 'FORTE_WIDGET_PAYMENT_METHOD_LIMIT',
   );
   assert.equal(gatewayCalled, false);
+});
+
+test('card setup stores a zero-value operation without a merchant refund', async () => {
+  let insertedSetup;
+  const db = {
+    from(table) {
+      assert.equal(table, 'customer_payment_method_setups');
+      return {
+        insert(rows) {
+          [insertedSetup] = rows;
+          const query = {
+            select() {
+              return query;
+            },
+            async single() {
+              return { data: insertedSetup, error: null };
+            },
+          };
+          return query;
+        },
+      };
+    },
+  };
+  const service = new ForteWidgetService({ env, db });
+  service.assertPaymentMethodCapacity = async () => 0;
+  service.createProviderCheckout = async () => ({
+    token: checkoutToken,
+    expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    language: 'ru',
+  });
+
+  const result = await service.createCardSetup(
+    '517615f9-b35f-4eb4-9f6d-777f2236bb25',
+    '+77478180616',
+    'ru',
+  );
+
+  assert.equal(CARD_SETUP_AMOUNT, 0);
+  assert.equal(CARD_SETUP_AMOUNT_MINOR, 0);
+  assert.equal(insertedSetup.amount, 0);
+  assert.equal(insertedSetup.refund_status, 'not_required');
+  assert.equal(insertedSetup.refund_request_id, null);
+  assert.equal(result.verificationAmount, 0);
 });
 
 test('Forte checkout availability detects an explicitly empty provider response', () => {
@@ -322,6 +367,21 @@ test('Forte transaction webhooks expose tracking, checkout and reusable card tok
     service.validateCardSetup(setup, normalized, checkoutToken, {
       allowMissingShop: true,
     }),
+  );
+  assert.doesNotThrow(() =>
+    service.validateCardSetup(
+      setup,
+      { ...normalized, amountMinor: LEGACY_CARD_SETUP_AMOUNT_MINOR },
+      checkoutToken,
+      { allowMissingShop: true },
+    ),
+  );
+  assert.throws(
+    () =>
+      service.validateCardSetup(setup, { ...normalized, amountMinor: 100 }, checkoutToken, {
+        allowMissingShop: true,
+      }),
+    (error) => error.code === 'FORTE_WIDGET_PAYMENT_MISMATCH',
   );
 });
 
@@ -627,7 +687,7 @@ test('Forte card binding refunds the verification payment idempotently', async (
   });
   const result = await service.refundCardSetupPayment(
     {
-      amount: CARD_SETUP_AMOUNT,
+      amount: LEGACY_CARD_SETUP_AMOUNT,
       refund_request_id: refundRequestId,
     },
     providerTransactionId,
@@ -640,7 +700,7 @@ test('Forte card binding refunds the verification payment idempotently', async (
   assert.equal(requests[0].options.headers.RequestID, refundRequestId);
   const body = JSON.parse(requests[0].options.body);
   assert.equal(body.request.parent_uid, providerTransactionId);
-  assert.equal(body.request.amount, CARD_SETUP_AMOUNT_MINOR);
+  assert.equal(body.request.amount, LEGACY_CARD_SETUP_AMOUNT_MINOR);
   assert.match(body.request.reason, /привязки карты Bulka/);
 });
 
@@ -661,7 +721,7 @@ test('Forte card binding accepts the direct transaction API refund response', as
   });
   const result = await service.refundCardSetupPayment(
     {
-      amount: CARD_SETUP_AMOUNT,
+      amount: LEGACY_CARD_SETUP_AMOUNT,
       refund_request_id: refundRequestId,
     },
     providerTransactionId,
@@ -732,7 +792,7 @@ test('unknown verification refund remains retryable for reconciliation', async (
     () =>
       service.refundCardSetupPayment(
         {
-          amount: CARD_SETUP_AMOUNT,
+          amount: LEGACY_CARD_SETUP_AMOUNT,
           refund_request_id: refundRequestId,
         },
         providerTransactionId,
@@ -742,6 +802,78 @@ test('unknown verification refund remains retryable for reconciliation', async (
       error.refundUncertain === true &&
       error.refundReference === '717615f9-b35f-4eb4-9f6d-777f2236bb25',
   );
+});
+
+test('zero-value card setup saves the token without issuing a merchant refund', async () => {
+  const updates = [];
+  const setup = {
+    id: operationId,
+    customer_id: '517615f9-b35f-4eb4-9f6d-777f2236bb25',
+    provider: 'forte_widget',
+    checkout_token_ciphertext: 'encrypted-checkout-token',
+    status: 'pending',
+    provider_status: 'created',
+    payment_test: false,
+    amount: CARD_SETUP_AMOUNT,
+    refund_status: 'not_required',
+    refund_request_id: null,
+  };
+  const db = {
+    from(table) {
+      assert.equal(table, 'customer_payment_method_setups');
+      return {
+        update(values) {
+          updates.push(values);
+          const chain = {
+            eq() {
+              return chain;
+            },
+            select() {
+              return chain;
+            },
+            async maybeSingle() {
+              return { data: { ...setup, ...values }, error: null };
+            },
+          };
+          return chain;
+        },
+      };
+    },
+  };
+  const service = new ForteWidgetService({ env, db });
+  let cardSaved = false;
+  service.savePaymentMethod = async () => {
+    cardSaved = true;
+  };
+  service.refundCardSetupPayment = async () => {
+    assert.fail('zero-value card setup must not issue a merchant refund');
+  };
+  const normalized = normalizeWidgetCheckout({
+    transaction: {
+      uid: providerTransactionId,
+      status: 'successful',
+      amount: CARD_SETUP_AMOUNT_MINOR,
+      currency: 'KZT',
+      tracking_id: operationId,
+      test: false,
+      credit_card: {
+        token: 'b'.repeat(64),
+        brand: 'visa',
+        last_4: '1234',
+      },
+      additional_data: { vendor: { token: checkoutToken } },
+    },
+  });
+
+  const result = await service.applyProviderCardSetup(setup, normalized, checkoutToken, {
+    allowMissingShop: true,
+  });
+
+  assert.equal(cardSaved, true);
+  assert.equal(result.status, 'paid');
+  assert.equal(updates.length, 1);
+  assert.equal(updates[0].status, 'paid');
+  assert.equal(updates[0].refund_status, 'not_required');
 });
 
 test('card token is retained while an uncertain verification refund reconciles', async () => {
@@ -754,7 +886,7 @@ test('card token is retained while an uncertain verification refund reconciles',
     status: 'pending',
     provider_status: 'created',
     payment_test: false,
-    amount: CARD_SETUP_AMOUNT,
+    amount: LEGACY_CARD_SETUP_AMOUNT,
     refund_status: 'pending',
     refund_request_id: refundRequestId,
   };
@@ -798,7 +930,7 @@ test('card token is retained while an uncertain verification refund reconciles',
     transaction: {
       uid: providerTransactionId,
       status: 'successful',
-      amount: CARD_SETUP_AMOUNT_MINOR,
+      amount: LEGACY_CARD_SETUP_AMOUNT_MINOR,
       currency: 'KZT',
       tracking_id: operationId,
       test: false,
@@ -834,7 +966,7 @@ test('successful card binding is finalized only after its refund succeeds', asyn
     status: 'pending',
     provider_status: 'created',
     payment_test: false,
-    amount: CARD_SETUP_AMOUNT,
+    amount: LEGACY_CARD_SETUP_AMOUNT,
     refund_status: 'pending',
     refund_request_id: refundRequestId,
   };
@@ -881,7 +1013,7 @@ test('successful card binding is finalized only after its refund succeeds', asyn
     transaction: {
       uid: providerTransactionId,
       status: 'successful',
-      amount: CARD_SETUP_AMOUNT_MINOR,
+      amount: LEGACY_CARD_SETUP_AMOUNT_MINOR,
       currency: 'KZT',
       tracking_id: operationId,
       test: false,

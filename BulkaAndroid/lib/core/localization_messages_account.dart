@@ -250,9 +250,9 @@ const Map<String, Map<String, String>> _accountTranslations = {
     'en': 'Verifying card',
   },
   'card_setup_verifying_hint': {
-    'ru': 'Сохраняем карту и возвращаем 30 ₸.',
-    'kk': 'Картаны сақтап, 30 ₸ қайтарып жатырмыз.',
-    'en': 'Saving the card and refunding 30 ₸.',
+    'ru': 'Банк проверяет карту и создаёт защищённый токен.',
+    'kk': 'Банк картаны тексеріп, қорғалған токен жасап жатыр.',
+    'en': 'The bank is verifying the card and creating a secure token.',
   },
   'card_setup_success': {
     'ru': 'Карта сохранена',
@@ -260,9 +260,9 @@ const Map<String, Map<String, String>> _accountTranslations = {
     'en': 'Card saved',
   },
   'card_setup_success_hint': {
-    'ru': 'Карта сохранена, возврат 30 ₸ отправлен.',
-    'kk': 'Карта сақталды, 30 ₸ қайтарылды.',
-    'en': 'Card saved and the 30 ₸ refund was sent.',
+    'ru': 'Карта сохранена. Следующие оплаты — без повторного ввода CVV.',
+    'kk': 'Карта сақталды. Келесі төлемдерде CVV қайта енгізілмейді.',
+    'en': 'Card saved. Future payments will not ask for CVV again.',
   },
   'card_setup_saved_refund_pending': {
     'ru': 'Карта сохранена. Возврат 30 ₸ обрабатывается банком.',
@@ -276,11 +276,11 @@ const Map<String, Map<String, String>> _accountTranslations = {
   },
   'card_setup_failed_hint': {
     'ru':
-        'Карта не сохранена. Если списывались 30 ₸, банк вернёт их автоматически.',
+        'Карта не сохранена. Если банк временно зарезервировал сумму для проверки, резерв снимется автоматически.',
     'kk':
-        'Карта сақталмады. Егер 30 ₸ алынған болса, банк оны автоматты түрде қайтарады.',
+        'Карта сақталмады. Банк тексеру үшін соманы уақытша бұғаттаса, бұғаттау автоматты түрде алынады.',
     'en':
-        'The card was not saved. If 30 ₸ was charged, the bank will refund it automatically.',
+        'The card was not saved. If the bank placed a temporary verification hold, it will be released automatically.',
   },
   'card_setup_cancelled': {
     'ru': 'Добавление карты отменено.',

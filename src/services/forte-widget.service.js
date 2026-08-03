@@ -11,8 +11,9 @@ const CHECKOUT_API_ORIGIN = 'https://securepayments.fortebank.com';
 const TRANSACTION_API_ORIGIN = 'https://gateway.fortebank.com';
 const FORTE_PAYMENT_METHOD = 'forte_card';
 const FORTE_WIDGET_INTEGRATION = 'forte_widget';
-const CARD_SETUP_AMOUNT = 30;
-const CARD_SETUP_AMOUNT_MINOR = 3000;
+const CARD_SETUP_AMOUNT = 0;
+const CARD_SETUP_AMOUNT_MINOR = 0;
+const CARD_SETUP_PROVIDER_HOLD_AMOUNT_MINOR = 3000;
 const MAX_SAVED_PAYMENT_METHODS = 3;
 const CARD_ON_FILE_PROVIDER_CONTRACT = Object.freeze(['recurring', 'card_on_file']);
 const CARD_ON_FILE_TOKEN_CONTRACT = 'recurring_card_on_file';
@@ -1288,8 +1289,8 @@ class ForteWidgetService {
       provider_status: 'created',
       payment_test: config.test,
       amount: CARD_SETUP_AMOUNT,
-      refund_status: 'pending',
-      refund_request_id: crypto.randomUUID(),
+      refund_status: 'not_required',
+      refund_request_id: null,
       expires_at: providerCheckout.expiresAt,
     };
     const { data, error } = await this.db
@@ -1343,7 +1344,16 @@ class ForteWidgetService {
       },
       normalized,
       expectedToken,
-      options,
+      {
+        ...options,
+        // Forte requires a zero-value tokenization request. Depending on the
+        // acquiring response, the transaction can still report the bank's
+        // automatic 30 KZT verification hold. Both values identify the same
+        // setup; Bulka must not refund that provider-managed hold itself.
+        ...(Number(setup.amount) === 0 && {
+          allowedAmountsMinor: [CARD_SETUP_AMOUNT_MINOR, CARD_SETUP_PROVIDER_HOLD_AMOUNT_MINOR],
+        }),
+      },
     );
   }
 
@@ -1612,7 +1622,12 @@ class ForteWidgetService {
     return data;
   }
 
-  validateCheckout(order, normalized, expectedToken, { allowMissingShop = false } = {}) {
+  validateCheckout(
+    order,
+    normalized,
+    expectedToken,
+    { allowMissingShop = false, allowedAmountsMinor } = {},
+  ) {
     if (
       !normalized.token ||
       !timingSafeTextEqual(normalized.token, expectedToken) ||
@@ -1629,9 +1644,14 @@ class ForteWidgetService {
       throw widgetError('ForteBank вернул другой магазин', 422, 'FORTE_WIDGET_SHOP_MISMATCH');
     }
     const expectedAmountMinor = Number(order.amount) === 0 ? 0 : toMinorUnits(order.amount);
+    const acceptedAmounts = new Set(
+      Array.isArray(allowedAmountsMinor) && allowedAmountsMinor.length
+        ? allowedAmountsMinor
+        : [expectedAmountMinor],
+    );
     if (
       !Number.isSafeInteger(normalized.amountMinor) ||
-      normalized.amountMinor !== expectedAmountMinor ||
+      !acceptedAmounts.has(normalized.amountMinor) ||
       normalized.currency !== 'KZT' ||
       normalized.test !== config.test
     ) {

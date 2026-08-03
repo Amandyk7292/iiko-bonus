@@ -70,10 +70,14 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
       }
       await _load();
       if (!mounted) return;
+      final refundComplete = const {
+        'succeeded',
+        'not_required',
+      }.contains(refundStatus);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            cardSaved && refundStatus != 'succeeded'
+            cardSaved && !refundComplete
                 ? 'card_setup_saved_refund_pending'.tr
                 : status == 'paid'
                 ? 'card_setup_success_hint'.tr
