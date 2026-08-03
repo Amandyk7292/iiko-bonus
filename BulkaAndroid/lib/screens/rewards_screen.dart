@@ -32,28 +32,28 @@ class _RewardsScreenState extends State<RewardsScreen> {
     super.dispose();
   }
 
+  Future<T?> _optional<T>(Future<T> operation) async {
+    try {
+      return await operation;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> _load() async {
-    Map<String, dynamic>? referral;
-    List<Map<String, dynamic>> receivedGiftCards = const [];
-    List<Map<String, dynamic>> giftPurchaseHistory = const [];
-    PendingGiftPurchase? pendingGiftPurchase;
+    final referralFuture = _optional(widget.api.getReferral());
+    final receivedGiftCardsFuture = _optional(
+      widget.api.getReceivedGiftCards(),
+    );
+    final giftPurchaseHistoryFuture = _optional(
+      widget.api.getGiftCertificatePurchases(),
+    );
+    final pendingGiftPurchaseFuture = PendingGiftPurchaseStore.load(widget.api);
+    final referral = await referralFuture;
+    final receivedGiftCards = await receivedGiftCardsFuture ?? const [];
+    final giftPurchaseHistory = await giftPurchaseHistoryFuture ?? const [];
+    var pendingGiftPurchase = await pendingGiftPurchaseFuture;
     _GiftPurchaseResult? recoveredPurchase;
-    try {
-      referral = await widget.api.getReferral();
-    } catch (_) {
-      // Rewards remain useful when a secondary endpoint is temporarily down.
-    }
-    try {
-      receivedGiftCards = await widget.api.getReceivedGiftCards();
-    } catch (_) {
-      // Older servers may not expose the recipient wallet yet.
-    }
-    try {
-      giftPurchaseHistory = await widget.api.getGiftCertificatePurchases();
-    } catch (_) {
-      // A locally stored pending purchase still provides crash recovery.
-    }
-    pendingGiftPurchase = await PendingGiftPurchaseStore.load(widget.api);
     final pendingPurchaseId = pendingGiftPurchase?.purchaseId;
     if (pendingGiftPurchase != null && pendingPurchaseId?.isNotEmpty == true) {
       try {

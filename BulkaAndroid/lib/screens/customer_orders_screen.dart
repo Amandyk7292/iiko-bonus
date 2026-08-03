@@ -30,7 +30,9 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
   late bool _completed;
   bool _loading = true;
   bool _refreshInFlight = false;
-  String? _arrivalInFlight;
+  final Set<String> _arrivalInFlight = {};
+  final Set<String> _repeatInFlight = {};
+  final Set<String> _reviewInFlight = {};
   String? _error;
   List<CustomerOrder> _orders = const [];
   bool _usingOfflineCache = false;
@@ -85,7 +87,7 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
   void _startRefreshTimer() {
     _refreshTimer?.cancel();
     _refreshTimer = Timer.periodic(
-      const Duration(seconds: 60),
+      const Duration(seconds: 15),
       (_) => unawaited(_load(silent: true)),
     );
   }
@@ -188,6 +190,8 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
   }
 
   Future<void> _repeatOrder(CustomerOrder order) async {
+    if (_repeatInFlight.contains(order.id)) return;
+    setState(() => _repeatInFlight.add(order.id));
     try {
       final items = await widget.api.reorder(order.id);
       if (!mounted) return;
@@ -252,10 +256,13 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
+    } finally {
+      if (mounted) setState(() => _repeatInFlight.remove(order.id));
     }
   }
 
   Future<void> _reviewOrder(CustomerOrder order) async {
+    if (_reviewInFlight.contains(order.id)) return;
     var rating = 5;
     String? complaintProductId;
     final comment = TextEditingController();
@@ -349,6 +356,7 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
       comment.dispose();
       return;
     }
+    if (mounted) setState(() => _reviewInFlight.add(order.id));
     try {
       await widget.api.submitOrderReview(
         orderId: order.id,
@@ -379,11 +387,12 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
       }
     } finally {
       comment.dispose();
+      if (mounted) setState(() => _reviewInFlight.remove(order.id));
     }
   }
 
   Future<void> _markArrived(CustomerOrder order) async {
-    if (_arrivalInFlight != null) return;
+    if (_arrivalInFlight.contains(order.id)) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -404,7 +413,7 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
       ),
     );
     if (confirmed != true || !mounted) return;
-    setState(() => _arrivalInFlight = order.id);
+    setState(() => _arrivalInFlight.add(order.id));
     try {
       final updated = await widget.api.markCustomerArrived(order.id);
       if (!mounted) return;
@@ -426,7 +435,7 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
         context,
       ).showSnackBar(SnackBar(content: Text(message)));
     } finally {
-      if (mounted) setState(() => _arrivalInFlight = null);
+      if (mounted) setState(() => _arrivalInFlight.remove(order.id));
     }
   }
 
@@ -551,7 +560,9 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
           onReview: () => _reviewOrder(_orders[index]),
           onArrived: () => _markArrived(_orders[index]),
           onOpen: () => _openDetails(_orders[index]),
-          arrivalLoading: _arrivalInFlight == _orders[index].id,
+          arrivalLoading: _arrivalInFlight.contains(_orders[index].id),
+          repeatLoading: _repeatInFlight.contains(_orders[index].id),
+          reviewLoading: _reviewInFlight.contains(_orders[index].id),
         ),
       ),
     );
@@ -851,6 +862,8 @@ class _CustomerOrderCard extends StatelessWidget {
     required this.onArrived,
     required this.onOpen,
     required this.arrivalLoading,
+    required this.repeatLoading,
+    required this.reviewLoading,
   });
   final CustomerOrder order;
   final VoidCallback onRepeat;
@@ -858,6 +871,8 @@ class _CustomerOrderCard extends StatelessWidget {
   final VoidCallback onArrived;
   final VoidCallback onOpen;
   final bool arrivalLoading;
+  final bool repeatLoading;
+  final bool reviewLoading;
 
   String _date(BuildContext context, DateTime value) =>
       formatUiDate(context, value);
@@ -1240,8 +1255,13 @@ class _CustomerOrderCard extends StatelessWidget {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: onRepeat,
-                  icon: const Icon(Icons.replay_rounded),
+                  onPressed: repeatLoading ? null : onRepeat,
+                  icon: repeatLoading
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.replay_rounded),
                   label: Text('order_repeat'.tr),
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size.fromHeight(48),
@@ -1255,8 +1275,13 @@ class _CustomerOrderCard extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: FilledButton.icon(
-                    onPressed: onReview,
-                    icon: const Icon(Icons.star_outline_rounded),
+                    onPressed: reviewLoading ? null : onReview,
+                    icon: reviewLoading
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.star_outline_rounded),
                     label: Text('order_review'.tr),
                     style: FilledButton.styleFrom(
                       minimumSize: const Size.fromHeight(48),

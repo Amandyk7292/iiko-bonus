@@ -2,6 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
+  getWhatsAppDisconnectAction,
+  getWhatsAppDisconnectStatusCode,
   isWhatsAppAuthStorageId,
   resetSupabaseWhatsAppAuth,
 } = require('../src/services/whatsapp-baileys.service');
@@ -84,4 +86,31 @@ test('WhatsApp auth reset reports storage failures without leaking data', async 
       error.code === 'WHATSAPP_AUTH_RESET_FAILED' &&
       error.message === 'Не удалось подготовить новую привязку WhatsApp',
   );
+});
+
+test('WhatsApp disconnect reason is read from all Baileys error shapes', () => {
+  assert.equal(getWhatsAppDisconnectStatusCode({ error: { output: { statusCode: 401 } } }), 401);
+  assert.equal(
+    getWhatsAppDisconnectStatusCode({ error: { cause: { output: { statusCode: 500 } } } }),
+    500,
+  );
+  assert.equal(getWhatsAppDisconnectStatusCode({ error: { data: { statusCode: '411' } } }), 411);
+  assert.equal(getWhatsAppDisconnectStatusCode({ error: new Error('Device was removed') }), 401);
+});
+
+test('WhatsApp clears revoked auth, retries network errors and stops replaced sessions', () => {
+  for (const statusCode of [401, 403, 411, 500]) {
+    assert.deepEqual(getWhatsAppDisconnectAction({ error: { output: { statusCode } } }), {
+      action: 'reset_auth',
+      statusCode,
+    });
+  }
+  assert.deepEqual(getWhatsAppDisconnectAction({ error: { statusCode: 408 } }), {
+    action: 'reconnect',
+    statusCode: 408,
+  });
+  assert.deepEqual(getWhatsAppDisconnectAction({ error: { output: { statusCode: 440 } } }), {
+    action: 'stop',
+    statusCode: 440,
+  });
 });

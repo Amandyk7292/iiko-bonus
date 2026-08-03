@@ -129,8 +129,8 @@ test('operations center scopes every request and exposes realtime state', async 
   await expect(page.getByRole('heading', { name: 'Операционный центр' })).toBeVisible();
   await expect(page.getByText('Новые заказы', { exact: true })).toBeVisible();
   await expect(page.getByText('Поддержка', { exact: true })).toBeVisible();
-  await expect(page.getByText('Переподключение', { exact: true })).toBeVisible();
-  await expect(page.getByText('Обновлено сейчас', { exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: /WhatsApp\s+5\s+2 диалогов/ })).toBeVisible();
+  await expect(page.getByText(/^Сводка обновлена:/)).toBeVisible();
 
   const operationRows = page.locator('.operations-list > a');
   await expect(operationRows).toHaveCount(2);
@@ -156,7 +156,8 @@ test('operations center scopes every request and exposes realtime state', async 
     expect(styles.textDecorationLine).toBe('none');
   }
 
-  await page.getByLabel('Филиал для всех разделов').selectOption(branchB);
+  await page.getByLabel('Город для фильтрации данных').selectOption({ label: 'Астана' });
+  await page.getByLabel('Филиал города Астана').selectOption(branchB);
   await expect
     .poll(() => scopedRequests.filter((branch) => branch === branchB).length)
     .toBeGreaterThan(0);

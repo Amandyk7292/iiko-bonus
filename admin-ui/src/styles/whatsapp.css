@@ -94,6 +94,23 @@
   background: var(--sagi-soft);
 }
 
+.whatsapp-status-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.whatsapp-pairing-reset {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding-inline: 14px;
+  white-space: nowrap;
+}
+
 .whatsapp-qr-panel {
   grid-column: 1 / -1;
   display: grid;
@@ -1277,6 +1294,15 @@
     overflow: hidden;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
+  }
+
+  .whatsapp-status-actions {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .whatsapp-pairing-reset {
+    flex: 1;
   }
 
   .whatsapp-qr-panel {

@@ -13,7 +13,8 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
   List<Map<String, dynamic>> _methods = const [];
   bool _loading = true;
   String? _error;
-  String? _busyMethodId;
+  final Set<String> _busyMethodIds = {};
+  bool _defaultUpdateInFlight = false;
   bool _adding = false;
   bool _reconcilingReturn = false;
 
@@ -118,25 +119,50 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
   }
 
   Future<void> _setDefault(String id) async {
-    if (_busyMethodId != null) return;
-    setState(() => _busyMethodId = id);
+    if (_defaultUpdateInFlight || _busyMethodIds.contains(id)) return;
+    final previousDefaultId = _methods
+        .where((method) => method['isDefault'] == true)
+        .map((method) => (method['id'] ?? '').toString())
+        .firstOrNull;
+    setState(() {
+      _defaultUpdateInFlight = true;
+      _busyMethodIds.add(id);
+      _methods = [
+        for (final method in _methods)
+          {...method, 'isDefault': (method['id'] ?? '').toString() == id},
+      ];
+    });
     try {
       await widget.api.setDefaultFortePaymentMethod(id);
-      await widget.api.isFortePaymentAvailable();
-      await _load();
+      unawaited(widget.api.isFortePaymentAvailable().catchError((_) => false));
     } catch (_) {
       if (mounted) {
+        setState(() {
+          _methods = [
+            for (final method in _methods)
+              {
+                ...method,
+                'isDefault':
+                    (method['id'] ?? '').toString() == previousDefaultId,
+              },
+          ];
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('payment_methods_update_error'.tr)),
         );
       }
     } finally {
-      if (mounted) setState(() => _busyMethodId = null);
+      if (mounted) {
+        setState(() {
+          _defaultUpdateInFlight = false;
+          _busyMethodIds.remove(id);
+        });
+      }
     }
   }
 
   Future<void> _addCard() async {
-    if (_adding || _busyMethodId != null) return;
+    if (_adding) return;
     if (_methods.length >= _maximumSavedPaymentMethods) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('payment_methods_limit_reached'.tr)),
@@ -178,7 +204,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
   }
 
   Future<void> _remove(String id) async {
-    if (_busyMethodId != null) return;
+    if (_busyMethodIds.contains(id)) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -197,18 +223,37 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
       ),
     );
     if (confirmed != true || !mounted) return;
-    setState(() => _busyMethodId = id);
+    final removedIndex = _methods.indexWhere(
+      (method) => (method['id'] ?? '').toString() == id,
+    );
+    if (removedIndex < 0) return;
+    final removedMethod = Map<String, dynamic>.from(_methods[removedIndex]);
+    setState(() {
+      _busyMethodIds.add(id);
+      _methods = [
+        for (final method in _methods)
+          if ((method['id'] ?? '').toString() != id) method,
+      ];
+    });
     try {
       await widget.api.removeFortePaymentMethod(id);
-      await _load();
+      unawaited(widget.api.isFortePaymentAvailable().catchError((_) => false));
     } catch (_) {
       if (mounted) {
+        setState(() {
+          if (_methods.any((method) => (method['id'] ?? '').toString() == id)) {
+            return;
+          }
+          final restored = [..._methods];
+          restored.insert(min(removedIndex, restored.length), removedMethod);
+          _methods = restored;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('payment_methods_remove_error'.tr)),
         );
       }
     } finally {
-      if (mounted) setState(() => _busyMethodId = null);
+      if (mounted) setState(() => _busyMethodIds.remove(id));
     }
   }
 
@@ -318,7 +363,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                         final id = (method['id'] ?? '').toString();
                         final isDefault = method['isDefault'] == true;
                         final expiry = _expiryLabel(method);
-                        final busy = _busyMethodId == id;
+                        final busy = _busyMethodIds.contains(id);
                         return Container(
                           margin: const EdgeInsets.only(bottom: 12),
                           decoration: BoxDecoration(

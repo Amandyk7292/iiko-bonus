@@ -814,6 +814,8 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   bool _deliveryAvailabilityChecked = false;
   bool _isSubmitting = false;
   bool _isQuoting = false;
+  bool _quotePending = false;
+  bool _quoteFeedbackPending = false;
   bool _isSelectingBranch = false;
   bool _isSelectingAddress = false;
   bool _isSelectingTime = false;
@@ -1323,7 +1325,11 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
 
   Future<void> _refreshQuote({bool showFeedback = false}) async {
     if (!_canQuote) return;
-    if (_isQuoting) return;
+    if (_isQuoting) {
+      _quotePending = true;
+      _quoteFeedbackPending = _quoteFeedbackPending || showFeedback;
+      return;
+    }
     final revision = ++_quoteRevision;
     setState(() => _isQuoting = true);
     try {
@@ -1367,6 +1373,12 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
     } finally {
       if (mounted && revision == _quoteRevision) {
         setState(() => _isQuoting = false);
+        if (_quotePending) {
+          final pendingFeedback = _quoteFeedbackPending;
+          _quotePending = false;
+          _quoteFeedbackPending = false;
+          unawaited(_refreshQuote(showFeedback: pendingFeedback));
+        }
       }
     }
   }

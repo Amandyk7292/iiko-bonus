@@ -49,6 +49,20 @@ extension _CatalogStockSubscriptionController on _CatalogScreenState {
     final existing = _stockSubscriptions[key];
     _updateCatalogState(() {
       _stockSubscriptionBusy = {..._stockSubscriptionBusy, key};
+      if (existing == null) {
+        _stockSubscriptions = {
+          ..._stockSubscriptions,
+          key: StockSubscription(
+            id: 'pending:$key',
+            productId: product.id,
+            branchId: _selectedBakeryId,
+            status: 'active',
+            createdAt: DateTime.now(),
+          ),
+        };
+      } else {
+        _stockSubscriptions = {..._stockSubscriptions}..remove(key);
+      }
     });
     try {
       if (existing == null) {
@@ -66,14 +80,19 @@ extension _CatalogStockSubscriptionController on _CatalogScreenState {
       } else {
         await _api.deleteStockSubscription(existing.id);
         if (!mounted) return;
-        final next = {..._stockSubscriptions}..remove(key);
-        _updateCatalogState(() => _stockSubscriptions = next);
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('stock_notify_disabled'.tr)));
       }
     } catch (error) {
       if (!mounted) return;
+      _updateCatalogState(() {
+        if (existing == null) {
+          _stockSubscriptions = {..._stockSubscriptions}..remove(key);
+        } else {
+          _stockSubscriptions = {..._stockSubscriptions, key: existing};
+        }
+      });
       showApiErrorSnackBar(
         context,
         error,

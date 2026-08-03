@@ -88,6 +88,7 @@ test('operator session cannot reach bot configuration or other admin areas', asy
   const deniedRequests = [
     { path: '/admin/api/settings', method: 'GET' },
     { path: '/admin/api/whatsapp/settings', method: 'GET' },
+    { path: '/admin/api/whatsapp/pairing/reset', method: 'POST' },
     { path: '/admin/api/whatsapp/knowledge', method: 'GET' },
     {
       path: '/admin/api/whatsapp/conversations/test-id/memories',

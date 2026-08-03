@@ -22,6 +22,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   late final ContactCenterRepository _contactsRepository;
   late Future<List<AppContactCard>> _contactsFuture;
   Future<List<AppNotification>>? _notificationsFuture;
+  List<AppNotification> _notifications = const [];
   int _selectedTab = 0;
 
   bool get _isAuthenticated => widget.api.isAuthenticated;
@@ -32,27 +33,46 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     _contactsRepository = ContactCenterRepository(api: widget.api);
     _contactsFuture = _contactsRepository.load();
     if (_isAuthenticated) {
-      _notificationsFuture = widget.api.getNotifications();
+      _notificationsFuture = _fetchNotifications();
     }
+  }
+
+  Future<List<AppNotification>> _fetchNotifications() async {
+    final items = await widget.api.getNotifications();
+    _notifications = items;
+    return items;
+  }
+
+  void _showNotifications(List<AppNotification> items) {
+    _notifications = items;
+    setState(() {
+      _notificationsFuture = SynchronousFuture(items);
+    });
   }
 
   Future<void> _reloadNotifications() async {
     if (!_isAuthenticated) return;
-    final future = widget.api.getNotifications();
-    setState(() => _notificationsFuture = future);
+    final future = _fetchNotifications();
+    setState(() {
+      _notificationsFuture = future;
+    });
     await future;
   }
 
   Future<void> _reloadContacts() async {
     final future = _contactsRepository.load();
-    setState(() => _contactsFuture = future);
+    setState(() {
+      _contactsFuture = future;
+    });
     await future;
   }
 
   Future<void> _requestAuthentication() async {
     final authenticated = await widget.onRequireAuth?.call() ?? false;
     if (!mounted || !authenticated) return;
-    setState(() => _notificationsFuture = widget.api.getNotifications());
+    setState(() {
+      _notificationsFuture = _fetchNotifications();
+    });
   }
 
   void _selectTab(int index) {
@@ -62,19 +82,32 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   Future<void> _markAllRead() async {
+    final previous = _notifications;
+    final updated = [
+      for (final notification in previous) notification.copyWith(isRead: true),
+    ];
+    _showNotifications(updated);
     try {
       await widget.api.markAllNotificationsRead();
-      await _reloadNotifications();
     } catch (error) {
-      if (mounted) _showError(localizeErrorMessage(error));
+      if (!mounted) return;
+      _showNotifications(previous);
+      _showError(localizeErrorMessage(error));
     }
   }
 
   Future<void> _openNotification(AppNotification notification) async {
     if (!notification.isRead) {
-      try {
-        await widget.api.markNotificationRead(notification.id);
-      } catch (_) {}
+      final previous = _notifications;
+      _showNotifications([
+        for (final item in previous)
+          item.id == notification.id ? item.copyWith(isRead: true) : item,
+      ]);
+      unawaited(
+        widget.api.markNotificationRead(notification.id).catchError((_) {
+          if (mounted) _showNotifications(previous);
+        }),
+      );
     }
 
     final target = resolveNotificationTarget(notification);
@@ -209,7 +242,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       );
     }
 
-    final future = _notificationsFuture ??= widget.api.getNotifications();
+    final future = _notificationsFuture ??= _fetchNotifications();
     return FutureBuilder<List<AppNotification>>(
       key: const ValueKey('notification-list'),
       future: future,

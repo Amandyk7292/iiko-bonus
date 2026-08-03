@@ -187,20 +187,25 @@ class _AddressSelectionScreenState extends State<AddressSelectionScreen> {
         ),
       );
       if (confirmed != true) return;
+      final previousAddresses = _addresses;
+      final previousSelectedId = _selectedId;
+      final remaining = _addresses
+          .where((item) => item.id != address.id)
+          .toList();
+      setState(() {
+        _addresses = remaining;
+        if (_selectedId == address.id) {
+          _selectedId = remaining.isEmpty ? null : remaining.first.id;
+        }
+      });
       try {
         await _repository.deleteAddress(address.id);
-        if (!mounted) return;
-        final remaining = _addresses
-            .where((item) => item.id != address.id)
-            .toList();
-        setState(() {
-          _addresses = remaining;
-          if (_selectedId == address.id) {
-            _selectedId = remaining.isEmpty ? null : remaining.first.id;
-          }
-        });
       } catch (error) {
         if (!mounted) return;
+        setState(() {
+          _addresses = previousAddresses;
+          _selectedId = previousSelectedId;
+        });
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));

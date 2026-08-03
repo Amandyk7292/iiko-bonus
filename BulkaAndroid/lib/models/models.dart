@@ -1030,6 +1030,16 @@ class AppNotification {
   final String type;
   final Map<String, dynamic> payload;
 
+  AppNotification copyWith({bool? isRead}) => AppNotification(
+    id: id,
+    title: title,
+    body: body,
+    createdAt: createdAt,
+    isRead: isRead ?? this.isRead,
+    type: type,
+    payload: payload,
+  );
+
   String titleFor(String language) {
     return _payloadTranslation('titles', language) ??
         _systemTranslation('title', language) ??

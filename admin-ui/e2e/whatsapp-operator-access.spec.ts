@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 const now = '2026-07-22T10:00:00.000Z';
 const conversation = {
@@ -26,6 +26,12 @@ const secondConversation = {
   displayName: 'Второй клиент',
   unreadCount: 0,
   lastMessagePreview: 'Второй диалог',
+};
+
+const selectConversation = async (page: Page, index: number) => {
+  const backButton = page.getByRole('button', { name: 'К списку диалогов' });
+  if (await backButton.isVisible()) await backButton.click();
+  await page.locator('.whatsapp-conversation-item').nth(index).click();
 };
 
 test('protected operator link opens only chats and allows a reply', async ({ page }) => {
@@ -165,28 +171,28 @@ test('protected operator link opens only chats and allows a reply', async ({ pag
   await expect(page.locator('.sagi-sidebar')).toHaveCount(0);
 
   const conversationItems = page.locator('.whatsapp-conversation-item');
-  await conversationItems.nth(1).click();
+  await selectConversation(page, 1);
   await expect(page.locator('.whatsapp-chat-person').getByText('Второй клиент')).toBeVisible();
   await page.waitForTimeout(300);
   await expect(page.locator('.whatsapp-chat-person').getByText('Второй клиент')).toBeVisible();
 
-  await conversationItems.first().click();
+  await selectConversation(page, 0);
   const reply = page.getByLabel('Ответ клиенту');
   await expect(reply).toBeEnabled();
   await reply.fill('Черновик первого клиента');
-  await conversationItems.nth(1).click();
+  await selectConversation(page, 1);
   const warning = page.getByRole('alertdialog');
   await expect(warning).toContainText('Черновик останется');
   await warning.getByRole('button', { name: 'Отмена' }).click();
   await expect(warning).toBeHidden();
   await expect(reply).toHaveValue('Черновик первого клиента');
 
-  await conversationItems.nth(1).click();
+  await selectConversation(page, 1);
   const confirmedWarning = page.getByRole('alertdialog');
   await expect(confirmedWarning).toBeVisible();
   await confirmedWarning.getByRole('button', { name: 'Перейти' }).click();
   await expect(page.getByLabel('Ответ клиенту')).toHaveValue('');
-  await conversationItems.first().click();
+  await selectConversation(page, 0);
   await expect(page.getByLabel('Ответ клиенту')).toHaveValue('Черновик первого клиента');
   await reply.fill('Здравствуйте! Да, круассаны есть.');
   await page.getByRole('button', { name: 'Отправить сообщение' }).click();

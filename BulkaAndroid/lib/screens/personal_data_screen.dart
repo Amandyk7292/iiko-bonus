@@ -144,9 +144,9 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
         avatarKey: _selectedAvatarKey,
       );
 
-      await widget.onProfileUpdated();
       _showInfoMessage('profile_saved'.tr);
       widget.onBack();
+      unawaited(_refreshProfileInBackground());
     } catch (e) {
       _showInfoMessage(
         localizeErrorMessage(e, fallbackKey: 'error_save'),
@@ -156,6 +156,14 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  Future<void> _refreshProfileInBackground() async {
+    try {
+      await widget.onProfileUpdated();
+    } catch (_) {
+      // The profile is already saved; the parent can refresh on the next open.
     }
   }
 

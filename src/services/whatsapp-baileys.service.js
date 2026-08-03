@@ -149,6 +149,8 @@ async function resetSupabaseWhatsAppAuth(client = supabase) {
 let sock = null;
 let reconnectTimer = null;
 let loggedOutRecovery = null;
+let whatsappGeneration = 0;
+let runtimeWhatsAppDependencies = null;
 let assistantConfigurationLogged = false;
 let outboxFlushPromise = null;
 const whatsappConnection = {
@@ -207,6 +209,73 @@ const whatsappUnavailableError = () =>
     statusCode: 503,
     code: 'WHATSAPP_NOT_CONNECTED',
   });
+
+function getWhatsAppDisconnectStatusCode(lastDisconnect) {
+  const error = lastDisconnect?.error;
+  const candidates = [
+    lastDisconnect?.statusCode,
+    error?.output?.statusCode,
+    error?.output?.payload?.statusCode,
+    error?.statusCode,
+    error?.data?.statusCode,
+    error?.cause?.output?.statusCode,
+    error?.cause?.output?.payload?.statusCode,
+    error?.cause?.statusCode,
+    error?.cause?.data?.statusCode,
+  ];
+  for (const candidate of candidates) {
+    const statusCode = Number(candidate);
+    if (Number.isInteger(statusCode) && statusCode > 0) return statusCode;
+  }
+
+  const message = String(error?.message || error?.cause?.message || '');
+  if (/\blogged[\s_-]*out\b|device (?:was )?removed/i.test(message)) {
+    return DisconnectReason.loggedOut;
+  }
+  if (/\bbad[\s_-]*session\b/i.test(message)) return DisconnectReason.badSession;
+  if (/multi[\s_-]*device mismatch/i.test(message)) {
+    return DisconnectReason.multideviceMismatch;
+  }
+  if (/\bforbidden\b/i.test(message)) return DisconnectReason.forbidden;
+  if (/connection replaced/i.test(message)) return DisconnectReason.connectionReplaced;
+  return null;
+}
+
+function getWhatsAppDisconnectAction(lastDisconnect) {
+  const statusCode = getWhatsAppDisconnectStatusCode(lastDisconnect);
+  if (
+    [
+      DisconnectReason.loggedOut,
+      DisconnectReason.badSession,
+      DisconnectReason.multideviceMismatch,
+      DisconnectReason.forbidden,
+    ].includes(statusCode)
+  ) {
+    return { action: 'reset_auth', statusCode };
+  }
+  if (statusCode === DisconnectReason.connectionReplaced) {
+    return { action: 'stop', statusCode };
+  }
+  return { action: 'reconnect', statusCode };
+}
+
+function cancelWhatsAppReconnect() {
+  if (reconnectTimer) clearTimeout(reconnectTimer);
+  reconnectTimer = null;
+}
+
+function detachWhatsAppSocket(currentSocket) {
+  if (!currentSocket) return;
+  currentSocket.ev?.removeAllListeners?.('creds.update');
+  currentSocket.ev?.removeAllListeners?.('connection.update');
+  currentSocket.ev?.removeAllListeners?.('messages.upsert');
+  if (sock === currentSocket) sock = null;
+  try {
+    currentSocket.end?.(new Error('WhatsApp pairing reset'));
+  } catch (_error) {
+    // Socket may already be closed. Auth cleanup below remains authoritative.
+  }
+}
 
 async function sendClaimedOutboxMessage(message) {
   if (!sock || whatsappConnection.state !== 'connected') throw whatsappUnavailableError();
@@ -291,9 +360,21 @@ async function logAssistantConfiguration() {
   return null;
 }
 
-function recoverLoggedOutWhatsApp(currentSocket, otpStore, getOrCreateCustomerByPhone) {
+function recoverLoggedOutWhatsApp(
+  currentSocket = sock,
+  otpStore = runtimeWhatsAppDependencies?.otpStore,
+  getOrCreateCustomerByPhone = runtimeWhatsAppDependencies?.getOrCreateCustomerByPhone,
+) {
   if (loggedOutRecovery) return loggedOutRecovery;
   loggedOutRecovery = (async () => {
+    if (!otpStore || typeof getOrCreateCustomerByPhone !== 'function') {
+      throw Object.assign(new Error('Сервис WhatsApp ещё не запущен'), {
+        statusCode: 503,
+        code: 'WHATSAPP_NOT_INITIALIZED',
+      });
+    }
+    cancelWhatsAppReconnect();
+    whatsappGeneration += 1;
     updateWhatsAppConnection({
       state: 'connecting',
       connectedAt: null,
@@ -303,10 +384,7 @@ function recoverLoggedOutWhatsApp(currentSocket, otpStore, getOrCreateCustomerBy
       lastError: '',
     });
     try {
-      currentSocket?.ev?.removeAllListeners?.('creds.update');
-      currentSocket?.ev?.removeAllListeners?.('connection.update');
-      currentSocket?.ev?.removeAllListeners?.('messages.upsert');
-      if (sock === currentSocket) sock = null;
+      detachWhatsAppSocket(currentSocket);
       const removedCount = await resetSupabaseWhatsAppAuth();
       console.log(
         `[WHATSAPP] Отозванная привязка очищена (${removedCount} ключей). Создаётся новый QR-код.`,
@@ -330,18 +408,37 @@ function recoverLoggedOutWhatsApp(currentSocket, otpStore, getOrCreateCustomerBy
   return loggedOutRecovery;
 }
 
+async function resetWhatsAppPairing() {
+  await recoverLoggedOutWhatsApp();
+  const status = getWhatsAppStatus();
+  if (status.state === 'error') {
+    throw Object.assign(new Error(status.lastError || 'Не удалось создать новый QR-код'), {
+      statusCode: 503,
+      code: 'WHATSAPP_PAIRING_RESET_FAILED',
+    });
+  }
+  return status;
+}
+
 async function initWhatsApp(otpStore, getOrCreateCustomerByPhone) {
+  runtimeWhatsAppDependencies = { otpStore, getOrCreateCustomerByPhone };
+  const generation = ++whatsappGeneration;
   try {
     updateWhatsAppConnection({ state: 'connecting', lastError: '' });
     const assistantConfig = await logAssistantConfiguration();
     if (assistantConfig) warmBulkaKnowledge();
     const { state, saveCreds } = await useSupabaseAuthState();
+    if (generation !== whatsappGeneration) return null;
 
     const currentSocket = makeWASocket({
       auth: state,
       printQRInTerminal: false,
       logger: pino({ level: 'silent' }),
     });
+    if (generation !== whatsappGeneration) {
+      detachWhatsAppSocket(currentSocket);
+      return null;
+    }
     sock = currentSocket;
 
     currentSocket.ev.on('creds.update', () => {
@@ -385,30 +482,37 @@ async function initWhatsApp(otpStore, getOrCreateCustomerByPhone) {
       }
 
       if (connection === 'close') {
-        const shouldReconnect =
-          lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
+        const { action, statusCode } = getWhatsAppDisconnectAction(lastDisconnect);
+        const shouldReconnect = action === 'reconnect';
+        const shouldResetAuth = action === 'reset_auth';
         updateWhatsAppConnection({
-          state: shouldReconnect ? 'reconnecting' : 'logged_out',
+          state: shouldReconnect ? 'reconnecting' : shouldResetAuth ? 'logged_out' : 'error',
           connectedAt: shouldReconnect ? whatsappConnection.connectedAt : null,
           phone: shouldReconnect ? whatsappConnection.phone : '',
           qrDataUrl: '',
           qrReceivedAt: null,
-          lastError: shouldReconnect ? 'Соединение потеряно, выполняется переподключение' : '',
+          lastError: shouldReconnect
+            ? 'Соединение потеряно, выполняется переподключение'
+            : shouldResetAuth
+              ? ''
+              : 'Сессия WhatsApp уже используется другим процессом',
         });
-        console.log('[WHATSAPP] Соединение закрыто. Переподключение:', shouldReconnect);
+        console.log('[WHATSAPP] Соединение закрыто.', {
+          action,
+          reason: statusCode == null ? 'unknown' : DisconnectReason[statusCode] || statusCode,
+        });
         if (shouldReconnect && !reconnectTimer) {
           reconnectTimer = setTimeout(() => {
             reconnectTimer = null;
             initWhatsApp(otpStore, getOrCreateCustomerByPhone);
           }, 5000);
           reconnectTimer.unref?.();
-        } else if (!shouldReconnect) {
+        } else if (shouldResetAuth) {
           console.log('[WHATSAPP] Привязка отозвана. Автоматически готовится новый QR-код.');
           void recoverLoggedOutWhatsApp(currentSocket, otpStore, getOrCreateCustomerByPhone);
         }
       } else if (connection === 'open') {
-        if (reconnectTimer) clearTimeout(reconnectTimer);
-        reconnectTimer = null;
+        cancelWhatsAppReconnect();
         updateWhatsAppConnection({
           state: 'connected',
           connectedAt: new Date().toISOString(),
@@ -849,9 +953,12 @@ async function initWhatsApp(otpStore, getOrCreateCustomerByPhone) {
         }
       }
     });
+    return currentSocket;
   } catch (err) {
+    if (generation !== whatsappGeneration) return null;
     updateWhatsAppConnection({ state: 'error', lastError: 'Не удалось подключиться к WhatsApp' });
     console.error('[WHATSAPP] Ошибка инициализации:', err);
+    return null;
   }
 }
 
@@ -963,9 +1070,12 @@ async function sendWhatsAppMessage(phone, text) {
 
 module.exports = {
   flushWhatsAppOutbox,
+  getWhatsAppDisconnectAction,
+  getWhatsAppDisconnectStatusCode,
   getWhatsAppStatus,
   initWhatsApp,
   isWhatsAppAuthStorageId,
+  resetWhatsAppPairing,
   resetSupabaseWhatsAppAuth,
   sendWhatsAppChatMessage,
   sendWhatsAppVoiceMessage,

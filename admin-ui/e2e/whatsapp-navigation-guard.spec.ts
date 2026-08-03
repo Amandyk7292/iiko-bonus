@@ -41,7 +41,9 @@ const settings = {
 
 const dismissBlockedSidebarNavigation = async (page: Page) => {
   page.once('dialog', (dialog) => dialog.dismiss());
-  await page.locator('a[href="/admin/operations"]').click({ force: true });
+  await page
+    .locator('a[href="/admin/operations"]')
+    .evaluate((element: HTMLAnchorElement) => element.click());
   await expect(page).toHaveURL(/\/admin\/whatsapp/);
 };
 
@@ -177,6 +179,9 @@ test('WhatsApp SPA guard preserves reply, settings and knowledge drafts', async 
   await expect(page.getByRole('heading', { name: 'WhatsApp и ИИ-ассистент' })).toBeVisible();
 
   const reply = page.getByLabel('Ответ клиенту');
+  if (!(await reply.isVisible())) {
+    await page.locator('.whatsapp-conversation-item').first().click();
+  }
   await reply.fill('Несохранённый ответ');
   await dismissBlockedSidebarNavigation(page);
   await expect(reply).toHaveValue('Несохранённый ответ');

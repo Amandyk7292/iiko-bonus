@@ -249,6 +249,7 @@ class _CatalogScreenState extends State<CatalogScreen>
   Map<String, StockSubscription> _stockSubscriptions = const {};
   Set<String> _stockSubscriptionBusy = const {};
   Set<String> _configurableProductIds = const {};
+  Set<String> _resolvedProductOptionIds = const {};
   bool _favoritesOnly = false;
   Map<String, String> _apiCategoryImages = {};
   String? _openedCategory;
@@ -594,6 +595,9 @@ class _CatalogScreenState extends State<CatalogScreen>
       if (!mounted || revision != _productOptionsRevision) return;
       final currentIds = _allProducts.map((product) => product.id).toSet();
       setState(() {
+        _resolvedProductOptionIds = options.keys
+            .where(currentIds.contains)
+            .toSet();
         _configurableProductIds = options.entries
             .where(
               (entry) =>
@@ -610,12 +614,19 @@ class _CatalogScreenState extends State<CatalogScreen>
 
   Future<bool> _productRequiresDetails(CatalogProduct product) async {
     if (_configurableProductIds.contains(product.id)) return true;
+    if (_resolvedProductOptionIds.contains(product.id)) return false;
     try {
       final options = await _api.getProductOptions(product.id);
       final requiresDetails = catalogProductOptionsRequireDetails(options);
-      if (mounted && requiresDetails) {
+      if (mounted) {
         setState(() {
-          _configurableProductIds = {..._configurableProductIds, product.id};
+          _resolvedProductOptionIds = {
+            ..._resolvedProductOptionIds,
+            product.id,
+          };
+          if (requiresDetails) {
+            _configurableProductIds = {..._configurableProductIds, product.id};
+          }
         });
       }
       return requiresDetails;
@@ -2599,18 +2610,11 @@ class _CatalogScreenState extends State<CatalogScreen>
                                 ? Colors.white
                                 : _textDark,
                           ),
-                          icon: stockBusy
-                              ? const SizedBox.square(
-                                  dimension: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
-                              : Icon(
-                                  stockSubscribed
-                                      ? Icons.notifications_active_rounded
-                                      : Icons.add_alert_rounded,
-                                ),
+                          icon: Icon(
+                            stockSubscribed
+                                ? Icons.notifications_active_rounded
+                                : Icons.add_alert_rounded,
+                          ),
                         ),
                       )
                     : _CatalogImageQuantityControl(

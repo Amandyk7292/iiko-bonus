@@ -124,15 +124,14 @@ class _OrderSupportScreenState extends State<OrderSupportScreen> {
     }
     setState(() => _submitting = true);
     try {
-      final attachments = <String>[];
-      for (final image in _images) {
-        attachments.add(
-          await widget.api.uploadSupportAttachment(
+      final attachments = await Future.wait(
+        _images.map(
+          (image) async => widget.api.uploadSupportAttachment(
             bytes: await image.readAsBytes(),
             fileName: image.name,
           ),
-        );
-      }
+        ),
+      );
       final request = await widget.api.createSupportRequest(
         orderId: widget.initialOrder?.id,
         category: _category,
@@ -596,17 +595,45 @@ class _SupportThreadScreenState extends State<_SupportThreadScreen> {
       ).showSnackBar(SnackBar(content: Text('support_reply_required'.tr)));
       return;
     }
-    setState(() => _sending = true);
+    final optimisticId =
+        'local-${DateTime.now().microsecondsSinceEpoch.toString()}';
+    final optimisticMessage = SupportMessage(
+      id: optimisticId,
+      requestId: widget.initialRequest.id,
+      senderType: 'customer',
+      body: text,
+      attachments: const [],
+      createdAt: DateTime.now(),
+    );
+    setState(() {
+      _sending = true;
+      _messages = [..._messages, optimisticMessage];
+      _reply.clear();
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scroll.hasClients) return;
+      _scroll.animateTo(
+        _scroll.position.maxScrollExtent,
+        duration: BulkaMotion.duration(context, BulkaMotion.fast),
+        curve: Curves.easeOut,
+      );
+    });
     try {
       final thread = await widget.api.sendSupportReply(
         widget.initialRequest.id,
         text,
       );
-      _reply.clear();
       _applyThread(thread);
       await BulkaMotion.confirm();
     } catch (error) {
       if (!mounted) return;
+      setState(() {
+        _messages = [
+          for (final message in _messages)
+            if (message.id != optimisticId) message,
+        ];
+        if (_reply.text.trim().isEmpty) _reply.text = text;
+      });
       showApiErrorSnackBar(context, error);
     } finally {
       if (mounted) setState(() => _sending = false);

@@ -21,8 +21,6 @@ import {
   Mic,
   Pencil,
   Plus,
-  QrCode,
-  RefreshCw,
   Save,
   Search,
   Send,
@@ -31,8 +29,6 @@ import {
   Sparkles,
   Trash2,
   UserRound,
-  Wifi,
-  WifiOff,
   X,
 } from 'lucide-react';
 import Modal from '../components/Modal';
@@ -49,9 +45,9 @@ import {
 } from '../lib/api';
 import { useAdminRealtimeEvents } from '../lib/admin-realtime';
 import { useI18n } from '../lib/i18n';
+import WhatsAppStatusPanel from './WhatsAppStatusPanel';
 import {
   categoryLabels,
-  connectionCopy,
   conversationName,
   emptyKnowledgeDraft,
   formatDateTime,
@@ -428,7 +424,11 @@ export default function WhatsAppPage({ role = 'viewer' }: { role?: string }) {
         });
         setError('');
       } catch (caught) {
-        if (!controller.signal.aborted && !silent && sequence === conversationListSequenceRef.current)
+        if (
+          !controller.signal.aborted &&
+          !silent &&
+          sequence === conversationListSequenceRef.current
+        )
           setError(caught instanceof Error ? caught.message : 'Не удалось загрузить диалоги');
       } finally {
         if (!silent && sequence === conversationListSequenceRef.current) setLoadingOverview(false);
@@ -485,7 +485,11 @@ export default function WhatsAppPage({ role = 'viewer' }: { role?: string }) {
           );
         }
       } catch (caught) {
-        if (!controller.signal.aborted && !silent && sequence === conversationDetailSequenceRef.current)
+        if (
+          !controller.signal.aborted &&
+          !silent &&
+          sequence === conversationDetailSequenceRef.current
+        )
           toast(caught instanceof Error ? caught.message : 'Не удалось открыть диалог', 'error');
       } finally {
         if (!silent && sequence === conversationDetailSequenceRef.current)
@@ -574,11 +578,18 @@ export default function WhatsAppPage({ role = 'viewer' }: { role?: string }) {
   }, [loadConversation, loadConversations, loadStatus, selectedId, view]);
 
   useEffect(() => {
+    if (!canConfigure || connection?.connected) return;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void loadStatus().catch(() => undefined);
+    }, 3_000);
+    return () => window.clearInterval(timer);
+  }, [canConfigure, connection?.connected, loadStatus]);
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ block: 'end' });
   }, [messages]);
 
   const filteredUnread = useMemo(() => totalUnread, [totalUnread]);
-  const connectionText = connectionCopy(connection, canConfigure);
   const selectedProvider = settingsDraft?.provider || 'gemini';
   const activeProviderKeyConfigured = Boolean(
     settingsDraft?.providerKeys?.[selectedProvider] || providerApiKey.trim(),
@@ -630,7 +641,11 @@ export default function WhatsAppPage({ role = 'viewer' }: { role?: string }) {
   };
 
   const selectConversation = async (id: string) => {
-    if (id === selectedId || busy) return;
+    if (busy) return;
+    if (id === selectedId) {
+      setMobileChatOpen(true);
+      return;
+    }
     if (
       replyText.trim() &&
       !(await confirm({
@@ -673,10 +688,7 @@ export default function WhatsAppPage({ role = 'viewer' }: { role?: string }) {
     try {
       const response = await api.sendWhatsAppReply(targetId, text, clientMessageId);
       if (response.conversation.id !== targetId) {
-        toast(
-          t('whatsapp.recipientMismatch'),
-          'error',
-        );
+        toast(t('whatsapp.recipientMismatch'), 'error');
         return;
       }
       if (selectedIdRef.current === targetId) {
@@ -935,62 +947,53 @@ export default function WhatsAppPage({ role = 'viewer' }: { role?: string }) {
     }
   };
 
+  const resetPairing = async () => {
+    const accepted = await confirm({
+      title: 'Создать новый QR-код?',
+      body: 'Текущая серверная привязка WhatsApp будет очищена. После этого отсканируйте новый QR-код рабочим телефоном.',
+      confirmLabel: 'Создать QR',
+      destructive: true,
+    });
+    if (!accepted) return;
+
+    setBusy('pairing-reset');
+    setConnection((current) =>
+      current
+        ? {
+            ...current,
+            state: 'connecting',
+            connected: false,
+            connectedAt: null,
+            phone: '',
+            qrDataUrl: '',
+            qrReceivedAt: null,
+            lastError: '',
+          }
+        : current,
+    );
+    try {
+      const response = await api.resetWhatsAppPairing();
+      setConnection(response.connection);
+      toast('Старая привязка очищена. Новый QR-код появится автоматически.');
+    } catch (caught) {
+      void loadStatus().catch(() => undefined);
+      toast(caught instanceof Error ? caught.message : 'Не удалось создать новый QR-код', 'error');
+    } finally {
+      setBusy('');
+    }
+  };
+
   return (
     <div className="page-stack whatsapp-console-page">
-      <section
-        className={`whatsapp-status-panel whatsapp-status-${connection?.state || 'starting'}`}
-      >
-        <div className="whatsapp-status-icon" aria-hidden="true">
-          {connection?.connected ? (
-            <Wifi size={24} />
-          ) : connection?.state === 'awaiting_scan' ? (
-            <QrCode size={24} />
-          ) : (
-            <WifiOff size={24} />
-          )}
-        </div>
-        <div className="whatsapp-status-copy">
-          <h2>{connectionText.title}</h2>
-          <p>{connectionText.detail}</p>
-        </div>
-        {!isConversationOnly && (
-          <div className="whatsapp-status-meta">
-            <span>{providerLabels[connection?.assistant.provider || 'gemini']}</span>
-            <strong>{connection?.assistant.model || 'gemini-3.1-flash-lite'}</strong>
-          </div>
-        )}
-        <div className="whatsapp-status-meta">
-          <span>Непрочитано</span>
-          <strong>{filteredUnread}</strong>
-        </div>
-        <button
-          type="button"
-          className="icon-button whatsapp-refresh-button"
-          onClick={() => void refreshCurrentView()}
-          disabled={busy === 'refresh'}
-          aria-label="Обновить WhatsApp"
-        >
-          <RefreshCw aria-hidden="true" size={19} className={busy === 'refresh' ? 'spin' : ''} />
-        </button>
-        {canConfigure && connection?.qrDataUrl && (
-          <div className="whatsapp-qr-panel">
-            <img
-              src={connection.qrDataUrl}
-              alt="QR-код для подключения WhatsApp"
-              width="220"
-              height="220"
-            />
-            <div>
-              <h3>Подключите рабочий номер</h3>
-              <ol>
-                <li>Откройте WhatsApp на телефоне.</li>
-                <li>Выберите связанные устройства.</li>
-                <li>Отсканируйте этот QR-код.</li>
-              </ol>
-            </div>
-          </div>
-        )}
-      </section>
+      <WhatsAppStatusPanel
+        connection={connection}
+        canConfigure={canConfigure}
+        conversationOnly={isConversationOnly}
+        unread={filteredUnread}
+        busy={busy}
+        onRefresh={() => void refreshCurrentView()}
+        onResetPairing={() => void resetPairing()}
+      />
 
       {!isConversationOnly && (
         <div className="whatsapp-view-tabs" role="tablist" aria-label="Разделы WhatsApp">
@@ -1291,9 +1294,7 @@ export default function WhatsAppPage({ role = 'viewer' }: { role?: string }) {
                         }
                         autoComplete="off"
                         disabled={
-                          !canWrite ||
-                          Boolean(busy) ||
-                          selectedConversation.id !== selectedId
+                          !canWrite || Boolean(busy) || selectedConversation.id !== selectedId
                         }
                         maxLength={10000}
                         rows={2}

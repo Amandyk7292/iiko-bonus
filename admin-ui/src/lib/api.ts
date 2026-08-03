@@ -586,6 +586,11 @@ export const api = {
       connection: WhatsAppConnectionStatus;
       settings: WhatsAppAssistantSettings | null;
     }>('/whatsapp/status'),
+  resetWhatsAppPairing: () =>
+    request<{ success: boolean; connection: WhatsAppConnectionStatus }>(
+      '/whatsapp/pairing/reset',
+      json('POST'),
+    ),
   getWhatsAppSettings: () =>
     request<{ success: boolean; settings: WhatsAppAssistantSettings }>('/whatsapp/settings'),
   updateWhatsAppSettings: (data: Partial<WhatsAppAssistantSettings> & { apiKey?: string }) =>

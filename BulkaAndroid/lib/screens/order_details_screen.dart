@@ -29,6 +29,8 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
   bool _refreshing = false;
   bool _arrivalLoading = false;
   bool _cancellationLoading = false;
+  bool _repeatLoading = false;
+  bool _reviewLoading = false;
   PickupHandoff? _pickupHandoff;
   Object? _pickupHandoffError;
   bool _pickupHandoffLoading = false;
@@ -262,6 +264,26 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
       await _reload();
     } finally {
       if (mounted) setState(() => _cancellationLoading = false);
+    }
+  }
+
+  Future<void> _repeatOrder() async {
+    if (_repeatLoading) return;
+    setState(() => _repeatLoading = true);
+    try {
+      await widget.onRepeat(_order);
+    } finally {
+      if (mounted) setState(() => _repeatLoading = false);
+    }
+  }
+
+  Future<void> _reviewOrder() async {
+    if (_reviewLoading) return;
+    setState(() => _reviewLoading = true);
+    try {
+      await widget.onReview(_order);
+    } finally {
+      if (mounted) setState(() => _reviewLoading = false);
     }
   }
 
@@ -629,8 +651,13 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () => widget.onRepeat(_order),
-                    icon: const Icon(Icons.replay_rounded),
+                    onPressed: _repeatLoading ? null : _repeatOrder,
+                    icon: _repeatLoading
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.replay_rounded),
                     label: Text('order_repeat'.tr),
                     style: OutlinedButton.styleFrom(
                       minimumSize: const Size.fromHeight(52),
@@ -641,8 +668,13 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
                   const SizedBox(width: 10),
                   Expanded(
                     child: FilledButton.icon(
-                      onPressed: () => widget.onReview(_order),
-                      icon: const Icon(Icons.star_outline_rounded),
+                      onPressed: _reviewLoading ? null : _reviewOrder,
+                      icon: _reviewLoading
+                          ? const SizedBox.square(
+                              dimension: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.star_outline_rounded),
                       label: Text('order_review'.tr),
                       style: FilledButton.styleFrom(
                         minimumSize: const Size.fromHeight(52),

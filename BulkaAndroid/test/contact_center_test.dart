@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:bulka_bonus/main.dart';
@@ -403,4 +404,72 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('mark all notifications updates before the server responds', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({'app_lang_code': 'ru'});
+    await AppLang.init();
+    final response = Completer<http.Response>();
+    var markAllStarted = false;
+    final client = MockClient((request) async {
+      if (request.url.path == '/api/public/contact-center') {
+        return http.Response(
+          jsonEncode({'success': true, 'cards': const []}),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }
+      if (request.url.path == '/api/customer/notifications') {
+        return http.Response(
+          jsonEncode({
+            'success': true,
+            'notifications': [
+              {
+                'id': 'notification-1',
+                'title': 'Заказ готов',
+                'body': 'Можно забирать',
+                'createdAt': '2026-08-03T12:00:00Z',
+                'isRead': false,
+              },
+            ],
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }
+      if (request.url.path == '/api/customer/notifications/read-all') {
+        markAllStarted = true;
+        return response.future;
+      }
+      return http.Response('{}', 404);
+    });
+    final api = BulkaApiClient(client: client)
+      ..setSession(accessToken: 'access-token', refreshToken: 'refresh-token');
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildBulkaTheme(),
+        home: NotificationsScreen(api: api),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Прочитать все'), findsOneWidget);
+
+    await tester.tap(find.text('Прочитать все'));
+    await tester.pump();
+
+    expect(markAllStarted, isTrue);
+    expect(find.text('Прочитать все'), findsNothing);
+
+    response.complete(
+      http.Response(
+        '{"success":true}',
+        200,
+        headers: {'content-type': 'application/json'},
+      ),
+    );
+    await tester.pumpAndSettle();
+    api.dispose();
+  });
 }

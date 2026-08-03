@@ -47,7 +47,7 @@ const {
   normalizeBranchIds,
 } = require('../utils/admin-scope.util');
 const { normalizeKazakhstanPhone } = require('../utils/phone.util');
-const { validateRequest } = require('../middlewares/validation.middleware');
+const { emptyBodySchema, validateRequest } = require('../middlewares/validation.middleware');
 const {
   kitchenStatusBodySchema,
   orderParamsSchema,
@@ -78,6 +78,7 @@ const {
 } = require('../services/whatsapp-assistant-console.service');
 const {
   getWhatsAppStatus,
+  resetWhatsAppPairing,
   sendWhatsAppChatMessage,
   sendWhatsAppVoiceMessage,
 } = require('../services/whatsapp-baileys.service');
@@ -348,6 +349,19 @@ router.get('/admin/api/whatsapp/status', async (req, res) => {
     whatsappErrorResponse(res, error);
   }
 });
+router.post(
+  '/admin/api/whatsapp/pairing/reset',
+  requireWhatsAppConfigurationRole,
+  validateRequest({ body: emptyBodySchema }),
+  async (_req, res) => {
+    try {
+      const connection = await resetWhatsAppPairing();
+      res.json({ success: true, connection });
+    } catch (error) {
+      whatsappErrorResponse(res, error);
+    }
+  },
+);
 router.get(
   '/admin/api/whatsapp/settings',
   rejectWhatsAppOperatorConfiguration,

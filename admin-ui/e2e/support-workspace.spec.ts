@@ -269,7 +269,13 @@ test('support keeps drafts per request and ignores stale request details', async
   await expect(page.getByLabel('Ответ клиенту')).toHaveValue('Черновик для клиента Б');
 
   page.once('dialog', (dialog) => dialog.dismiss());
-  await page.locator('a[href="/admin/operations"]').click({ force: true });
+  const menuButton = page.getByRole('button', { name: 'Открыть меню' });
+  if (await menuButton.isVisible()) await menuButton.click();
+  const overviewSection = page.getByRole('button', { name: 'Обзор', exact: true });
+  if ((await overviewSection.getAttribute('aria-expanded')) !== 'true') {
+    await overviewSection.click();
+  }
+  await page.getByRole('link', { name: 'Операционный центр', exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/admin/support.*request=${secondId}`));
   await expect(page.getByLabel('Ответ клиенту')).toHaveValue('Черновик для клиента Б');
 });
