@@ -558,6 +558,8 @@ const kk: Record<string, string> = {
   'orders.changeStatus': 'Күйді өзгерту',
   'orders.statusSaved': 'Тапсырыс күйі жаңартылды',
   'orders.cancelReasonPrompt': 'Бас тарту себебі (клиент көреді)',
+  'orders.cancelReasonHint': 'Кемінде 3 таңба жазыңыз, мысалы: «Тауар жоқ».',
+  'orders.cancelReasonInvalid': 'Кемінде 3 таңбадан тұратын түсінікті себепті көрсетіңіз.',
   'orders.refundConfirm':
     'Тапсырысты тоқтатып, клиентке {{amount}} ₸ бастапқы төлем тәсіліне қайтару керек пе? Картаға түсу мерзімі клиенттің банкіне байланысты.',
   'orders.refundSucceeded': 'Тапсырыс тоқтатылды, қайтарым бастапқы төлем тәсілі арқылы жіберілді',

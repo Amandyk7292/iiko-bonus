@@ -519,10 +519,14 @@ const orderStatusBodySchema = z
   .refine(
     (value) =>
       value.status !== 'cancelled' ||
-      Boolean(value.cancellationReason && value.cancellationReason.length >= 3),
+      Boolean(
+        value.cancellationReason &&
+        value.cancellationReason.length >= 3 &&
+        /[\p{L}\p{N}]/u.test(value.cancellationReason),
+      ),
     {
       path: ['cancellationReason'],
-      message: 'Укажите причину отмены',
+      message: 'Укажите понятную причину отмены (минимум 3 символа)',
     },
   );
 

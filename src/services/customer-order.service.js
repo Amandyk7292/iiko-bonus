@@ -593,10 +593,10 @@ async function cancelPaidOrder(
   const reason = String(cancellationReason || '')
     .trim()
     .slice(0, 500);
-  if (!reason) {
+  if (reason.length < 3 || !/[\p{L}\p{N}]/u.test(reason)) {
     throw refundError(
       400,
-      'Укажите причину отмены — клиент увидит её вместе с сообщением о возврате',
+      'Укажите понятную причину отмены минимум из 3 символов — клиент увидит её вместе с сообщением о возврате',
       'CANCELLATION_REASON_REQUIRED',
     );
   }

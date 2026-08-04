@@ -14,6 +14,7 @@ import {
 } from '../lib/admin-permissions';
 import { useAdminRealtimeEvents } from '../lib/admin-realtime';
 import { useI18n } from '../lib/i18n';
+import { isCancellationReasonValid, normalizeCancellationReason } from '../lib/order-validation';
 
 const deliveryTransitions: Record<string, string[]> = {
   unassigned: [],
@@ -52,6 +53,9 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
   const [proofLoading, setProofLoading] = useState(false);
   const [cancellationOrder, setCancellationOrder] = useState<AdminOrder | null>(null);
   const [cancellationReason, setCancellationReason] = useState('');
+  const normalizedCancellationReason = normalizeCancellationReason(cancellationReason);
+  const cancellationReasonValid = isCancellationReasonValid(cancellationReason);
+  const cancellationReasonInvalid = cancellationReason.length > 0 && !cancellationReasonValid;
   const pageSize = 50;
   const isSaving = (id?: string) => Boolean(id && savingIdsRef.current.has(id));
   const cancellationSaving = isSaving(cancellationOrder?.id);
@@ -232,8 +236,10 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
 
   const submitCancellation = async (event: FormEvent) => {
     event.preventDefault();
-    if (!refundsAllowed || !cancellationOrder || cancellationSaving) return;
-    if (await persistStatus(cancellationOrder, 'cancelled', cancellationReason.trim())) {
+    if (!refundsAllowed || !cancellationOrder || cancellationSaving || !cancellationReasonValid) {
+      return;
+    }
+    if (await persistStatus(cancellationOrder, 'cancelled', normalizedCancellationReason)) {
       setCancellationOrder(null);
       setCancellationReason('');
     }
@@ -567,12 +573,26 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
               name="cancellationReason"
               className="input-classic"
               rows={4}
+              minLength={3}
               maxLength={500}
               required
+              aria-invalid={cancellationReasonInvalid}
+              aria-describedby="order-cancellation-reason-help"
               value={cancellationReason}
               onChange={(event) => setCancellationReason(event.target.value)}
               autoFocus
             />
+            <p
+              id="order-cancellation-reason-help"
+              className={cancellationReasonInvalid ? 'field-error' : 'field-hint'}
+              role={cancellationReasonInvalid ? 'alert' : undefined}
+            >
+              {t(
+                cancellationReasonInvalid
+                  ? 'orders.cancelReasonInvalid'
+                  : 'orders.cancelReasonHint',
+              )}
+            </p>
           </div>
           <div className="modal-actions">
             <button
@@ -586,7 +606,7 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
             <button
               type="submit"
               className="btn-danger px-5 inline-flex items-center gap-2"
-              disabled={cancellationSaving}
+              disabled={cancellationSaving || !cancellationReasonValid}
             >
               {cancellationSaving && <LoaderCircle aria-hidden="true" className="spin" size={17} />}
               {t('common.confirm')}

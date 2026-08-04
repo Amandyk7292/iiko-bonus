@@ -560,6 +560,8 @@ const en: Record<string, string> = {
   'orders.changeStatus': 'Change status',
   'orders.statusSaved': 'Order status updated',
   'orders.cancelReasonPrompt': 'Cancellation reason (visible to the customer)',
+  'orders.cancelReasonHint': 'Enter at least 3 characters, for example: “Item unavailable”.',
+  'orders.cancelReasonInvalid': 'Enter a clear reason of at least 3 characters.',
   'orders.refundConfirm':
     'Cancel the order and refund {{amount}} ₸ to the original payment method? Card posting time depends on the customer’s bank.',
   'orders.refundSucceeded': 'Order cancelled and refund submitted to the original payment method',

@@ -571,6 +571,8 @@ const ru: Record<string, string> = {
   'orders.changeStatus': 'Изменить статус',
   'orders.statusSaved': 'Статус заказа обновлён',
   'orders.cancelReasonPrompt': 'Причина отмены (увидит клиент)',
+  'orders.cancelReasonHint': 'Напишите минимум 3 символа, например: «Товара нет».',
+  'orders.cancelReasonInvalid': 'Укажите понятную причину минимум из 3 символов.',
   'orders.refundConfirm':
     'Отменить заказ и вернуть клиенту {{amount}} ₸ на исходный способ оплаты? Зачисление на карту зависит от банка клиента.',
   'orders.refundSucceeded': 'Заказ отменён, возврат отправлен через исходный способ оплаты',

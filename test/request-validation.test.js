@@ -464,6 +464,22 @@ test('admin mutation contracts reject unknown fields across every management are
 
 test('admin mutation contracts accept the payloads emitted by current admin forms', () => {
   assert.equal(
+    adminMutationSchemas.orderStatus.body.safeParse({
+      status: 'cancelled',
+      cancellationReason: 'Товара нет',
+    }).success,
+    true,
+  );
+  for (const cancellationReason of ['', ',', '...', 'не']) {
+    assert.equal(
+      adminMutationSchemas.orderStatus.body.safeParse({
+        status: 'cancelled',
+        cancellationReason,
+      }).success,
+      false,
+    );
+  }
+  assert.equal(
     adminMutationSchemas.whatsappMessage.body.safeParse({
       text: 'Здравствуйте',
       clientMessageId: 'reply_123',
