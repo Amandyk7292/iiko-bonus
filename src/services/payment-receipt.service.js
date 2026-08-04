@@ -1,6 +1,5 @@
 const crypto = require('node:crypto');
 const { supabase } = require('../config/supabase');
-const { enqueueWhatsAppText, whatsappOutboxDedupeKey } = require('./whatsapp-outbox.service');
 
 const RECEIPT_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -26,12 +25,6 @@ const escapeHtml = (value) =>
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;');
-
-const money = (value) =>
-  new Intl.NumberFormat('ru-RU', {
-    minimumFractionDigits: Number(value) % 1 === 0 ? 0 : 2,
-    maximumFractionDigits: 2,
-  }).format(Number(value) || 0);
 
 const normalizeReceiptLanguage = (value) => {
   const language = String(value || 'ru')
@@ -198,11 +191,7 @@ async function receiptContext(order, { db = supabase } = {}) {
       ? db.from('bulka_locations').select('city').eq('id', order.branch_id).maybeSingle()
       : Promise.resolve({ data: null, error: null }),
     order.customer_id
-      ? db
-          .from('customers')
-          .select('phone,email,preferred_language')
-          .eq('id', order.customer_id)
-          .maybeSingle()
+      ? db.from('customers').select('preferred_language').eq('id', order.customer_id).maybeSingle()
       : Promise.resolve({ data: null, error: null }),
   ]);
   if (locationResult.error) throw locationResult.error;
@@ -234,58 +223,7 @@ async function getPaymentReceipt(receiptId, { db = supabase } = {}) {
   return data || null;
 }
 
-const receiptMessage = (receipt, url, language = 'ru') => {
-  const amount = `${money(receipt.amount)} ${receipt.currency === 'KZT' ? '₸' : receipt.currency}`;
-  if (language === 'kk') {
-    return `Bulka №${receipt.order_number} тапсырысының төлемі расталды. Сома: ${amount}. Сауда чегін сақтау: ${url}`;
-  }
-  if (language === 'en') {
-    return `Payment for Bulka order No. ${receipt.order_number} is confirmed. Amount: ${amount}. Save your merchant receipt: ${url}`;
-  }
-  return `Оплата заказа Bulka №${receipt.order_number} подтверждена. Сумма: ${amount}. Сохранить торговый чек: ${url}`;
-};
-
-async function queueReceiptForPhone(
-  receipt,
-  order,
-  customer,
-  { db = supabase, enqueue = enqueueWhatsAppText, env = process.env } = {},
-) {
-  if (receipt.outbox_id || receipt.phone_delivered_at) return receipt;
-  const phone = digits(customer?.phone || order.phone, 15);
-  if (phone.length < 10 || phone.length > 15) return receipt;
-  const language = normalizeReceiptLanguage(customer?.preferred_language || receipt.language);
-  const url = paymentReceiptUrl(receipt.id, env, language);
-  const queued = await enqueue(
-    {
-      chatJid: `${phone}@s.whatsapp.net`,
-      text: receiptMessage(receipt, url, language),
-      dedupeKey: whatsappOutboxDedupeKey('payment-receipt', order.id, receipt.id),
-      sourceType: 'payment_receipt',
-      metadata: { receiptId: receipt.id, orderId: order.id },
-    },
-    { db },
-  );
-  const queuedAt = new Date().toISOString();
-  const { data, error } = await db
-    .from('payment_receipts')
-    .update({
-      outbox_id: queued.id,
-      phone_queued_at: queuedAt,
-      updated_at: queuedAt,
-    })
-    .eq('id', receipt.id)
-    .select('*')
-    .single();
-  if (error) throw error;
-  return data;
-}
-
-async function ensurePaymentReceipt(
-  order,
-  overrides = {},
-  { db = supabase, enqueue = enqueueWhatsAppText, env = process.env } = {},
-) {
+async function ensurePaymentReceipt(order, overrides = {}, { db = supabase } = {}) {
   let receipt = await findReceiptForOrder(order.id, { db });
   const context = await receiptContext(order, { db });
   if (!receipt) {
@@ -309,11 +247,7 @@ async function ensurePaymentReceipt(
     .is('receipt_created_at', null);
   if (orderUpdateError) throw orderUpdateError;
 
-  return queueReceiptForPhone(receipt, order, context.customer, {
-    db,
-    enqueue,
-    env,
-  });
+  return receipt;
 }
 
 const RECEIPT_COPY = {

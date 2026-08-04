@@ -624,8 +624,7 @@ const pages = {
             <li>При запросе 3‑D Secure подтвердите операцию одноразовым кодом, push-уведомлением
               или другим способом вашего банка. Никому не сообщайте код подтверждения.</li>
             <li>После успешной авторизации вернитесь в Bulka и дождитесь статуса «Оплачено».
-              Торговый чек появится в деталях заказа и будет отправлен на номер клиента через
-              WhatsApp.</li>
+              Торговый чек появится в деталях заказа.</li>
           </ol>
           <p>Если страница закрылась, код не пришёл или банк отклонил операцию, проверьте доступный
             лимит, правильность реквизитов и интернет-соединение. Не повторяйте оплату, пока не
@@ -726,8 +725,7 @@ const pages = {
             <li>3‑D Secure сұрауы шықса, операцияны бір реттік кодпен, push-хабарламамен немесе
               банкіңіз ұсынған басқа тәсілмен растаңыз. Растау кодын ешкімге айтпаңыз.</li>
             <li>Сәтті авторизациядан кейін Bulka-ға оралып, «Төленді» мәртебесін күтіңіз. Сауда чегі
-              тапсырыс мәліметтерінде пайда болады және клиенттің нөміріне WhatsApp арқылы
-              жіберіледі.</li>
+              тапсырыс мәліметтерінде пайда болады.</li>
           </ol>
           <p>Бет жабылып қалса, код келмесе немесе банк операциядан бас тартса, қолжетімді лимитті,
             деректердің дұрыстығын және интернет байланысын тексеріңіз. Ақша алынбағанына көз
@@ -833,8 +831,7 @@ const pages = {
               notification or another method offered by your bank. Never share the confirmation
               code.</li>
             <li>After successful authorisation, return to Bulka and wait for the “Paid” status. The
-              merchant receipt will appear in the order details and will be sent to the customer’s
-              number through WhatsApp.</li>
+              merchant receipt will appear in the order details.</li>
           </ol>
           <p>If the page closes, the code does not arrive or the bank declines the operation, check
             the available limit, the entered details and the internet connection. Do not retry
@@ -1449,8 +1446,7 @@ const pages = {
             оплаченного заказа администратором возврат выполняется через исходный платёжный канал;
             срок зачисления зависит от банка. Подробный порядок опубликован на странице
             <a href="/payment-and-refund">«Условия оплаты и возврата»</a>. После подтверждённой
-            оплаты формируется сохраняемый торговый чек, доступный в заказе и по ссылке,
-            направленной на номер клиента.</p>
+            оплаты формируется сохраняемый торговый чек, доступный в деталях заказа.</p>
         </section>
         <section>
           <h2>Доставка и получение</h2>
@@ -1490,8 +1486,8 @@ const pages = {
             Төлем сервисі растағаннан кейін тапсырыс төленді деп есептеледі. Әкімші төленген
             тапсырысты болдырмаса, ақша бастапқы төлем арнасы арқылы қайтарылады; түсу мерзімі
             банкке байланысты. Толық тәртіп <a href="/kk/payment-and-refund">«Төлем және қайтару
-            шарттары»</a> бетінде жарияланған. Расталған төлемнен кейін тапсырыста және клиенттің
-            нөміріне жіберілген сілтеме бойынша сақтауға болатын сауда чегі қалыптастырылады.</p>
+            шарттары»</a> бетінде жарияланған. Расталған төлемнен кейін тапсырыс мәліметтерінде
+            сақтауға болатын сауда чегі қалыптастырылады.</p>
         </section>
         <section>
           <h2>Жеткізу және алу</h2>
@@ -1533,8 +1529,7 @@ const pages = {
             administrator cancels a paid order, the refund is made through the original payment
             channel; the crediting time depends on the bank. The full procedure is published in the
             <a href="/en/payment-and-refund">Payment and refund terms</a>. After confirmed payment,
-            a saveable merchant receipt is issued and is available in the order and through a link
-            sent to the customer’s number.</p>
+            a saveable merchant receipt is issued and remains available in the order details.</p>
         </section>
         <section>
           <h2>Delivery and collection</h2>

@@ -4,6 +4,7 @@ const realtime = require('./realtime.service');
 
 const OUTBOX_BUCKET = 'whatsapp-outbox';
 const MAX_TEXT_LENGTH = 10_000;
+const DISABLED_AUTOMATED_SOURCE_TYPES = new Set(['payment_receipt']);
 
 const cleanText = (value, maxLength) =>
   String(value || '')
@@ -251,6 +252,32 @@ async function markSent(row, providerMessageId, { db = supabase } = {}) {
   return { id: row.id, status: 'sent', providerMessageId, queued: false };
 }
 
+async function markCancelled(row, reason, { db = supabase } = {}) {
+  const now = new Date().toISOString();
+  const { error } = await db
+    .from('whatsapp_outbox')
+    .update({
+      status: 'cancelled',
+      payload: {},
+      last_error: cleanText(reason, 500),
+      locked_at: null,
+      updated_at: now,
+    })
+    .eq('id', row.id);
+  if (error) throw error;
+  realtime.publish(
+    'whatsapp.outbox.updated',
+    { outboxId: row.id, status: 'cancelled' },
+    { adminOnly: true },
+  );
+  return {
+    id: row.id,
+    status: 'cancelled',
+    providerMessageId: null,
+    queued: false,
+  };
+}
+
 async function markFailed(row, error, { db = supabase } = {}) {
   const terminal = Number(row.attempt_count || 0) >= Number(row.max_attempts || 8);
   const status = terminal ? 'failed' : 'retry';
@@ -320,6 +347,13 @@ async function deliverWhatsAppOutbox(
   const results = [];
   for (const row of data || []) {
     try {
+      const sourceType = cleanText(row.source_type || row.sourceType, 40);
+      if (DISABLED_AUTOMATED_SOURCE_TYPES.has(sourceType)) {
+        results.push(
+          await markCancelled(row, 'Automatic payment receipt messages are disabled', { db }),
+        );
+        continue;
+      }
       const providerDedupeId = whatsappProviderMessageId(row.id);
       const result = await sendMessage({
         id: row.id,

@@ -41,6 +41,20 @@ test('payment receipt links are signed, expiring, and reject tampering', () => {
   );
 });
 
+test('payment receipts stay in order details and are not queued to WhatsApp', () => {
+  const receiptSource = fs.readFileSync(
+    path.join(root, 'src', 'services', 'payment-receipt.service.js'),
+    'utf8',
+  );
+  const orderSource = fs.readFileSync(
+    path.join(root, 'src', 'services', 'customer-order.service.js'),
+    'utf8',
+  );
+  assert.doesNotMatch(receiptSource, /enqueueWhatsAppText|sourceType:\s*'payment_receipt'/);
+  assert.match(orderSource, /payment_receipts\(id,language\)/);
+  assert.match(orderSource, /paymentReceiptUrl\(relation\.id/);
+});
+
 test('payment receipt contains bank-required fields without full card data', () => {
   const record = buildReceiptRecord(
     {
@@ -87,11 +101,10 @@ test('payment receipt contains bank-required fields without full card data', () 
   assert.match(html, /&lt;Датский с маком&gt;/);
   assert.doesNotMatch(html, /4111111111111111/);
 
-  const kazakh = renderPaymentReceipt(
-    { id: receiptId, ...record },
-    'kk',
-    { token: 'signed-token', expiresAt },
-  );
+  const kazakh = renderPaymentReceipt({ id: receiptId, ...record }, 'kk', {
+    token: 'signed-token',
+    expiresAt,
+  });
   assert.match(kazakh, /<html lang="kk">/);
   assert.match(kazakh, /Сауда чегі/);
   assert.match(kazakh, /Тапсырыс құрамы/);
