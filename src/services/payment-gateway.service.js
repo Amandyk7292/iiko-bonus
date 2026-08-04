@@ -23,6 +23,18 @@ async function refundPaymentForOrder(order, amount, options = {}) {
   return forteService.refundPayment(order, amount, options);
 }
 
+async function reconcileFullRefundForOrder(order) {
+  if (isForteOrder(order) && order.provider_payment_system === 'forte_widget') {
+    return forteWidgetService.reconcileRefund(order);
+  }
+  return {
+    status: 'pending',
+    reference: order?.refund_reference || null,
+    requestId: order?.refund_request_id || null,
+    message: 'Для этого платёжного провайдера автоматическая сверка полного возврата недоступна',
+  };
+}
+
 const EXPLICIT_REFUND_DECLINES = new Set([
   'KASPI_REFUND_REJECTED',
   'FORTE_REFUND_REJECTED',
@@ -127,6 +139,7 @@ module.exports = {
   SAFE_REFUND_RETRY_WINDOW_MS,
   isForteOrder,
   paymentProviderName,
+  reconcileFullRefundForOrder,
   reconcileRefundForOrder,
   refundPaymentForOrder,
 };

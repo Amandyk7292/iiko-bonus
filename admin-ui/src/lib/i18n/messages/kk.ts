@@ -601,6 +601,7 @@ const kk: Record<string, string> = {
   'payment.pending': 'Күтуде',
   'payment.paid': 'Төленді',
   'payment.refunded': 'Қайтарылды',
+  'payment.refundPending': 'Қайтарым тексерілуде',
   'payment.failed': 'Қате',
   'payment.expired': 'Мерзімі өтті',
   'payment.issues': 'Төлем және қайтарым мәселелері',

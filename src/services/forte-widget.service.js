@@ -1898,6 +1898,89 @@ class ForteWidgetService {
     );
   }
 
+  async reconcileRefund(order) {
+    const reference = cleanText(order?.refund_reference, 160);
+    const parentUid = cleanText(order?.provider_transaction_id, 160);
+    const remainingAmount =
+      Number(order?.amount || 0) - Number(order?.partially_refunded_amount || 0);
+    if (
+      !UUID_PATTERN.test(reference) ||
+      !UUID_PATTERN.test(parentUid) ||
+      !Number.isFinite(remainingAmount) ||
+      remainingAmount <= 0
+    ) {
+      return {
+        status: 'pending',
+        reference: reference || null,
+        requestId: order?.refund_request_id || null,
+        message: 'Недостаточно данных для автоматической сверки возврата ForteBank',
+      };
+    }
+
+    let detail;
+    try {
+      detail = await this.request(`/transactions/${encodeURIComponent(reference)}`, {
+        base: 'transaction',
+        apiVersion: 3,
+      });
+    } catch (error) {
+      return {
+        status: 'pending',
+        reference,
+        requestId: order?.refund_request_id || null,
+        message: error.message,
+      };
+    }
+
+    const transaction = transactionFromApiResponse(detail.body) || {};
+    const providerStatus = cleanText(transaction.status, 60).toLowerCase();
+    const providerType = cleanText(transaction.type, 40).toLowerCase();
+    const providerReference = cleanText(transaction.uid || transaction.id, 160);
+    const providerParentUid = cleanText(transaction.parent_uid, 160);
+    const providerCurrency = cleanText(transaction.currency, 3).toUpperCase();
+    const expectedAmountMinor = toMinorUnits(remainingAmount);
+    const config = this.assertConfigured();
+    const parametersMatch =
+      detail.response.ok &&
+      providerReference === reference &&
+      providerType === 'refund' &&
+      providerParentUid === parentUid &&
+      Number(transaction.amount) === expectedAmountMinor &&
+      providerCurrency === 'KZT' &&
+      (transaction.test === true) === config.test;
+    if (!parametersMatch) {
+      return {
+        status: 'pending',
+        reference,
+        requestId: order?.refund_request_id || null,
+        message: 'Параметры возврата ForteBank не совпали с заказом; требуется ручная сверка',
+      };
+    }
+
+    const decision = {
+      reference,
+      requestId: order?.refund_request_id || null,
+      confirmedAt:
+        cleanText(transaction.closed_at || transaction.settled_at || transaction.updated_at, 60) ||
+        null,
+    };
+    if (providerStatus === 'successful') {
+      return { ...decision, status: 'confirmed' };
+    }
+    if (['failed', 'declined', 'rejected', 'expired', 'cancelled'].includes(providerStatus)) {
+      return {
+        ...decision,
+        status: 'declined',
+        message: 'ForteBank отклонил возврат',
+      };
+    }
+    return {
+      ...decision,
+      status: 'pending',
+      message: 'ForteBank ещё не завершил возврат',
+    };
+  }
+
   async reconcileOrders() {
     if (!this.availability()) return 0;
     const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();

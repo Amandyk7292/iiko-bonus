@@ -32,6 +32,12 @@ const mergeMutationResult = (current: AdminOrder, updated: AdminOrder): AdminOrd
   courier: updated.courier ?? current.courier,
 });
 
+const isRefundReconciling = (order: AdminOrder) =>
+  ['processing', 'unknown'].includes(String(order.refundStatus || ''));
+
+const paymentBadgeStatus = (order: AdminOrder) =>
+  isRefundReconciling(order) ? 'refund-pending' : order.paymentStatus;
+
 export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
   const { t, formatDate, formatNumber } = useI18n();
   const { toast } = useFeedback();
@@ -471,8 +477,12 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
                       )}
                     </td>
                     <td data-label={t('orders.payment')}>
-                      <span className={`order-badge payment-${order.paymentStatus}`}>
-                        {t(`payment.${order.paymentStatus}`)}
+                      <span className={`order-badge payment-${paymentBadgeStatus(order)}`}>
+                        {t(
+                          isRefundReconciling(order)
+                            ? 'payment.refundPending'
+                            : `payment.${order.paymentStatus}`,
+                        )}
                       </span>
                       {Number(order.refundAmount || 0) > 0 && (
                         <small className="table-secondary">
@@ -481,7 +491,8 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
                       )}
                     </td>
                     <td data-label={t('common.status')}>
-                      {['paid', 'refunded'].includes(order.paymentStatus) &&
+                      {!isRefundReconciling(order) &&
+                      ['paid', 'refunded'].includes(order.paymentStatus) &&
                       orderMutationsAllowed ? (
                         <div className="order-status-control">
                           {isSaving(order.id) && (

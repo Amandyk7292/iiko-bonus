@@ -556,6 +556,99 @@ async function markRefundFailure(order, error) {
     .eq('refund_status', 'processing');
 }
 
+async function finalizeConfirmedOrderRefund(
+  order,
+  refund,
+  { expectedRefundStatus = 'processing', giftRefundPrepared = false } = {},
+) {
+  const confirmedAt = Date.parse(String(refund?.confirmedAt || ''));
+  const refundedAt = Number.isFinite(confirmedAt)
+    ? new Date(confirmedAt).toISOString()
+    : new Date().toISOString();
+  const reference = String(refund?.reference || order.refund_reference || '').slice(0, 160) || null;
+  let updateQuery = supabase
+    .from('kaspi_orders')
+    .update({
+      status: 'refunded',
+      fulfillment_status: 'cancelled',
+      cancellation_reason: order.cancellation_reason || null,
+      fulfilled_at: null,
+      refund_status: 'succeeded',
+      refund_amount: Number(order.amount),
+      partially_refunded_amount: Number(order.amount),
+      refund_reference: reference,
+      refunded_at: refundedAt,
+      refund_error: null,
+      last_error: null,
+    })
+    .eq('id', order.id)
+    .eq('status', 'paid')
+    .eq('refund_status', expectedRefundStatus);
+  if (order.refund_request_id) {
+    updateQuery = updateQuery.eq('refund_request_id', order.refund_request_id);
+  }
+  if (expectedRefundStatus === 'unknown' && order.refund_reference) {
+    updateQuery = updateQuery.eq('refund_reference', order.refund_reference);
+  }
+  const { data: refunded, error: updateError } = await updateQuery.select('*').maybeSingle();
+  if (updateError) throw updateError;
+  if (!refunded) {
+    throw refundError(
+      500,
+      `${paymentProviderName(order)} подтвердил возврат, но заказ не обновился. Обратитесь к администратору.`,
+      'PAYMENT_REFUND_DB_CONFLICT',
+    );
+  }
+
+  if (giftRefundPrepared) {
+    const { finalizeGiftCertificateRefund } = require('./gift-certificate-purchase.service');
+    await finalizeGiftCertificateRefund(refunded).catch(async (giftError) => {
+      console.error('Не удалось завершить деактивацию сертификата:', giftError.message);
+      await supabase
+        .from('kaspi_orders')
+        .update({
+          last_error: `Возврат выполнен, сертификат ожидает сверки: ${String(
+            giftError.message || '',
+          ).slice(0, 800)}`,
+        })
+        .eq('id', refunded.id);
+    });
+  }
+
+  let finalOrder = refunded;
+  try {
+    finalOrder = await kaspiService.reverseOrderLoyalty(refunded);
+  } catch (error) {
+    console.error(`Не удалось сторнировать кэшбэк заказа ${refunded.order_number}:`, error.message);
+    await supabase
+      .from('kaspi_orders')
+      .update({ last_error: String(error.message).slice(0, 1000) })
+      .eq('id', refunded.id);
+  }
+  await notifyOrderStatus(finalOrder).catch((error) =>
+    console.error('Не удалось отправить уведомление о заказе:', error.message),
+  );
+  await releaseOrderReservations(finalOrder.id).catch((error) =>
+    console.error('Не удалось освободить резерв отменённого заказа:', error.message),
+  );
+  realtime.publish(
+    'order.updated',
+    {
+      orderId: finalOrder.id,
+      orderNumber: finalOrder.order_number,
+      paymentStatus: finalOrder.status,
+      orderStatus: finalOrder.fulfillment_status,
+      refundStatus: finalOrder.refund_status,
+    },
+    {
+      customerId: finalOrder.customer_id,
+      includeAdmins: true,
+      branchId: finalOrder.branch_id,
+    },
+  );
+  return normalizeOrder(finalOrder);
+}
+
 async function cancelPaidOrder(
   current,
   cancellationReason,
@@ -710,81 +803,10 @@ async function cancelPaidOrder(
     );
   }
 
-  const refundedAt = new Date().toISOString();
-  const { data: refunded, error: updateError } = await supabase
-    .from('kaspi_orders')
-    .update({
-      status: 'refunded',
-      fulfillment_status: 'cancelled',
-      cancellation_reason: reason || null,
-      fulfilled_at: null,
-      refund_status: 'succeeded',
-      refund_amount: Number(claimed.amount),
-      partially_refunded_amount: Number(claimed.amount),
-      refund_reference: refund.reference,
-      refunded_at: refundedAt,
-      refund_error: null,
-      last_error: null,
-    })
-    .eq('id', claimed.id)
-    .eq('refund_status', 'processing')
-    .select('*')
-    .maybeSingle();
-  if (updateError) throw updateError;
-  if (!refunded) {
-    throw refundError(
-      500,
-      `${paymentProviderName(claimed)} подтвердил возврат, но заказ не обновился. Обратитесь к администратору.`,
-      'PAYMENT_REFUND_DB_CONFLICT',
-    );
-  }
-
-  if (giftRefundPrepared) {
-    const { finalizeGiftCertificateRefund } = require('./gift-certificate-purchase.service');
-    await finalizeGiftCertificateRefund(refunded).catch(async (giftError) => {
-      console.error('Не удалось завершить деактивацию сертификата:', giftError.message);
-      await supabase
-        .from('kaspi_orders')
-        .update({
-          last_error: `Возврат выполнен, сертификат ожидает сверки: ${String(
-            giftError.message || '',
-          ).slice(0, 800)}`,
-        })
-        .eq('id', refunded.id);
-    });
-  }
-
-  let finalOrder = refunded;
-  try {
-    finalOrder = await kaspiService.reverseOrderLoyalty(refunded);
-  } catch (error) {
-    console.error(`Не удалось сторнировать кэшбэк заказа ${refunded.order_number}:`, error.message);
-    await supabase
-      .from('kaspi_orders')
-      .update({ last_error: String(error.message).slice(0, 1000) })
-      .eq('id', refunded.id);
-  }
-  await notifyOrderStatus(finalOrder).catch((error) =>
-    console.error('Не удалось отправить уведомление о заказе:', error.message),
-  );
-  await releaseOrderReservations(finalOrder.id).catch((error) =>
-    console.error('Не удалось освободить резерв отменённого заказа:', error.message),
-  );
-  realtime.publish(
-    'order.updated',
-    {
-      orderId: finalOrder.id,
-      orderNumber: finalOrder.order_number,
-      paymentStatus: finalOrder.status,
-      orderStatus: finalOrder.fulfillment_status,
-    },
-    {
-      customerId: finalOrder.customer_id,
-      includeAdmins: true,
-      branchId: finalOrder.branch_id,
-    },
-  );
-  return normalizeOrder(finalOrder);
+  return finalizeConfirmedOrderRefund(claimed, refund, {
+    expectedRefundStatus: 'processing',
+    giftRefundPrepared,
+  });
 }
 
 async function cancelCustomerOrder(customerId, orderId) {
@@ -924,6 +946,7 @@ module.exports = {
   canMarkCustomerArrived,
   canCustomerCancelOrder,
   cancelPaidOrder,
+  finalizeConfirmedOrderRefund,
   markCustomerArrived,
   cancelCustomerOrder,
   notifyOrderStatus,

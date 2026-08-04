@@ -23,6 +23,7 @@ const { registerWorker, runMonitoredWorker } = require('./services/operational-h
 const { cleanupExpiredPayments } = require('./services/payment-cleanup.service');
 const { processPrivacyStorageCleanupJobs } = require('./services/privacy-storage-cleanup.service');
 const paymentOperations = require('./services/payment-operations.service');
+const { reconcileUnknownFullRefunds } = require('./services/full-refund-reconciliation.service');
 const { reconcileUnknownPartialRefunds } = require('./services/partial-refund.service');
 const { flushPushOutbox } = require('./services/push.service');
 
@@ -67,11 +68,12 @@ if (!process.env.VERCEL) {
 
     const reconcileForteOrders = () =>
       runMonitoredWorker('forte-reconciliation', async () => {
-        const [legacy, widget] = await Promise.all([
+        const [legacy, widget, fullRefunds] = await Promise.all([
           forteService.reconcileOrders(),
           forteWidgetService.reconcileOrders(),
+          reconcileUnknownFullRefunds(),
         ]);
-        return Number(legacy || 0) + Number(widget || 0);
+        return Number(legacy || 0) + Number(widget || 0) + Number(fullRefunds || 0);
       });
     setTimeout(reconcileForteOrders, 20 * 1000);
     setInterval(reconcileForteOrders, 60 * 1000);

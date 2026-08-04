@@ -615,6 +615,7 @@ const ru: Record<string, string> = {
   'payment.pending': 'Ожидает',
   'payment.paid': 'Оплачен',
   'payment.refunded': 'Возвращён',
+  'payment.refundPending': 'Возврат сверяется',
   'payment.failed': 'Ошибка',
   'payment.expired': 'Истёк',
   'payment.issues': 'Проблемы оплаты и возврата',

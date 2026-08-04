@@ -604,6 +604,7 @@ const en: Record<string, string> = {
   'payment.pending': 'Pending',
   'payment.paid': 'Paid',
   'payment.refunded': 'Refunded',
+  'payment.refundPending': 'Refund verification',
   'payment.failed': 'Failed',
   'payment.expired': 'Expired',
   'payment.issues': 'Payment and refund issues',
