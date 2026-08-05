@@ -418,6 +418,7 @@ class _CatalogImageQuantityControl extends StatelessWidget {
     final colors = context.bulkaColors;
     if (quantity <= 0) {
       return Semantics(
+        key: const ValueKey('catalog-image-add-semantics'),
         button: true,
         enabled: !stopListed,
         label: stopListed ? 'catalog_stop_list'.tr : 'catalog_add_to_cart'.tr,
@@ -447,6 +448,7 @@ class _CatalogImageQuantityControl extends StatelessWidget {
     }
 
     return Semantics(
+      key: const ValueKey('catalog-image-quantity-semantics'),
       container: true,
       label: 'catalog_quantity_value'.trArgs({'count': quantity}),
       child: Container(

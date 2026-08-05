@@ -394,7 +394,7 @@ void main() {
         recipientName: 'Алия',
         message: 'С праздником',
         paymentMethod: 'forte',
-        createdAt: DateTime.utc(2026, 7, 29, 12),
+        createdAt: DateTime.now().toUtc().subtract(const Duration(hours: 1)),
         purchaseId: 'purchase-1',
       );
 

@@ -240,17 +240,19 @@ with sync_playwright() as playwright:
     page.screenshot(
         path=str(SCREENSHOT_DIR / "catalog-before-add.png"), full_page=False
     )
-    page.locator('[aria-label="В корзину"]').first.click()
-    page.locator('[aria-label^="Количество: 1"]').wait_for(
+    product_card = page.locator('[aria-label^="Плюшка Московская "]').first
+    product_card.locator('[aria-label="В корзину"]').click()
+    quantity_control = product_card.locator('[aria-label^="Количество: 1"]')
+    quantity_control.wait_for(
         state="attached", timeout=10_000
     )
     page.screenshot(
         path=str(SCREENSHOT_DIR / "catalog-quantity-one.png"), full_page=False
     )
-    page.locator('[aria-label="Увеличить количество"]').first.evaluate(
-        "element => element.click()"
-    )
-    page.locator('[aria-label^="Количество: 2"]').wait_for(
+    quantity_control.get_by_role(
+        "button", name="Увеличить количество", exact=True
+    ).click()
+    product_card.locator('[aria-label^="Количество: 2"]').wait_for(
         state="attached", timeout=10_000
     )
     page.screenshot(

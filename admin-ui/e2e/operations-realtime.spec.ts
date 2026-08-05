@@ -69,8 +69,6 @@ const summary = {
 test('operations center scopes every request and exposes realtime state', async ({
   page,
 }, testInfo) => {
-  const scopedRequests: string[] = [];
-
   await page.route('**/admin/api/**', async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -104,7 +102,6 @@ test('operations center scopes every request and exposes realtime state', async 
       });
     }
     if (url.pathname === '/admin/api/operations/summary') {
-      scopedRequests.push(request.headers()['x-bulka-branch-id'] || '');
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -157,10 +154,15 @@ test('operations center scopes every request and exposes realtime state', async 
   }
 
   await page.getByLabel('Город для фильтрации данных').selectOption({ label: 'Астана' });
+  const branchScopedSummaryRequest = page.waitForRequest((request) => {
+    const url = new URL(request.url());
+    return (
+      url.pathname === '/admin/api/operations/summary' &&
+      request.headers()['x-bulka-branch-id'] === branchB
+    );
+  });
   await page.getByLabel('Филиал города Астана').selectOption(branchB);
-  await expect
-    .poll(() => scopedRequests.filter((branch) => branch === branchB).length)
-    .toBeGreaterThan(0);
+  await branchScopedSummaryRequest;
 
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
