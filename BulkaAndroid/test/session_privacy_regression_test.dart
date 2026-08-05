@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:bulka_bonus/main.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -49,6 +50,7 @@ Future<void> _waitFor(bool Function() predicate) async {
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({});
     appLanguageNotifier.value = 'ru';
   });
 
@@ -192,6 +194,24 @@ void main() {
     expect(prefs.getString('checkout_phone_account-a'), isNull);
     expect(prefs.getString('checkout_comment_account-a'), isNull);
     expect(prefs.getString('selected_bakery_location'), 'Bulka');
+  });
+
+  test('native session survives a cold application restart', () async {
+    final prefs = await SharedPreferences.getInstance();
+    await SessionStore.write('persisted-access-token', 'persisted-refresh-token');
+
+    // Reading through a fresh startup path simulates a terminated process
+    // reopening Keychain/Keystore-backed storage.
+    final restored = await SessionStore.readAndMigrate(prefs);
+
+    expect(restored.accessToken, 'persisted-access-token');
+    expect(restored.refreshToken, 'persisted-refresh-token');
+    expect(restored.isComplete, isTrue);
+
+    await SessionStore.clear();
+    final cleared = await SessionStore.readAndMigrate(prefs);
+    expect(cleared.accessToken, isNull);
+    expect(cleared.refreshToken, isNull);
   });
 
   test('Stories and News map backend kz content to app kk', () {

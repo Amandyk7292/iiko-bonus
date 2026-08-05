@@ -126,7 +126,21 @@ const detectReferenceImage = (buffer) => {
   return null;
 };
 
+const acceptAnalyticsEvents = async (req, res, customerId = null) => {
+  try {
+    const count = await recordCustomerEvents(customerId, req.body.events, req);
+    res.status(202).json({ success: true, accepted: count });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ success: false, error: error.message });
+  }
+};
+
 router.use('/api/public', publicApiRateLimit);
+router.post(
+  '/api/public/analytics/events',
+  validateRequest({ body: analyticsEventsBodySchema }),
+  (req, res) => acceptAnalyticsEvents(req, res),
+);
 router.use('/api/customer', publicApiRateLimit, customerAuthMiddleware);
 router.use('/api/courier', publicApiRateLimit);
 
@@ -602,14 +616,7 @@ router.delete(
 router.post(
   '/api/customer/analytics/events',
   validateRequest({ body: analyticsEventsBodySchema }),
-  async (req, res) => {
-    try {
-      const count = await recordCustomerEvents(req.customerAuth.id, req.body.events, req);
-      res.status(202).json({ success: true, accepted: count });
-    } catch (error) {
-      res.status(error.statusCode || 500).json({ success: false, error: error.message });
-    }
-  },
+  (req, res) => acceptAnalyticsEvents(req, res, req.customerAuth.id),
 );
 router.get('/api/customer/favorites', async (req, res) => {
   try {

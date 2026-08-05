@@ -143,6 +143,7 @@ foreach ($scriptName in @(
     'enable-nginx-upstream-fallback.sh',
     'ensure-postgres-client.sh',
     'install-database-backup-timer.sh',
+    'install-pm2-logrotate.sh',
     'setup-google-wallet.js',
     'deploy-release.sh',
     'rollback-vps.sh',

@@ -57,6 +57,57 @@ test('analytics events keep a stable hashed session and deduplicate by client ev
   });
 });
 
+test('guest analytics stores an anonymous session without a forged customer', async (t) => {
+  const configPath = require.resolve('../src/config/supabase');
+  const servicePath = require.resolve('../src/services/analytics-event.service');
+  const previousConfig = require.cache[configPath];
+  const previousService = require.cache[servicePath];
+  let captured;
+  require.cache[configPath] = {
+    id: configPath,
+    filename: configPath,
+    loaded: true,
+    exports: {
+      supabase: {
+        from(table) {
+          assert.equal(table, 'customer_app_events');
+          return {
+            async upsert(rows) {
+              captured = rows;
+              return { error: null };
+            },
+          };
+        },
+      },
+    },
+  };
+  delete require.cache[servicePath];
+  t.after(() => {
+    if (previousConfig) require.cache[configPath] = previousConfig;
+    else delete require.cache[configPath];
+    if (previousService) require.cache[servicePath] = previousService;
+    else delete require.cache[servicePath];
+  });
+
+  const { recordCustomerEvents } = require(servicePath);
+  await recordCustomerEvents(
+    null,
+    [
+      {
+        eventId: '617615f9-b35f-4eb4-9f6d-777f2236bb25',
+        type: 'catalog_view',
+      },
+    ],
+    { headers: { 'x-bulka-session': 'guest-browser-session' } },
+  );
+
+  assert.equal(captured[0].customer_id, null);
+  assert.equal(
+    captured[0].anonymous_session_id,
+    crypto.createHash('sha256').update('guest-browser-session').digest('hex'),
+  );
+});
+
 test('analytics accepts separate payment failure and cancellation outcomes', async (t) => {
   const configPath = require.resolve('../src/config/supabase');
   const servicePath = require.resolve('../src/services/analytics-event.service');

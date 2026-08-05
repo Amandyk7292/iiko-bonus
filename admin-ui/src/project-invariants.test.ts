@@ -29,7 +29,11 @@ describe('admin production invariants', () => {
     expect(operations).toContain("import { Link } from '../lib/router'");
     expect(operations).not.toContain('navigate(');
     expect(transactions).toContain('<Link');
-    for (const page of ['MarketingPage.tsx', 'MenuPage.tsx', 'InventoryPage.tsx']) {
+    for (const page of [
+      'MarketingPage.tsx',
+      'menu/use-menu-page-controller.tsx',
+      'InventoryPage.tsx',
+    ]) {
       expect(readFileSync(resolve(root, 'src/pages', page), 'utf8'), page).toContain(
         'useSearchParams',
       );

@@ -46,7 +46,7 @@ export default function PageState({
             <button
               type="button"
               className="btn-outline px-4 inline-flex items-center gap-2"
-              onClick={onRetry}
+              onClick={() => onRetry()}
             >
               <RefreshCw aria-hidden="true" size={16} /> {t('common.retry')}
             </button>

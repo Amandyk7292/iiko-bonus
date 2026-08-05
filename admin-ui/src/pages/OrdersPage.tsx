@@ -268,7 +268,7 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
 
   if (loading && orders.length === 0) return <PageState type="loading" />;
   if (error && orders.length === 0)
-    return <PageState type="error" description={error} onRetry={load} />;
+    return <PageState type="error" description={error} onRetry={() => void load()} />;
 
   return (
     <div className="page-stack">

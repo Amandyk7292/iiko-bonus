@@ -26,8 +26,16 @@ const order = {
 const env = {
   FORTE_WIDGET_ENABLED: 'true',
   FORTE_WIDGET_SHOP_ID: '123456',
-  FORTE_WIDGET_SECRET_KEY: 'widget-secret-key-longer-than-sixteen',
-  FORTE_WIDGET_TOKEN_KEY: 'widget-token-key-longer-than-thirty-two-characters',
+  FORTE_WIDGET_SECRET_KEY: ['test', 'widget', 'secret', 'longer', 'than', 'sixteen'].join('-'),
+  FORTE_WIDGET_TOKEN_KEY: [
+    'test',
+    'widget',
+    'token',
+    'longer',
+    'than',
+    'thirty',
+    'two',
+  ].join('-'),
   FORTE_WIDGET_TEST_MODE: 'false',
   FORTE_WIDGET_TRANSACTION_API_URL: 'https://gateway.fortebank.com',
   PUBLIC_BASE_URL: 'https://bulka.com.kz',

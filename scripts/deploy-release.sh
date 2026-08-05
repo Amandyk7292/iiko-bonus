@@ -74,6 +74,7 @@ copy_artifacts() {
     enable-nginx-upstream-fallback.sh \
     ensure-postgres-client.sh \
     install-database-backup-timer.sh \
+    install-pm2-logrotate.sh \
     rollback-vps.sh \
     verify-database-restore.sh \
     prepare-cloudflare-origin.sh \
@@ -272,6 +273,37 @@ run_optional_privileged_task() {
   echo "$label was not changed: run $script once as root after deployment." >&2
 }
 
+nginx_fallback_ready() {
+  local upstream_conf=/etc/nginx/conf.d/bulka-backend-upstream.conf
+  local site_conf=''
+  for candidate in \
+    /etc/nginx/sites-enabled/iiko-bonus \
+    /etc/nginx/sites-available/iiko-bonus; do
+    if [[ -r $candidate ]]; then
+      site_conf=$candidate
+      break
+    fi
+  done
+  [[ -r $upstream_conf && -n $site_conf ]] || return 1
+  grep -Eq 'upstream[[:space:]]+bulka_backend' "$upstream_conf" &&
+    grep -Eq 'server[[:space:]]+127\.0\.0\.1:3000([[:space:]]|;)' "$upstream_conf" &&
+    grep -Eq 'server[[:space:]]+127\.0\.0\.1:3101[[:space:]]+backup' "$upstream_conf" &&
+    grep -Eq 'proxy_pass[[:space:]]+http://bulka_backend;' "$site_conf"
+}
+
+require_nginx_fallback() {
+  if [[ ${BULKA_REQUIRE_NGINX_FALLBACK:-true} != 'true' ]]; then
+    echo 'WARNING: Nginx fallback enforcement was explicitly disabled.' >&2
+    return 0
+  fi
+  if nginx_fallback_ready; then
+    return 0
+  fi
+  echo 'Deployment stopped before production mutation: Nginx does not use the healthy staging backup on port 3101.' >&2
+  echo 'Run scripts/enable-nginx-upstream-fallback.sh once as root, then retry the deployment.' >&2
+  return 1
+}
+
 stop_preflight() {
   if [[ -n $preflight_pid ]] && kill -0 "$preflight_pid" 2>/dev/null; then
     kill "$preflight_pid" 2>/dev/null || true
@@ -346,6 +378,7 @@ for required_file in \
   scripts/deploy-release.sh \
   scripts/ensure-postgres-client.sh \
   scripts/install-database-backup-timer.sh \
+  scripts/install-pm2-logrotate.sh \
   scripts/configure-iiko-astana-vps.sh \
   scripts/probe-iiko-city-profile.js \
   scripts/rollback-vps.sh \
@@ -445,11 +478,13 @@ printf 'healthy_at=%s\nsource=pre_deploy\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
 backup_ready=1
 
 start_staging_release "$temporary_release"
+bash "$temporary_release/scripts/install-pm2-logrotate.sh"
 if [[ ${BULKA_CONFIGURE_NGINX_FALLBACK:-true} == 'true' ]]; then
   run_optional_privileged_task \
     'Nginx staging fallback' \
     "$temporary_release/scripts/enable-nginx-upstream-fallback.sh"
 fi
+require_nginx_fallback
 
 production_changed=1
 copy_artifacts "$temporary_release" "$project"

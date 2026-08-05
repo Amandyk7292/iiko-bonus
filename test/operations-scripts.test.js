@@ -12,12 +12,22 @@ test('release deployment keeps a healthy staging fallback during graceful reload
   const rollback = read('scripts/rollback-vps.sh');
   const packageRelease = read('scripts/deploy-vps.ps1');
   const nginxFallback = read('scripts/enable-nginx-upstream-fallback.sh');
+  const pm2Logrotate = read('scripts/install-pm2-logrotate.sh');
 
   assert.match(deploy, /wait_for_health 'http:\/\/127\.0\.0\.1:3101\/readyz'/);
   assert.match(deploy, /enable-nginx-upstream-fallback\.sh/);
   assert.match(deploy, /pm2 reload iiko-bonus --update-env/);
   assert.match(deploy, /run_optional_privileged_task/);
   assert.match(deploy, /sudo -n true/);
+  assert.match(deploy, /require_nginx_fallback/);
+  assert.match(deploy, /nginx_fallback_ready/);
+  assert.match(deploy, /BULKA_REQUIRE_NGINX_FALLBACK:-true/);
+  assert.match(deploy, /Deployment stopped before production mutation/);
+  assert.ok(
+    deploy.indexOf('require_nginx_fallback', deploy.indexOf('start_staging_release "$temporary_release"'))
+      < deploy.indexOf('production_changed=1'),
+    'fallback must be verified before production files can change',
+  );
   assert.doesNotMatch(
     deploy,
     /\n\s*bash "\$temporary_release\/scripts\/enable-nginx-upstream-fallback\.sh"/,
@@ -27,6 +37,12 @@ test('release deployment keeps a healthy staging fallback during graceful reload
   assert.match(nginxFallback, /trap rollback ERR/);
   assert.match(packageRelease, /enable-nginx-upstream-fallback\.sh/);
   assert.match(packageRelease, /install-database-backup-timer\.sh/);
+  assert.match(packageRelease, /install-pm2-logrotate\.sh/);
+  assert.match(deploy, /install-pm2-logrotate\.sh/);
+  assert.match(pm2Logrotate, /pm2 install pm2-logrotate/);
+  assert.match(pm2Logrotate, /pm2-logrotate:max_size 20M/);
+  assert.match(pm2Logrotate, /pm2-logrotate:retain 14/);
+  assert.match(pm2Logrotate, /pm2-logrotate:compress true/);
   assert.match(packageRelease, /ensure-postgres-client\.sh/);
   assert.match(packageRelease, /bulka-ensure-postgres-client/);
   assert.match(deploy, /configure_postgres_client/);
@@ -115,6 +131,8 @@ test('production server drains requests and monitors payment providers', () => {
 
   assert.match(server, /runScheduledSafeProbe/);
   assert.match(server, /registerWorker\('payment-provider-probe'/);
+  assert.match(server, /registerWorker\('whatsapp-session-cleanup'/);
+  assert.match(server, /cleanupExpiredWhatsAppSessions/);
   assert.match(server, /server\.close\(/);
   assert.match(server, /process\.once\('SIGTERM'/);
   assert.match(server, /process\.once\('SIGINT'/);

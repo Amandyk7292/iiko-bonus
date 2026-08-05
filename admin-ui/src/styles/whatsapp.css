@@ -1228,7 +1228,7 @@
   }
 }
 
-@media (max-width: 960px) {
+@media (max-width: 1180px) {
   .whatsapp-status-panel {
     grid-template-columns: auto minmax(0, 1fr) auto;
   }

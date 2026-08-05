@@ -178,10 +178,17 @@ test('canonical AI provider migration keeps encrypted credentials service-only',
 });
 
 test('Admin UI exposes the WhatsApp workspace without typography dash characters', () => {
-  const page = fs.readFileSync(
-    path.join(root, 'admin-ui', 'src', 'pages', 'WhatsAppPage.tsx'),
-    'utf8',
-  );
+  const whatsappPageDirectory = path.join(root, 'admin-ui', 'src', 'pages', 'whatsapp');
+  const page = [
+    fs.readFileSync(
+      path.join(root, 'admin-ui', 'src', 'pages', 'WhatsAppPage.tsx'),
+      'utf8',
+    ),
+    ...fs
+      .readdirSync(whatsappPageDirectory)
+      .filter((file) => /\.(?:ts|tsx)$/.test(file))
+      .map((file) => fs.readFileSync(path.join(whatsappPageDirectory, file), 'utf8')),
+  ].join('\n');
   const app = fs.readFileSync(path.join(root, 'admin-ui', 'src', 'App.tsx'), 'utf8');
   const routes = fs.readFileSync(path.join(root, 'src', 'routes', 'admin.routes.js'), 'utf8');
 

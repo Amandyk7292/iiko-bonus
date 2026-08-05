@@ -170,7 +170,8 @@ export default function KitchenPage() {
     [orders],
   );
   if (loading && !orders.length) return <PageState type="loading" />;
-  if (error && !orders.length) return <PageState type="error" description={error} onRetry={load} />;
+  if (error && !orders.length)
+    return <PageState type="error" description={error} onRetry={() => void load()} />;
 
   return (
     <div className="page-stack">

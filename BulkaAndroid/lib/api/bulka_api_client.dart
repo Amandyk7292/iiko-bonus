@@ -1301,7 +1301,17 @@ class BulkaApiClient {
 
   Future<void> recordAnalyticsEvents(List<Map<String, dynamic>> events) async {
     if (events.isEmpty) return;
-    await _post('/api/customer/analytics/events', {'events': events});
+    final body = {'events': events};
+    if (isAuthenticated) {
+      await _post('/api/customer/analytics/events', body);
+      return;
+    }
+    await _request(
+      'POST',
+      '/api/public/analytics/events',
+      body: body,
+      allowRefresh: false,
+    );
   }
 
   void trackEvent(

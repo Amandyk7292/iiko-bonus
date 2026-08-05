@@ -72,6 +72,23 @@ def run_viewport(browser, width, height, verify_save=False):
                 fulfill_json(route, {"user": {"username": "admin", "role": "admin"}})
             else:
                 fulfill_json(route, {"error": "Unauthorized"}, status=401)
+        elif path.endswith("/admin/api/scope"):
+            fulfill_json(
+                route,
+                {
+                    "success": True,
+                    "locations": [
+                        {
+                            "id": "branch-aktau",
+                            "name": "ЖК Дукат",
+                            "city": "Актау",
+                            "address": "17-й микрорайон, 1",
+                            "active": True,
+                        }
+                    ],
+                    "selectedBranchId": "branch-aktau",
+                },
+            )
         elif path.endswith("/admin/api/menu") and request.method == "GET":
             fulfill_json(route, MENU)
         elif path.endswith("/admin/api/menu/product/override") and request.method == "POST":
@@ -113,10 +130,16 @@ def run_viewport(browser, width, height, verify_save=False):
 
     page.goto(f"{ADMIN_ROOT}/menu")
     page.wait_for_load_state("networkidle")
-    page.get_by_role("heading", name="Управление меню", exact=True).wait_for()
+    page.get_by_role("heading", name="Меню по городам", exact=True).wait_for()
+    page.get_by_role(
+        "button",
+        name="Редактировать меню города Актау, 1 филиал",
+        exact=True,
+    ).click()
+    page.get_by_text("Плюшка Московская", exact=True).wait_for()
     page.get_by_role("button", name="Изменить", exact=True).click()
     dialog = page.get_by_role("dialog")
-    storage_heading = dialog.get_by_text("Срок и условия хранения", exact=True)
+    storage_heading = dialog.get_by_text("Срок и условия хранения", exact=False)
     storage_heading.wait_for()
 
     assert dialog.locator("#edit-product-storage-temperature-0").input_value() == "-18 °C"

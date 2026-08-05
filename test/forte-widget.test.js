@@ -507,6 +507,128 @@ test('Forte saved card uses customer-initiated auto-pay without requesting CVV',
   });
 });
 
+test('selected saved card is scoped to its owner and reaches the real provider checkout flow', async () => {
+  const customerId = '317615f9-b35f-4eb4-9f6d-777f2236bb25';
+  const paymentMethodId = '417615f9-b35f-4eb4-9f6d-777f2236bb25';
+  const requestId = '517615f9-b35f-4eb4-9f6d-777f2236bb25';
+  const savedCardToken = 'selected-card-token-'.padEnd(64, 's');
+  const filters = {};
+  const providerRequests = [];
+  let insertedOrder;
+  const paymentMethod = {
+    id: paymentMethodId,
+    customer_id: customerId,
+    provider: 'forte_widget',
+    status: 'active',
+    token_contract: 'recurring_card_on_file',
+    token_ciphertext: encryptProviderToken(
+      savedCardToken,
+      'payment-method',
+      `${customerId}:${paymentMethodId}`,
+      env,
+    ),
+  };
+  const db = {
+    from(table) {
+      if (table === 'customer_payment_methods') {
+        const query = {
+          select() {
+            return query;
+          },
+          eq(field, value) {
+            filters[field] = value;
+            return query;
+          },
+          async maybeSingle() {
+            return { data: paymentMethod, error: null };
+          },
+        };
+        return query;
+      }
+      assert.equal(table, 'kaspi_orders');
+      const query = {
+        select() {
+          return query;
+        },
+        eq() {
+          return query;
+        },
+        async maybeSingle() {
+          return { data: null, error: null };
+        },
+        insert(rows) {
+          [insertedOrder] = rows;
+          const insertQuery = {
+            select() {
+              return insertQuery;
+            },
+            async single() {
+              return { data: insertedOrder, error: null };
+            },
+          };
+          return insertQuery;
+        },
+      };
+      return query;
+    },
+  };
+  const service = new ForteWidgetService({
+    env,
+    db,
+    fetchImpl: async (url, options) => {
+      providerRequests.push({ url, options });
+      return response({ checkout: { token: checkoutToken } });
+    },
+    forecastEta: async () => ({ estimatedAt: '2026-08-05T09:00:00.000Z' }),
+    recordEvent: async () => true,
+    orderService: {
+      orderRecord({ operationId, pricing, checkout }) {
+        return {
+          customer_id: customerId,
+          operation_id: operationId,
+          amount: pricing.total,
+          fulfillment_type: checkout.orderType,
+          branch_id: checkout.branchId,
+          client_request_id: checkout.requestId,
+        };
+      },
+    },
+  });
+
+  const result = await service.createCheckout(
+    '+77012772233',
+    {
+      total: 3500,
+      canonicalItems: [{ id: 'bun-1', name: 'Плюшка', quantity: 1 }],
+      preparationMinutes: 15,
+    },
+    customerId,
+    {
+      requestId,
+      orderType: 'pickup',
+      effectiveFulfillmentType: 'pickup',
+      branchId: 'branch-1',
+    },
+    { language: 'ru', paymentMethodId },
+  );
+
+  assert.deepEqual(filters, {
+    customer_id: customerId,
+    provider: 'forte_widget',
+    status: 'active',
+    id: paymentMethodId,
+  });
+  assert.equal(insertedOrder.saved_payment_method_id, paymentMethodId);
+  assert.equal(providerRequests.length, 2);
+  const providerBody = JSON.parse(providerRequests[0].options.body);
+  assert.equal(providerBody.checkout.payment_method.credit_card.token, savedCardToken);
+  assert.equal(providerBody.checkout.settings.auto_pay, true);
+  assert.equal('cvv' in providerBody.checkout.payment_method.credit_card, false);
+  assert.equal('cvc' in providerBody.checkout.payment_method.credit_card, false);
+  assert.equal(result.success, true);
+  assert.equal(result.operationId, requestId);
+});
+
 test('Forte legacy saved card is relinked once instead of mixing token contracts', async () => {
   const requests = [];
   const savedCardToken = 'e'.repeat(64);

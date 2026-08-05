@@ -26,10 +26,12 @@ const paymentOperations = require('./services/payment-operations.service');
 const { reconcileUnknownFullRefunds } = require('./services/full-refund-reconciliation.service');
 const { reconcileUnknownPartialRefunds } = require('./services/partial-refund.service');
 const { flushPushOutbox } = require('./services/push.service');
+const { cleanupExpiredWhatsAppSessions } = require('./services/whatsapp-session-cleanup.service');
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 const PAYMENT_PROVIDER_PROBE_INTERVAL_MS = 30 * 60 * 1000;
+const WHATSAPP_SESSION_CLEANUP_INTERVAL_MS = 15 * 60 * 1000;
 
 if (!process.env.VERCEL) {
   const runWorkers = process.env.RUN_BACKGROUND_WORKERS === 'true';
@@ -96,6 +98,15 @@ if (!process.env.VERCEL) {
     setTimeout(cleanupPrivacyStorage, 35 * 1000);
     setInterval(cleanupPrivacyStorage, 60 * 1000);
 
+    const cleanupWhatsAppSessions = () =>
+      runMonitoredWorker('whatsapp-session-cleanup', cleanupExpiredWhatsAppSessions);
+    setTimeout(cleanupWhatsAppSessions, 45 * 1000);
+    const whatsappSessionCleanupTimer = setInterval(
+      cleanupWhatsAppSessions,
+      WHATSAPP_SESSION_CLEANUP_INTERVAL_MS,
+    );
+    whatsappSessionCleanupTimer.unref?.();
+
     const probePaymentProviders = () =>
       runMonitoredWorker('payment-provider-probe', () => paymentOperations.runScheduledSafeProbe());
     setTimeout(probePaymentProviders, 2 * 60 * 1000);
@@ -136,6 +147,10 @@ if (!process.env.VERCEL) {
     enabled: runWorkers,
     intervalMs: 60 * 1000,
     critical: true,
+  });
+  registerWorker('whatsapp-session-cleanup', {
+    enabled: runWorkers,
+    intervalMs: WHATSAPP_SESSION_CLEANUP_INTERVAL_MS,
   });
   registerWorker('payment-provider-probe', {
     enabled: runWorkers,

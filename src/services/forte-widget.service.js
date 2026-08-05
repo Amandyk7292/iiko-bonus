@@ -422,11 +422,15 @@ class ForteWidgetService {
     db = supabase,
     fetchImpl = fetch,
     orderService = kaspiService,
+    forecastEta = forecastOrderEta,
+    recordEvent = recordSystemEvent,
     env = process.env,
   } = {}) {
     this.db = db;
     this.fetchImpl = fetchImpl;
     this.orderService = orderService;
+    this.forecastEta = forecastEta;
+    this.recordEvent = recordEvent;
     this.env = env;
   }
 
@@ -1156,7 +1160,7 @@ class ForteWidgetService {
           .join(', ')}`,
         255,
       ) || 'Заказ Bulka';
-    const eta = await forecastOrderEta({
+    const eta = await this.forecastEta({
       branchId: checkout.branchId,
       orderType: checkout.effectiveFulfillmentType,
       scheduledAt: checkout.scheduledAt,
@@ -1219,7 +1223,7 @@ class ForteWidgetService {
         { retryable: true },
       );
     }
-    await recordSystemEvent(customerId, {
+    await this.recordEvent(customerId, {
       type: 'payment_started',
       orderId: savedOrder.id,
       branchId: checkout.branchId,
