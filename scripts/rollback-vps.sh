@@ -48,6 +48,7 @@ copy_release() {
     install-database-backup-timer.sh \
     rollback-vps.sh \
     verify-database-restore.sh \
+    run-database-restore-drill.sh \
     prepare-cloudflare-origin.sh \
     harden-nginx-access-logs.sh; do
     if [[ -f "$source/scripts/$script" ]]; then

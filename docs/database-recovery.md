@@ -30,15 +30,23 @@ pwsh -File .\scripts\backup-offsite-windows.ps1
 
 ## Monthly restore drill
 
-Create an empty disposable database whose name contains `restore`, `recovery`, or `drill`. Never point this command at production.
+Create an empty disposable database whose name contains `restore`, `recovery`, or `drill`. Never point this command at production. The drill verifies the dump checksum, restores the application-owned `auth` and `public` schemas, and validates the migration ledger plus critical customer and order tables. Supabase recreates its managed platform schemas; Storage objects are validated through the separate off-site Storage snapshot.
 
 ```bash
 export BULKA_RESTORE_DATABASE_URL='postgresql://…/bulka_restore_drill'
 export BULKA_RESTORE_CONFIRM='bulka-disposable-restore-target'
+export BULKA_RESTORE_JOBS=4
 ./scripts/verify-database-restore.sh /var/backups/bulka-database/bulka-YYYYMMDDTHHMMSSZ.dump
 ```
 
-Record the archive timestamp, elapsed restore time, table count, operator, and outcome. After the check, destroy the disposable database through the database provider.
+On the Bulka VPS, the guarded runner creates the disposable database, records the result, and removes that exact database automatically:
+
+```bash
+bash ./scripts/run-database-restore-drill.sh \
+  /home/deploy/.bulka-releases/database-backups/bulka-YYYYMMDDTHHMMSSZ.dump
+```
+
+Reports are stored under `/home/deploy/.bulka-releases/restore-drills`. Record the archive timestamp, elapsed restore time, table counts, operator, and outcome.
 
 ## Incident sequence
 

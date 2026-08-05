@@ -148,6 +148,7 @@ foreach ($scriptName in @(
     'deploy-release.sh',
     'rollback-vps.sh',
     'verify-database-restore.sh',
+    'run-database-restore-drill.sh',
     'prepare-cloudflare-origin.sh',
     'configure-forte-widget-vps.sh',
     'configure-iiko-astana-vps.sh',

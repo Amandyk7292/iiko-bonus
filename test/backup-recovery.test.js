@@ -10,6 +10,7 @@ const readScript = (filename) =>
 test('database backup workflow produces verifiable encrypted-at-rest candidates', () => {
   const backup = readScript('backup-database.sh');
   const restore = readScript('verify-database-restore.sh');
+  const drill = readScript('run-database-restore-drill.sh');
   const timer = readScript('install-database-backup-timer.sh');
 
   assert.match(backup, /pg_dump/);
@@ -20,6 +21,18 @@ test('database backup workflow produces verifiable encrypted-at-rest candidates'
   assert.match(restore, /BULKA_RESTORE_CONFIRM/);
   assert.match(restore, /pg_restore/);
   assert.match(restore, /restore\|recovery\|drill/);
+  assert.match(restore, /sha256sum --check --status/);
+  assert.match(restore, /--schema=auth/);
+  assert.match(restore, /--schema=public/);
+  assert.match(restore, /--exit-on-error/);
+  assert.match(restore, /public\.bulka_schema_migrations/);
+  assert.match(restore, /public\.kaspi_orders/);
+  assert.match(restore, /auth\.users/);
+  assert.match(drill, /bulka_restore_drill_/);
+  assert.match(drill, /createdb/);
+  assert.match(drill, /dropdb/);
+  assert.match(drill, /restore-drills/);
+  assert.match(drill, /succeeded/);
   assert.match(timer, /Persistent=true/);
   assert.match(timer, /OnCalendar=.*02:15:00 UTC/);
   assert.match(timer, /backup-database\.sh/);

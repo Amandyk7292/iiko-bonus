@@ -77,6 +77,7 @@ copy_artifacts() {
     install-pm2-logrotate.sh \
     rollback-vps.sh \
     verify-database-restore.sh \
+    run-database-restore-drill.sh \
     prepare-cloudflare-origin.sh \
     configure-iiko-astana-vps.sh \
     probe-iiko-city-profile.js \
