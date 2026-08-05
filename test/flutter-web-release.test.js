@@ -146,3 +146,14 @@ test('Flutter CI installs the static QA server before browser tests', () => {
   assert.match(workflow, /qa_server_ready=0[\s\S]*\[\[ "\$qa_server_ready" != 1 \]\]/);
   assert.match(workflow, /full_app_ready=0[\s\S]*\[\[ "\$full_app_ready" != 1 \]\]/);
 });
+
+test('session persistence QA reads the clean-checkout Flutter build', () => {
+  const sessionTest = fs.readFileSync(
+    path.join(root, 'test', 'flutter_session_persistence_e2e.py'),
+    'utf8',
+  );
+
+  assert.match(sessionTest, /BULKA_FLUTTER_BUNDLE/);
+  assert.match(sessionTest, /"BulkaAndroid"\s*\/\s*"build"\s*\/\s*"web"/);
+  assert.doesNotMatch(sessionTest, /ROOT\s*\/\s*"public"\s*\/\s*"app"/);
+});

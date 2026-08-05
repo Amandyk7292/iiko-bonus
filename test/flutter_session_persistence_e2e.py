@@ -9,6 +9,8 @@ from pathlib import Path
 from urllib.parse import unquote, urlparse
 import json
 import mimetypes
+import os
+import re
 import tempfile
 import time
 
@@ -16,7 +18,21 @@ from playwright.sync_api import BrowserContext, Route, sync_playwright
 
 
 ROOT = Path(__file__).resolve().parents[1]
-APP = (ROOT / "public" / "app").resolve()
+APP = Path(
+    os.environ.get(
+        "BULKA_FLUTTER_BUNDLE",
+        ROOT / "BulkaAndroid" / "build" / "web",
+    )
+).resolve()
+INDEX = APP / "index.html"
+BASE_HREF_MATCH = (
+    re.search(r'<base\s+href="([^"]+)"', INDEX.read_text(encoding="utf-8"))
+    if INDEX.is_file()
+    else None
+)
+APP_BASE_PATH = (
+    urlparse(BASE_HREF_MATCH.group(1)).path.rstrip("/") if BASE_HREF_MATCH else ""
+)
 ORIGIN = "https://bulka.com.kz"
 PHONE = "77000000000"
 CUSTOMER = {
@@ -165,8 +181,11 @@ class SessionBackend:
             return
 
         relative = path.lstrip("/")
+        base_prefix = f"{APP_BASE_PATH.lstrip('/')}/" if APP_BASE_PATH else ""
+        if base_prefix and relative.startswith(base_prefix):
+            relative = relative[len(base_prefix) :]
         candidate = (APP / relative).resolve()
-        if path == "/" or not Path(relative).suffix:
+        if path in {"/", APP_BASE_PATH, f"{APP_BASE_PATH}/"} or not Path(relative).suffix:
             candidate = APP / "index.html"
         try:
             candidate.relative_to(APP)
@@ -244,6 +263,11 @@ def open_context(playwright, profile: str):
 
 
 with tempfile.TemporaryDirectory(prefix="bulka-session-e2e-") as profile:
+    if not INDEX.is_file():
+        raise RuntimeError(
+            f"Flutter production bundle not found at {APP}. "
+            "Build it first or set BULKA_FLUTTER_BUNDLE."
+        )
     backend = SessionBackend()
     with sync_playwright() as playwright:
         first = open_context(playwright, profile)
