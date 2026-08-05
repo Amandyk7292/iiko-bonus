@@ -15,6 +15,7 @@ def main() -> None:
         page = browser.new_page(
             viewport={"width": 390, "height": 844},
             device_scale_factor=1,
+            locale="ru-RU",
         )
         page.route("**/flutter_bootstrap.js", lambda route: route.abort())
         page.goto(url, wait_until="domcontentloaded")
