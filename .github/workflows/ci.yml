@@ -159,6 +159,9 @@ jobs:
             echo 'keyAlias=bulka-ci'
             echo 'keyPassword=ci-release-password'
           } > android/key.properties
+      - name: Create ephemeral Firebase iOS configuration
+        shell: bash
+        run: cp ../test/fixtures/firebase-ios/GoogleService-Info.plist ios/Runner/GoogleService-Info.plist
       - name: Validate native release configuration
         working-directory: .
         shell: pwsh
@@ -268,6 +271,8 @@ jobs:
           cache: true
       - run: flutter pub get
         working-directory: BulkaAndroid
+      - name: Create ephemeral Firebase iOS configuration
+        run: cp test/fixtures/firebase-ios/GoogleService-Info.plist BulkaAndroid/ios/Runner/GoogleService-Info.plist
       - name: Compile iOS without signing
         run: >
           flutter build ios --release --no-codesign
