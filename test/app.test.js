@@ -108,7 +108,7 @@ test('admin and Flutter CSP remove general-purpose script evaluation', async (t)
   t.after(() => server.close());
 
   const origin = `http://127.0.0.1:${server.address().port}`;
-  const admin = await fetch(`${origin}/admin/`);
+  const admin = await fetch(`${origin}/admin/operations`);
   const adminCsp = admin.headers.get('content-security-policy') || '';
   const adminScriptPolicy = adminCsp.match(/(?:^|;\s*)script-src ([^;]+)/)?.[1] || '';
   assert.equal(admin.status, 200);
