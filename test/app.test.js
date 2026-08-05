@@ -114,7 +114,7 @@ test('admin and Flutter CSP remove general-purpose script evaluation', async (t)
   assert.equal(adminScriptPolicy, "'self'");
   assert.doesNotMatch(adminScriptPolicy, /unsafe-inline|unsafe-eval/);
 
-  const client = await fetch(`${origin}/`);
+  const client = await fetch(`${origin}/app/`);
   const clientCsp = client.headers.get('content-security-policy') || '';
   const clientScriptPolicy = clientCsp.match(/(?:^|;\s*)script-src ([^;]+)/)?.[1] || '';
   assert.equal(client.status, 200);

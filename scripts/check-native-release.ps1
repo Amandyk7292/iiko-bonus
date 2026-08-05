@@ -15,6 +15,37 @@ function Require-File([string]$Path, [string]$Label) {
   }
 }
 
+function Require-Minimum-Version(
+  [string]$Path,
+  [string]$Pattern,
+  [string]$Label,
+  [version]$Minimum
+) {
+  if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+    return
+  }
+
+  $matches = [regex]::Matches(
+    (Get-Content -LiteralPath $Path -Raw),
+    $Pattern
+  )
+  if ($matches.Count -eq 0) {
+    $errors.Add("${Label}: deployment target is missing")
+    return
+  }
+
+  foreach ($match in $matches) {
+    try {
+      $version = [version]$match.Groups['version'].Value
+      if ($version -lt $Minimum) {
+        $errors.Add("${Label}: deployment target $version is below $Minimum")
+      }
+    } catch {
+      $errors.Add("${Label}: deployment target is invalid")
+    }
+  }
+}
+
 Require-File (Join-Path $app 'android\app\google-services.json') 'Firebase Android config'
 Require-File (Join-Path $app 'ios\Runner\GoogleService-Info.plist') 'Firebase iOS config'
 if (-not $SkipSigning) {
@@ -22,6 +53,26 @@ if (-not $SkipSigning) {
 }
 Require-File (Join-Path $app 'ios\Runner\RunnerRelease.entitlements') 'iOS release entitlements'
 Require-File (Join-Path $app 'ios\Runner\PrivacyInfo.xcprivacy') 'iOS privacy manifest'
+Require-File (Join-Path $app 'ios\Podfile') 'iOS Podfile'
+Require-File (Join-Path $app 'ios\Flutter\AppFrameworkInfo.plist') 'iOS Flutter framework metadata'
+Require-File (Join-Path $app 'ios\Runner.xcodeproj\project.pbxproj') 'iOS Xcode project'
+
+$minimumIosVersion = [version]'15.0'
+Require-Minimum-Version `
+  (Join-Path $app 'ios\Podfile') `
+  'platform\s+:ios,\s*[''"](?<version>\d+(?:\.\d+)*)[''"]' `
+  'iOS Podfile' `
+  $minimumIosVersion
+Require-Minimum-Version `
+  (Join-Path $app 'ios\Flutter\AppFrameworkInfo.plist') `
+  '<key>MinimumOSVersion</key>\s*<string>(?<version>\d+(?:\.\d+)*)</string>' `
+  'iOS Flutter framework metadata' `
+  $minimumIosVersion
+Require-Minimum-Version `
+  (Join-Path $app 'ios\Runner.xcodeproj\project.pbxproj') `
+  'IPHONEOS_DEPLOYMENT_TARGET\s*=\s*(?<version>\d+(?:\.\d+)*);' `
+  'iOS Xcode project' `
+  $minimumIosVersion
 
 $keyPropertiesPath = Join-Path $app 'android\key.properties'
 if (-not $SkipSigning -and (Test-Path -LiteralPath $keyPropertiesPath)) {
