@@ -72,6 +72,7 @@ const {
   notificationPreferencesBodySchema,
   orderReviewBodySchema,
   profileUpdateBodySchema,
+  productOptionSummaryBodySchema,
   referralRedeemBodySchema,
   registrationBodySchema,
   reorderBodySchema,
@@ -958,6 +959,20 @@ router.get('/api/public/product-options', async (req, res) => {
     return res.status(error.statusCode || 500).json({ success: false, error: error.message });
   }
 });
+router.post(
+  '/api/public/product-options/summary',
+  publicApiRateLimit,
+  validateRequest({ body: productOptionSummaryBodySchema }),
+  async (req, res, next) => {
+    try {
+      const flags = await getProductOptionFlags(req.body.productIds);
+      res.set('Cache-Control', 'private, no-store');
+      return res.json({ success: true, products: Object.fromEntries(flags) });
+    } catch (error) {
+      return next(error);
+    }
+  },
+);
 router.get('/api/public/fulfillment-slots', async (req, res) => {
   try {
     const result = await listAvailableSlots({

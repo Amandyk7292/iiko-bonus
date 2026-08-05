@@ -11,9 +11,10 @@ void main() {
     var requestCount = 0;
     final client = MockClient((request) async {
       requestCount += 1;
-      expect(request.url.path, '/api/public/product-options');
-      expect(request.url.queryParameters['summary'], '1');
-      final requestedIds = request.url.queryParameters['ids']!.split(',');
+      expect(request.method, 'POST');
+      expect(request.url.path, '/api/public/product-options/summary');
+      final body = jsonDecode(request.body) as Map<String, dynamic>;
+      final requestedIds = (body['productIds'] as List).cast<String>();
       expect(requestedIds, hasLength(162));
       return http.Response(
         jsonEncode({

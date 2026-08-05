@@ -7,6 +7,7 @@ const {
   normalizeOptionTranslations,
   summarizeProductOptionFlags,
 } = require('../src/services/product-options.service');
+const { productOptionSummaryBodySchema } = require('../src/contracts/customer-api.contract');
 
 test('legacy Russian option titles receive Kazakh and English standard translations', () => {
   assert.deepEqual(
@@ -45,4 +46,20 @@ test('compact product option summary marks builders and modifier groups only', (
     disabled: false,
     plain: false,
   });
+});
+
+test('compact product option request accepts one full 180-product UUID batch', () => {
+  const productIds = Array.from(
+    { length: 180 },
+    (_, index) => `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+  );
+  const serialized = JSON.stringify({ productIds });
+
+  assert.equal(serialized.length > 2_000, true);
+  assert.equal(productOptionSummaryBodySchema.safeParse({ productIds }).success, true);
+  assert.equal(
+    productOptionSummaryBodySchema.safeParse({ productIds: [...productIds, ...productIds] })
+      .success,
+    false,
+  );
 });

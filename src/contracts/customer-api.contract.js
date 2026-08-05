@@ -31,6 +31,11 @@ const forteCardSetupBodySchema = z
 const nullableText = (maximum) => z.string().trim().max(maximum).nullish();
 const cartConfigurationSchema = z.record(z.string().max(80), z.unknown());
 const cartModifierSchema = z.record(z.string().max(80), z.unknown());
+const productOptionSummaryBodySchema = z
+  .object({
+    productIds: z.array(z.string().trim().min(1).max(200)).min(1).max(200),
+  })
+  .strict();
 const checkoutItemSchema = z
   .object({
     id: resourceIdSchema,
@@ -731,6 +736,7 @@ module.exports = {
   notificationPreferencesBodySchema,
   orderReviewBodySchema,
   profileUpdateBodySchema,
+  productOptionSummaryBodySchema,
   referralRedeemBodySchema,
   registrationBodySchema,
   reorderBodySchema,
