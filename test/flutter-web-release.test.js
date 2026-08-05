@@ -118,4 +118,12 @@ test('release scripts finalize and verify the public Flutter bundle', () => {
   assert.match(remoteDeploy, /flutter_release_details=\$\(/);
   assert.match(remoteDeploy, /expected_flutter_hash/);
   assert.match(remoteDeploy, /production_flutter_hash/);
+  assert.match(remoteDeploy, /verify_client_shell\(\)/);
+  assert.match(remoteDeploy, /Accept: application\/json/);
+  assert.match(remoteDeploy, /SITE_IP_NOT_ALLOWED/);
+  assert.equal(
+    (remoteDeploy.match(/verify_client_shell 'http:\/\/127\.0\.0\.1:\d+\/app\/'/g) || []).length,
+    3,
+  );
+  assert.doesNotMatch(remoteDeploy, /curl -fsS 'http:\/\/127\.0\.0\.1:\d+\/app\/'/);
 });

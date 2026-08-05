@@ -185,6 +185,51 @@ wait_for_health() {
   return 1
 }
 
+verify_client_shell() {
+  local url=$1
+  local response_file
+  local status
+  local valid=1
+  response_file=$(mktemp /tmp/bulka-client-shell.XXXXXX)
+  status=$(
+    curl -sS \
+      -H 'Accept: application/json' \
+      -o "$response_file" \
+      -w '%{http_code}' \
+      "$url"
+  ) || {
+    rm -f -- "$response_file"
+    return 1
+  }
+
+  case "$status" in
+    200)
+      if grep -q 'app_bootstrap.js' "$response_file"; then
+        valid=0
+      fi
+      ;;
+    403)
+      # A direct loopback request is intentionally denied when the public
+      # IP allow-list is enabled. Accept only our exact structured denial,
+      # never an arbitrary 403 from another middleware.
+      if node - "$response_file" <<'NODE'
+const fs = require('node:fs');
+const response = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+if (response.code !== 'SITE_IP_NOT_ALLOWED') process.exit(1);
+NODE
+      then
+        valid=0
+      fi
+      ;;
+  esac
+
+  if [[ $valid -ne 0 ]]; then
+    echo "Client shell probe failed with HTTP ${status}: ${url}" >&2
+  fi
+  rm -f -- "$response_file"
+  return "$valid"
+}
+
 reload_production() {
   if env HOST=127.0.0.1 pm2 reload iiko-bonus --update-env; then
     return 0
@@ -217,7 +262,7 @@ start_staging_release() {
   )
   wait_for_health 'http://127.0.0.1:3101/readyz' 20
   curl -fsS 'http://127.0.0.1:3101/admin/' >/dev/null
-  curl -fsS 'http://127.0.0.1:3101/app/' >/dev/null
+  verify_client_shell 'http://127.0.0.1:3101/app/'
 }
 
 create_pre_migration_backup() {
@@ -452,7 +497,7 @@ preflight_pid=$!
 cd "$original_directory"
 wait_for_health 'http://127.0.0.1:3199/readyz' 20
 curl -fsS 'http://127.0.0.1:3199/admin/' >/dev/null
-curl -fsS 'http://127.0.0.1:3199/app/' >/dev/null
+verify_client_shell 'http://127.0.0.1:3199/app/'
 stop_preflight
 
 if [[ $migration_mode == 'apply' ]]; then
@@ -502,7 +547,7 @@ quarantine_legacy_migrations "$project"
 reload_production
 wait_for_health 'http://127.0.0.1:3000/readyz' 20
 curl -fsS 'http://127.0.0.1:3000/admin/' >/dev/null
-curl -fsS 'http://127.0.0.1:3000/app/' >/dev/null
+verify_client_shell 'http://127.0.0.1:3000/app/'
 if command -v pg_dump >/dev/null && command -v pg_restore >/dev/null; then
   run_optional_privileged_task \
     'Database backup timer' \
