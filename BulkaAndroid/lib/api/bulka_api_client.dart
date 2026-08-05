@@ -889,8 +889,8 @@ class BulkaApiClient {
         .toSet()
         .toList(growable: false);
     final result = <String, Map<String, dynamic>>{};
-    for (var offset = 0; offset < ids.length; offset += 40) {
-      final end = min(offset + 40, ids.length);
+    for (var offset = 0; offset < ids.length; offset += 180) {
+      final end = min(offset + 180, ids.length);
       final batch = ids.sublist(offset, end);
       final json = await _get(
         '/api/public/product-options'
@@ -899,6 +899,30 @@ class BulkaApiClient {
       final products = _asMap(json['products']);
       for (final id in batch) {
         result[id] = _asMap(products[id]);
+      }
+    }
+    return result;
+  }
+
+  Future<Map<String, bool>> getProductOptionFlagsBatch(
+    Iterable<String> productIds,
+  ) async {
+    final ids = productIds
+        .map((value) => value.trim())
+        .where((value) => value.isNotEmpty)
+        .toSet()
+        .toList(growable: false);
+    final result = <String, bool>{};
+    for (var offset = 0; offset < ids.length; offset += 180) {
+      final end = min(offset + 180, ids.length);
+      final batch = ids.sublist(offset, end);
+      final json = await _get(
+        '/api/public/product-options'
+        '?summary=1&ids=${Uri.encodeQueryComponent(batch.join(','))}',
+      );
+      final products = _asMap(json['products']);
+      for (final id in batch) {
+        result[id] = products[id] == true;
       }
     }
     return result;

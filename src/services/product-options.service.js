@@ -146,6 +146,37 @@ async function getProductOptions(productIds) {
   return result;
 }
 
+const summarizeProductOptionFlags = (productIds, configs = [], groups = []) => {
+  const ids = [...new Set((productIds || []).map(String).filter(Boolean))].slice(0, 200);
+  const configurableIds = new Set(
+    configs
+      .filter((config) => config.enabled !== false && config.product_kind !== 'standard')
+      .map((config) => String(config.product_id)),
+  );
+  for (const group of groups) configurableIds.add(String(group.product_id));
+  return new Map(ids.map((id) => [id, configurableIds.has(id)]));
+};
+
+async function getProductOptionFlags(productIds) {
+  const ids = [...new Set((productIds || []).map(String).filter(Boolean))].slice(0, 200);
+  if (!ids.length) return new Map();
+  const [{ data: configs, error: configError }, { data: groups, error: groupError }] =
+    await Promise.all([
+      supabase
+        .from('product_configurations')
+        .select('product_id,product_kind,enabled')
+        .in('product_id', ids),
+      supabase
+        .from('product_modifier_groups')
+        .select('product_id')
+        .in('product_id', ids)
+        .eq('active', true),
+    ]);
+  if (configError) throw configError;
+  if (groupError) throw groupError;
+  return summarizeProductOptionFlags(ids, configs || [], groups || []);
+}
+
 const optionByCode = (items, value) =>
   items.find((item) => String(item.code) === String(value) || String(item.id) === String(value));
 
@@ -350,9 +381,11 @@ async function saveProductOptions(productId, payload = {}) {
 }
 
 module.exports = {
+  getProductOptionFlags,
   getProductOptions,
   normalizeOptionTranslations: localized,
   saveProductOptions,
+  summarizeProductOptionFlags,
   validateBuilder,
   validateCartOptions,
   validateModifierGroups,

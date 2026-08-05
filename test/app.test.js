@@ -125,7 +125,7 @@ test('admin and Flutter CSP remove general-purpose script evaluation', async (t)
   assert.doesNotMatch(clientScriptPolicy, /(?:^|\s)'unsafe-inline'(?:\s|$)/);
 });
 
-test('Flutter shell and mutable release files are never cached', async (t) => {
+test('Flutter shell stays fresh while the current versioned bundle is immutable', async (t) => {
   const server = http.createServer(app);
   await new Promise((resolve, reject) => {
     server.once('error', reject);
@@ -147,6 +147,19 @@ test('Flutter shell and mutable release files are never cached', async (t) => {
     assert.equal(response.status, 200, route);
     assert.match(response.headers.get('cache-control') || '', /no-store/, route);
   }
+
+  const currentBundle = await fetch(`${origin}/app/main.dart.js?v=fixture-release`);
+  assert.equal(currentBundle.status, 200);
+  assert.match(currentBundle.headers.get('cache-control') || '', /max-age=31536000/);
+  assert.match(currentBundle.headers.get('cache-control') || '', /immutable/);
+
+  const unknownBundle = await fetch(`${origin}/app/main.dart.js?v=another-release`);
+  assert.equal(unknownBundle.status, 200);
+  assert.match(unknownBundle.headers.get('cache-control') || '', /no-store/);
+
+  const versionedBootstrap = await fetch(`${origin}/app/flutter_bootstrap.js?v=fixture-release`);
+  assert.equal(versionedBootstrap.status, 200);
+  assert.match(versionedBootstrap.headers.get('cache-control') || '', /no-store/);
 });
 
 test('Forte widget shell is private, pinned to official hosts and never reflects query tokens', async (t) => {

@@ -1,55 +1,65 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
-<head>
-  <script>
-    (function () {
-      var supported = ['ru', 'kk', 'en'];
-      var saved = localStorage.getItem('flutter.app_lang_code');
-      if (saved && saved.charAt(0) === '"') {
-        try { saved = JSON.parse(saved); } catch (_) {}
-      }
-      var browserLanguage = (navigator.language || 'ru').split('-')[0];
-      var locale = supported.indexOf(saved) >= 0
-        ? saved
-        : supported.indexOf(browserLanguage) >= 0
-        ? browserLanguage
-        : 'ru';
-      document.documentElement.lang = locale;
-      var metadata = {
-        ru: {
-          title: 'Bulka — семейная пекарня',
-          description: 'Заказывайте свежую выпечку, десерты и любимые блюда Bulka с доставкой или самовывозом в Астане и Актау.',
-          imageAlt: 'Оригинальный логотип семейной пекарни Bulka'
-        },
-        kk: {
-          title: 'Bulka — отбасылық наубайхана',
-          description: 'Астана мен Ақтауда Bulka-ның жаңа піскен өнімдерін, десерттері мен сүйікті тағамдарын жеткізумен немесе алып кетуге тапсырыс беріңіз.',
-          imageAlt: 'Bulka отбасылық наубайханасының түпнұсқа логотипі'
-        },
-        en: {
-          title: 'Bulka — family bakery',
-          description: 'Order fresh pastries, desserts and Bulka favourites for delivery or pickup in Astana and Aktau.',
-          imageAlt: 'Original Bulka family bakery logo'
+  <head>
+    <script>
+      (function () {
+        var supported = ['ru', 'kk', 'en'];
+        var saved = localStorage.getItem('flutter.app_lang_code');
+        if (saved && saved.charAt(0) === '"') {
+          try {
+            saved = JSON.parse(saved);
+          } catch (_) {}
         }
-      };
-      document.addEventListener('DOMContentLoaded', function () {
-        var copy = metadata[locale];
-        document.title = copy.title;
-        [
-          ['meta[name="description"]', 'content', copy.description],
-          ['meta[property="og:title"]', 'content', copy.title],
-          ['meta[property="og:description"]', 'content', copy.description],
-          ['meta[property="og:image:alt"]', 'content', copy.imageAlt],
-          ['meta[name="twitter:title"]', 'content', copy.title],
-          ['meta[name="twitter:description"]', 'content', copy.description]
-        ].forEach(function (entry) {
-          var element = document.querySelector(entry[0]);
-          if (element) element.setAttribute(entry[1], entry[2]);
-        });
-      }, { once: true });
-    })();
-  </script>
-  <!--
+        var browserLanguage = (navigator.language || 'ru').split('-')[0];
+        var locale =
+          supported.indexOf(saved) >= 0
+            ? saved
+            : supported.indexOf(browserLanguage) >= 0
+              ? browserLanguage
+              : 'ru';
+        document.documentElement.lang = locale;
+        var metadata = {
+          ru: {
+            title: 'Bulka — семейная пекарня',
+            description:
+              'Заказывайте свежую выпечку, десерты и любимые блюда Bulka с доставкой или самовывозом в Астане и Актау.',
+            imageAlt: 'Оригинальный логотип семейной пекарни Bulka',
+          },
+          kk: {
+            title: 'Bulka — отбасылық наубайхана',
+            description:
+              'Астана мен Ақтауда Bulka-ның жаңа піскен өнімдерін, десерттері мен сүйікті тағамдарын жеткізумен немесе алып кетуге тапсырыс беріңіз.',
+            imageAlt: 'Bulka отбасылық наубайханасының түпнұсқа логотипі',
+          },
+          en: {
+            title: 'Bulka — family bakery',
+            description:
+              'Order fresh pastries, desserts and Bulka favourites for delivery or pickup in Astana and Aktau.',
+            imageAlt: 'Original Bulka family bakery logo',
+          },
+        };
+        document.addEventListener(
+          'DOMContentLoaded',
+          function () {
+            var copy = metadata[locale];
+            document.title = copy.title;
+            [
+              ['meta[name="description"]', 'content', copy.description],
+              ['meta[property="og:title"]', 'content', copy.title],
+              ['meta[property="og:description"]', 'content', copy.description],
+              ['meta[property="og:image:alt"]', 'content', copy.imageAlt],
+              ['meta[name="twitter:title"]', 'content', copy.title],
+              ['meta[name="twitter:description"]', 'content', copy.description],
+            ].forEach(function (entry) {
+              var element = document.querySelector(entry[0]);
+              if (element) element.setAttribute(entry[1], entry[2]);
+            });
+          },
+          { once: true },
+        );
+      })();
+    </script>
+    <!--
     If you are serving your web app in a path other than the root, change the
     href value below to reflect the base path you are serving from.
 
@@ -62,245 +72,355 @@
     This is a placeholder for base href that will be replaced by the value of
     the `--base-href` argument provided to `flutter build`.
   -->
-  <base href="$FLUTTER_BASE_HREF">
+    <base href="$FLUTTER_BASE_HREF" />
 
-  <meta charset="UTF-8">
-  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="description" content="Заказывайте свежую выпечку, десерты и любимые блюда Bulka с доставкой или самовывозом в Астане и Актау.">
-  <meta name="theme-color" content="#FFFFFF">
-  <meta name="color-scheme" content="light only">
-  <link rel="canonical" href="https://bulka.com.kz/">
+    <meta charset="UTF-8" />
+    <meta content="IE=Edge" http-equiv="X-UA-Compatible" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta
+      name="description"
+      content="Заказывайте свежую выпечку, десерты и любимые блюда Bulka с доставкой или самовывозом в Астане и Актау."
+    />
+    <meta name="theme-color" content="#FFFFFF" />
+    <meta name="color-scheme" content="light only" />
+    <link rel="canonical" href="https://bulka.com.kz/" />
 
-  <meta property="og:type" content="website">
-  <meta property="og:site_name" content="Bulka">
-  <meta property="og:title" content="Bulka — семейная пекарня">
-  <meta property="og:description" content="Заказывайте свежую выпечку, десерты и любимые блюда Bulka с доставкой или самовывозом в Астане и Актау.">
-  <meta property="og:url" content="https://bulka.com.kz/">
-  <meta property="og:image" content="https://bulka.com.kz/icons/Icon-512.png?v=20260718-1">
-  <meta property="og:image:secure_url" content="https://bulka.com.kz/icons/Icon-512.png?v=20260718-1">
-  <meta property="og:image:type" content="image/png">
-  <meta property="og:image:width" content="512">
-  <meta property="og:image:height" content="512">
-  <meta property="og:image:alt" content="Оригинальный логотип семейной пекарни Bulka">
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Bulka" />
+    <meta property="og:title" content="Bulka — семейная пекарня" />
+    <meta
+      property="og:description"
+      content="Заказывайте свежую выпечку, десерты и любимые блюда Bulka с доставкой или самовывозом в Астане и Актау."
+    />
+    <meta property="og:url" content="https://bulka.com.kz/" />
+    <meta property="og:image" content="https://bulka.com.kz/icons/Icon-512.png?v=20260718-1" />
+    <meta
+      property="og:image:secure_url"
+      content="https://bulka.com.kz/icons/Icon-512.png?v=20260718-1"
+    />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+    <meta property="og:image:alt" content="Оригинальный логотип семейной пекарни Bulka" />
 
-  <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="Bulka — семейная пекарня">
-  <meta name="twitter:description" content="Заказывайте свежую выпечку, десерты и любимые блюда Bulka с доставкой или самовывозом в Астане и Актау.">
-  <meta name="twitter:image" content="https://bulka.com.kz/icons/Icon-512.png?v=20260718-1">
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Bulka — семейная пекарня" />
+    <meta
+      name="twitter:description"
+      content="Заказывайте свежую выпечку, десерты и любимые блюда Bulka с доставкой или самовывозом в Астане и Актау."
+    />
+    <meta name="twitter:image" content="https://bulka.com.kz/icons/Icon-512.png?v=20260718-1" />
 
-  <!-- iOS meta tags & icons -->
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="Bulka">
-  <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=20260730-1">
+    <!-- iOS meta tags & icons -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Bulka" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=20260730-1" />
 
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" sizes="48x48" href="/favicon.png?v=20260730-1">
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="48x48" href="/favicon.png?v=20260730-1" />
 
-  <title>Bulka — семейная пекарня</title>
-  <link rel="manifest" href="manifest.json">
-  <style>
-    @font-face {
-      font-family: "Montserrat";
-      src: url("assets/assets/fonts/Montserrat-Regular-subset.ttf") format("truetype");
-      font-weight: 400;
-      font-style: normal;
-      font-display: swap;
-    }
+    <title>Bulka — семейная пекарня</title>
+    <link rel="manifest" href="manifest.json" />
+    <style>
+      @font-face {
+        font-family: 'Montserrat';
+        src: url('assets/assets/fonts/Montserrat-Regular-subset.ttf') format('truetype');
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+      }
 
-    @font-face {
-      font-family: "Montserrat";
-      src: url("assets/assets/fonts/Montserrat-SemiBold-subset.ttf") format("truetype");
-      font-weight: 600;
-      font-style: normal;
-      font-display: swap;
-    }
+      @font-face {
+        font-family: 'Montserrat';
+        src: url('assets/assets/fonts/Montserrat-SemiBold-subset.ttf') format('truetype');
+        font-weight: 600;
+        font-style: normal;
+        font-display: swap;
+      }
 
-    html, body {
-      color-scheme: light;
-      width: 100%;
-      height: 100%;
-      margin: 0;
-      overflow: hidden;
-      overscroll-behavior: none;
-      background: #fff;
-      -webkit-tap-highlight-color: transparent;
-    }
+      html,
+      body {
+        color-scheme: light;
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        overscroll-behavior: none;
+        background: #fff;
+        -webkit-tap-highlight-color: transparent;
+      }
 
-    body {
-      touch-action: manipulation;
-    }
+      body {
+        touch-action: manipulation;
+      }
 
-    flutter-view,
-    flt-glass-pane,
-    canvas {
-      background-color: #fff;
-    }
+      flutter-view,
+      flt-glass-pane,
+      canvas {
+        background-color: #fff;
+      }
 
-    #app-loading {
-      position: fixed;
-      inset: 0;
-      z-index: 9999;
-      display: grid;
-      place-items: center;
-      overflow: hidden;
-      isolation: isolate;
-      pointer-events: auto;
-      background: #fff;
-      color: #532814;
-      font-family: "Montserrat";
-      transition: opacity 220ms ease;
-    }
+      #app-loading {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        isolation: isolate;
+        pointer-events: auto;
+        background: #fff;
+        color: #532814;
+        font-family: 'Montserrat';
+        transition: opacity 220ms ease;
+      }
 
-    #app-loading.is-ready {
-      opacity: 0;
-    }
+      #app-loading.is-ready {
+        opacity: 0;
+      }
 
-    .app-loading-content {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 20px;
-      z-index: 1;
-      width: min(88vw, 360px);
-      padding: 0;
-      border: 0;
-      background: transparent;
-      box-shadow: none;
-    }
+      .app-loading-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+        z-index: 1;
+        width: min(88vw, 360px);
+        padding: 0;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+      }
 
-    .app-loading-logo {
-      display: block;
-      flex: 0 0 auto;
-      width: 184px;
-      max-width: 100%;
-      height: auto;
-      animation: app-logo-pulse 4.5s ease-in-out infinite;
-      transform-origin: center;
-    }
+      .app-loading-logo {
+        display: block;
+        flex: 0 0 auto;
+        width: 184px;
+        max-width: 100%;
+        height: auto;
+        animation: app-logo-pulse 4.5s ease-in-out infinite;
+        transform-origin: center;
+      }
 
-    #app-loading.is-error {
-      pointer-events: auto;
-    }
+      .app-loading-status {
+        display: flex;
+        width: min(68vw, 220px);
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        text-align: center;
+      }
 
-    #app-loading.is-error .app-loading-logo {
-      animation: none;
-    }
+      .app-loading-label {
+        min-height: 20px;
+        margin: 0;
+        color: #786861;
+        font-size: 13px;
+        font-weight: 600;
+        line-height: 1.5;
+      }
 
-    .app-loading-error {
-      width: min(88vw, 360px);
-      text-align: center;
-      color: #532814;
-    }
+      .app-loading-bar {
+        position: relative;
+        width: 100%;
+        height: 4px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: #f3e7d8;
+      }
 
-    .app-loading-error[hidden] {
-      display: none;
-    }
+      .app-loading-bar::after {
+        position: absolute;
+        inset: 0;
+        width: 42%;
+        border-radius: inherit;
+        background: #ffb814;
+        content: '';
+        animation: app-loading-progress 1.35s ease-in-out infinite;
+      }
 
-    .app-loading-error-title {
-      margin: 0 0 8px;
-      font-size: 18px;
-      font-weight: 700;
-      line-height: 1.35;
-    }
+      #app-loading.is-error {
+        pointer-events: auto;
+      }
 
-    .app-loading-error-copy {
-      margin: 0 0 16px;
-      color: #6f625c;
-      font-size: 14px;
-      line-height: 1.5;
-    }
+      #app-loading.is-error .app-loading-logo {
+        animation: none;
+      }
 
-    .app-loading-retry {
-      min-width: 148px;
-      min-height: 48px;
-      padding: 12px 20px;
-      border: 1px solid #532814;
-      border-radius: 18px;
-      background: #ffb814;
-      color: #532814;
-      font: inherit;
-      font-weight: 700;
-      cursor: pointer;
-      touch-action: manipulation;
-    }
+      #app-loading.is-error .app-loading-status {
+        display: none;
+      }
 
-    .app-loading-retry:focus-visible {
-      outline: 3px solid #8a3f1e;
-      outline-offset: 3px;
-    }
+      .app-loading-error {
+        width: min(88vw, 360px);
+        text-align: center;
+        color: #532814;
+      }
 
-    @keyframes app-logo-pulse {
-      0%, 100% { transform: scale(0.96); opacity: 0.92; }
-      50% { transform: scale(1.05); opacity: 1; }
-    }
+      .app-loading-error[hidden] {
+        display: none;
+      }
 
-    @media (prefers-reduced-motion: reduce) {
-      #app-loading { transition: none; }
-      .app-loading-logo { animation: none; }
-    }
-  </style>
-</head>
-<body>
-  <div id="app-loading" role="status" aria-live="polite">
-    <div class="app-loading-content">
-      <img class="app-loading-logo" src="assets/assets/brand/bulka_logo.png?v=20260719-1" alt="Bulka">
-      <div id="app-loading-error" class="app-loading-error" role="alert" hidden>
-        <p id="app-loading-error-title" class="app-loading-error-title"></p>
-        <p id="app-loading-error-copy" class="app-loading-error-copy"></p>
-        <button id="app-loading-retry" class="app-loading-retry" type="button"></button>
+      .app-loading-error-title {
+        margin: 0 0 8px;
+        font-size: 18px;
+        font-weight: 700;
+        line-height: 1.35;
+      }
+
+      .app-loading-error-copy {
+        margin: 0 0 16px;
+        color: #6f625c;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      .app-loading-retry {
+        min-width: 148px;
+        min-height: 48px;
+        padding: 12px 20px;
+        border: 1px solid #532814;
+        border-radius: 18px;
+        background: #ffb814;
+        color: #532814;
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+        touch-action: manipulation;
+      }
+
+      .app-loading-retry:focus-visible {
+        outline: 3px solid #8a3f1e;
+        outline-offset: 3px;
+      }
+
+      @keyframes app-logo-pulse {
+        0%,
+        100% {
+          transform: scale(0.96);
+          opacity: 0.92;
+        }
+        50% {
+          transform: scale(1.05);
+          opacity: 1;
+        }
+      }
+
+      @keyframes app-loading-progress {
+        0% {
+          transform: translateX(-120%);
+        }
+        100% {
+          transform: translateX(340%);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #app-loading {
+          transition: none;
+        }
+        .app-loading-logo {
+          animation: none;
+        }
+        .app-loading-bar::after {
+          width: 72%;
+          animation: none;
+          transform: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app-loading" role="status" aria-live="polite">
+      <div class="app-loading-content">
+        <img class="app-loading-logo" src="assets/assets/brand/bulka_logo.png" alt="Bulka" />
+        <div class="app-loading-status">
+          <p id="app-loading-label" class="app-loading-label">Загружаем приложение…</p>
+          <div class="app-loading-bar" aria-hidden="true"></div>
+        </div>
+        <div id="app-loading-error" class="app-loading-error" role="alert" hidden>
+          <p id="app-loading-error-title" class="app-loading-error-title"></p>
+          <p id="app-loading-error-copy" class="app-loading-error-copy"></p>
+          <button id="app-loading-retry" class="app-loading-retry" type="button"></button>
+        </div>
       </div>
     </div>
-  </div>
-  <script>
-    (() => {
-      const copy = {
-        ru: {
-          title: 'Не удалось запустить приложение',
-          body: 'Проверьте подключение к интернету и попробуйте ещё раз.',
-          retry: 'Попробовать снова',
-        },
-        kk: {
-          title: 'Қолданбаны іске қосу мүмкін болмады',
-          body: 'Интернет байланысын тексеріп, әрекетті қайталаңыз.',
-          retry: 'Қайта көру',
-        },
-        en: {
-          title: 'The app could not start',
-          body: 'Check your internet connection and try again.',
-          retry: 'Try again',
-        },
-      };
-      const language = (document.documentElement.lang || 'ru').toLowerCase();
-      const locale = language.startsWith('kk') || language.startsWith('kz')
-        ? 'kk'
-        : language.startsWith('en')
-          ? 'en'
-          : 'ru';
-      const loadingTimeout = window.setTimeout(() => {
-        const loading = document.getElementById('app-loading');
-        const error = document.getElementById('app-loading-error');
-        if (!loading || !error) return;
-        document.getElementById('app-loading-error-title').textContent = copy[locale].title;
-        document.getElementById('app-loading-error-copy').textContent = copy[locale].body;
-        const retry = document.getElementById('app-loading-retry');
-        retry.textContent = copy[locale].retry;
-        retry.addEventListener('click', () => window.location.reload(), { once: true });
-        error.hidden = false;
-        loading.classList.add('is-error');
-      }, 12000);
-      const hideLoading = () => {
-        window.clearTimeout(loadingTimeout);
-        const loading = document.getElementById('app-loading');
-        if (!loading) return;
-        loading.classList.add('is-ready');
-        window.setTimeout(() => loading.remove(), 240);
-      };
-      window.addEventListener('flutter-first-frame', hideLoading, { once: true });
-    })();
-  </script>
-  <script src="app_bootstrap.js?v=__BULKA_RELEASE_VERSION__"></script>
-</body>
+    <script>
+      (() => {
+        const copy = {
+          ru: {
+            loading: 'Загружаем приложение…',
+            slow: 'Первый запуск может занять немного дольше',
+            almost: 'Почти готово…',
+            title: 'Не удалось запустить приложение',
+            body: 'Проверьте подключение к интернету и попробуйте ещё раз.',
+            retry: 'Попробовать снова',
+          },
+          kk: {
+            loading: 'Қолданба жүктелуде…',
+            slow: 'Алғашқы іске қосу сәл ұзағырақ болуы мүмкін',
+            almost: 'Дайын болып қалды…',
+            title: 'Қолданбаны іске қосу мүмкін болмады',
+            body: 'Интернет байланысын тексеріп, әрекетті қайталаңыз.',
+            retry: 'Қайта көру',
+          },
+          en: {
+            loading: 'Loading the app…',
+            slow: 'The first launch may take a little longer',
+            almost: 'Almost ready…',
+            title: 'The app could not start',
+            body: 'Check your internet connection and try again.',
+            retry: 'Try again',
+          },
+        };
+        const language = (document.documentElement.lang || 'ru').toLowerCase();
+        const locale =
+          language.startsWith('kk') || language.startsWith('kz')
+            ? 'kk'
+            : language.startsWith('en')
+              ? 'en'
+              : 'ru';
+        const label = document.getElementById('app-loading-label');
+        if (label) label.textContent = copy[locale].loading;
+        const progressTimers = [
+          window.setTimeout(() => {
+            if (label) label.textContent = copy[locale].slow;
+          }, 8000),
+          window.setTimeout(() => {
+            if (label) label.textContent = copy[locale].almost;
+          }, 20000),
+        ];
+        const clearLoadingTimers = () => {
+          for (const timer of progressTimers) window.clearTimeout(timer);
+          window.clearTimeout(loadingTimeout);
+        };
+        const showLoadingError = () => {
+          const loading = document.getElementById('app-loading');
+          const error = document.getElementById('app-loading-error');
+          if (!loading || !error) return;
+          clearLoadingTimers();
+          document.getElementById('app-loading-error-title').textContent = copy[locale].title;
+          document.getElementById('app-loading-error-copy').textContent = copy[locale].body;
+          const retry = document.getElementById('app-loading-retry');
+          retry.textContent = copy[locale].retry;
+          retry.addEventListener('click', () => window.location.reload(), { once: true });
+          error.hidden = false;
+          loading.classList.add('is-error');
+        };
+        const loadingTimeout = window.setTimeout(showLoadingError, 30000);
+        const hideLoading = () => {
+          clearLoadingTimers();
+          const loading = document.getElementById('app-loading');
+          if (!loading) return;
+          loading.classList.add('is-ready');
+          window.setTimeout(() => loading.remove(), 240);
+        };
+        window.addEventListener('flutter-first-frame', hideLoading, { once: true });
+        window.addEventListener('bulka-flutter-bootstrap-error', showLoadingError, { once: true });
+      })();
+    </script>
+    <script src="app_bootstrap.js?v=__BULKA_RELEASE_VERSION__"></script>
+  </body>
 </html>

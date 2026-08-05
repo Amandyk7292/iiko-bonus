@@ -161,21 +161,17 @@ extension _CatalogDataController on _CatalogScreenState {
   Future<void> _refreshProductOptionFlags(List<CatalogProduct> products) async {
     final revision = ++_productOptionsRevision;
     try {
-      final options = await _api.getProductOptionsBatch(
+      final optionFlags = await _api.getProductOptionFlagsBatch(
         products.map((product) => product.id),
       );
       if (!mounted || revision != _productOptionsRevision) return;
       final currentIds = _allProducts.map((product) => product.id).toSet();
       _updateCatalogState(() {
-        _resolvedProductOptionIds = options.keys
+        _resolvedProductOptionIds = optionFlags.keys
             .where(currentIds.contains)
             .toSet();
-        _configurableProductIds = options.entries
-            .where(
-              (entry) =>
-                  currentIds.contains(entry.key) &&
-                  catalogProductOptionsRequireDetails(entry.value),
-            )
+        _configurableProductIds = optionFlags.entries
+            .where((entry) => currentIds.contains(entry.key) && entry.value)
             .map((entry) => entry.key)
             .toSet();
       });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   Bike,
   Copy,
@@ -18,12 +18,13 @@ import { api, type Courier, type CourierActivity } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 
 type Draft = { name: string; phone: string; vehicle: string; active: boolean };
+type CourierRow = Courier & { _pending?: boolean };
 const emptyDraft: Draft = { name: '', phone: '+7', vehicle: '', active: true };
 
 export default function CouriersPage() {
   const { t, formatDate } = useI18n();
   const { toast, confirm } = useFeedback();
-  const [couriers, setCouriers] = useState<Courier[]>([]);
+  const [couriers, setCouriers] = useState<CourierRow[]>([]);
   const [editing, setEditing] = useState<Courier | null | 'new'>(null);
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [loading, setLoading] = useState(true);
@@ -32,6 +33,7 @@ export default function CouriersPage() {
   const [activityCourier, setActivityCourier] = useState<Courier | null>(null);
   const [activity, setActivity] = useState<CourierActivity[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
+  const pendingCourierIdsRef = useRef<Set<string>>(new Set());
 
   const load = useCallback(
     async (silent = false) => {
@@ -92,13 +94,30 @@ export default function CouriersPage() {
   };
 
   const toggle = async (courier: Courier) => {
+    if (pendingCourierIdsRef.current.has(courier.id)) return;
+    const nextActive = !courier.active;
+    pendingCourierIdsRef.current.add(courier.id);
+    setCouriers((current) =>
+      current.map((item) =>
+        item.id === courier.id ? { ...item, active: nextActive, _pending: true } : item,
+      ),
+    );
     try {
-      const result = await api.setCourierActive(courier.id, !courier.active);
+      const result = await api.setCourierActive(courier.id, nextActive);
       setCouriers((current) =>
-        current.map((item) => (item.id === courier.id ? result.courier : item)),
+        current.map((item) =>
+          item.id === courier.id ? { ...result.courier, _pending: false } : item,
+        ),
       );
     } catch (caught) {
+      setCouriers((current) =>
+        current.map((item) =>
+          item.id === courier.id ? { ...item, active: courier.active, _pending: false } : item,
+        ),
+      );
       toast(caught instanceof Error ? caught.message : t('common.error'), 'error');
+    } finally {
+      pendingCourierIdsRef.current.delete(courier.id);
     }
   };
 
@@ -278,6 +297,8 @@ export default function CouriersPage() {
                   type="checkbox"
                   checked={courier.active}
                   onChange={() => void toggle(courier)}
+                  disabled={courier._pending}
+                  aria-busy={Boolean(courier._pending)}
                 />
                 <span className="switch-control" aria-hidden="true" />
                 <span>{courier.active ? t('common.active') : t('common.inactive')}</span>

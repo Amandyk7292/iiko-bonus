@@ -1,5 +1,6 @@
 const express = require('express');
 const crypto = require('node:crypto');
+const fs = require('node:fs');
 const cors = require('cors');
 const path = require('path');
 const helmet = require('helmet');
@@ -52,6 +53,18 @@ const {
 const publicAppDirectory = path.resolve(
   process.env.BULKA_PUBLIC_APP_DIR || path.join(process.cwd(), 'public', 'app'),
 );
+const flutterReleaseVersionPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{5,63}$/;
+const publicAppReleaseVersion = (() => {
+  try {
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(publicAppDirectory, 'release-version.json'), 'utf8'),
+    );
+    const version = String(manifest?.version || '');
+    return flutterReleaseVersionPattern.test(version) ? version : null;
+  } catch {
+    return null;
+  }
+})();
 
 const app = express();
 validateRuntimeConfig();
@@ -277,12 +290,24 @@ const kaspiAdminStaticHeaders = (res, filePath) => {
 };
 
 const appStaticHeaders = (res, filePath) => {
-  if (
-    /index\.html$|app_bootstrap\.js$|flutter_bootstrap\.js$|flutter_service_worker\.js$|firebase-messaging-sw\.js$|main\.dart\.(?:js|mjs|wasm)$|manifest\.json$|release-version\.json$/.test(
+  const mutableReleaseFile =
+    /index\.html$|app_bootstrap\.js$|flutter_bootstrap\.js$|flutter_service_worker\.js$|firebase-messaging-sw\.js$|manifest\.json$|release-version\.json$/.test(
       filePath,
-    )
-  ) {
+    );
+  const mutableEntrypoint = /main\.dart\.(?:js|mjs|wasm)$/.test(filePath);
+  const requestedVersion = String(res.req?.query?.v || '');
+  const currentVersionedEntrypoint =
+    mutableEntrypoint &&
+    publicAppReleaseVersion !== null &&
+    requestedVersion === publicAppReleaseVersion;
+
+  if (mutableReleaseFile || (mutableEntrypoint && !currentVersionedEntrypoint)) {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  } else if (currentVersionedEntrypoint) {
+    // The startup server accepts immutable caching only for the release it
+    // loaded from disk. During an in-place artifact swap the old process will
+    // therefore never cache a new-version URL with the previous bundle body.
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
   } else {
     res.setHeader('Cache-Control', 'public, max-age=3600, must-revalidate');
   }

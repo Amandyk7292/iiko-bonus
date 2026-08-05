@@ -61,7 +61,7 @@ def main() -> None:
         loading = page.locator("#app-loading")
         loading.wait_for(state="visible", timeout=5_000)
         assert loading.get_attribute("role") == "status"
-        assert page.locator(".app-loading-logo").is_visible()
+        page.locator(".app-loading-logo").wait_for(state="visible", timeout=5_000)
 
         page.wait_for_load_state("domcontentloaded", timeout=30_000)
         loading.wait_for(state="detached", timeout=35_000)

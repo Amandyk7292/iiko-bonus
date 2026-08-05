@@ -43,8 +43,11 @@ def main() -> None:
         assert styles["backgroundColor"] == "rgba(0, 0, 0, 0)", styles
         assert styles["loadingBackground"] == "rgb(255, 255, 255)", styles
         assert styles["bodyBackground"] == "rgb(255, 255, 255)", styles
-        assert page.locator(".app-loading-label").count() == 0
-        assert page.locator(".app-loading-bar").count() == 0
+        label = page.locator(".app-loading-label")
+        bar = page.locator(".app-loading-bar")
+        assert label.is_visible()
+        assert "Загружаем" in label.inner_text()
+        assert bar.is_visible()
 
         logo = page.locator(".app-loading-logo")
         logo_styles = logo.evaluate(

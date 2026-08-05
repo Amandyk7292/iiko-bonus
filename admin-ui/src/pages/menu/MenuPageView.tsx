@@ -172,6 +172,8 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
                 const override = productOverrides[p.id];
                 const isHidden = Boolean(override?.is_hidden);
                 const isStop = Boolean(override?.is_stop_listed);
+                const visibilityPending = Boolean(override?._visibility_pending);
+                const stopListPending = Boolean(override?._stop_list_pending);
                 const imgUrl = override?.custom_image_url || (p.imageLinks?.[0] ?? '');
                 const displayName = override?.custom_name || p.name;
                 const displayPrice =
@@ -280,6 +282,8 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
                         <button
                           type="button"
                           onClick={() => void handleToggleProductHidden(p.id, isHidden)}
+                          disabled={visibilityPending}
+                          aria-busy={visibilityPending}
                           className={`icon-button ${isHidden ? 'bg-gray-100 text-gray-500' : 'bg-green-50 text-green-600'}`}
                           aria-label={isHidden ? 'Показать блюдо' : 'Скрыть блюдо'}
                           title={isHidden ? 'Показать' : 'Скрыть'}
@@ -293,6 +297,8 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
                         <button
                           type="button"
                           onClick={() => handleToggleStopList(p.id, isStop)}
+                          disabled={stopListPending}
+                          aria-busy={stopListPending}
                           className={`icon-button ${isStop ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-500'}`}
                           aria-label={isStop ? 'Убрать из стоп-листа' : 'Добавить в стоп-лист'}
                           title={isStop ? 'Убрать из стоп-листа' : 'В стоп-лист'}
@@ -333,6 +339,7 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
             const isDirectlyHidden = Boolean(override?.is_hidden);
             const isHidden = hiddenCategoryIds.has(g.id);
             const isHiddenByDuplicate = isHidden && !isDirectlyHidden;
+            const visibilityPending = Boolean(override?._visibility_pending);
             const count = rawProducts.filter((p) => p.parentGroup === g.id).length;
 
             return (
@@ -401,7 +408,8 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
                   <button
                     type="button"
                     onClick={() => handleToggleCategoryHidden(g.id, isDirectlyHidden)}
-                    disabled={isHiddenByDuplicate}
+                    disabled={isHiddenByDuplicate || visibilityPending}
+                    aria-busy={visibilityPending}
                     title={
                       isHiddenByDuplicate
                         ? 'Категория скрыта вместе с одноимённой категорией'

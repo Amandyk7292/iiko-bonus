@@ -6,6 +6,7 @@ import { useSearchParams } from '../../lib/router';
 import { type MenuProfileStatus } from './MenuCityScope';
 import { type MenuWorkspaceTab } from './MenuWorkspaceToolbar';
 import { useMenuCitySelection } from './use-menu-city-selection';
+import { useOptimisticMenuActions } from './use-optimistic-menu-actions';
 import {
   builderOptionSections,
   categoryNameKeys,
@@ -82,6 +83,14 @@ export function useMenuPageController({
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [syncingIiko, setSyncingIiko] = useState(false);
   const iikoSyncInFlight = useRef(false);
+  const { handleToggleProductHidden, handleToggleStopList, handleToggleCategoryHidden } =
+    useOptimisticMenuActions({
+      setProductOverrides,
+      setCategoryOverrides,
+      selectedCategory,
+      setSelectedCategory,
+      toast,
+    });
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -249,43 +258,6 @@ export function useMenuPageController({
       toast(err instanceof Error ? err.message : 'Ошибка загрузки фото', 'error');
     } finally {
       setUploadingId(null);
-    }
-  };
-
-  const handleToggleProductHidden = async (productId: string, curHidden?: boolean) => {
-    const cur = productOverrides[productId] || { iiko_product_id: productId };
-    const updated = { ...cur, is_hidden: !curHidden };
-    try {
-      await api.setProductOverride(productId, { is_hidden: updated.is_hidden });
-      setProductOverrides((prev) => ({ ...prev, [productId]: updated }));
-      toast(updated.is_hidden ? 'Блюдо скрыто из приложения' : 'Блюдо снова отображается', 'info');
-    } catch (err) {
-      toast('Ошибка сохранения настроек', 'error');
-    }
-  };
-
-  const handleToggleStopList = async (productId: string, curStop?: boolean) => {
-    const cur = productOverrides[productId] || { iiko_product_id: productId };
-    const updated = { ...cur, is_stop_listed: !curStop };
-    try {
-      await api.setProductOverride(productId, { is_stop_listed: updated.is_stop_listed });
-      setProductOverrides((prev) => ({ ...prev, [productId]: updated }));
-      toast(updated.is_stop_listed ? 'Добавлено в стоп-лист' : 'Убрано из стоп-листа', 'info');
-    } catch (err) {
-      toast('Ошибка сохранения настроек', 'error');
-    }
-  };
-
-  const handleToggleCategoryHidden = async (categoryId: string, curHidden?: boolean) => {
-    const cur = categoryOverrides[categoryId] || { iiko_category_id: categoryId };
-    const updated = { ...cur, is_hidden: !curHidden };
-    try {
-      await api.setCategoryOverride(categoryId, { is_hidden: updated.is_hidden });
-      setCategoryOverrides((prev) => ({ ...prev, [categoryId]: updated }));
-      if (updated.is_hidden && selectedCategory === categoryId) setSelectedCategory('all');
-      toast(updated.is_hidden ? 'Категория скрыта' : 'Категория включена', 'info');
-    } catch (err) {
-      toast('Ошибка сохранения настроек', 'error');
     }
   };
 

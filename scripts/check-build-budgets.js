@@ -39,7 +39,9 @@ if (adminDirectory) {
   assertBudget(
     'Admin total JavaScript gzip',
     javascriptGzip.reduce((sum, size) => sum + size, 0),
-    310_000,
+    // Optimistic per-row menu and courier state adds under 1 KiB gzip while
+    // removing network wait from frequent operations. Keep the ratchet tight.
+    311_000,
   );
   assertBudget('Admin largest JavaScript gzip', Math.max(0, ...javascriptGzip), 82_000);
   assertBudget('Admin largest CSS gzip', Math.max(0, ...styleGzip), 30_000);

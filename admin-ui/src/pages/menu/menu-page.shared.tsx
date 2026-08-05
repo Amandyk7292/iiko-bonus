@@ -26,6 +26,8 @@ export interface ProductStorageCondition {
 
 export interface ProductOverride {
   iiko_product_id: string;
+  _visibility_pending?: boolean;
+  _stop_list_pending?: boolean;
   custom_name?: string;
   name_translations?: Record<string, string>;
   custom_price?: number;
@@ -50,6 +52,7 @@ export interface ProductOverride {
 
 export interface CategoryOverride {
   iiko_category_id: string;
+  _visibility_pending?: boolean;
   custom_name?: string | null;
   name_translations?: Record<string, string> | null;
   custom_image_url?: string;

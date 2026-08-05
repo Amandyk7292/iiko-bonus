@@ -32,7 +32,7 @@ const {
   verifyCourierLogin,
 } = require('../services/courier.service');
 const { readCookieToken } = require('../services/auth.service');
-const { getProductOptions } = require('../services/product-options.service');
+const { getProductOptionFlags, getProductOptions } = require('../services/product-options.service');
 const { getAppReleasePolicy } = require('../services/app-release.service');
 const personalization = require('../services/personalization.service');
 const reviews = require('../services/review.service');
@@ -946,11 +946,16 @@ router.get('/api/public/product-options', async (req, res) => {
       .split(',')
       .map((value) => value.trim())
       .filter(Boolean);
+    if (req.query.summary === '1') {
+      const flags = await getProductOptionFlags(ids);
+      res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
+      return res.json({ success: true, products: Object.fromEntries(flags) });
+    }
     const options = await getProductOptions(ids);
     res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
-    res.json({ success: true, products: Object.fromEntries(options) });
+    return res.json({ success: true, products: Object.fromEntries(options) });
   } catch (error) {
-    res.status(error.statusCode || 500).json({ success: false, error: error.message });
+    return res.status(error.statusCode || 500).json({ success: false, error: error.message });
   }
 });
 router.get('/api/public/fulfillment-slots', async (req, res) => {
