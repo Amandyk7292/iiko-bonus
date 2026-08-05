@@ -5,13 +5,13 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('catalog suggestions use product-specific vector icons', () {
     final icons = [
-      catalogSuggestionIcon('Булгурская вес'),
+      catalogSuggestionIcon('Бауырсак вес'),
       catalogSuggestionIcon('Сосиски мини вес'),
       catalogSuggestionIcon('Хворост Bulka вес'),
     ];
 
     expect(icons, [
-      Icons.rice_bowl_rounded,
+      Icons.breakfast_dining_rounded,
       Icons.fastfood_rounded,
       Icons.bakery_dining_rounded,
     ]);

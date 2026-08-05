@@ -7,6 +7,7 @@ IconData catalogSuggestionIcon(String rawTitle) {
   bool hasAny(Iterable<String> keywords) =>
       keywords.any((keyword) => title.contains(keyword));
 
+  if (hasAny(const ['бауыр'])) return Icons.breakfast_dining_rounded;
   if (hasAny(const ['булгур', 'греч', 'рис', 'каша', 'круп'])) {
     return Icons.rice_bowl_rounded;
   }
@@ -36,7 +37,6 @@ IconData catalogSuggestionIcon(String rawTitle) {
     'булоч',
     'круас',
     'хворост',
-    'бауыр',
     'багет',
     'хлеб',
     'слойк',
