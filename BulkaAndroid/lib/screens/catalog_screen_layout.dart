@@ -93,9 +93,10 @@ extension _CatalogScreenLayout on _CatalogScreenState {
                                     .map(
                                       (suggestion) => ActionChip(
                                         label: Text(suggestion),
-                                        avatar: const Icon(
-                                          Icons.auto_fix_high_rounded,
-                                          size: 16,
+                                        avatar: Icon(
+                                          catalogSuggestionIcon(suggestion),
+                                          size: 17,
+                                          color: scheme.primary,
                                         ),
                                         onPressed: () {
                                           _searchController.text = suggestion;

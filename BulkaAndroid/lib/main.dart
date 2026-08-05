@@ -41,6 +41,7 @@ part 'app/app.dart';
 part 'core/app_release.dart';
 part 'core/helpers.dart';
 part 'core/catalog_search.dart';
+part 'core/catalog_suggestion_icon.dart';
 part 'core/home_widget_sync.dart';
 part 'core/favorite_store.dart';
 part 'core/gift_purchase_store.dart';
