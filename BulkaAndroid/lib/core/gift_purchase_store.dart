@@ -67,7 +67,7 @@ class PendingGiftPurchase {
         amount == null ||
         amount < 500 ||
         recipientPhone.isEmpty ||
-        !const {'forte', 'kaspi'}.contains(paymentMethod) ||
+        paymentMethod != 'forte' ||
         createdAt == null) {
       return null;
     }

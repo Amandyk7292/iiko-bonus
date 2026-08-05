@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useState } from 'react';
-import { ChevronDown, Download, Gift, RefreshCw, Search, Smartphone } from 'lucide-react';
+import { ChevronDown, Download, Gift, RefreshCw, Search } from 'lucide-react';
 import { Link, useSearchParams } from '../lib/router';
 import PageState from '../components/PageState';
 import SelectControl from '../components/SelectControl';
@@ -36,7 +36,6 @@ export default function TransactionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [showKaspi, setShowKaspi] = useState(false);
   const pageSize = 50;
 
   const updateParams = useCallback(
@@ -138,13 +137,6 @@ export default function TransactionsPage() {
   return (
     <div className="page-stack">
       <div className="page-actions-row">
-        <button
-          type="button"
-          className="btn-outline px-4 inline-flex items-center gap-2"
-          onClick={() => setShowKaspi(!showKaspi)}
-        >
-          <Smartphone aria-hidden="true" size={17} /> Kaspi Pay
-        </button>
         <Link className="btn-outline px-4 inline-flex items-center gap-2" to="/customers">
           <Gift aria-hidden="true" size={17} /> {t('transactions.manualBonus')}
         </Link>
@@ -167,20 +159,6 @@ export default function TransactionsPage() {
         </button>
       </div>
       {error && <div className="inline-alert inline-alert-error">{error}</div>}
-
-      {showKaspi && (
-        <section
-          className="card mb-6 p-0 overflow-hidden"
-          style={{ height: '700px', background: '#f5f6f8' }}
-        >
-          <iframe
-            src="/admin/kaspi-pos/"
-            title="Kaspi Pay Automation"
-            loading="lazy"
-            style={{ width: '100%', height: '100%', border: 'none' }}
-          />
-        </section>
-      )}
 
       <section className="sagi-filter" aria-label={t('common.search')}>
         <div className="field-group filter-search">

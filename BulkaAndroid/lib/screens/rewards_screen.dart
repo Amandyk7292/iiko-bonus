@@ -499,7 +499,7 @@ class _GiftCertificatePurchaseSheetState
   final _nameController = TextEditingController();
   final _messageController = TextEditingController();
   int? _presetAmount = 5000;
-  String _paymentMethod = 'forte';
+  final String _paymentMethod = 'forte';
   PendingGiftPurchase? _draft;
   bool _draftWasSubmitted = false;
   bool _submitting = false;
@@ -520,7 +520,6 @@ class _GiftCertificatePurchaseSheetState
       _phoneController.text = draft.recipientPhone;
       _nameController.text = draft.recipientName ?? '';
       _messageController.text = draft.message ?? '';
-      _paymentMethod = draft.paymentMethod;
     }
   }
 
@@ -606,45 +605,25 @@ class _GiftCertificatePurchaseSheetState
       }
       final operationId = _asString(payment['operationId']);
       final checkoutUrl = _asString(payment['checkoutUrl']);
-      final qrToken = _asString(payment['qrToken']);
       if (operationId.isEmpty) {
         throw ApiException('checkout_operation_missing'.tr);
       }
       if (!mounted) return;
-      bool paid;
-      if (_paymentMethod == 'forte') {
-        if (checkoutUrl.isEmpty) {
-          throw ApiException('error_forte_payment'.tr);
-        }
-        final paymentResult = await Navigator.of(context)
-            .push<FortePaymentResult>(
-              MaterialPageRoute(
-                builder: (_) => FortePaymentScreen(
-                  api: widget.api,
-                  operationId: operationId,
-                  redirectUrl: checkoutUrl,
-                  checkoutId: _asString(purchase['id']),
-                ),
-              ),
-            );
-        paid = paymentResult?.paid == true;
-      } else {
-        paid =
-            await Navigator.of(context).push<bool>(
-              MaterialPageRoute(
-                builder: (_) => KaspiPaymentScreen(
-                  api: widget.api,
-                  operationId: operationId,
-                  qrToken: qrToken.isNotEmpty
-                      ? qrToken
-                      : checkoutUrl.isEmpty
-                      ? null
-                      : checkoutUrl,
-                ),
-              ),
-            ) ==
-            true;
+      if (checkoutUrl.isEmpty) {
+        throw ApiException('error_forte_payment'.tr);
       }
+      final paymentResult = await Navigator.of(context)
+          .push<FortePaymentResult>(
+            MaterialPageRoute(
+              builder: (_) => FortePaymentScreen(
+                api: widget.api,
+                operationId: operationId,
+                redirectUrl: checkoutUrl,
+                checkoutId: _asString(purchase['id']),
+              ),
+            ),
+          );
+      final paid = paymentResult?.paid == true;
       if (!mounted) return;
       if (paid) {
         final activated = purchaseId.isEmpty
@@ -838,26 +817,27 @@ class _GiftCertificatePurchaseSheetState
                   style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 8),
-                SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment(
-                      value: 'forte',
-                      label: Text('Visa / Mastercard'),
-                      icon: Icon(Icons.credit_card_rounded),
-                    ),
-                    ButtonSegment(
-                      value: 'kaspi',
-                      label: Text('Kaspi Pay'),
-                      icon: Icon(Icons.qr_code_rounded),
-                    ),
-                  ],
-                  selected: {_paymentMethod},
-                  onSelectionChanged: _submitting
-                      ? null
-                      : (value) {
-                          _replaceSubmittedDraft();
-                          setState(() => _paymentMethod = value.first);
-                        },
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(BulkaRadii.control),
+                    border: Border.all(color: context.bulkaColors.cardBorder),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.credit_card_rounded),
+                      SizedBox(width: 12),
+                      Text(
+                        'Visa / Mastercard',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 20),
                 FilledButton(

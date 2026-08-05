@@ -416,6 +416,27 @@ void main() {
     },
   );
 
+  test(
+    'legacy Kaspi gift draft is discarded while the provider is disabled',
+    () async {
+      final api = BulkaApiClient()
+        ..setSession(cacheScope: 'customer-kaspi-gift-test');
+      final pending = PendingGiftPurchase(
+        requestId: '417615f9-b35f-4eb4-9f6d-777f2236bb25',
+        amount: 5000,
+        recipientPhone: '+77000000000',
+        paymentMethod: 'kaspi',
+        createdAt: DateTime.now(),
+      );
+
+      await PendingGiftPurchaseStore.save(api, pending);
+
+      expect(await PendingGiftPurchaseStore.load(api), isNull);
+      final preferences = await SharedPreferences.getInstance();
+      expect(preferences.getString(PendingGiftPurchaseStore.key(api)), isNull);
+    },
+  );
+
   test('gift delivery and recovery messages exist in RU, KK and EN', () {
     const keys = {
       'gift_purchase_success_registered',

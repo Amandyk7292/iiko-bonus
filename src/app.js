@@ -135,7 +135,8 @@ app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 app.use(requestBodySafetyMiddleware);
 app.use(apiEnvelopeValidationMiddleware);
 
-app.locals.kaspiReady = process.env.KASPI_POS_ENABLED !== 'true';
+const kaspiEnabled = process.env.KASPI_POS_ENABLED === 'true';
+app.locals.kaspiReady = !kaspiEnabled;
 let embeddedKaspiApp = null;
 const sendLiveness = (_req, res) =>
   res
@@ -312,33 +313,44 @@ const requireKaspiAdminRole = (req, res, next) => {
   return res.status(403).json({ error: 'Kaspi Pay доступен только администратору' });
 };
 
-// Internal checkout integration. The embedded app independently verifies the
-// bearer secret supplied by kaspi.service.js.
-app.use('/kaspi-pos', requireEmbeddedKaspi);
+if (kaspiEnabled) {
+  // Internal checkout integration. The embedded app independently verifies the
+  // bearer secret supplied by kaspi.service.js.
+  app.use('/kaspi-pos', requireEmbeddedKaspi);
 
-// Protected Kaspi reconnection console inside the existing admin session.
-// Browser requests never receive the internal bearer secret.
-app.use(
-  '/admin/kaspi-pos',
-  adminAuthMiddleware,
-  requireKaspiAdminRole,
-  express.static(path.join(process.cwd(), 'kaspi-pos-automation-main/public'), {
-    setHeaders: kaspiAdminStaticHeaders,
-  }),
-);
-app.use(
-  '/admin/kaspi-pos',
-  adminAuthMiddleware,
-  requireKaspiAdminRole,
-  adminCsrfMiddleware,
-  adminMutationRoleMiddleware,
-  adminAuditMiddleware,
-  (req, _res, next) => {
-    req.headers.authorization = `Bearer ${String(process.env.KASPI_INTERNAL_SECRET || '')}`;
-    next();
-  },
-  requireEmbeddedKaspi,
-);
+  // Protected Kaspi reconnection console inside the existing admin session.
+  // Browser requests never receive the internal bearer secret.
+  app.use(
+    '/admin/kaspi-pos',
+    adminAuthMiddleware,
+    requireKaspiAdminRole,
+    express.static(path.join(process.cwd(), 'kaspi-pos-automation-main/public'), {
+      setHeaders: kaspiAdminStaticHeaders,
+    }),
+  );
+  app.use(
+    '/admin/kaspi-pos',
+    adminAuthMiddleware,
+    requireKaspiAdminRole,
+    adminCsrfMiddleware,
+    adminMutationRoleMiddleware,
+    adminAuditMiddleware,
+    (req, _res, next) => {
+      req.headers.authorization = `Bearer ${String(process.env.KASPI_INTERNAL_SECRET || '')}`;
+      next();
+    },
+    requireEmbeddedKaspi,
+  );
+} else {
+  const sendKaspiDisabled = (_req, res) =>
+    res.status(404).json({
+      error: 'Kaspi Pay отключён.',
+      code: 'KASPI_DISABLED',
+      retryable: false,
+    });
+  app.use('/kaspi-pos', sendKaspiDisabled);
+  app.use('/admin/kaspi-pos', adminAuthMiddleware, sendKaspiDisabled);
+}
 
 app.use(
   '/admin',
@@ -513,7 +525,7 @@ app.use((err, req, res, _next) => {
   res.status(statusCode).json(response);
 });
 
-if (process.env.NODE_ENV !== 'test' && process.env.KASPI_POS_ENABLED === 'true') {
+if (process.env.NODE_ENV !== 'test' && kaspiEnabled) {
   process.env.KASPI_MOUNTED = 'true';
   (async () => {
     try {

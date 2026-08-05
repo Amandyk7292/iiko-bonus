@@ -226,6 +226,9 @@ export default function IntegrationsPage() {
       : payments?.mode.effectiveIntegration === 'hosted_page'
         ? 'Страница банка /flex'
         : 'Оплата недоступна';
+  const visibleServices = services.filter(
+    (service) => service.id !== 'kaspi' || payments?.providers.kaspi.enabled,
+  );
 
   return (
     <div className="page-stack">
@@ -258,7 +261,7 @@ export default function IntegrationsPage() {
               </span>
               <div>
                 <h3 id="payment-diagnostics-title">Диагностика оплат</h3>
-                <p>Kaspi, Forte, webhook и очистка неоплаченных заказов.</p>
+                <p>Forte, webhook и очистка неоплаченных заказов.</p>
               </div>
             </div>
             <span className={`status-pill integration-state-${modeState}`}>
@@ -302,11 +305,13 @@ export default function IntegrationsPage() {
           )}
 
           <div className="payment-provider-grid">
-            <ProviderCard
-              name="Kaspi Pay"
-              provider={payments.providers.kaspi}
-              formatDate={formatDate}
-            />
+            {payments.providers.kaspi.enabled && (
+              <ProviderCard
+                name="Kaspi Pay"
+                provider={payments.providers.kaspi}
+                formatDate={formatDate}
+              />
+            )}
             <ProviderCard
               name="Forte /flex"
               provider={payments.providers.forteHosted}
@@ -325,11 +330,13 @@ export default function IntegrationsPage() {
                 <Webhook aria-hidden="true" size={19} />
                 <h4>Webhook</h4>
               </header>
-              <WebhookStatus
-                name="Kaspi Pay"
-                webhook={payments.webhooks.kaspi}
-                formatDate={formatDate}
-              />
+              {payments.providers.kaspi.enabled && (
+                <WebhookStatus
+                  name="Kaspi Pay"
+                  webhook={payments.webhooks.kaspi}
+                  formatDate={formatDate}
+                />
+              )}
               <WebhookStatus
                 name="Forte Widget"
                 webhook={payments.webhooks.forteWidget}
@@ -426,7 +433,7 @@ export default function IntegrationsPage() {
       )}
 
       <section className="integration-health-grid">
-        {services.map((service) => {
+        {visibleServices.map((service) => {
           const Icon =
             service.state === 'healthy'
               ? CheckCircle2

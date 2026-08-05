@@ -19,11 +19,24 @@ const {
 } = require('../services/inventory.service');
 const checkoutRequests = new SingleFlight();
 const publicError = (error, fallback) => (error.statusCode ? error.message : fallback);
+const kaspiEnabled = () => process.env.KASPI_POS_ENABLED === 'true';
+const sendKaspiDisabled = (res) =>
+  res.status(410).json({
+    success: false,
+    available: false,
+    error: 'Kaspi Pay отключён.',
+    code: 'KASPI_DISABLED',
+    retryable: false,
+  });
 
 const availability = async (_req, res) => {
+  if (!kaspiEnabled()) {
+    return res.json({ success: true, enabled: false, available: false });
+  }
   const available = await kaspiService.availability();
   res.json({
     success: true,
+    enabled: true,
     available,
     ...(!available && {
       message: 'Kaspi Pay временно недоступен. Мы уже восстанавливаем подключение.',
@@ -32,6 +45,7 @@ const availability = async (_req, res) => {
 };
 
 const createPayment = async (req, res) => {
+  if (!kaspiEnabled()) return sendKaspiDisabled(res);
   try {
     const { items, promoCode, checkoutId } = req.body;
     const { id: customerId, phone } = req.customerAuth;
@@ -139,6 +153,7 @@ const createPayment = async (req, res) => {
 };
 
 const quotePayment = async (req, res) => {
+  if (!kaspiEnabled()) return sendKaspiDisabled(res);
   try {
     normalizeOrderType(req.body?.orderType ?? req.body?.fulfillmentType ?? 'pickup');
     const cities = await getCitiesWithPoints({ throwOnError: true });
@@ -183,6 +198,7 @@ const quotePayment = async (req, res) => {
 };
 
 const checkStatus = async (req, res) => {
+  if (!kaspiEnabled()) return sendKaspiDisabled(res);
   try {
     const { operationId } = req.params;
     if (!/^[A-Za-z0-9-]{1,100}$/.test(String(operationId || ''))) {
@@ -246,6 +262,7 @@ const checkStatus = async (req, res) => {
 };
 
 const handleWebhook = async (req, res) => {
+  if (!kaspiEnabled()) return sendKaspiDisabled(res);
   try {
     // 1. Проверка подписи HMAC SHA-256
     const signature = req.headers['x-webhook-signature'] || req.headers['x-hub-signature-256'];

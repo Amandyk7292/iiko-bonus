@@ -249,6 +249,31 @@ describe('Payment provider diagnostics', () => {
     expect(screen.getByRole('button', { name: 'Запустить проверку' })).toBeDisabled();
   });
 
+  it('hides Kaspi controls when the integration flag is disabled', async () => {
+    const disabledKaspi = payments({
+      providers: {
+        ...payments().providers,
+        kaspi: {
+          enabled: false,
+          configured: false,
+          available: null,
+          checkedAt: null,
+          message: 'Выключен',
+        },
+      },
+    });
+    apiMocks.getIntegrationHealth.mockResolvedValue({
+      services,
+      payments: disabledKaspi,
+      checkedAt,
+    });
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Диагностика оплат' })).toBeInTheDocument();
+    expect(screen.queryByText('Kaspi Pay')).not.toBeInTheDocument();
+    expect(screen.queryByText('Kaspi доступен')).not.toBeInTheDocument();
+  });
+
   it('shows a retry state when provider diagnostics cannot load', async () => {
     apiMocks.getIntegrationHealth.mockRejectedValueOnce(new Error('diagnostics offline'));
     const user = userEvent.setup();
