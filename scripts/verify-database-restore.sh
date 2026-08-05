@@ -57,6 +57,7 @@ create schema if not exists extensions;
 create schema if not exists auth;
 create extension if not exists "uuid-ossp" with schema extensions;
 create extension if not exists pgcrypto with schema extensions;
+create publication supabase_realtime;
 SQL
 
 restore_started=$(date +%s)

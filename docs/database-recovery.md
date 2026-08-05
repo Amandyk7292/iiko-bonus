@@ -48,6 +48,15 @@ bash ./scripts/run-database-restore-drill.sh \
 
 Reports are stored under `/home/deploy/.bulka-releases/restore-drills`. Record the archive timestamp, elapsed restore time, table counts, operator, and outcome.
 
+### Latest completed drill
+
+- Completed: 5 August 2026 at 16:42 UTC by the guarded VPS runner.
+- Archive: `bulka-20260805T022302Z.dump`; its SHA-256 sidecar was verified before restore.
+- Disposable target: `bulka_restore_drill_20260805163927`.
+- Result: succeeded in 165 seconds.
+- Validated: 96 `public` tables, 23 `auth` tables, 71 migrations, 32 orders, 13 customers, and 12 authentication users.
+- Cleanup: the disposable database was removed automatically; production was never used as a restore target.
+
 ## Incident sequence
 
 1. Stop writes or enable maintenance mode.

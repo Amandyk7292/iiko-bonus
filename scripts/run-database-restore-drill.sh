@@ -82,8 +82,11 @@ created=false
 cleanup() {
   exit_code=$?
   if [[ $created == true ]]; then
-    dropdb --maintenance-db="$source_url" --force "$database_name" >>"$log_file" 2>&1 ||
+    if dropdb --maintenance-db="$source_url" --force "$database_name" >>"$log_file" 2>&1; then
+      printf 'Disposable database removed: %s\n' "$database_name" >>"$log_file"
+    else
       printf 'Disposable database cleanup failed: %s\n' "$database_name" >>"$log_file"
+    fi
   fi
   if ((exit_code != 0)); then
     printf 'failed\n' >"$status_file"

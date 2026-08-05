@@ -25,6 +25,7 @@ test('database backup workflow produces verifiable encrypted-at-rest candidates'
   assert.match(restore, /--schema=auth/);
   assert.match(restore, /--schema=public/);
   assert.match(restore, /--exit-on-error/);
+  assert.match(restore, /create publication supabase_realtime/);
   assert.match(restore, /public\.bulka_schema_migrations/);
   assert.match(restore, /public\.kaspi_orders/);
   assert.match(restore, /auth\.users/);
