@@ -4,6 +4,7 @@ const path = require('node:path');
 const test = require('node:test');
 
 process.env.BULKA_PUBLIC_APP_DIR = path.join(__dirname, 'fixtures', 'flutter-app');
+process.env.BULKA_ADMIN_UI_DIR = path.join(__dirname, 'fixtures', 'admin-ui');
 const app = require('../src/app');
 
 test('health check stays independent from external services', async (t) => {

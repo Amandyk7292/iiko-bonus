@@ -53,6 +53,9 @@ const {
 const publicAppDirectory = path.resolve(
   process.env.BULKA_PUBLIC_APP_DIR || path.join(process.cwd(), 'public', 'app'),
 );
+const adminUiDirectory = path.resolve(
+  process.env.BULKA_ADMIN_UI_DIR || path.join(process.cwd(), 'admin-ui', 'dist'),
+);
 const flutterReleaseVersionPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{5,63}$/;
 const publicAppReleaseVersion = (() => {
   try {
@@ -377,16 +380,13 @@ if (kaspiEnabled) {
   app.use('/admin/kaspi-pos', adminAuthMiddleware, sendKaspiDisabled);
 }
 
-app.use(
-  '/admin',
-  express.static(path.join(process.cwd(), 'admin-ui/dist'), { setHeaders: adminStaticHeaders }),
-);
+app.use('/admin', express.static(adminUiDirectory, { setHeaders: adminStaticHeaders }));
 app.use('/admin/assets', (_req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   res.status(404).type('text/plain').send('Admin asset not found');
 });
 app.get('/admin/*', (req, res) => {
-  res.sendFile(path.join(process.cwd(), 'admin-ui/dist', 'index.html'));
+  res.sendFile(path.join(adminUiDirectory, 'index.html'));
 });
 
 // Serve Flutter Web App
