@@ -150,8 +150,10 @@ def main() -> None:
             """
         )
 
+        parsed_base_url = urlparse(BASE_URL)
+        return_origin = f"{parsed_base_url.scheme}://{parsed_base_url.netloc}"
         return_url = (
-            f"{BASE_URL}/orders"
+            f"{return_origin}/orders"
             "?payment=forte"
             "&order=31f0d793-0102-4d2f-a5a1-744d12cffe7c"
             "&ID=1000001917869"
@@ -169,10 +171,18 @@ def main() -> None:
             SCREENSHOT.parent.mkdir(parents=True, exist_ok=True)
             page.screenshot(path=str(SCREENSHOT), full_page=True)
             print(f"Current URL: {page.url}")
-            print(page.locator("flt-semantics").all_inner_texts())
             print(
-                page.locator("[aria-label]").evaluate_all(
-                    "(nodes) => nodes.map((node) => node.getAttribute('aria-label'))"
+                json.dumps(
+                    page.locator("flt-semantics").all_inner_texts(),
+                    ensure_ascii=True,
+                )
+            )
+            print(
+                json.dumps(
+                    page.locator("[aria-label]").evaluate_all(
+                        "(nodes) => nodes.map((node) => node.getAttribute('aria-label'))"
+                    ),
+                    ensure_ascii=True,
                 )
             )
             raise

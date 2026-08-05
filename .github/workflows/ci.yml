@@ -172,7 +172,10 @@ jobs:
           flutter build appbundle --release
           --build-number=${{ github.run_number }}
           --dart-define=BULKA_API_BASE_URL=https://bulka.com.kz
-      - run: flutter build web --release --wasm --base-href /app/ --pwa-strategy=none
+      - run: >
+          flutter build web --release --no-wasm-dry-run --csp -O4
+          --base-href /app/ --pwa-strategy=none
+          --dart-define=BULKA_API_BASE_URL=https://bulka.com.kz
       - name: Finalize versioned Flutter web release
         run: >
           node ../scripts/finalize-flutter-web.js
@@ -182,6 +185,9 @@ jobs:
         run: node ../scripts/check-build-budgets.js --flutter build/web
       - name: Generate Flutter dependency inventory
         run: flutter pub deps --json > build/flutter-dependencies.json
+      - name: Install QA server dependencies
+        working-directory: .
+        run: npm ci
       - run: python -m pip install playwright==1.61.0
       - run: python -m playwright install --with-deps chromium
       - name: Run Flutter browser QA matrix
@@ -193,11 +199,19 @@ jobs:
           cp build/web/firebase-messaging-sw.js ../scratch/qa-web/firebase-messaging-sw.js
           node ../scripts/qa-static-server.js 4173 ../scratch/qa-web >../scratch/qa-http.log 2>&1 &
           server_pid=$!
-          trap 'kill $server_pid' EXIT
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          qa_server_ready=0
           for attempt in {1..30}; do
-            if curl --fail --silent http://127.0.0.1:4173/app/ >/dev/null; then break; fi
+            if curl --fail --silent http://127.0.0.1:4173/app/ >/dev/null; then
+              qa_server_ready=1
+              break
+            fi
             sleep 1
           done
+          if [[ "$qa_server_ready" != 1 ]]; then
+            cat ../scratch/qa-http.log
+            exit 1
+          fi
           for test_file in \
             ../test/flutter_*_e2e.py \
             ../test/catalog_filter_placement_e2e.py \
@@ -212,7 +226,6 @@ jobs:
         working-directory: .
         shell: bash
         run: |
-          npm ci
           npm ci --prefix admin-ui
           npm run build
           mkdir -p public/app
@@ -232,14 +245,20 @@ jobs:
           server_pid=$!
           node scripts/qa-static-server.js 4321 . >scratch-public-page.log 2>&1 &
           static_pid=$!
-          trap 'kill $server_pid $static_pid' EXIT
+          trap 'kill "$server_pid" "$static_pid" 2>/dev/null || true' EXIT
+          full_app_ready=0
           for attempt in {1..30}; do
             if curl --fail --silent http://127.0.0.1:4320/healthz >/dev/null &&
               curl --fail --silent http://127.0.0.1:4321/public/app.html >/dev/null; then
+              full_app_ready=1
               break
             fi
             sleep 1
           done
+          if [[ "$full_app_ready" != 1 ]]; then
+            cat scratch-full-app.log scratch-public-page.log
+            exit 1
+          fi
           python test/csp_browser_e2e.py http://127.0.0.1:4320
           python test/forte_compliance_e2e.py
           python test/guest_legal_profile_e2e.py

@@ -9,7 +9,11 @@ const root = path.join(__dirname, '..');
 
 test('production web build disables Flutter PWA caching', () => {
   const buildScript = fs.readFileSync(path.join(root, 'build_web.ps1'), 'utf8');
+  const workflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'ci.yml'), 'utf8');
+
   assert.match(buildScript, /flutter build web[\s\S]*--pwa-strategy=none/);
+  assert.match(workflow, /flutter build web[\s\S]*--no-wasm-dry-run/);
+  assert.doesNotMatch(workflow, /flutter build web[^\r\n]*--wasm/);
 });
 
 test('web bootstrap versions every mutable Flutter entrypoint and checks for new releases', () => {
@@ -126,4 +130,19 @@ test('release scripts finalize and verify the public Flutter bundle', () => {
     3,
   );
   assert.doesNotMatch(remoteDeploy, /curl -fsS 'http:\/\/127\.0\.0\.1:\d+\/app\/'/);
+});
+
+test('Flutter CI installs the static QA server before browser tests', () => {
+  const workflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'ci.yml'), 'utf8');
+  const installIndex = workflow.indexOf('name: Install QA server dependencies');
+  const browserQaIndex = workflow.indexOf('name: Run Flutter browser QA matrix');
+  const fullApplicationIndex = workflow.indexOf('name: Prepare full application browser tests');
+
+  assert.notEqual(installIndex, -1);
+  assert.notEqual(browserQaIndex, -1);
+  assert.notEqual(fullApplicationIndex, -1);
+  assert.ok(installIndex < browserQaIndex);
+  assert.ok(browserQaIndex < fullApplicationIndex);
+  assert.match(workflow, /qa_server_ready=0[\s\S]*\[\[ "\$qa_server_ready" != 1 \]\]/);
+  assert.match(workflow, /full_app_ready=0[\s\S]*\[\[ "\$full_app_ready" != 1 \]\]/);
 });
