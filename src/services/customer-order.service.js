@@ -571,6 +571,7 @@ async function finalizeConfirmedOrderRefund(
     .update({
       status: 'refunded',
       fulfillment_status: 'cancelled',
+      kitchen_status: 'cancelled',
       cancellation_reason: order.cancellation_reason || null,
       fulfilled_at: null,
       refund_status: 'succeeded',
