@@ -153,20 +153,6 @@ a {
   backdrop-filter: blur(14px);
 }
 
-.profile-card::before {
-  position: absolute;
-  z-index: 0;
-  top: -84px;
-  left: 50%;
-  width: 290px;
-  height: 138px;
-  border-radius: 50%;
-  background: var(--brand-gold-soft);
-  content: '';
-  opacity: 0.44;
-  transform: translateX(-50%);
-}
-
 .profile-header {
   position: relative;
   z-index: 1;
@@ -186,46 +172,11 @@ a {
 }
 
 .header-controls {
+  width: 100%;
   margin: 0 auto 14px;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-}
-
-.city-label {
-  flex: 0 0 auto;
-  width: max-content;
-  min-width: max-content;
-  min-height: 44px;
-  margin: 0;
-  padding: 8px 13px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface-soft);
-  color: var(--muted);
-  font:
-    600 12px/1.2 'Golos Text',
-    sans-serif;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.city-label span {
-  flex: 0 0 auto;
-}
-
-.city-label > span:first-child {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--brand-gold);
-  box-shadow: 0 0 0 4px rgba(255, 184, 20, 0.16);
 }
 
 .language-switch {
@@ -440,7 +391,7 @@ h1 {
   box-shadow:
     0 1px 0 #e8d9c0,
     0 5px 13px rgba(83, 40, 20, 0.08);
-  transform: translate3d(0, 3px, 0) scale(0.994);
+  transform: translate3d(0, 3px, 0) scale(0.985);
   transition-duration: 80ms;
 }
 
@@ -476,7 +427,7 @@ h1 {
     0 1px 0 #d99900,
     0 7px 16px rgba(255, 184, 20, 0.23),
     0 4px 10px rgba(83, 40, 20, 0.09);
-  transform: translate3d(0, 4px, 0) scale(0.994);
+  transform: translate3d(0, 4px, 0) scale(0.985);
 }
 
 .link-icon {
@@ -497,20 +448,15 @@ h1 {
 }
 
 .link-icon_city {
-  border: 1px solid #f0dfbf;
-  background: #fff7e6;
+  border: 1px solid rgba(83, 40, 20, 0.1);
+  background: rgba(255, 255, 255, 0.94);
 }
 
-.link-icon_aktau {
-  border-color: #cfe7e5;
-  background: linear-gradient(145deg, #effafa 0%, #fff9eb 100%);
-  color: #276c73;
-}
-
-.link-icon_astana {
-  border-color: #f0dca8;
-  background: linear-gradient(145deg, #fff8df 0%, #fffaf1 100%);
-  color: #8c5a09;
+.link-icon_2gis img {
+  display: block;
+  width: 38px;
+  height: 38px;
+  object-fit: contain;
 }
 
 .link-card:hover .link-icon {
@@ -534,53 +480,6 @@ h1 {
   stroke-width: 1.75;
   stroke-linecap: round;
   stroke-linejoin: round;
-}
-
-.link-icon_city svg {
-  width: 31px;
-  height: 31px;
-  stroke-width: 1.65;
-}
-
-.city-icon-sun {
-  fill: currentColor;
-  fill-opacity: 0.14;
-}
-
-.city-icon-ray,
-.city-icon-wave {
-  transform-box: fill-box;
-  transform-origin: center;
-  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.link-card_aktau:hover .city-icon-wave_one {
-  transform: translateX(0.8px);
-}
-
-.link-card_aktau:hover .city-icon-wave_two {
-  transform: translateX(-0.7px);
-}
-
-.link-card_aktau:hover .city-icon-wave_three {
-  transform: translateX(0.5px);
-}
-
-.city-icon-baiterek-sphere {
-  fill: currentColor;
-  fill-opacity: 0.14;
-  transform-box: fill-box;
-  transform-origin: center;
-  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.city-icon-baiterek-glint {
-  fill: currentColor;
-  stroke: none;
-}
-
-.link-card_astana:hover .city-icon-baiterek-sphere {
-  transform: translateY(-0.65px) scale(1.035);
 }
 
 .link-copy {
@@ -718,10 +617,6 @@ h1 {
     backdrop-filter: none;
   }
 
-  .profile-card::before {
-    top: -92px;
-  }
-
   .page-decoration {
     display: none;
   }
@@ -773,6 +668,23 @@ h1 {
     animation-delay: 190ms;
   }
 
+  .link-card::before {
+    animation: card-sheen-auto 8.4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+    will-change: transform, opacity;
+  }
+
+  .link-card_primary::before {
+    animation-delay: 0.6s;
+  }
+
+  .link-card_aktau::before {
+    animation-delay: 3.3s;
+  }
+
+  .link-card_astana::before {
+    animation-delay: 6s;
+  }
+
   @keyframes reveal {
     from {
       opacity: 0;
@@ -795,6 +707,29 @@ h1 {
       opacity: 0.5;
     }
 
+    100% {
+      opacity: 0;
+      transform: translate3d(440%, 0, 0) skewX(-18deg);
+    }
+  }
+
+  @keyframes card-sheen-auto {
+    0%,
+    2% {
+      opacity: 0;
+      transform: translate3d(0, 0, 0) skewX(-18deg);
+    }
+
+    5% {
+      opacity: 0.72;
+    }
+
+    16% {
+      opacity: 0;
+      transform: translate3d(440%, 0, 0) skewX(-18deg);
+    }
+
+    17%,
     100% {
       opacity: 0;
       transform: translate3d(440%, 0, 0) skewX(-18deg);

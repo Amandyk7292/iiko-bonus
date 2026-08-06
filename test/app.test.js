@@ -185,13 +185,15 @@ test('taplink exposes delivery and city links as a fast standalone page', async 
   assert.match(html, /data-language="kk"/);
   assert.match(html, /data-language="ru"/);
   assert.match(html, /Bulka жаныңызда/);
-  assert.match(html, /link-icon_aktau/);
-  assert.match(html, /city-icon-baiterek-sphere/);
+  assert.doesNotMatch(html, /data-i18n="cities"/);
+  assert.doesNotMatch(html, /link-icon_aktau|city-icon-baiterek-sphere/);
+  assert.equal((html.match(/\/taplink\/assets\/2gis-icon\.png\?v=20260806-1/g) || []).length, 2);
 
   for (const asset of [
-    '/taplink/styles.css?v=20260806-4',
+    '/taplink/styles.css?v=20260806-5',
     '/taplink/app.js?v=20260806-1',
     '/taplink/assets/mobile-background.png?v=20260806-1',
+    '/taplink/assets/2gis-icon.png?v=20260806-1',
     '/taplink/assets/brand/bulka_logo.png?v=20260806-1',
     '/taplink/assets/fonts/GolosText-Regular.ttf',
   ]) {
@@ -200,13 +202,16 @@ test('taplink exposes delivery and city links as a fast standalone page', async 
     assert.match(assetResponse.headers.get('cache-control') || '', /immutable/, asset);
   }
 
-  const styles = await (await fetch(`${origin}/taplink/styles.css?v=20260806-4`)).text();
+  const styles = await (await fetch(`${origin}/taplink/styles.css?v=20260806-5`)).text();
   assert.match(styles, /transform-style:\s*preserve-3d/);
   assert.match(styles, /--specular-opacity/);
   assert.match(styles, /radial-gradient\(\s*112px circle at var\(--specular-x\)/);
   assert.match(styles, /mobile-background\.png\?v=20260806-1/);
   assert.match(styles, /background-size:\s*cover/);
-  assert.doesNotMatch(styles, /premium-sheen/);
+  assert.match(styles, /animation:\s*card-sheen-auto 8\.4s/);
+  assert.match(styles, /@keyframes card-sheen-auto/);
+  assert.doesNotMatch(styles, /\.profile-card::before/);
+  assert.doesNotMatch(styles, /\.city-label/);
   assert.match(styles, /prefers-reduced-motion:\s*reduce/);
 
   const script = await (await fetch(`${origin}/taplink/app.js?v=20260806-1`)).text();
