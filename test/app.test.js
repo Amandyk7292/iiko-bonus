@@ -181,9 +181,16 @@ test('taplink exposes delivery and city links as a fast standalone page', async 
   assert.match(html, /https:\/\/2gis\.kz\/aktau\/branches\/70000001035248861/);
   assert.match(html, /https:\/\/2gis\.kz\/astana\/branches\/70000001114429416/);
   assert.match(html, /rel="canonical" href="https:\/\/bulka\.com\.kz\/taplink"/);
+  assert.match(html, /<html lang="kk">/);
+  assert.match(html, /data-language="kk"/);
+  assert.match(html, /data-language="ru"/);
+  assert.match(html, /Bulka жаныңызда/);
+  assert.match(html, /link-icon_aktau/);
+  assert.match(html, /city-icon-baiterek-sphere/);
 
   for (const asset of [
-    '/taplink/styles.css?v=20260806-2',
+    '/taplink/styles.css?v=20260806-3',
+    '/taplink/app.js?v=20260806-1',
     '/taplink/assets/brand/bulka_logo.png?v=20260806-1',
     '/taplink/assets/fonts/GolosText-Regular.ttf',
   ]) {
@@ -192,10 +199,19 @@ test('taplink exposes delivery and city links as a fast standalone page', async 
     assert.match(assetResponse.headers.get('cache-control') || '', /immutable/, asset);
   }
 
-  const styles = await (await fetch(`${origin}/taplink/styles.css?v=20260806-2`)).text();
-  assert.match(styles, /@keyframes premium-sheen/);
+  const styles = await (await fetch(`${origin}/taplink/styles.css?v=20260806-3`)).text();
   assert.match(styles, /transform-style:\s*preserve-3d/);
+  assert.match(styles, /--specular-opacity/);
+  assert.match(styles, /radial-gradient\(\s*112px circle at var\(--specular-x\)/);
+  assert.doesNotMatch(styles, /premium-sheen/);
   assert.match(styles, /prefers-reduced-motion:\s*reduce/);
+
+  const script = await (await fetch(`${origin}/taplink/app.js?v=20260806-1`)).text();
+  assert.match(script, /DEFAULT_LANGUAGE = 'kk'/);
+  assert.match(script, /bulka-taplink-language/);
+  assert.match(script, /const PROXIMITY = 250/);
+  assert.match(script, /const FOLLOW_SPEED = 0\.35/);
+  assert.match(script, /window\.addEventListener\('pointermove'/);
 });
 
 test('Forte widget shell is private, pinned to official hosts and never reflects query tokens', async (t) => {

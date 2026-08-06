@@ -1,18 +1,22 @@
 <!doctype html>
-<html lang="ru">
+<html lang="kk">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Доставка Bulka и адреса семейной пекарни в Актау и Астане." />
+    <meta
+      name="description"
+      content="Bulka жеткізу қызметі және Ақтау мен Астанадағы отбасылық наубайхананың мекенжайлары."
+    />
     <meta name="theme-color" content="#fff8e9" />
     <meta name="robots" content="index,follow,max-image-preview:large" />
     <meta property="og:type" content="website" />
-    <meta property="og:locale" content="ru_KZ" />
+    <meta property="og:locale" content="kk_KZ" />
+    <meta property="og:locale:alternate" content="ru_KZ" />
     <meta property="og:site_name" content="Bulka" />
-    <meta property="og:title" content="Bulka — доставка и адреса" />
+    <meta property="og:title" content="Bulka — жеткізу және мекенжайлар" />
     <meta
       property="og:description"
-      content="Заказать доставку и найти ближайшую семейную пекарню Bulka."
+      content="Жеткізуге тапсырыс беріңіз және ең жақын Bulka отбасылық наубайханасын табыңыз."
     />
     <meta property="og:image" content="https://bulka.com.kz/taplink/assets/brand/bulka_logo.png" />
     <meta property="og:url" content="https://bulka.com.kz/taplink" />
@@ -23,11 +27,12 @@
       type="image/png"
       href="/taplink/assets/brand/app_icon_master.png?v=20260806-1"
     />
-    <link rel="stylesheet" href="/taplink/styles.css?v=20260806-2" />
-    <title>Bulka — доставка и адреса</title>
+    <link rel="stylesheet" href="/taplink/styles.css?v=20260806-3" />
+    <script src="/taplink/app.js?v=20260806-1" defer></script>
+    <title>Bulka — жеткізу және мекенжайлар</title>
   </head>
   <body>
-    <a class="skip-link" href="#links">Перейти к ссылкам</a>
+    <a class="skip-link" href="#links" data-i18n="skipLinks">Сілтемелерге өту</a>
 
     <div class="page-decoration page-decoration_top" aria-hidden="true"></div>
     <div class="page-decoration page-decoration_bottom" aria-hidden="true"></div>
@@ -39,26 +44,61 @@
             src="/taplink/assets/brand/bulka_logo.png?v=20260806-1"
             width="1000"
             height="350"
-            alt="Bulka — семейная пекарня"
+            alt="Bulka — отбасылық наубайхана"
+            data-i18n-alt="brandAlt"
           />
         </div>
 
-        <p class="city-label">
-          <span aria-hidden="true"></span>
-          Актау · Астана
-        </p>
-        <h1 id="page-title">Bulka рядом</h1>
-        <p class="profile-description">
-          Свежая выпечка, любимые вкусы и удобная доставка каждый день.
+        <div class="header-controls">
+          <p class="city-label">
+            <span aria-hidden="true"></span>
+            <span data-i18n="cities">Ақтау · Астана</span>
+          </p>
+          <div
+            class="language-switch"
+            role="group"
+            aria-label="Тілді таңдау"
+            data-i18n-aria-label="languageSelector"
+          >
+            <button
+              class="language-button is-active"
+              type="button"
+              data-language="kk"
+              aria-pressed="true"
+              lang="kk"
+            >
+              ҚАЗ
+            </button>
+            <button
+              class="language-button"
+              type="button"
+              data-language="ru"
+              aria-pressed="false"
+              lang="ru"
+            >
+              РУС
+            </button>
+          </div>
+        </div>
+        <h1 id="page-title" data-i18n="heading">Bulka жаныңызда</h1>
+        <p class="profile-description" data-i18n="description">
+          Күн сайын балғын пісірме, сүйікті дәмдер және ыңғайлы жеткізу.
         </p>
       </header>
 
-      <nav id="links" class="link-list" aria-label="Полезные ссылки Bulka">
+      <nav
+        id="links"
+        class="link-list"
+        aria-label="Bulka пайдалы сілтемелері"
+        data-i18n-aria-label="usefulLinks"
+      >
         <a
-          class="link-card link-card_primary"
+          class="link-card link-card_primary specular-surface"
           href="tel:+77012772233"
-          aria-label="Позвонить в Bulka для заказа доставки: плюс семь, семьсот один, двести семьдесят семь, двадцать два, тридцать три"
+          aria-label="Bulka жеткізу қызметіне қоңырау шалу: +7 701 277 22 33"
+          data-i18n-aria-label="deliveryAria"
         >
+          <span class="specular-glow" aria-hidden="true"></span>
           <span class="link-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none">
               <path
@@ -67,7 +107,7 @@
             </svg>
           </span>
           <span class="link-copy">
-            <strong>Заказать доставку</strong>
+            <strong data-i18n="delivery">Жеткізуге тапсырыс беру</strong>
             <small>+7 701 277 22 33</small>
           </span>
           <span class="link-arrow" aria-hidden="true">
@@ -77,28 +117,39 @@
           </span>
         </a>
 
-        <p class="section-label">Наши филиалы в 2GIS</p>
+        <p class="section-label" data-i18n="branches">2GIS-тегі филиалдарымыз</p>
 
         <a
-          class="link-card"
+          class="link-card link-card_city link-card_aktau specular-surface"
           href="https://2gis.kz/aktau/branches/70000001035248861"
           target="_blank"
           rel="noopener noreferrer"
-          aria-label="Открыть филиалы Bulka в Актау в 2GIS"
+          aria-label="2GIS қолданбасында Ақтаудағы Bulka филиалдарын ашу"
+          data-i18n-aria-label="aktauAria"
         >
-          <span class="link-icon link-icon_city" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none">
-              <path d="M3 16.2c2.2-1.7 4.4-1.7 6.6 0s4.4 1.7 6.6 0 3.7-1.7 4.8-.8" />
-              <path d="M4.8 20c1.7-1.2 3.5-1.2 5.2 0s3.5 1.2 5.2 0 3.3-1.2 4.8-.2" />
+          <span class="specular-glow" aria-hidden="true"></span>
+          <span class="link-icon link-icon_city link-icon_aktau" aria-hidden="true">
+            <svg viewBox="0 0 32 32" fill="none">
+              <title>Ақтау — Каспий теңізі</title>
+              <circle class="city-icon-sun" cx="16" cy="9" r="3.25" />
+              <path class="city-icon-ray" d="M16 3.25v1.5M9.7 5.4l1.1 1.05M22.3 5.4l-1.1 1.05" />
               <path
-                d="M12 3.2a4.2 4.2 0 0 0-4.2 4.2c0 3.1 4.2 6.8 4.2 6.8s4.2-3.7 4.2-6.8A4.2 4.2 0 0 0 12 3.2Z"
+                class="city-icon-wave city-icon-wave_one"
+                d="M3.5 16.25c2.7-2.1 5.4-2.1 8.1 0s5.4 2.1 8.1 0 5.2-2.1 8.8-.15"
               />
-              <circle cx="12" cy="7.4" r="1.3" />
+              <path
+                class="city-icon-wave city-icon-wave_two"
+                d="M4.5 22c2.35-1.75 4.7-1.75 7.05 0s4.7 1.75 7.05 0 4.8-1.75 8.9-.1"
+              />
+              <path
+                class="city-icon-wave city-icon-wave_three"
+                d="M7 27c1.85-1.25 3.7-1.25 5.55 0s3.7 1.25 5.55 0 3.8-1.25 6.9-.1"
+              />
             </svg>
           </span>
           <span class="link-copy">
-            <strong>Bulka в Актау</strong>
-            <small>Адреса и маршруты</small>
+            <strong data-i18n="aktauTitle">Bulka Ақтауда</strong>
+            <small data-i18n="routes">Мекенжайлар мен бағыттар</small>
           </span>
           <span class="external-arrow" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none">
@@ -110,25 +161,27 @@
         </a>
 
         <a
-          class="link-card"
+          class="link-card link-card_city link-card_astana specular-surface"
           href="https://2gis.kz/astana/branches/70000001114429416"
           target="_blank"
           rel="noopener noreferrer"
-          aria-label="Открыть филиалы Bulka в Астане в 2GIS"
+          aria-label="2GIS қолданбасында Астанадағы Bulka филиалдарын ашу"
+          data-i18n-aria-label="astanaAria"
         >
-          <span class="link-icon link-icon_city" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none">
-              <path d="M5 20h14" />
-              <path d="M7 20v-8h10v8" />
-              <path d="M9.5 12V8.2h5V12" />
-              <path d="M12 3v5.2" />
-              <path d="m9.7 5.5 2.3-2.3 2.3 2.3" />
-              <path d="M10 15h4M10 17.7h4" />
+          <span class="specular-glow" aria-hidden="true"></span>
+          <span class="link-icon link-icon_city link-icon_astana" aria-hidden="true">
+            <svg viewBox="0 0 32 32" fill="none">
+              <title>Астана — Бәйтерек</title>
+              <circle class="city-icon-baiterek-sphere" cx="16" cy="7.25" r="4.35" />
+              <path d="M12.25 9.45 10.2 23.2M19.75 9.45l2.05 13.75M16 11.6v11.6" />
+              <path d="m11.55 14.2 8.9 5.65M20.45 14.2l-8.9 5.65" />
+              <path d="M8.6 23.2h14.8M7.25 27.5h17.5M10.1 23.2v4.3M21.9 23.2v4.3" />
+              <path class="city-icon-baiterek-glint" d="m23.9 4.1.55 1.1 1.1.55-1.1.55-.55 1.1-.55-1.1-1.1-.55 1.1-.55.55-1.1Z" />
             </svg>
           </span>
           <span class="link-copy">
-            <strong>Bulka в Астане</strong>
-            <small>Адреса и маршруты</small>
+            <strong data-i18n="astanaTitle">Bulka Астанада</strong>
+            <small data-i18n="routes">Мекенжайлар мен бағыттар</small>
           </span>
           <span class="external-arrow" aria-hidden="true">
             <svg viewBox="0 0 24 24" fill="none">
@@ -142,7 +195,7 @@
 
       <footer class="profile-footer">
         <span class="footer-line" aria-hidden="true"></span>
-        <p>Семейная пекарня Bulka</p>
+        <p data-i18n="footer">Bulka отбасылық наубайханасы</p>
         <span class="footer-line" aria-hidden="true"></span>
       </footer>
     </main>
