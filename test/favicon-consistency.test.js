@@ -14,6 +14,7 @@ const staticHtmlFiles = [
   'public/app.html',
   'public/courier.html',
   'public/forte-widget.html',
+  'public/taplink/index.html',
   'public/legal/account-deletion.en.html',
   'public/legal/account-deletion.html',
   'public/legal/account-deletion.kk.html',
