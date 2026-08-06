@@ -56,6 +56,9 @@ const publicAppDirectory = path.resolve(
 const adminUiDirectory = path.resolve(
   process.env.BULKA_ADMIN_UI_DIR || path.join(process.cwd(), 'admin-ui', 'dist'),
 );
+const taplinkDirectory = path.join(process.cwd(), 'public', 'taplink');
+const taplinkBrandDirectory = path.join(process.cwd(), 'BulkaAndroid', 'assets', 'brand');
+const taplinkFontDirectory = path.join(process.cwd(), 'BulkaAndroid', 'assets', 'fonts');
 const flutterReleaseVersionPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{5,63}$/;
 const publicAppReleaseVersion = (() => {
   try {
@@ -316,6 +319,10 @@ const appStaticHeaders = (res, filePath) => {
   }
 };
 
+const taplinkStaticHeaders = (res) => {
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+};
+
 // API routes must be registered before the SPA fallbacks below. Otherwise
 // GET /admin/api/* is swallowed by /admin/* and returns index.html with 200.
 app.use(adminRoutes);
@@ -509,6 +516,26 @@ app.get('/courier', (_req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.sendFile(path.join(process.cwd(), 'public/courier.html'));
 });
+
+// Keep the Instagram bio page independent from the Flutter bundle so it opens
+// immediately in embedded mobile browsers. It has no checkout or authenticated
+// actions and remains public while the unfinished customer app is IP-restricted.
+app.use(
+  '/taplink/assets/brand',
+  express.static(taplinkBrandDirectory, { setHeaders: taplinkStaticHeaders }),
+);
+app.use(
+  '/taplink/assets/fonts',
+  express.static(taplinkFontDirectory, { setHeaders: taplinkStaticHeaders }),
+);
+app.get(['/taplink', '/taplink/'], (_req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.sendFile(path.join(taplinkDirectory, 'index.html'));
+});
+app.use(
+  '/taplink',
+  express.static(taplinkDirectory, { index: false, setHeaders: taplinkStaticHeaders }),
+);
 
 // Serve the Flutter build at the domain root as the canonical web app.
 // Explicit API, admin, wallet and legacy routes are registered above, so

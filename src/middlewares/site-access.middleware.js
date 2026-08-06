@@ -26,6 +26,7 @@ const EXEMPT_SITE_PREFIXES = [
   '/payment-receipts',
   '/assets/legal',
   '/internal',
+  '/taplink',
 ];
 
 const isSameOrChildPath = (requestPath, prefix) =>

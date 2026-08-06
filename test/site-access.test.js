@@ -86,6 +86,8 @@ test('only public website routes are protected', () => {
   assert.equal(isProtectedSitePath('/assets/legal/payment-receipt.css'), false);
   assert.equal(isProtectedSitePath('/privacy'), false);
   assert.equal(isProtectedSitePath('/courier'), false);
+  assert.equal(isProtectedSitePath('/taplink'), false);
+  assert.equal(isProtectedSitePath('/taplink/styles.css'), false);
   assert.equal(isProtectedSitePath('/apiary'), true);
 });
 
@@ -120,6 +122,11 @@ test('site access middleware admits allowlisted IPs and blocks other visitors', 
     headers: { 'X-Forwarded-For': '198.51.100.9' },
   });
   assert.equal(admin.status, 200);
+
+  const taplink = await fetch(`${server.origin}/taplink`, {
+    headers: { 'X-Forwarded-For': '198.51.100.9', Accept: 'text/html' },
+  });
+  assert.equal(taplink.status, 200);
 });
 
 test('site access middleware is open when disabled and fails closed on config errors', async (t) => {

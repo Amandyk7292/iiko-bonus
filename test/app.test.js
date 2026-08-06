@@ -163,6 +163,36 @@ test('Flutter shell stays fresh while the current versioned bundle is immutable'
   assert.match(versionedBootstrap.headers.get('cache-control') || '', /no-store/);
 });
 
+test('taplink exposes delivery and city links as a fast standalone page', async (t) => {
+  const server = http.createServer(app);
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  t.after(() => server.close());
+  const origin = `http://127.0.0.1:${server.address().port}`;
+
+  const response = await fetch(`${origin}/taplink`);
+  const html = await response.text();
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('content-type') || '', /text\/html/);
+  assert.match(response.headers.get('cache-control') || '', /no-store/);
+  assert.match(html, /href="tel:\+77012772233"/);
+  assert.match(html, /https:\/\/2gis\.kz\/aktau\/branches\/70000001035248861/);
+  assert.match(html, /https:\/\/2gis\.kz\/astana\/branches\/70000001114429416/);
+  assert.match(html, /rel="canonical" href="https:\/\/bulka\.com\.kz\/taplink"/);
+
+  for (const asset of [
+    '/taplink/styles.css?v=20260806-1',
+    '/taplink/assets/brand/bulka_logo.png?v=20260806-1',
+    '/taplink/assets/fonts/GolosText-Regular.ttf',
+  ]) {
+    const assetResponse = await fetch(`${origin}${asset}`);
+    assert.equal(assetResponse.status, 200, asset);
+    assert.match(assetResponse.headers.get('cache-control') || '', /immutable/, asset);
+  }
+});
+
 test('Forte widget shell is private, pinned to official hosts and never reflects query tokens', async (t) => {
   const server = http.createServer(app);
   await new Promise((resolve, reject) => {
