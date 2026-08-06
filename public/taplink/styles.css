@@ -692,11 +692,18 @@ h1 {
 }
 
 @media (max-width: 520px) {
+  html {
+    background-color: var(--brand-gold);
+  }
+
   body {
     padding: 0;
     display: block;
-    background:
-      radial-gradient(circle at 15% 0%, rgba(255, 184, 20, 0.18), transparent 23rem), var(--page);
+    background-color: var(--brand-gold);
+    background-image: url('/taplink/assets/mobile-background.png?v=20260806-1');
+    background-position: center top;
+    background-repeat: no-repeat;
+    background-size: cover;
   }
 
   .profile-card {
@@ -706,7 +713,7 @@ h1 {
     padding: max(30px, env(safe-area-inset-top)) 18px max(22px, env(safe-area-inset-bottom));
     border: 0;
     border-radius: 0;
-    background: rgba(255, 255, 255, 0.78);
+    background: transparent;
     box-shadow: none;
     backdrop-filter: none;
   }
