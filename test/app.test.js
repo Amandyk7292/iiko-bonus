@@ -183,7 +183,7 @@ test('taplink exposes delivery and city links as a fast standalone page', async 
   assert.match(html, /rel="canonical" href="https:\/\/bulka\.com\.kz\/taplink"/);
 
   for (const asset of [
-    '/taplink/styles.css?v=20260806-1',
+    '/taplink/styles.css?v=20260806-2',
     '/taplink/assets/brand/bulka_logo.png?v=20260806-1',
     '/taplink/assets/fonts/GolosText-Regular.ttf',
   ]) {
@@ -191,6 +191,11 @@ test('taplink exposes delivery and city links as a fast standalone page', async 
     assert.equal(assetResponse.status, 200, asset);
     assert.match(assetResponse.headers.get('cache-control') || '', /immutable/, asset);
   }
+
+  const styles = await (await fetch(`${origin}/taplink/styles.css?v=20260806-2`)).text();
+  assert.match(styles, /@keyframes premium-sheen/);
+  assert.match(styles, /transform-style:\s*preserve-3d/);
+  assert.match(styles, /prefers-reduced-motion:\s*reduce/);
 });
 
 test('Forte widget shell is private, pinned to official hosts and never reflects query tokens', async (t) => {
