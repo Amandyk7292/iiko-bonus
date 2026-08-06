@@ -37,7 +37,6 @@ class _CatalogScreenState extends State<CatalogScreen>
   String _searchQuery = '';
   String _selectedCategory = _catalogAllCategoryKey;
   _CatalogSort _sort = _CatalogSort.menu;
-  bool _onlyAvailable = false;
   Set<String> _dietaryFilters = const {};
   Set<String> _excludedAllergens = const {};
   Set<String> _favoriteProductIds = const {};

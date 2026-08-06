@@ -3,7 +3,6 @@ part of '../main.dart';
 class _CatalogFilterScreen extends StatefulWidget {
   const _CatalogFilterScreen({
     required this.initialSort,
-    required this.initialOnlyAvailable,
     required this.dietaryTags,
     required this.allergens,
     required this.initialDietaryTags,
@@ -11,7 +10,6 @@ class _CatalogFilterScreen extends StatefulWidget {
   });
 
   final _CatalogSort initialSort;
-  final bool initialOnlyAvailable;
   final List<String> dietaryTags;
   final List<String> allergens;
   final Set<String> initialDietaryTags;
@@ -22,12 +20,11 @@ class _CatalogFilterScreen extends StatefulWidget {
 }
 
 class _CatalogFilterScreenState extends State<_CatalogFilterScreen> {
-  final Set<String> _expandedSections = {'sort', 'availability'};
+  final Set<String> _expandedSections = {'sort'};
   final Set<String> _selectedFilters = {};
 
   Map<String, List<String>> get _sections => {
     'sort': const ['menu', 'priceLow', 'priceHigh'],
-    'availability': const ['available'],
     if (widget.dietaryTags.isNotEmpty)
       'dietary': widget.dietaryTags.map((tag) => 'dietary:$tag').toList(),
     if (widget.allergens.isNotEmpty)
@@ -40,7 +37,6 @@ class _CatalogFilterScreenState extends State<_CatalogFilterScreen> {
   void initState() {
     super.initState();
     _selectedFilters.add(widget.initialSort.name);
-    if (widget.initialOnlyAvailable) _selectedFilters.add('available');
     _selectedFilters.addAll(
       widget.initialDietaryTags.map((tag) => 'dietary:$tag'),
     );
@@ -65,9 +61,7 @@ class _CatalogFilterScreenState extends State<_CatalogFilterScreen> {
 
   void _toggleFilter(String option) {
     setState(() {
-      if (option == 'available' ||
-          option.startsWith('dietary:') ||
-          option.startsWith('allergen:')) {
+      if (option.startsWith('dietary:') || option.startsWith('allergen:')) {
         if (_selectedFilters.contains(option)) {
           _selectedFilters.remove(option);
         } else {
@@ -86,7 +80,6 @@ class _CatalogFilterScreenState extends State<_CatalogFilterScreen> {
     return switch (option) {
       'priceLow' => 'catalog_sort_price_low'.tr,
       'priceHigh' => 'catalog_sort_price_high'.tr,
-      'available' => 'catalog_only_available'.tr,
       _ when option.startsWith('dietary:') => localizeProductMarkLabel(
         option.substring('dietary:'.length),
       ),
@@ -99,7 +92,6 @@ class _CatalogFilterScreenState extends State<_CatalogFilterScreen> {
 
   String _sectionLabel(String section) => switch (section) {
     'sort' => 'catalog_sort_title'.tr,
-    'availability' => 'catalog_availability'.tr,
     'dietary' => 'catalog_dietary_filters'.tr,
     'allergens' => 'catalog_exclude_allergens'.tr,
     _ => section,
@@ -114,7 +106,6 @@ class _CatalogFilterScreenState extends State<_CatalogFilterScreen> {
     Navigator.of(context).pop(
       _CatalogFilterResult(
         sort: sort,
-        onlyAvailable: _selectedFilters.contains('available'),
         dietaryTags: _selectedFilters
             .where((value) => value.startsWith('dietary:'))
             .map((value) => value.substring('dietary:'.length))

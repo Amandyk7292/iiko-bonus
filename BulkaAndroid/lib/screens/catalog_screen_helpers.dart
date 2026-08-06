@@ -188,19 +188,16 @@ enum _CatalogSort { menu, priceLow, priceHigh }
 class _CatalogFilterResult {
   const _CatalogFilterResult({
     required this.sort,
-    required this.onlyAvailable,
     this.dietaryTags = const {},
     this.excludedAllergens = const {},
   });
 
   final _CatalogSort sort;
-  final bool onlyAvailable;
   final Set<String> dietaryTags;
   final Set<String> excludedAllergens;
 
   bool get isActive =>
       sort != _CatalogSort.menu ||
-      onlyAvailable ||
       dietaryTags.isNotEmpty ||
       excludedAllergens.isNotEmpty;
 }

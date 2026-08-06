@@ -68,7 +68,6 @@ extension _CatalogInteractionController on _CatalogScreenState {
 
   bool get _filterActive => _CatalogFilterResult(
     sort: _sort,
-    onlyAvailable: _onlyAvailable,
     dietaryTags: _dietaryFilters,
     excludedAllergens: _excludedAllergens,
   ).isActive;
@@ -79,7 +78,6 @@ extension _CatalogInteractionController on _CatalogScreenState {
     required bool includeFavorites,
   }) {
     final candidates = source.where((p) {
-      final matchesAvailability = !_onlyAvailable || !p.isStopListed;
       final matchesFavorite =
           !includeFavorites ||
           !_favoritesOnly ||
@@ -95,10 +93,7 @@ extension _CatalogInteractionController on _CatalogScreenState {
         (allergen) =>
             !normalizedAllergens.contains(normalizeCatalogSearch(allergen)),
       );
-      return matchesAvailability &&
-          matchesFavorite &&
-          matchesDiet &&
-          avoidsAllergens;
+      return matchesFavorite && matchesDiet && avoidsAllergens;
     }).toList();
     final products = !includeSearch || _searchQuery.trim().isEmpty
         ? candidates
@@ -159,7 +154,6 @@ extension _CatalogInteractionController on _CatalogScreenState {
         MaterialPageRoute(
           builder: (_) => _CatalogFilterScreen(
             initialSort: _sort,
-            initialOnlyAvailable: _onlyAvailable,
             dietaryTags: _availableDietaryTags,
             allergens: _availableAllergens,
             initialDietaryTags: _dietaryFilters,
@@ -170,7 +164,6 @@ extension _CatalogInteractionController on _CatalogScreenState {
       if (!mounted || result == null) return;
       _updateCatalogState(() {
         _sort = result.sort;
-        _onlyAvailable = result.onlyAvailable;
         _dietaryFilters = result.dietaryTags;
         _excludedAllergens = result.excludedAllergens;
       });
@@ -188,7 +181,6 @@ extension _CatalogInteractionController on _CatalogScreenState {
       _searchQuery = '';
       _selectedCategory = _catalogAllCategoryKey;
       _sort = _CatalogSort.menu;
-      _onlyAvailable = false;
       _dietaryFilters = const {};
       _excludedAllergens = const {};
       _favoritesOnly = false;

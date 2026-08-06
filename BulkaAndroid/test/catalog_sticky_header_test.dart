@@ -212,6 +212,13 @@ void main() {
       find.byKey(const ValueKey('catalog-fulfillment-banner-pickup')),
       findsNothing,
     );
+    expect(find.byType(ActionChip), findsWidgets);
+    expect(
+      tester
+          .widgetList<ActionChip>(find.byType(ActionChip))
+          .every((chip) => chip.avatar == null),
+      isTrue,
+    );
     expect(find.text('1 товаров'), findsNothing);
     await tester.enterText(
       find.byKey(const ValueKey('catalog-sticky-search')),
@@ -259,12 +266,14 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('catalog-category-filter')));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Только в наличии'));
+    expect(find.text('Сортировка'), findsOneWidget);
+    expect(find.text('Наличие'), findsNothing);
+    expect(find.text('Только в наличии'), findsNothing);
     await tester.tap(find.text('Применить'));
     await tester.pumpAndSettle();
 
     expect(find.text('Плюшка'), findsOneWidget);
-    expect(find.text('Слойка'), findsNothing);
+    expect(find.text('Слойка'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('catalog-category-filter')),
       findsOneWidget,

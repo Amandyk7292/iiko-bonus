@@ -197,16 +197,6 @@ const Map<String, Map<String, String>> _featureStateTranslations = {
     'kk': 'Алдымен қымбатырақ',
     'en': 'Highest price first',
   },
-  'catalog_only_available': {
-    'ru': 'Только в наличии',
-    'kk': 'Тек қолжетімді',
-    'en': 'Available only',
-  },
-  'catalog_availability': {
-    'ru': 'Наличие',
-    'kk': 'Қолжетімділік',
-    'en': 'Availability',
-  },
   'catalog_dietary_filters': {
     'ru': 'Особенности питания',
     'kk': 'Тамақтану ерекшеліктері',
