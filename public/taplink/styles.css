@@ -678,7 +678,7 @@ h1 {
   }
 
   .link-card::before {
-    animation: card-sheen-auto 1s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+    animation: card-sheen-auto 3s cubic-bezier(0.45, 0, 0.55, 1) infinite;
     will-change: transform, opacity;
   }
 
@@ -687,11 +687,11 @@ h1 {
   }
 
   .link-card_aktau::before {
-    animation-delay: 0.16s;
+    animation-delay: 0.45s;
   }
 
   .link-card_astana::before {
-    animation-delay: 0.32s;
+    animation-delay: 0.9s;
   }
 
   @keyframes reveal {
@@ -716,12 +716,12 @@ h1 {
       opacity: 0.84;
     }
 
-    62% {
+    68% {
       opacity: 0;
       transform: translate3d(440%, 0, 0) skewX(-18deg);
     }
 
-    63%,
+    69%,
     100% {
       opacity: 0;
       transform: translate3d(440%, 0, 0) skewX(-18deg);

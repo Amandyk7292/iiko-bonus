@@ -194,7 +194,7 @@ test('taplink exposes delivery and city links as a fast standalone page', async 
   assert.equal((html.match(/\/taplink\/assets\/2gis-icon\.png\?v=20260806-1/g) || []).length, 2);
 
   for (const asset of [
-    '/taplink/styles.css?v=20260807-1',
+    '/taplink/styles.css?v=20260807-2',
     '/taplink/app.js?v=20260807-1',
     '/taplink/assets/mobile-background.png?v=20260806-1',
     '/taplink/assets/2gis-icon.png?v=20260806-1',
@@ -206,15 +206,18 @@ test('taplink exposes delivery and city links as a fast standalone page', async 
     assert.match(assetResponse.headers.get('cache-control') || '', /immutable/, asset);
   }
 
-  const styles = await (await fetch(`${origin}/taplink/styles.css?v=20260807-1`)).text();
+  const styles = await (await fetch(`${origin}/taplink/styles.css?v=20260807-2`)).text();
   assert.match(styles, /transform-style:\s*preserve-3d/);
   assert.match(styles, /--specular-opacity/);
   assert.match(styles, /radial-gradient\(\s*112px circle at var\(--specular-x\)/);
   assert.match(styles, /mobile-background\.png\?v=20260806-1/);
   assert.match(styles, /background-size:\s*cover/);
-  assert.match(styles, /animation:\s*card-sheen-auto 1s/);
-  assert.match(styles, /\.link-card_aktau::before\s*\{\s*animation-delay:\s*0\.16s/);
-  assert.match(styles, /\.link-card_astana::before\s*\{\s*animation-delay:\s*0\.32s/);
+  assert.match(
+    styles,
+    /animation:\s*card-sheen-auto 3s cubic-bezier\(0\.45,\s*0,\s*0\.55,\s*1\)/,
+  );
+  assert.match(styles, /\.link-card_aktau::before\s*\{\s*animation-delay:\s*0\.45s/);
+  assert.match(styles, /\.link-card_astana::before\s*\{\s*animation-delay:\s*0\.9s/);
   assert.match(styles, /\.link-card_city::before[\s\S]*rgba\(255,\s*184,\s*20,\s*0\.1\)/);
   assert.match(styles, /@keyframes card-sheen-auto/);
   assert.doesNotMatch(styles, /\.profile-card::before/);
