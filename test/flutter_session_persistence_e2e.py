@@ -45,6 +45,13 @@ CUSTOMER = {
     "cashbackPercent": 5,
     "tier": {"name": "Бронза", "percent": 5, "remaining": 10000, "progress": 0.2},
 }
+SECOND_PHONE = "77000000002"
+SECOND_CUSTOMER = {
+    **CUSTOMER,
+    "id": "22222222-2222-4222-8222-222222222222",
+    "name": "Болат",
+    "phone": SECOND_PHONE,
+}
 
 
 class SessionBackend:
@@ -53,6 +60,7 @@ class SessionBackend:
         self.children = {}
         self.child_sequence = 0
         self.requests = []
+        self.customer = CUSTOMER
 
     def _json(self, route: Route, payload, status=200, headers=None):
         response_headers = {"Content-Type": "application/json; charset=utf-8"}
@@ -64,16 +72,22 @@ class SessionBackend:
         )
 
     @staticmethod
-    def _cookie(headers):
+    def _cookie(route: Route, headers):
         cookie = headers.get("cookie", "")
         for item in cookie.split(";"):
             name, _, value = item.strip().partition("=")
             if name == "bulka_customer_refresh":
                 return value
+        # Playwright WebKit keeps HttpOnly cookies in the browser profile but
+        # omits the Cookie header from intercepted Route requests.
+        for item in route.request.frame.page.context.cookies(route.request.url):
+            if item["name"] == "bulka_customer_refresh":
+                return item["value"]
         return ""
 
     def _refresh(self, route: Route):
-        parent = self._cookie(route.request.headers)
+        headers = route.request.all_headers()
+        parent = self._cookie(route, headers)
         assert parent, "refresh request did not carry the HttpOnly cookie"
         child = self.children.get(parent)
         if child is None:
@@ -84,12 +98,19 @@ class SessionBackend:
             {
                 "parent": parent,
                 "child": child,
-                "transport": route.request.headers.get("x-bulka-session-transport"),
+                "transport": headers.get("x-bulka-session-transport"),
             }
         )
         self._json(
             route,
-            {"success": True, "accessToken": f"access-for-{child}"},
+            {
+                "success": True,
+                "accessToken": f"access-for-{child}",
+                "sessionIdentity": {
+                    "id": self.customer["id"],
+                    "phone": self.customer["phone"],
+                },
+            },
             headers={
                 "Set-Cookie": (
                     f"bulka_customer_refresh={child}; Path=/api/auth; "
@@ -112,7 +133,7 @@ class SessionBackend:
                 {
                     "success": True,
                     "exists": True,
-                    "customer": CUSTOMER,
+                    "customer": self.customer,
                     "transactions": [],
                 },
             )
@@ -246,13 +267,17 @@ def seed_identity(context: BrowserContext):
     )
 
 
-def assert_authenticated(page, expected_access):
-    assert page.evaluate("localStorage.getItem('flutter.phone')") == json.dumps(PHONE)
+def assert_authenticated(page, expected_access, expected_phone=PHONE):
+    assert page.evaluate("localStorage.getItem('flutter.phone')") == json.dumps(
+        expected_phone
+    )
     assert page.evaluate("sessionStorage.getItem('bulka_access_token')") == expected_access
 
 
 def open_context(playwright, profile: str):
-    return playwright.chromium.launch_persistent_context(
+    browser_name = os.environ.get("BULKA_PLAYWRIGHT_BROWSER", "chromium")
+    browser_type = getattr(playwright, browser_name)
+    return browser_type.launch_persistent_context(
         profile,
         headless=True,
         locale="ru-RU",
@@ -307,6 +332,54 @@ with tempfile.TemporaryDirectory(prefix="bulka-session-e2e-") as profile:
         assert_authenticated(page, "access-for-refresh-child-2")
         restarted.close()
 
+        # The HttpOnly cookie is the durable source of truth. Even if Safari
+        # loses local identity during an update, the server-verified session
+        # must rebuild it without showing the login screen.
+        identity_cleanup = open_context(playwright, profile)
+        install_routes(identity_cleanup, backend)
+        cleanup_page = (
+            identity_cleanup.pages[0]
+            if identity_cleanup.pages
+            else identity_cleanup.new_page()
+        )
+        cleanup_page.goto(
+            f"{ORIGIN}/session-test-blank",
+            wait_until="domcontentloaded",
+        )
+        cleanup_page.evaluate(
+            """() => {
+              for (const key of [
+                'flutter.phone',
+                'flutter.customer',
+                'flutter.transactions',
+                'bulka_access_token',
+              ]) {
+                localStorage.removeItem(key);
+                sessionStorage.removeItem(key);
+              }
+            }"""
+        )
+        identity_cleanup.close()
+
+        identity_recovery = open_context(playwright, profile)
+        install_routes(identity_recovery, backend)
+        recovery_page = (
+            identity_recovery.pages[0]
+            if identity_recovery.pages
+            else identity_recovery.new_page()
+        )
+        recovery_page.goto(
+            f"{ORIGIN}/",
+            wait_until="domcontentloaded",
+            timeout=60_000,
+        )
+        wait_for_flutter(recovery_page, backend)
+        assert_authenticated(
+            recovery_page,
+            f"access-for-{backend.refresh_calls[-1]['child']}",
+        )
+        identity_recovery.close()
+
         # Start two clean tabs from the same persistent cookie. Both must
         # restore independently and neither may erase the shared session.
         tabs = open_context(playwright, profile)
@@ -326,7 +399,54 @@ with tempfile.TemporaryDirectory(prefix="bulka-session-e2e-") as profile:
         assert second_tab.evaluate("localStorage.getItem('flutter.phone')") == json.dumps(PHONE)
         tabs.close()
 
+        # A login in another tab replaces the shared HttpOnly cookie. On the
+        # next launch this tab must discard account A before rendering B.
+        backend.customer = SECOND_CUSTOMER
+        switched = open_context(playwright, profile)
+        install_routes(switched, backend)
+        switched.add_cookies(
+            [
+                {
+                    "name": "bulka_customer_refresh",
+                    "value": "refresh-account-b",
+                    "domain": "bulka.com.kz",
+                    "path": "/api/auth",
+                    "httpOnly": True,
+                    "secure": True,
+                    "sameSite": "Strict",
+                    "expires": time.time() + 30 * 24 * 60 * 60,
+                }
+            ]
+        )
+        switched_page = (
+            switched.pages[0] if switched.pages else switched.new_page()
+        )
+        switched_page.goto(
+            f"{ORIGIN}/",
+            wait_until="domcontentloaded",
+            timeout=60_000,
+        )
+        wait_for_flutter(switched_page, backend)
+        assert backend.refresh_calls[-1]["parent"] == "refresh-account-b"
+        assert_authenticated(
+            switched_page,
+            f"access-for-{backend.refresh_calls[-1]['child']}",
+            SECOND_PHONE,
+        )
+        stored_customer = json.loads(
+            json.loads(
+                switched_page.evaluate(
+                    "localStorage.getItem('flutter.customer')"
+                )
+            )
+        )
+        assert stored_customer["phone"] == SECOND_PHONE
+        assert stored_customer["name"] == SECOND_CUSTOMER["name"]
+        switched.close()
+
     print(
-        "Flutter session persistence passed: cold browser restart and two-tab refresh "
+        "Flutter session persistence passed "
+        f"({os.environ.get('BULKA_PLAYWRIGHT_BROWSER', 'chromium')}): "
+        "cold restart, two-tab refresh, and account switch "
         f"({len(backend.refresh_calls)} refresh calls)"
     )

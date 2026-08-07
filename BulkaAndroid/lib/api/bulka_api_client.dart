@@ -17,7 +17,18 @@ String preferredWalletPath(Map<String, dynamic> json, TargetPlatform platform) {
   return _asString(json['url']);
 }
 
-enum _SessionRefreshResult { refreshed, rejected, unavailable }
+enum _SessionRefreshResult { refreshed, identityChanged, rejected, unavailable }
+
+String? _canonicalSessionPhone(String? value) {
+  final digits = value?.replaceAll(RegExp(r'\D'), '') ?? '';
+  return digits.isEmpty ? null : digits;
+}
+
+bool _sameSessionPhone(String? left, String? right) {
+  final normalizedLeft = _canonicalSessionPhone(left);
+  final normalizedRight = _canonicalSessionPhone(right);
+  return normalizedLeft != null && normalizedLeft == normalizedRight;
+}
 
 class BulkaApiClient {
   BulkaApiClient({
@@ -33,6 +44,7 @@ class BulkaApiClient {
   _onSessionChanged;
   String? _accessToken;
   String? _refreshToken;
+  String? _sessionPhone;
   String? _sessionCacheScope;
   Future<_SessionRefreshResult>? _refreshRequest;
   StreamController<Map<String, dynamic>>? _eventController;
@@ -56,6 +68,7 @@ class BulkaApiClient {
 
   bool get isAuthenticated => _accessToken?.isNotEmpty == true;
   String? get accessToken => _accessToken;
+  String? get sessionPhone => _sessionPhone;
   String? get sessionCacheScope => _sessionCacheScope;
 
   void setSession({
@@ -69,6 +82,9 @@ class BulkaApiClient {
         _sessionCacheScope != cacheScope;
     _accessToken = accessToken;
     _refreshToken = refreshToken;
+    _sessionPhone = accessToken?.isNotEmpty == true
+        ? (_nullableString(cacheScope) ?? _sessionPhone)
+        : null;
     _sessionCacheScope = cacheScope;
     if (changed) {
       _eventGeneration++;
@@ -112,6 +128,16 @@ class BulkaApiClient {
 
   Future<ProfileResponse> getProfile(String phone) async {
     final json = await _post('/api/guest/profile', {'phone': phone});
+    return ProfileResponse.fromJson(json);
+  }
+
+  Future<ProfileResponse> getProfileWithoutRefresh(String phone) async {
+    final json = await _request(
+      'POST',
+      '/api/guest/profile',
+      body: {'phone': phone},
+      allowRefresh: false,
+    );
     return ProfileResponse.fromJson(json);
   }
 
@@ -1501,7 +1527,8 @@ class BulkaApiClient {
               response = await _client
                   .send(retry)
                   .timeout(const Duration(seconds: 15));
-            } else if (refresh == _SessionRefreshResult.rejected) {
+            } else if (refresh == _SessionRefreshResult.rejected ||
+                refresh == _SessionRefreshResult.identityChanged) {
               break;
             } else {
               throw ApiException(
@@ -1599,6 +1626,11 @@ class BulkaApiClient {
       final refresh = await _refreshSession();
       if (refresh == _SessionRefreshResult.refreshed) {
         response = await send();
+      } else if (refresh == _SessionRefreshResult.identityChanged) {
+        throw ApiException(
+          'error_session_changed'.tr,
+          code: 'SESSION_IDENTITY_CHANGED',
+        );
       } else if (refresh == _SessionRefreshResult.unavailable) {
         throw ApiException(
           'error_network'.tr,
@@ -1609,10 +1641,12 @@ class BulkaApiClient {
     return _decode(response);
   }
 
-  Future<bool> restoreSession() async {
-    if (isAuthenticated) return true;
+  Future<bool> restoreSession({bool force = false}) async {
+    if (isAuthenticated && !force) return true;
     if (!kIsWeb && _refreshToken?.isNotEmpty != true) return false;
-    return await _refreshSession() == _SessionRefreshResult.refreshed;
+    final result = await _refreshSession();
+    return result == _SessionRefreshResult.refreshed ||
+        result == _SessionRefreshResult.identityChanged;
   }
 
   Future<_SessionRefreshResult> _refreshSession() {
@@ -1628,9 +1662,14 @@ class BulkaApiClient {
 
   Future<void> _rejectSession() async {
     final hadLocalSession =
-        _accessToken?.isNotEmpty == true || _refreshToken?.isNotEmpty == true;
+        _accessToken?.isNotEmpty == true ||
+        _refreshToken?.isNotEmpty == true ||
+        _sessionPhone?.isNotEmpty == true ||
+        _sessionCacheScope?.isNotEmpty == true;
     _accessToken = null;
     _refreshToken = null;
+    _sessionPhone = null;
+    _sessionCacheScope = null;
     _eventGeneration++;
     _wakeEventLoop();
     await _cancelEventStream();
@@ -1639,6 +1678,8 @@ class BulkaApiClient {
 
   Future<_SessionRefreshResult> _performRefresh() async {
     final refreshToken = _refreshToken;
+    final previousSessionPhone =
+        _sessionPhone ?? _nullableString(_sessionCacheScope);
     if (!kIsWeb && (refreshToken == null || refreshToken.isEmpty)) {
       return _SessionRefreshResult.rejected;
     }
@@ -1665,13 +1706,39 @@ class BulkaApiClient {
       final json = _asMap(jsonDecode(utf8.decode(response.bodyBytes)));
       final accessToken = _nullableString(json['accessToken']);
       final nextRefresh = _nullableString(json['refreshToken']);
+      final sessionIdentity = _asMap(json['sessionIdentity']);
+      final sessionPhone = _nullableString(
+        sessionIdentity['phone'] ?? json['phone'],
+      );
       if (accessToken == null || (!kIsWeb && nextRefresh == null)) {
         return _SessionRefreshResult.unavailable;
       }
+      if (kIsWeb && sessionPhone == null) {
+        await _rejectSession();
+        return _SessionRefreshResult.rejected;
+      }
+      final identityChanged =
+          previousSessionPhone != null &&
+          sessionPhone != null &&
+          !_sameSessionPhone(previousSessionPhone, sessionPhone);
       _accessToken = accessToken;
       _refreshToken = kIsWeb ? null : nextRefresh;
-      await _onSessionChanged?.call(accessToken, nextRefresh);
-      return _SessionRefreshResult.refreshed;
+      _sessionPhone = sessionPhone ?? _sessionPhone;
+      if (sessionPhone != null) _sessionCacheScope = sessionPhone;
+      if (identityChanged) {
+        _eventGeneration++;
+        _wakeEventLoop();
+      }
+      try {
+        await _onSessionChanged?.call(accessToken, nextRefresh);
+      } catch (_) {
+        await _rejectSession();
+        return _SessionRefreshResult.rejected;
+      }
+      if (_accessToken != accessToken) return _SessionRefreshResult.rejected;
+      return identityChanged
+          ? _SessionRefreshResult.identityChanged
+          : _SessionRefreshResult.refreshed;
     } catch (_) {
       return _SessionRefreshResult.unavailable;
     }

@@ -51,8 +51,8 @@ function cookieOptions(req, session = {}) {
 }
 
 function sendCustomerSession(req, res, session) {
-  if (!usesCustomerRefreshCookie(req)) return session;
   res.cookie(CUSTOMER_REFRESH_COOKIE, session.refreshToken, cookieOptions(req, session));
+  if (!usesCustomerRefreshCookie(req)) return session;
   const browserSession = { ...session };
   delete browserSession.refreshToken;
   return { ...browserSession, refreshSession: 'cookie' };

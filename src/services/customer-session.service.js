@@ -94,6 +94,10 @@ class CustomerSessionService {
       }),
       refreshToken: refresh.token,
       refreshExpiresAt: refresh.expiresAt,
+      sessionIdentity: {
+        id: String(customer.id),
+        phone: String(customer.phone),
+      },
     };
   }
 

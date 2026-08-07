@@ -136,6 +136,11 @@ test('parallel refreshes from browser tabs return the same rotated session', asy
   assert.equal(first.refreshToken, second.refreshToken);
   assert.equal(first.accessToken, 'access-v3');
   assert.equal(second.accessToken, 'access-v3');
+  assert.deepEqual(first.sessionIdentity, {
+    id: harness.customerId,
+    phone: '+77001234567',
+  });
+  assert.deepEqual(second.sessionIdentity, first.sessionIdentity);
   assert.equal(harness.database.customer_refresh_tokens.size, 2);
   const original = [...harness.database.customer_refresh_tokens.values()].find(
     (row) => row.token_hash === digest(initialToken),

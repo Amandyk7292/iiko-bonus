@@ -55,6 +55,32 @@ test('browser customer sessions use an HttpOnly Secure SameSite cookie', () => {
   assert.equal(response.cleared[0].options.path, '/api/auth');
 });
 
+test('native-compatible auth responses still issue a durable browser cookie', () => {
+  const request = {
+    headers: {
+      'x-forwarded-proto': 'https',
+    },
+  };
+  const response = {
+    cookies: [],
+    cookie(name, value, options) {
+      this.cookies.push({ name, value, options });
+    },
+  };
+  const session = {
+    accessToken: 'short-lived-access',
+    refreshToken: 'long-lived-refresh',
+    refreshExpiresAt: new Date(Date.now() + 86400000).toISOString(),
+  };
+
+  const payload = sendCustomerSession(request, response, session);
+
+  assert.equal(payload.refreshToken, session.refreshToken);
+  assert.equal(response.cookies[0].name, CUSTOMER_REFRESH_COOKIE);
+  assert.equal(response.cookies[0].value, session.refreshToken);
+  assert.equal(response.cookies[0].options.httpOnly, true);
+});
+
 test('refresh cookie parser handles encoded values without accepting unrelated cookies', () => {
   const request = {
     headers: {

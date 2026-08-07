@@ -18,6 +18,8 @@ String localizeErrorMessage(
       return 'auth_password_rules'.tr;
     case 'ONLINE_ORDERING_DISABLED':
       return 'checkout_online_ordering_disabled'.tr;
+    case 'SESSION_IDENTITY_CHANGED':
+      return 'error_session_changed'.tr;
     case 'INVALID_OTP':
     case 'OTP_EXPIRED':
     case 'OTP_ATTEMPTS_EXCEEDED':

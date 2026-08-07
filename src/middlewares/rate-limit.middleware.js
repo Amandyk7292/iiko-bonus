@@ -1,4 +1,5 @@
 const rateLimit = require('express-rate-limit');
+const { readCustomerRefreshCookie } = require('../utils/customer-session-cookie.util');
 
 const adminRateLimit = rateLimit({
   windowMs: 5 * 60 * 1000,
@@ -39,6 +40,28 @@ const authRateLimit = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+
+const hasCustomerSessionCredential = (req) =>
+  String(req?.body?.refreshToken || '').trim().length > 0 ||
+  readCustomerRefreshCookie(req).length > 0;
+
+const createCustomerSessionRateLimit = ({ windowMs = 10 * 60 * 1000, max = 120 } = {}) =>
+  rateLimit({
+    windowMs,
+    max,
+    message: {
+      error: 'Too many customer session attempts',
+      code: 'CUSTOMER_SESSION_RATE_LIMITED',
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+    // A web cold start legitimately probes for an HttpOnly refresh cookie.
+    // Reject an absent credential in the route without spending this quota;
+    // the global API limiter still bounds anonymous traffic before it arrives.
+    skip: (req) => !hasCustomerSessionCredential(req),
+  });
+
+const customerSessionRateLimit = createCustomerSessionRateLimit();
 
 const courierProofRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -81,6 +104,9 @@ module.exports = {
   webhookRateLimit,
   walletRateLimit,
   authRateLimit,
+  customerSessionRateLimit,
+  createCustomerSessionRateLimit,
+  hasCustomerSessionCredential,
   courierProofRateLimit,
   publicApiRateLimit,
   globalApiRateLimit,

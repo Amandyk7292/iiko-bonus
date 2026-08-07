@@ -26,7 +26,11 @@ const {
   customerAuthMiddleware,
   registrationAuthMiddleware,
 } = require('../middlewares/customer-auth.middleware');
-const { authRateLimit, publicApiRateLimit } = require('../middlewares/rate-limit.middleware');
+const {
+  authRateLimit,
+  customerSessionRateLimit,
+  publicApiRateLimit,
+} = require('../middlewares/rate-limit.middleware');
 const {
   getCustomerById,
   registerPushTokenByCustomerId,
@@ -147,6 +151,7 @@ async function buildAuthenticatedCustomerPayload(customer, req, res) {
       birth_date: customer.birth_date,
       email: customer.email,
       region: customer.region,
+      avatar_key: customer.avatar_key,
       name: customer.name,
       phone: customer.phone,
       balance: customer.balance,
@@ -487,22 +492,29 @@ router.post(
 
 router.post(
   '/api/auth/refresh',
-  authRateLimit,
+  customerSessionRateLimit,
   validateRequest({ body: customerSessionBodySchema }),
   async (req, res) => {
     try {
       const rawToken = req.body?.refreshToken || readCustomerRefreshCookie(req);
+      if (!rawToken) {
+        return res.status(401).json({
+          success: false,
+          error: 'Refresh session is required',
+          code: 'CUSTOMER_SESSION_REQUIRED',
+        });
+      }
       const session = await rotateCustomerSession(rawToken, req);
-      res.json({ success: true, ...sendCustomerSession(req, res, session) });
+      return res.json({ success: true, ...sendCustomerSession(req, res, session) });
     } catch (error) {
-      sendApiError(res, error, { success: false });
+      return sendApiError(res, error, { success: false });
     }
   },
 );
 
 router.post(
   '/api/auth/logout',
-  authRateLimit,
+  customerSessionRateLimit,
   validateRequest({ body: customerSessionBodySchema }),
   async (req, res) => {
     try {

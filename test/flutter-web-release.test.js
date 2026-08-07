@@ -69,11 +69,20 @@ test('cleanup worker takes over immediately and removes only legacy Flutter cach
 
   assert.match(worker, /event\.waitUntil\(self\.skipWaiting\(\)\)/);
   assert.match(worker, /self\.clients\.claim\(\)/);
-  assert.match(worker, /includeUncontrolled:\s*true/);
   assert.match(worker, /self\.registration\.unregister\(\)/);
-  assert.match(worker, /client\.navigate\(client\.url\)/);
   assert.match(worker, /keys\.filter\(isFlutterCache\)/);
+  assert.doesNotMatch(worker, /client\.navigate|clients\.matchAll/);
   assert.doesNotMatch(worker, /keys\.map\(\(key\) => caches\.delete/);
+});
+
+test('web session restore uses the server cookie without requiring cached identity', () => {
+  const app = fs.readFileSync(path.join(root, 'BulkaAndroid', 'lib', 'app', 'app.dart'), 'utf8');
+
+  assert.match(app, /if \(kIsWeb\)/);
+  assert.doesNotMatch(app, /accessToken == null && phone != null/);
+  assert.match(app, /_api\.restoreSession\(force: true\)/);
+  assert.match(app, /phone = restoredPhone/);
+  assert.match(app, /final restoredProfile = await _api\.getProfileWithoutRefresh\(phone\)/);
 });
 
 test('Flutter finalizer restores the cleanup worker and writes a hashed release manifest', (t) => {

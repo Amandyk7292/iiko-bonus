@@ -95,6 +95,11 @@ const Map<String, Map<String, String>> _commonTranslations = {
     'kk': 'Сервер сессия жасамады. Қайта кіріңіз.',
     'en': 'The server did not create a session. Sign in again.',
   },
+  'error_session_changed': {
+    'ru': 'Аккаунт изменился в другой вкладке. Повторите действие.',
+    'kk': 'Аккаунт басқа қойындыда өзгерді. Әрекетті қайталаңыз.',
+    'en': 'The account changed in another tab. Please retry the action.',
+  },
   'error_registration_missing': {
     'ru': 'Сервер не создал регистрацию. Повторите.',
     'kk': 'Сервер тіркелуді жасамады. Қайталаңыз.',

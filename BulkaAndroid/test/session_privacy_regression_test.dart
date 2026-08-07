@@ -150,6 +150,111 @@ void main() {
     api.dispose();
   });
 
+  test(
+    'identity-changing refresh hydrates listener before aborting stale retry',
+    () async {
+      var loyaltyCalls = 0;
+      var listenerHydrated = false;
+      late final BulkaApiClient api;
+      api =
+          BulkaApiClient(
+            client: MockClient((request) async {
+              if (request.url.path == '/api/auth/refresh') {
+                return http.Response(
+                  jsonEncode({
+                    'success': true,
+                    'accessToken': 'account-b-access',
+                    'refreshToken': 'account-b-refresh',
+                    'sessionIdentity': {
+                      'id': 'account-b',
+                      'phone': '+7 700 000 00 02',
+                    },
+                  }),
+                  200,
+                );
+              }
+              if (request.url.path == '/api/customer/loyalty') {
+                loyaltyCalls++;
+                return http.Response('{"error":"expired"}', 401);
+              }
+              return http.Response('{"success":true}', 200);
+            }),
+            onSessionChanged: (access, refresh) async {
+              if (access == null) return;
+              expect(api.sessionPhone, '+7 700 000 00 02');
+              await Future<void>.delayed(const Duration(milliseconds: 1));
+              api.setSession(
+                accessToken: access,
+                refreshToken: refresh,
+                cacheScope: api.sessionPhone,
+              );
+              listenerHydrated = true;
+            },
+          )..setSession(
+            accessToken: 'account-a-access',
+            refreshToken: 'account-a-refresh',
+            cacheScope: '77000000001',
+          );
+
+      await expectLater(
+        api.getCustomerLoyalty(),
+        throwsA(
+          isA<ApiException>().having(
+            (error) => error.code,
+            'code',
+            'SESSION_IDENTITY_CHANGED',
+          ),
+        ),
+      );
+
+      expect(listenerHydrated, isTrue);
+      expect(
+        loyaltyCalls,
+        1,
+        reason: 'the account A request must not retry as B',
+      );
+      expect(api.accessToken, 'account-b-access');
+      expect(api.sessionCacheScope, '+7 700 000 00 02');
+      api.dispose();
+    },
+  );
+
+  test(
+    'forced restore verifies the cookie despite a cached access token',
+    () async {
+      var refreshCalls = 0;
+      final api =
+          BulkaApiClient(
+            client: MockClient((request) async {
+              expect(request.url.path, '/api/auth/refresh');
+              refreshCalls++;
+              return http.Response(
+                jsonEncode({
+                  'success': true,
+                  'accessToken': 'verified-access',
+                  'refreshToken': 'verified-refresh',
+                  'sessionIdentity': {
+                    'id': 'account-a',
+                    'phone': '77000000001',
+                  },
+                }),
+                200,
+              );
+            }),
+          )..setSession(
+            accessToken: 'cached-access',
+            refreshToken: 'cached-refresh',
+            cacheScope: '77000000001',
+          );
+
+      expect(await api.restoreSession(force: true), isTrue);
+      expect(refreshCalls, 1);
+      expect(api.accessToken, 'verified-access');
+      expect(api.sessionPhone, '77000000001');
+      api.dispose();
+    },
+  );
+
   test('address cache is isolated by account scope', () async {
     const address = DeliveryAddress(
       id: 'address-a',
@@ -198,7 +303,10 @@ void main() {
 
   test('native session survives a cold application restart', () async {
     final prefs = await SharedPreferences.getInstance();
-    await SessionStore.write('persisted-access-token', 'persisted-refresh-token');
+    await SessionStore.write(
+      'persisted-access-token',
+      'persisted-refresh-token',
+    );
 
     // Reading through a fresh startup path simulates a terminated process
     // reopening Keychain/Keystore-backed storage.

@@ -259,6 +259,22 @@ test('customer profile refresh preserves the selected avatar', () => {
   );
 });
 
+test('customer auth payload returns the selected avatar without waiting for profile refresh', () => {
+  const legacyRoutes = fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'routes', 'legacy.routes.js'),
+    'utf8',
+  );
+  const authenticatedPayloadBuilder = legacyRoutes.slice(
+    legacyRoutes.indexOf('async function buildAuthenticatedCustomerPayload'),
+    legacyRoutes.indexOf('function sendCustomerAuthError'),
+  );
+
+  assert.match(
+    authenticatedPayloadBuilder,
+    /customer:\s*\{[\s\S]*avatar_key:\s*customer\.avatar_key/,
+  );
+});
+
 test('canonical order-type catalog migration is complete', () => {
   const migration = fs.readFileSync(
     path.join(__dirname, '..', 'supabase', 'migrations', '20260716200000_order_type_catalogs.sql'),
