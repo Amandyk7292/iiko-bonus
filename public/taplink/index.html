@@ -4,28 +4,42 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
+      data-taplink-meta="description"
       name="description"
       content="Bulka жеткізу қызметі және Ақтау мен Астанадағы отбасылық наубайхананың мекенжайлары."
     />
     <meta name="theme-color" content="#fff8e9" />
     <meta name="robots" content="index,follow,max-image-preview:large" />
     <meta property="og:type" content="website" />
-    <meta property="og:locale" content="kk_KZ" />
-    <meta property="og:locale:alternate" content="ru_KZ" />
-    <meta property="og:site_name" content="Bulka" />
-    <meta property="og:title" content="Bulka — жеткізу және мекенжайлар" />
+    <meta data-taplink-meta="og-locale" property="og:locale" content="kk_KZ" />
     <meta
+      data-taplink-meta="og-locale-alternate"
+      property="og:locale:alternate"
+      content="ru_KZ"
+    />
+    <meta property="og:site_name" content="Bulka" />
+    <meta
+      data-taplink-meta="og-title"
+      property="og:title"
+      content="Bulka — жеткізу және мекенжайлар"
+    />
+    <meta
+      data-taplink-meta="og-description"
       property="og:description"
       content="Жеткізуге тапсырыс беріңіз және ең жақын Bulka отбасылық наубайханасын табыңыз."
     />
-    <meta property="og:image" content="https://bulka.com.kz/taplink/assets/brand/bulka_logo.png" />
+    <meta
+      data-taplink-meta="og-image"
+      property="og:image"
+      content="https://bulka.com.kz/taplink/assets/brand/bulka_logo.png"
+    />
     <meta property="og:url" content="https://bulka.com.kz/taplink" />
     <meta name="twitter:card" content="summary_large_image" />
     <link rel="canonical" href="https://bulka.com.kz/taplink" />
     <link rel="icon" type="image/png" sizes="48x48" href="/favicon.png?v=20260730-1" />
-    <link rel="stylesheet" href="/taplink/styles.css?v=20260807-2" />
-    <script src="/taplink/app.js?v=20260807-1" defer></script>
-    <title>Bulka — жеткізу және мекенжайлар</title>
+    <link rel="stylesheet" href="/taplink/styles.css?v=20260807-3" />
+    <script src="/taplink/app.js?v=20260807-2" defer></script>
+    <title data-taplink-meta="title">Bulka — жеткізу және мекенжайлар</title>
   </head>
   <body>
     <a class="skip-link" href="#links" data-i18n="skipLinks">Сілтемелерге өту</a>
@@ -35,8 +49,9 @@
 
     <main class="profile-card" aria-labelledby="page-title">
       <header class="profile-header">
-        <div class="brand-mark">
+        <div class="brand-mark" id="brand-mark">
           <img
+            id="brand-logo"
             src="/taplink/assets/brand/bulka_logo.png?v=20260806-1"
             width="1000"
             height="350"
@@ -45,8 +60,9 @@
           />
         </div>
 
-        <div class="header-controls">
+        <div class="header-controls" id="header-controls">
           <div
+            id="language-switch"
             class="language-switch"
             role="group"
             aria-label="Тілді таңдау"
@@ -73,7 +89,7 @@
           </div>
         </div>
         <h1 id="page-title" data-i18n="heading">Bulka жаныңызда</h1>
-        <p class="profile-description" data-i18n="description">
+        <p class="profile-description" id="profile-description" data-i18n="description">
           Күн сайын балғын пісірме, сүйікті дәмдер және ыңғайлы жеткізу.
         </p>
       </header>
@@ -178,7 +194,7 @@
 
       <footer class="profile-footer">
         <span class="footer-line" aria-hidden="true"></span>
-        <p data-i18n="footer">Bulka отбасылық наубайханасы</p>
+        <p id="profile-footer-copy" data-i18n="footer">Bulka отбасылық наубайханасы</p>
         <span class="footer-line" aria-hidden="true"></span>
       </footer>
     </main>

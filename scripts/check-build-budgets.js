@@ -39,9 +39,9 @@ if (adminDirectory) {
   assertBudget(
     'Admin total JavaScript gzip',
     javascriptGzip.reduce((sum, size) => sum + size, 0),
-    // Online-order controls plus explicit courier transport safety add about
-    // 1.5 KiB gzip. Keep the ratchet close to the measured production build.
-    312_500,
+    // The cashier-access flow and lazy-loaded Taplink constructor add about
+    // 9 KiB gzip. Keep the ratchet close to the measured production build.
+    324_000,
   );
   assertBudget('Admin largest JavaScript gzip', Math.max(0, ...javascriptGzip), 82_000);
   assertBudget('Admin largest CSS gzip', Math.max(0, ...styleGzip), 30_000);

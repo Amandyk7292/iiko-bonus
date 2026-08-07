@@ -29,4 +29,11 @@ describe('admin permissions shown by the frontend', () => {
     expect(ADMIN_ALLOWED_PATHS.editor).not.toContain('/security');
     expect(ADMIN_ALLOWED_PATHS.editor).not.toContain('/settings');
   });
+
+  it('keeps a cashier inside orders and kitchen without financial controls', () => {
+    expect(ADMIN_ALLOWED_PATHS.cashier).toEqual(['/orders', '/kitchen']);
+    expect(canMutateOrders('cashier')).toBe(false);
+    expect(canRefundOrders('cashier')).toBe(false);
+    expect(canMutateInventory('cashier')).toBe(false);
+  });
 });

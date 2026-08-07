@@ -125,6 +125,21 @@ $manifest = [ordered]@{
 
 Copy-Item -Path (Join-Path $projectRoot 'public\*') `
     -Destination (Join-Path $stageFull 'public') -Recurse
+$taplinkAssetStage = Join-Path $stageFull 'public\taplink\assets'
+$taplinkBrandStage = Join-Path $taplinkAssetStage 'brand'
+$taplinkFontStage = Join-Path $taplinkAssetStage 'fonts'
+New-Item -ItemType Directory -Path $taplinkBrandStage -Force | Out-Null
+New-Item -ItemType Directory -Path $taplinkFontStage -Force | Out-Null
+Copy-Item -LiteralPath (Join-Path $projectRoot 'BulkaAndroid\assets\brand\bulka_logo.png') `
+    -Destination $taplinkBrandStage
+foreach ($fontName in @(
+    'GolosText-Regular.ttf',
+    'GolosText-SemiBold.ttf',
+    'Montserrat-Regular-subset.ttf'
+)) {
+    Copy-Item -LiteralPath (Join-Path $projectRoot "BulkaAndroid\assets\fonts\$fontName") `
+        -Destination $taplinkFontStage
+}
 Copy-Item -LiteralPath (Join-Path $projectRoot 'admin-ui\dist') `
     -Destination (Join-Path $stageFull 'admin-ui\dist') -Recurse
 Copy-Item -LiteralPath (Join-Path $projectRoot 'src') `

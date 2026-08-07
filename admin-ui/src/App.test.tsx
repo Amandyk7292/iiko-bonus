@@ -36,8 +36,10 @@ vi.mock('./lib/admin-realtime', () => ({
 }));
 
 vi.mock('./components/Topbar', () => ({
-  default: ({ operatorMode }: { operatorMode?: boolean }) => (
-    <div data-testid="topbar">{operatorMode ? 'operator-topbar' : 'full-topbar'}</div>
+  default: ({ operatorMode, cashierMode }: { operatorMode?: boolean; cashierMode?: boolean }) => (
+    <div data-testid="topbar">
+      {operatorMode ? 'operator-topbar' : cashierMode ? 'cashier-topbar' : 'full-topbar'}
+    </div>
   ),
 }));
 
@@ -46,6 +48,9 @@ vi.mock('./pages/OperationsPage', () => ({
 }));
 vi.mock('./pages/CouriersPage', () => ({
   default: () => <div>couriers-page</div>,
+}));
+vi.mock('./pages/OrdersPage', () => ({
+  default: ({ role }: { role: string }) => <div>orders-page:{role}</div>,
 }));
 vi.mock('./pages/WhatsAppPage', () => ({
   default: ({ role }: { role: string }) => <div>whatsapp-page:{role}</div>,
@@ -113,6 +118,22 @@ describe('Admin application authentication and role guards', () => {
 
     expect(await screen.findByText('couriers-page')).toBeInTheDocument();
     expect(window.location.pathname).toBe('/admin/couriers');
+  });
+
+  it('routes a cashier to branch orders and enables the restricted topbar', async () => {
+    apiMocks.session.mockResolvedValue({
+      user: {
+        username: 'cashier.aktau',
+        role: 'cashier',
+        branchIds: ['11111111-1111-4111-8111-111111111111'],
+      },
+    });
+    window.history.replaceState({}, '', '/admin/access');
+    renderApp();
+
+    expect(await screen.findByText('orders-page:cashier')).toBeInTheDocument();
+    expect(screen.getByTestId('topbar')).toHaveTextContent('cashier-topbar');
+    expect(window.location.pathname).toBe('/admin/orders');
   });
 
   it('keeps a WhatsApp operator inside the single permitted workspace', async () => {

@@ -28,6 +28,7 @@ import {
   LayoutDashboard,
   Headphones,
   Activity,
+  Link2,
 } from 'lucide-react';
 import { NavLink, useLocation } from '../lib/router';
 import { ADMIN_ALLOWED_PATHS } from '../lib/admin-permissions';
@@ -71,6 +72,7 @@ const sections = [
       { to: '/menu', label: 'nav.menu', icon: UtensilsCrossed },
       { to: '/stories', label: 'nav.stories', icon: Images },
       { to: '/news', label: 'nav.news', icon: Newspaper },
+      { to: '/taplink', label: 'nav.taplink', icon: Link2 },
     ],
   },
   {
@@ -119,8 +121,7 @@ export default function Sidebar({
         .map((section) => ({
           ...section,
           items: section.items.filter(
-            (item) =>
-              !ADMIN_ALLOWED_PATHS[role] || ADMIN_ALLOWED_PATHS[role].includes(item.to),
+            (item) => !ADMIN_ALLOWED_PATHS[role] || ADMIN_ALLOWED_PATHS[role].includes(item.to),
           ),
         }))
         .filter((section) => section.items.length > 0),

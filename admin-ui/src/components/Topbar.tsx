@@ -34,6 +34,7 @@ const routeKeys: Record<string, string> = {
   '/settings': 'settings',
   '/stories': 'stories',
   '/news': 'news',
+  '/taplink': 'taplink',
   '/bonus': 'bonus',
   '/tiers': 'tiers',
   '/locations': 'locations',
@@ -55,12 +56,14 @@ const routeKeys: Record<string, string> = {
 export default function Topbar({
   onMenuClick,
   operatorMode = false,
+  cashierMode = false,
   scopeLocations = [],
   selectedBranchId = '',
   onBranchChange,
 }: {
   onMenuClick?: () => void;
   operatorMode?: boolean;
+  cashierMode?: boolean;
   scopeLocations?: AdminScopeLocation[];
   selectedBranchId?: string;
   onBranchChange?: (branchId: string) => void;
@@ -73,6 +76,7 @@ export default function Topbar({
   const notificationsButtonRef = useRef<HTMLButtonElement>(null);
   const page = routeKeys[location.pathname] ?? 'operations';
   const usesCityScope = location.pathname === '/menu';
+  const usesBranchScope = location.pathname !== '/taplink';
   const cityScopes = getAdminCityScopes(scopeLocations);
   const selectedScope = parseAdminScopeSelection(selectedBranchId);
   const selectedCity = cityScopeForSelection(cityScopes, selectedBranchId);
@@ -175,8 +179,8 @@ export default function Topbar({
         </div>
       </div>
       <div className="topbar-actions">
-        {!operatorMode && <AdminGlobalSearch />}
-        {!operatorMode && scopeLocations.length > 0 && (
+        {!operatorMode && !cashierMode && <AdminGlobalSearch />}
+        {!operatorMode && usesBranchScope && scopeLocations.length > 0 && (
           <div className="topbar-scope-selectors">
             <label className="topbar-branch-select topbar-city-select">
               <span>{t('adminScope.city')}</span>
@@ -193,9 +197,7 @@ export default function Topbar({
                   onBranchChange?.(adminCityScopeValue(city));
                 }}
                 aria-label={
-                  usesCityScope
-                    ? t('adminScope.menuCityAria')
-                    : t('adminScope.operationsCityAria')
+                  usesCityScope ? t('adminScope.menuCityAria') : t('adminScope.operationsCityAria')
                 }
               >
                 <option value="" disabled={usesCityScope}>

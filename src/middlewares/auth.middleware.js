@@ -19,6 +19,7 @@ const {
   verifyAdminPhoneLogin,
 } = require('../services/admin-phone-auth.service');
 const { applyAdminBranchSelection } = require('../utils/admin-scope.util');
+const { authenticateCashier } = require('../services/admin-credential-auth.service');
 
 const ADMIN_ROLES = new Set([
   'admin',
@@ -29,6 +30,7 @@ const ADMIN_ROLES = new Set([
   'courier',
   'editor',
   'viewer',
+  'cashier',
   'whatsapp_operator',
 ]);
 
@@ -90,6 +92,7 @@ const ROLE_AREAS = {
     'automations',
     'contact-cards',
     'contact-actions',
+    'taplink',
   ]),
   courier: new Set(['session', 'scope', 'events', 'couriers', 'dispatch']),
   editor: new Set([
@@ -122,6 +125,7 @@ const ROLE_AREAS = {
     'contact-cards',
     'contact-actions',
     'whatsapp',
+    'taplink',
   ]),
   viewer: new Set([
     'session',
@@ -144,6 +148,7 @@ const ROLE_AREAS = {
     'transactions',
     'whatsapp',
   ]),
+  cashier: new Set(['session', 'scope', 'events', 'orders', 'kitchen']),
   whatsapp_operator: new Set(['session', 'events', 'whatsapp']),
 };
 
@@ -158,6 +163,10 @@ const CUSTOMER_ACTIONS = Object.freeze({
 
 const PAYMENT_ACTIONS = Object.freeze({
   MANAGE: 'payments:manage',
+});
+
+const TAPLINK_ACTIONS = Object.freeze({
+  PUBLISH: 'taplink:publish',
 });
 
 /**
@@ -276,6 +285,7 @@ const issueAdminSession = async (
       subject: payload.sub,
       role: payload.role,
       branchIds: payload.branchIds,
+      authVersion: Number(admin?.authVersion) || 0,
       expiresAt: payload.exp * 1000,
       ip: req?.ip,
       userAgent: req?.headers?.['user-agent'],
@@ -341,9 +351,25 @@ const adminLoginHandler = async (req, res) => {
         .trim()
         .toLowerCase() === username,
   );
-  if (!user) return res.status(401).json({ error: 'Invalid credentials' });
 
   const password = String(req.body?.password || '');
+  if (!user) {
+    try {
+      const cashier = await authenticateCashier(username, password);
+      if (!cashier) return res.status(401).json({ error: 'Invalid credentials' });
+      return issueAdminSession(req, res, cashier);
+    } catch (error) {
+      req?.log?.error(
+        { err: error, event: 'cashier_password_login_failed' },
+        'Cashier login failed',
+      );
+      return res.status(503).json({
+        error: 'Сервис входа сотрудников временно недоступен',
+        code: 'ADMIN_STAFF_AUTH_UNAVAILABLE',
+      });
+    }
+  }
+
   let passwordValid;
   try {
     passwordValid = user.passwordHash
@@ -452,6 +478,19 @@ const adminCsrfMiddleware = (req, res, next) => {
   return next();
 };
 
+const cashierMutationAllowed = (req, area) => {
+  const path = String(req.path || '').replace(/^\/+/, '');
+  if (area === 'orders' && req.method === 'PATCH' && /^orders\/[0-9a-f-]+\/status$/i.test(path)) {
+    return new Set(['accepted', 'preparing', 'ready', 'completed']).has(
+      String(req.body?.status || ''),
+    );
+  }
+  if (area === 'kitchen' && req.method === 'PATCH' && /^kitchen\/[0-9a-f-]+\/status$/i.test(path)) {
+    return new Set(['preparing', 'ready', 'handed_over']).has(String(req.body?.status || ''));
+  }
+  return false;
+};
+
 const adminMutationRoleMiddleware = (req, res, next) => {
   const readOnly = ['GET', 'HEAD', 'OPTIONS'].includes(req.method);
   if (req.admin.role === 'viewer' && !readOnly) {
@@ -461,6 +500,12 @@ const adminMutationRoleMiddleware = (req, res, next) => {
   const area = adminArea(req);
   if (!areas.has('*') && !areas.has(area)) {
     return res.status(403).json({ error: 'Недостаточно прав для этого раздела' });
+  }
+  if (req.admin.role === 'cashier' && !readOnly && !cashierMutationAllowed(req, area)) {
+    return res.status(403).json({
+      error: 'Кассир может только продвигать заказ и кухню по рабочим статусам',
+      code: 'CASHIER_ACTION_FORBIDDEN',
+    });
   }
   if (!readOnly && !['admin', 'owner'].includes(req.admin.role) && req.admin.branchIds?.length) {
     const requestedBranch = String(
@@ -512,6 +557,7 @@ module.exports = {
   ADMIN_ROLES,
   CUSTOMER_ACTIONS,
   PAYMENT_ACTIONS,
+  TAPLINK_ACTIONS,
   ROLE_ACTIONS,
   ROLE_AREAS,
   actionsForRole,

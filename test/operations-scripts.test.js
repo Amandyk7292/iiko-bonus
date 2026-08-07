@@ -24,8 +24,10 @@ test('release deployment keeps a healthy staging fallback during graceful reload
   assert.match(deploy, /BULKA_REQUIRE_NGINX_FALLBACK:-true/);
   assert.match(deploy, /Deployment stopped before production mutation/);
   assert.ok(
-    deploy.indexOf('require_nginx_fallback', deploy.indexOf('start_staging_release "$temporary_release"'))
-      < deploy.indexOf('production_changed=1'),
+    deploy.indexOf(
+      'require_nginx_fallback',
+      deploy.indexOf('start_staging_release "$temporary_release"'),
+    ) < deploy.indexOf('production_changed=1'),
     'fallback must be verified before production files can change',
   );
   assert.doesNotMatch(
@@ -39,12 +41,19 @@ test('release deployment keeps a healthy staging fallback during graceful reload
   assert.match(packageRelease, /install-database-backup-timer\.sh/);
   assert.match(packageRelease, /install-pm2-logrotate\.sh/);
   assert.match(deploy, /install-pm2-logrotate\.sh/);
+  assert.match(deploy, /public\/taplink\/index\.html/);
+  assert.match(deploy, /public\/taplink\/assets\/brand\/bulka_logo\.png/);
+  assert.match(deploy, /public\/taplink\/assets\/fonts\/GolosText-Regular\.ttf/);
   assert.match(pm2Logrotate, /pm2 install pm2-logrotate/);
   assert.match(pm2Logrotate, /pm2-logrotate:max_size 20M/);
   assert.match(pm2Logrotate, /pm2-logrotate:retain 14/);
   assert.match(pm2Logrotate, /pm2-logrotate:compress true/);
   assert.match(packageRelease, /ensure-postgres-client\.sh/);
   assert.match(packageRelease, /bulka-ensure-postgres-client/);
+  assert.match(packageRelease, /public\\taplink\\assets/);
+  assert.match(packageRelease, /BulkaAndroid\\assets\\brand\\bulka_logo\.png/);
+  assert.match(packageRelease, /GolosText-Regular\.ttf/);
+  assert.match(packageRelease, /Montserrat-Regular-subset\.ttf/);
   assert.match(deploy, /configure_postgres_client/);
   assert.match(deploy, /postgresql\/17\/bin/);
   assert.match(read('scripts/ensure-postgres-client.sh'), /postgresql-client-\$client_major/);
@@ -71,48 +80,36 @@ test('database backups are private, verified and restricted to dedicated storage
   const backupIndex = deployScriptIndex(
     read('scripts/deploy-release.sh'),
     'create_pre_migration_backup',
-    "npm run db:migrate --",
+    'npm run db:migrate --',
   );
   assert.ok(
     backupIndex.backup < backupIndex.migration,
     'verified database backup must run before migrations',
   );
 
-  const bash =
-    process.platform === 'win32'
-      ? 'C:\\Program Files\\Git\\bin\\bash.exe'
-      : 'bash';
+  const bash = process.platform === 'win32' ? 'C:\\Program Files\\Git\\bin\\bash.exe' : 'bash';
   const commonEnv = {
     ...process.env,
     DATABASE_URL: ['postgres', '://backup-test:', 'placeholder', '@localhost:5432/bulka'].join(''),
   };
-  const allowed = spawnSync(
-    bash,
-    ['scripts/backup-database.sh', '--validate-config'],
-    {
-      cwd: root,
-      env: {
-        ...commonEnv,
-        BULKA_DATABASE_BACKUP_DIR:
-          '/home/deploy/.bulka-releases/database-backups',
-      },
-      encoding: 'utf8',
+  const allowed = spawnSync(bash, ['scripts/backup-database.sh', '--validate-config'], {
+    cwd: root,
+    env: {
+      ...commonEnv,
+      BULKA_DATABASE_BACKUP_DIR: '/home/deploy/.bulka-releases/database-backups',
     },
-  );
+    encoding: 'utf8',
+  });
   assert.equal(allowed.status, 0, allowed.stderr);
 
-  const unsafe = spawnSync(
-    bash,
-    ['scripts/backup-database.sh', '--validate-config'],
-    {
-      cwd: root,
-      env: {
-        ...commonEnv,
-        BULKA_DATABASE_BACKUP_DIR: '/tmp/bulka-backups',
-      },
-      encoding: 'utf8',
+  const unsafe = spawnSync(bash, ['scripts/backup-database.sh', '--validate-config'], {
+    cwd: root,
+    env: {
+      ...commonEnv,
+      BULKA_DATABASE_BACKUP_DIR: '/tmp/bulka-backups',
     },
-  );
+    encoding: 'utf8',
+  });
   assert.notEqual(unsafe.status, 0);
 });
 

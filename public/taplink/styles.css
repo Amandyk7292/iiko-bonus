@@ -37,6 +37,7 @@
   --focus: #8d470f;
   --radius-card: 28px;
   --radius-control: 20px;
+  --taplink-background-image: url('/taplink/assets/mobile-background.png?v=20260806-1');
 }
 
 * {
@@ -171,12 +172,25 @@ a {
   object-fit: contain;
 }
 
+.brand-wordmark {
+  display: block;
+  color: var(--brand-brown);
+  font:
+    600 clamp(38px, 12vw, 56px) / 1 'Golos Text',
+    sans-serif;
+  letter-spacing: -0.055em;
+}
+
 .header-controls {
   width: 100%;
   margin: 0 auto 14px;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.header-controls[hidden] {
+  display: none;
 }
 
 .language-switch {
@@ -286,6 +300,10 @@ h1 {
     transform 180ms ease,
     background-color 180ms ease;
   will-change: transform;
+}
+
+.link-card_no-icon {
+  grid-template-columns: minmax(0, 1fr) 38px;
 }
 
 .link-card::before {
@@ -437,6 +455,46 @@ h1 {
     0 7px 16px rgba(255, 184, 20, 0.23),
     0 4px 10px rgba(83, 40, 20, 0.09);
   transform: translate3d(0, 4px, 0) scale(0.985);
+}
+
+.taplink-buttons-outlined .link-card_standard {
+  border: 1.5px solid #7f472c;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: none;
+}
+
+.taplink-buttons-outlined .link-card_standard:hover {
+  border-color: var(--brand-brown);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 12px 25px rgba(83, 40, 20, 0.09);
+}
+
+.taplink-buttons-solid .link-card_standard {
+  border-color: var(--brand-brown);
+  background: var(--brand-brown);
+  color: white;
+  box-shadow:
+    0 4px 0 var(--brand-brown-deep),
+    0 13px 27px rgba(83, 40, 20, 0.16);
+}
+
+.taplink-buttons-solid .link-card_standard:hover {
+  border-color: var(--brand-brown-deep);
+  background: var(--brand-brown-deep);
+  box-shadow:
+    0 6px 0 #2c1208,
+    0 19px 34px rgba(83, 40, 20, 0.2);
+}
+
+.taplink-buttons-solid .link-card_standard .link-copy small {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.taplink-buttons-solid .link-card_standard .link-icon,
+.taplink-buttons-solid .link-card_standard .link-arrow,
+.taplink-buttons-solid .link-card_standard .external-arrow {
+  background: rgba(255, 255, 255, 0.13);
+  color: white;
 }
 
 .link-icon {
@@ -608,7 +666,7 @@ h1 {
     padding: 0;
     display: block;
     background-color: var(--brand-gold);
-    background-image: url('/taplink/assets/mobile-background.png?v=20260806-1');
+    background-image: var(--taplink-background-image);
     background-position: center top;
     background-repeat: no-repeat;
     background-size: cover;

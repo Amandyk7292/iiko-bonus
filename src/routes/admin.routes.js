@@ -40,13 +40,11 @@ const kitchenService = require('../services/kitchen.service');
 const reviewService = require('../services/review.service');
 const supportService = require('../services/support.service');
 const commerceMarketing = require('../services/commerce-marketing.service');
-const { ADMIN_PHONE_ROLES } = require('../services/admin-phone-auth.service');
 const {
   branchScopeForAdmin,
   hasGlobalBranchAccess,
   normalizeBranchIds,
 } = require('../utils/admin-scope.util');
-const { normalizeKazakhstanPhone } = require('../utils/phone.util');
 const { emptyBodySchema, validateRequest } = require('../middlewares/validation.middleware');
 const {
   kitchenStatusBodySchema,
@@ -55,6 +53,8 @@ const {
 const { adminMutationSchemas } = require('../contracts/admin-mutations.contract');
 const { registerCustomerAdminRoutes } = require('./admin/customer.routes');
 const { registerContactCenterAdminRoutes } = require('./admin/contact-center.routes');
+const { registerTaplinkAdminRoutes } = require('./admin/taplink.routes');
+const { registerAccessAdminRoutes } = require('./admin/access.routes');
 const { registerAdminAuthRoutes } = require('./admin/auth.routes');
 const {
   getSiteAccessConfig,
@@ -138,16 +138,6 @@ const parseWhatsAppVoiceUpload = (req, res, next) => {
       code: tooLarge ? 'WHATSAPP_AUDIO_TOO_LARGE' : error.code || 'WHATSAPP_INVALID_AUDIO',
     });
   });
-};
-
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const normalizeAccessBranchIds = (value) => {
-  if (value !== undefined && !Array.isArray(value)) return null;
-  const branchIds = normalizeBranchIds(value);
-  if (branchIds.length > 50 || branchIds.some((branchId) => !uuidPattern.test(branchId))) {
-    return null;
-  }
-  return branchIds;
 };
 
 const scopedBranchIds = (req) => branchScopeForAdmin(req.admin);
@@ -278,6 +268,8 @@ router.use(
   adminAuditMiddleware,
 );
 
+registerTaplinkAdminRoutes(router);
+registerAccessAdminRoutes(router);
 router.get('/admin/api/settings', adminAuthMiddleware, adminController.getSettingsHandler);
 router.get('/admin/api/scope', async (req, res) => {
   try {
@@ -1525,117 +1517,6 @@ router.put(
     if (error) return res.status(500).json({ success: false, error: error.message });
     if (!data) return res.status(404).json({ success: false, error: 'Сценарий не найден' });
     return res.json({ success: true, automation: data });
-  },
-);
-
-router.get('/admin/api/access', async (_req, res) => {
-  const { data, error } = await supabase.from('admin_user_profiles').select('*').order('username');
-  if (error) return res.status(500).json({ success: false, error: error.message });
-  let configured;
-  try {
-    configured = JSON.parse(process.env.ADMIN_USERS_JSON || '[]');
-  } catch {
-    configured = [];
-  }
-  if (!Array.isArray(configured) || !configured.length) configured = [{ username: 'admin' }];
-  const configuredUsers = Array.from(
-    new Set([
-      ...configured.map((user) => String(user.username || '').trim()).filter(Boolean),
-      ...(data || []).map((profile) => String(profile.username || '').trim()).filter(Boolean),
-    ]),
-  );
-  return res.json({
-    success: true,
-    profiles: data || [],
-    configuredUsers,
-  });
-});
-router.post(
-  '/admin/api/access',
-  validateRequest(adminMutationSchemas.accessCreate),
-  async (req, res) => {
-    const phone = normalizeKazakhstanPhone(req.body?.phone);
-    const displayName = String(req.body?.displayName || '')
-      .trim()
-      .slice(0, 160);
-    const role = String(req.body?.role || 'operator');
-    const branchIds = normalizeAccessBranchIds(req.body?.branchIds);
-
-    if (!phone) {
-      return res
-        .status(400)
-        .json({ success: false, error: 'Введите номер в формате +7 700 000 00 00' });
-    }
-    if (!displayName) {
-      return res.status(400).json({ success: false, error: 'Укажите имя сотрудника' });
-    }
-    if (!ADMIN_PHONE_ROLES.has(role)) {
-      return res.status(400).json({ success: false, error: 'Некорректная роль сотрудника' });
-    }
-    if (!branchIds) {
-      return res.status(400).json({ success: false, error: 'Некорректный список филиалов' });
-    }
-
-    const { data, error } = await supabase
-      .from('admin_user_profiles')
-      .insert({
-        username: phone,
-        display_name: displayName,
-        role,
-        branch_ids: branchIds,
-        active: true,
-        updated_at: new Date().toISOString(),
-      })
-      .select('*')
-      .single();
-    if (error?.code === '23505') {
-      return res
-        .status(409)
-        .json({ success: false, error: 'Сотрудник с этим номером уже добавлен' });
-    }
-    if (error) return res.status(500).json({ success: false, error: error.message });
-    return res.status(201).json({ success: true, profile: data });
-  },
-);
-router.put(
-  '/admin/api/access/:username',
-  validateRequest(adminMutationSchemas.accessUpdate),
-  async (req, res) => {
-    const role = String(req.body?.role || 'viewer');
-    if (!['owner', 'branch_manager', 'operator', 'marketer', 'courier', 'viewer'].includes(role)) {
-      return res.status(400).json({ success: false, error: 'Некорректная роль' });
-    }
-    const rawUsername = String(req.params.username || '').trim();
-    const phoneUsername = normalizeKazakhstanPhone(rawUsername);
-    if (phoneUsername && !ADMIN_PHONE_ROLES.has(role)) {
-      return res
-        .status(400)
-        .json({ success: false, error: 'Роль владельца нельзя назначить по номеру телефона' });
-    }
-    const branchIds = normalizeAccessBranchIds(req.body?.branchIds);
-    if (!branchIds) {
-      return res.status(400).json({ success: false, error: 'Некорректный список филиалов' });
-    }
-    const { data, error } = await supabase
-      .from('admin_user_profiles')
-      .upsert(
-        {
-          username: phoneUsername || rawUsername.toLowerCase(),
-          display_name:
-            String(req.body?.displayName || '')
-              .trim()
-              .slice(0, 160) || null,
-          role,
-          branch_ids: branchIds,
-          active: req.body?.active !== false,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'username' },
-      )
-      .select('*')
-      .single();
-    if (error) return res.status(500).json({ success: false, error: error.message });
-    return res.json({ success: true, profile: data });
   },
 );
 

@@ -970,10 +970,36 @@ const automationBodySchema = z
   })
   .strict();
 
-const staffRoleSchema = z.enum(['branch_manager', 'operator', 'marketer', 'courier', 'viewer']);
+const staffRoleSchema = z.enum([
+  'branch_manager',
+  'operator',
+  'marketer',
+  'courier',
+  'viewer',
+  'cashier',
+]);
+const cashierUsernameSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .min(3)
+  .max(64)
+  .regex(/^[a-z0-9][a-z0-9._-]{2,63}$/);
+const cashierPasswordSchema = z
+  .string()
+  .min(10)
+  .max(72)
+  .refine((value) => Buffer.byteLength(value, 'utf8') <= 72, {
+    message: 'Пароль должен быть не длиннее 72 байт',
+  })
+  .refine((value) => /\p{L}/u.test(value) && /\d/.test(value), {
+    message: 'Пароль должен содержать хотя бы одну букву и одну цифру',
+  });
 const accessCreateBodySchema = z
   .object({
-    phone: z.string().trim().min(10).max(32),
+    phone: z.string().trim().min(10).max(32).optional(),
+    username: cashierUsernameSchema.optional(),
+    password: cashierPasswordSchema.optional(),
     displayName: shortText(160, 1),
     role: staffRoleSchema,
     branchIds: z
@@ -983,11 +1009,67 @@ const accessCreateBodySchema = z
         message: 'Филиалы не должны повторяться',
       }),
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    if (value.role === 'cashier') {
+      if (!value.username) {
+        context.addIssue({
+          code: 'custom',
+          path: ['username'],
+          message: 'Укажите логин кассира',
+        });
+      }
+      if (!value.password) {
+        context.addIssue({
+          code: 'custom',
+          path: ['password'],
+          message: 'Укажите пароль кассира',
+        });
+      }
+      if (value.branchIds.length !== 1) {
+        context.addIssue({
+          code: 'custom',
+          path: ['branchIds'],
+          message: 'Кассир должен быть привязан ровно к одной точке',
+        });
+      }
+      if (value.phone) {
+        context.addIssue({
+          code: 'custom',
+          path: ['phone'],
+          message: 'Для кассира используется логин, а не телефон',
+        });
+      }
+      return;
+    }
+    if (!value.phone) {
+      context.addIssue({
+        code: 'custom',
+        path: ['phone'],
+        message: 'Укажите номер телефона сотрудника',
+      });
+    }
+    if (value.username || value.password) {
+      context.addIssue({
+        code: 'custom',
+        path: ['username'],
+        message: 'Логин и пароль доступны только для роли кассира',
+      });
+    }
+  });
 const accessUpdateBodySchema = z
   .object({
     displayName: nullableText(160).optional(),
-    role: z.enum(['owner', 'branch_manager', 'operator', 'marketer', 'courier', 'viewer']),
+    role: z.enum([
+      'owner',
+      'branch_manager',
+      'operator',
+      'marketer',
+      'courier',
+      'editor',
+      'viewer',
+      'cashier',
+    ]),
     branchIds: z
       .array(uuidSchema)
       .max(50)
@@ -995,6 +1077,20 @@ const accessUpdateBodySchema = z
         message: 'Филиалы не должны повторяться',
       }),
     active: z.boolean(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.role === 'cashier' && value.branchIds.length !== 1) {
+      context.addIssue({
+        code: 'custom',
+        path: ['branchIds'],
+        message: 'Кассир должен быть привязан ровно к одной точке',
+      });
+    }
+  });
+const accessPasswordBodySchema = z
+  .object({
+    password: cashierPasswordSchema,
   })
   .strict();
 
@@ -1092,6 +1188,10 @@ const adminMutationSchemas = {
   accessUpdate: {
     params: routeParams({ username: safeUsernameSchema }),
     body: accessUpdateBodySchema,
+  },
+  accessPassword: {
+    params: routeParams({ username: safeUsernameSchema }),
+    body: accessPasswordBodySchema,
   },
 };
 

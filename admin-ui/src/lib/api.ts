@@ -184,6 +184,8 @@ import type {
   SiteAccessResponse,
   OnlineOrderingConfig,
   OnlineOrderingResponse,
+  TaplinkAdminResponse,
+  TaplinkDocument,
   AuditLog,
 } from './api-types';
 export type {
@@ -235,6 +237,8 @@ export type {
   SiteAccessResponse,
   OnlineOrderingConfig,
   OnlineOrderingResponse,
+  TaplinkAdminResponse,
+  TaplinkDocument,
   AuditLog,
 } from './api-types';
 
@@ -960,6 +964,11 @@ export const api = {
       `/access/${encodeURIComponent(username)}`,
       json('PUT', data),
     ),
+  resetAccessPassword: (username: string, password: string) =>
+    request<{ success: boolean }>(
+      `/access/${encodeURIComponent(username)}/password`,
+      json('PUT', { password }),
+    ),
   getSiteAccess: () => request<SiteAccessResponse>('/site-access'),
   updateSiteAccess: (data: SiteAccessConfig) =>
     request<SiteAccessResponse>('/site-access', json('PUT', data)),
@@ -999,6 +1008,11 @@ export const api = {
       '/upload',
       json('POST', { imageBase64: base64, filename }),
     ),
+  getTaplink: () => request<TaplinkAdminResponse>('/taplink'),
+  saveTaplinkDraft: (config: TaplinkDocument, expectedRevision: number) =>
+    request<TaplinkAdminResponse>('/taplink/draft', json('PUT', { config, expectedRevision })),
+  publishTaplink: (expectedRevision: number) =>
+    request<TaplinkAdminResponse>('/taplink/publish', json('POST', { expectedRevision })),
   sendBroadcast: (message: string) =>
     request<{ success: boolean; count?: number }>('/broadcast', json('POST', { message })),
   sendPushMass: (titles: LocalizedText, bodies: LocalizedText) =>

@@ -112,7 +112,7 @@ export function AdminRealtimeProvider({
   const listenersRef = useRef(new Set<{ types: Set<string>; listener: RealtimeListener }>());
   const refreshTimerRef = useRef<number | null>(null);
   const summaryRequestRef = useRef<Promise<void> | null>(null);
-  const canLoadSummary = role !== 'whatsapp_operator' && role !== 'courier';
+  const canLoadSummary = role !== 'whatsapp_operator' && role !== 'courier' && role !== 'cashier';
 
   const refreshSummary = useCallback(async () => {
     if (!canLoadSummary) return;

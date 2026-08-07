@@ -194,8 +194,8 @@ test('taplink exposes delivery and city links as a fast standalone page', async 
   assert.equal((html.match(/\/taplink\/assets\/2gis-icon\.png\?v=20260806-1/g) || []).length, 2);
 
   for (const asset of [
-    '/taplink/styles.css?v=20260807-2',
-    '/taplink/app.js?v=20260807-1',
+    '/taplink/styles.css?v=20260807-3',
+    '/taplink/app.js?v=20260807-2',
     '/taplink/assets/mobile-background.png?v=20260806-1',
     '/taplink/assets/2gis-icon.png?v=20260806-1',
     '/taplink/assets/brand/bulka_logo.png?v=20260806-1',
@@ -206,16 +206,13 @@ test('taplink exposes delivery and city links as a fast standalone page', async 
     assert.match(assetResponse.headers.get('cache-control') || '', /immutable/, asset);
   }
 
-  const styles = await (await fetch(`${origin}/taplink/styles.css?v=20260807-2`)).text();
+  const styles = await (await fetch(`${origin}/taplink/styles.css?v=20260807-3`)).text();
   assert.match(styles, /transform-style:\s*preserve-3d/);
   assert.match(styles, /--specular-opacity/);
   assert.match(styles, /radial-gradient\(\s*112px circle at var\(--specular-x\)/);
   assert.match(styles, /mobile-background\.png\?v=20260806-1/);
   assert.match(styles, /background-size:\s*cover/);
-  assert.match(
-    styles,
-    /animation:\s*card-sheen-auto 3s cubic-bezier\(0\.45,\s*0,\s*0\.55,\s*1\)/,
-  );
+  assert.match(styles, /animation:\s*card-sheen-auto 3s cubic-bezier\(0\.45,\s*0,\s*0\.55,\s*1\)/);
   assert.match(styles, /\.link-card_aktau::before\s*\{\s*animation-delay:\s*0\.45s/);
   assert.match(styles, /\.link-card_astana::before\s*\{\s*animation-delay:\s*0\.9s/);
   assert.match(styles, /\.link-card_city::before[\s\S]*rgba\(255,\s*184,\s*20,\s*0\.1\)/);
@@ -223,15 +220,23 @@ test('taplink exposes delivery and city links as a fast standalone page', async 
   assert.doesNotMatch(styles, /\.profile-card::before/);
   assert.doesNotMatch(styles, /\.city-label/);
   assert.match(styles, /prefers-reduced-motion:\s*reduce/);
+  assert.match(styles, /--taplink-background-image/);
+  assert.match(styles, /\.taplink-buttons-outlined \.link-card_standard/);
+  assert.match(styles, /\.taplink-buttons-solid \.link-card_standard/);
 
-  const script = await (await fetch(`${origin}/taplink/app.js?v=20260807-1`)).text();
+  const script = await (await fetch(`${origin}/taplink/app.js?v=20260807-2`)).text();
   assert.match(script, /DEFAULT_LANGUAGE = 'kk'/);
   assert.match(script, /bulka-taplink-language/);
+  assert.match(script, /PUBLIC_CONFIG_URL = '\/api\/public\/taplink'/);
+  assert.match(script, /validatePublicPayload/);
+  assert.match(script, /validateTaplinkDocument/);
+  assert.match(script, /replaceChildren/);
   assert.match(script, /WhatsApp арқылы Bulka жеткізуіне тапсырыс беру/);
   assert.match(script, /Заказать доставку Bulka в WhatsApp/);
   assert.match(script, /const PROXIMITY = 250/);
   assert.match(script, /const FOLLOW_SPEED = 0\.35/);
   assert.match(script, /window\.addEventListener\('pointermove'/);
+  assert.doesNotMatch(script, /\.innerHTML|insertAdjacentHTML|document\.write/);
 });
 
 test('Forte widget shell is private, pinned to official hosts and never reflects query tokens', async (t) => {

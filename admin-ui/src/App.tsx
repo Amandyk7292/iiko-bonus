@@ -31,6 +31,7 @@ const IikoPage = lazy(() => import('./pages/IikoPage'));
 const BroadcastPage = lazy(() => import('./pages/BroadcastPage'));
 const StoriesPage = lazy(() => import('./pages/StoriesPage'));
 const NewsPage = lazy(() => import('./pages/NewsPage'));
+const TaplinkPage = lazy(() => import('./pages/TaplinkPage'));
 const LocationsPage = lazy(() => import('./pages/LocationsPage'));
 const BonusPage = lazy(() => import('./pages/BonusPage'));
 const LoyaltyTiersPage = lazy(() => import('./pages/LoyaltyTiersPage'));
@@ -528,6 +529,7 @@ export default function App() {
         <main id="main-content" className="sagi-main" tabIndex={-1}>
           <Topbar
             operatorMode={isWhatsAppOperator}
+            cashierMode={role === 'cashier'}
             scopeLocations={scopeLocations}
             selectedBranchId={selectedBranchId}
             onBranchChange={handleBranchChange}
@@ -576,6 +578,13 @@ export default function App() {
                 <Route path="/settings" element={guard('/settings', <SettingsPage />)} />
                 <Route path="/stories" element={guard('/stories', <StoriesPage />)} />
                 <Route path="/news" element={guard('/news', <NewsPage />)} />
+                <Route
+                  path="/taplink"
+                  element={guard(
+                    '/taplink',
+                    <TaplinkPage canPublish={['admin', 'owner'].includes(role)} />,
+                  )}
+                />
                 <Route path="/bonus" element={guard('/bonus', <BonusPage />)} />
                 <Route path="/tiers" element={guard('/tiers', <LoyaltyTiersPage />)} />
                 <Route

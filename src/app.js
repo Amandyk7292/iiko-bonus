@@ -39,6 +39,10 @@ const {
 } = require('./contracts/payment-receipt.contract');
 const { LEGAL_PAGE_SLUGS, renderLegalPage } = require('./services/legal-page.service');
 const {
+  refreshTaplinkHtmlConfig,
+  renderCachedTaplinkHtml,
+} = require('./services/taplink-html.service');
+const {
   adminAuditMiddleware,
   adminAuthMiddleware,
   adminCsrfMiddleware,
@@ -73,6 +77,7 @@ const publicAppReleaseVersion = (() => {
 
 const app = express();
 validateRuntimeConfig();
+void refreshTaplinkHtmlConfig();
 
 app.set('trust proxy', 1);
 app.use(requestContextMiddleware);
@@ -523,9 +528,13 @@ app.use(
   '/taplink/assets/fonts',
   express.static(taplinkFontDirectory, { setHeaders: taplinkStaticHeaders }),
 );
-app.get(['/taplink', '/taplink/'], (_req, res) => {
-  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-  res.sendFile(path.join(taplinkDirectory, 'index.html'));
+app.get(['/taplink', '/taplink/'], async (_req, res, next) => {
+  try {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.type('html').send(await renderCachedTaplinkHtml());
+  } catch (error) {
+    next(error);
+  }
 });
 app.use(
   '/taplink',

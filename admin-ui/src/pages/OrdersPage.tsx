@@ -111,11 +111,12 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
   }, [orderStatus, page, params, paymentStatus, search, setParams]);
 
   useEffect(() => {
+    if (!orderMutationsAllowed) return;
     void api
       .getCouriers()
       .then((result) => setCouriers(result.couriers ?? []))
       .catch(() => undefined);
-  }, []);
+  }, [orderMutationsAllowed]);
 
   useAdminRealtimeEvents(
     ['order.created', 'order.updated', 'order.customer_arrived'],

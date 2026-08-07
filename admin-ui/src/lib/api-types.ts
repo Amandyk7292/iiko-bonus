@@ -4,6 +4,82 @@ export interface LocalizedText {
   en: string;
 }
 
+export type TaplinkLocale = 'kk' | 'ru';
+export type TaplinkLocalizedText = Record<TaplinkLocale, string>;
+export type TaplinkButtonStyle = 'soft' | 'outlined' | 'solid';
+export type TaplinkLinkStyle = 'primary' | 'standard' | 'city';
+export type TaplinkIcon =
+  'phone' | 'whatsapp' | '2gis' | 'instagram' | 'telegram' | 'globe' | 'location' | 'none';
+
+export type TaplinkTarget =
+  | { type: 'whatsapp'; value: string }
+  | { type: 'phone'; value: string }
+  | { type: 'email'; value: string }
+  | { type: 'url'; value: string };
+
+export interface TaplinkSectionBlock {
+  id: string;
+  type: 'section';
+  enabled: boolean;
+  labels: TaplinkLocalizedText;
+}
+
+export interface TaplinkLinkBlock {
+  id: string;
+  type: 'link';
+  enabled: boolean;
+  style: TaplinkLinkStyle;
+  labels: TaplinkLocalizedText;
+  subtitles?: TaplinkLocalizedText;
+  ariaLabels?: TaplinkLocalizedText;
+  icon: TaplinkIcon;
+  target: TaplinkTarget;
+  href?: string;
+}
+
+export type TaplinkBlock = TaplinkSectionBlock | TaplinkLinkBlock;
+
+export interface TaplinkDocument {
+  schemaVersion: 1;
+  defaultLocale: TaplinkLocale;
+  enabledLocales: TaplinkLocale[];
+  profile: {
+    title: TaplinkLocalizedText;
+    description: TaplinkLocalizedText;
+    footer: TaplinkLocalizedText;
+    logoUrl?: string;
+  };
+  seo: {
+    title: TaplinkLocalizedText;
+    description: TaplinkLocalizedText;
+    ogImageUrl?: string;
+  };
+  theme: {
+    preset: 'bulka';
+    backgroundImageUrl?: string;
+    buttonStyle: TaplinkButtonStyle;
+    radius: number;
+  };
+  blocks: TaplinkBlock[];
+}
+
+export interface TaplinkAdminPage {
+  slug: 'main' | string;
+  draft: TaplinkDocument;
+  published: TaplinkDocument;
+  draftRevision: number;
+  publishedRevision: number;
+  updatedAt: string | null;
+  updatedBy: string | null;
+  publishedAt: string | null;
+  publishedBy: string | null;
+}
+
+export interface TaplinkAdminResponse {
+  success: boolean;
+  page: TaplinkAdminPage;
+}
+
 export interface LoyaltyTier {
   id: string;
   code: string;

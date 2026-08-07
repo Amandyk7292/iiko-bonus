@@ -415,6 +415,13 @@ for required_file in \
   public/legal/privacy.html \
   public/legal/terms.html \
   public/courier.html \
+  public/taplink/index.html \
+  public/taplink/app.js \
+  public/taplink/styles.css \
+  public/taplink/assets/brand/bulka_logo.png \
+  public/taplink/assets/fonts/GolosText-Regular.ttf \
+  public/taplink/assets/fonts/GolosText-SemiBold.ttf \
+  public/taplink/assets/fonts/Montserrat-Regular-subset.ttf \
   admin-ui/dist/index.html \
   kaspi-pos-automation-main/server.js \
   supabase/migrations/20260725120000_customer_access_hardening.sql \

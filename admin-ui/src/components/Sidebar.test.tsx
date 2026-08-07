@@ -28,12 +28,7 @@ const renderSidebar = (
   render(
     <BrowserRouter basename="/admin">
       <I18nProvider>
-        <Sidebar
-          role={role}
-          isOpen
-          onClose={callbacks.onClose}
-          onCollapse={callbacks.onCollapse}
-        />
+        <Sidebar role={role} isOpen onClose={callbacks.onClose} onCollapse={callbacks.onCollapse} />
       </I18nProvider>
     </BrowserRouter>,
   );
@@ -56,6 +51,7 @@ describe('Sidebar role navigation', () => {
     'courier',
     'editor',
     'viewer',
+    'cashier',
     'whatsapp_operator',
   ]) {
     it(`shows exactly the allowed destinations for ${role}`, () => {
