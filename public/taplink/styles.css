@@ -37,6 +37,20 @@
   --focus: #8d470f;
   --radius-card: 28px;
   --radius-control: 20px;
+  --taplink-background-color: #ffb814;
+  --taplink-gradient-from: #ffd56a;
+  --taplink-gradient-to: #f4a916;
+  --taplink-gradient-angle: 135deg;
+  --taplink-background-overlay-color: rgba(83, 40, 20, 0);
+  --taplink-text-color: #532814;
+  --taplink-muted-text-color: #78665d;
+  --taplink-surface-color: #ffffff;
+  --taplink-surface-glass-color: rgba(255, 255, 255, 0.82);
+  --taplink-button-background-color: #ffffff;
+  --taplink-button-text-color: #532814;
+  --taplink-primary-button-background-color: #ffb814;
+  --taplink-primary-button-text-color: #3f1d0e;
+  --taplink-button-glow-color: rgba(255, 184, 20, 0.3);
   --taplink-background-image: url('/taplink/assets/mobile-background.png?v=20260806-1');
 }
 
@@ -47,7 +61,7 @@
 html {
   min-width: 320px;
   min-height: 100%;
-  background: var(--page);
+  background: var(--taplink-background-color);
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }
@@ -62,10 +76,11 @@ body {
   display: grid;
   place-items: center;
   overflow-x: hidden;
-  background:
-    radial-gradient(circle at 12% 6%, rgba(255, 184, 20, 0.2), transparent 28rem),
-    radial-gradient(circle at 92% 94%, rgba(83, 40, 20, 0.08), transparent 31rem), var(--page);
-  color: var(--brand-brown);
+  background-color: var(--taplink-background-color);
+  background-position: center top;
+  background-repeat: no-repeat;
+  background-size: cover;
+  color: var(--taplink-text-color);
   font-family:
     'Montserrat',
     system-ui,
@@ -75,6 +90,47 @@ body {
     sans-serif;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+}
+
+body.taplink-background-brand {
+  background-image:
+    linear-gradient(
+      var(--taplink-background-overlay-color),
+      var(--taplink-background-overlay-color)
+    ),
+    var(--taplink-background-image),
+    radial-gradient(circle at 13% 4%, rgba(255, 184, 20, 0.22), transparent 28rem);
+  background-size: cover, cover, auto;
+}
+
+body.taplink-background-image {
+  background-image:
+    linear-gradient(
+      var(--taplink-background-overlay-color),
+      var(--taplink-background-overlay-color)
+    ),
+    var(--taplink-background-image);
+  background-size: cover, cover;
+}
+
+body.taplink-background-solid {
+  background-image: linear-gradient(
+    var(--taplink-background-overlay-color),
+    var(--taplink-background-overlay-color)
+  );
+}
+
+body.taplink-background-gradient {
+  background-image:
+    linear-gradient(
+      var(--taplink-background-overlay-color),
+      var(--taplink-background-overlay-color)
+    ),
+    linear-gradient(
+      var(--taplink-gradient-angle),
+      var(--taplink-gradient-from),
+      var(--taplink-gradient-to)
+    );
 }
 
 a {
@@ -147,7 +203,7 @@ a {
   overflow: hidden;
   border: 1px solid rgba(234, 219, 190, 0.9);
   border-radius: 36px;
-  background: rgba(255, 255, 255, 0.94);
+  background: var(--taplink-surface-color);
   box-shadow:
     0 30px 80px var(--shadow),
     0 5px 18px rgba(83, 40, 20, 0.05);
@@ -174,7 +230,7 @@ a {
 
 .brand-wordmark {
   display: block;
-  color: var(--brand-brown);
+  color: var(--taplink-text-color);
   font:
     600 clamp(38px, 12vw, 56px) / 1 'Golos Text',
     sans-serif;
@@ -202,7 +258,7 @@ a {
   align-items: stretch;
   border: 1px solid var(--border);
   border-radius: 999px;
-  background: rgba(255, 250, 241, 0.92);
+  background: var(--taplink-surface-color);
   box-shadow: inset 0 1px 0 white;
 }
 
@@ -213,7 +269,7 @@ a {
   border: 0;
   border-radius: 999px;
   background: transparent;
-  color: var(--muted);
+  color: var(--taplink-muted-text-color);
   cursor: pointer;
   font:
     600 11px/1 'Golos Text',
@@ -227,7 +283,7 @@ a {
 }
 
 .language-button:hover {
-  color: var(--brand-brown);
+  color: var(--taplink-text-color);
 }
 
 .language-button:active {
@@ -235,11 +291,11 @@ a {
 }
 
 .language-button.is-active {
-  background: var(--brand-brown);
+  background: var(--taplink-text-color);
   box-shadow:
     0 3px 8px rgba(83, 40, 20, 0.2),
     inset 0 1px 0 rgba(255, 255, 255, 0.18);
-  color: white;
+  color: var(--taplink-surface-color);
 }
 
 .language-button:focus-visible {
@@ -249,7 +305,7 @@ a {
 
 h1 {
   margin: 0;
-  color: var(--brand-brown);
+  color: var(--taplink-text-color);
   font:
     600 clamp(31px, 9vw, 42px) / 1.08 'Golos Text',
     sans-serif;
@@ -259,7 +315,7 @@ h1 {
 .profile-description {
   max-width: 36ch;
   margin: 12px auto 0;
-  color: var(--muted);
+  color: var(--taplink-muted-text-color);
   font-size: 15px;
   line-height: 1.65;
 }
@@ -287,10 +343,9 @@ h1 {
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: var(--radius-control);
-  background: var(--surface);
-  box-shadow:
-    0 4px 0 #e8d9c0,
-    0 13px 27px rgba(83, 40, 20, 0.075);
+  background: var(--taplink-button-background-color);
+  color: var(--taplink-button-text-color);
+  box-shadow: none;
   text-decoration: none;
   transform: translate3d(0, 0, 0);
   transform-style: preserve-3d;
@@ -298,7 +353,8 @@ h1 {
     border-color 180ms ease,
     box-shadow 180ms ease,
     transform 180ms ease,
-    background-color 180ms ease;
+    background-color 180ms ease,
+    opacity 120ms ease;
   will-change: transform;
 }
 
@@ -325,19 +381,6 @@ h1 {
   opacity: 0;
   pointer-events: none;
   transform: skewX(-18deg);
-}
-
-.link-card_city::before {
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(255, 184, 20, 0.1) 14%,
-    rgba(255, 197, 52, 0.52) 43%,
-    rgba(255, 255, 255, 0.98) 52%,
-    rgba(255, 193, 34, 0.42) 61%,
-    rgba(255, 184, 20, 0.08) 86%,
-    transparent 100%
-  );
 }
 
 .link-card::after {
@@ -407,94 +450,106 @@ h1 {
 
 .link-card:hover {
   border-color: #d8bd87;
-  background: #fffdf8;
-  box-shadow:
-    0 6px 0 #e1cda9,
-    0 19px 34px rgba(83, 40, 20, 0.12);
-  transform: translate3d(0, -3px, 0);
+  background: var(--taplink-button-background-color);
 }
 
 .link-card:active {
-  box-shadow:
-    0 1px 0 #e8d9c0,
-    0 5px 13px rgba(83, 40, 20, 0.08);
-  transform: translate3d(0, 3px, 0) scale(0.985);
+  opacity: 0.88;
   transition-duration: 80ms;
 }
 
 .link-card:focus-visible {
-  --specular-opacity: 0.78 !important;
-  --specular-x: 76%;
-  --specular-y: 18%;
   outline: 3px solid rgba(141, 71, 15, 0.3);
   outline-offset: 3px;
 }
 
+.taplink-effect-shine .link-card:focus-visible {
+  --specular-opacity: 0.78 !important;
+  --specular-x: 76%;
+  --specular-y: 18%;
+}
+
+.taplink-effect-lift .link-card,
+.taplink-effect-shine .link-card {
+  box-shadow:
+    0 4px 0 #e8d9c0,
+    0 13px 27px rgba(83, 40, 20, 0.075);
+}
+
+.taplink-effect-glow .link-card {
+  box-shadow:
+    0 0 0 1px var(--taplink-button-glow-color),
+    0 12px 30px rgba(83, 40, 20, 0.1);
+}
+
+.taplink-effect-lift .link-card:active,
+.taplink-effect-shine .link-card:active {
+  box-shadow:
+    0 1px 0 #e8d9c0,
+    0 5px 13px rgba(83, 40, 20, 0.08);
+  transform: translate3d(0, 3px, 0) scale(0.985);
+}
+
+.taplink-effect-glow .link-card:active {
+  box-shadow:
+    0 0 0 2px var(--taplink-button-glow-color),
+    0 6px 18px rgba(83, 40, 20, 0.1);
+  transform: scale(0.99);
+}
+
 .link-card_primary {
   min-height: 82px;
-  border-color: #e9a900;
-  background: linear-gradient(135deg, #ffd96a 0%, var(--brand-gold) 100%);
-  box-shadow:
-    0 5px 0 #d99900,
-    0 18px 34px rgba(255, 184, 20, 0.29),
-    0 7px 15px rgba(83, 40, 20, 0.1);
+  border-color: var(--taplink-primary-button-background-color);
+  background: var(--taplink-primary-button-background-color);
+  color: var(--taplink-primary-button-text-color);
 }
 
 .link-card_primary:hover {
-  border-color: #d89e00;
-  background: linear-gradient(135deg, #ffdc76 0%, #ffb30a 100%);
-  box-shadow:
-    0 7px 0 #cc9000,
-    0 23px 39px rgba(255, 184, 20, 0.34),
-    0 9px 18px rgba(83, 40, 20, 0.12);
+  border-color: var(--taplink-primary-button-background-color);
+  background: var(--taplink-primary-button-background-color);
 }
 
-.link-card_primary:active {
-  box-shadow:
-    0 1px 0 #d99900,
-    0 7px 16px rgba(255, 184, 20, 0.23),
-    0 4px 10px rgba(83, 40, 20, 0.09);
-  transform: translate3d(0, 4px, 0) scale(0.985);
+.link-card_city {
+  background: var(--taplink-button-background-color);
+}
+
+.link-card_city:hover {
+  background: var(--taplink-button-background-color);
 }
 
 .taplink-buttons-outlined .link-card_standard {
-  border: 1.5px solid #7f472c;
-  background: rgba(255, 255, 255, 0.78);
+  border: 1.5px solid currentColor;
+  background: var(--taplink-button-background-color);
   box-shadow: none;
 }
 
 .taplink-buttons-outlined .link-card_standard:hover {
-  border-color: var(--brand-brown);
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 12px 25px rgba(83, 40, 20, 0.09);
+  border-color: var(--taplink-button-text-color);
+  background: var(--taplink-button-background-color);
 }
 
 .taplink-buttons-solid .link-card_standard {
-  border-color: var(--brand-brown);
-  background: var(--brand-brown);
-  color: white;
-  box-shadow:
-    0 4px 0 var(--brand-brown-deep),
-    0 13px 27px rgba(83, 40, 20, 0.16);
+  border-color: var(--taplink-button-background-color);
+  background: var(--taplink-button-background-color);
+  color: var(--taplink-button-text-color);
 }
 
 .taplink-buttons-solid .link-card_standard:hover {
-  border-color: var(--brand-brown-deep);
-  background: var(--brand-brown-deep);
-  box-shadow:
-    0 6px 0 #2c1208,
-    0 19px 34px rgba(83, 40, 20, 0.2);
+  border-color: var(--taplink-button-text-color);
+  background: var(--taplink-button-background-color);
 }
 
 .taplink-buttons-solid .link-card_standard .link-copy small {
-  color: rgba(255, 255, 255, 0.75);
+  color: currentColor;
+  opacity: 1;
 }
 
 .taplink-buttons-solid .link-card_standard .link-icon,
 .taplink-buttons-solid .link-card_standard .link-arrow,
 .taplink-buttons-solid .link-card_standard .external-arrow {
-  background: rgba(255, 255, 255, 0.13);
-  color: white;
+  background: transparent;
+  background: color-mix(in srgb, currentColor 13%, transparent);
+  color: currentColor;
 }
 
 .link-icon {
@@ -503,11 +558,12 @@ h1 {
   display: grid;
   place-items: center;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.7);
+  background: transparent;
+  background: color-mix(in srgb, currentColor 13%, transparent);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.95),
     0 5px 13px rgba(83, 40, 20, 0.09);
-  color: var(--brand-brown);
+  color: currentColor;
   transform: translateZ(12px);
   transition:
     box-shadow 180ms ease,
@@ -516,7 +572,7 @@ h1 {
 
 .link-icon_city {
   border: 1px solid rgba(83, 40, 20, 0.1);
-  background: rgba(255, 255, 255, 0.94);
+  background: var(--taplink-surface-color);
 }
 
 .link-icon_2gis img {
@@ -524,13 +580,6 @@ h1 {
   width: 38px;
   height: 38px;
   object-fit: contain;
-}
-
-.link-card:hover .link-icon {
-  box-shadow:
-    inset 0 1px 0 white,
-    0 8px 17px rgba(83, 40, 20, 0.12);
-  transform: translateZ(18px) scale(1.035);
 }
 
 .link-card:active .link-icon {
@@ -564,14 +613,16 @@ h1 {
 }
 
 .link-copy small {
-  color: var(--muted);
+  color: currentColor;
   font-size: 13px;
   line-height: 1.4;
+  opacity: 1;
 }
 
 .link-card_primary .link-copy small {
-  color: rgba(83, 40, 20, 0.74);
+  color: currentColor;
   font-variant-numeric: tabular-nums;
+  opacity: 1;
 }
 
 .link-arrow,
@@ -581,13 +632,13 @@ h1 {
   display: grid;
   place-items: center;
   border-radius: 12px;
-  color: var(--brand-brown);
+  color: currentColor;
   transform: translateZ(10px);
   transition: transform 180ms ease;
 }
 
 .link-arrow {
-  background: rgba(255, 255, 255, 0.46);
+  background: transparent;
 }
 
 .link-arrow svg {
@@ -608,14 +659,6 @@ h1 {
   stroke-linejoin: round;
 }
 
-.link-card:hover .link-arrow {
-  transform: translate3d(2px, 0, 16px);
-}
-
-.link-card:hover .external-arrow {
-  transform: translate3d(2px, -2px, 16px);
-}
-
 .link-card:active .link-arrow,
 .link-card:active .external-arrow {
   transform: translate3d(0, 0, 3px);
@@ -623,7 +666,7 @@ h1 {
 
 .section-label {
   margin: 12px 4px 0;
-  color: var(--brand-brown);
+  color: var(--taplink-text-color);
   font:
     600 13px/1.3 'Golos Text',
     sans-serif;
@@ -638,7 +681,7 @@ h1 {
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 12px;
-  color: var(--muted);
+  color: var(--taplink-muted-text-color);
 }
 
 .profile-footer p {
@@ -659,17 +702,12 @@ h1 {
 
 @media (max-width: 520px) {
   html {
-    background-color: var(--brand-gold);
+    background-color: var(--taplink-background-color);
   }
 
   body {
     padding: 0;
     display: block;
-    background-color: var(--brand-gold);
-    background-image: var(--taplink-background-image);
-    background-position: center top;
-    background-repeat: no-repeat;
-    background-size: cover;
   }
 
   .profile-card {
@@ -682,6 +720,27 @@ h1 {
     background: transparent;
     box-shadow: none;
     backdrop-filter: none;
+  }
+
+  .profile-header {
+    padding: 18px 14px;
+    border-radius: calc(var(--radius-control) + 4px);
+    background: var(--taplink-surface-color);
+    box-shadow: 0 10px 28px rgba(83, 40, 20, 0.08);
+  }
+
+  .section-label {
+    width: max-content;
+    max-width: 100%;
+    padding: 7px 10px;
+    border-radius: 999px;
+    background: var(--taplink-surface-color);
+  }
+
+  .profile-footer {
+    padding: 10px 12px;
+    border-radius: var(--radius-control);
+    background: var(--taplink-surface-color);
   }
 
   .page-decoration {
@@ -713,46 +772,56 @@ h1 {
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .profile-header,
-  .link-card,
-  .profile-footer {
-    animation: reveal 420ms backwards cubic-bezier(0.22, 1, 0.36, 1);
+  .taplink-animation-fade .profile-header,
+  .taplink-animation-fade .section-label,
+  .taplink-animation-fade .link-card,
+  .taplink-animation-fade .profile-footer {
+    animation: taplink-fade 280ms backwards cubic-bezier(0.22, 1, 0.36, 1);
   }
 
-  .link-card:nth-of-type(1) {
-    animation-delay: 70ms;
+  .taplink-animation-rise .profile-header,
+  .taplink-animation-rise .section-label,
+  .taplink-animation-rise .link-card,
+  .taplink-animation-rise .profile-footer {
+    animation: taplink-rise 300ms backwards cubic-bezier(0.22, 1, 0.36, 1);
   }
 
-  .link-card:nth-of-type(2) {
-    animation-delay: 110ms;
+  .taplink-animation-stagger .profile-header,
+  .taplink-animation-stagger .section-label,
+  .taplink-animation-stagger .link-card,
+  .taplink-animation-stagger .profile-footer {
+    animation: taplink-rise 300ms backwards cubic-bezier(0.22, 1, 0.36, 1);
   }
 
-  .link-card:nth-of-type(3) {
-    animation-delay: 150ms;
+  .taplink-animation-stagger .section-label {
+    animation-delay: 32ms;
   }
 
-  .profile-footer {
-    animation-delay: 190ms;
+  .taplink-animation-stagger .link-card {
+    animation-delay: calc((var(--taplink-order, 0) + 1) * 32ms);
   }
 
-  .link-card::before {
-    animation: card-sheen-auto 3s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  .taplink-animation-stagger .profile-footer {
+    animation-delay: 224ms;
+  }
+
+  .taplink-effect-shine .link-card::before {
+    animation: card-sheen-auto 420ms both cubic-bezier(0.22, 1, 0.36, 1);
+    animation-delay: calc(var(--taplink-order, 0) * 32ms);
     will-change: transform, opacity;
   }
 
-  .link-card_primary::before {
-    animation-delay: 0s;
+  @keyframes taplink-fade {
+    from {
+      opacity: 0;
+    }
+
+    to {
+      opacity: 1;
+    }
   }
 
-  .link-card_aktau::before {
-    animation-delay: 0.45s;
-  }
-
-  .link-card_astana::before {
-    animation-delay: 0.9s;
-  }
-
-  @keyframes reveal {
+  @keyframes taplink-rise {
     from {
       opacity: 0;
       transform: translateY(10px);
@@ -770,20 +839,51 @@ h1 {
       transform: translate3d(0, 0, 0) skewX(-18deg);
     }
 
-    10% {
-      opacity: 0.84;
+    18% {
+      opacity: 0.58;
     }
 
-    68% {
-      opacity: 0;
-      transform: translate3d(440%, 0, 0) skewX(-18deg);
-    }
-
-    69%,
     100% {
       opacity: 0;
       transform: translate3d(440%, 0, 0) skewX(-18deg);
     }
+  }
+}
+
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  .taplink-effect-lift .link-card:hover,
+  .taplink-effect-shine .link-card:hover {
+    box-shadow:
+      0 6px 0 #e1cda9,
+      0 19px 34px rgba(83, 40, 20, 0.12);
+    transform: translate3d(0, -3px, 0);
+  }
+
+  .taplink-effect-glow .link-card:hover {
+    box-shadow:
+      0 0 0 3px var(--taplink-button-glow-color),
+      0 18px 40px rgba(83, 40, 20, 0.14);
+  }
+
+  .taplink-effect-lift .link-card:hover .link-icon,
+  .taplink-effect-glow .link-card:hover .link-icon,
+  .taplink-effect-shine .link-card:hover .link-icon {
+    box-shadow:
+      inset 0 1px 0 white,
+      0 8px 17px rgba(83, 40, 20, 0.12);
+    transform: translateZ(18px) scale(1.035);
+  }
+
+  .taplink-effect-lift .link-card:hover .link-arrow,
+  .taplink-effect-glow .link-card:hover .link-arrow,
+  .taplink-effect-shine .link-card:hover .link-arrow {
+    transform: translate3d(2px, 0, 16px);
+  }
+
+  .taplink-effect-lift .link-card:hover .external-arrow,
+  .taplink-effect-glow .link-card:hover .external-arrow,
+  .taplink-effect-shine .link-card:hover .external-arrow {
+    transform: translate3d(2px, -2px, 16px);
   }
 }
 

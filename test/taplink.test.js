@@ -25,6 +25,24 @@ const {
 } = require('../src/services/taplink-html.service');
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
+const TAPLINK_THEME_DEFAULTS = Object.freeze({
+  backgroundMode: 'brand',
+  backgroundColor: '#FFB814',
+  gradientFrom: '#FFD56A',
+  gradientTo: '#F4A916',
+  gradientDirection: 'bottom-right',
+  backgroundOverlayColor: '#532814',
+  backgroundOverlayOpacity: 0,
+  textColor: '#532814',
+  mutedTextColor: '#78665D',
+  surfaceColor: '#FFFFFF',
+  buttonBackgroundColor: '#FFFFFF',
+  buttonTextColor: '#532814',
+  primaryButtonBackgroundColor: '#FFB814',
+  primaryButtonTextColor: '#3F1D0E',
+  animation: 'stagger',
+  buttonEffect: 'shine',
+});
 
 const pageRow = (overrides = {}) => ({
   slug: 'main',
@@ -105,6 +123,144 @@ test('Taplink seed is a strict safe document with the current public links', () 
       'https://2gis.kz/astana/branches/70000001114429416',
     ],
   );
+});
+
+test('legacy Taplink themes normalize every additive design default', () => {
+  const legacy = clone(FALLBACK_TAPLINK_DOCUMENT);
+  Object.keys(TAPLINK_THEME_DEFAULTS).forEach((field) => delete legacy.theme[field]);
+
+  const parsed = taplinkDocumentSchema.parse(legacy);
+  assert.deepEqual(parsed.theme, {
+    ...legacy.theme,
+    ...TAPLINK_THEME_DEFAULTS,
+  });
+});
+
+test('Taplink theme accepts a valid extended design configuration', () => {
+  const config = clone(FALLBACK_TAPLINK_DOCUMENT);
+  Object.assign(config.theme, {
+    backgroundImageUrl: 'https://cdn.example.test/taplink/background.webp',
+    backgroundMode: 'gradient',
+    backgroundColor: '#102A43',
+    gradientFrom: '#243B53',
+    gradientTo: '#486581',
+    gradientDirection: 'top-left',
+    backgroundOverlayColor: '#000000',
+    backgroundOverlayOpacity: 35,
+    textColor: '#111111',
+    mutedTextColor: '#334E68',
+    surfaceColor: '#FFFFFF',
+    buttonBackgroundColor: '#102A43',
+    buttonTextColor: '#FFFFFF',
+    primaryButtonBackgroundColor: '#FFFFFF',
+    primaryButtonTextColor: '#000000',
+    animation: 'fade',
+    buttonEffect: 'glow',
+  });
+
+  const parsed = taplinkDocumentSchema.parse(config);
+  assert.equal(parsed.theme.backgroundMode, 'gradient');
+  assert.equal(parsed.theme.gradientDirection, 'top-left');
+  assert.equal(parsed.theme.backgroundOverlayOpacity, 35);
+  assert.equal(parsed.theme.animation, 'fade');
+  assert.equal(parsed.theme.buttonEffect, 'glow');
+});
+
+test('Taplink theme rejects unsafe values and unknown design fields', () => {
+  const invalidThemes = [
+    [
+      'unsafe background image',
+      (theme) => {
+        theme.backgroundImageUrl = 'javascript:alert(1)';
+      },
+    ],
+    [
+      'short hex color',
+      (theme) => {
+        theme.backgroundColor = '#FFF';
+      },
+    ],
+    [
+      'alpha hex color',
+      (theme) => {
+        theme.surfaceColor = '#FFFFFF80';
+      },
+    ],
+    [
+      'unknown background mode',
+      (theme) => {
+        theme.backgroundMode = 'video';
+      },
+    ],
+    [
+      'arbitrary gradient angle',
+      (theme) => {
+        theme.gradientDirection = '45deg';
+      },
+    ],
+    [
+      'unknown animation',
+      (theme) => {
+        theme.animation = 'bounce';
+      },
+    ],
+    [
+      'unknown button effect',
+      (theme) => {
+        theme.buttonEffect = 'custom';
+      },
+    ],
+    [
+      'negative overlay',
+      (theme) => {
+        theme.backgroundOverlayOpacity = -1;
+      },
+    ],
+    [
+      'overlay above maximum',
+      (theme) => {
+        theme.backgroundOverlayOpacity = 71;
+      },
+    ],
+    [
+      'fractional overlay',
+      (theme) => {
+        theme.backgroundOverlayOpacity = 12.5;
+      },
+    ],
+    [
+      'unknown nested property',
+      (theme) => {
+        theme.customCss = 'body { display: none }';
+      },
+    ],
+  ];
+
+  invalidThemes.forEach(([label, mutate]) => {
+    const config = clone(FALLBACK_TAPLINK_DOCUMENT);
+    mutate(config.theme);
+    assert.equal(taplinkDocumentSchema.safeParse(config).success, false, label);
+  });
+});
+
+test('Taplink theme enforces WCAG AA contrast for every text and button pair', () => {
+  const lowContrastPairs = [
+    ['textColor', 'surfaceColor'],
+    ['mutedTextColor', 'surfaceColor'],
+    ['buttonTextColor', 'buttonBackgroundColor'],
+    ['primaryButtonTextColor', 'primaryButtonBackgroundColor'],
+  ];
+
+  lowContrastPairs.forEach(([foreground, background]) => {
+    const config = clone(FALLBACK_TAPLINK_DOCUMENT);
+    config.theme[foreground] = '#777777';
+    config.theme[background] = '#777777';
+    assert.equal(
+      taplinkDocumentSchema.safeParse(config).success,
+      false,
+      `${foreground}/${background}`,
+    );
+  });
 });
 
 test('Taplink contract rejects unsafe URLs, HTML, duplicate ids and unknown fields', () => {
@@ -362,7 +518,7 @@ test('Taplink server renderer exposes published SEO metadata to crawlers without
   config.seo.ogImageUrl = '/taplink/assets/brand/bulka_logo.png';
 
   const html = renderTaplinkHtml(template, config);
-  assert.match(html, /<html lang="ru">/);
+  assert.match(html, /<html\b[^>]*\blang="ru"/);
   assert.match(html, /<title data-taplink-meta="title">Bulka &amp; доставка<\/title>/);
   assert.match(html, /data-taplink-meta="og-title"[\s\S]*?content="Bulka &amp; доставка"/);
   assert.match(
@@ -378,6 +534,71 @@ test('Taplink server renderer exposes published SEO metadata to crawlers without
     imageFreeHtml,
     /data-taplink-meta="og-image"[\s\S]*?content="https:\/\/bulka\.com\.kz\/"/,
   );
+});
+
+test('Taplink server renderer hydrates a safe published theme before JavaScript', () => {
+  const template = fs.readFileSync(
+    path.join(process.cwd(), 'public', 'taplink', 'index.html'),
+    'utf8',
+  );
+  const config = publicDocument(clone(FALLBACK_TAPLINK_DOCUMENT));
+  config.theme = {
+    ...config.theme,
+    backgroundMode: 'gradient',
+    backgroundColor: '#112233',
+    gradientFrom: '#203040',
+    gradientTo: '#405060',
+    gradientDirection: 'top-left',
+    backgroundImageUrl: 'https://cdn.example.test/bulka/background.png',
+    backgroundOverlayColor: '#000000',
+    backgroundOverlayOpacity: 20,
+    textColor: '#111111',
+    mutedTextColor: '#444444',
+    surfaceColor: '#FFFFFF',
+    buttonBackgroundColor: '#1A1A1A',
+    buttonTextColor: '#FFFFFF',
+    primaryButtonBackgroundColor: '#FFD000',
+    primaryButtonTextColor: '#1A1A1A',
+    buttonStyle: 'solid',
+    animation: 'rise',
+    buttonEffect: 'glow',
+    radius: 28,
+  };
+
+  const html = renderTaplinkHtml(template, config);
+  assert.match(html, /data-taplink-meta="theme-color"[^>]*content="#112233"/);
+  assert.match(
+    html,
+    /<body\b[^>]*data-taplink-theme="body"[^>]*class="taplink-background-gradient"/,
+  );
+  assert.match(
+    html,
+    /<main\b[^>]*data-taplink-theme="profile"[^>]*class="profile-card taplink-buttons-solid taplink-animation-rise taplink-effect-glow"/,
+  );
+  assert.match(html, /--taplink-background-color: #112233/);
+  assert.match(html, /--taplink-gradient-angle: 315deg/);
+  assert.match(html, /--taplink-background-overlay-color: rgba\(0, 0, 0, 0\.200\)/);
+  assert.match(html, /--taplink-button-background-color: #1A1A1A/);
+  assert.match(html, /--taplink-primary-button-text-color: #1A1A1A/);
+  assert.match(html, /--radius-control: 28px/);
+  assert.match(
+    html,
+    /--taplink-background-image: url\(&quot;https:\/\/cdn\.example\.test\/bulka\/background\.png&quot;\)/,
+  );
+
+  const hostile = clone(config);
+  hostile.theme.backgroundMode = 'gradient" onpointermove="alert(1)';
+  hostile.theme.backgroundColor = '#fff; background: url(javascript:alert(1))';
+  hostile.theme.backgroundImageUrl = 'javascript:alert(1)';
+  hostile.theme.buttonEffect = 'shine" autofocus onfocus="alert(1)';
+  const guardedHtml = renderTaplinkHtml(template, hostile);
+  assert.match(guardedHtml, /class="taplink-background-brand"/);
+  assert.match(guardedHtml, /--taplink-background-color: #FFB814/);
+  assert.match(
+    guardedHtml,
+    /--taplink-background-image: url\(&quot;https:\/\/bulka\.com\.kz\/taplink\/assets\/mobile-background\.png\?v=20260806-1&quot;\)/,
+  );
+  assert.doesNotMatch(guardedHtml, /onpointermove|onfocus|javascript:/i);
 });
 
 test('Taplink SSR cache ignores a delayed response from an older publication', async () => {

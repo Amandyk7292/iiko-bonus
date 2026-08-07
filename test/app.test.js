@@ -185,17 +185,28 @@ test('taplink exposes delivery and city links as a fast standalone page', async 
   assert.match(html, /https:\/\/2gis\.kz\/aktau\/branches\/70000001035248861/);
   assert.match(html, /https:\/\/2gis\.kz\/astana\/branches\/70000001114429416/);
   assert.match(html, /rel="canonical" href="https:\/\/bulka\.com\.kz\/taplink"/);
-  assert.match(html, /<html lang="kk">/);
+  assert.match(html, /<html\b[^>]*\blang="kk"/);
   assert.match(html, /data-language="kk"/);
   assert.match(html, /data-language="ru"/);
   assert.match(html, /Bulka жаныңызда/);
   assert.doesNotMatch(html, /data-i18n="cities"/);
   assert.doesNotMatch(html, /link-icon_aktau|city-icon-baiterek-sphere/);
+  assert.match(html, /class="taplink-background-brand"/);
+  assert.match(html, /data-taplink-meta="theme-color"[^>]*content="#FFB814"/i);
+  assert.match(html, /--taplink-background-color: #FFB814/);
+  assert.match(
+    html,
+    /--taplink-background-image: url\(&quot;https:\/\/bulka\.com\.kz\/taplink\/assets\/mobile-background\.png\?v=20260806-1&quot;\)/,
+  );
+  assert.match(
+    html,
+    /class="profile-card taplink-buttons-soft taplink-animation-stagger taplink-effect-shine"/,
+  );
   assert.equal((html.match(/\/taplink\/assets\/2gis-icon\.png\?v=20260806-1/g) || []).length, 2);
 
   for (const asset of [
-    '/taplink/styles.css?v=20260807-3',
-    '/taplink/app.js?v=20260807-2',
+    '/taplink/styles.css?v=20260807-4',
+    '/taplink/app.js?v=20260807-3',
     '/taplink/assets/mobile-background.png?v=20260806-1',
     '/taplink/assets/2gis-icon.png?v=20260806-1',
     '/taplink/assets/brand/bulka_logo.png?v=20260806-1',
@@ -206,25 +217,55 @@ test('taplink exposes delivery and city links as a fast standalone page', async 
     assert.match(assetResponse.headers.get('cache-control') || '', /immutable/, asset);
   }
 
-  const styles = await (await fetch(`${origin}/taplink/styles.css?v=20260807-3`)).text();
+  const styles = await (await fetch(`${origin}/taplink/styles.css?v=20260807-4`)).text();
   assert.match(styles, /transform-style:\s*preserve-3d/);
   assert.match(styles, /--specular-opacity/);
   assert.match(styles, /radial-gradient\(\s*112px circle at var\(--specular-x\)/);
   assert.match(styles, /mobile-background\.png\?v=20260806-1/);
   assert.match(styles, /background-size:\s*cover/);
-  assert.match(styles, /animation:\s*card-sheen-auto 3s cubic-bezier\(0\.45,\s*0,\s*0\.55,\s*1\)/);
-  assert.match(styles, /\.link-card_aktau::before\s*\{\s*animation-delay:\s*0\.45s/);
-  assert.match(styles, /\.link-card_astana::before\s*\{\s*animation-delay:\s*0\.9s/);
-  assert.match(styles, /\.link-card_city::before[\s\S]*rgba\(255,\s*184,\s*20,\s*0\.1\)/);
+  assert.match(
+    styles,
+    /\.taplink-effect-shine \.link-card::before\s*\{[\s\S]*animation:\s*card-sheen-auto 420ms both/,
+  );
+  assert.match(styles, /\.taplink-animation-stagger \.link-card/);
+  assert.match(styles, /\.taplink-effect-lift \.link-card:hover/);
+  assert.match(styles, /\.taplink-effect-glow \.link-card:hover/);
+  assert.match(styles, /\.link-card:active\s*\{[\s\S]*?opacity:\s*0\.88/);
+  assert.match(styles, /opacity 120ms ease/);
+  assert.match(styles, /animation:\s*taplink-rise 300ms backwards/);
+  assert.match(styles, /animation-delay:\s*calc\(\(var\(--taplink-order,\s*0\) \+ 1\) \* 32ms\)/);
+  assert.doesNotMatch(styles, /card-sheen-auto[^{;\n]*\binfinite\b/);
+  assert.doesNotMatch(styles, /\.link-card_city::before[\s\S]*rgba\(255,\s*184,\s*20/);
   assert.match(styles, /@keyframes card-sheen-auto/);
   assert.doesNotMatch(styles, /\.profile-card::before/);
   assert.doesNotMatch(styles, /\.city-label/);
   assert.match(styles, /prefers-reduced-motion:\s*reduce/);
   assert.match(styles, /--taplink-background-image/);
+  assert.match(styles, /--taplink-background-color/);
+  assert.match(styles, /body\.taplink-background-gradient/);
+  assert.match(styles, /--taplink-button-background-color/);
+  assert.match(styles, /--taplink-primary-button-background-color/);
   assert.match(styles, /\.taplink-buttons-outlined \.link-card_standard/);
   assert.match(styles, /\.taplink-buttons-solid \.link-card_standard/);
+  assert.match(
+    styles,
+    /\.link-card_city\s*\{[\s\S]*?background:\s*var\(--taplink-button-background-color\);[\s\S]*?\}/,
+  );
+  assert.match(styles, /\.link-copy small\s*\{[\s\S]*?opacity:\s*1/);
+  assert.match(
+    styles,
+    /@media \(max-width:\s*520px\)[\s\S]*?\.profile-header\s*\{[\s\S]*?background:\s*var\(--taplink-surface-color\)/,
+  );
+  const outlinedButtonRule =
+    styles.match(/\.taplink-buttons-outlined \.link-card_standard\s*\{([^}]*)\}/)?.[1] || '';
+  assert.match(outlinedButtonRule, /background:\s*var\(--taplink-button-background-color\)/);
+  assert.doesNotMatch(outlinedButtonRule, /color-mix/);
+  assert.match(
+    styles,
+    /\.taplink-buttons-solid \.link-card_standard \.link-icon,[\s\S]*background:\s*color-mix\(in srgb,\s*currentColor 13%,\s*transparent\)/,
+  );
 
-  const script = await (await fetch(`${origin}/taplink/app.js?v=20260807-2`)).text();
+  const script = await (await fetch(`${origin}/taplink/app.js?v=20260807-3`)).text();
   assert.match(script, /DEFAULT_LANGUAGE = 'kk'/);
   assert.match(script, /bulka-taplink-language/);
   assert.match(script, /PUBLIC_CONFIG_URL = '\/api\/public\/taplink'/);
@@ -235,6 +276,17 @@ test('taplink exposes delivery and city links as a fast standalone page', async 
   assert.match(script, /Заказать доставку Bulka в WhatsApp/);
   assert.match(script, /const PROXIMITY = 250/);
   assert.match(script, /const FOLLOW_SPEED = 0\.35/);
+  assert.match(script, /const BACKGROUND_MODES = new Set/);
+  assert.match(script, /const GRADIENT_DIRECTIONS = new Map/);
+  assert.match(script, /const ENTRANCE_ANIMATIONS = new Set/);
+  assert.match(script, /const BUTTON_EFFECTS = new Set/);
+  assert.match(script, /HEX_COLOR_PATTERN/);
+  assert.match(script, /contrastRatio/);
+  assert.match(script, /contrastRatio\(theme\.mutedTextColor,\s*theme\.surfaceColor\) < 4\.5/);
+  assert.match(script, /--taplink-background-overlay-color/);
+  assert.match(script, /BRAND_BACKGROUND_IMAGE_URL/);
+  assert.match(script, /Math\.min\(order,\s*5\)/);
+  assert.match(script, /\.taplink-effect-shine \.specular-surface/);
   assert.match(script, /window\.addEventListener\('pointermove'/);
   assert.doesNotMatch(script, /\.innerHTML|insertAdjacentHTML|document\.write/);
 });

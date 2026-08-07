@@ -22,6 +22,29 @@ const localizedTextSchema = (maximum, minimum = 1) =>
       ru: plainTextSchema(maximum, minimum),
     })
     .strict();
+const hexColorSchema = z
+  .string()
+  .regex(/^#[0-9a-f]{6}$/i, 'Укажите цвет в формате #RRGGBB')
+  .transform((value) => value.toUpperCase());
+
+const relativeLuminance = (hexColor) => {
+  const channels = [1, 3, 5].map((offset) =>
+    Number.parseInt(hexColor.slice(offset, offset + 2), 16),
+  );
+  const [red, green, blue] = channels.map((channel) => {
+    const normalized = channel / 255;
+    return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+};
+
+const contrastRatio = (firstColor, secondColor) => {
+  const firstLuminance = relativeLuminance(firstColor);
+  const secondLuminance = relativeLuminance(secondColor);
+  const lighter = Math.max(firstLuminance, secondLuminance);
+  const darker = Math.min(firstLuminance, secondLuminance);
+  return (lighter + 0.05) / (darker + 0.05);
+};
 
 const hasControlCharacters = (value) =>
   [...String(value || '')].some((character) => {
@@ -142,6 +165,75 @@ const taplinkBlockSchema = z.discriminatedUnion('type', [
   taplinkLinkBlockSchema,
 ]);
 
+const taplinkThemeSchema = z
+  .object({
+    preset: z.literal('bulka'),
+    backgroundImageUrl: safeAssetUrlSchema.optional(),
+    buttonStyle: z.enum(['soft', 'outlined', 'solid']).default('soft'),
+    radius: z.number().int().min(12).max(32).default(22),
+    backgroundMode: z.enum(['brand', 'solid', 'gradient', 'image']).default('brand'),
+    backgroundColor: hexColorSchema.default('#FFB814'),
+    gradientFrom: hexColorSchema.default('#FFD56A'),
+    gradientTo: hexColorSchema.default('#F4A916'),
+    gradientDirection: z
+      .enum([
+        'top',
+        'top-right',
+        'right',
+        'bottom-right',
+        'bottom',
+        'bottom-left',
+        'left',
+        'top-left',
+      ])
+      .default('bottom-right'),
+    backgroundOverlayColor: hexColorSchema.default('#532814'),
+    backgroundOverlayOpacity: z.number().int().min(0).max(70).default(0),
+    textColor: hexColorSchema.default('#532814'),
+    mutedTextColor: hexColorSchema.default('#78665D'),
+    surfaceColor: hexColorSchema.default('#FFFFFF'),
+    buttonBackgroundColor: hexColorSchema.default('#FFFFFF'),
+    buttonTextColor: hexColorSchema.default('#532814'),
+    primaryButtonBackgroundColor: hexColorSchema.default('#FFB814'),
+    primaryButtonTextColor: hexColorSchema.default('#3F1D0E'),
+    animation: z.enum(['none', 'fade', 'rise', 'stagger']).default('stagger'),
+    buttonEffect: z.enum(['none', 'lift', 'glow', 'shine']).default('shine'),
+  })
+  .strict()
+  .superRefine((theme, context) => {
+    const contrastPairs = [
+      {
+        foreground: 'textColor',
+        background: 'surfaceColor',
+        message: 'Контраст текста и поверхности должен быть не ниже 4.5:1',
+      },
+      {
+        foreground: 'mutedTextColor',
+        background: 'surfaceColor',
+        message: 'Контраст дополнительного текста и поверхности должен быть не ниже 4.5:1',
+      },
+      {
+        foreground: 'buttonTextColor',
+        background: 'buttonBackgroundColor',
+        message: 'Контраст текста и фона кнопки должен быть не ниже 4.5:1',
+      },
+      {
+        foreground: 'primaryButtonTextColor',
+        background: 'primaryButtonBackgroundColor',
+        message: 'Контраст текста и фона основной кнопки должен быть не ниже 4.5:1',
+      },
+    ];
+    contrastPairs.forEach(({ foreground, background, message }) => {
+      if (contrastRatio(theme[foreground], theme[background]) < 4.5) {
+        context.addIssue({
+          code: 'custom',
+          path: [foreground],
+          message,
+        });
+      }
+    });
+  });
+
 const taplinkDocumentSchema = z
   .object({
     schemaVersion: z.literal(1),
@@ -166,14 +258,7 @@ const taplinkDocumentSchema = z
         ogImageUrl: safeAssetUrlSchema.optional(),
       })
       .strict(),
-    theme: z
-      .object({
-        preset: z.literal('bulka'),
-        backgroundImageUrl: safeAssetUrlSchema.optional(),
-        buttonStyle: z.enum(['soft', 'outlined', 'solid']).default('soft'),
-        radius: z.number().int().min(12).max(32).default(22),
-      })
-      .strict(),
+    theme: taplinkThemeSchema,
     blocks: z.array(taplinkBlockSchema).max(40),
   })
   .strict()

@@ -7,6 +7,18 @@ export interface LocalizedText {
 export type TaplinkLocale = 'kk' | 'ru';
 export type TaplinkLocalizedText = Record<TaplinkLocale, string>;
 export type TaplinkButtonStyle = 'soft' | 'outlined' | 'solid';
+export type TaplinkBackgroundMode = 'brand' | 'solid' | 'gradient' | 'image';
+export type TaplinkGradientDirection =
+  | 'top'
+  | 'top-right'
+  | 'right'
+  | 'bottom-right'
+  | 'bottom'
+  | 'bottom-left'
+  | 'left'
+  | 'top-left';
+export type TaplinkAnimation = 'none' | 'fade' | 'rise' | 'stagger';
+export type TaplinkButtonEffect = 'none' | 'lift' | 'glow' | 'shine';
 export type TaplinkLinkStyle = 'primary' | 'standard' | 'city';
 export type TaplinkIcon =
   'phone' | 'whatsapp' | '2gis' | 'instagram' | 'telegram' | 'globe' | 'location' | 'none';
@@ -56,8 +68,24 @@ export interface TaplinkDocument {
   };
   theme: {
     preset: 'bulka';
+    backgroundMode: TaplinkBackgroundMode;
+    backgroundColor: string;
+    gradientFrom: string;
+    gradientTo: string;
+    gradientDirection: TaplinkGradientDirection;
     backgroundImageUrl?: string;
+    backgroundOverlayColor: string;
+    backgroundOverlayOpacity: number;
+    textColor: string;
+    mutedTextColor: string;
+    surfaceColor: string;
+    buttonBackgroundColor: string;
+    buttonTextColor: string;
+    primaryButtonBackgroundColor: string;
+    primaryButtonTextColor: string;
     buttonStyle: TaplinkButtonStyle;
+    animation: TaplinkAnimation;
+    buttonEffect: TaplinkButtonEffect;
     radius: number;
   };
   blocks: TaplinkBlock[];

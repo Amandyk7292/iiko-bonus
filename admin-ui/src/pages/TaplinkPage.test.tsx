@@ -44,7 +44,23 @@ const sampleDocument = (): TaplinkDocument => ({
   },
   theme: {
     preset: 'bulka',
+    backgroundMode: 'brand',
+    backgroundColor: '#FFB814',
+    gradientFrom: '#FFD56A',
+    gradientTo: '#F4A916',
+    gradientDirection: 'bottom-right',
+    backgroundOverlayColor: '#532814',
+    backgroundOverlayOpacity: 0,
+    textColor: '#532814',
+    mutedTextColor: '#78665D',
+    surfaceColor: '#FFFFFF',
+    buttonBackgroundColor: '#FFFFFF',
+    buttonTextColor: '#532814',
+    primaryButtonBackgroundColor: '#FFB814',
+    primaryButtonTextColor: '#3F1D0E',
     buttonStyle: 'soft',
+    animation: 'stagger',
+    buttonEffect: 'shine',
     radius: 20,
   },
   blocks: [
@@ -130,6 +146,37 @@ describe('TaplinkPage', () => {
     await waitFor(() => expect(apiMocks.saveTaplinkDraft).toHaveBeenCalledTimes(1));
     expect(apiMocks.saveTaplinkDraft.mock.calls[0][0].profile.title.kk).toBe('Жаңа Bulka');
     expect(apiMocks.saveTaplinkDraft.mock.calls[0][1]).toBe(3);
+  });
+
+  it('previews and saves custom background colors, animation, and button effect', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole('radio', { name: 'Градиент' }));
+    const gradientFrom = screen.getByLabelText('Начальный цвет');
+    await user.clear(gradientFrom);
+    await user.type(gradientFrom, '#224466');
+    await user.selectOptions(screen.getByLabelText('Появление страницы'), 'fade');
+    await user.selectOptions(screen.getByLabelText('Эффект кнопок'), 'glow');
+
+    const preview = screen.getByTestId('taplink-live-preview');
+    expect(preview).toHaveClass(
+      'taplink-background-gradient',
+      'taplink-animation-fade',
+      'taplink-effect-glow',
+    );
+    expect(preview.style.getPropertyValue('--taplink-preview-gradient-from')).toBe('#224466');
+    expect(screen.getByTestId('taplink-contrast-status')).toBeInTheDocument();
+    expect(screen.getByTestId('taplink-replay-animation')).toBeEnabled();
+
+    await user.click(screen.getByRole('button', { name: 'Сохранить черновик' }));
+    await waitFor(() => expect(apiMocks.saveTaplinkDraft).toHaveBeenCalledTimes(1));
+    expect(apiMocks.saveTaplinkDraft.mock.calls[0][0].theme).toMatchObject({
+      backgroundMode: 'gradient',
+      gradientFrom: '#224466',
+      animation: 'fade',
+      buttonEffect: 'glow',
+    });
   });
 
   it('saves dirty content before publishing the resulting revision', async () => {

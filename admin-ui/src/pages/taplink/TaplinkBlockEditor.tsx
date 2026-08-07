@@ -8,6 +8,7 @@ import type {
 } from '../../lib/api-types';
 import { useI18n } from '../../lib/i18n';
 import { TAPLINK_LOCALES } from './taplink.helpers';
+import TaplinkThemeEditor from './TaplinkThemeEditor';
 import type { TaplinkBuilderActions, TaplinkSelection } from './taplink.types';
 
 const iconOptions: Array<{ value: TaplinkIcon; label: string }> = [
@@ -259,56 +260,7 @@ export default function TaplinkBlockEditor({
               </div>
             </fieldset>
 
-            <fieldset className="form-section">
-              <legend>{t('taplink.design')}</legend>
-              <div className="form-grid form-grid-2">
-                <div className="field-group">
-                  <label className="field-label" htmlFor="taplink-button-style">
-                    {t('taplink.buttonStyle')}
-                  </label>
-                  <select
-                    id="taplink-button-style"
-                    className="input-classic"
-                    value={document.theme.buttonStyle}
-                    onChange={(event) =>
-                      actions.updateDocument((current) => ({
-                        ...current,
-                        theme: {
-                          ...current.theme,
-                          buttonStyle: event.target
-                            .value as TaplinkDocument['theme']['buttonStyle'],
-                        },
-                      }))
-                    }
-                  >
-                    {(['soft', 'outlined', 'solid'] as const).map((style) => (
-                      <option key={style} value={style}>
-                        {t(`taplink.buttonStyle.${style}`)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="field-group">
-                  <label className="field-label" htmlFor="taplink-radius">
-                    {t('taplink.radius')}: {document.theme.radius}px
-                  </label>
-                  <input
-                    id="taplink-radius"
-                    type="range"
-                    min="12"
-                    max="32"
-                    step="1"
-                    value={document.theme.radius}
-                    onChange={(event) =>
-                      actions.updateDocument((current) => ({
-                        ...current,
-                        theme: { ...current.theme, radius: event.target.valueAsNumber },
-                      }))
-                    }
-                  />
-                </div>
-              </div>
-            </fieldset>
+            <TaplinkThemeEditor document={document} actions={actions} />
           </div>
         ) : (
           <div className="form-stack">

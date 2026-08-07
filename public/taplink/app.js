@@ -6,6 +6,19 @@
   const PUBLIC_CONFIG_URL = '/api/public/taplink';
   const SUPPORTED_LANGUAGES = new Set(['kk', 'ru']);
   const BUTTON_STYLES = new Set(['soft', 'outlined', 'solid']);
+  const BACKGROUND_MODES = new Set(['brand', 'solid', 'gradient', 'image']);
+  const GRADIENT_DIRECTIONS = new Map([
+    ['top', 0],
+    ['top-right', 45],
+    ['right', 90],
+    ['bottom-right', 135],
+    ['bottom', 180],
+    ['bottom-left', 225],
+    ['left', 270],
+    ['top-left', 315],
+  ]);
+  const ENTRANCE_ANIMATIONS = new Set(['none', 'fade', 'rise', 'stagger']);
+  const BUTTON_EFFECTS = new Set(['none', 'lift', 'glow', 'shine']);
   const LINK_STYLES = new Set(['primary', 'standard', 'city']);
   const ICONS = new Set([
     'phone',
@@ -19,7 +32,9 @@
   ]);
   const TARGET_TYPES = new Set(['whatsapp', 'phone', 'email', 'url']);
   const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const HEX_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
   const LOCAL_ASSET_PATTERN = /^\/(?!\/)[A-Za-z0-9._~!$&'()*+,;=:@%/?#-]+$/u;
+  const BRAND_BACKGROUND_IMAGE_URL = '/taplink/assets/mobile-background.png?v=20260806-1';
   const TWO_GIS_ICON_URL = '/taplink/assets/2gis-icon.png?v=20260806-1';
   const messages = {
     kk: {
@@ -126,6 +141,27 @@
     !hasControlCharacters(value) &&
     (LOCAL_ASSET_PATTERN.test(value) || isSafeHttpsUrl(value));
 
+  const isHexColor = (value) => typeof value === 'string' && HEX_COLOR_PATTERN.test(value);
+
+  const relativeLuminance = (hexColor) => {
+    const channels = [1, 3, 5].map((offset) =>
+      Number.parseInt(hexColor.slice(offset, offset + 2), 16),
+    );
+    const [red, green, blue] = channels.map((channel) => {
+      const normalized = channel / 255;
+      return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+  };
+
+  const contrastRatio = (foreground, background) => {
+    const foregroundLuminance = relativeLuminance(foreground);
+    const backgroundLuminance = relativeLuminance(background);
+    const lighter = Math.max(foregroundLuminance, backgroundLuminance);
+    const darker = Math.min(foregroundLuminance, backgroundLuminance);
+    return (lighter + 0.05) / (darker + 0.05);
+  };
+
   const canonicalAssetUrl = (value) => (value.startsWith('/') ? value : new URL(value).href);
 
   const isSafeEmail = (value) =>
@@ -222,8 +258,54 @@
       !isLocalizedText(seo.title, 160) ||
       !isLocalizedText(seo.description, 500) ||
       (seo.ogImageUrl !== undefined && !isSafeAssetUrl(seo.ogImageUrl)) ||
-      !hasExactKeys(theme, ['preset', 'buttonStyle', 'radius'], ['backgroundImageUrl']) ||
+      !hasExactKeys(
+        theme,
+        [
+          'preset',
+          'backgroundMode',
+          'backgroundColor',
+          'gradientFrom',
+          'gradientTo',
+          'gradientDirection',
+          'backgroundOverlayColor',
+          'backgroundOverlayOpacity',
+          'textColor',
+          'mutedTextColor',
+          'surfaceColor',
+          'buttonBackgroundColor',
+          'buttonTextColor',
+          'primaryButtonBackgroundColor',
+          'primaryButtonTextColor',
+          'animation',
+          'buttonEffect',
+          'buttonStyle',
+          'radius',
+        ],
+        ['backgroundImageUrl'],
+      ) ||
       theme.preset !== 'bulka' ||
+      !BACKGROUND_MODES.has(theme.backgroundMode) ||
+      !isHexColor(theme.backgroundColor) ||
+      !isHexColor(theme.gradientFrom) ||
+      !isHexColor(theme.gradientTo) ||
+      !GRADIENT_DIRECTIONS.has(theme.gradientDirection) ||
+      !isHexColor(theme.backgroundOverlayColor) ||
+      !Number.isInteger(theme.backgroundOverlayOpacity) ||
+      theme.backgroundOverlayOpacity < 0 ||
+      theme.backgroundOverlayOpacity > 70 ||
+      !isHexColor(theme.textColor) ||
+      !isHexColor(theme.mutedTextColor) ||
+      !isHexColor(theme.surfaceColor) ||
+      !isHexColor(theme.buttonBackgroundColor) ||
+      !isHexColor(theme.buttonTextColor) ||
+      !isHexColor(theme.primaryButtonBackgroundColor) ||
+      !isHexColor(theme.primaryButtonTextColor) ||
+      contrastRatio(theme.textColor, theme.surfaceColor) < 4.5 ||
+      contrastRatio(theme.mutedTextColor, theme.surfaceColor) < 4.5 ||
+      contrastRatio(theme.buttonTextColor, theme.buttonBackgroundColor) < 4.5 ||
+      contrastRatio(theme.primaryButtonTextColor, theme.primaryButtonBackgroundColor) < 4.5 ||
+      !ENTRANCE_ANIMATIONS.has(theme.animation) ||
+      !BUTTON_EFFECTS.has(theme.buttonEffect) ||
       !BUTTON_STYLES.has(theme.buttonStyle) ||
       !Number.isInteger(theme.radius) ||
       theme.radius < 12 ||
@@ -415,9 +497,10 @@
     return wrapper;
   };
 
-  const createLinkBlock = (block, language) => {
+  const createLinkBlock = (block, language, order) => {
     const link = document.createElement('a');
     link.className = `link-card link-card_${block.style} specular-surface`;
+    link.style.setProperty('--taplink-order', String(Math.min(order, 5)));
     if (block.icon === 'none') link.classList.add('link-card_no-icon');
     link.href = hrefForTarget(block.target);
     if (block.target.type === 'url' || block.target.type === 'whatsapp') {
@@ -452,14 +535,14 @@
   const renderBlocks = (documentValue, language) => {
     if (!linkList) return;
     const fragment = document.createDocumentFragment();
-    documentValue.blocks.forEach((block) => {
+    documentValue.blocks.forEach((block, index) => {
       if (block.type === 'section') {
         const label = document.createElement('p');
         label.className = 'section-label';
         label.textContent = block.labels[language];
         fragment.append(label);
       } else {
-        fragment.append(createLinkBlock(block, language));
+        fragment.append(createLinkBlock(block, language, index));
       }
     });
     linkList.replaceChildren(fragment);
@@ -584,20 +667,66 @@
     }
   };
 
+  const hexToRgba = (hexColor, opacity) => {
+    const value = hexColor.slice(1);
+    const red = Number.parseInt(value.slice(0, 2), 16);
+    const green = Number.parseInt(value.slice(2, 4), 16);
+    const blue = Number.parseInt(value.slice(4, 6), 16);
+    return `rgba(${red}, ${green}, ${blue}, ${Math.max(0, Math.min(1, opacity)).toFixed(3)})`;
+  };
+
+  const applyVariantClass = (element, prefix, variants, selected) => {
+    if (!element) return;
+    element.classList.remove(...[...variants].map((variant) => `${prefix}${variant}`));
+    element.classList.add(`${prefix}${selected}`);
+  };
+
+  const applyTheme = (theme) => {
+    const rootStyle = document.documentElement.style;
+    const backgroundImageUrl =
+      theme.backgroundImageUrl ||
+      (theme.backgroundMode === 'brand' ? BRAND_BACKGROUND_IMAGE_URL : '');
+    const backgroundImage = backgroundImageUrl
+      ? `url(${JSON.stringify(canonicalAssetUrl(backgroundImageUrl))})`
+      : 'none';
+    const gradientAngle = GRADIENT_DIRECTIONS.get(theme.gradientDirection);
+
+    rootStyle.setProperty('--taplink-background-color', theme.backgroundColor);
+    rootStyle.setProperty('--taplink-gradient-from', theme.gradientFrom);
+    rootStyle.setProperty('--taplink-gradient-to', theme.gradientTo);
+    rootStyle.setProperty('--taplink-gradient-angle', `${gradientAngle}deg`);
+    rootStyle.setProperty(
+      '--taplink-background-overlay-color',
+      hexToRgba(theme.backgroundOverlayColor, theme.backgroundOverlayOpacity / 100),
+    );
+    rootStyle.setProperty('--taplink-text-color', theme.textColor);
+    rootStyle.setProperty('--taplink-muted-text-color', theme.mutedTextColor);
+    rootStyle.setProperty('--taplink-surface-color', theme.surfaceColor);
+    rootStyle.setProperty('--taplink-surface-glass-color', hexToRgba(theme.surfaceColor, 0.82));
+    rootStyle.setProperty('--taplink-button-background-color', theme.buttonBackgroundColor);
+    rootStyle.setProperty('--taplink-button-text-color', theme.buttonTextColor);
+    rootStyle.setProperty(
+      '--taplink-primary-button-background-color',
+      theme.primaryButtonBackgroundColor,
+    );
+    rootStyle.setProperty('--taplink-primary-button-text-color', theme.primaryButtonTextColor);
+    rootStyle.setProperty(
+      '--taplink-button-glow-color',
+      hexToRgba(theme.primaryButtonBackgroundColor, 0.3),
+    );
+    rootStyle.setProperty('--taplink-background-image', backgroundImage);
+
+    applyVariantClass(document.body, 'taplink-background-', BACKGROUND_MODES, theme.backgroundMode);
+    applyVariantClass(profileCard, 'taplink-animation-', ENTRANCE_ANIMATIONS, theme.animation);
+    applyVariantClass(profileCard, 'taplink-effect-', BUTTON_EFFECTS, theme.buttonEffect);
+    applyVariantClass(profileCard, 'taplink-buttons-', BUTTON_STYLES, theme.buttonStyle);
+    profileCard?.style.setProperty('--radius-control', `${theme.radius}px`);
+    updateMeta('meta[name="theme-color"]', 'content', theme.backgroundColor);
+  };
+
   const renderPublishedDocument = (documentValue) => {
     publishedDocument = documentValue;
-    profileCard?.classList.remove(
-      'taplink-buttons-soft',
-      'taplink-buttons-outlined',
-      'taplink-buttons-solid',
-    );
-    profileCard?.classList.add(`taplink-buttons-${documentValue.theme.buttonStyle}`);
-    profileCard?.style.setProperty('--radius-control', `${documentValue.theme.radius}px`);
-
-    const backgroundImage = documentValue.theme.backgroundImageUrl
-      ? `url(${JSON.stringify(canonicalAssetUrl(documentValue.theme.backgroundImageUrl))})`
-      : 'none';
-    document.body.style.setProperty('--taplink-background-image', backgroundImage);
+    applyTheme(documentValue.theme);
     updateMeta(
       'meta[property="og:image"]',
       'content',
@@ -625,15 +754,17 @@
   let frameId = 0;
 
   function refreshSpecularSurfaces() {
-    states = [...document.querySelectorAll('.specular-surface')].map((surface) => ({
-      surface,
-      currentX: surface.clientWidth / 2,
-      currentY: surface.clientHeight / 2,
-      targetX: surface.clientWidth / 2,
-      targetY: surface.clientHeight / 2,
-      currentOpacity: 0,
-      targetOpacity: 0,
-    }));
+    states = [...document.querySelectorAll('.taplink-effect-shine .specular-surface')].map(
+      (surface) => ({
+        surface,
+        currentX: surface.clientWidth / 2,
+        currentY: surface.clientHeight / 2,
+        targetX: surface.clientWidth / 2,
+        targetY: surface.clientHeight / 2,
+        currentOpacity: 0,
+        targetOpacity: 0,
+      }),
+    );
   }
 
   const renderSpecular = () => {
