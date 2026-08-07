@@ -177,7 +177,11 @@ test('taplink exposes delivery and city links as a fast standalone page', async 
   assert.equal(response.status, 200);
   assert.match(response.headers.get('content-type') || '', /text\/html/);
   assert.match(response.headers.get('cache-control') || '', /no-store/);
-  assert.match(html, /href="tel:\+77012772233"/);
+  assert.match(html, /href="https:\/\/wa\.me\/77012772233"/);
+  assert.match(
+    html,
+    /href="https:\/\/wa\.me\/77012772233"[\s\S]*?target="_blank"[\s\S]*?rel="noopener noreferrer"/,
+  );
   assert.match(html, /https:\/\/2gis\.kz\/aktau\/branches\/70000001035248861/);
   assert.match(html, /https:\/\/2gis\.kz\/astana\/branches\/70000001114429416/);
   assert.match(html, /rel="canonical" href="https:\/\/bulka\.com\.kz\/taplink"/);
@@ -190,8 +194,8 @@ test('taplink exposes delivery and city links as a fast standalone page', async 
   assert.equal((html.match(/\/taplink\/assets\/2gis-icon\.png\?v=20260806-1/g) || []).length, 2);
 
   for (const asset of [
-    '/taplink/styles.css?v=20260806-5',
-    '/taplink/app.js?v=20260806-1',
+    '/taplink/styles.css?v=20260807-1',
+    '/taplink/app.js?v=20260807-1',
     '/taplink/assets/mobile-background.png?v=20260806-1',
     '/taplink/assets/2gis-icon.png?v=20260806-1',
     '/taplink/assets/brand/bulka_logo.png?v=20260806-1',
@@ -202,21 +206,26 @@ test('taplink exposes delivery and city links as a fast standalone page', async 
     assert.match(assetResponse.headers.get('cache-control') || '', /immutable/, asset);
   }
 
-  const styles = await (await fetch(`${origin}/taplink/styles.css?v=20260806-5`)).text();
+  const styles = await (await fetch(`${origin}/taplink/styles.css?v=20260807-1`)).text();
   assert.match(styles, /transform-style:\s*preserve-3d/);
   assert.match(styles, /--specular-opacity/);
   assert.match(styles, /radial-gradient\(\s*112px circle at var\(--specular-x\)/);
   assert.match(styles, /mobile-background\.png\?v=20260806-1/);
   assert.match(styles, /background-size:\s*cover/);
-  assert.match(styles, /animation:\s*card-sheen-auto 8\.4s/);
+  assert.match(styles, /animation:\s*card-sheen-auto 1s/);
+  assert.match(styles, /\.link-card_aktau::before\s*\{\s*animation-delay:\s*0\.16s/);
+  assert.match(styles, /\.link-card_astana::before\s*\{\s*animation-delay:\s*0\.32s/);
+  assert.match(styles, /\.link-card_city::before[\s\S]*rgba\(255,\s*184,\s*20,\s*0\.1\)/);
   assert.match(styles, /@keyframes card-sheen-auto/);
   assert.doesNotMatch(styles, /\.profile-card::before/);
   assert.doesNotMatch(styles, /\.city-label/);
   assert.match(styles, /prefers-reduced-motion:\s*reduce/);
 
-  const script = await (await fetch(`${origin}/taplink/app.js?v=20260806-1`)).text();
+  const script = await (await fetch(`${origin}/taplink/app.js?v=20260807-1`)).text();
   assert.match(script, /DEFAULT_LANGUAGE = 'kk'/);
   assert.match(script, /bulka-taplink-language/);
+  assert.match(script, /WhatsApp арқылы Bulka жеткізуіне тапсырыс беру/);
+  assert.match(script, /Заказать доставку Bulka в WhatsApp/);
   assert.match(script, /const PROXIMITY = 250/);
   assert.match(script, /const FOLLOW_SPEED = 0\.35/);
   assert.match(script, /window\.addEventListener\('pointermove'/);

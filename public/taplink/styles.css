@@ -309,6 +309,19 @@ h1 {
   transform: skewX(-18deg);
 }
 
+.link-card_city::before {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 184, 20, 0.1) 14%,
+    rgba(255, 197, 52, 0.52) 43%,
+    rgba(255, 255, 255, 0.98) 52%,
+    rgba(255, 193, 34, 0.42) 61%,
+    rgba(255, 184, 20, 0.08) 86%,
+    transparent 100%
+  );
+}
+
 .link-card::after {
   position: absolute;
   z-index: 0;
@@ -381,10 +394,6 @@ h1 {
     0 6px 0 #e1cda9,
     0 19px 34px rgba(83, 40, 20, 0.12);
   transform: translate3d(0, -3px, 0);
-}
-
-.link-card:not(.link-card_primary):hover::before {
-  animation: card-sheen 720ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .link-card:active {
@@ -669,20 +678,20 @@ h1 {
   }
 
   .link-card::before {
-    animation: card-sheen-auto 8.4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+    animation: card-sheen-auto 1s cubic-bezier(0.22, 1, 0.36, 1) infinite;
     will-change: transform, opacity;
   }
 
   .link-card_primary::before {
-    animation-delay: 0.6s;
+    animation-delay: 0s;
   }
 
   .link-card_aktau::before {
-    animation-delay: 3.3s;
+    animation-delay: 0.16s;
   }
 
   .link-card_astana::before {
-    animation-delay: 6s;
+    animation-delay: 0.32s;
   }
 
   @keyframes reveal {
@@ -697,39 +706,22 @@ h1 {
     }
   }
 
-  @keyframes card-sheen {
+  @keyframes card-sheen-auto {
     0% {
       opacity: 0;
       transform: translate3d(0, 0, 0) skewX(-18deg);
     }
 
-    24% {
-      opacity: 0.5;
+    10% {
+      opacity: 0.84;
     }
 
-    100% {
-      opacity: 0;
-      transform: translate3d(440%, 0, 0) skewX(-18deg);
-    }
-  }
-
-  @keyframes card-sheen-auto {
-    0%,
-    2% {
-      opacity: 0;
-      transform: translate3d(0, 0, 0) skewX(-18deg);
-    }
-
-    5% {
-      opacity: 0.72;
-    }
-
-    16% {
+    62% {
       opacity: 0;
       transform: translate3d(440%, 0, 0) skewX(-18deg);
     }
 
-    17%,
+    63%,
     100% {
       opacity: 0;
       transform: translate3d(440%, 0, 0) skewX(-18deg);
