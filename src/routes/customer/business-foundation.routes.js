@@ -1,4 +1,5 @@
 const { emptyBodySchema, validateRequest } = require('../../middlewares/validation.middleware');
+const { onlineOrderingMiddleware } = require('../../middlewares/online-ordering.middleware');
 const {
   bonusExpiryQuerySchema,
   giftCertificateListQuerySchema,
@@ -131,6 +132,7 @@ function registerBusinessFoundationCustomerRoutes(router) {
 
   router.post(
     '/api/customer/gift-certificate-purchases',
+    onlineOrderingMiddleware,
     validateRequest({ body: giftCertificatePurchaseBodySchema }),
     async (req, res) => {
       try {

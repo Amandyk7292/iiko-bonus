@@ -21,7 +21,7 @@ def json_response(route, payload, status=200):
 
 def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    saved_payloads = []
+    saved_ordering_payloads = []
     browser_errors = []
 
     with sync_playwright() as playwright:
@@ -67,26 +67,24 @@ def main():
                     },
                     body="event: connected\ndata: {}\n\n",
                 )
-            if path == "/admin/api/site-access" and request.method == "GET":
+            if path == "/admin/api/online-ordering" and request.method == "GET":
                 return json_response(
                     route,
                     {
                         "success": True,
-                        "config": saved_payloads[-1]
-                        if saved_payloads
-                        else {"enabled": False, "allowedIps": ["203.0.113.10"]},
-                        "currentIp": "198.51.100.25",
+                        "config": saved_ordering_payloads[-1]
+                        if saved_ordering_payloads
+                        else {"disabled": False},
                     },
                 )
-            if path == "/admin/api/site-access" and request.method == "PUT":
+            if path == "/admin/api/online-ordering" and request.method == "PUT":
                 payload = request.post_data_json
-                saved_payloads.append(payload)
+                saved_ordering_payloads.append(payload)
                 return json_response(
                     route,
                     {
                         "success": True,
                         "config": payload,
-                        "currentIp": "198.51.100.25",
                     },
                 )
             return json_response(route, {"error": f"Unexpected test API route: {path}"}, 404)
@@ -96,26 +94,23 @@ def main():
         page.wait_for_load_state("networkidle")
 
         page.get_by_role("heading", name="Роли и доступ", level=2).wait_for()
-        page.get_by_text("198.51.100.25", exact=True).wait_for()
         page.screenshot(path=str(OUTPUT_DIR / "site-access-desktop.png"), full_page=True)
 
-        page.get_by_role("button", name="Добавить мой IP").click()
-        ip_input = page.get_by_label("Новый разрешённый IP")
-        ip_input.fill("2001:db8::1")
-        page.locator(".site-access-add-form").get_by_role("button", name="Добавить", exact=True).click()
-        access_toggle = page.locator('.site-access-header input[type="checkbox"]')
-        access_toggle.focus()
+        ordering_card = page.locator(".online-ordering-card")
+        ordering_toggle = ordering_card.locator('input[type="checkbox"]')
+        ordering_toggle.focus()
         page.keyboard.press("Space")
-        assert access_toggle.is_checked()
-        page.get_by_role("button", name="Сохранить доступ").click()
-        page.get_by_text("Сайт доступен только для 3 IP.", exact=True).wait_for()
-
-        assert saved_payloads == [
-            {
-                "enabled": True,
-                "allowedIps": ["203.0.113.10", "198.51.100.25", "2001:db8::1"],
-            }
-        ]
+        page.get_by_role("dialog").get_by_role(
+            "heading", name="Онлайн-покупки и заказы"
+        ).wait_for()
+        page.get_by_role("button", name="Подтвердить", exact=True).click()
+        assert ordering_toggle.is_checked()
+        ordering_card.get_by_role("button", name="Сохранить", exact=True).click()
+        ordering_card.get_by_text(
+            "Пользователи не могут рассчитать, оформить или оплатить новый заказ.",
+            exact=True,
+        ).wait_for()
+        assert saved_ordering_payloads == [{"disabled": True}]
 
         mobile_page = browser.new_page(viewport={"width": 375, "height": 812})
         mobile_page.on(
@@ -136,7 +131,15 @@ def main():
         mobile_page.close()
         browser.close()
 
-    print(json.dumps({"saved": saved_payloads[0], "viewport": dimensions}, ensure_ascii=False))
+    print(
+        json.dumps(
+            {
+                "onlineOrdering": saved_ordering_payloads[0],
+                "viewport": dimensions,
+            },
+            ensure_ascii=False,
+        )
+    )
 
 
 if __name__ == "__main__":

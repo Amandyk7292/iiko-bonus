@@ -476,13 +476,18 @@ class BulkaApiClient {
       'substitutionPreference': substitutionPreference,
     });
     if (json['success'] != true) {
-      throw ApiException(_messageFrom(json, 'error_kaspi_payment'.tr));
+      throw ApiException(
+        _messageFrom(json, 'error_kaspi_payment'.tr),
+        code: _nullableString(json['code']),
+        requestId: _requestIdFrom(json),
+      );
     }
     return json;
   }
 
   Future<bool> isKaspiPaymentAvailable() async {
     final json = await _get('/api/customer/kaspi-pay/availability');
+    _onlineOrderingDisabled = json['onlineOrderingDisabled'] == true;
     return json['success'] == true && json['available'] == true;
   }
 
@@ -507,7 +512,11 @@ class BulkaApiClient {
       'promoCode': promoCode,
     });
     if (json['success'] != true) {
-      throw ApiException(_messageFrom(json, 'error_kaspi_payment'.tr));
+      throw ApiException(
+        _messageFrom(json, 'error_kaspi_payment'.tr),
+        code: _nullableString(json['code']),
+        requestId: _requestIdFrom(json),
+      );
     }
     return json;
   }
@@ -533,7 +542,11 @@ class BulkaApiClient {
       'promoCode': promoCode,
     });
     if (json['success'] != true) {
-      throw ApiException(_messageFrom(json, 'error_forte_payment'.tr));
+      throw ApiException(
+        _messageFrom(json, 'error_forte_payment'.tr),
+        code: _nullableString(json['code']),
+        requestId: _requestIdFrom(json),
+      );
     }
     return json;
   }
@@ -594,9 +607,12 @@ class BulkaApiClient {
 
   String? _forteSavedCardLabel;
   String? get forteSavedCardLabel => _forteSavedCardLabel;
+  bool _onlineOrderingDisabled = false;
+  bool get onlineOrderingDisabled => _onlineOrderingDisabled;
 
   Future<bool> isFortePaymentAvailable() async {
     final json = await _get('/api/customer/forte-pay/availability');
+    _onlineOrderingDisabled = json['onlineOrderingDisabled'] == true;
     final savedCard = json['savedCard'];
     if (savedCard is Map) {
       final brand = (savedCard['brand'] ?? 'card').toString().trim();

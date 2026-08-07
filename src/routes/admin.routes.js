@@ -62,6 +62,10 @@ const {
   updateSiteAccessConfig,
 } = require('../services/site-access.service');
 const {
+  getOnlineOrderingConfig,
+  updateOnlineOrderingConfig,
+} = require('../services/online-ordering.service');
+const {
   createConversationMemory,
   createKnowledgeDocument,
   deleteConversationMemory,
@@ -651,7 +655,7 @@ router.get('/admin/api/site-access', async (req, res) => {
   } catch (error) {
     return res.status(error.statusCode || 500).json({
       success: false,
-      error: error.message,
+      error: 'Не удалось загрузить настройки доступа к сайту',
       ...(error.code && { code: error.code }),
     });
   }
@@ -667,6 +671,34 @@ router.put(
         config,
         currentIp: normalizeIpAddress(req.ip) || '',
       });
+    } catch (error) {
+      return res.status(error.statusCode || 500).json({
+        success: false,
+        error: 'Не удалось сохранить настройки доступа к сайту',
+        ...(error.code && { code: error.code }),
+      });
+    }
+  },
+);
+router.get('/admin/api/online-ordering', async (_req, res) => {
+  try {
+    const config = await getOnlineOrderingConfig({ forceRefresh: true });
+    return res.json({ success: true, config });
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      error: error.message,
+      ...(error.code && { code: error.code }),
+    });
+  }
+});
+router.put(
+  '/admin/api/online-ordering',
+  validateRequest(adminMutationSchemas.onlineOrdering),
+  async (req, res) => {
+    try {
+      const config = await updateOnlineOrderingConfig(req.body);
+      return res.json({ success: true, config });
     } catch (error) {
       return res.status(error.statusCode || 500).json({
         success: false,

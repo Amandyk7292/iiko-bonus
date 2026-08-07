@@ -16,6 +16,8 @@ String localizeErrorMessage(
       return 'auth_account_exists'.tr;
     case 'INVALID_PASSWORD':
       return 'auth_password_rules'.tr;
+    case 'ONLINE_ORDERING_DISABLED':
+      return 'checkout_online_ordering_disabled'.tr;
     case 'INVALID_OTP':
     case 'OTP_EXPIRED':
     case 'OTP_ATTEMPTS_EXCEEDED':

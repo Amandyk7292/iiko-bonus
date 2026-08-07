@@ -152,6 +152,7 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
             name: selectedCourier.name,
             phone: selectedCourier.phone,
             vehicle: selectedCourier.vehicle,
+            transportType: selectedCourier.transportType,
           }
         : order.courier,
     };
@@ -411,7 +412,16 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
                           <span className="status-pill status-warning">{t('orders.delivery')}</span>
                           {order.courier ? (
                             <small>
-                              {order.courier.name} · {order.courier.phone}
+                              {order.courier.name} ·{' '}
+                              {order.courier.isAutomobile === true ||
+                              order.courier.transportType === 'car'
+                                ? t('couriers.transport.car')
+                                : order.courier.isAutomobile === false ||
+                                    order.courier.transportType
+                                  ? t(`couriers.transport.${order.courier.transportType || 'foot'}`)
+                                  : t('orders.transportPending')}
+                              {order.courier.vehicle ? ` · ${order.courier.vehicle}` : ''} ·{' '}
+                              {order.courier.phone}
                             </small>
                           ) : orderMutationsAllowed ? (
                             <SelectControl
@@ -424,7 +434,10 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
                               options={[
                                 { value: '', label: t('orders.assignCourier') },
                                 ...couriers
-                                  .filter((courier) => courier.active)
+                                  .filter(
+                                    (courier) =>
+                                      courier.active && (courier.transportType || 'car') === 'car',
+                                  )
                                   .map((courier) => ({
                                     value: courier.id,
                                     label: `${courier.name} · ${courier.vehicle || courier.phone}`,

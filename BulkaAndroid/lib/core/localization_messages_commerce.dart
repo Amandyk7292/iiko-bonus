@@ -284,6 +284,24 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'kk': 'ForteBank картасымен төлем уақытша қолжетімсіз.',
     'en': 'ForteBank card payment is temporarily unavailable.',
   },
+  'checkout_online_ordering_disabled_title': {
+    'ru': 'Онлайн-заказы временно отключены',
+    'kk': 'Онлайн тапсырыстар уақытша өшірулі',
+    'en': 'Online ordering is temporarily disabled',
+  },
+  'checkout_online_ordering_disabled': {
+    'ru':
+        'Каталог и корзина доступны, но оформить и оплатить заказ сейчас нельзя.',
+    'kk':
+        'Каталог пен себет қолжетімді, бірақ қазір тапсырысты рәсімдеу және төлеу мүмкін емес.',
+    'en':
+        'The catalog and cart remain available, but checkout and payment are currently disabled.',
+  },
+  'checkout_online_ordering_disabled_button': {
+    'ru': 'Онлайн-заказы отключены',
+    'kk': 'Онлайн тапсырыстар өшірулі',
+    'en': 'Online ordering disabled',
+  },
   'checkout_kaspi_card_hint': {
     'ru': 'Счёт в Kaspi.kz',
     'kk': 'Kaspi.kz шоты',

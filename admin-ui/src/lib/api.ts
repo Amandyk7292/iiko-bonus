@@ -182,6 +182,8 @@ import type {
   SecurityStatus,
   SiteAccessConfig,
   SiteAccessResponse,
+  OnlineOrderingConfig,
+  OnlineOrderingResponse,
   AuditLog,
 } from './api-types';
 export type {
@@ -231,6 +233,8 @@ export type {
   SecurityStatus,
   SiteAccessConfig,
   SiteAccessResponse,
+  OnlineOrderingConfig,
+  OnlineOrderingResponse,
   AuditLog,
 } from './api-types';
 
@@ -781,9 +785,12 @@ export const api = {
     ),
 
   getCouriers: () => request<{ success: boolean; couriers: Courier[] }>('/couriers'),
-  createCourier: (data: Pick<Courier, 'name' | 'phone' | 'vehicle' | 'active'>) =>
+  createCourier: (data: Pick<Courier, 'name' | 'phone' | 'vehicle' | 'transportType' | 'active'>) =>
     request<{ success: boolean; courier: Courier }>('/couriers', json('POST', data)),
-  updateCourier: (id: string, data: Pick<Courier, 'name' | 'phone' | 'vehicle' | 'active'>) =>
+  updateCourier: (
+    id: string,
+    data: Pick<Courier, 'name' | 'phone' | 'vehicle' | 'transportType' | 'active'>,
+  ) =>
     request<{ success: boolean; courier: Courier }>(
       `/couriers/${encodeURIComponent(id)}`,
       json('PUT', data),
@@ -956,6 +963,9 @@ export const api = {
   getSiteAccess: () => request<SiteAccessResponse>('/site-access'),
   updateSiteAccess: (data: SiteAccessConfig) =>
     request<SiteAccessResponse>('/site-access', json('PUT', data)),
+  getOnlineOrdering: () => request<OnlineOrderingResponse>('/online-ordering'),
+  updateOnlineOrdering: (data: OnlineOrderingConfig) =>
+    request<OnlineOrderingResponse>('/online-ordering', json('PUT', data)),
 
   getSecurityStatus: () => request<SecurityStatus & { success: boolean }>('/security/status'),
   getAuditLogs: ({

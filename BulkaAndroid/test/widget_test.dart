@@ -687,6 +687,62 @@ void main() {
   });
 
   testWidgets(
+    'globally disabled online ordering blocks checkout and hides cards',
+    (tester) async {
+      final cart = CartProvider()
+        ..addItem(
+          productId: 'ordering-disabled-product',
+          name: 'Плюшка',
+          price: 500,
+          imageUrl: '',
+        );
+      final api = _OnlineOrderingDisabledApiClient()
+        ..setSession(accessToken: 'test-access', refreshToken: 'test-refresh');
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildBulkaTheme(),
+          home: ChangeNotifierProvider.value(
+            value: cart,
+            child: MainShell(
+              api: api,
+              customer: _testCustomer,
+              transactions: _testTransactions,
+              initialTab: 2,
+              onLogout: () async {},
+              onRefreshProfile: () async {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Оформить заказ'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('checkout-online-ordering-disabled')),
+        findsOneWidget,
+      );
+      expect(find.text('Онлайн-заказы временно отключены'), findsOneWidget);
+      expect(
+        find.text(
+          'Каталог и корзина доступны, но оформить и оплатить заказ сейчас нельзя.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('checkout-saved-cards')), findsNothing);
+      expect(api.paymentMethodsCalls, 0);
+
+      final submitButton = tester.widget<GradientButton>(
+        find.byKey(const ValueKey('checkout-submit')),
+      );
+      expect(submitButton.onPressed, isNull);
+      expect(find.text('Онлайн-заказы отключены'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'checkout switches between three saved cards and enforces limit',
     (tester) async {
       final cart = CartProvider()
@@ -2498,6 +2554,22 @@ class _FakeBulkaApiClient extends BulkaApiClient {
 class _NoSavedCardsApiClient extends _FakeBulkaApiClient {
   @override
   Future<List<Map<String, dynamic>>> getFortePaymentMethods() async => const [];
+}
+
+class _OnlineOrderingDisabledApiClient extends _FakeBulkaApiClient {
+  int paymentMethodsCalls = 0;
+
+  @override
+  bool get onlineOrderingDisabled => true;
+
+  @override
+  Future<bool> isFortePaymentAvailable() async => false;
+
+  @override
+  Future<List<Map<String, dynamic>>> getFortePaymentMethods() async {
+    paymentMethodsCalls++;
+    return const [];
+  }
 }
 
 class _ThreeSavedCardsApiClient extends _FakeBulkaApiClient {

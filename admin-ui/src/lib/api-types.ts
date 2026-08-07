@@ -96,6 +96,14 @@ export interface AdminOrder {
   branchId?: string | null;
   orderType?: 'pickup' | 'preorder' | 'delivery' | string;
   deliveryStatus?: string;
+  kitchenStatus?: string;
+  courierDispatchStatus?: string | null;
+  courierDispatchProvider?: string | null;
+  courierDispatchRequestedAt?: string | null;
+  courierDispatchError?: string | null;
+  iikoSyncStatus?: string | null;
+  iikoSyncError?: string | null;
+  iikoDeliveryStatus?: string | null;
   estimatedDeliveryAt?: string | null;
   trackingCode?: string | null;
   trackingUrl?: string | null;
@@ -108,6 +116,8 @@ export interface AdminOrder {
     name: string;
     phone: string;
     vehicle?: string | null;
+    transportType?: string | null;
+    isAutomobile?: boolean | null;
     latitude?: number | null;
     longitude?: number | null;
     locationUpdatedAt?: string | null;
@@ -211,6 +221,7 @@ export interface Courier {
   name: string;
   phone: string;
   vehicle?: string | null;
+  transportType?: 'car' | 'motorcycle' | 'bicycle' | 'foot';
   active: boolean;
   latitude?: number | null;
   longitude?: number | null;
@@ -260,7 +271,15 @@ export interface ExternalDelivery {
   etaMinutes?: number | null;
   distanceMeters?: number | null;
   trackingUrl?: string | null;
-  courier?: { name: string; phone?: string; vehicle?: string | null } | null;
+  courier?: {
+    name: string;
+    phone?: string;
+    vehicle?: string | null;
+    transportType?: string | null;
+    isAutomobile?: boolean | null;
+  } | null;
+  automobileRequired?: boolean;
+  transportWarning?: string | null;
   canCancel: boolean;
   terminal: boolean;
   lastError?: string | null;
@@ -280,6 +299,14 @@ export interface DispatchOrder {
   deliveryAddress?: string | null;
   courierId?: string | null;
   deliveryStatus?: string;
+  kitchenStatus?: string;
+  courierDispatchStatus?: string | null;
+  courierDispatchProvider?: string | null;
+  courierDispatchRequestedAt?: string | null;
+  courierDispatchError?: string | null;
+  iikoSyncStatus?: string | null;
+  iikoSyncError?: string | null;
+  iikoDeliveryStatus?: string | null;
   routeDistanceKm?: number | null;
   routeEtaMinutes?: number | null;
   externalDelivery?: ExternalDelivery | null;
@@ -291,6 +318,9 @@ export interface YandexDeliveryConfiguration {
   canManage: boolean;
   missing: string[];
   taxiClass: string;
+  cargoOptions?: string[];
+  automobileOnly?: boolean;
+  thermobagRequired?: boolean;
 }
 
 export interface AdminUser {
@@ -629,6 +659,15 @@ export interface SiteAccessResponse {
   success: boolean;
   config: SiteAccessConfig;
   currentIp: string;
+}
+
+export interface OnlineOrderingConfig {
+  disabled: boolean;
+}
+
+export interface OnlineOrderingResponse {
+  success: boolean;
+  config: OnlineOrderingConfig;
 }
 
 export interface AuditLog {

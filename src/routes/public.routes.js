@@ -44,6 +44,7 @@ const contactCenter = require('../services/contact-center.service');
 const { respondToSubstitution } = require('../services/order-substitution.service');
 const { optimizeUploadedImage } = require('../utils/image.util');
 const { emptyBodySchema, validateRequest } = require('../middlewares/validation.middleware');
+const { onlineOrderingMiddleware } = require('../middlewares/online-ordering.middleware');
 const {
   appReleaseQuerySchema,
   courierAuthRequestBodySchema,
@@ -858,11 +859,13 @@ const kaspiController = require('../controllers/kaspi.controller');
 router.get('/api/customer/kaspi-pay/availability', kaspiController.availability);
 router.post(
   '/api/customer/kaspi-pay/create',
+  onlineOrderingMiddleware,
   validateRequest({ body: checkoutPaymentBodySchema }),
   kaspiController.createPayment,
 );
 router.post(
   '/api/customer/kaspi-pay/quote',
+  onlineOrderingMiddleware,
   validateRequest({ body: checkoutQuoteBodySchema }),
   kaspiController.quotePayment,
 );
@@ -881,11 +884,13 @@ const forteController = require('../controllers/forte.controller');
 router.get('/api/customer/forte-pay/availability', forteController.availability);
 router.post(
   '/api/customer/forte-pay/create',
+  onlineOrderingMiddleware,
   validateRequest({ body: checkoutPaymentBodySchema }),
   forteController.createPayment,
 );
 router.post(
   '/api/customer/forte-pay/quote',
+  onlineOrderingMiddleware,
   validateRequest({ body: checkoutQuoteBodySchema }),
   forteController.quotePayment,
 );

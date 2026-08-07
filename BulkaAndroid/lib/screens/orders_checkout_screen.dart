@@ -38,6 +38,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   bool _isSelectingAddress = false;
   bool _isSelectingTime = false;
   bool? _forteAvailable;
+  bool _onlineOrderingDisabled = false;
   String? _selectedPaymentMethodId;
   int _discount = 0;
   int _deliveryFee = 0;
@@ -63,12 +64,15 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
     _phoneController.addListener(_saveDraft);
     _promoController.addListener(_saveDraft);
     _commentController.addListener(_saveDraft);
+    _onlineOrderingDisabled = widget.api.onlineOrderingDisabled;
     unawaited(_loadCheckoutPreferences());
     unawaited(_loadPaymentAvailability());
   }
 
   bool get _selectedPaymentAvailable =>
-      _forteAvailable == true && _selectedPaymentMethodId != null;
+      !_onlineOrderingDisabled &&
+      _forteAvailable == true &&
+      _selectedPaymentMethodId != null;
 
   Future<void> _loadPaymentAvailability() async {
     if (mounted) {
@@ -80,6 +84,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
     if (!mounted) return;
     setState(() {
       _forteAvailable = available;
+      _onlineOrderingDisabled = widget.api.onlineOrderingDisabled;
       if (!available) _selectedPaymentMethodId = null;
     });
   }
@@ -497,6 +502,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   }
 
   bool get _canQuote =>
+      !_onlineOrderingDisabled &&
       _scheduledSlot != null &&
       (_usesDelivery
           ? _deliveryAddress != null && _deliveryBranchLocation != null
@@ -654,6 +660,12 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   }
 
   Future<void> _submit() async {
+    if (_onlineOrderingDisabled) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('checkout_online_ordering_disabled'.tr)),
+      );
+      return;
+    }
     if (!_selectedPaymentAvailable) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

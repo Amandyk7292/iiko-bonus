@@ -232,7 +232,8 @@ insert into public.settings (key, value) values
   ('bonus_automailing', '{"enabled":false,"inactive_days":30,"message":"Мы скучаем! Возвращайтесь за свежей выпечкой и бонусами."}'),
   ('bonus_card_media', '{"banner_url":"","logo_url":"","card_title":"Bulka Bonus"}'),
   ('bonus_corporate', '{"enabled":false,"company_name":"","monthly_limit":0,"employee_cashback_percent":5}'),
-  ('site_access', '{"enabled":false,"allowed_ips":[]}')
+  ('site_access', '{"enabled":false,"allowed_ips":[]}'),
+  ('online_ordering', '{"disabled":false}')
 on conflict (key) do nothing;
 
 -- --------------------------------------------------------------------
@@ -1570,6 +1571,23 @@ create table if not exists public.kaspi_orders (
   fulfillment_status varchar(40) not null default 'pending',
   fulfilled_at timestamptz,
   iiko_order_id varchar(100),
+  iiko_pos_order_id uuid,
+  iiko_sync_status varchar(24),
+  iiko_sync_attempts integer not null default 0,
+  iiko_sync_next_attempt_at timestamptz,
+  iiko_sync_attempted_at timestamptz,
+  iiko_synced_at timestamptz,
+  iiko_sync_error text,
+  iiko_delivery_status varchar(40),
+  iiko_status_synced_at timestamptz,
+  courier_dispatch_status varchar(24),
+  courier_dispatch_provider varchar(24),
+  courier_dispatch_attempts integer not null default 0,
+  courier_dispatch_requested_at timestamptz,
+  courier_dispatch_next_attempt_at timestamptz,
+  courier_dispatch_attempted_at timestamptz,
+  courier_dispatch_completed_at timestamptz,
+  courier_dispatch_error text,
   last_error varchar(1000),
   client_request_id uuid,
   payment_method varchar(20),

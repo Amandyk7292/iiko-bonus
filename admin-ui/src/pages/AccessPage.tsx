@@ -1,21 +1,19 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import {
   Building2,
-  Globe2,
   Network,
   Phone,
   Plus,
   RefreshCw,
   Save,
   ShieldCheck,
-  Trash2,
   UserCog,
 } from 'lucide-react';
 import Modal from '../components/Modal';
 import PageState from '../components/PageState';
 import SelectControl from '../components/SelectControl';
 import { useFeedback } from '../components/Feedback';
-import { api, type SiteAccessConfig } from '../lib/api';
+import { api, type OnlineOrderingConfig } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 
 interface AccessProfile {
@@ -55,16 +53,7 @@ const emptyDraft = (): StaffDraft => ({
   branchIds: [],
 });
 const isPhoneProfile = (username: string) => /^\+7\d{10}$/.test(username);
-const emptySiteAccess = (): SiteAccessConfig => ({ enabled: false, allowedIps: [] });
-
-const looksLikeIpAddress = (value: string) => {
-  const candidate = value.trim().replace(/^\[|\]$/g, '');
-  if (!candidate || candidate.length > 64 || /\s|\//.test(candidate)) return false;
-  if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(candidate)) {
-    return candidate.split('.').every((part) => Number(part) >= 0 && Number(part) <= 255);
-  }
-  return candidate.includes(':') && /^[0-9a-f:.]+$/i.test(candidate);
-};
+const emptyOnlineOrdering = (): OnlineOrderingConfig => ({ disabled: false });
 
 export default function AccessPage() {
   const { toast } = useFeedback();
@@ -82,19 +71,17 @@ export default function AccessPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState<StaffDraft>(emptyDraft);
-  const [siteAccess, setSiteAccess] = useState<SiteAccessConfig>(emptySiteAccess);
-  const [currentIp, setCurrentIp] = useState('');
-  const [ipInput, setIpInput] = useState('');
-  const [ipError, setIpError] = useState('');
-  const [savingSiteAccess, setSavingSiteAccess] = useState(false);
+  const [onlineOrdering, setOnlineOrdering] = useState<OnlineOrderingConfig>(emptyOnlineOrdering);
+  const [savingOnlineOrdering, setSavingOnlineOrdering] = useState(false);
+  const [disableOrderingConfirmOpen, setDisableOrderingConfirmOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [access, branches, siteAccessResponse] = await Promise.all([
+      const [access, branches, onlineOrderingResponse] = await Promise.all([
         api.getAccessProfiles(),
         api.getFulfillmentLocations(),
-        api.getSiteAccess(),
+        api.getOnlineOrdering(),
       ]);
       const configuredUsers = access.configuredUsers ?? [];
       const existing = new Map<string, AccessProfile>(
@@ -114,9 +101,7 @@ export default function AccessPage() {
       );
       setConfigured(configuredUsers);
       setLocations(branches.locations ?? []);
-      setSiteAccess(siteAccessResponse.config ?? emptySiteAccess());
-      setCurrentIp(siteAccessResponse.currentIp ?? '');
-      setIpError('');
+      setOnlineOrdering(onlineOrderingResponse.config ?? emptyOnlineOrdering());
       setError('');
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : t('access.loadError'));
@@ -144,78 +129,33 @@ export default function AccessPage() {
     }));
   };
 
-  const appendAllowedIp = (rawIp: string) => {
-    const candidate = rawIp.trim().replace(/^\[|\]$/g, '');
-    if (!looksLikeIpAddress(candidate)) {
-      setIpError(t('access.ipInvalid'));
-      return false;
-    }
-    if (siteAccess.allowedIps.some((ip) => ip.toLowerCase() === candidate.toLowerCase())) {
-      setIpError(t('access.ipDuplicate'));
-      return false;
-    }
-    setSiteAccess((current) => ({
-      ...current,
-      allowedIps: [...current.allowedIps, candidate],
-    }));
-    setIpInput('');
-    setIpError('');
-    return true;
-  };
-
-  const addAllowedIp = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    appendAllowedIp(ipInput);
-  };
-
-  const addCurrentIp = () => {
-    if (!currentIp) {
-      setIpError(t('access.currentIpUnknown'));
+  const toggleOnlineOrdering = (disabled: boolean) => {
+    if (disabled) {
+      setDisableOrderingConfirmOpen(true);
       return;
     }
-    appendAllowedIp(currentIp);
+    setOnlineOrdering({ disabled: false });
   };
 
-  const removeAllowedIp = (ip: string) => {
-    setSiteAccess((current) => ({
-      ...current,
-      allowedIps: current.allowedIps.filter((item) => item !== ip),
-      enabled: current.enabled && current.allowedIps.length > 1,
-    }));
-    setIpError('');
+  const confirmDisableOnlineOrdering = () => {
+    setOnlineOrdering({ disabled: true });
+    setDisableOrderingConfirmOpen(false);
   };
 
-  const toggleSiteAccess = (enabled: boolean) => {
-    if (enabled && siteAccess.allowedIps.length === 0) {
-      setIpError(t('access.addIpFirst'));
-      return;
-    }
-    setSiteAccess((current) => ({ ...current, enabled }));
-    setIpError('');
-  };
-
-  const saveSiteAccess = async () => {
-    if (siteAccess.enabled && siteAccess.allowedIps.length === 0) {
-      setIpError(t('access.addIpBeforeEnable'));
-      return;
-    }
-    setSavingSiteAccess(true);
+  const saveOnlineOrdering = async () => {
+    setSavingOnlineOrdering(true);
     try {
-      const response = await api.updateSiteAccess(siteAccess);
-      setSiteAccess(response.config);
-      setCurrentIp(response.currentIp ?? currentIp);
-      setIpError('');
+      const response = await api.updateOnlineOrdering(onlineOrdering);
+      setOnlineOrdering(response.config);
       toast(
-        response.config.enabled
-          ? t('access.restrictionSavedOn')
-          : t('access.restrictionSavedOff'),
+        response.config.disabled
+          ? t('access.onlineOrderingOffState')
+          : t('access.onlineOrderingOnState'),
       );
     } catch (caught) {
-      const message = caught instanceof Error ? caught.message : t('access.siteSaveError');
-      setIpError(message);
-      toast(message, 'error');
+      toast(caught instanceof Error ? caught.message : t('access.siteSaveError'), 'error');
     } finally {
-      setSavingSiteAccess(false);
+      setSavingOnlineOrdering(false);
     }
   };
 
@@ -290,145 +230,58 @@ export default function AccessPage() {
         </div>
       </div>
 
-      <section className="card site-access-card" aria-labelledby="site-access-title">
+      <section
+        className={`card site-access-card online-ordering-card ${
+          onlineOrdering.disabled ? 'is-disabled' : ''
+        }`}
+        aria-labelledby="online-ordering-title"
+      >
         <header className="site-access-header">
           <div className="site-access-heading">
-            <span className="site-access-icon" aria-hidden="true">
-              <Globe2 size={23} />
+            <span className="site-access-icon online-ordering-icon" aria-hidden="true">
+              <Network size={23} />
             </span>
             <div>
-              <h3 id="site-access-title">{t('access.publicSite')}</h3>
-              <p>{t('access.publicSiteHint')}</p>
+              <h3 id="online-ordering-title">{t('access.onlineOrdering')}</h3>
             </div>
           </div>
           <label className="switch-row">
             <input
               type="checkbox"
-              checked={siteAccess.enabled}
-              onChange={(event) => toggleSiteAccess(event.target.checked)}
+              checked={onlineOrdering.disabled}
+              disabled={savingOnlineOrdering}
+              onChange={(event) => toggleOnlineOrdering(event.target.checked)}
+              aria-describedby="online-ordering-state"
             />
             <span className="switch-control" />
-            <span>{siteAccess.enabled ? t('access.restrictionEnabled') : t('access.siteOpen')}</span>
+            <span>{onlineOrdering.disabled ? t('common.disabled') : t('common.enabled')}</span>
           </label>
         </header>
 
         <div
-          className={`site-access-state ${siteAccess.enabled ? 'is-enabled' : ''}`}
+          id="online-ordering-state"
+          className={`site-access-state ${onlineOrdering.disabled ? 'is-disabled' : 'is-enabled'}`}
           role="status"
           aria-live="polite"
         >
           <ShieldCheck size={18} aria-hidden="true" />
           <span>
-            {siteAccess.enabled
-              ? t('access.restrictedState', { count: siteAccess.allowedIps.length })
-              : t('access.openState')}
+            {onlineOrdering.disabled
+              ? t('access.onlineOrderingOffState')
+              : t('access.onlineOrderingOnState')}
           </span>
         </div>
 
-        <div className="site-access-current">
-          <div>
-            <span>{t('access.currentIp')}</span>
-            <strong className="mono tabular">{currentIp || t('access.notDetected')}</strong>
-          </div>
-          <button
-            className="btn-outline px-4 inline-flex items-center gap-2"
-            type="button"
-            disabled={
-              !currentIp ||
-              siteAccess.allowedIps.some((ip) => ip.toLowerCase() === currentIp.toLowerCase())
-            }
-            onClick={addCurrentIp}
-          >
-            <Network size={17} aria-hidden="true" />
-            {t('access.addMyIp')}
-          </button>
-        </div>
-
-        <form className="site-access-add-form" onSubmit={addAllowedIp} noValidate>
-          <div className="field-group">
-            <label className="field-label" htmlFor="allowed-ip-address">
-              {t('access.newAllowedIp')}
-            </label>
-            <span className="site-access-input-row">
-              <input
-                id="allowed-ip-address"
-                name="allowedIp"
-                className="input-classic mono"
-                value={ipInput}
-                onChange={(event) => {
-                  setIpInput(event.target.value);
-                  setIpError('');
-                }}
-                placeholder={t('access.ipPlaceholder')}
-                maxLength={64}
-                autoCapitalize="none"
-                autoComplete="off"
-                spellCheck={false}
-                aria-invalid={Boolean(ipError)}
-                aria-describedby="allowed-ip-hint allowed-ip-error"
-              />
-              <button
-                className="btn-classic px-5 inline-flex items-center gap-2"
-                type="submit"
-                disabled={!ipInput.trim()}
-              >
-                <Plus size={17} aria-hidden="true" />
-                {t('access.add')}
-              </button>
-            </span>
-            <span className="field-hint" id="allowed-ip-hint">
-              {t('access.ipHint')}
-            </span>
-            <span className="field-error" id="allowed-ip-error" role="alert">
-              {ipError}
-            </span>
-          </div>
-        </form>
-
-        <div className="site-access-list-block">
-          <div className="site-access-list-heading">
-            <h4>{t('access.allowedIps')}</h4>
-            <span className="site-access-count">{siteAccess.allowedIps.length}</span>
-          </div>
-          {siteAccess.allowedIps.length ? (
-            <ul className="site-access-list">
-              {siteAccess.allowedIps.map((ip) => (
-                <li key={ip}>
-                  <span className="mono tabular">{ip}</span>
-                  <button
-                    className="icon-button icon-button-danger"
-                    type="button"
-                    onClick={() => removeAllowedIp(ip)}
-                    aria-label={t('access.removeIp', { ip })}
-                  >
-                    <Trash2 size={17} aria-hidden="true" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="site-access-empty">
-              <Network size={22} aria-hidden="true" />
-              <div>
-                <strong>{t('access.ipListEmpty')}</strong>
-                <span>{t('access.ipListEmptyHint')}</span>
-              </div>
-            </div>
-          )}
-        </div>
-
         <footer className="site-access-footer">
-          <p>
-            {t('access.scopeHint')}
-          </p>
+          <p>{t('access.onlineOrderingScope')}</p>
           <button
             className="btn-classic px-5 inline-flex items-center gap-2"
             type="button"
-            disabled={savingSiteAccess}
-            onClick={() => void saveSiteAccess()}
+            disabled={savingOnlineOrdering}
+            onClick={() => void saveOnlineOrdering()}
           >
             <Save size={17} aria-hidden="true" />
-            {savingSiteAccess ? t('common.saving') : t('access.saveSiteAccess')}
+            {savingOnlineOrdering ? t('common.saving') : t('common.save')}
           </button>
         </footer>
       </section>
@@ -540,6 +393,34 @@ export default function AccessPage() {
           );
         })}
       </section>
+
+      <Modal
+        open={disableOrderingConfirmOpen}
+        title={t('access.onlineOrdering')}
+        description={t('access.onlineOrderingOffState')}
+        onClose={() => setDisableOrderingConfirmOpen(false)}
+        size="sm"
+      >
+        <div className="modal-body form-stack">
+          <div className="modal-actions">
+            <button
+              className="btn-outline"
+              type="button"
+              onClick={() => setDisableOrderingConfirmOpen(false)}
+            >
+              {t('common.cancel')}
+            </button>
+            <button
+              className="btn-danger inline-flex items-center gap-2"
+              type="button"
+              onClick={confirmDisableOnlineOrdering}
+              autoFocus
+            >
+              {t('common.confirm')}
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       <Modal
         open={createOpen}

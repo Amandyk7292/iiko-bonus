@@ -66,44 +66,41 @@ describe('Kitchen optimistic workflow', () => {
     const startRequest = new Promise((resolve) => {
       resolveStart = resolve;
     });
-    apiMocks.updateKitchenStatus.mockImplementation((id: string, status: string, minutes?: number) => {
-      if (id === 'queued-1') return startRequest;
-      const source = id === 'preparing-1' ? preparingOrder : readyOrder;
-      return Promise.resolve({ success: true, order: { ...source, kitchenStatus: status, preparationMinutes: minutes } });
-    });
+    apiMocks.updateKitchenStatus.mockImplementation(
+      (id: string, status: string, minutes?: number) => {
+        if (id === 'queued-1') return startRequest;
+        const source = id === 'preparing-1' ? preparingOrder : readyOrder;
+        return Promise.resolve({
+          success: true,
+          order: { ...source, kitchenStatus: status, preparationMinutes: minutes },
+        });
+      },
+    );
     renderPage();
 
     const queuedTicket = (await screen.findByText('№100041')).closest('article');
     expect(queuedTicket).not.toBeNull();
-    await user.click(within(queuedTicket!).getByRole('button', { name: 'Начать' }));
+    await user.click(within(queuedTicket!).getByRole('button', { name: 'Принять' }));
     const minutes = await screen.findByLabelText('Время приготовления, минут');
     await user.clear(minutes);
     await user.type(minutes, '12');
-    await user.click(
-      within(screen.getByRole('dialog')).getByRole('button', { name: 'Начать' }),
-    );
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Принять' }));
 
     expect(apiMocks.updateKitchenStatus).toHaveBeenCalledWith('queued-1', 'preparing', 12);
-    const preparingColumn = screen
-      .getByText('Готовится')
-      .closest<HTMLElement>('.kitchen-column');
+    const preparingColumn = screen.getByText('Готовится').closest<HTMLElement>('.kitchen-column');
     expect(within(preparingColumn!).getByText('№100041')).toBeInTheDocument();
 
     await user.click(
-      within((screen.getByText('№100042').closest('article'))!).getByRole('button', {
+      within(screen.getByText('№100042').closest('article')!).getByRole('button', {
         name: 'Готово',
       }),
     );
     await waitFor(() =>
-      expect(apiMocks.updateKitchenStatus).toHaveBeenCalledWith(
-        'preparing-1',
-        'ready',
-        undefined,
-      ),
+      expect(apiMocks.updateKitchenStatus).toHaveBeenCalledWith('preparing-1', 'ready', undefined),
     );
 
     await user.click(
-      within((screen.getByText('№100043').closest('article'))!).getByRole('button', {
+      within(screen.getByText('№100043').closest('article')!).getByRole('button', {
         name: 'Передан',
       }),
     );
@@ -134,9 +131,7 @@ describe('Kitchen optimistic workflow', () => {
     await user.click(within(ticket!).getByRole('button', { name: 'Готово' }));
 
     await waitFor(() => expect(toast).toHaveBeenCalledWith('kitchen conflict', 'error'));
-    const preparingColumn = screen
-      .getByText('Готовится')
-      .closest<HTMLElement>('.kitchen-column');
+    const preparingColumn = screen.getByText('Готовится').closest<HTMLElement>('.kitchen-column');
     expect(within(preparingColumn!).getByText('№100042')).toBeInTheDocument();
   });
 

@@ -71,6 +71,7 @@ describe('Orders workspace permissions and refund flow', () => {
           name: 'Айбек',
           phone: '77010000001',
           vehicle: 'Авто',
+          transportType: 'car',
           active: true,
         },
       ],
@@ -89,6 +90,8 @@ describe('Orders workspace permissions and refund flow', () => {
           name: 'Айбек',
           phone: '77010000001',
           vehicle: 'Авто',
+          transportType: 'car',
+          isAutomobile: true,
         },
       },
     });
@@ -116,7 +119,7 @@ describe('Orders workspace permissions and refund flow', () => {
         expect.any(String),
       ),
     );
-    expect(await screen.findByText('Айбек · 77010000001')).toBeInTheDocument();
+    expect(await screen.findByText('Айбек · Автокурьер · Авто · 77010000001')).toBeInTheDocument();
 
     await user.click(screen.getByRole('combobox', { name: 'Изменить статус' }));
     await user.click(screen.getByRole('option', { name: 'Отменён' }));

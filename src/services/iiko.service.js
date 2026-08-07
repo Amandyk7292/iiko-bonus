@@ -25,6 +25,114 @@ const deterministicUuid = (value) => {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 };
 
+const boundedText = (value, maximum) =>
+  String(value == null ? '' : value)
+    .trim()
+    .replace(/\s+/g, ' ')
+    .slice(0, maximum);
+
+const iikoPhone = (value) => {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (digits.length === 11 && digits.startsWith('8')) return `+7${digits.slice(1)}`;
+  if (digits.length === 11 && digits.startsWith('7')) return `+${digits}`;
+  if (digits.length === 10) return `+7${digits}`;
+  return '';
+};
+
+const finiteCoordinate = (value, minimum, maximum) => {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= minimum && parsed <= maximum ? parsed : null;
+};
+
+const localizedText = (value) => {
+  if (value == null) return '';
+  if (typeof value === 'string' || typeof value === 'number') return String(value);
+  if (typeof value !== 'object' || Array.isArray(value)) return '';
+  return value.ru || value.kk || value.en || value.name || value.title || value.label || '';
+};
+
+const itemOptionComment = (item) => {
+  const parts = [];
+  const configuration = item?.configuration;
+  if (configuration && typeof configuration === 'object' && !Array.isArray(configuration)) {
+    for (const [key, value] of Object.entries(configuration)) {
+      const text = localizedText(value);
+      if (text) parts.push(`${key}: ${text}`);
+    }
+  }
+  for (const group of Array.isArray(item?.modifiers) ? item.modifiers : []) {
+    const title = localizedText(group?.title || group?.name);
+    const selected = (Array.isArray(group?.options) ? group.options : [])
+      .map((option) => localizedText(option?.title || option?.name || option))
+      .filter(Boolean);
+    if (selected.length) parts.push(`${title || 'Опции'}: ${selected.join(', ')}`);
+  }
+  return boundedText(parts.join('; '), 255);
+};
+
+const reconcileIikoItems = (order) => {
+  const source = Array.isArray(order?.cart_items) ? order.cart_items : [];
+  if (!source.length || source.some((item) => !item?.iikoProductId)) {
+    throw configurationError('Заказ содержит ручной товар без iiko productId');
+  }
+  const rows = source.map((item, index) => {
+    const amount = Math.max(1, Math.round(Number(item.quantity) || 1));
+    const priceCents = Math.max(0, Math.round(Number(item.price || 0) * 100));
+    return {
+      item,
+      index,
+      amount,
+      weight: Math.max(1, priceCents * amount),
+    };
+  });
+  const targetCents = Math.round(Number(order.amount || 0) * 100);
+  if (!Number.isSafeInteger(targetCents) || targetCents <= 0) {
+    throw configurationError('У заказа некорректная оплаченная сумма');
+  }
+  const weightTotal = rows.reduce((sum, row) => sum + row.weight, 0);
+  let allocated = 0;
+  const allocations = rows.map((row) => {
+    const exact = (targetCents * row.weight) / weightTotal;
+    const cents = Math.floor(exact);
+    allocated += cents;
+    return { ...row, cents, remainder: exact - cents };
+  });
+  allocations
+    .slice()
+    .sort((left, right) => right.remainder - left.remainder || left.index - right.index)
+    .slice(0, targetCents - allocated)
+    .forEach((row) => {
+      allocations[row.index].cents += 1;
+    });
+
+  const result = [];
+  for (const row of allocations) {
+    const lowerPrice = Math.floor(row.cents / row.amount);
+    const higherUnits = row.cents - lowerPrice * row.amount;
+    const variants = [
+      { amount: row.amount - higherUnits, priceCents: lowerPrice, suffix: 'base' },
+      { amount: higherUnits, priceCents: lowerPrice + 1, suffix: 'remainder' },
+    ].filter((variant) => variant.amount > 0);
+    for (const variant of variants) {
+      result.push({
+        type: 'Product',
+        productId: row.item.iikoProductId,
+        ...(row.item.productSizeId ? { productSizeId: row.item.productSizeId } : {}),
+        amount: variant.amount,
+        price: variant.priceCents / 100,
+        positionId: deterministicUuid(
+          `bulka:item:${order.id || order.operation_id}:${row.index}:${variant.suffix}`,
+        ),
+        ...(itemOptionComment(row.item) ? { comment: itemOptionComment(row.item) } : {}),
+      });
+    }
+  }
+  return result;
+};
+
+const iikoOrderInfo = (result) => result?.orderInfo || result?.order || result || {};
+
 const iikoLocalDateTime = (value) => {
   if (!value) return null;
   const normalized = String(value).trim().replace('T', ' ').replace(/Z$/, '');
@@ -80,6 +188,26 @@ class IikoAPI {
     this.priceCategoryName = String(
       configuredValue(configuration, 'priceCategoryName', 'IIKO_PRICE_CATEGORY_NAME'),
     ).trim();
+    this.terminalGroupId = String(
+      configuredValue(configuration, 'terminalGroupId', 'IIKO_TERMINAL_GROUP_ID'),
+    ).trim();
+    this.terminalGroupsJson = String(
+      configuredValue(configuration, 'terminalGroupsJson', 'IIKO_TERMINAL_GROUPS_JSON', '{}'),
+    ).trim();
+    this.paymentTypeId = String(
+      configuredValue(configuration, 'paymentTypeId', 'IIKO_PAYMENT_TYPE_ID'),
+    ).trim();
+    this.deliveryAddressFormat = ['city', 'legacy'].includes(
+      String(configuredValue(configuration, 'deliveryAddressFormat', 'IIKO_ADDRESS_FORMAT', 'city'))
+        .trim()
+        .toLocaleLowerCase('en-US'),
+    )
+      ? String(
+          configuredValue(configuration, 'deliveryAddressFormat', 'IIKO_ADDRESS_FORMAT', 'city'),
+        )
+          .trim()
+          .toLocaleLowerCase('en-US')
+      : 'city';
     this.menuCacheTtlMs =
       boundedSeconds(
         configuredValue(
@@ -822,53 +950,113 @@ class IikoAPI {
     if (process.env.IIKO_ORDER_EXPORT_ENABLED !== 'true') {
       throw configurationError('Автоматическая отправка заказов в iiko отключена');
     }
-    const paymentTypeId = String(process.env.IIKO_PAYMENT_TYPE_ID || '').trim();
-    let terminalGroupId = String(process.env.IIKO_TERMINAL_GROUP_ID || '').trim();
+    const paymentTypeId = this.paymentTypeId;
+    let terminalGroupId = this.terminalGroupId;
+    let terminalGroups;
     try {
-      const terminalGroups = JSON.parse(process.env.IIKO_TERMINAL_GROUPS_JSON || '{}');
-      if (Object.keys(terminalGroups).length > 0 && !terminalGroups[order.branch_name]) {
-        throw configurationError(`Для филиала «${order.branch_name}» не задан terminalGroupId`);
-      }
-      terminalGroupId = terminalGroups[order.branch_name] || terminalGroupId;
+      terminalGroups = JSON.parse(this.terminalGroupsJson || '{}');
     } catch {
       throw configurationError('IIKO_TERMINAL_GROUPS_JSON содержит некорректный JSON');
     }
+    if (!terminalGroups || typeof terminalGroups !== 'object' || Array.isArray(terminalGroups)) {
+      throw configurationError('IIKO_TERMINAL_GROUPS_JSON должен содержать JSON-объект');
+    }
+    const configuredBranchTerminal =
+      terminalGroups[String(order.branch_id || '')] || terminalGroups[order.branch_name];
+    if (Object.keys(terminalGroups).length > 0 && !configuredBranchTerminal) {
+      throw configurationError(`Для филиала «${order.branch_name}» не задан terminalGroupId`);
+    }
+    terminalGroupId = configuredBranchTerminal || terminalGroupId;
     if (!terminalGroupId || !paymentTypeId) {
       throw configurationError(
         'Для отправки заказа нужны IIKO_TERMINAL_GROUP_ID и IIKO_PAYMENT_TYPE_ID',
       );
     }
-    if (!Array.isArray(order.cart_items) || order.cart_items.some((item) => !item.iikoProductId)) {
-      throw configurationError('Заказ содержит ручной товар без iiko productId');
-    }
 
     const token = await this.getToken();
     const organizationId = await this.getOrganizationId();
-    const completeBefore = iikoLocalDateTime(order.pickup_time);
-    const phone = `+${String(order.phone || '').replace(/\D/g, '')}`;
+    const completeBefore = iikoLocalDateTime(
+      order.scheduled_at || order.pickup_time || order.promised_ready_at,
+    );
+    const phone = iikoPhone(order.additional_phone || order.phone || order.customers?.phone);
+    if (!phone) throw configurationError('У клиента некорректный номер телефона для iiko');
+    const deliveryLatitude = finiteCoordinate(order.delivery_latitude, -90, 90);
+    const deliveryLongitude = finiteCoordinate(order.delivery_longitude, -180, 180);
+    if (deliveryLatitude == null || deliveryLongitude == null) {
+      throw configurationError('У заказа некорректные координаты доставки для iiko');
+    }
+    const address =
+      order.delivery_address && typeof order.delivery_address === 'object'
+        ? order.delivery_address
+        : {};
+    const city = boundedText(address.city || order.bulka_locations?.city, 60);
+    const rawAddress = boundedText(
+      address.address || address.fullname || address.fullAddress || address.label,
+      250,
+    );
+    if (!rawAddress) throw configurationError('У заказа не заполнен адрес доставки');
+    const line1 = rawAddress.toLocaleLowerCase('ru-RU').includes(city.toLocaleLowerCase('ru-RU'))
+      ? rawAddress
+      : [city, rawAddress].filter(Boolean).join(', ').slice(0, 250);
+    const addressPayload =
+      this.deliveryAddressFormat === 'legacy'
+        ? {
+            type: 'legacy',
+            street: { name: rawAddress.slice(0, 60), ...(city ? { city } : {}) },
+            house: boundedText(address.house, 80),
+            ...(address.apartment ? { flat: boundedText(address.apartment, 10) } : {}),
+            ...(address.entrance ? { entrance: boundedText(address.entrance, 10) } : {}),
+            ...(address.floor ? { floor: boundedText(address.floor, 10) } : {}),
+            ...(address.doorphone ? { doorphone: boundedText(address.doorphone, 10) } : {}),
+          }
+        : {
+            type: 'city',
+            line1,
+            ...(address.apartment ? { flat: boundedText(address.apartment, 10) } : {}),
+            ...(address.entrance ? { entrance: boundedText(address.entrance, 10) } : {}),
+            ...(address.floor ? { floor: boundedText(address.floor, 10) } : {}),
+            ...(address.doorphone ? { doorphone: boundedText(address.doorphone, 10) } : {}),
+          };
+    const customerName = boundedText(order.customers?.name || 'Клиент Bulka', 60);
+    const priceNote =
+      Number(order.subtotal || 0) !== Number(order.amount || 0)
+        ? `Оплачено онлайн: ${Number(order.amount || 0).toFixed(2)} ₸; товары: ${Number(
+            order.subtotal || 0,
+          ).toFixed(2)} ₸; скидка: ${Number(order.discount_amount || 0).toFixed(
+            2,
+          )} ₸; доставка: ${Number(order.delivery_fee || 0).toFixed(2)} ₸.`
+        : '';
+    const orderComment = [
+      'ДОСТАВКА: ТОЛЬКО АВТОКУРЬЕР. Термосумка обязательна.',
+      order.branch_name ? `Забрать в Bulka «${order.branch_name}».` : '',
+      priceNote,
+      order.comment,
+    ]
+      .filter(Boolean)
+      .join('\n')
+      .slice(0, 1000);
     const payload = {
       organizationId,
       terminalGroupId,
       createOrderSettings: { transportToFrontTimeout: 15, checkStopList: true },
       order: {
-        id: deterministicUuid(`bulka:${order.operation_id}`),
-        externalNumber: `Bulka-${order.operation_id}`.slice(0, 50),
+        id: deterministicUuid(`bulka:${order.id || order.operation_id}`),
+        externalNumber: `Bulka-${order.order_number || order.operation_id}`.slice(0, 50),
         phone,
-        orderServiceType: 'DeliveryByClient',
+        orderServiceType: 'DeliveryByCourier',
+        deliveryPoint: {
+          coordinates: {
+            latitude: deliveryLatitude,
+            longitude: deliveryLongitude,
+          },
+          address: addressPayload,
+          comment: boundedText(address.comment || order.comment, 500),
+        },
         completeBefore,
-        comment: [order.comment, order.branch_name ? `Филиал: ${order.branch_name}` : '']
-          .filter(Boolean)
-          .join('\n')
-          .slice(0, 500),
-        customer: { type: 'regular', name: 'Гость' },
+        comment: orderComment,
+        customer: { type: 'one-time', name: customerName },
         sourceKey: 'bulka-bonus-web',
-        items: order.cart_items.map((item) => ({
-          type: 'Product',
-          productId: item.iikoProductId,
-          productSizeId: item.productSizeId || null,
-          amount: Number(item.quantity),
-          price: Number(item.price),
-        })),
+        items: reconcileIikoItems(order),
         payments: [
           {
             paymentTypeKind: 'External',
@@ -876,7 +1064,12 @@ class IikoAPI {
             paymentTypeId,
             isProcessedExternally: true,
             isFiscalizedExternally: false,
+            isPrepay: true,
           },
+        ],
+        externalData: [
+          { key: 'bulkaOrderId', value: String(order.id), isPublic: true },
+          { key: 'courierTransport', value: 'car', isPublic: true },
         ],
       },
     };
@@ -888,10 +1081,8 @@ class IikoAPI {
         '',
     ).trim();
     if (priceCategoryId) payload.order.priceCategoryId = priceCategoryId;
+    if (this.externalMenuId) payload.order.menuId = this.externalMenuId;
     if (!completeBefore) delete payload.order.completeBefore;
-    for (const item of payload.order.items) {
-      if (!item.productSizeId) delete item.productSizeId;
-    }
 
     const response = await fetchWithTimeout(`${this.baseUrl}/api/1/deliveries/create`, {
       method: 'POST',
@@ -909,12 +1100,47 @@ class IikoAPI {
     } catch {
       result = { message: responseText };
     }
-    if (!response.ok || result?.errorInfo) {
+    const orderInfo = iikoOrderInfo(result);
+    const errorInfo = result?.errorInfo || orderInfo?.errorInfo;
+    const creationStatus = String(orderInfo?.creationStatus || '');
+    if (!response.ok || errorInfo || /error|failed/i.test(creationStatus)) {
       throw new Error(
-        `iiko не принял заказ: ${result?.errorInfo?.message || result?.message || response.status}`,
+        `iiko не принял заказ: ${
+          errorInfo?.message ||
+          errorInfo?.description ||
+          result?.message ||
+          creationStatus ||
+          response.status
+        }`,
       );
     }
     return result;
+  }
+
+  async getDeliveryOrdersByIds(orderIds = []) {
+    const ids = [...new Set(orderIds.map(String).filter(Boolean))].slice(0, 100);
+    if (!ids.length) return [];
+    const token = await this.getToken();
+    const organizationId = await this.getOrganizationId();
+    const response = await fetchWithTimeout(`${this.baseUrl}/api/1/deliveries/by_id`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ organizationId, orderIds: ids }),
+    });
+    const responseText = await response.text();
+    let result;
+    try {
+      result = JSON.parse(responseText);
+    } catch {
+      result = { message: responseText };
+    }
+    if (!response.ok) {
+      throw new Error(`iiko не вернул статусы доставок: ${result?.message || response.status}`);
+    }
+    return Array.isArray(result?.orders) ? result.orders : [];
   }
 
   // Принудительный сброс кэша (для админа)
@@ -932,3 +1158,6 @@ const defaultIikoApi = new IikoAPI();
 
 module.exports = defaultIikoApi;
 module.exports.IikoAPI = IikoAPI;
+module.exports.deterministicUuid = deterministicUuid;
+module.exports.iikoOrderInfo = iikoOrderInfo;
+module.exports.reconcileIikoItems = reconcileIikoItems;

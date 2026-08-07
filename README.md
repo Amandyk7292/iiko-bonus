@@ -145,6 +145,10 @@ Create the iOS archive on macOS with the Apple signing certificate and provision
 
 ## iikoFront plugin
 
+The plugin targets iikoFront 9.4 through the official `V9Preview7`
+(`Resto.Front.Api.V9Preview7` 9.4.7024-alpha) contract. Do not replace the
+manifest API version with stable `V9`: that contract starts with iikoFront 9.5.
+
 Configure `IikoBonusPlugin/Resto.Front.Api.IikoBonusPlugin.dll.config` from the included example, then run:
 
 ```powershell

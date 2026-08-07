@@ -78,35 +78,6 @@ const kaspiReauthError = () =>
     { statusCode: 503, code: 'KASPI_REAUTH_REQUIRED', retryable: false },
   );
 
-async function dispatchPaidDeliveryOrder(order, { yandexDelivery, dispatchService } = {}) {
-  if (!order || !isDeliveryFulfillment(order)) {
-    return { skipped: true, reason: 'not_delivery' };
-  }
-  if (
-    order.courier_id ||
-    !['', 'unassigned'].includes(String(order.delivery_status || 'unassigned')) ||
-    ['completed', 'cancelled'].includes(String(order.fulfillment_status || ''))
-  ) {
-    return { skipped: true, reason: 'already_dispatched' };
-  }
-
-  const externalDelivery = yandexDelivery || require('./yandex-delivery.service');
-  const internalDispatch = dispatchService || require('./dispatch.service');
-  const yandexStatus = externalDelivery.getConfigurationStatus();
-  if (yandexStatus.configured && yandexStatus.autoDispatch) {
-    return {
-      skipped: false,
-      provider: 'yandex',
-      result: await externalDelivery.dispatchOrder(order.id),
-    };
-  }
-  return {
-    skipped: false,
-    provider: 'internal',
-    result: await internalDispatch.autoAssignOrder(order.id),
-  };
-}
-
 const paymentStatusCanTransition = (currentStatus, nextStatus) => {
   const current = String(currentStatus || 'pending');
   const next = String(nextStatus || '');
@@ -1495,10 +1466,11 @@ class KaspiService {
       ),
     );
     if (isDeliveryFulfillment(finalOrder)) {
-      await dispatchPaidDeliveryOrder(finalOrder).catch((dispatchError) =>
+      const { enqueueIikoOrderSync } = require('./iiko-order-sync.service');
+      await enqueueIikoOrderSync(finalOrder).catch((syncError) =>
         console.warn(
-          `Автоматическая отправка заказа ${finalOrder.order_number} курьеру:`,
-          dispatchError.message,
+          `Не удалось поставить заказ ${finalOrder.order_number} в очередь iiko:`,
+          syncError.message,
         ),
       );
     }
@@ -1526,4 +1498,3 @@ module.exports.eligibleOrderAmount = eligibleOrderAmount;
 module.exports.isKaspiSuccess = isKaspiSuccess;
 module.exports.paymentStatusCanTransition = paymentStatusCanTransition;
 module.exports.pendingReconciliationWindowMs = pendingReconciliationWindowMs;
-module.exports.dispatchPaidDeliveryOrder = dispatchPaidDeliveryOrder;

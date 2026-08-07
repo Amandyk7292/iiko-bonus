@@ -398,6 +398,10 @@ test('courier OTP is issued only after the courier writes to the WhatsApp bot', 
   assert.match(whatsappSource, /consumeCourierBotRequest\(token, senderDigits\)/);
   assert.match(courierPage, /requestChallenge\(codeForm, \{ automatic: true \}\)/);
   assert.match(courierPage, /Идентификатор автоматически обновлён/);
+  assert.match(courierSource, /bulka_locations\(name,city,address,latitude,longitude\)/);
+  assert.match(courierPage, /Забрать: \$\{esc\(pickupName\)\}/);
+  assert.match(courierPage, /Комментарий клиента:/);
+  assert.match(courierPage, /Что забрать/);
 });
 
 test('hardening migration keeps refunds and delivery handoff atomic', () => {

@@ -265,7 +265,11 @@ export default function DispatchPage() {
                   </div>
                   <div className="ops-row-copy">
                     <strong>{courier.name}</strong>
-                    <span>{courier.vehicle || courier.phone}</span>
+                    <span>
+                      {t(`couriers.transport.${courier.transportType || 'car'}`)}
+                      {' · '}
+                      {courier.vehicle || courier.phone}
+                    </span>
                     <small>
                       {courier.latitude == null
                         ? t('dispatch.noLocation')
@@ -313,6 +317,12 @@ export default function DispatchPage() {
                 const hasActiveYandex = Boolean(external?.claimId && !external.terminal);
                 const busy = saving.startsWith(`${order.id}:`);
                 const quotePrice = external?.price ?? external?.quotedPrice;
+                const kitchenAccepted = Boolean(
+                  order.courierDispatchRequestedAt ||
+                    ['preparing', 'ready', 'handed_over'].includes(
+                      String(order.kitchenStatus || 'queued'),
+                    ),
+                );
                 return (
                   <article className="ops-row ops-order-row" key={order.id}>
                     <div className="ops-row-icon">
@@ -338,10 +348,32 @@ export default function DispatchPage() {
                           Яндекс: {external.statusLabel}
                           {quotePrice != null ? ` · ${formatNumber(quotePrice)} ₸` : ''}
                           {external.courier?.name ? ` · ${external.courier.name}` : ''}
+                          {external.courier?.isAutomobile === true ? ' · Автокурьер' : ''}
+                          {external.courier?.vehicle ? ` · ${external.courier.vehicle}` : ''}
+                        </small>
+                      )}
+                      {external?.transportWarning && (
+                        <small className="external-delivery-error">
+                          {external.transportWarning}
                         </small>
                       )}
                       {external?.lastError && (
                         <small className="external-delivery-error">{external.lastError}</small>
+                      )}
+                      {!kitchenAccepted && (
+                        <small className="external-delivery-summary">
+                          Курьер не вызван — сначала примите заказ на кухне.
+                        </small>
+                      )}
+                      {order.courierDispatchError && (
+                        <small className="external-delivery-error">
+                          Вызов курьера: {order.courierDispatchError}
+                        </small>
+                      )}
+                      {order.iikoSyncError && (
+                        <small className="external-delivery-error">
+                          Синхронизация iiko: {order.iikoSyncError}
+                        </small>
                       )}
                     </div>
                     <div className="row-actions">
@@ -416,7 +448,7 @@ export default function DispatchPage() {
                           <button
                             type="button"
                             className="btn-classic compact-button"
-                            disabled={Boolean(saving)}
+                            disabled={Boolean(saving) || !kitchenAccepted}
                             onClick={() => void requestYandex(order.id)}
                           >
                             {saving === `${order.id}:request` ? (
@@ -434,7 +466,7 @@ export default function DispatchPage() {
                         <button
                           type="button"
                           className="btn-outline compact-button"
-                          disabled={Boolean(saving)}
+                          disabled={Boolean(saving) || !kitchenAccepted}
                           onClick={() => void assign(order.id)}
                         >
                           {saving === `${order.id}:own` ? (

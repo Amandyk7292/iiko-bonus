@@ -78,7 +78,8 @@ foreach ($staleArtifact in @(
     'Resto.Front.Api.IikoBonusPlugin.dll.config',
     'Resto.Front.Api.IikoBonusPlugin.dll.sha256',
     'Resto.Front.Api.IikoBonusPlugin.pdb',
-    'Resto.Front.Api.V9.dll'
+    'Resto.Front.Api.V9.dll',
+    'Resto.Front.Api.V9Preview7.dll'
 )) {
     Remove-Item -LiteralPath (Join-Path $OutputDirectory $staleArtifact) -Force -ErrorAction SilentlyContinue
 }
@@ -101,10 +102,10 @@ else {
 if (
     $manifestXml.Manifest.FileName -ne 'Resto.Front.Api.IikoBonusPlugin.dll' -or
     $manifestXml.Manifest.TypeName -ne 'Resto.Front.Api.IikoBonusPlugin.PluginEntry' -or
-    $manifestXml.Manifest.ApiVersion -ne 'V9' -or
+    $manifestXml.Manifest.ApiVersion -ne 'V9Preview7' -or
     $manifestXml.Manifest.LicenseModuleId -ne '21016318'
 ) {
-    throw 'Manifest.xml does not match the Bulka Bonus V9 plugin contract.'
+    throw 'Manifest.xml does not match the Bulka Bonus iikoFront 9.4 / V9Preview7 contract.'
 }
 [xml](Get-Content -LiteralPath $targetConfig -Raw) | Out-Null
 

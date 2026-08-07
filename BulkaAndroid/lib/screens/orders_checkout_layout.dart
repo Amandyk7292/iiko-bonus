@@ -19,6 +19,10 @@ extension _CheckoutScreenLayout on _CheckoutScreenState {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _SelectedOrderTypeCard(value: _orderType),
+            if (_onlineOrderingDisabled) ...[
+              const SizedBox(height: 14),
+              const _OnlineOrderingDisabledNotice(),
+            ],
             if (_isPreorder) ...[
               const SizedBox(height: 14),
               _PreorderFulfillmentSelector(
@@ -152,22 +156,29 @@ extension _CheckoutScreenLayout on _CheckoutScreenState {
                 onTap: _isSelectingTime ? null : _selectScheduledTime,
                 loading: _isSelectingTime,
               ),
-            const SizedBox(height: 28),
-            _CheckoutLabel('payment_methods_title'.tr),
-            const SizedBox(height: 10),
-            _CheckoutSavedCardsPanel(
-              api: widget.api,
-              available: _forteAvailable,
-              selectedMethodId: _selectedPaymentMethodId,
-              onDefaultResolved: (methodId) {
-                if (_selectedPaymentMethodId == methodId) return;
-                _updateCheckoutState(() => _selectedPaymentMethodId = methodId);
-              },
-              onSelect: (methodId) {
-                _updateCheckoutState(() => _selectedPaymentMethodId = methodId);
-              },
-              onRetryAvailability: () => unawaited(_loadPaymentAvailability()),
-            ),
+            if (!_onlineOrderingDisabled) ...[
+              const SizedBox(height: 28),
+              _CheckoutLabel('payment_methods_title'.tr),
+              const SizedBox(height: 10),
+              _CheckoutSavedCardsPanel(
+                api: widget.api,
+                available: _forteAvailable,
+                selectedMethodId: _selectedPaymentMethodId,
+                onDefaultResolved: (methodId) {
+                  if (_selectedPaymentMethodId == methodId) return;
+                  _updateCheckoutState(
+                    () => _selectedPaymentMethodId = methodId,
+                  );
+                },
+                onSelect: (methodId) {
+                  _updateCheckoutState(
+                    () => _selectedPaymentMethodId = methodId,
+                  );
+                },
+                onRetryAvailability: () =>
+                    unawaited(_loadPaymentAvailability()),
+              ),
+            ],
             const SizedBox(height: 28),
             _CheckoutLabel('checkout_comment'.tr),
             const SizedBox(height: 10),
@@ -279,6 +290,7 @@ extension _CheckoutScreenLayout on _CheckoutScreenState {
             SizedBox(
               width: double.infinity,
               child: GradientButton(
+                key: const ValueKey('checkout-submit'),
                 onPressed: _isSubmitting || !_selectedPaymentAvailable
                     ? null
                     : _submit,
@@ -286,7 +298,9 @@ extension _CheckoutScreenLayout on _CheckoutScreenState {
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   child: Text(
-                    'cart_checkout'.tr,
+                    _onlineOrderingDisabled
+                        ? 'checkout_online_ordering_disabled_button'.tr
+                        : 'cart_checkout'.tr,
                     maxLines: 1,
                     style: const TextStyle(
                       fontFamily: _headingFont,

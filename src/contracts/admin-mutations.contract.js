@@ -181,6 +181,12 @@ const siteAccessBodySchema = z
     message: 'Добавьте хотя бы один IP-адрес',
   });
 
+const onlineOrderingBodySchema = z
+  .object({
+    disabled: z.boolean(),
+  })
+  .strict();
+
 const percentSchema = z.coerce.number().min(0).max(100);
 const moneySchema = z.coerce.number().min(0).max(999_999_999_999.99);
 const settingsPromoSchema = z
@@ -492,6 +498,7 @@ const courierBodySchema = z
         return /^7\d{10}$/.test(digits) || /^8\d{10}$/.test(digits);
       }, 'Введите номер в формате +7'),
     vehicle: nullableText(80).optional(),
+    transportType: z.enum(['car', 'motorcycle', 'bicycle', 'foot']).optional(),
     active: z.boolean(),
     availabilityStatus: z.enum(['offline', 'available', 'busy', 'break']).optional(),
     maxActiveOrders: z.coerce.number().int().min(1).max(20).optional(),
@@ -1017,6 +1024,7 @@ const adminMutationSchemas = {
   },
   whatsappKnowledgeDelete: withParams(whatsappKnowledgeParamsSchema),
   siteAccess: withBody(siteAccessBodySchema),
+  onlineOrdering: withBody(onlineOrderingBodySchema),
   settings: withBody(settingsBodySchema),
   tierCreate: withBody(tierBodySchema),
   tierUpdate: { params: tierParamsSchema, body: tierBodySchema },

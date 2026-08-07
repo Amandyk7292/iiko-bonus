@@ -15,7 +15,6 @@ const publicRoutes = require('./routes/public.routes');
 const legacyRoutes = require('./routes/legacy.routes');
 const yandexMapRoutes = require('./routes/yandex-map.routes');
 const { globalApiRateLimit, siteRateLimit } = require('./middlewares/rate-limit.middleware');
-const { siteAccessMiddleware } = require('./middlewares/site-access.middleware');
 const { tildaCopyProxy } = require('./middlewares/tilda-copy-proxy.middleware');
 const { webApplicationFirewall } = require('./middlewares/web-application-firewall.middleware');
 const {
@@ -258,16 +257,12 @@ const sendBrandPng = (relativePath) => (_req, res) => {
   res.type('image/png').sendFile(path.join(publicAppDirectory, relativePath));
 };
 
-// Keep the browser tab icon available to every surface, including admin and
-// temporary site-access pages. /favicon.ico serves the same PNG for browsers
-// and bookmarks that still request the legacy default path.
+// Keep the browser tab icon available to every surface, including admin.
+// /favicon.ico serves the same PNG for browsers and bookmarks that still
+// request the legacy default path.
 app.get('/favicon.png', sendBrandPng('favicon.png'));
 app.get('/favicon.ico', sendBrandPng('favicon.png'));
 app.get('/icons/apple-touch-icon.png', sendBrandPng('icons/apple-touch-icon.png'));
-
-// Restrict the public web experience without interrupting the admin panel,
-// mobile API, health checks or machine-to-machine integrations.
-app.use(siteAccessMiddleware);
 
 app.get('/robots.txt', (_req, res) => {
   res.setHeader('Cache-Control', 'public, max-age=3600');

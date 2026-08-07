@@ -52,6 +52,7 @@ const normalizeCourier = (row, sessionCount = 0) => ({
   name: row.name,
   phone: row.phone,
   vehicle: row.vehicle || null,
+  transportType: row.transport_type || 'car',
   active: row.active !== false,
   latitude: row.current_latitude == null ? null : Number(row.current_latitude),
   longitude: row.current_longitude == null ? null : Number(row.current_longitude),
@@ -355,31 +356,39 @@ async function listCourierOrders(courierId) {
   const { data, error } = await supabase
     .from('kaspi_orders')
     .select(
-      'id,order_number,branch_name,delivery_address,delivery_latitude,delivery_longitude,delivery_status,estimated_delivery_at,eta_min_at,eta_max_at,eta_confidence,cart_items,comment,amount,additional_phone,phone,updated_at',
+      'id,order_number,branch_name,delivery_address,delivery_latitude,delivery_longitude,delivery_status,estimated_delivery_at,eta_min_at,eta_max_at,eta_confidence,cart_items,comment,amount,additional_phone,phone,updated_at,bulka_locations(name,city,address,latitude,longitude)',
     )
     .eq('courier_id', courierId)
     .eq('status', 'paid')
     .not('delivery_status', 'in', '(delivered,cancelled)')
     .order('estimated_delivery_at', { ascending: true, nullsFirst: false });
   if (error) throw error;
-  return (data || []).map((order) => ({
-    id: String(order.id),
-    number: Number(order.order_number || 0),
-    branch: order.branch_name || '',
-    deliveryAddress: order.delivery_address || null,
-    deliveryLatitude: order.delivery_latitude == null ? null : Number(order.delivery_latitude),
-    deliveryLongitude: order.delivery_longitude == null ? null : Number(order.delivery_longitude),
-    deliveryStatus: order.delivery_status || 'assigned',
-    estimatedDeliveryAt: order.estimated_delivery_at || null,
-    etaMinAt: order.eta_min_at || null,
-    etaMaxAt: order.eta_max_at || null,
-    etaConfidence: order.eta_confidence || null,
-    items: Array.isArray(order.cart_items) ? order.cart_items : [],
-    comment: order.comment || null,
-    customerPhone: order.additional_phone || order.phone || null,
-    amount: Number(order.amount || 0),
-    updatedAt: order.updated_at,
-  }));
+  return (data || []).map((order) => {
+    const location = Array.isArray(order.bulka_locations)
+      ? order.bulka_locations[0] || {}
+      : order.bulka_locations || {};
+    return {
+      id: String(order.id),
+      number: Number(order.order_number || 0),
+      branch: order.branch_name || location.name || '',
+      pickupAddress: [location.city, location.address].filter(Boolean).join(', ') || null,
+      pickupLatitude: location.latitude == null ? null : Number(location.latitude),
+      pickupLongitude: location.longitude == null ? null : Number(location.longitude),
+      deliveryAddress: order.delivery_address || null,
+      deliveryLatitude: order.delivery_latitude == null ? null : Number(order.delivery_latitude),
+      deliveryLongitude: order.delivery_longitude == null ? null : Number(order.delivery_longitude),
+      deliveryStatus: order.delivery_status || 'assigned',
+      estimatedDeliveryAt: order.estimated_delivery_at || null,
+      etaMinAt: order.eta_min_at || null,
+      etaMaxAt: order.eta_max_at || null,
+      etaConfidence: order.eta_confidence || null,
+      items: Array.isArray(order.cart_items) ? order.cart_items : [],
+      comment: order.comment || null,
+      customerPhone: order.additional_phone || order.phone || null,
+      amount: Number(order.amount || 0),
+      updatedAt: order.updated_at,
+    };
+  });
 }
 
 async function updateCourierOrderStatus(courierId, orderId, status, sessionId = null) {
@@ -458,6 +467,9 @@ async function saveCourier(payload = {}, id = null) {
         .trim()
         .replace(/\s+/g, ' ')
         .slice(0, 80) || null,
+    transport_type: ['car', 'motorcycle', 'bicycle', 'foot'].includes(payload.transportType)
+      ? payload.transportType
+      : 'car',
     active: payload.active !== false,
     availability_status: ['offline', 'available', 'busy', 'break'].includes(
       payload.availabilityStatus,
@@ -627,6 +639,19 @@ async function assignCourier(
   }
   if (!isDeliveryFulfillment(order)) throw courierError('Курьер нужен только для доставки');
   if (order.status !== 'paid') throw courierError('Назначить курьера можно после оплаты', 409);
+  if (
+    !order.courier_dispatch_requested_at &&
+    !['preparing', 'ready', 'handed_over'].includes(String(order.kitchen_status || 'queued'))
+  ) {
+    throw courierError('Сначала примите заказ на кухне', 409, 'KITCHEN_ACCEPTANCE_REQUIRED');
+  }
+  if (courier.transport_type !== 'car') {
+    throw courierError(
+      'Для доставки продуктов можно назначить только курьера на автомобиле',
+      409,
+      'AUTOMOBILE_COURIER_REQUIRED',
+    );
+  }
   if (['completed', 'cancelled'].includes(order.fulfillment_status)) {
     throw courierError('Заказ уже закрыт', 409);
   }
@@ -647,7 +672,7 @@ async function assignCourier(
     })
     .eq('id', orderId)
     .select(
-      '*,couriers(id,name,phone,vehicle,current_latitude,current_longitude,location_updated_at)',
+      '*,couriers(id,name,phone,vehicle,transport_type,current_latitude,current_longitude,location_updated_at)',
     )
     .maybeSingle();
   if (error) throw error;
@@ -708,7 +733,7 @@ async function updateDeliveryStatus(orderId, nextStatus, { branchIds = [] } = {}
     .eq('id', orderId)
     .eq('delivery_status', current)
     .select(
-      '*,couriers(id,name,phone,vehicle,current_latitude,current_longitude,location_updated_at)',
+      '*,couriers(id,name,phone,vehicle,transport_type,current_latitude,current_longitude,location_updated_at)',
     )
     .maybeSingle();
   if (error) throw error;

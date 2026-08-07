@@ -451,6 +451,24 @@
   background: #f0fbf4;
   color: #226441;
 }
+.site-access-state.is-disabled {
+  border-color: #fecaca;
+  background: #fff5f5;
+  color: #9f1c1c;
+}
+.online-ordering-card {
+  transition:
+    border-color var(--motion-duration-base) var(--motion-ease-in-out),
+    box-shadow var(--motion-duration-base) var(--motion-ease-in-out);
+}
+.online-ordering-card.is-disabled {
+  border-color: #f2b9b4;
+  box-shadow: 0 16px 36px rgb(127 29 29 / 8%);
+}
+.online-ordering-card.is-disabled .online-ordering-icon {
+  background: #fff0ee;
+  color: #a62b24;
+}
 .site-access-current {
   padding: 14px 16px;
   border: 1px solid var(--sagi-border);

@@ -21,6 +21,7 @@ function loadKitchen(
     beforeKitchenUpdate = null,
     refreshOrderEta = async (value) => value,
     notifyOrderStatus = async () => {},
+    assertAutomobileCourierForHandoff = async () => true,
   } = {},
 ) {
   let order = structuredClone(initialOrder);
@@ -106,6 +107,19 @@ function loadKitchen(
   });
   installModule(t, '../src/services/inventory.service', {
     releaseOrderReservations: async (orderId) => events.push(['release', orderId]),
+  });
+  installModule(t, '../src/services/delivery-orchestration.service', {
+    assertAutomobileCourierForHandoff,
+    dispatchRequestUpdates: (candidate, now) =>
+      candidate.fulfillment_type === 'delivery'
+        ? {
+            courier_dispatch_status: 'pending',
+            courier_dispatch_requested_at: candidate.courier_dispatch_requested_at || now,
+            courier_dispatch_next_attempt_at: now,
+            courier_dispatch_error: null,
+          }
+        : {},
+    processDeliveryDispatch: async (orderId) => events.push(['dispatch', orderId]),
   });
   installModule(t, '../src/services/realtime.service', {
     publish: () => events.push(['publish']),
@@ -200,6 +214,41 @@ test('kitchen status responds before slow ETA and notification side effects fini
   releaseEta();
   releaseNotification();
   await waitForBackgroundTasks();
+});
+
+test('accepting a paid delivery queues and starts courier dispatch', async (t) => {
+  const { service, events, getOrder } = loadKitchen(
+    t,
+    baseOrder({ fulfillment_type: 'delivery', delivery_status: 'unassigned' }),
+  );
+  const result = await service.updateKitchenStatus(ORDER_ID, 'preparing', 20);
+  await waitForBackgroundTasks();
+  assert.equal(result.kitchenStatus, 'preparing');
+  assert.equal(getOrder().courier_dispatch_status, 'pending');
+  assert.ok(getOrder().courier_dispatch_requested_at);
+  assert.deepEqual(
+    events.filter(([name]) => name === 'dispatch'),
+    [['dispatch', ORDER_ID]],
+  );
+});
+
+test('kitchen cannot hand food to a non-automobile courier', async (t) => {
+  const { service, getOrder } = loadKitchen(
+    t,
+    baseOrder({
+      fulfillment_type: 'delivery',
+      fulfillment_status: 'ready',
+      kitchen_status: 'ready',
+      delivery_status: 'assigned',
+    }),
+    {
+      assertAutomobileCourierForHandoff: async () => {
+        throw Object.assign(new Error('нужен курьер на автомобиле'), { statusCode: 409 });
+      },
+    },
+  );
+  await assert.rejects(() => service.updateKitchenStatus(ORDER_ID, 'handed_over'), /автомобиле/);
+  assert.equal(getOrder().kitchen_status, 'ready');
 });
 
 test('stale kitchen transition cannot overwrite a concurrent refund claim', async (t) => {

@@ -10,11 +10,11 @@
     <Version>1.2.0</Version>
     <Deterministic>true</Deterministic>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <IikoFrontApiVersion>9.5.6059</IikoFrontApiVersion>
+    <IikoFrontApiVersion>9.4.7024-alpha</IikoFrontApiVersion>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Resto.Front.Api.V9" Version="$(IikoFrontApiVersion)" />
+    <PackageReference Include="Resto.Front.Api.V9Preview7" Version="$(IikoFrontApiVersion)" />
   </ItemGroup>
 
   <ItemGroup>

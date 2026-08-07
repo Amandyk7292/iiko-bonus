@@ -17,6 +17,10 @@ const {
   releaseCheckoutRequest,
   reserveCheckout,
 } = require('../services/inventory.service');
+const {
+  ONLINE_ORDERING_DISABLED_MESSAGE,
+  getOnlineOrderingConfig,
+} = require('../services/online-ordering.service');
 const checkoutRequests = new SingleFlight();
 const publicError = (error, fallback) => (error.statusCode ? error.message : fallback);
 const kaspiEnabled = () => process.env.KASPI_POS_ENABLED === 'true';
@@ -30,8 +34,33 @@ const sendKaspiDisabled = (res) =>
   });
 
 const availability = async (_req, res) => {
+  try {
+    const orderingConfig = await getOnlineOrderingConfig();
+    if (orderingConfig.disabled) {
+      return res.json({
+        success: true,
+        enabled: kaspiEnabled(),
+        available: false,
+        onlineOrderingDisabled: true,
+        message: ONLINE_ORDERING_DISABLED_MESSAGE,
+      });
+    }
+  } catch (error) {
+    return res.status(error.statusCode || 503).json({
+      success: false,
+      available: false,
+      onlineOrderingDisabled: true,
+      error: 'Онлайн-заказы временно недоступны. Попробуйте позже.',
+      code: error.code || 'ONLINE_ORDERING_CONFIG_UNAVAILABLE',
+      retryable: true,
+    });
+  }
   if (!kaspiEnabled()) {
-    return res.json({ success: true, enabled: false, available: false });
+    return res.json({
+      success: true,
+      enabled: false,
+      available: false,
+    });
   }
   const available = await kaspiService.availability();
   res.json({

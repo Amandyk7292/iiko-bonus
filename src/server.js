@@ -19,6 +19,11 @@ const {
   enqueueAutomatedMessages,
 } = require('./services/commerce-marketing.service');
 const { syncActiveDeliveries } = require('./services/yandex-delivery.service');
+const { processDeliveryDispatchQueue } = require('./services/delivery-orchestration.service');
+const {
+  processIikoOrderSyncQueue,
+  syncIikoDeliveryStatuses,
+} = require('./services/iiko-order-sync.service');
 const { registerWorker, runMonitoredWorker } = require('./services/operational-health.service');
 const { cleanupExpiredPayments } = require('./services/payment-cleanup.service');
 const { processPrivacyStorageCleanupJobs } = require('./services/privacy-storage-cleanup.service');
@@ -162,6 +167,41 @@ if (!process.env.VERCEL) {
     intervalMs: 60 * 1000,
     critical: true,
   });
+  registerWorker('delivery-dispatch-queue', {
+    enabled: runWorkers,
+    intervalMs: 15 * 1000,
+    critical: true,
+  });
+  registerWorker('iiko-order-export', {
+    enabled: runWorkers && process.env.IIKO_ORDER_EXPORT_ENABLED === 'true',
+    intervalMs: 30 * 1000,
+    critical: true,
+  });
+  registerWorker('iiko-delivery-status', {
+    enabled: runWorkers && process.env.IIKO_ORDER_EXPORT_ENABLED === 'true',
+    intervalMs: 30 * 1000,
+    critical: true,
+  });
+  if (runWorkers) {
+    const dispatchAcceptedOrders = () =>
+      runMonitoredWorker('delivery-dispatch-queue', processDeliveryDispatchQueue);
+    setTimeout(dispatchAcceptedOrders, 8 * 1000);
+    const deliveryDispatchTimer = setInterval(dispatchAcceptedOrders, 15 * 1000);
+    deliveryDispatchTimer.unref?.();
+
+    if (process.env.IIKO_ORDER_EXPORT_ENABLED === 'true') {
+      const exportIikoOrders = () =>
+        runMonitoredWorker('iiko-order-export', processIikoOrderSyncQueue);
+      const pollIikoDeliveries = () =>
+        runMonitoredWorker('iiko-delivery-status', syncIikoDeliveryStatuses);
+      setTimeout(exportIikoOrders, 12 * 1000);
+      setTimeout(pollIikoDeliveries, 20 * 1000);
+      const iikoExportTimer = setInterval(exportIikoOrders, 30 * 1000);
+      const iikoStatusTimer = setInterval(pollIikoDeliveries, 30 * 1000);
+      iikoExportTimer.unref?.();
+      iikoStatusTimer.unref?.();
+    }
+  }
 
   // Delivery tracking is part of the request lifecycle, not an optional
   // marketing worker. It starts automatically when the integration is enabled.

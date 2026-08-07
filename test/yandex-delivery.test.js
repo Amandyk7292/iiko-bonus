@@ -11,7 +11,7 @@ const {
   mapYandexStatus,
   normalizeDeliveryJob,
 } = require('../src/services/yandex-delivery.service');
-const { dispatchPaidDeliveryOrder } = require('../src/services/kaspi.service');
+const { dispatchAcceptedDeliveryOrder } = require('../src/services/delivery-orchestration.service');
 
 const config = {
   senderName: 'Bulka',
@@ -29,6 +29,7 @@ const order = {
   status: 'paid',
   fulfillment_status: 'ready',
   fulfillment_type: 'delivery',
+  courier_dispatch_requested_at: '2026-07-20T09:59:00.000Z',
   amount: 2590,
   phone: '+77009998877',
   cart_items: [{ id: 'cake-1', name: 'Торт Bulka', quantity: 2, price: 1295 }],
@@ -58,7 +59,8 @@ test('Yandex quote payload keeps coordinates in longitude-latitude order', () =>
   assert.deepEqual(payload.route_points[1].coordinates, [51.1978, 43.6512]);
   assert.equal(payload.items[0].dropoff_point, 2);
   assert.equal(payload.requirements.taxi_class, 'courier');
-  assert.deepEqual(payload.requirements.cargo_options, ['thermobag']);
+  assert.deepEqual(payload.requirements.cargo_options, ['thermobag', 'auto_courier']);
+  assert.equal(payload.requirements.assign_robot, false);
 });
 
 test('Yandex claim payload contains contacts, address details and API-compatible item fields', () => {
@@ -72,6 +74,10 @@ test('Yandex claim payload contains contacts, address details and API-compatible
   assert.equal(payload.items[0].droppof_point, 2);
   assert.equal(payload.items[0].cost_currency, 'KZT');
   assert.equal(payload.skip_client_notify, false);
+  assert.match(payload.route_points[0].address.comment, /Торт Bulka × 2/);
+  assert.match(payload.route_points[0].address.comment, /Только автокурьер/);
+  assert.deepEqual(payload.client_requirements.cargo_options, ['thermobag', 'auto_courier']);
+  assert.equal(payload.client_requirements.assign_robot, false);
 });
 
 test('Yandex statuses map to Bulka delivery lifecycle', () => {
@@ -103,9 +109,11 @@ test('external delivery is normalized for the Russian admin interface', () => {
   assert.equal(normalized.price, 890);
   assert.equal(normalized.courier.name, 'Ерлан');
   assert.match(normalized.courier.vehicle, /Toyota Camry/);
+  assert.equal(normalized.courier.isAutomobile, true);
+  assert.equal(normalized.transportWarning, null);
 });
 
-test('automatic Yandex dispatch is opt-in and preferred over an internal courier', async () => {
+test('accepted delivery prefers opt-in Yandex dispatch over an internal courier', async () => {
   const calls = [];
   const yandexDelivery = {
     getConfigurationStatus: () => ({ configured: true, autoDispatch: true }),
@@ -118,7 +126,7 @@ test('automatic Yandex dispatch is opt-in and preferred over an internal courier
     autoAssignOrder: async (orderId) => calls.push(`internal:${orderId}`),
   };
 
-  const result = await dispatchPaidDeliveryOrder(
+  const result = await dispatchAcceptedDeliveryOrder(
     { ...order, delivery_status: 'unassigned', courier_id: null },
     { yandexDelivery, dispatchService },
   );
@@ -127,9 +135,9 @@ test('automatic Yandex dispatch is opt-in and preferred over an internal courier
   assert.deepEqual(calls, [`yandex:${order.id}`]);
 });
 
-test('paid delivery keeps the internal dispatcher when Yandex auto-dispatch is disabled', async () => {
+test('accepted delivery keeps the internal dispatcher when Yandex auto-dispatch is disabled', async () => {
   const calls = [];
-  const result = await dispatchPaidDeliveryOrder(
+  const result = await dispatchAcceptedDeliveryOrder(
     { ...order, delivery_status: 'unassigned', courier_id: null },
     {
       yandexDelivery: {
@@ -153,7 +161,7 @@ test('an uncertain Yandex failure never falls back to a second courier provider'
   const calls = [];
   await assert.rejects(
     () =>
-      dispatchPaidDeliveryOrder(
+      dispatchAcceptedDeliveryOrder(
         { ...order, delivery_status: 'unassigned', courier_id: null },
         {
           yandexDelivery: {
@@ -174,12 +182,28 @@ test('an uncertain Yandex failure never falls back to a second courier provider'
 });
 
 test('automatic dispatch skips an order that already has a delivery lifecycle', async () => {
-  const result = await dispatchPaidDeliveryOrder({
+  const result = await dispatchAcceptedDeliveryOrder({
     ...order,
     delivery_status: 'assigned',
     courier_id: null,
   });
   assert.deepEqual(result, { skipped: true, reason: 'already_dispatched' });
+});
+
+test('payment alone never calls a courier before kitchen acceptance', async () => {
+  const calls = [];
+  const result = await dispatchAcceptedDeliveryOrder(
+    { ...order, courier_dispatch_requested_at: null },
+    {
+      yandexDelivery: {
+        getConfigurationStatus: () => ({ configured: true, autoDispatch: true }),
+        dispatchOrder: async () => calls.push('yandex'),
+      },
+      dispatchService: { autoAssignOrder: async () => calls.push('internal') },
+    },
+  );
+  assert.deepEqual(result, { skipped: true, reason: 'not_accepted' });
+  assert.deepEqual(calls, []);
 });
 
 test('Yandex configuration reports the automatic dispatch switch', () => {
@@ -191,17 +215,13 @@ test('Yandex configuration reports the automatic dispatch switch', () => {
   });
   assert.equal(status.configured, true);
   assert.equal(status.autoDispatch, true);
+  assert.equal(status.automobileOnly, true);
+  assert.deepEqual(status.cargoOptions, ['auto_courier', 'thermobag']);
 });
 
 test('canonical Yandex delivery migration contains the required constraints', () => {
   const migration = fs.readFileSync(
-    path.join(
-      __dirname,
-      '..',
-      'supabase',
-      'migrations',
-      '20260720090000_yandex_delivery.sql',
-    ),
+    path.join(__dirname, '..', 'supabase', 'migrations', '20260720090000_yandex_delivery.sql'),
     'utf8',
   );
   assert.match(migration, /delivery_jobs_one_active_per_order_idx/);

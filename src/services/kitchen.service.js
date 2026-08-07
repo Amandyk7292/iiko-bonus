@@ -5,6 +5,11 @@ const { cancelPaidOrder, notifyOrderStatus } = require('./customer-order.service
 const { notifyDeliveryStatus } = require('./courier.service');
 const { refreshOrderEta } = require('./eta.service');
 const { releaseOrderReservations } = require('./inventory.service');
+const {
+  assertAutomobileCourierForHandoff,
+  dispatchRequestUpdates,
+  processDeliveryDispatch,
+} = require('./delivery-orchestration.service');
 const { runBackgroundTask } = require('../utils/background-task.util');
 
 const KITCHEN_ORDER_FIELDS = [
@@ -28,6 +33,9 @@ const KITCHEN_ORDER_FIELDS = [
   'preparation_minutes',
   'courier_id',
   'delivery_status',
+  'courier_dispatch_status',
+  'courier_dispatch_provider',
+  'courier_dispatch_error',
   'customer_arrived_at',
 ].join(',');
 
@@ -61,6 +69,9 @@ const normalize = (order) => ({
   preparationMinutes: order.preparation_minutes == null ? null : Number(order.preparation_minutes),
   courierId: order.courier_id || null,
   deliveryStatus: order.delivery_status,
+  courierDispatchStatus: order.courier_dispatch_status || null,
+  courierDispatchProvider: order.courier_dispatch_provider || null,
+  courierDispatchError: order.courier_dispatch_error || null,
   customerArrivedAt: order.customer_arrived_at || null,
 });
 
@@ -88,6 +99,9 @@ function runPostUpdateTasks(data, nextStatus) {
     const etaPromise = refreshOrderEta(data);
     const sideEffectsPromise = Promise.allSettled([
       notify(data),
+      ...(nextStatus === 'preparing' && isDeliveryFulfillment(data)
+        ? [processDeliveryDispatch(data.id)]
+        : []),
       ...(nextStatus === 'handed_over' ? [releaseOrderReservations(data.id)] : []),
     ]);
     const refreshed = await etaPromise.catch((error) => {
@@ -147,6 +161,9 @@ async function updateKitchenStatus(
   if (!(TRANSITIONS[from] || []).includes(nextStatus)) {
     throw kitchenError(`Нельзя изменить «${from}» на «${nextStatus}»`, 409);
   }
+  if (nextStatus === 'handed_over' && isDeliveryFulfillment(current)) {
+    await assertAutomobileCourierForHandoff(current);
+  }
   const now = new Date().toISOString();
   if (nextStatus === 'cancelled') {
     const reason =
@@ -184,6 +201,7 @@ async function updateKitchenStatus(
   if (nextStatus === 'preparing') {
     updates.kitchen_started_at = now;
     updates.fulfillment_status = 'preparing';
+    Object.assign(updates, dispatchRequestUpdates(current, now));
   }
   if (nextStatus === 'ready') {
     updates.kitchen_ready_at = now;

@@ -19,6 +19,10 @@ const {
   releaseCheckoutRequest,
   reserveCheckout,
 } = require('../services/inventory.service');
+const {
+  ONLINE_ORDERING_DISABLED_MESSAGE,
+  getOnlineOrderingConfig,
+} = require('../services/online-ordering.service');
 
 const checkoutRequests = new SingleFlight();
 const CHECKOUT_ID_PATTERN =
@@ -35,6 +39,33 @@ const existingForteRequest = async (customerId, checkoutId) => {
 };
 
 const availability = async (req, res) => {
+  try {
+    const orderingConfig = await getOnlineOrderingConfig();
+    if (orderingConfig.disabled) {
+      return res.json({
+        success: true,
+        available: false,
+        onlineOrderingDisabled: true,
+        integration: null,
+        fallbackActive: false,
+        testMode: false,
+        savedCard: null,
+        cardSetup: false,
+        googlePay: false,
+        applePay: false,
+        message: ONLINE_ORDERING_DISABLED_MESSAGE,
+      });
+    }
+  } catch (error) {
+    return res.status(error.statusCode || 503).json({
+      success: false,
+      available: false,
+      onlineOrderingDisabled: true,
+      error: 'Онлайн-заказы временно недоступны. Попробуйте позже.',
+      code: error.code || 'ONLINE_ORDERING_CONFIG_UNAVAILABLE',
+      retryable: true,
+    });
+  }
   const decision = await paymentOperations.getForteCheckoutDecision();
   const widgetAvailable = decision.effectiveIntegration === 'widget';
   const service = widgetAvailable ? forteWidgetService : forteService;

@@ -75,10 +75,11 @@ function getConfig(env = process.env) {
   const taxiClass = ['courier', 'express'].includes(String(env.YANDEX_DELIVERY_TAXI_CLASS))
     ? String(env.YANDEX_DELIVERY_TAXI_CLASS)
     : 'courier';
-  const cargoOptions = String(env.YANDEX_DELIVERY_CARGO_OPTIONS || 'thermobag')
+  const configuredCargoOptions = String(env.YANDEX_DELIVERY_CARGO_OPTIONS || '')
     .split(',')
     .map((value) => value.trim())
     .filter(Boolean);
+  const cargoOptions = [...new Set([...configuredCargoOptions, 'auto_courier', 'thermobag'])];
   return {
     enabled: env.YANDEX_DELIVERY_ENABLED === 'true',
     autoDispatch: env.YANDEX_DELIVERY_AUTO_DISPATCH === 'true',
@@ -119,6 +120,9 @@ function getConfigurationStatus(env = process.env) {
     missing,
     autoDispatch: config.autoDispatch,
     taxiClass: config.taxiClass,
+    cargoOptions: config.cargoOptions,
+    automobileOnly: true,
+    thermobagRequired: true,
   };
 }
 
@@ -148,6 +152,29 @@ const boundedString = (value, maxLength = 300) =>
   String(value == null ? '' : value)
     .trim()
     .slice(0, maxLength);
+
+const requiredCargoOptions = (config) => [
+  ...new Set([
+    ...(Array.isArray(config?.cargoOptions) ? config.cargoOptions : []),
+    'auto_courier',
+    'thermobag',
+  ]),
+];
+
+const orderItemsSummary = (order, maximum = 350) => {
+  const items = Array.isArray(order?.cart_items) ? order.cart_items : [];
+  const shown = items
+    .slice(0, 12)
+    .map(
+      (item) =>
+        `${boundedString(item.name || item.title || 'Товар', 80)} × ${Math.max(
+          1,
+          Math.round(Number(item.quantity) || 1),
+        )}`,
+    );
+  if (items.length > shown.length) shown.push(`ещё ${items.length - shown.length} поз.`);
+  return boundedString(shown.join(', '), maximum);
+};
 
 const money = (value) => Math.max(0, Number(value) || 0).toFixed(2);
 
@@ -263,7 +290,8 @@ function buildQuotePayload(order, config = getConfig()) {
     requirements: {
       taxi_class: config.taxiClass,
       pro_courier: false,
-      ...(config.cargoOptions.length ? { cargo_options: config.cargoOptions } : {}),
+      assign_robot: false,
+      cargo_options: requiredCargoOptions(config),
     },
     skip_door_to_door: false,
   };
@@ -283,6 +311,18 @@ function buildClaimPayload(order, config = getConfig()) {
     [destination.comment, order.comment].filter(Boolean).join('. '),
     500,
   );
+  const itemSummary = orderItemsSummary(order);
+  const pickupComment = boundedString(
+    [
+      `Забрать в Bulka «${branch.name || order.branch_name || 'точка выдачи'}»`,
+      `заказ №${order.order_number}`,
+      itemSummary ? `состав: ${itemSummary}` : '',
+      'Только автокурьер. Термосумка обязательна.',
+    ]
+      .filter(Boolean)
+      .join('. '),
+    500,
+  );
   return {
     items: cargoItems(order, config),
     route_points: [
@@ -295,6 +335,7 @@ function buildClaimPayload(order, config = getConfig()) {
           coordinates: [Number(branch.longitude), Number(branch.latitude)],
           country: config.country,
           city: boundedString(branch.city || 'Астана', 100),
+          comment: pickupComment,
         },
         skip_confirmation: config.skipConfirmation,
         type: 'source',
@@ -327,13 +368,17 @@ function buildClaimPayload(order, config = getConfig()) {
     client_requirements: {
       taxi_class: config.taxiClass,
       pro_courier: false,
-      ...(config.cargoOptions.length ? { cargo_options: config.cargoOptions } : {}),
+      assign_robot: false,
+      cargo_options: requiredCargoOptions(config),
     },
     skip_client_notify: false,
     skip_emergency_notify: false,
     skip_door_to_door: false,
     optional_return: false,
-    comment: boundedString(`Bulka, заказ №${order.order_number}`, 500),
+    comment: boundedString(
+      `Bulka, заказ №${order.order_number}. Забрать: ${itemSummary}. Только автомобиль, термосумка обязательна.`,
+      7000,
+    ),
     referral_source: 'bulka',
   };
 }
@@ -415,6 +460,16 @@ function normalizeDeliveryJob(job) {
   const car = [job.courier_car_color, job.courier_car_model, job.courier_car_number]
     .filter(Boolean)
     .join(' · ');
+  const transportType = String(job.courier_transport_type || '').trim() || null;
+  const isAutomobile =
+    car ||
+    ['car', 'auto', 'automobile', 'van', 'truck'].includes(
+      String(transportType || '').toLowerCase(),
+    )
+      ? true
+      : transportType
+        ? false
+        : null;
   return {
     id: String(job.id),
     provider: job.provider || 'yandex',
@@ -430,12 +485,19 @@ function normalizeDeliveryJob(job) {
     distanceMeters: job.distance_meters == null ? null : Number(job.distance_meters),
     trackingUrl: job.tracking_url || null,
     courier:
-      job.courier_name || car
+      job.courier_name || car || transportType
         ? {
             name: job.courier_name || 'Курьер Яндекс.Доставки',
             phone: job.courier_phone || '',
-            vehicle: car || job.courier_transport_type || null,
+            vehicle: car || transportType || null,
+            transportType,
+            isAutomobile,
           }
+        : null,
+    automobileRequired: true,
+    transportWarning:
+      isAutomobile === false
+        ? 'Назначен не автомобильный курьер. Передавать продукты запрещено.'
         : null,
     quoteExpiresAt: job.quote_expires_at || null,
     canCancel:
@@ -454,7 +516,7 @@ async function readOrder(orderId) {
   const { data, error } = await supabase
     .from('kaspi_orders')
     .select(
-      'id,order_number,status,fulfillment_status,fulfillment_type,preorder_fulfillment_type,amount,phone,additional_phone,cart_items,comment,branch_id,branch_name,courier_id,delivery_address,delivery_latitude,delivery_longitude,customer_id,customers(name,phone),bulka_locations(id,name,city,address,latitude,longitude)',
+      'id,order_number,status,fulfillment_status,fulfillment_type,preorder_fulfillment_type,amount,phone,additional_phone,cart_items,comment,branch_id,branch_name,courier_id,delivery_address,delivery_latitude,delivery_longitude,customer_id,kitchen_status,courier_dispatch_requested_at,customers(name,phone),bulka_locations(id,name,city,address,latitude,longitude)',
     )
     .eq('id', orderId)
     .maybeSingle();
@@ -755,6 +817,16 @@ async function dispatchOrder(orderId) {
   const config = getConfig();
   assertConfigured(config);
   const order = await readOrder(orderId);
+  if (
+    !order.courier_dispatch_requested_at &&
+    !['preparing', 'ready', 'handed_over'].includes(String(order.kitchen_status || 'queued'))
+  ) {
+    throw deliveryError(
+      'Сначала примите заказ на кухне. Оплата сама по себе курьера не вызывает.',
+      409,
+      'KITCHEN_ACCEPTANCE_REQUIRED',
+    );
+  }
   const payload = buildClaimPayload(order, config);
   let job = await getOrCreateJob(order, payload);
   if (!job.auto_accept || JSON.stringify(job.request_payload || {}) !== JSON.stringify(payload)) {

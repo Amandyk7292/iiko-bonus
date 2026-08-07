@@ -113,16 +113,29 @@ const latestExternalDelivery = (order) =>
 
 const externalCourier = (job) => {
   if (!job?.courier_name && !job?.courier_car_model && !job?.courier_transport_type) return null;
+  const vehicle =
+    [job.courier_car_color, job.courier_car_model, job.courier_car_number]
+      .filter(Boolean)
+      .join(' · ') ||
+    job.courier_transport_type ||
+    null;
+  const transportType = job.courier_transport_type || null;
+  const carDetailsKnown = Boolean(job.courier_car_model || job.courier_car_number);
+  const transportKnown = Boolean(transportType);
+  const isAutomobile = carDetailsKnown
+    ? true
+    : transportKnown
+      ? ['car', 'auto', 'automobile', 'van', 'truck'].includes(
+          String(transportType).toLocaleLowerCase('en-US'),
+        )
+      : null;
   return {
     id: String(job.id || ''),
     name: job.courier_name || 'Курьер Яндекс.Доставки',
     phone: job.courier_phone || '',
-    vehicle:
-      [job.courier_car_color, job.courier_car_model, job.courier_car_number]
-        .filter(Boolean)
-        .join(' · ') ||
-      job.courier_transport_type ||
-      null,
+    vehicle,
+    transportType,
+    isAutomobile,
     latitude: null,
     longitude: null,
     locationUpdatedAt: job.updated_at || null,
@@ -155,6 +168,8 @@ const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
         name: order.couriers.name || '',
         phone: order.couriers.phone || '',
         vehicle: order.couriers.vehicle || null,
+        transportType: order.couriers.transport_type || 'car',
+        isAutomobile: (order.couriers.transport_type || 'car') === 'car',
         latitude:
           order.couriers.current_latitude == null ? null : Number(order.couriers.current_latitude),
         longitude:
@@ -273,7 +288,7 @@ async function listCustomerOrders(customerId, { scope = 'active', page = 1, page
   let query = supabase
     .from('kaspi_orders')
     .select(
-      `${ORDER_FIELDS},payment_receipts(id,language),couriers(id,name,phone,vehicle,current_latitude,current_longitude,location_updated_at),${DELIVERY_JOB_FIELDS},${SUBSTITUTION_FIELDS}`,
+      `${ORDER_FIELDS},payment_receipts(id,language),couriers(id,name,phone,vehicle,transport_type,current_latitude,current_longitude,location_updated_at),${DELIVERY_JOB_FIELDS},${SUBSTITUTION_FIELDS}`,
       { count: 'exact' },
     )
     .eq('customer_id', customerId)
@@ -370,7 +385,7 @@ async function listAdminOrders({
   let query = supabase
     .from('kaspi_orders')
     .select(
-      `${ORDER_FIELDS},customers(name,phone),couriers(id,name,phone,vehicle,current_latitude,current_longitude,location_updated_at),${DELIVERY_JOB_FIELDS}`,
+      `${ORDER_FIELDS},customers(name,phone),couriers(id,name,phone,vehicle,transport_type,current_latitude,current_longitude,location_updated_at),${DELIVERY_JOB_FIELDS}`,
       { count: 'exact' },
     );
 

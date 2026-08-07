@@ -17,9 +17,21 @@ import { useFeedback } from '../components/Feedback';
 import { api, type Courier, type CourierActivity } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 
-type Draft = { name: string; phone: string; vehicle: string; active: boolean };
+type Draft = {
+  name: string;
+  phone: string;
+  vehicle: string;
+  transportType: 'car' | 'motorcycle' | 'bicycle' | 'foot';
+  active: boolean;
+};
 type CourierRow = Courier & { _pending?: boolean };
-const emptyDraft: Draft = { name: '', phone: '+7', vehicle: '', active: true };
+const emptyDraft: Draft = {
+  name: '',
+  phone: '+7',
+  vehicle: '',
+  transportType: 'car',
+  active: true,
+};
 
 export default function CouriersPage() {
   const { t, formatDate } = useI18n();
@@ -62,6 +74,7 @@ export default function CouriersPage() {
             name: courier.name,
             phone: courier.phone,
             vehicle: courier.vehicle || '',
+            transportType: courier.transportType || 'car',
             active: courier.active,
           }
         : emptyDraft,
@@ -225,6 +238,10 @@ export default function CouriersPage() {
               </div>
               <dl className="courier-meta">
                 <div>
+                  <dt>{t('couriers.transportType')}</dt>
+                  <dd>{t(`couriers.transport.${courier.transportType || 'car'}`)}</dd>
+                </div>
+                <div>
                   <dt>{t('couriers.vehicle')}</dt>
                   <dd>{courier.vehicle || '—'}</dd>
                 </div>
@@ -333,6 +350,29 @@ export default function CouriersPage() {
               required
               autoFocus
             />
+          </div>
+          <div className="field-group">
+            <label className="field-label" htmlFor="courier-transport-type">
+              {t('couriers.transportType')}
+            </label>
+            <select
+              id="courier-transport-type"
+              className="input-classic"
+              value={draft.transportType}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  transportType: event.target.value as Draft['transportType'],
+                }))
+              }
+            >
+              {(['car', 'motorcycle', 'bicycle', 'foot'] as const).map((type) => (
+                <option key={type} value={type}>
+                  {t(`couriers.transport.${type}`)}
+                </option>
+              ))}
+            </select>
+            <small className="field-hint">{t('couriers.transportHint')}</small>
           </div>
           <div className="field-group">
             <label className="field-label" htmlFor="courier-phone">
