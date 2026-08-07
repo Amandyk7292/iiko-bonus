@@ -4,11 +4,25 @@ import { I18nProvider } from '../lib/i18n';
 import { FeedbackProvider, useFeedback } from './Feedback';
 
 function FeedbackHarness() {
-  const { toast } = useFeedback();
+  const { confirm, toast } = useFeedback();
   return (
-    <button type="button" onClick={() => toast('Сохранено')}>
-      Показать
-    </button>
+    <>
+      <button type="button" onClick={() => toast('Сохранено')}>
+        Показать
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          void confirm({
+            title: 'Удалить блок?',
+            body: 'Блок будет удалён из черновика.',
+            destructive: true,
+          })
+        }
+      >
+        Удалить
+      </button>
+    </>
   );
 }
 
@@ -62,5 +76,21 @@ describe('Feedback transitions', () => {
     expect(toast).toHaveClass('is-exiting');
     act(() => vi.advanceTimersByTime(150));
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('gives destructive confirmation actions their own padded footer', () => {
+    render(
+      <I18nProvider>
+        <FeedbackProvider>
+          <FeedbackHarness />
+        </FeedbackProvider>
+      </I18nProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Удалить' }));
+
+    expect(
+      screen.getByRole('alertdialog', { name: 'Удалить блок?' }).querySelector('.modal-actions'),
+    ).toHaveClass('modal-confirm-actions');
   });
 });

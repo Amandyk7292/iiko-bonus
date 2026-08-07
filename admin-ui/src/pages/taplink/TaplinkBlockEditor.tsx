@@ -8,6 +8,7 @@ import type {
 } from '../../lib/api-types';
 import { useI18n } from '../../lib/i18n';
 import { TAPLINK_LOCALES } from './taplink.helpers';
+import TaplinkButtonAppearanceEditor from './TaplinkButtonAppearanceEditor';
 import TaplinkThemeEditor from './TaplinkThemeEditor';
 import type { TaplinkBuilderActions, TaplinkSelection } from './taplink.types';
 
@@ -297,6 +298,7 @@ export default function TaplinkBlockEditor({
             {selectedBlock.type === 'link' && (
               <LinkFields
                 block={selectedBlock}
+                theme={document.theme}
                 activeLocale={activeLocale}
                 update={(updater) =>
                   updateSelected((block) => (block.type === 'link' ? updater(block) : block))
@@ -312,10 +314,12 @@ export default function TaplinkBlockEditor({
 
 function LinkFields({
   block,
+  theme,
   activeLocale,
   update,
 }: {
   block: TaplinkLinkBlock;
+  theme: TaplinkDocument['theme'];
   activeLocale: TaplinkLocale;
   update: (updater: (block: TaplinkLinkBlock) => TaplinkLinkBlock) => void;
 }) {
@@ -412,6 +416,8 @@ function LinkFields({
           </select>
         </div>
       </div>
+
+      <TaplinkButtonAppearanceEditor block={block} theme={theme} update={update} />
 
       <div className="form-grid form-grid-2">
         <div className="field-group">

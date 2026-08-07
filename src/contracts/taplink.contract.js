@@ -145,6 +145,25 @@ const taplinkSectionBlockSchema = z
   })
   .strict();
 
+const taplinkLinkAppearanceSchema = z
+  .object({
+    buttonStyle: z.enum(['soft', 'outlined', 'solid']),
+    backgroundColor: hexColorSchema,
+    textColor: hexColorSchema,
+    radius: z.number().int().min(12).max(32),
+    buttonEffect: z.enum(['none', 'lift', 'glow', 'shine']),
+  })
+  .strict()
+  .superRefine((appearance, context) => {
+    if (contrastRatio(appearance.textColor, appearance.backgroundColor) < 4.5) {
+      context.addIssue({
+        code: 'custom',
+        path: ['textColor'],
+        message: 'Контраст текста и фона кнопки должен быть не ниже 4.5:1',
+      });
+    }
+  });
+
 const taplinkLinkBlockSchema = z
   .object({
     ...blockBase,
@@ -157,6 +176,7 @@ const taplinkLinkBlockSchema = z
       .enum(['phone', 'whatsapp', '2gis', 'instagram', 'telegram', 'globe', 'location', 'none'])
       .default('none'),
     target: taplinkTargetSchema,
+    appearance: taplinkLinkAppearanceSchema.optional(),
   })
   .strict();
 
@@ -309,6 +329,7 @@ module.exports = {
   localizedTextSchema,
   taplinkDocumentSchema,
   taplinkDraftBodySchema,
+  taplinkLinkAppearanceSchema,
   taplinkLinkBlockSchema,
   taplinkPublishBodySchema,
   taplinkSectionBlockSchema,

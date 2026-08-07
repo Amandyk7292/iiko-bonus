@@ -1234,7 +1234,6 @@
     gap: 5px;
     color: #047857 !important;
   }
-
   .modal-backdrop {
     position: fixed;
     inset: 0;
@@ -1318,6 +1317,9 @@
     padding-top: 16px;
     border-top: 1px solid var(--sagi-border);
   }
+  .modal-confirm-actions {
+    padding: 16px 20px 20px;
+  }
   .modal-context {
     display: flex;
     justify-content: space-between;
@@ -1330,7 +1332,6 @@
   .modal-context span {
     color: var(--sagi-muted);
   }
-
   .toast-region {
     position: fixed;
     z-index: 200;

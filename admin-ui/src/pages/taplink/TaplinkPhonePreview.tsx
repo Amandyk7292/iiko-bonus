@@ -13,6 +13,7 @@ import type {
   TaplinkDocument,
   TaplinkGradientDirection,
   TaplinkIcon,
+  TaplinkLinkBlock,
   TaplinkLocale,
 } from '../../lib/api-types';
 import { useI18n } from '../../lib/i18n';
@@ -72,6 +73,47 @@ const colorWithOpacity = (color: string, opacity: number) => {
   const blue = Number.parseInt(color.slice(5, 7), 16);
   return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 };
+
+function PreviewLink({
+  block,
+  activeLocale,
+}: {
+  block: TaplinkLinkBlock;
+  activeLocale: TaplinkLocale;
+}) {
+  const appearance = block.appearance;
+  const linkStyle = appearance
+    ? ({
+        '--taplink-preview-link-background': appearance.backgroundColor,
+        '--taplink-preview-link-text': appearance.textColor,
+        '--taplink-preview-link-radius': `${appearance.radius}px`,
+      } as CSSProperties)
+    : undefined;
+
+  return (
+    <a
+      className={`taplink-preview-link is-${block.style}`}
+      href={taplinkTargetHref(block.target)}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={block.ariaLabels?.[activeLocale] || block.labels[activeLocale]}
+      data-button-style={appearance?.buttonStyle}
+      data-button-effect={appearance?.buttonEffect}
+      data-testid={`taplink-preview-link-${block.id}`}
+      style={linkStyle}
+      onClick={(event) => event.preventDefault()}
+    >
+      {block.icon !== 'none' && (
+        <span className="taplink-preview-link-icon">{previewIcon(block.icon)}</span>
+      )}
+      <span className="taplink-preview-link-copy">
+        <strong>{block.labels[activeLocale]}</strong>
+        {block.subtitles?.[activeLocale] && <small>{block.subtitles[activeLocale]}</small>}
+      </span>
+      <ExternalLink className="taplink-preview-link-arrow" aria-hidden="true" size={16} />
+    </a>
+  );
+}
 
 export default function TaplinkPhonePreview({
   document,
@@ -177,30 +219,7 @@ export default function TaplinkPhonePreview({
                     {block.labels[activeLocale]}
                   </p>
                 ) : (
-                  <a
-                    key={block.id}
-                    className={`taplink-preview-link is-${block.style}`}
-                    href={taplinkTargetHref(block.target)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    aria-label={block.ariaLabels?.[activeLocale] || block.labels[activeLocale]}
-                    onClick={(event) => event.preventDefault()}
-                  >
-                    {block.icon !== 'none' && (
-                      <span className="taplink-preview-link-icon">{previewIcon(block.icon)}</span>
-                    )}
-                    <span className="taplink-preview-link-copy">
-                      <strong>{block.labels[activeLocale]}</strong>
-                      {block.subtitles?.[activeLocale] && (
-                        <small>{block.subtitles[activeLocale]}</small>
-                      )}
-                    </span>
-                    <ExternalLink
-                      className="taplink-preview-link-arrow"
-                      aria-hidden="true"
-                      size={16}
-                    />
-                  </a>
+                  <PreviewLink key={block.id} block={block} activeLocale={activeLocale} />
                 ),
               )}
           </div>

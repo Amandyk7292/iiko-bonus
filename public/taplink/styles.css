@@ -332,6 +332,11 @@ h1 {
   --specular-opacity: 0;
   --specular-x: 50%;
   --specular-y: 50%;
+  --taplink-link-glow-color: color-mix(
+    in srgb,
+    var(--taplink-link-background-color, var(--taplink-button-background-color)) 30%,
+    transparent
+  );
   position: relative;
   isolation: isolate;
   min-height: 76px;
@@ -342,9 +347,9 @@ h1 {
   gap: 12px;
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: var(--radius-control);
-  background: var(--taplink-button-background-color);
-  color: var(--taplink-button-text-color);
+  border-radius: var(--taplink-link-radius, var(--radius-control));
+  background: var(--taplink-link-background-color, var(--taplink-button-background-color));
+  color: var(--taplink-link-text-color, var(--taplink-button-text-color));
   box-shadow: none;
   text-decoration: none;
   transform: translate3d(0, 0, 0);
@@ -450,7 +455,7 @@ h1 {
 
 .link-card:hover {
   border-color: #d8bd87;
-  background: var(--taplink-button-background-color);
+  background: var(--taplink-link-background-color, var(--taplink-button-background-color));
 }
 
 .link-card:active {
@@ -463,90 +468,114 @@ h1 {
   outline-offset: 3px;
 }
 
-.taplink-effect-shine .link-card:focus-visible {
+.taplink-effect-shine .link-card:not([data-taplink-effect]):focus-visible,
+.link-card[data-taplink-effect='shine']:focus-visible {
   --specular-opacity: 0.78 !important;
   --specular-x: 76%;
   --specular-y: 18%;
 }
 
-.taplink-effect-lift .link-card,
-.taplink-effect-shine .link-card {
+.link-card[data-taplink-effect='none'] {
+  box-shadow: none;
+}
+
+.taplink-effect-lift .link-card:not([data-taplink-effect]),
+.taplink-effect-shine .link-card:not([data-taplink-effect]),
+.link-card[data-taplink-effect='lift'],
+.link-card[data-taplink-effect='shine'] {
   box-shadow:
     0 4px 0 #e8d9c0,
     0 13px 27px rgba(83, 40, 20, 0.075);
 }
 
-.taplink-effect-glow .link-card {
+.taplink-effect-glow .link-card:not([data-taplink-effect]),
+.link-card[data-taplink-effect='glow'] {
   box-shadow:
-    0 0 0 1px var(--taplink-button-glow-color),
+    0 0 0 1px var(--taplink-link-glow-color, var(--taplink-button-glow-color)),
     0 12px 30px rgba(83, 40, 20, 0.1);
 }
 
-.taplink-effect-lift .link-card:active,
-.taplink-effect-shine .link-card:active {
+.taplink-effect-lift .link-card:not([data-taplink-effect]):active,
+.taplink-effect-shine .link-card:not([data-taplink-effect]):active,
+.link-card[data-taplink-effect='lift']:active,
+.link-card[data-taplink-effect='shine']:active {
   box-shadow:
     0 1px 0 #e8d9c0,
     0 5px 13px rgba(83, 40, 20, 0.08);
   transform: translate3d(0, 3px, 0) scale(0.985);
 }
 
-.taplink-effect-glow .link-card:active {
+.taplink-effect-glow .link-card:not([data-taplink-effect]):active,
+.link-card[data-taplink-effect='glow']:active {
   box-shadow:
-    0 0 0 2px var(--taplink-button-glow-color),
+    0 0 0 2px var(--taplink-link-glow-color, var(--taplink-button-glow-color)),
     0 6px 18px rgba(83, 40, 20, 0.1);
   transform: scale(0.99);
 }
 
 .link-card_primary {
   min-height: 82px;
-  border-color: var(--taplink-primary-button-background-color);
-  background: var(--taplink-primary-button-background-color);
-  color: var(--taplink-primary-button-text-color);
+  border-color: var(
+    --taplink-link-background-color,
+    var(--taplink-primary-button-background-color)
+  );
+  background: var(--taplink-link-background-color, var(--taplink-primary-button-background-color));
+  color: var(--taplink-link-text-color, var(--taplink-primary-button-text-color));
 }
 
 .link-card_primary:hover {
-  border-color: var(--taplink-primary-button-background-color);
-  background: var(--taplink-primary-button-background-color);
+  border-color: var(
+    --taplink-link-background-color,
+    var(--taplink-primary-button-background-color)
+  );
+  background: var(--taplink-link-background-color, var(--taplink-primary-button-background-color));
 }
 
 .link-card_city {
-  background: var(--taplink-button-background-color);
+  background: var(--taplink-link-background-color, var(--taplink-button-background-color));
 }
 
 .link-card_city:hover {
-  background: var(--taplink-button-background-color);
+  background: var(--taplink-link-background-color, var(--taplink-button-background-color));
 }
 
-.taplink-buttons-outlined .link-card_standard {
+.taplink-buttons-outlined .link-card_standard:not([data-taplink-button-style]),
+.link-card[data-taplink-button-style='outlined'] {
   border: 1.5px solid currentColor;
-  background: var(--taplink-button-background-color);
-  box-shadow: none;
+  background: var(--taplink-link-background-color, var(--taplink-button-background-color));
 }
 
-.taplink-buttons-outlined .link-card_standard:hover {
-  border-color: var(--taplink-button-text-color);
-  background: var(--taplink-button-background-color);
+.taplink-buttons-outlined .link-card_standard:not([data-taplink-button-style]):hover,
+.link-card[data-taplink-button-style='outlined']:hover {
+  border-color: var(--taplink-link-text-color, var(--taplink-button-text-color));
+  background: var(--taplink-link-background-color, var(--taplink-button-background-color));
 }
 
-.taplink-buttons-solid .link-card_standard {
-  border-color: var(--taplink-button-background-color);
-  background: var(--taplink-button-background-color);
-  color: var(--taplink-button-text-color);
+.taplink-buttons-solid .link-card_standard:not([data-taplink-button-style]),
+.link-card[data-taplink-button-style='solid'] {
+  border-color: var(--taplink-link-background-color, var(--taplink-button-background-color));
+  background: var(--taplink-link-background-color, var(--taplink-button-background-color));
+  color: var(--taplink-link-text-color, var(--taplink-button-text-color));
 }
 
-.taplink-buttons-solid .link-card_standard:hover {
-  border-color: var(--taplink-button-text-color);
-  background: var(--taplink-button-background-color);
+.taplink-buttons-solid .link-card_standard:not([data-taplink-button-style]):hover,
+.link-card[data-taplink-button-style='solid']:hover {
+  border-color: var(--taplink-link-text-color, var(--taplink-button-text-color));
+  background: var(--taplink-link-background-color, var(--taplink-button-background-color));
 }
 
-.taplink-buttons-solid .link-card_standard .link-copy small {
+.taplink-buttons-solid .link-card_standard:not([data-taplink-button-style]) .link-copy small,
+.link-card[data-taplink-button-style='solid'] .link-copy small {
   color: currentColor;
   opacity: 1;
 }
 
-.taplink-buttons-solid .link-card_standard .link-icon,
-.taplink-buttons-solid .link-card_standard .link-arrow,
-.taplink-buttons-solid .link-card_standard .external-arrow {
+.taplink-buttons-solid .link-card_standard:not([data-taplink-button-style]) .link-icon,
+.taplink-buttons-solid .link-card_standard:not([data-taplink-button-style]) .link-arrow,
+.taplink-buttons-solid .link-card_standard:not([data-taplink-button-style]) .external-arrow,
+.link-card[data-taplink-button-style='solid'] .link-icon,
+.link-card[data-taplink-button-style='solid'] .link-arrow,
+.link-card[data-taplink-button-style='solid'] .external-arrow {
   background: transparent;
   background: color-mix(in srgb, currentColor 13%, transparent);
   color: currentColor;
@@ -805,7 +834,8 @@ h1 {
     animation-delay: 224ms;
   }
 
-  .taplink-effect-shine .link-card::before {
+  .taplink-effect-shine .link-card:not([data-taplink-effect])::before,
+  .link-card[data-taplink-effect='shine']::before {
     animation: card-sheen-auto 420ms both cubic-bezier(0.22, 1, 0.36, 1);
     animation-delay: calc(var(--taplink-order, 0) * 32ms);
     will-change: transform, opacity;
@@ -851,38 +881,50 @@ h1 {
 }
 
 @media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
-  .taplink-effect-lift .link-card:hover,
-  .taplink-effect-shine .link-card:hover {
+  .taplink-effect-lift .link-card:not([data-taplink-effect]):hover,
+  .taplink-effect-shine .link-card:not([data-taplink-effect]):hover,
+  .link-card[data-taplink-effect='lift']:hover,
+  .link-card[data-taplink-effect='shine']:hover {
     box-shadow:
       0 6px 0 #e1cda9,
       0 19px 34px rgba(83, 40, 20, 0.12);
     transform: translate3d(0, -3px, 0);
   }
 
-  .taplink-effect-glow .link-card:hover {
+  .taplink-effect-glow .link-card:not([data-taplink-effect]):hover,
+  .link-card[data-taplink-effect='glow']:hover {
     box-shadow:
-      0 0 0 3px var(--taplink-button-glow-color),
+      0 0 0 3px var(--taplink-link-glow-color, var(--taplink-button-glow-color)),
       0 18px 40px rgba(83, 40, 20, 0.14);
   }
 
-  .taplink-effect-lift .link-card:hover .link-icon,
-  .taplink-effect-glow .link-card:hover .link-icon,
-  .taplink-effect-shine .link-card:hover .link-icon {
+  .taplink-effect-lift .link-card:not([data-taplink-effect]):hover .link-icon,
+  .taplink-effect-glow .link-card:not([data-taplink-effect]):hover .link-icon,
+  .taplink-effect-shine .link-card:not([data-taplink-effect]):hover .link-icon,
+  .link-card[data-taplink-effect='lift']:hover .link-icon,
+  .link-card[data-taplink-effect='glow']:hover .link-icon,
+  .link-card[data-taplink-effect='shine']:hover .link-icon {
     box-shadow:
       inset 0 1px 0 white,
       0 8px 17px rgba(83, 40, 20, 0.12);
     transform: translateZ(18px) scale(1.035);
   }
 
-  .taplink-effect-lift .link-card:hover .link-arrow,
-  .taplink-effect-glow .link-card:hover .link-arrow,
-  .taplink-effect-shine .link-card:hover .link-arrow {
+  .taplink-effect-lift .link-card:not([data-taplink-effect]):hover .link-arrow,
+  .taplink-effect-glow .link-card:not([data-taplink-effect]):hover .link-arrow,
+  .taplink-effect-shine .link-card:not([data-taplink-effect]):hover .link-arrow,
+  .link-card[data-taplink-effect='lift']:hover .link-arrow,
+  .link-card[data-taplink-effect='glow']:hover .link-arrow,
+  .link-card[data-taplink-effect='shine']:hover .link-arrow {
     transform: translate3d(2px, 0, 16px);
   }
 
-  .taplink-effect-lift .link-card:hover .external-arrow,
-  .taplink-effect-glow .link-card:hover .external-arrow,
-  .taplink-effect-shine .link-card:hover .external-arrow {
+  .taplink-effect-lift .link-card:not([data-taplink-effect]):hover .external-arrow,
+  .taplink-effect-glow .link-card:not([data-taplink-effect]):hover .external-arrow,
+  .taplink-effect-shine .link-card:not([data-taplink-effect]):hover .external-arrow,
+  .link-card[data-taplink-effect='lift']:hover .external-arrow,
+  .link-card[data-taplink-effect='glow']:hover .external-arrow,
+  .link-card[data-taplink-effect='shine']:hover .external-arrow {
     transform: translate3d(2px, -2px, 16px);
   }
 }

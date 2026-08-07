@@ -121,7 +121,7 @@ const contrastRatio = (first: string, second: string) => {
   return (lighter + 0.05) / (darker + 0.05);
 };
 
-function ThemeColorField({
+export function ThemeColorField({
   id,
   label,
   value,
@@ -188,7 +188,7 @@ function ThemeColorField({
   );
 }
 
-function ContrastStatus({
+export function ContrastStatus({
   label,
   foreground,
   background,
@@ -359,7 +359,9 @@ export default function TaplinkThemeEditor({
                 id="taplink-background-image-hint"
                 className={imageUrlValid ? 'field-hint' : 'field-error'}
               >
-                {t(imageUrlValid ? 'taplink.backgroundImageHint' : 'taplink.backgroundImageInvalid')}
+                {t(
+                  imageUrlValid ? 'taplink.backgroundImageHint' : 'taplink.backgroundImageInvalid',
+                )}
               </p>
             </div>
           )}

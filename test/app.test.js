@@ -205,8 +205,8 @@ test('taplink exposes delivery and city links as a fast standalone page', async 
   assert.equal((html.match(/\/taplink\/assets\/2gis-icon\.png\?v=20260806-1/g) || []).length, 2);
 
   for (const asset of [
-    '/taplink/styles.css?v=20260807-4',
-    '/taplink/app.js?v=20260807-3',
+    '/taplink/styles.css?v=20260807-5',
+    '/taplink/app.js?v=20260807-4',
     '/taplink/assets/mobile-background.png?v=20260806-1',
     '/taplink/assets/2gis-icon.png?v=20260806-1',
     '/taplink/assets/brand/bulka_logo.png?v=20260806-1',
@@ -217,7 +217,7 @@ test('taplink exposes delivery and city links as a fast standalone page', async 
     assert.match(assetResponse.headers.get('cache-control') || '', /immutable/, asset);
   }
 
-  const styles = await (await fetch(`${origin}/taplink/styles.css?v=20260807-4`)).text();
+  const styles = await (await fetch(`${origin}/taplink/styles.css?v=20260807-5`)).text();
   assert.match(styles, /transform-style:\s*preserve-3d/);
   assert.match(styles, /--specular-opacity/);
   assert.match(styles, /radial-gradient\(\s*112px circle at var\(--specular-x\)/);
@@ -225,11 +225,11 @@ test('taplink exposes delivery and city links as a fast standalone page', async 
   assert.match(styles, /background-size:\s*cover/);
   assert.match(
     styles,
-    /\.taplink-effect-shine \.link-card::before\s*\{[\s\S]*animation:\s*card-sheen-auto 420ms both/,
+    /\.taplink-effect-shine \.link-card:not\(\[data-taplink-effect\]\)::before,[\s\S]*animation:\s*card-sheen-auto 420ms both/,
   );
   assert.match(styles, /\.taplink-animation-stagger \.link-card/);
-  assert.match(styles, /\.taplink-effect-lift \.link-card:hover/);
-  assert.match(styles, /\.taplink-effect-glow \.link-card:hover/);
+  assert.match(styles, /\.taplink-effect-lift \.link-card:not\(\[data-taplink-effect\]\):hover/);
+  assert.match(styles, /\.taplink-effect-glow \.link-card:not\(\[data-taplink-effect\]\):hover/);
   assert.match(styles, /\.link-card:active\s*\{[\s\S]*?opacity:\s*0\.88/);
   assert.match(styles, /opacity 120ms ease/);
   assert.match(styles, /animation:\s*taplink-rise 300ms backwards/);
@@ -245,11 +245,17 @@ test('taplink exposes delivery and city links as a fast standalone page', async 
   assert.match(styles, /body\.taplink-background-gradient/);
   assert.match(styles, /--taplink-button-background-color/);
   assert.match(styles, /--taplink-primary-button-background-color/);
-  assert.match(styles, /\.taplink-buttons-outlined \.link-card_standard/);
-  assert.match(styles, /\.taplink-buttons-solid \.link-card_standard/);
   assert.match(
     styles,
-    /\.link-card_city\s*\{[\s\S]*?background:\s*var\(--taplink-button-background-color\);[\s\S]*?\}/,
+    /\.taplink-buttons-outlined \.link-card_standard:not\(\[data-taplink-button-style\]\)/,
+  );
+  assert.match(
+    styles,
+    /\.taplink-buttons-solid \.link-card_standard:not\(\[data-taplink-button-style\]\)/,
+  );
+  assert.match(
+    styles,
+    /\.link-card_city\s*\{[\s\S]*?background:\s*var\(--taplink-link-background-color,\s*var\(--taplink-button-background-color\)\);[\s\S]*?\}/,
   );
   assert.match(styles, /\.link-copy small\s*\{[\s\S]*?opacity:\s*1/);
   assert.match(
@@ -257,15 +263,23 @@ test('taplink exposes delivery and city links as a fast standalone page', async 
     /@media \(max-width:\s*520px\)[\s\S]*?\.profile-header\s*\{[\s\S]*?background:\s*var\(--taplink-surface-color\)/,
   );
   const outlinedButtonRule =
-    styles.match(/\.taplink-buttons-outlined \.link-card_standard\s*\{([^}]*)\}/)?.[1] || '';
-  assert.match(outlinedButtonRule, /background:\s*var\(--taplink-button-background-color\)/);
+    styles.match(
+      /\.taplink-buttons-outlined \.link-card_standard:not\(\[data-taplink-button-style\]\),[\s\S]*?\{([^}]*)\}/,
+    )?.[1] || '';
+  assert.match(
+    outlinedButtonRule,
+    /background:\s*var\(--taplink-link-background-color,\s*var\(--taplink-button-background-color\)\)/,
+  );
   assert.doesNotMatch(outlinedButtonRule, /color-mix/);
+  assert.doesNotMatch(outlinedButtonRule, /box-shadow:\s*none/);
   assert.match(
     styles,
-    /\.taplink-buttons-solid \.link-card_standard \.link-icon,[\s\S]*background:\s*color-mix\(in srgb,\s*currentColor 13%,\s*transparent\)/,
+    /\.link-card\[data-taplink-button-style='solid'\] \.link-icon,[\s\S]*background:\s*color-mix\(in srgb,\s*currentColor 13%,\s*transparent\)/,
   );
+  assert.match(styles, /--taplink-link-radius,\s*var\(--radius-control\)/);
+  assert.match(styles, /\.link-card\[data-taplink-effect='none'\]\s*\{[\s\S]*?box-shadow:\s*none/);
 
-  const script = await (await fetch(`${origin}/taplink/app.js?v=20260807-3`)).text();
+  const script = await (await fetch(`${origin}/taplink/app.js?v=20260807-4`)).text();
   assert.match(script, /DEFAULT_LANGUAGE = 'kk'/);
   assert.match(script, /bulka-taplink-language/);
   assert.match(script, /PUBLIC_CONFIG_URL = '\/api\/public\/taplink'/);
@@ -283,10 +297,20 @@ test('taplink exposes delivery and city links as a fast standalone page', async 
   assert.match(script, /HEX_COLOR_PATTERN/);
   assert.match(script, /contrastRatio/);
   assert.match(script, /contrastRatio\(theme\.mutedTextColor,\s*theme\.surfaceColor\) < 4\.5/);
+  assert.match(script, /isValidLinkAppearance/);
+  assert.match(
+    script,
+    /contrastRatio\(appearance\.textColor,\s*appearance\.backgroundColor\) >= 4\.5/,
+  );
+  assert.match(script, /link\.dataset\.taplinkButtonStyle = block\.appearance\.buttonStyle/);
+  assert.match(script, /link\.dataset\.taplinkEffect = block\.appearance\.buttonEffect/);
+  assert.match(script, /--taplink-link-background-color/);
+  assert.match(script, /--taplink-link-text-color/);
+  assert.match(script, /--taplink-link-radius/);
   assert.match(script, /--taplink-background-overlay-color/);
   assert.match(script, /BRAND_BACKGROUND_IMAGE_URL/);
   assert.match(script, /Math\.min\(order,\s*5\)/);
-  assert.match(script, /\.taplink-effect-shine \.specular-surface/);
+  assert.match(script, /\.taplink-effect-shine \.specular-surface:not\(\[data-taplink-effect\]\)/);
   assert.match(script, /window\.addEventListener\('pointermove'/);
   assert.doesNotMatch(script, /\.innerHTML|insertAdjacentHTML|document\.write/);
 });

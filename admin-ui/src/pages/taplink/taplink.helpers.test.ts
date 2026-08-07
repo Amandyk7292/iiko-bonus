@@ -25,11 +25,20 @@ describe('taplink builder helpers', () => {
 
   it('duplicates and reorders without mutating the original blocks', () => {
     const first = createTaplinkBlock('section');
-    const second = createTaplinkBlock('link');
+    const second = createTaplinkBlock('link') as TaplinkLinkBlock;
+    second.appearance = {
+      buttonStyle: 'outlined',
+      backgroundColor: '#14342B',
+      textColor: '#FFFFFF',
+      radius: 16,
+      buttonEffect: 'none',
+    };
     const third = duplicateTaplinkBlock(second);
     const original = [first, second, third];
 
     expect(third.id).not.toBe(second.id);
+    expect((third as TaplinkLinkBlock).appearance).toEqual(second.appearance);
+    expect((third as TaplinkLinkBlock).appearance).not.toBe(second.appearance);
     expect(moveTaplinkBlock(original, second.id, -1).map((block) => block.id)).toEqual([
       second.id,
       first.id,

@@ -315,7 +315,8 @@
 }
 
 .taplink-theme-section,
-.taplink-contrast-status {
+.taplink-contrast-status,
+.taplink-button-appearance {
   padding: 15px;
   display: grid;
   gap: 14px;
@@ -488,10 +489,92 @@
   margin-top: 1px;
   color: inherit;
   font-size: var(--type-caption);
-  opacity: 0.82;
+  opacity: 1;
 }
 
 .taplink-theme-reset {
+  width: max-content;
+  max-width: 100%;
+  gap: 7px;
+}
+
+.taplink-appearance-modes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.taplink-appearance-mode {
+  min-width: 0;
+  min-height: 68px;
+  padding: 11px 12px;
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  border: 1px solid var(--sagi-border);
+  border-radius: var(--radius-medium);
+  background: #fff;
+  color: var(--sagi-muted);
+  cursor: pointer;
+  transition:
+    border-color var(--motion-duration-base) var(--motion-ease-in-out),
+    box-shadow var(--motion-duration-base) var(--motion-ease-in-out),
+    background-color var(--motion-duration-base) var(--motion-ease-in-out);
+}
+
+.taplink-appearance-mode:hover {
+  border-color: #d6ae7e;
+}
+
+.taplink-appearance-mode:focus-within {
+  outline: 3px solid rgba(141, 71, 15, 0.22);
+  outline-offset: 2px;
+}
+
+.taplink-appearance-mode.is-selected {
+  border-color: #b7672c;
+  background: #fff3df;
+  box-shadow: 0 0 0 2px rgba(183, 103, 44, 0.1);
+}
+
+.taplink-appearance-mode input {
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+  flex: 0 0 auto;
+  accent-color: #8a431e;
+}
+
+.taplink-appearance-mode span {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.taplink-appearance-mode strong {
+  color: var(--sagi-cocoa);
+  font-size: var(--type-body-small);
+}
+
+.taplink-appearance-mode small {
+  margin-top: 3px;
+  color: var(--sagi-muted);
+  font-size: var(--type-caption);
+  line-height: 1.4;
+}
+
+.taplink-button-appearance-fields {
+  padding-top: 2px;
+}
+
+#taplink-link-button-radius {
+  width: 100%;
+  min-height: 44px;
+  accent-color: #8a431e;
+}
+
+.taplink-button-appearance-reset {
   width: max-content;
   max-width: 100%;
   gap: 7px;
@@ -560,10 +643,7 @@
 }
 
 .taplink-background-solid {
-  background-image: linear-gradient(
-    var(--taplink-preview-overlay),
-    var(--taplink-preview-overlay)
-  );
+  background-image: linear-gradient(var(--taplink-preview-overlay), var(--taplink-preview-overlay));
 }
 
 .taplink-background-gradient {
@@ -687,9 +767,9 @@
   gap: 11px;
   overflow: hidden;
   border: 1px solid #eadbbe;
-  border-radius: var(--taplink-preview-radius);
-  background: var(--taplink-preview-button-background);
-  color: var(--taplink-preview-button-text);
+  border-radius: var(--taplink-preview-link-radius, var(--taplink-preview-radius));
+  background: var(--taplink-preview-link-background, var(--taplink-preview-button-background));
+  color: var(--taplink-preview-link-text, var(--taplink-preview-button-text));
   text-decoration: none;
   transform: translate3d(0, 0, 0);
   transition:
@@ -704,26 +784,38 @@
   z-index: 1;
 }
 
-.taplink-buttons-outlined .taplink-preview-link {
+.taplink-buttons-outlined .taplink-preview-link:not([data-button-style]) {
   border: 1.5px solid currentColor;
-  background: var(--taplink-preview-button-background);
+  background: var(--taplink-preview-link-background, var(--taplink-preview-button-background));
   box-shadow: none;
 }
 
-.taplink-buttons-solid .taplink-preview-link {
-  border-color: var(--taplink-preview-button-background);
-  background: var(--taplink-preview-button-background);
-  color: var(--taplink-preview-button-text);
+.taplink-buttons-solid .taplink-preview-link:not([data-button-style]) {
+  border-color: var(--taplink-preview-link-background, var(--taplink-preview-button-background));
+  background: var(--taplink-preview-link-background, var(--taplink-preview-button-background));
+  color: var(--taplink-preview-link-text, var(--taplink-preview-button-text));
 }
 
 .taplink-preview-link.is-primary {
-  border-color: var(--taplink-preview-primary-background);
-  background: var(--taplink-preview-primary-background);
-  color: var(--taplink-preview-primary-text);
+  border-color: var(--taplink-preview-link-background, var(--taplink-preview-primary-background));
+  background: var(--taplink-preview-link-background, var(--taplink-preview-primary-background));
+  color: var(--taplink-preview-link-text, var(--taplink-preview-primary-text));
 }
 
 .taplink-preview-link.is-city {
-  background: var(--taplink-preview-button-background);
+  background: var(--taplink-preview-link-background, var(--taplink-preview-button-background));
+}
+
+.taplink-preview-link[data-button-style='outlined'] {
+  border: 1.5px solid currentColor;
+  background: var(--taplink-preview-link-background, var(--taplink-preview-button-background));
+  box-shadow: none;
+}
+
+.taplink-preview-link[data-button-style='solid'] {
+  border-color: var(--taplink-preview-link-background, var(--taplink-preview-button-background));
+  background: var(--taplink-preview-link-background, var(--taplink-preview-button-background));
+  color: var(--taplink-preview-link-text, var(--taplink-preview-button-text));
 }
 
 .taplink-preview-link-icon {
@@ -790,7 +882,8 @@
   font-size: 9px;
 }
 
-.taplink-effect-none .taplink-preview-link {
+.taplink-effect-none .taplink-preview-link:not([data-button-effect]),
+.taplink-preview-link[data-button-effect='none'] {
   box-shadow: none;
 }
 
@@ -798,35 +891,35 @@
   opacity: 0.88;
 }
 
-.taplink-effect-lift .taplink-preview-link,
-.taplink-effect-shine .taplink-preview-link {
+.taplink-effect-lift .taplink-preview-link:not([data-button-effect]),
+.taplink-effect-shine .taplink-preview-link:not([data-button-effect]),
+.taplink-preview-link[data-button-effect='lift'],
+.taplink-preview-link[data-button-effect='shine'] {
   box-shadow: 0 8px 20px color-mix(in srgb, var(--taplink-preview-text) 10%, transparent);
 }
 
-.taplink-effect-lift .taplink-preview-link:hover {
+.taplink-effect-lift .taplink-preview-link:not([data-button-effect]):hover,
+.taplink-preview-link[data-button-effect='lift']:hover {
   box-shadow: 0 12px 25px color-mix(in srgb, var(--taplink-preview-text) 15%, transparent);
   transform: translateY(-2px);
 }
 
-.taplink-effect-glow .taplink-preview-link {
+.taplink-effect-glow .taplink-preview-link:not([data-button-effect]),
+.taplink-preview-link[data-button-effect='glow'] {
   box-shadow:
     0 0 0 1px color-mix(in srgb, currentColor 14%, transparent),
     0 8px 22px color-mix(in srgb, currentColor 24%, transparent);
 }
 
-.taplink-effect-shine .taplink-preview-link::before {
+.taplink-effect-shine .taplink-preview-link:not([data-button-effect])::before,
+.taplink-preview-link[data-button-effect='shine']::before {
   width: 34%;
   position: absolute;
   z-index: 0;
   top: -50%;
   bottom: -50%;
   left: -60%;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.72),
-    transparent
-  );
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.72), transparent);
   content: '';
   opacity: 0;
   pointer-events: none;
@@ -834,7 +927,8 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .taplink-effect-shine .taplink-preview-link::before {
+  .taplink-effect-shine .taplink-preview-link:not([data-button-effect])::before,
+  .taplink-preview-link[data-button-effect='shine']::before {
     animation: taplink-preview-shine 420ms both cubic-bezier(0.22, 1, 0.36, 1);
   }
 
@@ -998,7 +1092,8 @@
 @media (max-width: 520px) {
   .taplink-add-buttons,
   .taplink-editor-panel .form-grid-2,
-  .taplink-background-modes {
+  .taplink-background-modes,
+  .taplink-appearance-modes {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -1033,7 +1128,8 @@
   }
 
   .taplink-preview-replay,
-  .taplink-theme-reset {
+  .taplink-theme-reset,
+  .taplink-button-appearance-reset {
     width: 100%;
   }
 }
@@ -1051,7 +1147,8 @@
     animation: none !important;
   }
 
-  .taplink-effect-lift .taplink-preview-link:hover {
+  .taplink-effect-lift .taplink-preview-link:hover,
+  .taplink-preview-link[data-button-effect='lift']:hover {
     transform: none;
   }
 }

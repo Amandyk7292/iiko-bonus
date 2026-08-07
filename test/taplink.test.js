@@ -166,6 +166,78 @@ test('Taplink theme accepts a valid extended design configuration', () => {
   assert.equal(parsed.theme.buttonEffect, 'glow');
 });
 
+test('Taplink link accepts an accessible individual appearance and keeps it public', () => {
+  const config = clone(FALLBACK_TAPLINK_DOCUMENT);
+  config.blocks[0].appearance = {
+    buttonStyle: 'outlined',
+    backgroundColor: '#fefefe',
+    textColor: '#222222',
+    radius: 18,
+    buttonEffect: 'none',
+  };
+
+  const parsed = taplinkDocumentSchema.parse(config);
+  assert.deepEqual(parsed.blocks[0].appearance, {
+    buttonStyle: 'outlined',
+    backgroundColor: '#FEFEFE',
+    textColor: '#222222',
+    radius: 18,
+    buttonEffect: 'none',
+  });
+  assert.deepEqual(publicDocument(parsed).blocks[0].appearance, parsed.blocks[0].appearance);
+});
+
+test('Taplink link rejects unsafe individual appearance values', () => {
+  const invalidAppearances = [
+    {
+      buttonStyle: 'glass',
+      backgroundColor: '#FFFFFF',
+      textColor: '#222222',
+      radius: 18,
+      buttonEffect: 'none',
+    },
+    {
+      buttonStyle: 'soft',
+      backgroundColor: '#FFFFFF',
+      textColor: '#EEEEEE',
+      radius: 18,
+      buttonEffect: 'none',
+    },
+    {
+      buttonStyle: 'soft',
+      backgroundColor: '#FFFFFF',
+      textColor: '#222222',
+      radius: 18.5,
+      buttonEffect: 'none',
+    },
+    {
+      buttonStyle: 'soft',
+      backgroundColor: '#FFFFFF',
+      textColor: '#222222',
+      radius: 18,
+      buttonEffect: 'pulse',
+    },
+    {
+      buttonStyle: 'soft',
+      backgroundColor: '#FFFFFF',
+      textColor: '#222222',
+      radius: 18,
+      buttonEffect: 'none',
+      customCss: 'position: fixed',
+    },
+  ];
+
+  invalidAppearances.forEach((appearance, index) => {
+    const config = clone(FALLBACK_TAPLINK_DOCUMENT);
+    config.blocks[0].appearance = appearance;
+    assert.equal(
+      taplinkDocumentSchema.safeParse(config).success,
+      false,
+      `invalid appearance ${index + 1}`,
+    );
+  });
+});
+
 test('Taplink theme rejects unsafe values and unknown design fields', () => {
   const invalidThemes = [
     [

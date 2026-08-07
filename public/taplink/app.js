@@ -202,12 +202,29 @@
     block.enabled === true &&
     isLocalizedText(block.labels, 120);
 
+  const isValidLinkAppearance = (appearance) =>
+    hasExactKeys(appearance, [
+      'buttonStyle',
+      'backgroundColor',
+      'textColor',
+      'radius',
+      'buttonEffect',
+    ]) &&
+    BUTTON_STYLES.has(appearance.buttonStyle) &&
+    isHexColor(appearance.backgroundColor) &&
+    isHexColor(appearance.textColor) &&
+    Number.isInteger(appearance.radius) &&
+    appearance.radius >= 12 &&
+    appearance.radius <= 32 &&
+    BUTTON_EFFECTS.has(appearance.buttonEffect) &&
+    contrastRatio(appearance.textColor, appearance.backgroundColor) >= 4.5;
+
   const isValidLinkBlock = (block) => {
     if (
       !hasExactKeys(
         block,
         ['id', 'type', 'enabled', 'style', 'labels', 'icon', 'target', 'href'],
-        ['subtitles', 'ariaLabels'],
+        ['subtitles', 'ariaLabels', 'appearance'],
       ) ||
       !UUID_PATTERN.test(block.id) ||
       block.type !== 'link' ||
@@ -216,7 +233,8 @@
       !ICONS.has(block.icon) ||
       !isLocalizedText(block.labels, 120) ||
       (block.subtitles !== undefined && !isLocalizedText(block.subtitles, 180, 0)) ||
-      (block.ariaLabels !== undefined && !isLocalizedText(block.ariaLabels, 240, 0))
+      (block.ariaLabels !== undefined && !isLocalizedText(block.ariaLabels, 240, 0)) ||
+      (block.appearance !== undefined && !isValidLinkAppearance(block.appearance))
     ) {
       return false;
     }
@@ -501,6 +519,13 @@
     const link = document.createElement('a');
     link.className = `link-card link-card_${block.style} specular-surface`;
     link.style.setProperty('--taplink-order', String(Math.min(order, 5)));
+    if (block.appearance) {
+      link.dataset.taplinkButtonStyle = block.appearance.buttonStyle;
+      link.dataset.taplinkEffect = block.appearance.buttonEffect;
+      link.style.setProperty('--taplink-link-background-color', block.appearance.backgroundColor);
+      link.style.setProperty('--taplink-link-text-color', block.appearance.textColor);
+      link.style.setProperty('--taplink-link-radius', `${block.appearance.radius}px`);
+    }
     if (block.icon === 'none') link.classList.add('link-card_no-icon');
     link.href = hrefForTarget(block.target);
     if (block.target.type === 'url' || block.target.type === 'whatsapp') {
@@ -754,17 +779,19 @@
   let frameId = 0;
 
   function refreshSpecularSurfaces() {
-    states = [...document.querySelectorAll('.taplink-effect-shine .specular-surface')].map(
-      (surface) => ({
-        surface,
-        currentX: surface.clientWidth / 2,
-        currentY: surface.clientHeight / 2,
-        targetX: surface.clientWidth / 2,
-        targetY: surface.clientHeight / 2,
-        currentOpacity: 0,
-        targetOpacity: 0,
-      }),
-    );
+    states = [
+      ...document.querySelectorAll(
+        '.taplink-effect-shine .specular-surface:not([data-taplink-effect]), .specular-surface[data-taplink-effect="shine"]',
+      ),
+    ].map((surface) => ({
+      surface,
+      currentX: surface.clientWidth / 2,
+      currentY: surface.clientHeight / 2,
+      targetX: surface.clientWidth / 2,
+      targetY: surface.clientHeight / 2,
+      currentOpacity: 0,
+      targetOpacity: 0,
+    }));
   }
 
   const renderSpecular = () => {

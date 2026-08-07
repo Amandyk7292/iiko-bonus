@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { FeedbackProvider } from '../components/Feedback';
@@ -177,6 +177,61 @@ describe('TaplinkPage', () => {
       animation: 'fade',
       buttonEffect: 'glow',
     });
+  });
+
+  it('customizes an existing button independently and can restore the shared style', async () => {
+    const user = userEvent.setup();
+    const draft = sampleDocument();
+    draft.theme.buttonStyle = 'outlined';
+    apiMocks.getTaplink.mockResolvedValue(response(pageWith(draft)));
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: /Жеткізу.*Ссылка/ }));
+    expect(screen.getByTestId('taplink-button-appearance')).toBeInTheDocument();
+    await user.click(screen.getByRole('radio', { name: /Свой стиль/ }));
+
+    expect(screen.getByLabelText('Фон кнопки')).toHaveValue('#FFB814');
+    expect(screen.getByLabelText('Текст кнопки')).toHaveValue('#3F1D0E');
+    expect(screen.getByLabelText('Стиль кнопок')).toHaveValue('soft');
+    await user.clear(screen.getByLabelText('Фон кнопки'));
+    await user.type(screen.getByLabelText('Фон кнопки'), '#123456');
+    await user.clear(screen.getByLabelText('Текст кнопки'));
+    await user.type(screen.getByLabelText('Текст кнопки'), '#FFFFFF');
+    await user.selectOptions(screen.getByLabelText('Стиль кнопок'), 'outlined');
+    await user.selectOptions(screen.getByLabelText('Эффект кнопок'), 'none');
+    fireEvent.change(screen.getByLabelText(/Скругление/), { target: { value: '16' } });
+
+    const previewLink = screen.getByTestId(
+      'taplink-preview-link-11111111-1111-4111-8111-111111111111',
+    );
+    expect(previewLink).toHaveAttribute('data-button-style', 'outlined');
+    expect(previewLink).toHaveAttribute('data-button-effect', 'none');
+    expect(previewLink.style.getPropertyValue('--taplink-preview-link-background')).toBe('#123456');
+    expect(previewLink.style.getPropertyValue('--taplink-preview-link-text')).toBe('#FFFFFF');
+    expect(previewLink.style.getPropertyValue('--taplink-preview-link-radius')).toBe('16px');
+    expect(screen.getByTestId('taplink-button-contrast')).toHaveTextContent('WCAG AA соблюдён');
+
+    await user.click(screen.getByRole('button', { name: 'Сохранить черновик' }));
+    await waitFor(() => expect(apiMocks.saveTaplinkDraft).toHaveBeenCalledTimes(1));
+    expect(apiMocks.saveTaplinkDraft.mock.calls[0][0].blocks[0].appearance).toEqual({
+      buttonStyle: 'outlined',
+      backgroundColor: '#123456',
+      textColor: '#FFFFFF',
+      radius: 16,
+      buttonEffect: 'none',
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Вернуть общее оформление' }));
+    expect(screen.getByRole('radio', { name: /Общее оформление/ })).toBeChecked();
+    expect(previewLink).not.toHaveAttribute('data-button-style');
+    expect(previewLink).not.toHaveAttribute('data-button-effect');
+    expect(previewLink.style.getPropertyValue('--taplink-preview-link-background')).toBe('');
+    expect(previewLink.style.getPropertyValue('--taplink-preview-link-text')).toBe('');
+    expect(previewLink.style.getPropertyValue('--taplink-preview-link-radius')).toBe('');
+
+    await user.click(screen.getByRole('button', { name: 'Сохранить черновик' }));
+    await waitFor(() => expect(apiMocks.saveTaplinkDraft).toHaveBeenCalledTimes(2));
+    expect(apiMocks.saveTaplinkDraft.mock.calls[1][0].blocks[0].appearance).toBeUndefined();
   });
 
   it('saves dirty content before publishing the resulting revision', async () => {

@@ -9,14 +9,7 @@ export type TaplinkLocalizedText = Record<TaplinkLocale, string>;
 export type TaplinkButtonStyle = 'soft' | 'outlined' | 'solid';
 export type TaplinkBackgroundMode = 'brand' | 'solid' | 'gradient' | 'image';
 export type TaplinkGradientDirection =
-  | 'top'
-  | 'top-right'
-  | 'right'
-  | 'bottom-right'
-  | 'bottom'
-  | 'bottom-left'
-  | 'left'
-  | 'top-left';
+  'top' | 'top-right' | 'right' | 'bottom-right' | 'bottom' | 'bottom-left' | 'left' | 'top-left';
 export type TaplinkAnimation = 'none' | 'fade' | 'rise' | 'stagger';
 export type TaplinkButtonEffect = 'none' | 'lift' | 'glow' | 'shine';
 export type TaplinkLinkStyle = 'primary' | 'standard' | 'city';
@@ -36,6 +29,14 @@ export interface TaplinkSectionBlock {
   labels: TaplinkLocalizedText;
 }
 
+export interface TaplinkLinkAppearance {
+  buttonStyle: TaplinkButtonStyle;
+  backgroundColor: string;
+  textColor: string;
+  radius: number;
+  buttonEffect: TaplinkButtonEffect;
+}
+
 export interface TaplinkLinkBlock {
   id: string;
   type: 'link';
@@ -46,6 +47,7 @@ export interface TaplinkLinkBlock {
   ariaLabels?: TaplinkLocalizedText;
   icon: TaplinkIcon;
   target: TaplinkTarget;
+  appearance?: TaplinkLinkAppearance;
   href?: string;
 }
 

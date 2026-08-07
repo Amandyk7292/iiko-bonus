@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import type { TaplinkDocument } from '../src/lib/api-types';
 
@@ -181,9 +182,7 @@ test('owner customizes a professional Taplink theme with a live preview', async 
   await page.getByTestId('taplink-replay-animation').click();
   await page.getByRole('button', { name: 'Сохранить черновик' }).click();
 
-  await expect
-    .poll(() => savedConfig?.theme.backgroundMode)
-    .toBe('gradient');
+  await expect.poll(() => savedConfig?.theme.backgroundMode).toBe('gradient');
   expect(savedConfig?.theme).toMatchObject({
     gradientFrom: '#214A3A',
     gradientTo: '#F2C14E',
@@ -192,6 +191,41 @@ test('owner customizes a professional Taplink theme with a live preview', async 
     animation: 'fade',
     buttonEffect: 'glow',
   });
+
+  await page.getByRole('button', { name: /Жеткізуге тапсырыс беру.*Ссылка/ }).click();
+  await expect(page.getByTestId('taplink-button-appearance')).toBeVisible();
+  await page.getByRole('radio', { name: /Свой стиль/ }).check();
+  await page.getByLabel('Фон кнопки', { exact: true }).fill('#14342B');
+  await page.getByLabel('Текст кнопки', { exact: true }).fill('#FFFFFF');
+  await page.getByLabel('Стиль кнопок').selectOption('outlined');
+  await page.getByLabel('Эффект кнопок').selectOption('none');
+  await page.getByLabel(/Скругление/).fill('16');
+
+  const customLink = page.getByTestId('taplink-preview-link-11111111-1111-4111-8111-111111111111');
+  await expect(customLink).toHaveAttribute('data-button-style', 'outlined');
+  await expect(customLink).toHaveAttribute('data-button-effect', 'none');
+  expect(await customLink.getAttribute('style')).toContain('--taplink-preview-link-radius: 16px');
+  await page.getByRole('button', { name: 'Сохранить черновик' }).click();
+  await expect.poll(() => savedConfig?.blocks[0].appearance?.backgroundColor).toBe('#14342B');
+
+  const cityBlock = page.locator('.taplink-block-item').filter({ hasText: 'Bulka Ақтауда' });
+  await cityBlock.getByRole('button', { name: 'Удалить блок' }).click();
+  const confirmation = page.getByRole('alertdialog', { name: 'Удалить блок?' });
+  await expect(confirmation).toBeVisible();
+  const actionPadding = await confirmation.locator('.modal-confirm-actions').evaluate((element) => {
+    const styles = getComputedStyle(element);
+    return [styles.paddingTop, styles.paddingRight, styles.paddingBottom, styles.paddingLeft];
+  });
+  expect(actionPadding).toEqual(['16px', '20px', '20px', '20px']);
+  await confirmation.getByRole('button', { name: 'Отмена' }).click();
+  await expect(confirmation).toBeHidden();
+
+  const accessibility = await new AxeBuilder({ page }).include('main').analyze();
+  expect(
+    accessibility.violations.filter((violation) =>
+      ['critical', 'serious'].includes(violation.impact || ''),
+    ),
+  ).toEqual([]);
 
   await page.screenshot({
     path: testInfo.outputPath('taplink-theme.png'),

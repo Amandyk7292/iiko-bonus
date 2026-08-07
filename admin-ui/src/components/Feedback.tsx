@@ -301,7 +301,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
                 <X aria-hidden="true" size={20} />
               </button>
             </div>
-            <div className="modal-actions">
+            <div className="modal-actions modal-confirm-actions">
               <button
                 ref={cancelButtonRef}
                 type="button"
