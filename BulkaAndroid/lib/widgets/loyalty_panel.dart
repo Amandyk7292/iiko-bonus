@@ -626,7 +626,7 @@ class _InlineQrPreviewState extends State<_InlineQrPreview> {
                 tooltip: 'qr_retry'.tr,
                 icon: const Icon(
                   Icons.refresh_rounded,
-                  color: _caramel,
+                  color: _bulkaBrown,
                   size: 42,
                 ),
               )

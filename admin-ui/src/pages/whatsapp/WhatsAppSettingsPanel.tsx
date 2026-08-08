@@ -1,6 +1,7 @@
 import {
   Bot,
   BookOpenText,
+  Check,
   Cpu,
   Eye,
   EyeOff,
@@ -197,6 +198,7 @@ export default function WhatsAppSettingsPanel({
                     type="button"
                     onClick={() => setShowProviderApiKey((current) => !current)}
                     aria-label={showProviderApiKey ? 'Скрыть API-ключ' : 'Показать API-ключ'}
+                    title={showProviderApiKey ? 'Скрыть API-ключ' : 'Показать API-ключ'}
                     disabled={!canConfigure || !providerApiKey}
                   >
                     {showProviderApiKey ? (
@@ -283,6 +285,9 @@ export default function WhatsAppSettingsPanel({
                         checked={settingsDraft.supportedLanguages.includes(language)}
                         onChange={() => toggleLanguage(language)}
                       />
+                      <span className="whatsapp-language-check" aria-hidden="true">
+                        <Check size={14} strokeWidth={3} />
+                      </span>
                       <span>
                         {language === 'ru' ? 'Русский' : language === 'kk' ? 'Қазақша' : 'English'}
                       </span>

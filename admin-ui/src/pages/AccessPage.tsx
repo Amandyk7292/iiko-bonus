@@ -675,6 +675,7 @@ export default function AccessPage() {
                   className="icon-button password-toggle"
                   onClick={() => setShowCreatePassword((current) => !current)}
                   aria-label={showCreatePassword ? t('auth.hidePassword') : t('auth.showPassword')}
+                  title={showCreatePassword ? t('auth.hidePassword') : t('auth.showPassword')}
                 >
                   {showCreatePassword ? (
                     <EyeOff aria-hidden="true" size={18} />
@@ -791,6 +792,7 @@ export default function AccessPage() {
                 className="icon-button password-toggle"
                 onClick={() => setShowResetPassword((current) => !current)}
                 aria-label={showResetPassword ? t('auth.hidePassword') : t('auth.showPassword')}
+                title={showResetPassword ? t('auth.hidePassword') : t('auth.showPassword')}
               >
                 {showResetPassword ? (
                   <EyeOff aria-hidden="true" size={18} />

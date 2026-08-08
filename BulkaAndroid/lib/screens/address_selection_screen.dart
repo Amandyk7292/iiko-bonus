@@ -478,7 +478,9 @@ class _AddressListTile extends StatelessWidget {
         savedDetails,
       ].where((value) => value.isNotEmpty).join('. '),
       child: Material(
-        color: scheme.surface,
+        color: selected
+            ? scheme.secondaryContainer.withValues(alpha: 0.58)
+            : scheme.surface,
         borderRadius: BorderRadius.circular(BulkaRadii.card),
         child: InkWell(
           onTap: onTap,
@@ -489,8 +491,8 @@ class _AddressListTile extends StatelessWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(BulkaRadii.card),
               border: Border.all(
-                color: selected ? colors.brandGold : colors.cardBorder,
-                width: 1.4,
+                color: selected ? colors.brandBrown : colors.cardBorder,
+                width: selected ? 2 : 1.4,
               ),
             ),
             child: Row(
@@ -533,19 +535,25 @@ class _AddressListTile extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     AnimatedContainer(
+                      key: ValueKey('address-selected-indicator-${address.id}'),
                       duration: BulkaMotion.duration(context, BulkaMotion.fast),
                       width: 34,
                       height: 34,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: selected ? colors.brandGold : scheme.surface,
-                        border: Border.all(color: colors.cardBorder),
+                        border: Border.all(
+                          color: selected
+                              ? colors.brandBrown
+                              : colors.cardBorder,
+                          width: selected ? 2 : 1,
+                        ),
                       ),
                       child: selected
-                          ? const Icon(
+                          ? Icon(
                               Icons.check_rounded,
                               size: 25,
-                              color: Colors.white,
+                              color: colors.brandBrown,
                             )
                           : null,
                     ),

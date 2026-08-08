@@ -296,6 +296,7 @@ export default function SecurityPage() {
                         type="button"
                         className="icon-button"
                         aria-label={t('security.openDetails')}
+                        title={t('security.openDetails')}
                         onClick={() => updateParams({ log: log.id })}
                       >
                         <Eye aria-hidden="true" size={17} />
@@ -337,7 +338,11 @@ export default function SecurityPage() {
         open={Boolean(selectedLog)}
         onClose={() => updateParams({ log: null })}
         title={t('security.auditDetails')}
-        description={selectedLog?.request_id ? `${t('security.requestId')}: ${selectedLog.request_id}` : undefined}
+        description={
+          selectedLog?.request_id
+            ? `${t('security.requestId')}: ${selectedLog.request_id}`
+            : undefined
+        }
         size="lg"
       >
         {selectedLog && (

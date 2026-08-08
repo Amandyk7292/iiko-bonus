@@ -48,7 +48,9 @@ describe('Feedback transitions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Показать' }));
     const toast = screen.getByRole('status');
     expect(toast).toHaveTextContent('Сохранено');
-    fireEvent.click(within(toast).getByRole('button', { name: 'Закрыть' }));
+    const closeToast = within(toast).getByRole('button', { name: 'Закрыть' });
+    expect(closeToast).toHaveAttribute('title', 'Закрыть');
+    fireEvent.click(closeToast);
     expect(toast).toHaveClass('is-exiting');
 
     act(() => vi.advanceTimersByTime(150));
@@ -89,8 +91,11 @@ describe('Feedback transitions', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Удалить' }));
 
-    expect(
-      screen.getByRole('alertdialog', { name: 'Удалить блок?' }).querySelector('.modal-actions'),
-    ).toHaveClass('modal-confirm-actions');
+    const dialog = screen.getByRole('alertdialog', { name: 'Удалить блок?' });
+    expect(dialog.querySelector('.modal-actions')).toHaveClass('modal-confirm-actions');
+    expect(within(dialog).getByRole('button', { name: 'Закрыть' })).toHaveAttribute(
+      'title',
+      'Закрыть',
+    );
   });
 });

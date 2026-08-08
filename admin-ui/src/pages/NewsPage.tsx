@@ -262,6 +262,7 @@ export default function NewsPage() {
                             className="icon-button"
                             onClick={() => openModal(item)}
                             aria-label={t('common.edit')}
+                            title={t('common.edit')}
                           >
                             <Pencil aria-hidden="true" size={17} />
                           </button>
@@ -271,9 +272,10 @@ export default function NewsPage() {
                             onClick={() => remove(item)}
                             disabled={Boolean(busyId)}
                             aria-label={t('common.delete')}
+                            title={t('common.delete')}
                           >
                             {busyId === item.id ? (
-                              <LoaderCircle className="spin" size={17} />
+                              <LoaderCircle aria-hidden="true" className="spin" size={17} />
                             ) : (
                               <Trash2 aria-hidden="true" size={17} />
                             )}
@@ -388,7 +390,7 @@ export default function NewsPage() {
               className="btn-classic px-5 inline-flex items-center gap-2"
               disabled={submitting || uploading}
             >
-              {submitting && <LoaderCircle className="spin" size={17} />}
+              {submitting && <LoaderCircle aria-hidden="true" className="spin" size={17} />}
               {submitting ? t('common.saving') : t('common.save')}
             </button>
           </div>

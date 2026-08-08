@@ -172,7 +172,7 @@ function LoginScreen({ onLogin }: { onLogin: (user: AdminUser) => void }) {
             onClick={() => changeMode('phone')}
             aria-pressed={loginMode === 'phone'}
           >
-            <Phone size={16} /> {t('auth.byPhone')}
+            <Phone aria-hidden="true" size={16} /> {t('auth.byPhone')}
           </button>
           <button
             type="button"
@@ -180,7 +180,7 @@ function LoginScreen({ onLogin }: { onLogin: (user: AdminUser) => void }) {
             onClick={() => changeMode('password')}
             aria-pressed={loginMode === 'password'}
           >
-            <LockKeyhole size={16} /> {t('auth.byPassword')}
+            <LockKeyhole aria-hidden="true" size={16} /> {t('auth.byPassword')}
           </button>
         </div>
 
@@ -220,6 +220,7 @@ function LoginScreen({ onLogin }: { onLogin: (user: AdminUser) => void }) {
                 className="icon-button password-toggle"
                 onClick={() => setShowPassword((value) => !value)}
                 aria-label={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
+                title={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
               >
                 {showPassword ? (
                   <EyeOff aria-hidden="true" size={19} />
@@ -265,7 +266,7 @@ function LoginScreen({ onLogin }: { onLogin: (user: AdminUser) => void }) {
             {phoneCodeRequested && (
               <>
                 <div className="login-phone-status">
-                  <MessageCircle size={17} />
+                  <MessageCircle aria-hidden="true" size={17} />
                   <span>{t('auth.whatsappInstruction')}</span>
                 </div>
                 {whatsappUrl && (
@@ -275,7 +276,7 @@ function LoginScreen({ onLogin }: { onLogin: (user: AdminUser) => void }) {
                     target="_blank"
                     rel="noreferrer"
                   >
-                    <MessageCircle size={17} /> {t('auth.openWhatsApp')}
+                    <MessageCircle aria-hidden="true" size={17} /> {t('auth.openWhatsApp')}
                   </a>
                 )}
                 <label className="field-label" htmlFor="admin-phone-code">

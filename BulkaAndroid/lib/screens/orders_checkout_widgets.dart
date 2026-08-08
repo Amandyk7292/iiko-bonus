@@ -92,49 +92,69 @@ class _PreorderFulfillmentSelector extends StatelessWidget {
           ]) ...[
             if (type == _OrderType.pickup) const SizedBox(width: 10),
             Expanded(
-              child: InkWell(
-                key: ValueKey('preorder-fulfillment-${type.wireValue}'),
+              child: Semantics(
+                button: true,
+                selected: value == type,
+                inMutuallyExclusiveGroup: true,
+                label: type.label,
                 onTap: () => onChanged(type),
-                borderRadius: BorderRadius.circular(BulkaRadii.control),
-                child: AnimatedContainer(
-                  duration: BulkaMotion.duration(context, BulkaMotion.fast),
-                  constraints: const BoxConstraints(minHeight: 70),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
+                excludeSemantics: true,
+                child: Material(
+                  color: value == type
+                      ? Theme.of(context).colorScheme.secondaryContainer
+                      : Theme.of(context).colorScheme.surface,
+                  animationDuration: BulkaMotion.duration(
+                    context,
+                    BulkaMotion.fast,
                   ),
-                  decoration: BoxDecoration(
-                    gradient: value == type
-                        ? const LinearGradient(
-                            colors: [Color(0xFFFFE79A), Color(0xFFFFC447)],
-                          )
-                        : null,
-                    color: value == type ? null : Colors.white,
+                  shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(BulkaRadii.control),
-                    border: Border.all(
+                    side: BorderSide(
                       color: value == type
-                          ? _bulkaYellow
+                          ? context.bulkaColors.brandBrown
                           : context.bulkaColors.cardBorder,
+                      width: value == type ? 2 : 1,
                     ),
                   ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(type.icon, size: 24, color: _textDark),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: Text(
-                          type.label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontFamily: _headingFont,
-                            fontSize: BulkaTypeScale.body,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    key: ValueKey('preorder-fulfillment-${type.wireValue}'),
+                    onTap: () => onChanged(type),
+                    excludeFromSemantics: true,
+                    child: Container(
+                      constraints: const BoxConstraints(minHeight: 70),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 12,
                       ),
-                    ],
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(type.icon, size: 22, color: _textDark),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              type.label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontFamily: _headingFont,
+                                fontSize: BulkaTypeScale.body,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          if (value == type) ...[
+                            const SizedBox(width: 4),
+                            Icon(
+                              Icons.check_circle_rounded,
+                              size: 18,
+                              color: context.bulkaColors.brandBrown,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -334,7 +354,7 @@ class _PreorderCalendarSheetState extends State<_PreorderCalendarSheet> {
               data: theme.copyWith(
                 colorScheme: theme.colorScheme.copyWith(
                   primary: const Color(0xFFD2A347),
-                  onPrimary: Colors.white,
+                  onPrimary: _textDark,
                   surface: Colors.white,
                 ),
                 datePickerTheme: const DatePickerThemeData(

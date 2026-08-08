@@ -76,8 +76,13 @@ describe('Sidebar role navigation', () => {
 
     expect(screen.getByText('99+')).toBeInTheDocument();
     expect(screen.getByText('7')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Скрыть боковое меню' }));
+    const collapseButton = screen.getByRole('button', { name: 'Скрыть боковое меню' });
+    expect(collapseButton).toHaveAttribute('title', 'Скрыть боковое меню');
+    fireEvent.click(collapseButton);
     for (const closeButton of screen.getAllByRole('button', { name: 'Закрыть меню' })) {
+      if (closeButton.classList.contains('sidebar-close')) {
+        expect(closeButton).toHaveAttribute('title', 'Закрыть меню');
+      }
       fireEvent.click(closeButton);
     }
 

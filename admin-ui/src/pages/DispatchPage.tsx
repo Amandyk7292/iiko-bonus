@@ -379,6 +379,7 @@ export default function DispatchPage() {
                           rel="noreferrer"
                           className="icon-button icon-button-sm"
                           aria-label={t('dispatch.openRoute')}
+                          title={t('dispatch.openRoute')}
                         >
                           <ExternalLink aria-hidden="true" size={16} />
                         </a>
@@ -402,9 +403,10 @@ export default function DispatchPage() {
                             disabled={Boolean(saving)}
                             onClick={() => void syncYandex(order.id)}
                             aria-label="Обновить статус Яндекс.Доставки"
+                            title="Обновить статус Яндекс.Доставки"
                           >
                             {saving === `${order.id}:sync` ? (
-                              <LoaderCircle className="spin" size={15} />
+                              <LoaderCircle aria-hidden="true" className="spin" size={15} />
                             ) : (
                               <RotateCw aria-hidden="true" size={15} />
                             )}
@@ -416,9 +418,10 @@ export default function DispatchPage() {
                               disabled={Boolean(saving)}
                               onClick={() => void cancelYandex(order.id)}
                               aria-label="Отменить Яндекс.Доставку"
+                              title="Отменить Яндекс.Доставку"
                             >
                               {saving === `${order.id}:cancel` ? (
-                                <LoaderCircle className="spin" size={15} />
+                                <LoaderCircle aria-hidden="true" className="spin" size={15} />
                               ) : (
                                 <X aria-hidden="true" size={15} />
                               )}
@@ -434,7 +437,7 @@ export default function DispatchPage() {
                             onClick={() => void quoteYandex(order.id)}
                           >
                             {saving === `${order.id}:quote` ? (
-                              <LoaderCircle className="spin" size={15} />
+                              <LoaderCircle aria-hidden="true" className="spin" size={15} />
                             ) : (
                               <Calculator aria-hidden="true" size={15} />
                             )}
@@ -447,7 +450,7 @@ export default function DispatchPage() {
                             onClick={() => void requestYandex(order.id)}
                           >
                             {saving === `${order.id}:request` ? (
-                              <LoaderCircle className="spin" size={15} />
+                              <LoaderCircle aria-hidden="true" className="spin" size={15} />
                             ) : (
                               <Send aria-hidden="true" size={15} />
                             )}

@@ -141,8 +141,9 @@
 
 .taplink-block-item {
   min-width: 0;
-  min-height: 68px;
+  min-height: 104px;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 7px;
   border: 1px solid var(--sagi-border);
@@ -166,7 +167,17 @@
 
 .taplink-block-item.is-disabled {
   background: #faf8f5;
-  opacity: 0.68;
+  border-style: dashed;
+  color: #675b52;
+}
+
+.taplink-block-item.is-disabled .taplink-block-kind {
+  background: #f1e9df;
+  color: #77482e;
+}
+
+.taplink-block-item.is-disabled .taplink-block-copy small {
+  color: #6f6258;
 }
 
 .taplink-block-item.is-dragging {
@@ -175,8 +186,15 @@
 
 .taplink-page-item {
   width: 100%;
+  min-height: 68px;
   padding: 11px;
   text-align: left;
+}
+
+.taplink-page-item:focus-visible,
+.taplink-block-select:focus-visible {
+  outline: 3px solid rgba(141, 71, 15, 0.34);
+  outline-offset: -3px;
 }
 
 .taplink-drag-handle {
@@ -194,7 +212,7 @@
 }
 
 .taplink-block-select {
-  min-width: 0;
+  min-width: calc(100% - 39px);
   flex: 1 1 auto;
   align-self: stretch;
   padding: 8px 2px;
@@ -242,20 +260,43 @@
   font-size: 11px;
 }
 
-.taplink-block-controls {
-  width: 68px;
-  flex: 0 0 68px;
-  padding: 4px 5px 4px 0;
+.taplink-selected-indicator {
+  width: 24px;
+  height: 24px;
+  margin-left: auto;
+  flex: 0 0 24px;
   display: grid;
-  grid-template-columns: repeat(2, 30px);
-  gap: 2px;
+  place-items: center;
+  border-radius: 999px;
+  background: #8a431e;
+  color: #fff;
+  opacity: 0;
+  transform: scale(0.78);
+  transition:
+    opacity var(--motion-duration-base) var(--motion-ease-in-out),
+    transform var(--motion-duration-base) var(--motion-ease-in-out);
+}
+
+.taplink-page-item.is-selected > .taplink-selected-indicator,
+.taplink-block-item.is-selected .taplink-selected-indicator {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.taplink-block-controls {
+  width: 100%;
+  flex: 1 0 100%;
+  padding: 0 8px 8px 39px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .taplink-block-controls .icon-button-sm {
-  width: 30px;
-  height: 30px;
-  min-height: 30px;
-  flex-basis: 30px;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  flex-basis: 44px;
 }
 
 .taplink-empty-blocks {
@@ -387,6 +428,26 @@
   color: #7b3c1d;
 }
 
+.taplink-selection-indicator {
+  width: 22px;
+  height: 22px;
+  margin-left: auto;
+  flex: 0 0 22px;
+  display: grid;
+  place-items: center;
+  color: #8a431e;
+  opacity: 0;
+  transform: scale(0.78);
+  transition:
+    opacity var(--motion-duration-base) var(--motion-ease-in-out),
+    transform var(--motion-duration-base) var(--motion-ease-in-out);
+}
+
+.taplink-background-mode.is-selected .taplink-selection-indicator {
+  opacity: 1;
+  transform: scale(1);
+}
+
 .taplink-background-mode input {
   position: absolute;
   inset: 0;
@@ -397,7 +458,7 @@
   cursor: pointer;
 }
 
-.taplink-background-mode span {
+.taplink-background-mode > span:not(.taplink-selection-indicator) {
   min-width: 0;
   font-size: var(--type-body-small);
   font-weight: 700;
@@ -1097,22 +1158,6 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .taplink-block-item {
-    flex-wrap: wrap;
-  }
-
-  .taplink-block-select {
-    min-width: calc(100% - 42px);
-  }
-
-  .taplink-block-controls {
-    width: 100%;
-    flex-basis: 100%;
-    padding: 0 8px 8px 39px;
-    display: flex;
-    justify-content: flex-end;
-  }
-
   .taplink-phone-frame {
     border-width: 5px;
     border-radius: 34px;
@@ -1137,6 +1182,8 @@
 @media (prefers-reduced-motion: reduce) {
   .taplink-block-item,
   .taplink-background-mode,
+  .taplink-selected-indicator,
+  .taplink-selection-indicator,
   .taplink-preview-link {
     transition: none;
   }

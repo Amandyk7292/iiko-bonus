@@ -80,10 +80,12 @@ void main() {
     String? selectedMethodId;
     late StateSetter updateHarness;
     final api = _SavedCardsApi();
+    final theme = buildBulkaTheme();
+    final colors = theme.extension<BulkaThemeColors>()!;
 
     await tester.pumpWidget(
       MaterialApp(
-        theme: buildBulkaTheme(),
+        theme: theme,
         home: Scaffold(
           body: StatefulBuilder(
             builder: (context, setState) {
@@ -122,6 +124,26 @@ void main() {
         matching: find.byIcon(Icons.check_circle_rounded),
       ),
       findsOneWidget,
+    );
+    final firstCard = find.byKey(
+      const ValueKey('checkout-saved-card-card-one'),
+    );
+    final selectedSurface = tester.widget<Material>(
+      find.byKey(const ValueKey('checkout-saved-card-surface-card-one')),
+    );
+    expect(selectedSurface.color, theme.colorScheme.secondaryContainer);
+    final selectedShape = selectedSurface.shape! as RoundedRectangleBorder;
+    expect(selectedShape.side.color, colors.brandBrown);
+    expect(
+      tester
+          .widget<Icon>(
+            find.descendant(
+              of: firstCard,
+              matching: find.byIcon(Icons.check_circle_rounded),
+            ),
+          )
+          .color,
+      colors.brandBrown,
     );
     expect(find.textContaining('CVV'), findsNothing);
     expect(find.textContaining('защищённому токену'), findsNothing);

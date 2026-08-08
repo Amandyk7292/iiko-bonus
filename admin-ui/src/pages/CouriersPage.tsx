@@ -197,7 +197,7 @@ export default function CouriersPage() {
             className="btn-outline px-5 inline-flex items-center gap-2"
             onClick={() => load()}
           >
-            <RefreshCw size={17} />
+            <RefreshCw aria-hidden="true" size={17} />
             {t('common.refresh')}
           </button>
           <button
@@ -205,7 +205,7 @@ export default function CouriersPage() {
             className="btn-classic px-5 inline-flex items-center gap-2"
             onClick={() => open()}
           >
-            <Plus size={17} />
+            <Plus aria-hidden="true" size={17} />
             {t('couriers.add')}
           </button>
         </div>
@@ -232,8 +232,9 @@ export default function CouriersPage() {
                   type="button"
                   onClick={() => open(courier)}
                   aria-label={t('common.edit')}
+                  title={t('common.edit')}
                 >
-                  <Pencil size={17} />
+                  <Pencil aria-hidden="true" size={17} />
                 </button>
               </div>
               <dl className="courier-meta">
@@ -248,7 +249,7 @@ export default function CouriersPage() {
                 <div>
                   <dt>{t('couriers.sessions')}</dt>
                   <dd>
-                    <ShieldCheck size={15} />
+                    <ShieldCheck aria-hidden="true" size={15} />
                     {courier.activeSessions || 0}
                   </dd>
                 </div>
@@ -265,7 +266,7 @@ export default function CouriersPage() {
                   <dd>
                     {courier.latitude != null && courier.longitude != null ? (
                       <>
-                        <MapPin size={15} />
+                        <MapPin aria-hidden="true" size={15} />
                         {courier.latitude.toFixed(5)}, {courier.longitude.toFixed(5)}
                       </>
                     ) : (
@@ -286,7 +287,7 @@ export default function CouriersPage() {
                   className="btn-outline courier-link-button inline-flex items-center gap-2"
                   onClick={() => void copyAccessLink(courier)}
                 >
-                  <Copy size={16} />
+                  <Copy aria-hidden="true" size={16} />
                   {t('couriers.copyLink')}
                 </button>
               )}
@@ -296,7 +297,7 @@ export default function CouriersPage() {
                   className="btn-outline inline-flex items-center gap-2"
                   onClick={() => void openActivity(courier)}
                 >
-                  <History size={16} />
+                  <History aria-hidden="true" size={16} />
                   {t('couriers.activity')}
                 </button>
                 <button
@@ -305,7 +306,7 @@ export default function CouriersPage() {
                   onClick={() => void revokeSessions(courier)}
                   disabled={!courier.activeSessions}
                 >
-                  <LogOut size={16} />
+                  <LogOut aria-hidden="true" size={16} />
                   {t('couriers.revokeSessions')}
                 </button>
               </div>
@@ -429,7 +430,7 @@ export default function CouriersPage() {
               className="btn-classic px-5 inline-flex items-center gap-2"
               disabled={saving}
             >
-              {saving && <LoaderCircle className="spin" size={17} />}
+              {saving && <LoaderCircle aria-hidden="true" className="spin" size={17} />}
               {saving ? t('common.saving') : t('common.save')}
             </button>
           </div>

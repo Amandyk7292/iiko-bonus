@@ -145,6 +145,11 @@ describe('Support operator workflow', () => {
     renderPage();
 
     expect(await screen.findByRole('heading', { name: 'Амандық' })).toBeInTheDocument();
+    const selectedRequest = screen.getByRole('button', { name: /Амандық/ });
+    expect(selectedRequest).toHaveAttribute('aria-pressed', 'true');
+    expect(
+      selectedRequest.querySelector('.support-request-selected-indicator'),
+    ).toBeInTheDocument();
     expect(screen.getByText('Клиент запросил возврат по оплаченному заказу.')).toBeInTheDocument();
     expect(screen.getByText('Верните оплату за заказ')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Фото 1/ })).toHaveAttribute(
@@ -228,6 +233,15 @@ describe('Support operator workflow', () => {
     await user.click(screen.getByRole('button', { name: /Другой клиент/ }));
     expect(await screen.findByRole('heading', { name: 'Другой клиент' })).toBeInTheDocument();
     expect(window.location.search).toContain('request=support-2');
+    const secondRequestControl = screen.getByRole('button', { name: /Другой клиент/ });
+    expect(secondRequestControl).toHaveAttribute('aria-pressed', 'true');
+    expect(
+      secondRequestControl.querySelector('.support-request-selected-indicator'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Амандық/ })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
   });
 
   it('recovers from an initial queue failure through the shared retry control', async () => {

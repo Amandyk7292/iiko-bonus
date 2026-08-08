@@ -258,26 +258,34 @@ export default function TaplinkThemeEditor({
             aria-labelledby={modeHeadingId}
             data-testid="taplink-background-mode"
           >
-            {BACKGROUND_MODES.map(({ value, icon: Icon }) => (
-              <label
-                key={value}
-                className={
-                  document.theme.backgroundMode === value
-                    ? 'taplink-background-mode is-selected'
-                    : 'taplink-background-mode'
-                }
-              >
-                <input
-                  type="radio"
-                  name="taplink-background-mode"
-                  value={value}
-                  checked={document.theme.backgroundMode === value}
-                  onChange={() => updateTheme({ backgroundMode: value })}
-                />
-                <Icon aria-hidden="true" size={19} />
-                <span>{t(`taplink.backgroundMode.${value}`)}</span>
-              </label>
-            ))}
+            {BACKGROUND_MODES.map(({ value, icon: Icon }) => {
+              const selected = document.theme.backgroundMode === value;
+              return (
+                <label
+                  key={value}
+                  className={
+                    selected ? 'taplink-background-mode is-selected' : 'taplink-background-mode'
+                  }
+                >
+                  <input
+                    type="radio"
+                    name="taplink-background-mode"
+                    value={value}
+                    checked={selected}
+                    onChange={() => updateTheme({ backgroundMode: value })}
+                  />
+                  <Icon aria-hidden="true" size={19} />
+                  <span>{t(`taplink.backgroundMode.${value}`)}</span>
+                  <span
+                    className="taplink-selection-indicator"
+                    aria-hidden="true"
+                    data-testid="taplink-background-selection-indicator"
+                  >
+                    {selected && <CheckCircle2 size={19} strokeWidth={2.4} />}
+                  </span>
+                </label>
+              );
+            })}
           </div>
 
           {document.theme.backgroundMode === 'solid' && (

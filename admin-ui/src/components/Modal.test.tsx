@@ -21,6 +21,7 @@ describe('Modal motion and accessibility', () => {
     const { rerender } = render(view(true));
 
     expect(screen.getByRole('dialog', { name: 'Проверка' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Закрыть' })).toHaveAttribute('title', 'Закрыть');
     rerender(view(false));
     expect(screen.getByRole('dialog', { name: 'Проверка' })).toBeInTheDocument();
     expect(document.querySelector('.modal-backdrop')).toHaveClass('is-exiting');

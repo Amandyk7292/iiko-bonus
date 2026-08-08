@@ -1,6 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { createElement } from 'react';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { describe, expect, it, vi } from 'vitest';
 import {
   normalizeStorageConditionsForSave,
+  ProductFactsFields,
   sanitizeProductOverridePatch,
 } from './menu-page.shared';
 
@@ -58,5 +62,31 @@ describe('menu product override payload', () => {
         { temperature: '', duration_value: 72, duration_unit: 'hours' },
       ]),
     ).toEqual([]);
+  });
+
+  it('keeps native product fact checkboxes and shows a separate selected marker', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      createElement(ProductFactsFields, {
+        value: { allergens: ['milk'] },
+        onChange,
+        idPrefix: 'test-product',
+      }),
+    );
+
+    const milk = screen.getByRole('checkbox', { name: 'Молоко' });
+    const milkChoice = milk.closest('label');
+    expect(milk).toBeChecked();
+    expect(milkChoice).toHaveClass('is-selected');
+    expect(milkChoice?.querySelector('.product-fact-check svg')).toBeInTheDocument();
+
+    const gluten = screen.getByRole('checkbox', { name: 'Глютен' });
+    expect(gluten).not.toBeChecked();
+    expect(
+      gluten.closest('label')?.querySelector('.product-fact-check svg'),
+    ).not.toBeInTheDocument();
+    await user.click(gluten);
+    expect(onChange).toHaveBeenCalledWith('allergens', ['milk', 'gluten']);
   });
 });

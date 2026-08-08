@@ -516,21 +516,27 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 20,
-                height: 20,
+                width: 22,
+                height: 22,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: isSelected
-                      ? const Color(0xFFFFC107)
-                      : const Color(0xFFEEEEEE),
+                      ? Theme.of(context).colorScheme.secondaryContainer
+                      : Theme.of(context).colorScheme.surface,
+                  border: Border.all(
+                    color: isSelected
+                        ? context.bulkaColors.brandBrown
+                        : context.bulkaColors.cardBorder,
+                    width: isSelected ? 2 : 1.5,
+                  ),
                 ),
                 child: isSelected
                     ? Center(
                         child: Container(
                           width: 8,
                           height: 8,
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
+                          decoration: BoxDecoration(
+                            color: context.bulkaColors.brandBrown,
                             shape: BoxShape.circle,
                           ),
                         ),

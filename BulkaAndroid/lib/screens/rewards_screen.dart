@@ -338,28 +338,10 @@ class _RewardsScreenState extends State<RewardsScreen> {
                   icon: Icons.redeem_outlined,
                   title: 'rewards_have_friend_code'.tr,
                   description: 'rewards_friend_code_description'.tr,
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _referralController,
-                          textCapitalization: TextCapitalization.characters,
-                          decoration: const InputDecoration(
-                            hintText: 'BULKA-XXXX',
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      FilledButton(
-                        onPressed: _submitting ? null : _redeemReferral,
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size(52, 52),
-                          backgroundColor: _bulkaYellow,
-                          foregroundColor: _textDark,
-                        ),
-                        child: const Icon(Icons.arrow_forward_rounded),
-                      ),
-                    ],
+                  child: _RewardsCodeField(
+                    controller: _referralController,
+                    hintText: 'BULKA-XXXX',
+                    onApply: _submitting ? null : _redeemReferral,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -367,28 +349,10 @@ class _RewardsScreenState extends State<RewardsScreen> {
                   icon: Icons.card_giftcard_rounded,
                   title: 'rewards_gift_certificate'.tr,
                   description: 'rewards_gift_description'.tr,
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _giftController,
-                          textCapitalization: TextCapitalization.characters,
-                          decoration: const InputDecoration(
-                            hintText: 'BLK-XXXX',
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      FilledButton(
-                        onPressed: _submitting ? null : _redeemGift,
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size(52, 52),
-                          backgroundColor: _bulkaYellow,
-                          foregroundColor: _textDark,
-                        ),
-                        child: const Icon(Icons.check_rounded),
-                      ),
-                    ],
+                  child: _RewardsCodeField(
+                    controller: _giftController,
+                    hintText: 'BLK-XXXX',
+                    onApply: _submitting ? null : _redeemGift,
                   ),
                 ),
                 if (_giftPurchaseHistory.isNotEmpty) ...[
@@ -979,6 +943,59 @@ class _GiftPurchaseHistoryTile extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+class _RewardsCodeField extends StatelessWidget {
+  const _RewardsCodeField({
+    required this.controller,
+    required this.hintText,
+    required this.onApply,
+  });
+
+  final TextEditingController controller;
+  final String hintText;
+  final VoidCallback? onApply;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final textScale = MediaQuery.textScalerOf(context).scale(1);
+        final vertical = constraints.maxWidth < 340 || textScale > 1.35;
+        final field = TextField(
+          controller: controller,
+          textCapitalization: TextCapitalization.characters,
+          decoration: InputDecoration(hintText: hintText),
+        );
+        final action = FilledButton(
+          onPressed: onApply,
+          style: FilledButton.styleFrom(
+            minimumSize: const Size(0, 52),
+            backgroundColor: _bulkaYellow,
+            foregroundColor: _textDark,
+          ),
+          child: Text('apply_btn'.tr),
+        );
+        if (vertical) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              field,
+              const SizedBox(height: 10),
+              SizedBox(width: double.infinity, child: action),
+            ],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: field),
+            const SizedBox(width: 10),
+            action,
+          ],
+        );
+      },
     );
   }
 }

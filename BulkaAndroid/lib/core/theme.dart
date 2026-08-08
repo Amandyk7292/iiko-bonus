@@ -298,6 +298,8 @@ ThemeData buildBulkaTheme() {
       onPrimary: _textDark,
       secondary: _bulkaBrown,
       onSecondary: Colors.white,
+      secondaryContainer: _lightCardHighlight,
+      onSecondaryContainer: _bulkaBrown,
       surface: _lightCard,
       onSurface: _textDark,
       surfaceContainerHighest: _lightCardHighlight,
@@ -551,7 +553,12 @@ ThemeData buildBulkaTheme() {
         tapTargetSize: MaterialTapTargetSize.padded,
         animationDuration: BulkaMotion.fast,
         enableFeedback: true,
-        foregroundColor: const WidgetStatePropertyAll(_bulkaBrown),
+        foregroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.disabled)) {
+            return _bulkaBrown.withValues(alpha: 0.38);
+          }
+          return _bulkaBrown;
+        }),
         backgroundColor: const WidgetStatePropertyAll(Colors.white),
         overlayColor: _bulkaButtonOverlay(_bulkaBrown),
         elevation: const WidgetStatePropertyAll(0),
@@ -583,8 +590,18 @@ ThemeData buildBulkaTheme() {
         tapTargetSize: MaterialTapTargetSize.padded,
         animationDuration: BulkaMotion.fast,
         enableFeedback: true,
-        foregroundColor: const WidgetStatePropertyAll(_bulkaBrown),
-        backgroundColor: const WidgetStatePropertyAll(Colors.white),
+        foregroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.disabled)) {
+            return _bulkaBrown.withValues(alpha: 0.38);
+          }
+          return _bulkaBrown;
+        }),
+        backgroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.disabled)) {
+            return BulkaThemeColors.light.disabledSurface;
+          }
+          return Colors.white;
+        }),
         overlayColor: _bulkaButtonOverlay(_bulkaBrown),
         padding: const WidgetStatePropertyAll(
           EdgeInsets.symmetric(horizontal: 20, vertical: 13),
@@ -614,7 +631,12 @@ ThemeData buildBulkaTheme() {
         tapTargetSize: MaterialTapTargetSize.padded,
         animationDuration: BulkaMotion.fast,
         enableFeedback: true,
-        foregroundColor: const WidgetStatePropertyAll(_bulkaBrown),
+        foregroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.disabled)) {
+            return _bulkaBrown.withValues(alpha: 0.38);
+          }
+          return _bulkaBrown;
+        }),
         overlayColor: _bulkaButtonOverlay(_bulkaBrown),
         textStyle: const WidgetStatePropertyAll(
           TextStyle(
@@ -638,7 +660,12 @@ ThemeData buildBulkaTheme() {
         tapTargetSize: MaterialTapTargetSize.padded,
         animationDuration: BulkaMotion.fast,
         enableFeedback: true,
-        foregroundColor: const WidgetStatePropertyAll(_bulkaBrown),
+        foregroundColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.disabled)) {
+            return _bulkaBrown.withValues(alpha: 0.38);
+          }
+          return _bulkaBrown;
+        }),
         overlayColor: _bulkaButtonOverlay(_bulkaBrown),
         shape: const WidgetStatePropertyAll(CircleBorder()),
       ),

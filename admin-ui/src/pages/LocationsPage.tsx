@@ -336,6 +336,7 @@ function DeliveryZonesEditor({
               onClick={() => onRemove(zone.id)}
               disabled={zones.length === 1}
               aria-label={t('locations.removeZone')}
+              title={t('locations.removeZone')}
             >
               <Trash2 aria-hidden="true" size={18} />
             </button>
@@ -1007,6 +1008,7 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
                               className="icon-button"
                               onClick={() => openEditor(location)}
                               aria-label={t('common.edit')}
+                              title={t('common.edit')}
                             >
                               <Pencil aria-hidden="true" size={17} />
                             </button>

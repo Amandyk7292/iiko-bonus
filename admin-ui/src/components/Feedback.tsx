@@ -259,6 +259,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
                 className="icon-button icon-button-sm"
                 onClick={() => removeToast(item.id)}
                 aria-label={t('common.close')}
+                title={t('common.close')}
               >
                 <X aria-hidden="true" size={16} />
               </button>
@@ -297,6 +298,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
                 className="icon-button"
                 onClick={() => settle(false)}
                 aria-label={t('common.close')}
+                title={t('common.close')}
               >
                 <X aria-hidden="true" size={20} />
               </button>

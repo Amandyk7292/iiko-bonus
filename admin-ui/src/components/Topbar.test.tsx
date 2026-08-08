@@ -102,4 +102,13 @@ describe('Topbar city and branch scope', () => {
 
     expect(onBranchChange).toHaveBeenCalledWith('');
   });
+
+  it('explains the icon-only notification action on hover', () => {
+    render(topbar('', vi.fn()));
+
+    expect(screen.getByRole('button', { name: 'Операционные уведомления' })).toHaveAttribute(
+      'title',
+      'Операционные уведомления',
+    );
+  });
 });

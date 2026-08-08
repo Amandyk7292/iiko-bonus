@@ -427,6 +427,9 @@ class _CatalogImageQuantityControl extends StatelessWidget {
           child: IconButton(
             key: const ValueKey('catalog-image-add'),
             onPressed: stopListed ? null : onAdd,
+            tooltip: stopListed
+                ? 'catalog_stop_list'.tr
+                : 'catalog_add_to_cart'.tr,
             style: IconButton.styleFrom(
               backgroundColor: stopListed
                   ? const Color(0xFFD9D5D0)
@@ -477,6 +480,7 @@ class _CatalogImageQuantityControl extends StatelessWidget {
               child: ExcludeSemantics(
                 child: IconButton(
                   onPressed: onDecrease,
+                  tooltip: 'catalog_decrease_quantity'.tr,
                   style: IconButton.styleFrom(
                     minimumSize: const Size(44, 48),
                     foregroundColor: colors.brandBrown,
@@ -510,6 +514,11 @@ class _CatalogImageQuantityControl extends StatelessWidget {
               child: ExcludeSemantics(
                 child: IconButton(
                   onPressed: onIncrease,
+                  tooltip: onIncrease == null
+                      ? 'catalog_quantity_limit_reached'.trArgs({
+                          'count': CartProvider.maxItemQuantity,
+                        })
+                      : 'catalog_increase_quantity'.tr,
                   style: IconButton.styleFrom(
                     minimumSize: const Size(44, 48),
                     foregroundColor: colors.brandBrown,

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   ArrowDown,
   ArrowUp,
+  CheckCircle2,
   Copy,
   FileText,
   GripVertical,
@@ -92,6 +93,13 @@ export default function TaplinkBlockList({
             <strong>{t('taplink.header')}</strong>
             <small>{t('taplink.pageSettingsHint')}</small>
           </span>
+          <span
+            className="taplink-selected-indicator"
+            aria-hidden="true"
+            data-testid="taplink-block-selection-indicator"
+          >
+            {selected === 'page' && <CheckCircle2 size={18} strokeWidth={2.5} />}
+          </span>
         </button>
 
         {blocks.length === 0 ? (
@@ -143,6 +151,13 @@ export default function TaplinkBlockList({
                       {t(block.type === 'section' ? 'taplink.section' : 'taplink.link')}
                       {!block.enabled ? ` · ${t('taplink.hidden')}` : ''}
                     </small>
+                  </span>
+                  <span
+                    className="taplink-selected-indicator"
+                    aria-hidden="true"
+                    data-testid="taplink-block-selection-indicator"
+                  >
+                    {selectedBlock && <CheckCircle2 size={18} strokeWidth={2.5} />}
                   </span>
                 </button>
                 <div className="taplink-block-controls">

@@ -1,3 +1,4 @@
+import { CheckCircle2 } from 'lucide-react';
 import SelectControl from '../../components/SelectControl';
 
 export interface IikoProduct {
@@ -457,6 +458,9 @@ export function ProductFactsFields({
                   loading="lazy"
                 />
                 <span>{option.label}</span>
+                <span className="product-fact-check" aria-hidden="true">
+                  {active && <CheckCircle2 size={22} strokeWidth={2.4} />}
+                </span>
               </label>
             );
           })}

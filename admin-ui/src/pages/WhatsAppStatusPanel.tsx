@@ -69,6 +69,7 @@ export default function WhatsAppStatusPanel({
           onClick={onRefresh}
           disabled={busy === 'refresh' || busy === 'pairing-reset'}
           aria-label="Обновить WhatsApp"
+          title="Обновить WhatsApp"
         >
           <RefreshCw aria-hidden="true" size={19} className={busy === 'refresh' ? 'spin' : ''} />
         </button>

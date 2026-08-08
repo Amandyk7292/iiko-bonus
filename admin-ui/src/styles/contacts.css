@@ -138,14 +138,40 @@
   white-space: nowrap;
 }
 
-.contact-admin-muted .contact-admin-card-header,
-.contact-admin-action-muted {
-  filter: saturate(0.55);
+.contact-admin-muted {
+  border-color: #cfc4b8;
+  background: #f7f4ef;
+  box-shadow: none;
 }
 
-.contact-admin-muted .contact-admin-card-title,
-.contact-admin-action-muted .contact-admin-action-copy {
-  opacity: 0.62;
+.contact-admin-muted .contact-admin-card-header {
+  border-bottom-color: #d8cdc1;
+  background: #f3eee7;
+}
+
+.contact-admin-muted .contact-admin-card-title h2,
+.contact-admin-action-muted .contact-admin-action-copy strong {
+  color: #493b33;
+}
+
+.contact-admin-muted .contact-admin-card-title p,
+.contact-admin-action-muted .contact-admin-action-copy span {
+  color: #62564f;
+}
+
+.contact-admin-action-muted {
+  border-color: #d8cdc1;
+  background: #f4f1ec;
+}
+
+.contact-admin-action-muted .contact-admin-action-icon {
+  background: #e7e0d7;
+  color: #594b42;
+}
+
+.contact-admin-action-muted .contact-admin-action-type {
+  background: #e6ded4;
+  color: #513f33;
 }
 
 .contact-admin-no-actions {

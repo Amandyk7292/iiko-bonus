@@ -165,6 +165,7 @@ export default function Topbar({
             onClick={onMenuClick}
             className="icon-button menu-button"
             aria-label={t('nav.openMenu')}
+            title={t('nav.openMenu')}
           >
             <Menu aria-hidden="true" size={23} />
           </button>
@@ -242,6 +243,7 @@ export default function Topbar({
               type="button"
               className="icon-button topbar-notification-button"
               aria-label="Операционные уведомления"
+              title="Операционные уведомления"
               aria-expanded={notificationsOpen}
               onClick={() => setNotificationsOpen((open) => !open)}
             >

@@ -3,6 +3,11 @@
   min-width: 0;
 }
 
+.whatsapp-console-page :where(button, a, input, select, textarea):focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
 .whatsapp-status-panel {
   display: grid;
   grid-template-columns: auto minmax(220px, 1fr) auto auto auto;
@@ -155,7 +160,7 @@
 }
 
 .whatsapp-view-tabs > button {
-  min-height: 42px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -285,14 +290,18 @@
 .whatsapp-filter-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 4px;
+  gap: 6px;
   padding: 3px;
   border-radius: var(--radius-medium);
   background: #f7eee0;
 }
 
 .whatsapp-filter-row button {
-  min-height: 34px;
+  position: relative;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 5px 8px;
   border: 0;
   border-radius: var(--radius-small);
@@ -302,10 +311,27 @@
   font-weight: 700;
 }
 
+.whatsapp-filter-check {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 14px;
+  opacity: 0;
+  transform: scale(0.72);
+  transition:
+    opacity var(--motion-duration-base) var(--motion-ease-in-out),
+    transform var(--motion-duration-base) var(--motion-ease-in-out);
+}
+
 .whatsapp-filter-row button.is-active {
   background: #fff;
   color: var(--sagi-cocoa);
   box-shadow: 0 3px 10px rgba(59, 33, 23, 0.08);
+}
+
+.whatsapp-filter-row button.is-active .whatsapp-filter-check {
+  opacity: 1;
+  transform: scale(1);
 }
 
 .whatsapp-conversation-list {
@@ -316,13 +342,14 @@
 }
 
 .whatsapp-conversation-item {
+  position: relative;
   width: 100%;
   min-height: 82px;
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) auto;
   align-items: center;
   gap: 11px;
-  padding: 12px;
+  padding: 12px 12px 12px 16px;
   border: 0;
   border-bottom: 1px solid #f0e7da;
   background: transparent;
@@ -331,6 +358,17 @@
   transition:
     background var(--motion-duration-base) var(--motion-ease-in-out),
     transform var(--motion-duration-base) var(--motion-ease-in-out);
+}
+
+.whatsapp-conversation-item::before {
+  content: '';
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 0;
+  width: 4px;
+  border-radius: 0 var(--radius-pill) var(--radius-pill) 0;
+  background: transparent;
 }
 
 .whatsapp-conversation-item:hover {
@@ -343,6 +381,10 @@
 
 .whatsapp-conversation-item.is-active {
   background: #fde9ca;
+}
+
+.whatsapp-conversation-item.is-active::before {
+  background: #a94f16;
 }
 
 .whatsapp-avatar {
@@ -546,8 +588,8 @@
 }
 
 .whatsapp-message-meta button {
-  width: 27px;
-  height: 27px;
+  width: 44px;
+  height: 44px;
   display: inline-grid;
   place-items: center;
   margin-left: 3px;
@@ -748,6 +790,7 @@
 }
 
 .whatsapp-memory-form .btn-outline {
+  min-height: 44px;
   gap: 7px;
   margin-top: 3px;
 }
@@ -1006,6 +1049,11 @@
   transform: translateX(18px);
 }
 
+.whatsapp-setting-toggle:has(input:focus-visible) .switch-control {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
 .whatsapp-language-fieldset {
   margin: 0;
   padding: 0;
@@ -1026,10 +1074,11 @@
 }
 
 .whatsapp-language-fieldset label {
-  min-height: 42px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
-  padding: 8px 13px;
+  gap: 8px;
+  padding: 8px 13px 8px 9px;
   border: 1px solid var(--sagi-border);
   border-radius: var(--radius-medium);
   background: #fff;
@@ -1039,10 +1088,37 @@
   cursor: pointer;
 }
 
+.whatsapp-language-check {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid #b8a99c;
+  border-radius: 6px;
+  background: #fff;
+  color: transparent;
+  transition:
+    border-color var(--motion-duration-base) var(--motion-ease-in-out),
+    background var(--motion-duration-base) var(--motion-ease-in-out),
+    color var(--motion-duration-base) var(--motion-ease-in-out);
+}
+
 .whatsapp-language-fieldset label.is-active {
   border-color: #d9a56c;
   background: #fff0d8;
   color: #71370f;
+}
+
+.whatsapp-language-fieldset label.is-active .whatsapp-language-check {
+  border-color: #a94f16;
+  background: #a94f16;
+  color: #fff;
+}
+
+.whatsapp-language-fieldset label:has(input:focus-visible) {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 .whatsapp-language-fieldset input {
@@ -1071,16 +1147,16 @@
 
 .whatsapp-secret-input .input-classic {
   width: 100%;
-  padding-right: 46px;
+  padding-right: 54px;
   padding-left: 42px;
 }
 
 .whatsapp-secret-input button {
   position: absolute;
   top: 50%;
-  right: 6px;
-  min-width: 34px;
-  min-height: 34px;
+  right: 2px;
+  min-width: 44px;
+  min-height: 44px;
   display: inline-grid;
   place-items: center;
   border: 0;

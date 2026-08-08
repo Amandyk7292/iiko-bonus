@@ -293,7 +293,9 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
                         value <= rating
                             ? Icons.star_rounded
                             : Icons.star_border_rounded,
-                        color: const Color(0xFFE1A52B),
+                        color: value <= rating
+                            ? context.bulkaColors.brandBrown
+                            : context.bulkaColors.mutedText,
                         size: 34,
                       ),
                       tooltip: 'review_rating_value'.trArgs({'value': value}),

@@ -173,6 +173,7 @@ export default function Sidebar({
             onClick={onCollapse}
             className="icon-button sidebar-collapse"
             aria-label={t('nav.collapseMenu')}
+            title={t('nav.collapseMenu')}
           >
             <PanelLeftClose aria-hidden="true" size={21} />
           </button>
@@ -181,6 +182,7 @@ export default function Sidebar({
             onClick={onClose}
             className="icon-button sidebar-close"
             aria-label={t('nav.closeMenu')}
+            title={t('nav.closeMenu')}
           >
             <X aria-hidden="true" size={21} />
           </button>

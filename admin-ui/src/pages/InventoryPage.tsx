@@ -496,6 +496,7 @@ export default function InventoryPage({ role = 'viewer' }: { role?: string }) {
                                 onClick={() => void save(item)}
                                 disabled={savingId === key || !dirtyKeys.has(key)}
                                 aria-label={t('common.save')}
+                                title={t('common.save')}
                               >
                                 {savingId === key ? (
                                   <LoaderCircle className="spin" size={17} aria-hidden="true" />

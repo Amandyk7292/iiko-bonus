@@ -265,9 +265,9 @@ class _LocationsScreenState extends State<LocationsScreen> {
             children: [
               TextButton.icon(
                 onPressed: () => setState(() => _showCities = true),
-                icon: const Icon(
+                icon: Icon(
                   Icons.chevron_left_rounded,
-                  color: _almond,
+                  color: colors.brandBrown,
                   size: 20,
                 ),
                 label: Text(
@@ -281,10 +281,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
               IconButton(
                 onPressed: _loadLocations,
                 tooltip: 'refresh_btn'.tr,
-                icon: const Icon(
-                  Icons.refresh_rounded,
-                  color: Color(0xFFD3AD72),
-                ),
+                icon: Icon(Icons.refresh_rounded, color: colors.brandBrown),
               ),
             ],
           ),
@@ -302,14 +299,11 @@ class _LocationsScreenState extends State<LocationsScreen> {
                 fontSize: BulkaTypeScale.body,
               ),
               suffixIcon: _searchQuery.isEmpty
-                  ? const Icon(Icons.search, color: Color(0xFFD3AD72))
+                  ? Icon(Icons.search, color: colors.brandBrown)
                   : IconButton(
                       onPressed: _clearSearch,
                       tooltip: 'catalog_clear_search'.tr,
-                      icon: const Icon(
-                        Icons.close_rounded,
-                        color: Color(0xFFD3AD72),
-                      ),
+                      icon: Icon(Icons.close_rounded, color: colors.brandBrown),
                     ),
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 20,

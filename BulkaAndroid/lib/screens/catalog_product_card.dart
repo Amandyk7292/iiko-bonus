@@ -156,12 +156,22 @@ extension _CatalogProductCard on _CatalogScreenState {
                             foregroundColor: stockSubscribed
                                 ? Colors.white
                                 : _textDark,
+                            disabledBackgroundColor: colors.disabledSurface,
+                            disabledForegroundColor: colors.mutedText,
                           ),
-                          icon: Icon(
-                            stockSubscribed
-                                ? Icons.notifications_active_rounded
-                                : Icons.add_alert_rounded,
-                          ),
+                          icon: stockBusy
+                              ? SizedBox.square(
+                                  dimension: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: colors.brandBrown,
+                                  ),
+                                )
+                              : Icon(
+                                  stockSubscribed
+                                      ? Icons.notifications_active_rounded
+                                      : Icons.add_alert_rounded,
+                                ),
                         ),
                       )
                     : _CatalogImageQuantityControl(

@@ -287,6 +287,7 @@ export default function TransactionsPage() {
                                 onClick={() => setExpandedId(expanded ? null : transaction.id)}
                                 aria-expanded={expanded}
                                 aria-label={t('transactions.items')}
+                                title={t('transactions.items')}
                               >
                                 <ChevronDown
                                   aria-hidden="true"

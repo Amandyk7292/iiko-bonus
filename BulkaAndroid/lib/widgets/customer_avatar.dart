@@ -104,6 +104,7 @@ Future<String?> showCustomerAvatarPicker(
     barrierColor: Colors.black.withValues(alpha: 0.48),
     builder: (sheetContext) {
       final height = MediaQuery.sizeOf(sheetContext).height;
+      final scheme = Theme.of(sheetContext).colorScheme;
       final desiredHeight =
           120 + ((customerAvatarOptions.length / 3).ceil() * 112);
       return Container(
@@ -139,10 +140,20 @@ Future<String?> showCustomerAvatarPicker(
                     ),
                   ),
                 ),
-                IconButton.filledTonal(
+                IconButton(
+                  key: const ValueKey('customer-avatar-close'),
                   onPressed: () => Navigator.pop(sheetContext),
-                  tooltip: 'close'.tr,
-                  icon: const Icon(Icons.close_rounded),
+                  tooltip: 'close_tooltip'.tr,
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(48, 48),
+                    tapTargetSize: MaterialTapTargetSize.padded,
+                    backgroundColor: scheme.secondaryContainer,
+                    foregroundColor: scheme.onSecondaryContainer,
+                    disabledBackgroundColor:
+                        context.bulkaColors.disabledSurface,
+                    disabledForegroundColor: context.bulkaColors.mutedText,
+                  ),
+                  icon: const Icon(Icons.close_rounded, size: 22),
                 ),
               ],
             ),
@@ -160,62 +171,76 @@ Future<String?> showCustomerAvatarPicker(
                 itemBuilder: (context, index) {
                   final option = customerAvatarOptions[index];
                   final selected = option.key == selectedKey;
+                  void selectAvatar() {
+                    BulkaMotion.selection();
+                    Navigator.pop(sheetContext, option.key);
+                  }
+
                   return Semantics(
                     button: true,
                     selected: selected,
                     label: 'avatar_option'.trArgs({'number': index + 1}),
-                    child: InkWell(
-                      key: ValueKey('avatar-option-${option.key}'),
-                      onTap: () {
-                        BulkaMotion.selection();
-                        Navigator.pop(sheetContext, option.key);
-                      },
-                      customBorder: const CircleBorder(),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          Container(
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: selected
-                                    ? const Color(0xFFFFB814)
-                                    : const Color(0xFFE8DDCC),
-                                width: selected ? 4 : 1,
-                              ),
-                              boxShadow: selected
-                                  ? BulkaShadows.selectedAvatar
-                                  : null,
+                    onTap: selectAvatar,
+                    excludeSemantics: true,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Material(
+                          color: const Color(0xFFF8F4EC),
+                          shape: CircleBorder(
+                            side: BorderSide(
+                              color: selected
+                                  ? context.bulkaColors.brandBrown
+                                  : const Color(0xFFE8DDCC),
+                              width: selected ? 4 : 1,
                             ),
-                            padding: EdgeInsets.all(selected ? 3 : 1),
-                            child: ClipOval(
-                              child: Image.asset(
-                                option.assetPath,
-                                fit: BoxFit.cover,
-                                filterQuality: FilterQuality.medium,
+                          ),
+                          elevation: selected ? 3 : 0,
+                          shadowColor: context.bulkaColors.brandGold,
+                          clipBehavior: Clip.antiAlias,
+                          child: InkWell(
+                            key: ValueKey('avatar-option-${option.key}'),
+                            onTap: selectAvatar,
+                            excludeFromSemantics: true,
+                            customBorder: const CircleBorder(),
+                            child: Ink.image(
+                              image: AssetImage(option.assetPath),
+                              fit: BoxFit.cover,
+                              child: const SizedBox.expand(),
+                            ),
+                          ),
+                        ),
+                        if (selected)
+                          Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: IgnorePointer(
+                              key: ValueKey(
+                                'avatar-selected-hit-passthrough-${option.key}',
+                              ),
+                              child: Container(
+                                key: ValueKey(
+                                  'avatar-selected-indicator-${option.key}',
+                                ),
+                                width: 30,
+                                height: 30,
+                                decoration: BoxDecoration(
+                                  color: context.bulkaColors.brandGold,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: Icon(
+                                  Icons.check_rounded,
+                                  size: 20,
+                                  color: context.bulkaColors.brandBrown,
+                                ),
                               ),
                             ),
                           ),
-                          if (selected)
-                            Positioned(
-                              right: 0,
-                              bottom: 0,
-                              child: Container(
-                                width: 28,
-                                height: 28,
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFFFFB814),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.check_rounded,
-                                  size: 19,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
+                      ],
                     ),
                   );
                 },

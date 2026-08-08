@@ -1096,6 +1096,30 @@ void main() {
       find.byKey(const ValueKey('preorder-fulfillment-pickup')),
       findsOneWidget,
     );
+    final pickupOption = find.byKey(
+      const ValueKey('preorder-fulfillment-pickup'),
+    );
+    final pickupSemantics = tester.widget<Semantics>(
+      find
+          .ancestor(
+            of: pickupOption,
+            matching: find.byWidgetPredicate(
+              (widget) =>
+                  widget is Semantics && widget.properties.label == 'Самовывоз',
+            ),
+          )
+          .first,
+    );
+    expect(pickupSemantics.properties.button, isTrue);
+    expect(pickupSemantics.properties.selected, isTrue);
+    expect(pickupSemantics.properties.inMutuallyExclusiveGroup, isTrue);
+    expect(
+      find.descendant(
+        of: pickupOption,
+        matching: find.byIcon(Icons.check_circle_rounded),
+      ),
+      findsOneWidget,
+    );
 
     var redRequiredStar = false;
     for (final richText in tester.widgetList<RichText>(find.byType(RichText))) {
@@ -1113,6 +1137,23 @@ void main() {
       find.byKey(const ValueKey('preorder-fulfillment-delivery')),
     );
     await tester.pumpAndSettle();
+    final deliveryOption = find.byKey(
+      const ValueKey('preorder-fulfillment-delivery'),
+    );
+    expect(
+      find.descendant(
+        of: deliveryOption,
+        matching: find.byIcon(Icons.check_circle_rounded),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: pickupOption,
+        matching: find.byIcon(Icons.check_circle_rounded),
+      ),
+      findsNothing,
+    );
     expect(
       find.textContaining('Адрес доставки', findRichText: true),
       findsWidgets,
@@ -2350,6 +2391,25 @@ void main() {
     expect(find.text('тест'), findsOneWidget);
     expect(find.text('Дом 9'), findsOneWidget);
     expect(find.byIcon(Icons.check_rounded), findsWidgets);
+    final addressTile = find
+        .ancestor(of: find.text('тест'), matching: find.byType(InkWell))
+        .first;
+    final addressColors = Theme.of(
+      tester.element(addressTile),
+    ).extension<BulkaThemeColors>()!;
+    expect(
+      tester
+          .widget<Icon>(
+            find
+                .descendant(
+                  of: addressTile,
+                  matching: find.byIcon(Icons.check_rounded),
+                )
+                .first,
+          )
+          .color,
+      addressColors.brandBrown,
+    );
   });
 
   testWidgets('delivery map blocks a selected point outside every zone', (

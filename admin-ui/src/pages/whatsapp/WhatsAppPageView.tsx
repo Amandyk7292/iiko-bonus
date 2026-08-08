@@ -3,6 +3,7 @@ import {
   Bot,
   BookOpenText,
   BookmarkPlus,
+  Check,
   CheckCheck,
   ChevronLeft,
   CircleAlert,
@@ -178,12 +179,19 @@ export default function WhatsAppPageView({ controller }: { controller: WhatsAppP
                     key={value || 'all'}
                     type="button"
                     className={statusFilter === value ? 'is-active' : ''}
+                    aria-pressed={statusFilter === value}
                     onClick={() => {
                       setStatusFilter(value);
                       setConversationPage(1);
                       updateConversationQuery({ status: value, page: null });
                     }}
                   >
+                    <Check
+                      className="whatsapp-filter-check"
+                      aria-hidden="true"
+                      size={14}
+                      strokeWidth={3}
+                    />
                     {label}
                   </button>
                 ))}
@@ -211,6 +219,7 @@ export default function WhatsAppPageView({ controller }: { controller: WhatsAppP
                     key={conversation.id}
                     type="button"
                     className={`whatsapp-conversation-item ${selectedId === conversation.id ? 'is-active' : ''}`}
+                    aria-current={selectedId === conversation.id ? 'true' : undefined}
                     onClick={() => void selectConversation(conversation.id)}
                   >
                     <span className="whatsapp-avatar" aria-hidden="true">
@@ -290,6 +299,7 @@ export default function WhatsAppPageView({ controller }: { controller: WhatsAppP
                     className="icon-button whatsapp-mobile-back"
                     onClick={() => setMobileChatOpen(false)}
                     aria-label="К списку диалогов"
+                    title="К списку диалогов"
                   >
                     <ChevronLeft aria-hidden="true" size={21} />
                   </button>
@@ -310,6 +320,16 @@ export default function WhatsAppPageView({ controller }: { controller: WhatsAppP
                         className={`btn-outline compact-button ${selectedConversation.assistantEnabled ? 'is-assistant-active' : ''}`}
                         onClick={() => void toggleConversationAssistant()}
                         disabled={!canWrite || busy === 'conversation-assistant'}
+                        aria-label={
+                          selectedConversation.assistantEnabled
+                            ? 'Передать ответы оператору'
+                            : 'Включить ответы ИИ'
+                        }
+                        title={
+                          selectedConversation.assistantEnabled
+                            ? 'Передать ответы оператору'
+                            : 'Включить ответы ИИ'
+                        }
                       >
                         {selectedConversation.assistantEnabled ? (
                           <Bot aria-hidden="true" size={17} />
@@ -327,6 +347,11 @@ export default function WhatsAppPageView({ controller }: { controller: WhatsAppP
                       onClick={() => void toggleConversationStatus()}
                       disabled={!canWrite || busy === 'conversation-status'}
                       aria-label={
+                        selectedConversation.status === 'closed'
+                          ? 'Открыть диалог'
+                          : 'Закрыть диалог'
+                      }
+                      title={
                         selectedConversation.status === 'closed'
                           ? 'Открыть диалог'
                           : 'Закрыть диалог'
@@ -375,6 +400,7 @@ export default function WhatsAppPageView({ controller }: { controller: WhatsAppP
                                 type="button"
                                 onClick={() => prepareMemoryFromMessage(message)}
                                 aria-label="Сохранить сообщение в память"
+                                title="Сохранить сообщение в память"
                               >
                                 <BookmarkPlus aria-hidden="true" size={15} />
                               </button>
@@ -434,6 +460,7 @@ export default function WhatsAppPageView({ controller }: { controller: WhatsAppP
                           selectedConversation.id !== selectedId
                         }
                         aria-label="Отправить сообщение"
+                        title="Отправить сообщение"
                       >
                         {busy === 'reply' ? (
                           <LoaderCircle className="spin" size={19} />
@@ -455,6 +482,7 @@ export default function WhatsAppPageView({ controller }: { controller: WhatsAppP
                         onClick={() => stopVoiceRecording(false)}
                         disabled={voiceMode === 'sending'}
                         aria-label="Отменить голосовое"
+                        title="Отменить голосовое"
                       >
                         <X aria-hidden="true" size={20} />
                       </button>
@@ -464,6 +492,7 @@ export default function WhatsAppPageView({ controller }: { controller: WhatsAppP
                         onClick={() => stopVoiceRecording(true)}
                         disabled={voiceMode === 'sending'}
                         aria-label="Отправить голосовое"
+                        title="Отправить голосовое"
                       >
                         {voiceMode === 'sending' ? (
                           <LoaderCircle className="spin" size={19} />
@@ -509,6 +538,7 @@ export default function WhatsAppPageView({ controller }: { controller: WhatsAppP
                             onClick={() => void removeMemory(memory)}
                             disabled={!canWrite}
                             aria-label="Удалить заметку"
+                            title="Удалить заметку"
                           >
                             <Trash2 aria-hidden="true" size={16} />
                           </button>
@@ -632,6 +662,7 @@ export default function WhatsAppPageView({ controller }: { controller: WhatsAppP
                         className="icon-button"
                         onClick={() => openEditKnowledge(document)}
                         aria-label="Редактировать материал"
+                        title="Редактировать материал"
                       >
                         <Pencil aria-hidden="true" size={18} />
                       </button>
@@ -640,6 +671,7 @@ export default function WhatsAppPageView({ controller }: { controller: WhatsAppP
                         className="icon-button icon-button-danger"
                         onClick={() => void removeKnowledge(document)}
                         aria-label="Удалить материал"
+                        title="Удалить материал"
                       >
                         <Trash2 aria-hidden="true" size={18} />
                       </button>

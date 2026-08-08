@@ -1005,9 +1005,6 @@
   .row-number {
     color: #9b8e84 !important;
   }
-  .row-muted {
-    opacity: 0.64;
-  }
   .expanded-row,
   .expanded-row:hover {
     background: #fffaf2 !important;

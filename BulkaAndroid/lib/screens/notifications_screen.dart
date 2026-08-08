@@ -500,37 +500,58 @@ class _NotificationTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.bulkaColors;
+    final scheme = Theme.of(context).colorScheme;
     return Semantics(
       button: true,
       selected: selected,
       child: SizedBox(
         height: 50,
         child: Material(
-          color: selected ? _bulkaYellow : Colors.white.withValues(alpha: .94),
+          color: selected
+              ? scheme.secondaryContainer
+              : scheme.surface.withValues(alpha: .94),
           elevation: selected ? 2 : 1,
           shadowColor: const Color(0x26532814),
           clipBehavior: Clip.antiAlias,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(BulkaRadii.control),
             side: BorderSide(
-              color: selected
-                  ? const Color(0x4DFFB814)
-                  : const Color(0x24532814),
+              color: selected ? colors.brandBrown : colors.cardBorder,
+              width: selected ? 2 : 1,
             ),
           ),
           child: InkWell(
             onTap: onTap,
-            child: Center(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: _bulkaBrown,
-                  fontSize: BulkaTypeScale.body,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w700,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: _bulkaBrown,
+                      fontSize: BulkaTypeScale.body,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                    ),
+                  ),
                 ),
-              ),
+                if (selected)
+                  Positioned(
+                    bottom: 6,
+                    child: Container(
+                      width: 26,
+                      height: 3,
+                      decoration: BoxDecoration(
+                        color: colors.brandBrown,
+                        borderRadius: BorderRadius.circular(BulkaRadii.pill),
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         ),

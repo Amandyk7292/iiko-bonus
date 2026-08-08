@@ -482,9 +482,17 @@ export default function SupportPage() {
                   className={`${request.id === selectedId ? 'is-selected' : ''} ${request.overdue ? 'is-overdue' : ''}`}
                   key={request.id}
                   onClick={() => void selectRequest(request.id)}
+                  aria-pressed={request.id === selectedId}
                 >
                   <span className="support-request-topline">
-                    <strong>{request.customer?.name || 'Клиент Bulka'}</strong>
+                    <span className="support-request-heading">
+                      <strong>{request.customer?.name || 'Клиент Bulka'}</strong>
+                      {request.id === selectedId && (
+                        <span className="support-request-selected-indicator" aria-hidden="true">
+                          <CheckCircle2 size={18} strokeWidth={2.5} />
+                        </span>
+                      )}
+                    </span>
                     <time dateTime={request.lastMessageAt}>
                       {formatDate(request.lastMessageAt)}
                     </time>

@@ -277,9 +277,9 @@ class _CatalogFilterScreenState extends State<_CatalogFilterScreen> {
                                                 : BorderRadius.circular(6),
                                             border: Border.all(
                                               color: isSelected
-                                                  ? colors.brandGold
+                                                  ? colors.brandBrown
                                                   : colors.cardBorder,
-                                              width: 1.5,
+                                              width: isSelected ? 2 : 1.5,
                                             ),
                                           ),
                                           child: isSelected
@@ -289,9 +289,9 @@ class _CatalogFilterScreenState extends State<_CatalogFilterScreen> {
                                                           width: 10,
                                                           height: 10,
                                                           decoration:
-                                                              const BoxDecoration(
-                                                                color:
-                                                                    _bulkaYellow,
+                                                              BoxDecoration(
+                                                                color: colors
+                                                                    .brandBrown,
                                                                 shape: BoxShape
                                                                     .circle,
                                                               ),

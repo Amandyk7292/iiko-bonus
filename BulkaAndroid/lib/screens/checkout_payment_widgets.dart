@@ -389,83 +389,89 @@ class _CheckoutSavedCardTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.bulkaColors;
+    final scheme = Theme.of(context).colorScheme;
     final details = _details;
     return Semantics(
       button: true,
       selected: selected,
       label: details.isEmpty ? _cardLabel : '$_cardLabel. $details',
-      child: InkWell(
-        key: ValueKey('checkout-saved-card-$_id'),
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(BulkaRadii.control),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOut,
-          width: double.infinity,
-          constraints: const BoxConstraints(minHeight: 78),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-          decoration: BoxDecoration(
-            color: selected ? colors.surfaceCream : Colors.white,
-            borderRadius: BorderRadius.circular(BulkaRadii.control),
-            border: Border.all(
-              color: selected ? colors.brandGold : colors.cardBorder,
-              width: selected ? 2 : 1,
-            ),
+      onTap: onTap,
+      excludeSemantics: true,
+      child: Material(
+        key: ValueKey('checkout-saved-card-surface-$_id'),
+        color: selected ? scheme.secondaryContainer : scheme.surface,
+        animationDuration: const Duration(milliseconds: 180),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(BulkaRadii.control),
+          side: BorderSide(
+            color: selected ? colors.brandBrown : colors.cardBorder,
+            width: selected ? 2 : 1,
           ),
-          child: Row(
-            children: [
-              Container(
-                width: 46,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: colors.cardBorder),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          key: ValueKey('checkout-saved-card-$_id'),
+          onTap: onTap,
+          excludeFromSemantics: true,
+          child: Container(
+            width: double.infinity,
+            constraints: const BoxConstraints(minHeight: 78),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+            child: Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: colors.cardBorder),
+                  ),
+                  child: Icon(
+                    Icons.credit_card_rounded,
+                    color: colors.brandBrown,
+                    size: 24,
+                  ),
                 ),
-                child: Icon(
-                  Icons.credit_card_rounded,
-                  color: colors.brandBrown,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      _cardLabel,
-                      style: const TextStyle(
-                        fontFamily: _headingFont,
-                        fontSize: BulkaTypeScale.body,
-                        fontWeight: FontWeight.w700,
-                        color: _textDark,
-                      ),
-                    ),
-                    if (details.isNotEmpty) ...[
-                      const SizedBox(height: 4),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
                       Text(
-                        details,
-                        style: TextStyle(
-                          color: colors.mutedText,
-                          fontSize: BulkaTypeScale.caption,
-                          height: 1.25,
+                        _cardLabel,
+                        style: const TextStyle(
+                          fontFamily: _headingFont,
+                          fontSize: BulkaTypeScale.body,
+                          fontWeight: FontWeight.w700,
+                          color: _textDark,
                         ),
                       ),
+                      if (details.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          details,
+                          style: TextStyle(
+                            color: colors.mutedText,
+                            fontSize: BulkaTypeScale.caption,
+                            height: 1.25,
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Icon(
-                selected
-                    ? Icons.check_circle_rounded
-                    : Icons.radio_button_unchecked_rounded,
-                color: selected ? colors.brandGold : colors.mutedText,
-                size: 24,
-              ),
-            ],
+                const SizedBox(width: 12),
+                Icon(
+                  selected
+                      ? Icons.check_circle_rounded
+                      : Icons.radio_button_unchecked_rounded,
+                  color: selected ? colors.brandBrown : colors.mutedText,
+                  size: 24,
+                ),
+              ],
+            ),
           ),
         ),
       ),

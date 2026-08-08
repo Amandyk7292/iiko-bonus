@@ -99,7 +99,7 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
               disabled={categoryEditSaving}
               className="btn-classic px-5 inline-flex items-center gap-2"
             >
-              {categoryEditSaving && <LoaderCircle className="spin" size={17} />}
+              {categoryEditSaving && <LoaderCircle aria-hidden="true" className="spin" size={17} />}
               {categoryEditSaving ? 'Сохранение…' : 'Сохранить'}
             </button>
           </div>
@@ -288,7 +288,7 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
               disabled={editSaving}
               className="btn-classic px-5 inline-flex items-center gap-2"
             >
-              {editSaving && <LoaderCircle className="spin" size={17} />}
+              {editSaving && <LoaderCircle aria-hidden="true" className="spin" size={17} />}
               {editSaving ? 'Сохранение…' : 'Сохранить'}
             </button>
           </div>
@@ -481,6 +481,7 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
                                 type="button"
                                 className="icon-button icon-button-danger builder-remove-button"
                                 aria-label={`Удалить вариант ${section.title}`}
+                                title={`Удалить вариант ${section.title}`}
                                 onClick={() => removeBuilderOption(section.key, optionIndex)}
                               >
                                 <Trash2 aria-hidden="true" size={17} />
@@ -585,6 +586,7 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
                       type="button"
                       className="icon-button icon-button-danger"
                       aria-label={`Удалить группу ${groupIndex + 1}`}
+                      title={`Удалить группу ${groupIndex + 1}`}
                       onClick={() =>
                         setOptionsDraft((current: any) => ({
                           ...current,
@@ -785,6 +787,7 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
                           type="button"
                           className="icon-button icon-button-danger modifier-remove-button"
                           aria-label={`Удалить вариант ${optionIndex + 1}`}
+                          title={`Удалить вариант ${optionIndex + 1}`}
                           onClick={() =>
                             updateModifierGroup(groupIndex, {
                               options: group.options.filter(
@@ -818,7 +821,7 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
               onClick={() => void saveOptions()}
               disabled={optionsSaving}
             >
-              {optionsSaving && <LoaderCircle className="spin" size={17} />}
+              {optionsSaving && <LoaderCircle aria-hidden="true" className="spin" size={17} />}
               {optionsSaving ? 'Сохранение…' : 'Сохранить настройки'}
             </button>
           </div>
@@ -947,7 +950,7 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
               disabled={submitting}
               className="btn-classic px-5 inline-flex items-center gap-2"
             >
-              {submitting && <LoaderCircle className="spin" size={17} />}
+              {submitting && <LoaderCircle aria-hidden="true" className="spin" size={17} />}
               {submitting ? 'Сохранение…' : 'Сохранить'}
             </button>
           </div>

@@ -29,6 +29,23 @@
 .inventory-table .row-actions {
   flex-wrap: wrap;
 }
+.row-muted {
+  background: #f7f4ef;
+}
+.row-muted:hover {
+  background: #f2eee8 !important;
+}
+.row-muted > td {
+  border-top-color: #ded3c7;
+  color: #62564f;
+}
+.row-muted strong {
+  color: #47382f;
+}
+.row-muted .row-number,
+.row-muted .table-description {
+  color: #6b5d54 !important;
+}
 .switch-row-compact {
   min-width: 160px;
 }
@@ -47,11 +64,27 @@
   display: grid;
   gap: 18px;
   transition:
-    opacity var(--motion-duration-base),
-    transform var(--motion-duration-base);
+    transform var(--motion-duration-base),
+    border-color var(--motion-duration-base),
+    background-color var(--motion-duration-base),
+    box-shadow var(--motion-duration-base);
 }
 .courier-card.is-muted {
-  opacity: 0.68;
+  border-color: #d5cbc0;
+  background: #f5f2ed;
+  box-shadow: none;
+}
+.courier-card.is-muted .courier-card-head h3,
+.courier-card.is-muted .courier-meta dd {
+  color: #493b33;
+}
+.courier-card.is-muted .courier-card-head p,
+.courier-card.is-muted .courier-meta dt {
+  color: #62564f;
+}
+.courier-card.is-muted .courier-avatar {
+  background: #e7e0d7;
+  color: #594b42;
 }
 .courier-card-head {
   display: grid;

@@ -152,7 +152,16 @@ describe('TaplinkPage', () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.click(await screen.findByRole('radio', { name: 'Градиент' }));
+    const gradientMode = await screen.findByRole('radio', { name: 'Градиент' });
+    await user.click(gradientMode);
+    const gradientModeLabel = gradientMode.closest('label');
+    expect(gradientMode).toBeChecked();
+    expect(gradientModeLabel).toHaveClass('is-selected');
+    expect(
+      within(gradientModeLabel as HTMLElement)
+        .getByTestId('taplink-background-selection-indicator')
+        .querySelector('svg'),
+    ).toBeInTheDocument();
     const gradientFrom = screen.getByLabelText('Начальный цвет');
     await user.clear(gradientFrom);
     await user.type(gradientFrom, '#224466');
@@ -186,7 +195,13 @@ describe('TaplinkPage', () => {
     apiMocks.getTaplink.mockResolvedValue(response(pageWith(draft)));
     renderPage();
 
-    await user.click(await screen.findByRole('button', { name: /Жеткізу.*Ссылка/ }));
+    const blockControl = await screen.findByRole('button', { name: /Жеткізу.*Ссылка/ });
+    await user.click(blockControl);
+    expect(blockControl).toHaveAttribute('aria-pressed', 'true');
+    expect(blockControl.closest('.taplink-block-item')).toHaveClass('is-selected');
+    expect(
+      within(blockControl).getByTestId('taplink-block-selection-indicator').querySelector('svg'),
+    ).toBeInTheDocument();
     expect(screen.getByTestId('taplink-button-appearance')).toBeInTheDocument();
     await user.click(screen.getByRole('radio', { name: /Свой стиль/ }));
 

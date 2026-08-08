@@ -127,6 +127,7 @@ export default function Modal({
             className="icon-button"
             onClick={onClose}
             aria-label={t('common.close')}
+            title={t('common.close')}
           >
             <X aria-hidden="true" size={20} />
           </button>

@@ -458,8 +458,9 @@ export default function StoriesPage() {
                             className="icon-button"
                             onClick={() => openModal(story)}
                             aria-label={t('common.edit')}
+                            title={t('common.edit')}
                           >
-                            <Pencil size={17} />
+                            <Pencil aria-hidden="true" size={17} />
                           </button>
                           <button
                             type="button"
@@ -467,11 +468,12 @@ export default function StoriesPage() {
                             onClick={() => remove(story)}
                             disabled={Boolean(busyId)}
                             aria-label={t('common.delete')}
+                            title={t('common.delete')}
                           >
                             {busyId === String(story.id) ? (
-                              <LoaderCircle className="spin" size={17} />
+                              <LoaderCircle aria-hidden="true" className="spin" size={17} />
                             ) : (
-                              <Trash2 size={17} />
+                              <Trash2 aria-hidden="true" size={17} />
                             )}
                           </button>
                         </div>
@@ -752,7 +754,7 @@ export default function StoriesPage() {
               className="btn-classic px-5 inline-flex items-center gap-2"
               disabled={submitting || Boolean(uploadingField)}
             >
-              {submitting && <LoaderCircle className="spin" size={17} />}
+              {submitting && <LoaderCircle aria-hidden="true" className="spin" size={17} />}
               {submitting ? t('common.saving') : t('common.save')}
             </button>
           </div>
@@ -829,7 +831,7 @@ export default function StoriesPage() {
         </label>
         {onReset && (
           <button type="button" className="text-button-danger" onClick={onReset}>
-            <Trash2 size={14} />
+            <Trash2 aria-hidden="true" size={14} />
             {t('stories.resetImage')}
           </button>
         )}

@@ -1092,6 +1092,13 @@
   background: #fcf8f3;
 }
 
+.support-request-list > button:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 3px solid rgba(141, 71, 15, 0.34);
+  outline-offset: -3px;
+}
+
 .support-request-list > button.is-selected {
   background: #f8ecdc;
   box-shadow: inset 3px 0 #a1522e;
@@ -1115,6 +1122,26 @@
   font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.support-request-heading {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.support-request-heading strong {
+  min-width: 0;
+}
+
+.support-request-selected-indicator {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  display: grid;
+  place-items: center;
+  color: #8a431e;
 }
 
 .support-request-topline time,

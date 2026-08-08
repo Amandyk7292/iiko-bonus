@@ -67,8 +67,18 @@ describe('admin production invariants', () => {
     expect(commerce).toContain(
       'grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));',
     );
-    expect(commerce).toMatch(/\.product-fact-choice span\s*\{[^}]*overflow-wrap:\s*anywhere;/s);
+    expect(commerce).toMatch(
+      /\.product-fact-choice\s*>\s*span:not\(\.product-fact-check\)\s*\{[^}]*overflow-wrap:\s*anywhere;/s,
+    );
     expect(index).toMatch(/\.modal-title\s*\{[^}]*overflow-wrap:\s*anywhere;/s);
+  });
+
+  it('keeps Taplink block names readable beside full-size actions', () => {
+    const taplink = readFileSync(resolve(root, 'src/styles/taplink.css'), 'utf8');
+    expect(taplink).toMatch(/\.taplink-page-item\s*\{[^}]*min-height:\s*68px;/s);
+    expect(taplink).toMatch(/\.taplink-block-select\s*\{[^}]*min-width:\s*calc\(100% - 39px\);/s);
+    expect(taplink).toMatch(/\.taplink-block-controls\s*\{[^}]*flex:\s*1 0 100%;/s);
+    expect(taplink).toMatch(/\.taplink-block-controls\s*\{[^}]*justify-content:\s*flex-end;/s);
   });
 
   it('ships every locally referenced font and product mark', () => {

@@ -313,77 +313,84 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                 return Semantics(
                   button: true,
                   checked: active,
-                  child: InkWell(
-                    onTap: () {
-                      setState(() {
-                        final next = {...selected};
-                        if (multiple) {
-                          if (active) {
-                            next.remove(optionId);
-                          } else if (next.length < maxSelected) {
-                            next.add(optionId);
-                          }
-                        } else {
-                          next
-                            ..clear()
-                            ..add(optionId);
-                        }
-                        _selectedModifiers[groupId] = next;
-                      });
-                    },
-                    borderRadius: BorderRadius.circular(BulkaRadii.control),
-                    child: Container(
-                      constraints: const BoxConstraints(minHeight: 52),
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: active
-                            ? _bulkaYellow.withValues(alpha: 0.15)
-                            : Colors.white,
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Material(
+                      color: active
+                          ? _bulkaYellow.withValues(alpha: 0.15)
+                          : Colors.white,
+                      shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(BulkaRadii.control),
-                        border: Border.all(
+                        side: BorderSide(
                           color: active
                               ? _bulkaYellow
                               : const Color(0xFFE6DDD4),
                         ),
                       ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            multiple
-                                ? active
-                                      ? Icons.check_box_rounded
-                                      : Icons.check_box_outline_blank_rounded
-                                : active
-                                ? Icons.radio_button_checked_rounded
-                                : Icons.radio_button_off_rounded,
-                            color: active
-                                ? const Color(0xFFC8902E)
-                                : const Color(0xFF9A8D84),
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
+                        onTap: () {
+                          setState(() {
+                            final next = {...selected};
+                            if (multiple) {
+                              if (active) {
+                                next.remove(optionId);
+                              } else if (next.length < maxSelected) {
+                                next.add(optionId);
+                              }
+                            } else {
+                              next
+                                ..clear()
+                                ..add(optionId);
+                            }
+                            _selectedModifiers[groupId] = next;
+                          });
+                        },
+                        child: Container(
+                          constraints: const BoxConstraints(minHeight: 52),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 10,
                           ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              _optionTitle(option),
-                              style: const TextStyle(
-                                fontSize: BulkaTypeScale.body,
-                                fontWeight: FontWeight.w600,
+                          child: Row(
+                            children: [
+                              Icon(
+                                multiple
+                                    ? active
+                                          ? Icons.check_box_rounded
+                                          : Icons
+                                                .check_box_outline_blank_rounded
+                                    : active
+                                    ? Icons.radio_button_checked_rounded
+                                    : Icons.radio_button_off_rounded,
+                                color: active
+                                    ? _textDark
+                                    : const Color(0xFF9A8D84),
                               ),
-                            ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  _optionTitle(option),
+                                  style: const TextStyle(
+                                    fontSize: BulkaTypeScale.body,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              if (delta > 0)
+                                Text(
+                                  '+${_CatalogScreenState._formatPrice(context, delta)} ₸',
+                                  style: const TextStyle(
+                                    fontFamily: _descriptionFont,
+                                    fontWeight: FontWeight.w700,
+                                    fontFeatures: [
+                                      FontFeature.tabularFigures(),
+                                    ],
+                                  ),
+                                ),
+                            ],
                           ),
-                          if (delta > 0)
-                            Text(
-                              '+${_CatalogScreenState._formatPrice(context, delta)} ₸',
-                              style: const TextStyle(
-                                fontFamily: _descriptionFont,
-                                fontWeight: FontWeight.w700,
-                                fontFeatures: [FontFeature.tabularFigures()],
-                              ),
-                            ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
@@ -1186,6 +1193,9 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                                         () => _candles--,
                                                       )
                                                     : null,
+                                                tooltip:
+                                                    'catalog_decrease_quantity'
+                                                        .tr,
                                                 icon: const Icon(
                                                   Icons.remove_rounded,
                                                 ),
@@ -1216,6 +1226,9 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                                         () => _candles++,
                                                       )
                                                     : null,
+                                                tooltip:
+                                                    'catalog_increase_quantity'
+                                                        .tr,
                                                 icon: const Icon(
                                                   Icons.add_rounded,
                                                 ),
