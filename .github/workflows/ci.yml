@@ -248,6 +248,7 @@ jobs:
           PORT: '4320'
           BULKA_E2E_BASE_URL: http://127.0.0.1:4320
           BULKA_RELEASE_URL: http://127.0.0.1:4320
+          ADMIN_JWT_SECRET: bulka-admin-test-jwt-secret-2026
         run: |
           node src/server.js >scratch-full-app.log 2>&1 &
           server_pid=$!
