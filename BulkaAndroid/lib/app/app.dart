@@ -1,6 +1,24 @@
 part of '../main.dart';
 
 @visibleForTesting
+bool matchesCurrentAvatarSave({
+  required Customer? currentCustomer,
+  required String? savedPhone,
+  required String? apiSessionPhone,
+  required String customerId,
+  required String phone,
+}) {
+  if (currentCustomer == null || currentCustomer.id != customerId) {
+    return false;
+  }
+  if (!_sameSessionPhone(savedPhone, phone) ||
+      !_sameSessionPhone(currentCustomer.phone, phone)) {
+    return false;
+  }
+  return apiSessionPhone != null && _sameSessionPhone(apiSessionPhone, phone);
+}
+
+@visibleForTesting
 Future<void> reconcileReturnedForteCheckout({
   required BulkaApiClient api,
   required CartProvider cart,
@@ -52,7 +70,10 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   StreamSubscription<Map<String, dynamic>>? _pushOpenSubscription;
   StreamSubscription<Map<String, dynamic>>? _customerEventSubscription;
   StreamSubscription<Uri>? _appLinkSubscription;
-  bool _profileRefreshInFlight = false;
+  Future<void>? _profileRefreshTask;
+  String? _profileRefreshPhone;
+  bool _profileRefreshQueued = false;
+  int _profileMutationRevision = 0;
   bool _widgetRefreshInFlight = false;
   bool _loginRouteOpen = false;
   bool _notificationPermissionScheduled = false;
@@ -512,11 +533,51 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   }
 
   Future<void> _refreshProfile(String phone) async {
-    if (_profileRefreshInFlight) return;
+    while (_profileRefreshTask != null) {
+      final activeTask = _profileRefreshTask!;
+      if (_sameSessionPhone(_profileRefreshPhone, phone)) {
+        _profileRefreshQueued = true;
+        await activeTask;
+        return;
+      }
+      await activeTask;
+      if (identical(_profileRefreshTask, activeTask)) {
+        _profileRefreshTask = null;
+        _profileRefreshPhone = null;
+      }
+    }
+    if (!_sameSessionPhone(_savedPhone, phone)) return;
+    if (_api.accessToken == null) return;
+
+    late final Future<void> refreshTask;
+    refreshTask = _runProfileRefreshLoop(phone);
+    _profileRefreshTask = refreshTask;
+    _profileRefreshPhone = phone;
+    try {
+      await refreshTask;
+    } finally {
+      if (identical(_profileRefreshTask, refreshTask)) {
+        _profileRefreshTask = null;
+        _profileRefreshPhone = null;
+      }
+    }
+  }
+
+  Future<void> _runProfileRefreshLoop(String phone) async {
+    do {
+      _profileRefreshQueued = false;
+      await _refreshProfileOnce(phone);
+    } while (_profileRefreshQueued &&
+        mounted &&
+        _sameSessionPhone(_savedPhone, phone) &&
+        _api.accessToken != null);
+  }
+
+  Future<void> _refreshProfileOnce(String phone) async {
     if (!_sameSessionPhone(_savedPhone, phone)) return;
     final requestAccessToken = _api.accessToken;
     if (requestAccessToken == null) return;
-    _profileRefreshInFlight = true;
+    final requestMutationRevision = _profileMutationRevision;
     try {
       final profile = await _api.getProfile(phone);
       if (!mounted) return;
@@ -534,6 +595,10 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
           !_sameSessionPhone(_savedPhone, phone)) {
         return;
       }
+      if (requestMutationRevision != _profileMutationRevision) {
+        _profileRefreshQueued = true;
+        return;
+      }
       final changed = await _saveSession(
         phone,
         customer,
@@ -541,6 +606,10 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
         requestAccessToken,
         _refreshToken,
       );
+      if (requestMutationRevision != _profileMutationRevision) {
+        _profileRefreshQueued = true;
+        return;
+      }
       if (!changed || !mounted) return;
       setState(() {
         _customer = customer;
@@ -551,9 +620,55 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       );
     } catch (error) {
       if (error is ApiException && error.statusCode == 401) await _logout();
-    } finally {
-      _profileRefreshInFlight = false;
     }
+  }
+
+  Future<void> _refreshProfileAfterMutation() async {
+    final phone = _savedPhone;
+    if (phone == null) return;
+    _profileMutationRevision++;
+    await _refreshProfile(phone);
+  }
+
+  Future<void> _applySavedAvatar({
+    required String customerId,
+    required String phone,
+    required String avatarKey,
+  }) async {
+    final customer = _customer;
+    final accessToken = _api.accessToken;
+    final apiSessionPhone = _api.sessionPhone;
+    if (customer == null ||
+        accessToken == null ||
+        !matchesCurrentAvatarSave(
+          currentCustomer: customer,
+          savedPhone: _savedPhone,
+          apiSessionPhone: apiSessionPhone,
+          customerId: customerId,
+          phone: phone,
+        )) {
+      return;
+    }
+
+    _profileMutationRevision++;
+    final updated = customer.copyWith(avatarKey: avatarKey);
+    if (mounted) setState(() => _customer = updated);
+    unawaited(
+      HomeWidgetSync.update(customer: updated, activeOrder: _widgetOrder),
+    );
+    try {
+      await _saveSession(
+        phone,
+        updated,
+        _transactions,
+        accessToken,
+        _refreshToken,
+      );
+    } catch (_) {
+      // The server update is already authoritative. A background profile read
+      // repairs the local cache if storage was temporarily unavailable.
+    }
+    unawaited(_refreshProfile(phone));
   }
 
   void _startProfileRefresh(String phone) {
@@ -1075,10 +1190,8 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       customer: customer,
       transactions: _transactions,
       onLogout: _logout,
-      onRefreshProfile: () async {
-        final phone = _savedPhone;
-        if (phone != null) await _refreshProfile(phone);
-      },
+      onRefreshProfile: _refreshProfileAfterMutation,
+      onAvatarSaved: _applySavedAvatar,
       onRequireAuth: _requireAuthentication,
       initialTab: _lastMainTab,
       onTabChanged: (tab) => unawaited(_saveMainTab(tab)),

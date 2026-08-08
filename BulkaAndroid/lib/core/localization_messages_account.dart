@@ -60,6 +60,21 @@ const Map<String, Map<String, String>> _accountTranslations = {
     'kk': 'Аватарды өзгерту',
     'en': 'Change avatar',
   },
+  'avatar_saving': {
+    'ru': 'Сохраняем аватар…',
+    'kk': 'Аватар сақталуда…',
+    'en': 'Saving avatar…',
+  },
+  'avatar_saved': {
+    'ru': 'Аватар сохранён.',
+    'kk': 'Аватар сақталды.',
+    'en': 'Avatar saved.',
+  },
+  'avatar_save_error': {
+    'ru': 'Не удалось сохранить аватар.',
+    'kk': 'Аватарды сақтау мүмкін болмады.',
+    'en': 'Could not save the avatar.',
+  },
   'avatar_not_selected': {
     'ru': 'Аватар не выбран',
     'kk': 'Аватар таңдалмаған',

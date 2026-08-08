@@ -9,6 +9,7 @@ class ProfileScreen extends StatefulWidget {
     required this.onLogout,
     required this.onRefreshProfile,
     required this.onOpenOrders,
+    this.onAvatarSaved,
     super.key,
   });
 
@@ -19,6 +20,7 @@ class ProfileScreen extends StatefulWidget {
   final Future<void> Function() onLogout;
   final Future<void> Function() onRefreshProfile;
   final Future<void> Function() onOpenOrders;
+  final CustomerAvatarSavedCallback? onAvatarSaved;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -196,6 +198,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       onBack: () => Navigator.pop(pageContext),
       onLogout: widget.onLogout,
       onProfileUpdated: widget.onRefreshProfile,
+      onAvatarSaved:
+          widget.onAvatarSaved ??
+          ({required customerId, required phone, required avatarKey}) =>
+              widget.onRefreshProfile(),
     ),
   );
 

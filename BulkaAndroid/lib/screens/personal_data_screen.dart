@@ -1,5 +1,12 @@
 part of '../main.dart';
 
+typedef CustomerAvatarSavedCallback =
+    Future<void> Function({
+      required String customerId,
+      required String phone,
+      required String avatarKey,
+    });
+
 class PersonalDataScreen extends StatefulWidget {
   const PersonalDataScreen({
     required this.api,
@@ -7,6 +14,7 @@ class PersonalDataScreen extends StatefulWidget {
     required this.onBack,
     required this.onLogout,
     required this.onProfileUpdated,
+    this.onAvatarSaved,
     super.key,
   });
 
@@ -15,6 +23,7 @@ class PersonalDataScreen extends StatefulWidget {
   final VoidCallback onBack;
   final Future<void> Function() onLogout;
   final Future<void> Function() onProfileUpdated;
+  final CustomerAvatarSavedCallback? onAvatarSaved;
 
   @override
   State<PersonalDataScreen> createState() => _PersonalDataScreenState();
@@ -31,6 +40,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
   String? _birthDate;
   String? _selectedAvatarKey;
   bool _isLoading = false;
+  bool _isAvatarSaving = false;
   bool _citiesLoading = true;
   bool _citiesFailed = false;
   List<City> _cities = [];
@@ -115,6 +125,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
   }
 
   Future<void> _saveProfile() async {
+    if (_isLoading || _isAvatarSaving) return;
     final name = _nameController.text.trim();
     if (name.isEmpty) {
       _showInfoMessage('reg_err_name'.tr, isError: true);
@@ -168,15 +179,62 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
   }
 
   Future<void> _chooseAvatar() async {
+    if (_isLoading || _isAvatarSaving) return;
     final selected = await showCustomerAvatarPicker(
       context,
       selectedKey: _selectedAvatarKey,
     );
     if (!mounted || selected == null || selected == _selectedAvatarKey) return;
-    setState(() => _selectedAvatarKey = selected);
+    final previous = _selectedAvatarKey;
+    final customerId = widget.customer.id;
+    final phone = widget.customer.phone;
+    final onAvatarSaved = widget.onAvatarSaved;
+    setState(() {
+      _selectedAvatarKey = selected;
+      _isAvatarSaving = true;
+    });
+
+    try {
+      await widget.api.updateProfile(phone: phone, avatarKey: selected);
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _selectedAvatarKey = previous;
+          _isAvatarSaving = false;
+        });
+      }
+      _showInfoMessage(
+        localizeErrorMessage(error, fallbackKey: 'avatar_save_error'),
+        isError: true,
+      );
+      return;
+    }
+
+    try {
+      await onAvatarSaved?.call(
+        customerId: customerId,
+        phone: phone,
+        avatarKey: selected,
+      );
+    } catch (error, stackTrace) {
+      debugPrint('Failed to propagate the saved customer avatar: $error');
+      debugPrintStack(stackTrace: stackTrace);
+      unawaited(_refreshProfileInBackground());
+    }
+    _showInfoMessage('avatar_saved'.tr);
+    if (mounted) {
+      setState(() => _isAvatarSaving = false);
+    }
+  }
+
+  void _handleBack() {
+    if (!_isAvatarSaving) {
+      widget.onBack();
+    }
   }
 
   Future<void> _deleteAccount() async {
+    if (_isLoading || _isAvatarSaving) return;
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -564,7 +622,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
   Widget build(BuildContext context) {
     final colors = context.bulkaColors;
     final scheme = Theme.of(context).colorScheme;
-    return Scaffold(
+    final scaffold = Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
@@ -575,12 +633,15 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
               child: Row(
                 children: [
                   IconButton(
+                    key: const ValueKey('personal-data-back'),
                     icon: Icon(
                       Icons.arrow_back_ios_new_rounded,
-                      color: colors.brandBrown,
+                      color: _isAvatarSaving
+                          ? scheme.onSurface.withValues(alpha: 0.38)
+                          : colors.brandBrown,
                       size: 20,
                     ),
-                    onPressed: widget.onBack,
+                    onPressed: _isAvatarSaving ? null : _handleBack,
                     tooltip: 'back_tooltip'.tr,
                   ),
                   Expanded(
@@ -608,11 +669,17 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                     // Avatar
                     Center(
                       child: Semantics(
+                        key: const ValueKey('customer-avatar-action-semantics'),
                         button: true,
-                        label: 'avatar_choose'.tr,
+                        enabled: !_isLoading && !_isAvatarSaving,
+                        label: _isAvatarSaving
+                            ? 'avatar_saving'.tr
+                            : 'avatar_choose'.tr,
                         child: InkWell(
                           key: const ValueKey('choose-customer-avatar'),
-                          onTap: _isLoading ? null : _chooseAvatar,
+                          onTap: _isLoading || _isAvatarSaving
+                              ? null
+                              : _chooseAvatar,
                           customBorder: const CircleBorder(),
                           child: Stack(
                             clipBehavior: Clip.none,
@@ -636,11 +703,28 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                                     ),
                                     boxShadow: BulkaShadows.floatingAction,
                                   ),
-                                  child: Icon(
-                                    Icons.edit_rounded,
-                                    color: colors.brandBrown,
-                                    size: 18,
-                                  ),
+                                  alignment: Alignment.center,
+                                  child: _isAvatarSaving
+                                      ? Semantics(
+                                          label: 'avatar_saving'.tr,
+                                          liveRegion: true,
+                                          child: SizedBox(
+                                            key: const ValueKey(
+                                              'customer-avatar-saving',
+                                            ),
+                                            width: 18,
+                                            height: 18,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2.4,
+                                              color: colors.brandBrown,
+                                            ),
+                                          ),
+                                        )
+                                      : Icon(
+                                          Icons.edit_rounded,
+                                          color: colors.brandBrown,
+                                          size: 18,
+                                        ),
                                 ),
                               ),
                             ],
@@ -651,8 +735,14 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                     const SizedBox(height: 12),
                     Center(
                       child: TextButton(
-                        onPressed: _isLoading ? null : _chooseAvatar,
-                        child: Text('avatar_choose'.tr),
+                        onPressed: _isLoading || _isAvatarSaving
+                            ? null
+                            : _chooseAvatar,
+                        child: Text(
+                          _isAvatarSaving
+                              ? 'avatar_saving'.tr
+                              : 'avatar_choose'.tr,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -736,7 +826,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: GradientButton(
-                        onPressed: _saveProfile,
+                        onPressed: _isAvatarSaving ? null : _saveProfile,
                         loading: _isLoading,
                         child: Text(
                           'save_btn'.tr,
@@ -754,11 +844,16 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
                     // Delete Account Button
                     Center(
                       child: TextButton(
-                        onPressed: _isLoading ? null : _deleteAccount,
+                        key: const ValueKey('personal-data-delete-account'),
+                        onPressed: _isLoading || _isAvatarSaving
+                            ? null
+                            : _deleteAccount,
                         child: Text(
                           'delete_account'.tr,
-                          style: const TextStyle(
-                            color: Color(0xFFD32F2F),
+                          style: TextStyle(
+                            color: _isLoading || _isAvatarSaving
+                                ? scheme.onSurface.withValues(alpha: 0.38)
+                                : const Color(0xFFD32F2F),
                             fontSize: BulkaTypeScale.body,
                             fontWeight: FontWeight.w600,
                           ),
@@ -774,6 +869,11 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
           ],
         ),
       ),
+    );
+    return PopScope<void>(
+      key: const ValueKey('personal-data-pop-scope'),
+      canPop: !_isAvatarSaving,
+      child: scaffold,
     );
   }
 }

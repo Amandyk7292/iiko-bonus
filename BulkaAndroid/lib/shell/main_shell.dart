@@ -7,6 +7,7 @@ class MainShell extends StatefulWidget {
     required this.transactions,
     required this.onLogout,
     required this.onRefreshProfile,
+    this.onAvatarSaved,
     this.onRequireAuth,
     this.initialTab = 0,
     this.onTabChanged,
@@ -20,6 +21,7 @@ class MainShell extends StatefulWidget {
   final List<BonusTransaction> transactions;
   final Future<void> Function() onLogout;
   final Future<void> Function() onRefreshProfile;
+  final CustomerAvatarSavedCallback? onAvatarSaved;
   final Future<bool> Function()? onRequireAuth;
   final int initialTab;
   final ValueChanged<int>? onTabChanged;
@@ -226,6 +228,7 @@ class _MainShellState extends State<MainShell> {
           onBack: () => _changeTab(0),
           onLogout: widget.onLogout,
           onRefreshProfile: widget.onRefreshProfile,
+          onAvatarSaved: widget.onAvatarSaved,
           onOpenOrders: widget.onOpenOrders ?? () async {},
         ),
     ];
