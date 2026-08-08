@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 
 from playwright.sync_api import sync_playwright
 
@@ -35,14 +36,26 @@ with sync_playwright() as playwright:
         reduced_motion="reduce",
     )
     page = context.new_page()
-    browser_errors: list[str] = []
+    console_errors: list[dict[str, object]] = []
+    http_errors: list[dict[str, object]] = []
+    page_errors: list[str] = []
     page.on(
         "console",
-        lambda message: browser_errors.append(message.text)
+        lambda message: console_errors.append(
+            {"text": message.text, "location": message.location}
+        )
         if message.type == "error"
         else None,
     )
-    page.on("pageerror", lambda error: browser_errors.append(str(error)))
+    page.on(
+        "response",
+        lambda response: http_errors.append(
+            {"status": response.status, "url": response.url}
+        )
+        if response.status >= 400
+        else None,
+    )
+    page.on("pageerror", lambda error: page_errors.append(str(error)))
 
     response = page.goto(
         f"{BASE_URL}/profile", wait_until="domcontentloaded", timeout=120_000
@@ -83,6 +96,35 @@ with sync_playwright() as playwright:
     page.screenshot(path=str(screenshot), full_page=True)
 
     assert not missing, f"Documents page is missing legal entries: {missing}"
-    assert not browser_errors, browser_errors
+    unexpected_console_errors = [
+        error
+        for error in console_errors
+        if urlparse(str(error["location"].get("url", ""))).path
+        != "/api/auth/refresh"
+    ]
+    unexpected_http_errors = [
+        error
+        for error in http_errors
+        if not (
+            error["status"] == 401
+            and urlparse(str(error["url"])).path == "/api/auth/refresh"
+        )
+    ]
+    refresh_errors = [
+        error
+        for error in http_errors
+        if error["status"] == 401
+        and urlparse(str(error["url"])).path == "/api/auth/refresh"
+    ]
+    assert refresh_errors, "The guest profile did not probe the cookie session"
+    assert (
+        not unexpected_console_errors
+        and not unexpected_http_errors
+        and not page_errors
+    ), {
+        "console_errors": unexpected_console_errors,
+        "http_errors": unexpected_http_errors,
+        "page_errors": page_errors,
+    }
     context.close()
     browser.close()
