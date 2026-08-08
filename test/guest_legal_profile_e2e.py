@@ -18,6 +18,30 @@ EXPECTED_LABELS = (
 )
 
 
+def canonical_origin(url: str) -> tuple[str, str, int | None]:
+    parsed = urlparse(url)
+    port = parsed.port
+    if port is None and parsed.scheme == "https":
+        port = 443
+    elif port is None and parsed.scheme == "http":
+        port = 80
+    return (parsed.scheme.lower(), (parsed.hostname or "").lower(), port)
+
+
+BASE_ORIGIN = canonical_origin(BASE_URL)
+
+
+def is_base_url_path(url: object, expected_path: str) -> bool:
+    parsed = urlparse(str(url))
+    return (
+        canonical_origin(str(url)) == BASE_ORIGIN
+        and parsed.path == expected_path
+        and not parsed.params
+        and not parsed.query
+        and not parsed.fragment
+    )
+
+
 def semantic_text(page) -> str:
     return "\n".join(
         page.locator("[aria-label], flt-semantics").evaluate_all(
@@ -99,22 +123,26 @@ with sync_playwright() as playwright:
     unexpected_console_errors = [
         error
         for error in console_errors
-        if urlparse(str(error["location"].get("url", ""))).path
-        != "/api/auth/refresh"
+        if not (
+            "status of 401" in str(error["text"])
+            and is_base_url_path(
+                error["location"].get("url", ""), "/api/auth/refresh"
+            )
+        )
     ]
     unexpected_http_errors = [
         error
         for error in http_errors
         if not (
             error["status"] == 401
-            and urlparse(str(error["url"])).path == "/api/auth/refresh"
+            and is_base_url_path(error["url"], "/api/auth/refresh")
         )
     ]
     refresh_errors = [
         error
         for error in http_errors
         if error["status"] == 401
-        and urlparse(str(error["url"])).path == "/api/auth/refresh"
+        and is_base_url_path(error["url"], "/api/auth/refresh")
     ]
     assert refresh_errors, "The guest profile did not probe the cookie session"
     assert (

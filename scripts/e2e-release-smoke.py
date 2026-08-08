@@ -20,6 +20,41 @@ def require(condition: bool, message: str) -> None:
         raise AssertionError(message)
 
 
+def canonical_origin(url: str) -> tuple[str, str, int | None]:
+    parsed = urlparse(url)
+    port = parsed.port
+    if port is None and parsed.scheme == "https":
+        port = 443
+    elif port is None and parsed.scheme == "http":
+        port = 80
+    return (parsed.scheme.lower(), (parsed.hostname or "").lower(), port)
+
+
+BASE_ORIGIN = canonical_origin(BASE_URL)
+
+
+def origin_url(origin: tuple[str, str, int | None]) -> str:
+    scheme, hostname, port = origin
+    rendered_hostname = f"[{hostname}]" if ":" in hostname else hostname
+    default_port = 443 if scheme == "https" else 80
+    rendered_port = "" if port == default_port else f":{port}"
+    return f"{scheme}://{rendered_hostname}{rendered_port}"
+
+
+BASE_ORIGIN_URL = origin_url(BASE_ORIGIN)
+
+
+def is_base_url_path(url: object, expected_path: str) -> bool:
+    parsed = urlparse(str(url))
+    return (
+        canonical_origin(str(url)) == BASE_ORIGIN
+        and parsed.path == expected_path
+        and not parsed.params
+        and not parsed.query
+        and not parsed.fragment
+    )
+
+
 def fulfill_json(route, payload: dict[str, object], status: int = 200) -> None:
     route.fulfill(
         status=status,
@@ -33,7 +68,7 @@ def install_local_api_fixtures(context) -> None:
         return
 
     context.route(
-        "**/api/auth/refresh",
+        f"{BASE_ORIGIN_URL}/api/auth/refresh",
         lambda route: fulfill_json(
             route,
             {
@@ -62,7 +97,7 @@ def install_local_api_fixtures(context) -> None:
             return
         fulfill_json(route, payload)
 
-    context.route("**/api/guest/**", route_guest_bootstrap)
+    context.route(f"{BASE_ORIGIN_URL}/api/guest/**", route_guest_bootstrap)
 
 
 with sync_playwright() as playwright:
@@ -138,7 +173,10 @@ with sync_playwright() as playwright:
         for response in failed_responses
         if not (
             response["status"] == 401
-            and urlparse(str(response["url"])).path in EXPECTED_GUEST_401_PATHS
+            and any(
+                is_base_url_path(response["url"], expected_path)
+                for expected_path in EXPECTED_GUEST_401_PATHS
+            )
         )
     ]
     unexpected_console_errors = [
@@ -146,15 +184,17 @@ with sync_playwright() as playwright:
         for error in console_errors
         if not (
             "status of 401" in str(error["text"])
-            and urlparse(str(error["location"].get("url", ""))).path
-            in EXPECTED_GUEST_401_PATHS
+            and any(
+                is_base_url_path(error["location"].get("url", ""), expected_path)
+                for expected_path in EXPECTED_GUEST_401_PATHS
+            )
         )
     ]
     refresh_errors = [
         response
         for response in failed_responses
         if response["status"] == 401
-        and urlparse(str(response["url"])).path == "/api/auth/refresh"
+        and is_base_url_path(response["url"], "/api/auth/refresh")
     ]
     require(refresh_errors, "Customer web app did not probe the guest cookie session")
     require(

@@ -1,13 +1,82 @@
+import ipaddress
+import json
+import os
+import sys
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
-import json
-import sys
 
 from playwright.sync_api import sync_playwright
 
 
 BASE_URL = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:3000/app/"
 ROOT = Path(__file__).resolve().parents[1]
+REFRESH_PATH = "/api/auth/refresh"
+
+
+def canonical_origin(url):
+    parsed = urlparse(url)
+    scheme = parsed.scheme.lower()
+    hostname = parsed.hostname
+    if scheme not in {"http", "https"} or hostname is None:
+        raise ValueError(f"Expected an HTTP(S) URL, got {url!r}")
+
+    hostname = hostname.lower()
+    try:
+        hostname = ipaddress.ip_address(hostname).compressed
+    except ValueError:
+        pass
+
+    try:
+        port = parsed.port
+    except ValueError as error:
+        raise ValueError(f"Invalid port in URL {url!r}") from error
+    if port is None:
+        port = 443 if scheme == "https" else 80
+    return scheme, hostname, port
+
+
+def origin_url(origin):
+    scheme, hostname, port = origin
+    rendered_hostname = f"[{hostname}]" if ":" in hostname else hostname
+    default_port = 443 if scheme == "https" else 80
+    rendered_port = "" if port == default_port else f":{port}"
+    return f"{scheme}://{rendered_hostname}{rendered_port}"
+
+
+def is_loopback_hostname(hostname):
+    if hostname == "localhost":
+        return True
+    try:
+        address = ipaddress.ip_address(hostname)
+    except ValueError:
+        return False
+    if address.is_loopback:
+        return True
+    mapped_address = getattr(address, "ipv4_mapped", None)
+    return mapped_address is not None and mapped_address.is_loopback
+
+
+BASE_ORIGIN = canonical_origin(BASE_URL)
+BASE_ORIGIN_URL = origin_url(BASE_ORIGIN)
+FIXTURES_ENABLED = (
+    os.environ.get("NODE_ENV") == "test"
+    and is_loopback_hostname(BASE_ORIGIN[1])
+)
+
+
+def is_exact_refresh_url(url):
+    try:
+        parsed = urlparse(url)
+        return (
+            canonical_origin(url) == BASE_ORIGIN
+            and parsed.path == REFRESH_PATH
+            and not parsed.params
+            and not parsed.query
+            and not parsed.fragment
+        )
+    except (TypeError, ValueError):
+        return False
+
 
 with sync_playwright() as playwright:
     browser = playwright.chromium.launch(headless=True)
@@ -42,9 +111,9 @@ with sync_playwright() as playwright:
     def route_public_bootstrap(route):
         path = urlparse(route.request.url).path
         payload = {"success": True}
-        if path.endswith("/api/guest/stories"):
+        if path == "/api/guest/stories":
             payload["stories"] = []
-        elif path.endswith("/api/guest/news"):
+        elif path == "/api/guest/news":
             payload["news"] = []
         else:
             return route.fallback()
@@ -67,8 +136,15 @@ with sync_playwright() as playwright:
             ),
         )
 
-    page.route("**/api/auth/refresh", route_missing_session)
-    page.route("**/api/guest/**", route_public_bootstrap)
+    if FIXTURES_ENABLED:
+        page.route(
+            f"{BASE_ORIGIN_URL}{REFRESH_PATH}",
+            route_missing_session,
+        )
+        page.route(
+            f"{BASE_ORIGIN_URL}/api/guest/**",
+            route_public_bootstrap,
+        )
 
     response = page.goto(BASE_URL, wait_until="domcontentloaded", timeout=120_000)
     assert response is not None and response.ok
@@ -80,28 +156,48 @@ with sync_playwright() as playwright:
         "document.documentElement.scrollWidth <= document.documentElement.clientWidth"
     )
     assert page.evaluate("crossOriginIsolated") is True
+    refresh_errors = [
+        error
+        for error in http_errors
+        if error["status"] == 401
+        and is_exact_refresh_url(error["url"])
+    ]
+    refresh_probe_urls = [
+        url
+        for url in requested_urls
+        if urlparse(url).path == REFRESH_PATH
+    ]
+    assert refresh_probe_urls, "The web client did not probe the cookie session"
+    assert all(is_exact_refresh_url(url) for url in refresh_probe_urls), {
+        "cross_origin_or_noncanonical_refresh_probes": refresh_probe_urls,
+        "expected_origin": BASE_ORIGIN_URL,
+    }
+    assert refresh_errors, "The web client did not probe the cookie session"
+    expected_refresh_response_urls = {error["url"] for error in refresh_errors}
+
+    def is_expected_refresh_console_error(error):
+        location = error.get("location") or {}
+        location_url = location.get("url", "")
+        return (
+            is_exact_refresh_url(location_url)
+            and location_url in expected_refresh_response_urls
+            and "status of 401" in error["text"].lower()
+        )
+
     unexpected_console_errors = [
         error
         for error in console_errors
         if "favicon" not in error["text"].lower()
-        and urlparse(error["location"].get("url", "")).path
-        != "/api/auth/refresh"
+        and not is_expected_refresh_console_error(error)
     ]
     unexpected_http_errors = [
         error
         for error in http_errors
         if not (
             error["status"] == 401
-            and urlparse(error["url"]).path == "/api/auth/refresh"
+            and is_exact_refresh_url(error["url"])
         )
     ]
-    refresh_errors = [
-        error
-        for error in http_errors
-        if error["status"] == 401
-        and urlparse(error["url"]).path == "/api/auth/refresh"
-    ]
-    assert refresh_errors, "The web client did not probe the cookie session"
     assert not unexpected_console_errors and not unexpected_http_errors, {
         "console_errors": unexpected_console_errors,
         "http_errors": unexpected_http_errors,

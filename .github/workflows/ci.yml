@@ -199,6 +199,8 @@ jobs:
       - run: python -m playwright install --with-deps chromium
       - name: Run Flutter browser QA matrix
         shell: bash
+        env:
+          NODE_ENV: test
         run: |
           rm -rf ../scratch/qa-web
           mkdir -p ../scratch/qa-web
