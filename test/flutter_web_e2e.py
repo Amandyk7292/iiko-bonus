@@ -19,11 +19,22 @@ with sync_playwright() as playwright:
     )
     page = context.new_page()
     console_errors = []
+    http_errors = []
     requested_urls = []
     page.on("request", lambda request: requested_urls.append(request.url))
     page.on(
+        "response",
+        lambda response: http_errors.append(
+            {"status": response.status, "url": response.url}
+        )
+        if response.status >= 400
+        else None,
+    )
+    page.on(
         "console",
-        lambda message: console_errors.append(message.text)
+        lambda message: console_errors.append(
+            {"text": message.text, "location": message.location}
+        )
         if message.type == "error"
         else None,
     )
@@ -43,6 +54,20 @@ with sync_playwright() as playwright:
             body=json.dumps(payload),
         )
 
+    def route_missing_session(route):
+        route.fulfill(
+            status=401,
+            content_type="application/json",
+            body=json.dumps(
+                {
+                    "success": False,
+                    "error": "Refresh session is required",
+                    "code": "CUSTOMER_SESSION_REQUIRED",
+                }
+            ),
+        )
+
+    page.route("**/api/auth/refresh", route_missing_session)
     page.route("**/api/guest/**", route_public_bootstrap)
 
     response = page.goto(BASE_URL, wait_until="domcontentloaded", timeout=120_000)
@@ -55,7 +80,32 @@ with sync_playwright() as playwright:
         "document.documentElement.scrollWidth <= document.documentElement.clientWidth"
     )
     assert page.evaluate("crossOriginIsolated") is True
-    assert not [error for error in console_errors if "favicon" not in error.lower()], console_errors
+    unexpected_console_errors = [
+        error
+        for error in console_errors
+        if "favicon" not in error["text"].lower()
+        and urlparse(error["location"].get("url", "")).path
+        != "/api/auth/refresh"
+    ]
+    unexpected_http_errors = [
+        error
+        for error in http_errors
+        if not (
+            error["status"] == 401
+            and urlparse(error["url"]).path == "/api/auth/refresh"
+        )
+    ]
+    refresh_errors = [
+        error
+        for error in http_errors
+        if error["status"] == 401
+        and urlparse(error["url"]).path == "/api/auth/refresh"
+    ]
+    assert refresh_errors, "The web client did not probe the cookie session"
+    assert not unexpected_console_errors and not unexpected_http_errors, {
+        "console_errors": unexpected_console_errors,
+        "http_errors": unexpected_http_errors,
+    }
 
     release_response = context.request.get(f"{BASE_URL}release-version.json")
     assert release_response.ok
