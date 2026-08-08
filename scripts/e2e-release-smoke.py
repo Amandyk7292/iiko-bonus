@@ -1,11 +1,18 @@
+import json
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 from playwright.sync_api import sync_playwright
 
 
 BASE_URL = os.environ.get("BULKA_RELEASE_URL", "http://127.0.0.1:3100").rstrip("/")
 ARTIFACTS = Path(__file__).resolve().parent.parent / ".tmp" / "release-smoke"
 ARTIFACTS.mkdir(parents=True, exist_ok=True)
+LOCAL_TEST_MODE = (
+    os.environ.get("NODE_ENV") == "test"
+    and urlparse(BASE_URL).hostname in {"127.0.0.1", "localhost"}
+)
+EXPECTED_GUEST_401_PATHS = {"/api/auth/refresh", "/admin/api/session"}
 
 
 def require(condition: bool, message: str) -> None:
@@ -13,16 +20,74 @@ def require(condition: bool, message: str) -> None:
         raise AssertionError(message)
 
 
+def fulfill_json(route, payload: dict[str, object], status: int = 200) -> None:
+    route.fulfill(
+        status=status,
+        content_type="application/json",
+        body=json.dumps(payload),
+    )
+
+
+def install_local_api_fixtures(context) -> None:
+    if not LOCAL_TEST_MODE:
+        return
+
+    context.route(
+        "**/api/auth/refresh",
+        lambda route: fulfill_json(
+            route,
+            {
+                "success": False,
+                "error": "Refresh session is required",
+                "code": "CUSTOMER_SESSION_REQUIRED",
+            },
+            status=401,
+        ),
+    )
+
+    def route_guest_bootstrap(route) -> None:
+        path = urlparse(route.request.url).path
+        payloads = {
+            "/api/guest/menu": {
+                "success": True,
+                "categories": [],
+                "products": [],
+            },
+            "/api/guest/stories": {"success": True, "stories": []},
+            "/api/guest/news": {"success": True, "news": []},
+        }
+        payload = payloads.get(path)
+        if payload is None:
+            route.fallback()
+            return
+        fulfill_json(route, payload)
+
+    context.route("**/api/guest/**", route_guest_bootstrap)
+
+
 with sync_playwright() as playwright:
     browser = playwright.chromium.launch(headless=True)
     context = browser.new_context(viewport={"width": 390, "height": 844})
+    install_local_api_fixtures(context)
     page = context.new_page()
-    errors: list[str] = []
-    page.on("pageerror", lambda error: errors.append(f"pageerror: {error}"))
+    page_errors: list[str] = []
+    console_errors: list[dict[str, object]] = []
+    failed_responses: list[dict[str, object]] = []
+    page.on("pageerror", lambda error: page_errors.append(str(error)))
+    page.on(
+        "response",
+        lambda response: failed_responses.append(
+            {"status": response.status, "url": response.url}
+        )
+        if response.status >= 400
+        else None,
+    )
     page.on(
         "console",
-        lambda message: errors.append(f"console: {message.text}")
-        if message.type == "error" and "status of 401" not in message.text
+        lambda message: console_errors.append(
+            {"text": message.text, "location": message.location}
+        )
+        if message.type == "error"
         else None,
     )
 
@@ -68,5 +133,39 @@ with sync_playwright() as playwright:
     )
 
     browser.close()
-    require(not errors, "Browser errors: " + " | ".join(errors))
+    unexpected_responses = [
+        response
+        for response in failed_responses
+        if not (
+            response["status"] == 401
+            and urlparse(str(response["url"])).path in EXPECTED_GUEST_401_PATHS
+        )
+    ]
+    unexpected_console_errors = [
+        error
+        for error in console_errors
+        if not (
+            "status of 401" in str(error["text"])
+            and urlparse(str(error["location"].get("url", ""))).path
+            in EXPECTED_GUEST_401_PATHS
+        )
+    ]
+    refresh_errors = [
+        response
+        for response in failed_responses
+        if response["status"] == 401
+        and urlparse(str(response["url"])).path == "/api/auth/refresh"
+    ]
+    require(refresh_errors, "Customer web app did not probe the guest cookie session")
+    require(
+        not page_errors and not unexpected_console_errors and not unexpected_responses,
+        "Browser errors: "
+        + " | ".join(
+            [
+                *(f"pageerror: {value}" for value in page_errors),
+                *(f"console: {value}" for value in unexpected_console_errors),
+                *(f"response: {value}" for value in unexpected_responses),
+            ]
+        ),
+    )
     print("E2E RELEASE SMOKE OK")
