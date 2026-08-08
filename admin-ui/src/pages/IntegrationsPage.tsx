@@ -226,10 +226,6 @@ export default function IntegrationsPage() {
       : payments?.mode.effectiveIntegration === 'hosted_page'
         ? 'Страница банка /flex'
         : 'Оплата недоступна';
-  const visibleServices = services.filter(
-    (service) => service.id !== 'kaspi' || payments?.providers.kaspi.enabled,
-  );
-
   return (
     <div className="page-stack">
       <div className="page-actions-row">
@@ -305,13 +301,6 @@ export default function IntegrationsPage() {
           )}
 
           <div className="payment-provider-grid">
-            {payments.providers.kaspi.enabled && (
-              <ProviderCard
-                name="Kaspi Pay"
-                provider={payments.providers.kaspi}
-                formatDate={formatDate}
-              />
-            )}
             <ProviderCard
               name="Forte /flex"
               provider={payments.providers.forteHosted}
@@ -330,13 +319,6 @@ export default function IntegrationsPage() {
                 <Webhook aria-hidden="true" size={19} />
                 <h4>Webhook</h4>
               </header>
-              {payments.providers.kaspi.enabled && (
-                <WebhookStatus
-                  name="Kaspi Pay"
-                  webhook={payments.webhooks.kaspi}
-                  formatDate={formatDate}
-                />
-              )}
               <WebhookStatus
                 name="Forte Widget"
                 webhook={payments.webhooks.forteWidget}
@@ -433,7 +415,7 @@ export default function IntegrationsPage() {
       )}
 
       <section className="integration-health-grid">
-        {visibleServices.map((service) => {
+        {services.map((service) => {
           const Icon =
             service.state === 'healthy'
               ? CheckCircle2

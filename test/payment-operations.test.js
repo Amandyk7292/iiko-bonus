@@ -24,7 +24,6 @@ const createHarness = () => {
       return { value, updated_at: fixedNow.toISOString() };
     },
     listPaymentErrors: async () => [],
-    kaspi: { availability: async () => true },
     forte: {
       availability: () => true,
       probeConnection: async () => ({ available: true, message: 'Forte /flex отвечает' }),
@@ -55,9 +54,6 @@ const createHarness = () => {
       FORTE_ENABLED: 'true',
       FORTE_WIDGET_CHECKOUT_ENABLED: 'false',
       FORTE_WIDGET_WEBHOOK_PUBLIC_KEY: 'public-key',
-      KASPI_POS_ENABLED: 'true',
-      KASPI_INTERNAL_SECRET: 'k'.repeat(32),
-      KASPI_WEBHOOK_SECRET: 'w'.repeat(32),
     },
     now: () => fixedNow,
   });
@@ -92,6 +88,10 @@ test('runtime switch enables Widget without restart and falls back when its prob
   assert.equal(decision.effectiveIntegration, 'hosted_page');
   assert.equal(decision.fallbackActive, true);
   assert.equal(decision.fallbackReason, 'widget_unhealthy');
+
+  const diagnostics = await harness.service.getDiagnostics();
+  assert.equal(Object.hasOwn(diagnostics.providers, 'kaspi'), false);
+  assert.equal(Object.hasOwn(diagnostics.webhooks, 'kaspi'), false);
 });
 
 test('payment diagnostics never expose secrets or URL query parameters', () => {

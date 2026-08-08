@@ -464,8 +464,9 @@ h1 {
 }
 
 .link-card:focus-visible {
-  outline: 3px solid rgba(141, 71, 15, 0.3);
-  outline-offset: 3px;
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 6px #21120c !important;
 }
 
 .taplink-effect-shine .link-card:not([data-taplink-effect]):focus-visible,

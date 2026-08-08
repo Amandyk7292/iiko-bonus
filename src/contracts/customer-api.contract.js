@@ -363,34 +363,6 @@ const analyticsEventsBodySchema = z
   })
   .strict();
 
-const kaspiWebhookBodySchema = z
-  .object({
-    event: z.enum(['payment.success', 'payment.failed', 'payment.expired']),
-    operationId: z
-      .string()
-      .trim()
-      .regex(/^[A-Za-z0-9-]{1,100}$/)
-      .optional(),
-    paymentId: z
-      .string()
-      .trim()
-      .regex(/^[A-Za-z0-9-]{1,100}$/)
-      .optional(),
-  })
-  .strict()
-  .refine((value) => Boolean(value.operationId || value.paymentId), {
-    message: 'operationId or paymentId is required',
-  })
-  .refine(
-    (value) =>
-      !value.operationId ||
-      !value.paymentId ||
-      String(value.operationId) === String(value.paymentId),
-    {
-      message: 'operationId and paymentId must match',
-    },
-  );
-
 const forteProviderIdSchema = z.union([
   z.string().trim().min(1).max(200),
   z.number().int().nonnegative(),
@@ -730,7 +702,6 @@ module.exports = {
   favoriteMutationBodySchema,
   giftCardRedeemBodySchema,
   forteWidgetWebhookBodySchema,
-  kaspiWebhookBodySchema,
   liveActivityBodySchema,
   liveActivityDeleteBodySchema,
   notificationPreferencesBodySchema,

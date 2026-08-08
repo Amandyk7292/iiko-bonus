@@ -66,7 +66,7 @@ test('only public website routes are protected', () => {
   assert.equal(isProtectedSitePath('/admin'), false);
   assert.equal(isProtectedSitePath('/admin/api/session'), false);
   assert.equal(isProtectedSitePath('/api/customer/profile'), false);
-  assert.equal(isProtectedSitePath('/webhooks/kaspi'), false);
+  assert.equal(isProtectedSitePath('/webhooks/forte/widget'), false);
   assert.equal(isProtectedSitePath('/healthz'), false);
   assert.equal(isProtectedSitePath('/payment-and-refund'), false);
   assert.equal(isProtectedSitePath('/payment-and-refund/'), false);

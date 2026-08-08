@@ -6,7 +6,6 @@ const path = require('path');
 const helmet = require('helmet');
 const compression = require('compression');
 const { validateRuntimeConfig } = require('./config/env');
-const { logger } = require('./config/logger');
 
 const adminRoutes = require('./routes/admin.routes');
 const loyaltyRoutes = require('./routes/loyalty.routes');
@@ -42,12 +41,6 @@ const {
   refreshTaplinkHtmlConfig,
   renderCachedTaplinkHtml,
 } = require('./services/taplink-html.service');
-const {
-  adminAuditMiddleware,
-  adminAuthMiddleware,
-  adminCsrfMiddleware,
-  adminMutationRoleMiddleware,
-} = require('./middlewares/auth.middleware');
 const {
   apiEnvelopeValidationMiddleware,
   requestBodySafetyMiddleware,
@@ -148,7 +141,7 @@ app.use(
   express.json({
     limit: '2mb',
     verify(req, _res, buffer) {
-      if (['/webhooks/kaspi', '/webhooks/forte/widget'].includes(req.originalUrl.split('?')[0])) {
+      if (req.originalUrl.split('?')[0] === '/webhooks/forte/widget') {
         req.rawBody = Buffer.from(buffer);
       }
     },
@@ -158,9 +151,6 @@ app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 app.use(requestBodySafetyMiddleware);
 app.use(apiEnvelopeValidationMiddleware);
 
-const kaspiEnabled = process.env.KASPI_POS_ENABLED === 'true';
-app.locals.kaspiReady = !kaspiEnabled;
-let embeddedKaspiApp = null;
 const sendLiveness = (_req, res) =>
   res
     .status(200)
@@ -187,7 +177,7 @@ const requireOperationalBearer = (req, res, next) => {
 };
 app.get('/readyz', async (_req, res, next) => {
   try {
-    const readiness = await readinessSnapshot({ kaspiReady: app.locals.kaspiReady });
+    const readiness = await readinessSnapshot();
     return res
       .status(readiness.ok ? 200 : 503)
       .set('Cache-Control', 'no-store')
@@ -198,7 +188,7 @@ app.get('/readyz', async (_req, res, next) => {
 });
 app.get('/internal/readiness', requireOperationalBearer, async (_req, res, next) => {
   try {
-    const readiness = await readinessSnapshot({ kaspiReady: app.locals.kaspiReady });
+    const readiness = await readinessSnapshot();
     return res
       .status(readiness.ok ? 200 : 503)
       .set('Cache-Control', 'no-store')
@@ -287,14 +277,6 @@ const adminStaticHeaders = (res, filePath) => {
   }
 };
 
-const kaspiAdminStaticHeaders = (res, filePath) => {
-  if (/index\.html$|app\.js$/.test(filePath)) {
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-  } else {
-    res.setHeader('Cache-Control', 'public, max-age=3600, must-revalidate');
-  }
-};
-
 const appStaticHeaders = (res, filePath) => {
   const mutableReleaseFile =
     /index\.html$|app_bootstrap\.js$|flutter_bootstrap\.js$|flutter_service_worker\.js$|firebase-messaging-sw\.js$|manifest\.json$|release-version\.json$/.test(
@@ -331,61 +313,6 @@ app.use(walletRoutes);
 app.use(publicRoutes);
 app.use(yandexMapRoutes);
 app.use(legacyRoutes);
-
-const requireEmbeddedKaspi = (req, res, next) => {
-  if (!embeddedKaspiApp) {
-    return res.status(503).json({
-      error: 'Kaspi Pay модуль ещё не готов.',
-      code: 'KASPI_MODULE_UNAVAILABLE',
-      retryable: true,
-    });
-  }
-  return embeddedKaspiApp(req, res, next);
-};
-
-const requireKaspiAdminRole = (req, res, next) => {
-  if (req.admin?.role === 'admin') return next();
-  return res.status(403).json({ error: 'Kaspi Pay доступен только администратору' });
-};
-
-if (kaspiEnabled) {
-  // Internal checkout integration. The embedded app independently verifies the
-  // bearer secret supplied by kaspi.service.js.
-  app.use('/kaspi-pos', requireEmbeddedKaspi);
-
-  // Protected Kaspi reconnection console inside the existing admin session.
-  // Browser requests never receive the internal bearer secret.
-  app.use(
-    '/admin/kaspi-pos',
-    adminAuthMiddleware,
-    requireKaspiAdminRole,
-    express.static(path.join(process.cwd(), 'kaspi-pos-automation-main/public'), {
-      setHeaders: kaspiAdminStaticHeaders,
-    }),
-  );
-  app.use(
-    '/admin/kaspi-pos',
-    adminAuthMiddleware,
-    requireKaspiAdminRole,
-    adminCsrfMiddleware,
-    adminMutationRoleMiddleware,
-    adminAuditMiddleware,
-    (req, _res, next) => {
-      req.headers.authorization = `Bearer ${String(process.env.KASPI_INTERNAL_SECRET || '')}`;
-      next();
-    },
-    requireEmbeddedKaspi,
-  );
-} else {
-  const sendKaspiDisabled = (_req, res) =>
-    res.status(404).json({
-      error: 'Kaspi Pay отключён.',
-      code: 'KASPI_DISABLED',
-      retryable: false,
-    });
-  app.use('/kaspi-pos', sendKaspiDisabled);
-  app.use('/admin/kaspi-pos', adminAuthMiddleware, sendKaspiDisabled);
-}
 
 app.use('/admin', express.static(adminUiDirectory, { setHeaders: adminStaticHeaders }));
 app.use('/admin/assets', (_req, res) => {
@@ -580,21 +507,5 @@ app.use((err, req, res, _next) => {
   if (statusCode < 500 && Array.isArray(err.fields)) response.fields = err.fields;
   res.status(statusCode).json(response);
 });
-
-if (process.env.NODE_ENV !== 'test' && kaspiEnabled) {
-  process.env.KASPI_MOUNTED = 'true';
-  (async () => {
-    try {
-      const kaspiModule = await import('../kaspi-pos-automation-main/server.js');
-      embeddedKaspiApp = kaspiModule.kaspiApp;
-      kaspiModule.startPolling();
-      app.locals.kaspiReady = true;
-      logger.info({ event: 'kaspi_module_mounted' }, 'Kaspi POS Automation mounted');
-    } catch (err) {
-      app.locals.kaspiReady = false;
-      logger.error({ err, event: 'kaspi_module_mount_failed' }, 'Failed to mount Kaspi module');
-    }
-  })();
-}
 
 module.exports = app;

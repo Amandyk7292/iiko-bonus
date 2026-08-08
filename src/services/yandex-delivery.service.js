@@ -679,9 +679,7 @@ async function updateOrderFromJob(job, info) {
     !['completed', 'cancelled'].includes(current.fulfillment_status)
   ) {
     const { updateAdminOrderStatus } = require('./customer-order.service');
-    await updateAdminOrderStatus(job.order_id, 'completed').catch((statusError) => {
-      console.error('Yandex delivery order completion failed:', statusError.message);
-    });
+    await updateAdminOrderStatus(job.order_id, 'completed');
   }
   const event = {
     orderId: job.order_id,
@@ -742,8 +740,17 @@ async function syncDeliveryJob(jobOrId) {
   const config = getConfig();
   assertConfigured(config);
   let job = typeof jobOrId === 'string' ? await readJob(jobOrId) : jobOrId;
-  if (!job?.external_claim_id || isTerminalStatus(job.provider_status))
+  if (!job?.external_claim_id) return normalizeDeliveryJob(job);
+  if (isTerminalStatus(job.provider_status)) {
+    if (job.internal_status === 'delivered' && job.last_error) {
+      await updateOrderFromJob(job, {});
+      job = await updateJob(job.id, {
+        last_error: null,
+        last_synced_at: new Date().toISOString(),
+      });
+    }
     return normalizeDeliveryJob(job);
+  }
   try {
     let info = await apiRequest('/claims/info', {
       query: { claim_id: job.external_claim_id },
@@ -802,8 +809,15 @@ async function syncDeliveryJob(jobOrId) {
       last_error: null,
       last_synced_at: now,
     };
-    job = await updateJob(job.id, updates);
-    await updateOrderFromJob(job, info);
+    if (internalStatus === 'delivered') {
+      // Complete the customer order before persisting a terminal provider
+      // status. If completion fails, the active job remains retryable.
+      await updateOrderFromJob({ ...job, ...updates }, info);
+      job = await updateJob(job.id, updates);
+    } else {
+      job = await updateJob(job.id, updates);
+      await updateOrderFromJob(job, info);
+    }
     return normalizeDeliveryJob(job);
   } catch (error) {
     await saveJobError(job, error);
@@ -969,6 +983,7 @@ async function listJobsForOrders(orderIds) {
 async function syncActiveDeliveries({ limit = 25 } = {}) {
   const status = getConfigurationStatus();
   if (!status.configured) return { skipped: true, reason: status.missing.join(', ') };
+  const normalizedLimit = Math.min(100, Math.max(1, Number(limit) || 25));
   const { data, error } = await supabase
     .from('delivery_jobs')
     .select('*')
@@ -976,11 +991,23 @@ async function syncActiveDeliveries({ limit = 25 } = {}) {
     .not('external_claim_id', 'is', null)
     .not('provider_status', 'in', `(${[...TERMINAL_STATUSES].join(',')})`)
     .order('last_synced_at', { ascending: true, nullsFirst: true })
-    .limit(Math.min(100, Math.max(1, Number(limit) || 25)));
+    .limit(normalizedLimit);
   if (error) throw error;
+  const { data: retryData, error: retryError } = await supabase
+    .from('delivery_jobs')
+    .select('*')
+    .eq('provider', 'yandex')
+    .eq('internal_status', 'delivered')
+    .not('last_error', 'is', null)
+    .order('last_synced_at', { ascending: true, nullsFirst: true })
+    .limit(normalizedLimit);
+  if (retryError) throw retryError;
+  const queuedJobs = [...(retryData || []), ...(data || [])].filter(
+    (job, index, jobs) => jobs.findIndex((candidate) => candidate.id === job.id) === index,
+  );
   let synced = 0;
   let failed = 0;
-  for (const job of data || []) {
+  for (const job of queuedJobs.slice(0, normalizedLimit)) {
     try {
       await syncDeliveryJob(job);
       synced += 1;

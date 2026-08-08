@@ -38,7 +38,6 @@ const {
   fortePaymentMethodParamsSchema,
   giftCardRedeemBodySchema,
   forteWidgetWebhookBodySchema,
-  kaspiWebhookBodySchema,
   orderReviewBodySchema,
   profileUpdateBodySchema,
   referralRedeemBodySchema,
@@ -88,31 +87,7 @@ test('customer contracts normalize valid input and reject unsafe mutations', () 
   );
 });
 
-test('payment webhook contracts accept documented envelopes and reject forged fields', () => {
-  assert.equal(
-    kaspiWebhookBodySchema.safeParse({
-      event: 'payment.success',
-      operationId: 'provider-order-123',
-    }).success,
-    true,
-  );
-  assert.equal(
-    kaspiWebhookBodySchema.safeParse({
-      event: 'payment.success',
-      operationId: 'provider-order-123',
-      paymentId: 'another-order',
-    }).success,
-    false,
-  );
-  assert.equal(
-    kaspiWebhookBodySchema.safeParse({
-      event: 'payment.success',
-      operationId: 'provider-order-123',
-      customerId: customerId,
-    }).success,
-    false,
-  );
-
+test('Forte webhook contracts accept documented envelopes and reject forged fields', () => {
   const fortePayload = {
     transaction: {
       uid: '217615f9-b35f-4eb4-9f6d-777f2236bb25',

@@ -71,6 +71,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   PaymentReturnNotice? _pendingPaymentReturnNotice;
   NotificationTarget? _pendingPushTarget;
   RequiredAppUpdate? _requiredAppUpdate;
+  bool _avatarAssetsPrecached = false;
 
   @override
   void initState() {
@@ -93,6 +94,24 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     }
     _appLinkSubscription = _appLinks.uriLinkStream.listen(_handleIncomingLink);
     _bootstrap();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_avatarAssetsPrecached) return;
+    _avatarAssetsPrecached = true;
+    // Avatars are small local WebP assets. Warming them once prevents the
+    // profile header from briefly showing an empty circle on first open.
+    Future.wait(
+      customerAvatarOptions.map(
+        (option) => precacheImage(
+          AssetImage(option.assetPath),
+          context,
+          onError: (_, _) {},
+        ),
+      ),
+    ).ignore();
   }
 
   @override

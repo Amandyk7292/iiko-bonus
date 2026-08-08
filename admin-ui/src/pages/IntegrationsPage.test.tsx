@@ -28,13 +28,6 @@ const payments = (overrides: Partial<PaymentDiagnostics> = {}): PaymentDiagnosti
     updatedAt: checkedAt,
   },
   providers: {
-    kaspi: {
-      enabled: true,
-      configured: true,
-      available: true,
-      checkedAt,
-      message: 'Kaspi доступен',
-    },
     forteHosted: {
       enabled: false,
       configured: false,
@@ -51,12 +44,6 @@ const payments = (overrides: Partial<PaymentDiagnostics> = {}): PaymentDiagnosti
     },
   },
   webhooks: {
-    kaspi: {
-      configured: true,
-      lastSuccessAt: '2026-08-04T17:59:00.000Z',
-      lastFailureAt: '2026-08-04T17:00:00.000Z',
-      lastErrorCode: null,
-    },
     forteWidget: {
       configured: true,
       lastSuccessAt: '2026-08-04T16:00:00.000Z',
@@ -166,7 +153,6 @@ describe('Payment provider diagnostics', () => {
     renderPage();
 
     expect(await screen.findByRole('heading', { name: 'Диагностика оплат' })).toBeInTheDocument();
-    expect(screen.getByText('Kaspi доступен')).toBeInTheDocument();
     expect(screen.getByText('Hosted выключен')).toBeInTheDocument();
     expect(screen.getByText('PROVIDER_TIMEOUT')).toBeInTheDocument();
     expect(screen.getByText(/Отменено: 2/)).toBeInTheDocument();
@@ -201,25 +187,12 @@ describe('Payment provider diagnostics', () => {
           updatedAt: null,
         },
         providers: {
-          kaspi: {
-            enabled: true,
-            configured: false,
-            available: false,
-            checkedAt: null,
-            message: 'Kaspi не настроен',
-          },
           forteHosted: payments().providers.forteHosted,
           forteWidget: payments().providers.forteWidget,
         },
         webhooks: {
-          kaspi: {
-            configured: false,
-            lastSuccessAt: null,
-            lastFailureAt: null,
-            lastErrorCode: null,
-          },
           forteWidget: {
-            configured: true,
+            configured: false,
             lastSuccessAt: null,
             lastFailureAt: null,
             lastErrorCode: null,
@@ -240,38 +213,12 @@ describe('Payment provider diagnostics', () => {
     renderPage();
 
     expect((await screen.findAllByText('Оплата недоступна')).length).toBeGreaterThan(0);
-    expect(screen.getByText('Kaspi не настроен')).toBeInTheDocument();
     expect(screen.getByText('Webhook не настроен')).toBeInTheDocument();
     expect(screen.getByText('Фоновая очистка ещё не запускалась')).toBeInTheDocument();
     expect(screen.getByText('Ошибок оплаты нет')).toBeInTheDocument();
     expect(screen.getByText('Доступно владельцу и администратору.')).toBeInTheDocument();
     expect(screen.getByRole('switch')).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Запустить проверку' })).toBeDisabled();
-  });
-
-  it('hides Kaspi controls when the integration flag is disabled', async () => {
-    const disabledKaspi = payments({
-      providers: {
-        ...payments().providers,
-        kaspi: {
-          enabled: false,
-          configured: false,
-          available: null,
-          checkedAt: null,
-          message: 'Выключен',
-        },
-      },
-    });
-    apiMocks.getIntegrationHealth.mockResolvedValue({
-      services,
-      payments: disabledKaspi,
-      checkedAt,
-    });
-    renderPage();
-
-    expect(await screen.findByRole('heading', { name: 'Диагностика оплат' })).toBeInTheDocument();
-    expect(screen.queryByText('Kaspi Pay')).not.toBeInTheDocument();
-    expect(screen.queryByText('Kaspi доступен')).not.toBeInTheDocument();
   });
 
   it('shows a retry state when provider diagnostics cannot load', async () => {

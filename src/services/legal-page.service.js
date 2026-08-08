@@ -129,8 +129,8 @@ const pages = {
         <section>
           <h2>6. Оплата и документы</h2>
           <p>Расчёты производятся в казахстанских тенге способами, доступными при оформлении:
-            через Kaspi Pay, банковской картой через защищённую страницу ForteBank либо иным
-            показанным способом. Bulka не получает и не хранит полный номер карты и CVC/CVV.
+            банковской картой через защищённую страницу ForteBank либо иным показанным способом.
+            Bulka не получает и не хранит полный номер карты и CVC/CVV.
             С согласия Покупателя может храниться зашифрованный токен ForteBank и отображаемые
             сведения карты; токен можно удалить в профиле. Платёж считается совершённым после
             подтверждения платёжным сервисом.</p>
@@ -300,8 +300,8 @@ const pages = {
         <section>
           <h2>6. Төлем және құжаттар</h2>
           <p>Есеп айырысу тапсырыс беру кезінде қолжетімді тәсілдермен Қазақстан теңгесінде
-            жүргізіледі: Kaspi Pay арқылы, ForteBank қорғалған бетінде банк картасымен немесе
-            көрсетілген өзге тәсілмен. Bulka картаның толық нөмірін және CVC/CVV кодын алмайды әрі
+            жүргізіледі: ForteBank қорғалған бетінде банк картасымен немесе көрсетілген өзге
+            тәсілмен. Bulka картаның толық нөмірін және CVC/CVV кодын алмайды әрі
             сақтамайды. Сатып алушының келісімімен ForteBank шифрланған токені және картаның
             көрсетілетін деректері сақталуы мүмкін; токенді профильден жоюға болады. Төлемді төлем
             сервисі растағаннан кейін ол жасалған болып есептеледі.</p>
@@ -474,9 +474,9 @@ const pages = {
         </section>
         <section>
           <h2>6. Payment and documents</h2>
-          <p>Payments are made in Kazakhstan tenge using the methods available at checkout: Kaspi
-            Pay, bank card through the protected ForteBank page, or another displayed method. Bulka
-            does not receive or store the full card number or CVC/CVV. With the Buyer’s consent,
+          <p>Payments are made in Kazakhstan tenge using the methods available at checkout: bank
+            card through the protected ForteBank page or another displayed method. Bulka does not
+            receive or store the full card number or CVC/CVV. With the Buyer’s consent,
             Bulka may store an encrypted ForteBank token and display-only card details; the token
             can be removed in the profile. Payment is complete when confirmed by the payment
             service.</p>
@@ -576,7 +576,7 @@ const pages = {
     ru: {
       title: 'Условия оплаты и возврата',
       description:
-        'Условия оплаты заказов Bulka банковской картой и через Kaspi Pay, отмены заказа и возврата денежных средств.',
+        'Условия оплаты заказов Bulka банковской картой, отмены заказа и возврата денежных средств.',
       updated: 'Редакция от 27 июля 2026 года',
       summary: [
         ['Валюта — тенге', 'Полная сумма заказа и доставки показывается до перехода к оплате.'],
@@ -598,9 +598,9 @@ const pages = {
           <h2>2. Приём платежей</h2>
           <ul>
             <li>Все цены и расчёты указаны в казахстанских тенге (₸).</li>
-            <li>Доступные способы оплаты отображаются при оформлении заказа. Можно оплатить через
-              Kaspi Pay либо банковской картой Visa или Mastercard, если карточный способ доступен
-              в момент оформления.</li>
+            <li>Доступные способы оплаты отображаются при оформлении заказа. Можно оплатить
+              банковской картой Visa или Mastercard, если карточный способ доступен в момент
+              оформления.</li>
             <li>Карточный платёж обрабатывает АО «ForteBank» на своей защищённой платёжной странице.
               Bulka получает только результат операции и данные, необходимые для формирования
               чека.</li>
@@ -679,7 +679,7 @@ const pages = {
     kk: {
       title: 'Төлем және қайтару шарттары',
       description:
-        'Bulka тапсырыстарын банк картасымен және Kaspi Pay арқылы төлеу, тапсырысты болдырмау және ақшаны қайтару шарттары.',
+        'Bulka тапсырыстарын банк картасымен төлеу, тапсырысты болдырмау және ақшаны қайтару шарттары.',
       updated: '2026 жылғы 27 шілдедегі редакция',
       summary: [
         ['Валюта — теңге', 'Тапсырыс пен жеткізудің толық сомасы төлемге дейін көрсетіледі.'],
@@ -699,9 +699,8 @@ const pages = {
           <h2>2. Төлемдерді қабылдау</h2>
           <ul>
             <li>Барлық бағалар мен есеп айырысулар Қазақстан теңгесімен (₸) көрсетіледі.</li>
-            <li>Қолжетімді төлем тәсілдері тапсырысты рәсімдеу кезінде көрсетіледі. Kaspi Pay арқылы
-              немесе карта арқылы төлеу тәсілі қолжетімді болса, Visa не Mastercard банк картасымен
-              төлеуге болады.</li>
+            <li>Қолжетімді төлем тәсілдері тапсырысты рәсімдеу кезінде көрсетіледі. Карта арқылы
+              төлеу тәсілі қолжетімді болса, Visa не Mastercard банк картасымен төлеуге болады.</li>
             <li>Карта төлемін «ForteBank» АҚ өзінің қорғалған төлем бетінде өңдейді. Bulka тек
               операция нәтижесін және чек қалыптастыруға қажетті деректерді алады.</li>
             <li>Bulka картаның толық нөмірін және CVC/CVV кодын алмайды әрі сақтамайды. Клиенттің
@@ -782,7 +781,7 @@ const pages = {
     en: {
       title: 'Payment and refund terms',
       description:
-        'Terms for paying for Bulka orders by bank card and Kaspi Pay, cancelling an order and receiving a refund.',
+        'Terms for paying for Bulka orders by bank card, cancelling an order and receiving a refund.',
       updated: 'Revision dated 27 July 2026',
       summary: [
         ['Currency — tenge', 'The full order and delivery total is shown before payment.'],
@@ -805,8 +804,8 @@ const pages = {
           <h2>2. Payment acceptance</h2>
           <ul>
             <li>All prices and settlements are stated in Kazakhstan tenge (₸).</li>
-            <li>Available payment methods are shown at checkout. Payment can be made through Kaspi
-              Pay or with a Visa or Mastercard bank card when card payment is available.</li>
+            <li>Available payment methods are shown at checkout. Payment can be made with a Visa or
+              Mastercard bank card when card payment is available.</li>
             <li>Card payments are processed by ForteBank JSC on its protected payment page. Bulka
               receives only the operation result and the information required to issue a receipt.</li>
             <li>Bulka does not receive or store the full card number or CVC/CVV. With customer
@@ -1242,8 +1241,6 @@ const pages = {
           <p>Передача ограничивается необходимым объёмом и выполняется только для работы выбранной
             функции:</p>
           <ul>
-            <li>Kaspi Pay — создание и проверка оплаты, а также возврат через исходный платёжный
-              канал;</li>
             <li>АО «ForteBank» — проведение карточной оплаты, Google Pay, 3‑D Secure, токенизация
               сохранённой карты и возврат по карточной операции;</li>
             <li>Яндекс Доставка — имя, телефон, адрес, маршрут и сведения о заказе, необходимые
@@ -1314,8 +1311,6 @@ const pages = {
           <h2>Деректерді алушылар</h2>
           <p>Деректер тек таңдалған функцияның жұмысына қажетті көлемде беріледі:</p>
           <ul>
-            <li>Kaspi Pay — төлемді жасау және тексеру, сондай-ақ бастапқы төлем арнасы арқылы
-              қайтару;</li>
             <li>«ForteBank» АҚ — картамен төлемді, Google Pay, 3‑D Secure тексеруін, сақталған
               картаны токендеуді және карта операциясы бойынша қайтаруды жүргізу;</li>
             <li>Яндекс Доставка — курьерге қажет аты-жөн, телефон, мекенжай, маршрут және тапсырыс
@@ -1384,8 +1379,6 @@ const pages = {
           <h2>Recipients of data</h2>
           <p>Disclosure is limited to what is required for the selected function:</p>
           <ul>
-            <li>Kaspi Pay — creating and verifying payments and issuing refunds through the original
-              payment channel;</li>
             <li>ForteBank JSC — processing card payments, Google Pay, 3‑D Secure, saved-card
               tokenisation and card refunds;</li>
             <li>Yandex Delivery — the name, phone number, address, route and order information
@@ -1435,8 +1428,8 @@ const pages = {
         <section>
           <h2>О сервисе</h2>
           <p>Приложение позволяет выбирать товары Bulka, оформлять самовывоз, предзаказ или доставку,
-            оплачивать заказ через Kaspi Pay или банковской картой через ForteBank, когда этот
-            способ доступен, и пользоваться бонусной программой. Доступность способов получения,
+            оплачивать заказ банковской картой через ForteBank, когда этот способ доступен, и
+            пользоваться бонусной программой. Доступность способов получения,
             товаров и времени зависит от выбранного филиала.</p>
         </section>
         <section>
@@ -1476,8 +1469,8 @@ const pages = {
         <section>
           <h2>Сервис туралы</h2>
           <p>Қосымша Bulka тауарларын таңдауға, өздігінен алып кетуді, алдын ала тапсырысты немесе
-            жеткізуді рәсімдеуге, қолжетімді болған кезде Kaspi Pay не ForteBank арқылы банк
-            картасымен төлеуге және бонустық бағдарламаны пайдалануға мүмкіндік береді. Алу
+            жеткізуді рәсімдеуге, қолжетімді болған кезде ForteBank арқылы банк картасымен төлеуге
+            және бонустық бағдарламаны пайдалануға мүмкіндік береді. Алу
             тәсілдерінің, тауарлар мен уақыттың қолжетімділігі таңдалған филиалға байланысты.</p>
         </section>
         <section>
@@ -1518,8 +1511,8 @@ const pages = {
         <section>
           <h2>About the service</h2>
           <p>The application allows customers to select Bulka products, arrange pickup, preorder or
-            delivery, pay through Kaspi Pay or by bank card through ForteBank when that method is
-            available, and use the bonus programme. The availability of fulfilment methods,
+            delivery, pay by bank card through ForteBank when that method is available, and use the
+            bonus programme. The availability of fulfilment methods,
             products and times depends on the selected branch.</p>
         </section>
         <section>

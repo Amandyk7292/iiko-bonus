@@ -693,7 +693,7 @@ const kk: Record<string, string> = {
   'orders.total': 'Сома',
   'orders.item': 'Тауар',
   'orders.empty': 'Тапсырыс жоқ',
-  'orders.emptyHint': 'Kaspi төлемінен кейін тапсырыс осында шығады.',
+  'orders.emptyHint': 'Онлайн төлемнен кейін тапсырыс осында шығады.',
   'orders.changeStatus': 'Күйді өзгерту',
   'orders.statusSaved': 'Тапсырыс күйі жаңартылды',
   'orders.cancelReasonPrompt': 'Бас тарту себебі (клиент көреді)',
@@ -973,7 +973,7 @@ const kk: Record<string, string> = {
   'access.ipListEmpty': 'Тізім әлі бос',
   'access.ipListEmptyHint': 'Сайтқа кіруге рұқсат етілген IP қосыңыз.',
   'access.scopeHint':
-    'Әкімші панелі, мобильді API, құжат беттері және iiko/Kaspi интеграциялары бұғатталмайды.',
+    'Әкімші панелі, мобильді API, құжат беттері және iiko интеграциясы бұғатталмайды.',
   'access.saveSiteAccess': 'Кіруді сақтау',
   'access.onlineOrdering': 'Онлайн сатып алу және тапсырыс',
   'access.onlineOrderingOffState':

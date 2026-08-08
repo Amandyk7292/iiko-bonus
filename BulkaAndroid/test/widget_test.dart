@@ -899,12 +899,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(api.forteQuoteCalls, 1);
-    expect(api.kaspiQuoteCalls, 0);
     expect(api.forteCreateCalls, 1);
-    expect(api.kaspiCreateCalls, 0);
     expect(api.savedPaymentMethodId, '31f0d793-0102-4d2f-a5a1-744d12cffe7c');
     expect(find.text('Оплата картой'), findsOneWidget);
-    expect(find.text('Оплата Kaspi'), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump();
@@ -2607,9 +2604,7 @@ class _CheckoutPaymentRoutingApiClient extends _FakeBulkaApiClient {
     const Duration(hours: 2),
   );
   int forteQuoteCalls = 0;
-  int kaspiQuoteCalls = 0;
   int forteCreateCalls = 0;
-  int kaspiCreateCalls = 0;
   String? savedPaymentMethodId;
 
   @override
@@ -2647,21 +2642,6 @@ class _CheckoutPaymentRoutingApiClient extends _FakeBulkaApiClient {
   }
 
   @override
-  Future<Map<String, dynamic>> quoteKaspiOrder({
-    required List<Map<String, dynamic>> cartItems,
-    String? orderType,
-    String? branch,
-    String? branchId,
-    String? scheduledAt,
-    String? preorderFulfillmentType,
-    DeliveryAddress? deliveryAddress,
-    String? promoCode,
-  }) async {
-    kaspiQuoteCalls++;
-    throw StateError('Kaspi quote must not be used for saved-card checkout.');
-  }
-
-  @override
   Future<Map<String, dynamic>> createFortePayment({
     required List<Map<String, dynamic>> cartItems,
     required String orderType,
@@ -2684,25 +2664,6 @@ class _CheckoutPaymentRoutingApiClient extends _FakeBulkaApiClient {
       'redirectUrl':
           'https://bulka.com.kz/payments/forte-widget#checkout-token',
     };
-  }
-
-  @override
-  Future<Map<String, dynamic>> createKaspiPayment({
-    required List<Map<String, dynamic>> cartItems,
-    required String orderType,
-    required String scheduledAt,
-    required String checkoutId,
-    String? preorderFulfillmentType,
-    String? branch,
-    String? branchId,
-    DeliveryAddress? deliveryAddress,
-    String? additionalPhone,
-    String? promoCode,
-    String? comment,
-    String substitutionPreference = 'call_customer',
-  }) async {
-    kaspiCreateCalls++;
-    throw StateError('Kaspi payment must not be used for saved-card checkout.');
   }
 
   @override

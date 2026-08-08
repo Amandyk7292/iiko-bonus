@@ -584,7 +584,7 @@ class _RefundProgressCard extends StatelessWidget {
         'refund_stage_sent',
         order.paymentProvider == 'forte'
             ? 'orders_card_refund_notice'
-            : 'orders_kaspi_refund_notice',
+            : 'orders_original_payment_refund_notice',
         Icons.check_circle_rounded,
         context.bulkaColors.success,
       ),

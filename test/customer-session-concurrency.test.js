@@ -149,6 +149,61 @@ test('parallel refreshes from browser tabs return the same rotated session', asy
   assert.ok(original.replaced_by);
 });
 
+test('a refresh claim interrupted before successor insertion recovers deterministically', async () => {
+  const harness = createHarness();
+  const request = { headers: { 'user-agent': 'Bulka Android recovery' } };
+  const initialToken = 'interrupted-refresh-token-'.padEnd(64, 'r');
+  await harness.service.createRefreshToken(harness.customerId, request, {
+    token: initialToken,
+  });
+
+  const createRefreshToken = harness.service.createRefreshToken.bind(harness.service);
+  let interruptNextInsert = true;
+  harness.service.createRefreshToken = async (...args) => {
+    if (interruptNextInsert) {
+      interruptNextInsert = false;
+      throw Object.assign(new Error('simulated process interruption'), { code: 'CONNECTION_LOST' });
+    }
+    return createRefreshToken(...args);
+  };
+
+  await assert.rejects(
+    harness.service.rotateCustomerSession(initialToken, request),
+    /simulated process interruption/,
+  );
+  const claimed = [...harness.database.customer_refresh_tokens.values()].find(
+    (row) => row.token_hash === digest(initialToken),
+  );
+  assert.ok(claimed.revoked_at);
+  assert.equal(claimed.last_used_at, claimed.revoked_at);
+  assert.equal(claimed.replaced_by, undefined);
+
+  const recovered = await harness.service.rotateCustomerSession(initialToken, request);
+  const repeated = await harness.service.rotateCustomerSession(initialToken, request);
+
+  assert.equal(recovered.refreshToken, repeated.refreshToken);
+  assert.equal(recovered.accessToken, 'access-v3');
+  assert.equal(harness.database.customer_refresh_tokens.size, 2);
+  assert.ok(claimed.replaced_by);
+});
+
+test('logout-style revocation is never recovered as an interrupted rotation', async () => {
+  const harness = createHarness();
+  const request = { headers: { 'user-agent': 'Bulka Android logout' } };
+  const initialToken = 'logged-out-refresh-token-'.padEnd(64, 'l');
+  await harness.service.createRefreshToken(harness.customerId, request, {
+    token: initialToken,
+  });
+  const current = [...harness.database.customer_refresh_tokens.values()][0];
+  current.revoked_at = '2026-08-04T19:00:00.000Z';
+
+  await assert.rejects(
+    harness.service.rotateCustomerSession(initialToken, request),
+    /invalid or expired/,
+  );
+  assert.equal(harness.database.customer_refresh_tokens.size, 1);
+});
+
 test('a rotated token cannot be replayed by a different device', async () => {
   const harness = createHarness();
   const initialToken = 'device-bound-refresh-token-'.padEnd(64, 'b');

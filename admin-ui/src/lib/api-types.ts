@@ -193,7 +193,7 @@ export interface AdminOrder {
   id: string;
   number: number;
   paymentStatus: string;
-  paymentProvider?: 'kaspi' | 'forte' | string;
+  paymentProvider?: 'forte' | 'historical' | string;
   orderStatus: string;
   amount: number;
   subtotal: number;
@@ -207,9 +207,6 @@ export interface AdminOrder {
   courierDispatchProvider?: string | null;
   courierDispatchRequestedAt?: string | null;
   courierDispatchError?: string | null;
-  iikoSyncStatus?: string | null;
-  iikoSyncError?: string | null;
-  iikoDeliveryStatus?: string | null;
   estimatedDeliveryAt?: string | null;
   trackingCode?: string | null;
   trackingUrl?: string | null;
@@ -410,9 +407,6 @@ export interface DispatchOrder {
   courierDispatchProvider?: string | null;
   courierDispatchRequestedAt?: string | null;
   courierDispatchError?: string | null;
-  iikoSyncStatus?: string | null;
-  iikoSyncError?: string | null;
-  iikoDeliveryStatus?: string | null;
   routeDistanceKm?: number | null;
   routeEtaMinutes?: number | null;
   externalDelivery?: ExternalDelivery | null;

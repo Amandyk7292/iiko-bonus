@@ -8,7 +8,7 @@ const {
   notificationCategory,
 } = require('../src/services/notification-preferences.service');
 const { buildContentState } = require('../src/services/live-activity.service');
-const { KaspiService } = require('../src/services/kaspi.service');
+const { OrderPaymentStateService } = require('../src/services/order-payment-state.service');
 
 test('notification categories separate transactional and marketing messages', () => {
   assert.equal(notificationCategory({ type: 'delivery' }), 'orders');
@@ -43,7 +43,7 @@ test('Live Activity state has bounded progress and a Unix ETA', () => {
 });
 
 test('order record stores branch preparation and a delivery ETA', () => {
-  const service = new KaspiService();
+  const service = new OrderPaymentStateService();
   const scheduledAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
   const record = service.orderRecord({
     customerId: 'customer-1',

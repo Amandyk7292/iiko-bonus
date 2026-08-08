@@ -14,7 +14,6 @@ Push-Location $flutterRoot
 # for a dedicated performance benchmark when it is actually needed.
 flutter build web --release --no-wasm-dry-run --csp -O4 --base-href "/" `
     --pwa-strategy=none `
-    --dart-define=BULKA_API_BASE_URL=https://bulka.com.kz `
     --dart-define=FIREBASE_WEB_VAPID_KEY=$vapidKey
 if ($LASTEXITCODE -ne 0) {
     Pop-Location

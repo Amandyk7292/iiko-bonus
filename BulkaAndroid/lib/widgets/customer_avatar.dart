@@ -73,6 +73,14 @@ class CustomerAvatar extends StatelessWidget {
                 key: ValueKey(option.key),
                 fit: BoxFit.cover,
                 filterQuality: FilterQuality.medium,
+                frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                  if (wasSynchronouslyLoaded || frame != null) return child;
+                  return Icon(
+                    Icons.person_rounded,
+                    color: colors.goldSoft,
+                    size: size * 0.52,
+                  );
+                },
                 errorBuilder: (context, error, stackTrace) => Icon(
                   Icons.person_rounded,
                   color: colors.goldSoft,

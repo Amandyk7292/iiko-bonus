@@ -110,7 +110,7 @@ test('marketing integrity migration serialises capacity and enforces referral ma
 });
 
 test('checkout controllers attach a promotion reservation only when a promotion was applied', () => {
-  for (const controller of ['kaspi.controller.js', 'forte.controller.js']) {
+  for (const controller of ['forte.controller.js']) {
     const source = fs.readFileSync(
       path.resolve(__dirname, `../src/controllers/${controller}`),
       'utf8',

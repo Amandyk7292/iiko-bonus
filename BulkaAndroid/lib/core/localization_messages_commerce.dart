@@ -274,11 +274,6 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'kk': 'Баға тексерілді',
     'en': 'Price checked',
   },
-  'checkout_kaspi_unavailable': {
-    'ru': 'Kaspi Pay временно недоступен. Попробуйте немного позже.',
-    'kk': 'Kaspi Pay уақытша қолжетімсіз. Сәл кейінірек қайталап көріңіз.',
-    'en': 'Kaspi Pay is temporarily unavailable. Please try again later.',
-  },
   'checkout_forte_unavailable': {
     'ru': 'Оплата картой ForteBank временно недоступна.',
     'kk': 'ForteBank картасымен төлем уақытша қолжетімсіз.',
@@ -302,11 +297,6 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'kk': 'Онлайн тапсырыстар өшірулі',
     'en': 'Online ordering disabled',
   },
-  'checkout_kaspi_card_hint': {
-    'ru': 'Счёт в Kaspi.kz',
-    'kk': 'Kaspi.kz шоты',
-    'en': 'Kaspi.kz invoice',
-  },
   'checkout_card_payment_title': {
     'ru': 'Оплатить картой',
     'kk': 'Картамен төлеу',
@@ -324,11 +314,6 @@ const Map<String, Map<String, String>> _commerceTranslations = {
   },
   'checkout_today': {'ru': 'Сегодня', 'kk': 'Бүгін', 'en': 'Today'},
   'checkout_tomorrow': {'ru': 'Завтра', 'kk': 'Ертең', 'en': 'Tomorrow'},
-  'payment_title': {
-    'ru': 'Оплата Kaspi',
-    'kk': 'Kaspi төлемі',
-    'en': 'Kaspi payment',
-  },
   'forte_payment_title': {
     'ru': 'Оплата картой',
     'kk': 'Картамен төлеу',
@@ -386,16 +371,6 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'ru': 'Скрыть сообщение',
     'kk': 'Хабарламаны жасыру',
     'en': 'Dismiss message',
-  },
-  'payment_open_kaspi_hint': {
-    'ru': 'Откройте Kaspi.kz и подтвердите выставленный счёт.',
-    'kk': 'Kaspi.kz қолданбасын ашып, шотты растаңыз.',
-    'en': 'Open Kaspi.kz and confirm the invoice.',
-  },
-  'payment_open_kaspi': {
-    'ru': 'Открыть Kaspi',
-    'kk': 'Kaspi ашу',
-    'en': 'Open Kaspi',
   },
   'forte_payment_hint': {
     'ru':
@@ -509,11 +484,6 @@ const Map<String, Map<String, String>> _commerceTranslations = {
         'Күту уақыты аяқталды. Тапсырысты кейін тексеріңіз немесе төлемді қайталаңыз.',
     'en': 'Payment timed out. Check the order later or try again.',
   },
-  'payment_open_failed': {
-    'ru': 'Не удалось открыть Kaspi. Откройте приложение вручную.',
-    'kk': 'Kaspi ашылмады. Қолданбаны қолмен ашыңыз.',
-    'en': 'Could not open Kaspi. Open the app manually.',
-  },
   'orders_title': {
     'ru': 'Мои заказы',
     'kk': 'Менің тапсырыстарым',
@@ -581,10 +551,10 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'kk': 'Қайтарым картаға жіберілді. Түсу мерзімі банкке байланысты.',
     'en': 'The refund was sent to the card. Posting time depends on the bank.',
   },
-  'orders_kaspi_refund_notice': {
-    'ru': 'Возврат выполнен через Kaspi Pay.',
-    'kk': 'Қайтарым Kaspi Pay арқылы орындалды.',
-    'en': 'The refund was completed through Kaspi Pay.',
+  'orders_original_payment_refund_notice': {
+    'ru': 'Возврат выполнен через исходный способ оплаты.',
+    'kk': 'Қайтарым бастапқы төлем тәсілі арқылы орындалды.',
+    'en': 'The refund was completed through the original payment method.',
   },
   'orders_cancel_reason': {
     'ru': 'Причина отмены',

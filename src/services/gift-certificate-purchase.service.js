@@ -3,7 +3,6 @@ const { supabase } = require('../config/supabase');
 const { normalizeKazakhstanPhone } = require('../utils/phone.util');
 const { decryptSecret, encryptSecret } = require('../utils/secret-envelope.util');
 const { sendPushToCustomer } = require('./push.service');
-const kaspiService = require('./kaspi.service');
 const forteService = require('./forte.service');
 const forteWidgetService = require('./forte-widget.service');
 const paymentOperations = require('./payment-operations.service');
@@ -328,18 +327,12 @@ const giftCheckout = (purchase) => ({
 async function createProviderPayment(purchase, phone, payload) {
   const pricing = giftPricing(purchase);
   const checkout = giftCheckout(purchase);
-  if (purchase.payment_provider === 'kaspi') {
-    if (process.env.KASPI_POS_ENABLED !== 'true') {
-      throw giftError('Оплата через Kaspi Pay отключена', 410, 'KASPI_DISABLED');
-    }
-    const response = await kaspiService.createInvoice(
-      phone,
-      pricing,
-      purchase.customer_id,
-      checkout,
+  if (purchase.payment_provider !== 'forte') {
+    throw giftError(
+      'Выбранный способ оплаты больше недоступен. Начните оформление заново.',
+      410,
+      'GIFT_PAYMENT_METHOD_UNAVAILABLE',
     );
-    const order = await kaspiService.existingRequest(purchase.customer_id, purchase.request_id);
-    return { response, order, service: kaspiService };
   }
 
   const decision = await paymentOperations.getForteCheckoutDecision();
@@ -380,9 +373,6 @@ async function createProviderPayment(purchase, phone, payload) {
 }
 
 async function createGiftCertificatePurchase(customer, payload) {
-  if (payload.paymentMethod === 'kaspi' && process.env.KASPI_POS_ENABLED !== 'true') {
-    throw giftError('Оплата через Kaspi Pay отключена', 410, 'KASPI_DISABLED');
-  }
   const purchase = await findOrCreatePurchase(customer.id, payload);
   if (purchase.status === 'active') {
     const { card } = await readPurchase(customer.id, purchase.id);

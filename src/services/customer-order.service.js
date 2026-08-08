@@ -1,7 +1,7 @@
 const crypto = require('node:crypto');
 const { supabase } = require('../config/supabase');
 const { sendPushToCustomer } = require('./push.service');
-const kaspiService = require('./kaspi.service');
+const orderPaymentState = require('./order-payment-state.service');
 const { releaseOrderReservations } = require('./inventory.service');
 const realtime = require('./realtime.service');
 const { sendOrderLiveActivity } = require('./live-activity.service');
@@ -81,10 +81,25 @@ const STATUS_TRANSITIONS = {
   cancelled: [],
 };
 
-const httpError = (statusCode, message) => Object.assign(new Error(message), { statusCode });
+const httpError = (statusCode, message, code) =>
+  Object.assign(new Error(message), { statusCode, ...(code && { code }) });
 
 const refundError = (statusCode, message, code) =>
   Object.assign(new Error(message), { statusCode, code });
+
+const assertDeliveryCompletionAllowed = (order, nextStatus) => {
+  if (
+    nextStatus === 'completed' &&
+    isDeliveryFulfillment(order) &&
+    order?.delivery_status !== 'delivered'
+  ) {
+    throw httpError(
+      409,
+      'Доставку можно завершить только после подтверждения курьером или службой доставки',
+      'DELIVERY_CONFIRMATION_REQUIRED',
+    );
+  }
+};
 
 const safeUnknownRefundRequestId = (order, now = Date.now()) => {
   if (order?.refund_status !== 'unknown') return null;
@@ -209,7 +224,7 @@ const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
       order.status === 'refunded' || order.refund_status === 'succeeded'
         ? 'refunded'
         : order.status,
-    paymentProvider: order.payment_method === 'forte_card' ? 'forte' : 'kaspi',
+    paymentProvider: order.payment_method === 'forte_card' ? 'forte' : 'historical',
     orderStatus: normalizedOrderStatus(order),
     amount: Number(order.amount || 0),
     subtotal: Number(order.subtotal ?? order.amount ?? 0),
@@ -450,7 +465,7 @@ async function notifyOrderStatus(order) {
               'Заказ отменён, возврат отправлен',
               order.payment_method === 'forte_card'
                 ? `Возврат ${refundAmount} ₸ по заказу №${number} отправлен на карту. Срок зачисления зависит от банка карты.${cancellationReasonByLanguage.ru}`
-                : `Возврат ${refundAmount} ₸ по заказу №${number} оформлен через Kaspi Pay.${cancellationReasonByLanguage.ru}`,
+                : `Возврат ${refundAmount} ₸ по заказу №${number} оформлен исходным способом оплаты.${cancellationReasonByLanguage.ru}`,
             ]
           : ['Заказ отменён', `Заказ №${number} отменён${cancellationSuffix}`],
     },
@@ -465,7 +480,7 @@ async function notifyOrderStatus(order) {
               'Тапсырыс тоқтатылды, қайтарым жіберілді',
               order.payment_method === 'forte_card'
                 ? `№${number} тапсырыс бойынша ${refundAmount} ₸ картаға қайтаруға жіберілді. Түсу мерзімі картаны шығарған банкке байланысты.${cancellationReasonByLanguage.kk}`
-                : `№${number} тапсырыс бойынша ${refundAmount} ₸ Kaspi Pay арқылы қайтарылды.${cancellationReasonByLanguage.kk}`,
+                : `№${number} тапсырыс бойынша ${refundAmount} ₸ бастапқы төлем тәсілі арқылы қайтаруға рәсімделді.${cancellationReasonByLanguage.kk}`,
             ]
           : ['Тапсырыс тоқтатылды', `№${number} тапсырыс тоқтатылды${cancellationSuffix}`],
     },
@@ -480,7 +495,7 @@ async function notifyOrderStatus(order) {
               'Order cancelled, refund submitted',
               order.payment_method === 'forte_card'
                 ? `The ${refundAmount} ₸ refund for order #${number} was sent to the card. Posting time depends on the card issuer.${cancellationReasonByLanguage.en}`
-                : `The ${refundAmount} ₸ refund for order #${number} was processed through Kaspi Pay.${cancellationReasonByLanguage.en}`,
+                : `The ${refundAmount} ₸ refund for order #${number} was submitted through the original payment method.${cancellationReasonByLanguage.en}`,
             ]
           : ['Order cancelled', `Order #${number} was cancelled${cancellationSuffix}`],
     },
@@ -633,7 +648,7 @@ async function finalizeConfirmedOrderRefund(
 
   let finalOrder = refunded;
   try {
-    finalOrder = await kaspiService.reverseOrderLoyalty(refunded);
+    finalOrder = await orderPaymentState.reverseOrderLoyalty(refunded);
   } catch (error) {
     console.error(`Не удалось сторнировать кэшбэк заказа ${refunded.order_number}:`, error.message);
     await supabase
@@ -678,7 +693,7 @@ async function cancelPaidOrder(
     current.fulfillment_status === 'pending' ? 'new' : current.fulfillment_status;
   if (current.status === 'refunded' && currentStatus === 'cancelled') {
     if (!current.bonus_reversed_at) {
-      await kaspiService
+      await orderPaymentState
         .reverseOrderLoyalty(current)
         .catch((error) =>
           console.error('Не удалось повторить сторнирование кэшбэка:', error.message),
@@ -886,6 +901,7 @@ async function updateAdminOrderStatus(
 
   const currentStatus =
     current.fulfillment_status === 'pending' ? 'new' : current.fulfillment_status;
+  assertDeliveryCompletionAllowed(current, nextStatus);
   if (nextStatus === 'cancelled' && currentStatus === 'cancelled') {
     if (current.status === 'paid') {
       return cancelPaidOrder(current, cancellationReason || current.cancellation_reason);
@@ -967,5 +983,6 @@ module.exports = {
   cancelCustomerOrder,
   notifyOrderStatus,
   safeUnknownRefundRequestId,
+  assertDeliveryCompletionAllowed,
   updateAdminOrderStatus,
 };

@@ -28,7 +28,6 @@ const createHarness = ({
   widgetSync,
   widgetAvailable = true,
   forteSync,
-  kaspiSync = async () => 'pending',
   updateFulfillmentResult,
 } = {}) => {
   const calls = {
@@ -50,9 +49,7 @@ const createHarness = ({
             fulfillment_status: 'cancelled',
           },
     releaseReservations: async (orderId) => calls.released.push(orderId),
-    kaspi: {
-      syncRemoteOrder: kaspiSync,
-      cancelInvoice: async (operationId) => calls.cancelledInvoices.push(operationId),
+    orderState: {
       updateOrderStatus: async (operationId, status) => {
         calls.statusUpdates.push([operationId, status]);
         const source = [...pending, ...unfinished].find(
@@ -73,7 +70,6 @@ const createHarness = ({
       recordCleanupResult: async (summary) => calls.recorded.push(summary),
     },
     publish: (...args) => calls.published.push(args),
-    env: { KASPI_POS_ENABLED: 'true' },
     loggerInstance: silentLogger,
   });
   return { service, calls };
@@ -131,16 +127,28 @@ test('Widget order is not expired when its provider state cannot be verified', a
   assert.equal(summary.errors, 1);
 });
 
-test('stale Kaspi invoice is cancelled remotely before local expiration', async () => {
+test('historical invoice expires locally without contacting the retired provider', async () => {
   const order = baseOrder({ created_at: '2026-07-26T10:00:00.000Z' });
   const { service, calls } = createHarness({ pending: [order] });
   const summary = await service.cleanupExpiredPayments({ now });
 
-  assert.deepEqual(calls.cancelledInvoices, ['payment-1']);
+  assert.deepEqual(calls.cancelledInvoices, []);
   assert.deepEqual(calls.statusUpdates, [['payment-1', 'expired']]);
   assert.deepEqual(calls.released, ['order-1']);
   assert.equal(summary.expired, 1);
   assert.equal(summary.cancelled, 1);
+});
+
+test('recent historical invoice is not expired early', async () => {
+  const order = baseOrder({ created_at: '2026-07-27T10:00:00.000Z' });
+  const { service, calls } = createHarness({ pending: [order] });
+  const summary = await service.cleanupExpiredPayments({ now });
+
+  assert.deepEqual(calls.cancelledInvoices, []);
+  assert.deepEqual(calls.statusUpdates, []);
+  assert.deepEqual(calls.released, []);
+  assert.equal(summary.expired, 0);
+  assert.equal(summary.cancelled, 0);
 });
 
 test('concurrent cleanup does not report or release an order it did not update', async () => {

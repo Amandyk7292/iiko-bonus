@@ -250,11 +250,7 @@ function directivesForPath(requestPath, nonce) {
   if (staticDocumentPolicies.has(requestPath)) return staticDocumentPolicies.get(requestPath);
   if (requestPath.startsWith('/payment-receipts/')) return receiptPolicy;
   if (requestPath.startsWith('/wallet/')) return walletPolicy;
-  if (
-    requestPath.startsWith('/tilda-copy-bot') ||
-    requestPath.startsWith('/kaspi-pos') ||
-    requestPath.startsWith('/admin/kaspi-pos')
-  ) {
+  if (requestPath.startsWith('/tilda-copy-bot')) {
     return isolatedLegacyPolicy;
   }
   if (requestPath === '/admin' || requestPath.startsWith('/admin/')) return adminPolicy;

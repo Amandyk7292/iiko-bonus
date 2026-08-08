@@ -57,7 +57,7 @@ test('confirmed full refund cancels both fulfillment and kitchen state', async (
   installModule(t, '../src/services/push.service', {
     sendPushToCustomer: async () => {},
   });
-  installModule(t, '../src/services/kaspi.service', {
+  installModule(t, '../src/services/order-payment-state.service', {
     reverseOrderLoyalty: async (value) => value,
   });
   installModule(t, '../src/services/inventory.service', {

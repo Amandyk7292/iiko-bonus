@@ -29,6 +29,7 @@ import 'package:provider/provider.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'core/cart_provider.dart';
+import 'core/api_origin.dart';
 import 'core/http_client_backend.dart';
 import 'core/session_storage_backend.dart';
 import 'core/url_navigation.dart';
@@ -83,7 +84,6 @@ part 'screens/customer_orders_screen.dart';
 part 'screens/order_details_screen.dart';
 part 'screens/order_support_screen.dart';
 part 'screens/notification_settings_screen.dart';
-part 'screens/kaspi_payment_screen.dart';
 part 'screens/forte_payment_screen.dart';
 part 'screens/notifications_screen.dart';
 part 'screens/legal_documents_screen.dart';

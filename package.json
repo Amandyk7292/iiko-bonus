@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "description": "Backend for iiko external loyalty system",
   "main": "src/server.js",
+  "engines": {
+    "node": "22.x",
+    "npm": ">=10 <12"
+  },
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
@@ -21,7 +25,7 @@
     "wallet:google:setup": "node scripts/setup-google-wallet.js",
     "build:admin": "npm --prefix admin-ui run build",
     "build": "npm run build:admin",
-    "verify": "npm run check:secrets && npm run check:contracts && npm run lint && npm run check:structure && npm run check:migration-safety && npm run test:coverage && npm run build && npm run check:bundle-admin && npm --prefix admin-ui run lint && npm --prefix admin-ui run test:coverage && npm --prefix kaspi-pos-automation-main run lint && npm --prefix kaspi-pos-automation-main test"
+    "verify": "npm run check:secrets && npm run check:contracts && npm run lint && npm run check:structure && npm run check:migration-safety && npm run test:coverage && npm run build && npm run check:bundle-admin && npm --prefix admin-ui run lint && npm --prefix admin-ui run test:coverage"
   },
   "dependencies": {
     "@parse/node-apn": "^8.1.0",

@@ -1,7 +1,7 @@
 const crypto = require('node:crypto');
 const fetch = require('node-fetch');
 const { supabase } = require('../config/supabase');
-const kaspiService = require('./kaspi.service');
+const orderPaymentState = require('./order-payment-state.service');
 const { recordSystemEvent } = require('./analytics-event.service');
 const { forecastOrderEta } = require('./eta.service');
 const { effectiveFulfillmentType } = require('../utils/fulfillment.util');
@@ -421,7 +421,7 @@ class ForteWidgetService {
   constructor({
     db = supabase,
     fetchImpl = fetch,
-    orderService = kaspiService,
+    orderService = orderPaymentState,
     forecastEta = forecastOrderEta,
     recordEvent = recordSystemEvent,
     env = process.env,

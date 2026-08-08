@@ -1,11 +1,23 @@
-const kaspiService = require('./kaspi.service');
 const forteService = require('./forte.service');
 const forteWidgetService = require('./forte-widget.service');
 
 const SAFE_REFUND_RETRY_WINDOW_MS = 23 * 60 * 60 * 1000;
 const isForteOrder = (order) => String(order?.payment_method || '') === 'forte_card';
 
-const paymentProviderName = (order) => (isForteOrder(order) ? 'ForteBank' : 'Kaspi Pay');
+const paymentProviderName = (order) =>
+  isForteOrder(order) ? 'ForteBank' : 'Исторический способ оплаты';
+
+const retiredProviderRefundError = () =>
+  Object.assign(
+    new Error(
+      'Автоматический возврат для исторического способа оплаты отключён. Проверьте исходную операцию и оформите возврат вручную.',
+    ),
+    {
+      statusCode: 410,
+      code: 'PAYMENT_PROVIDER_RETIRED',
+      retryable: false,
+    },
+  );
 
 async function refundPaymentForOrder(order, amount, options = {}) {
   if (!order?.operation_id) {
@@ -15,7 +27,7 @@ async function refundPaymentForOrder(order, amount, options = {}) {
     });
   }
   if (!isForteOrder(order)) {
-    return kaspiService.refundPayment(order.operation_id, amount);
+    throw retiredProviderRefundError();
   }
   if (order.provider_payment_system === 'forte_widget') {
     return forteWidgetService.refundPayment(order, amount, options);
@@ -35,15 +47,11 @@ async function reconcileFullRefundForOrder(order) {
   };
 }
 
-const EXPLICIT_REFUND_DECLINES = new Set([
-  'KASPI_REFUND_REJECTED',
-  'FORTE_REFUND_REJECTED',
-  'FORTE_WIDGET_REFUND_REJECTED',
-]);
+const EXPLICIT_REFUND_DECLINES = new Set(['FORTE_REFUND_REJECTED', 'FORTE_WIDGET_REFUND_REJECTED']);
 
 async function reconcileRefundForOrder(order, refund, options = {}) {
   if (!isForteOrder(order)) {
-    return kaspiService.reconcileRefund(order, refund, options);
+    throw retiredProviderRefundError();
   }
 
   if (order.provider_payment_system !== 'forte_widget') {
@@ -139,6 +147,7 @@ module.exports = {
   SAFE_REFUND_RETRY_WINDOW_MS,
   isForteOrder,
   paymentProviderName,
+  retiredProviderRefundError,
   reconcileFullRefundForOrder,
   reconcileRefundForOrder,
   refundPaymentForOrder,

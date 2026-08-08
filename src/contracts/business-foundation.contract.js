@@ -42,7 +42,7 @@ const giftCertificatePurchaseBodySchema = z
     amount: z.coerce.number().int().min(500).max(1_000_000),
     recipient: giftRecipientSchema,
     deliveryAt: z.iso.datetime({ offset: true }).optional(),
-    paymentMethod: z.enum(['kaspi', 'forte']),
+    paymentMethod: z.literal('forte'),
     locale: z.enum(['ru', 'kk', 'en']).optional().default('ru'),
     savedPaymentMethodId: uuid.optional(),
   })

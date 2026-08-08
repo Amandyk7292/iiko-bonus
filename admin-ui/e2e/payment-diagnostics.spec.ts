@@ -19,7 +19,6 @@ const diagnostics = () => ({
     updatedAt: null,
   },
   providers: {
-    kaspi: { ...baseProvider },
     forteHosted: { ...baseProvider },
     forteWidget: {
       ...baseProvider,
@@ -32,12 +31,6 @@ const diagnostics = () => ({
     },
   },
   webhooks: {
-    kaspi: {
-      configured: true,
-      lastSuccessAt: '2026-07-27T11:55:00.000Z',
-      lastFailureAt: null,
-      lastErrorCode: null,
-    },
     forteWidget: {
       configured: true,
       lastSuccessAt: null,

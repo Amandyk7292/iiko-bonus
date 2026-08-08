@@ -28,25 +28,16 @@ test('worker monitoring records successful and failed runs without exposing mess
   assert.match(renderWorkerMetrics(), /bulka_worker_failures_total\{worker="test-failure"\} 1/);
 });
 
-test('readiness reports database and enabled Kaspi state separately', async () => {
-  const previous = process.env.KASPI_POS_ENABLED;
-  process.env.KASPI_POS_ENABLED = 'true';
-  try {
-    const ready = await readinessSnapshot({
-      kaspiReady: true,
-      databaseCheck: async () => ({ ok: true }),
-    });
-    assert.equal(ready.ok, true);
-    assert.equal(ready.dependencies.database.ok, true);
+test('readiness reports database state without retired payment dependencies', async () => {
+  const ready = await readinessSnapshot({
+    databaseCheck: async () => ({ ok: true }),
+  });
+  assert.equal(ready.ok, true);
+  assert.deepEqual(ready.dependencies, { database: { ok: true } });
 
-    const unavailable = await readinessSnapshot({
-      kaspiReady: false,
-      databaseCheck: async () => ({ ok: true }),
-    });
-    assert.equal(unavailable.ok, false);
-    assert.equal(unavailable.dependencies.kaspi.ok, false);
-  } finally {
-    if (previous === undefined) delete process.env.KASPI_POS_ENABLED;
-    else process.env.KASPI_POS_ENABLED = previous;
-  }
+  const unavailable = await readinessSnapshot({
+    databaseCheck: async () => ({ ok: false }),
+  });
+  assert.equal(unavailable.ok, false);
+  assert.deepEqual(unavailable.dependencies, { database: { ok: false } });
 });

@@ -20,7 +20,7 @@ Production stack for the Bulka loyalty program: an Express/Supabase API, React a
 5. Build the admin panel with `npm run build` and start the API with `npm start`.
 
 Use `GET /livez` (or the legacy `/healthz`) for process liveness and `GET /readyz`
-for dependency readiness. `/readyz` checks Supabase, the optional Kaspi module
+for dependency readiness. `/readyz` checks Supabase and configured integrations
 and monitored background workers while returning only the aggregate status.
 When `METRICS_BEARER_TOKEN` is configured, Prometheus metrics are available at
 `GET /internal/metrics` and detailed readiness at `GET /internal/readiness`
@@ -101,6 +101,20 @@ Production runs on the Bulka VPS. Keep Wallet credentials only in `/var/www/iiko
 .\scripts\deploy-vps.ps1
 ```
 
+The deployment gate accepts only a clean `main` HEAD that exactly matches the
+live `origin/main` commit and has a completed, successful GitHub `CI` push run
+for that SHA. Normal deployment downloads the exact
+`production-web-<40-character-SHA>` artifact from that run, verifies GitHub's
+archive digest and the artifact's complete per-file SHA-256 inventory, and
+packages those immutable Flutter/admin files instead of rebuilding them
+locally. It queries GitHub through HTTPS and does not require the `gh` CLI. Set
+`GITHUB_TOKEN` with repository `Actions: read` permission in the environment
+for the artifact download; keep it out of command-line arguments. The explicit emergency bypass
+requires both `-EmergencyBypassProvenanceGate` and a non-empty
+`-EmergencyBypassReason`; it is recorded in the release manifest, never
+bypasses the clean-tree check, and is the only path that permits a local web
+build.
+
 Every release first passes a private staging smoke test. The persistent staging
 process listens only on `127.0.0.1:3101`, with bots and background workers
 disabled. Its files are stored in `/home/deploy/iiko-bonus-staging/current`.
@@ -116,6 +130,11 @@ ssh bulka-vps 'bash /var/www/iiko-bonus/scripts/rollback-vps.sh'
 
 External WAF activation and the guarded origin-lockdown step are documented in
 `docs/external-waf.md`.
+
+Rebuilding a replacement VPS from a successful CI artifact, restoring the
+protected environment, configuring Node/PM2/Nginx/TLS, validating health, and
+establishing rollback history is documented in
+`docs/vps-rebuild-runbook.md`.
 
 ## Verification
 

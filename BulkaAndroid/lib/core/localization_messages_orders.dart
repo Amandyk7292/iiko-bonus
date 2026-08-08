@@ -1249,16 +1249,6 @@ const Map<String, Map<String, String>> _orderAndPaymentTranslations = {
     'kk': 'Төлем сервисі операция нөмірін қайтармады',
     'en': 'The payment service did not return an operation number',
   },
-  'error_kaspi_payment': {
-    'ru': 'Не удалось создать оплату Kaspi',
-    'kk': 'Kaspi төлемін жасау мүмкін болмады',
-    'en': 'Could not create the Kaspi payment',
-  },
-  'error_kaspi_status': {
-    'ru': 'Не удалось проверить статус оплаты',
-    'kk': 'Төлем күйін тексеру мүмкін болмады',
-    'en': 'Could not check the payment status',
-  },
   'error_forte_payment': {
     'ru': 'Не удалось создать оплату ForteBank',
     'kk': 'ForteBank төлемін жасау мүмкін болмады',

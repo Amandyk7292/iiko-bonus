@@ -20,7 +20,6 @@ const EXEMPT_SITE_PREFIXES = [
   '/admin',
   '/api',
   '/webhooks',
-  '/kaspi-pos',
   '/.well-known',
   '/maps',
   '/payment-receipts',

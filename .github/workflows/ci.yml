@@ -25,10 +25,8 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             admin-ui/package-lock.json
-            kaspi-pos-automation-main/package-lock.json
       - run: npm ci
       - run: npm ci --prefix admin-ui
-      - run: npm ci --prefix kaspi-pos-automation-main
       - name: Detect committed secrets
         run: npm run check:secrets
       - run: npm run db:migrate:check
@@ -37,14 +35,11 @@ jobs:
         run: |
           npm audit --audit-level=high
           npm audit --prefix admin-ui --audit-level=high
-          npm audit --prefix kaspi-pos-automation-main --audit-level=high
       - name: Generate JavaScript SBOMs
         run: |
           mkdir -p artifacts/sbom
           npm sbom --sbom-format cyclonedx > artifacts/sbom/backend.cdx.json
           npm --prefix admin-ui sbom --sbom-format cyclonedx > artifacts/sbom/admin.cdx.json
-          npm --prefix kaspi-pos-automation-main sbom --sbom-format cyclonedx \
-            > artifacts/sbom/kaspi-pos.cdx.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
@@ -116,6 +111,8 @@ jobs:
   flutter:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      FIREBASE_WEB_VAPID_KEY: BItWENnHyRNy96PDaiO8Ga76xj3R0bc9ybb1WNNrxNiKuAJHjqOrO9Nqi6mZus4WUlQAYeZnAUyDogjSp46tfhI
     defaults:
       run:
         working-directory: BulkaAndroid
@@ -159,11 +156,21 @@ jobs:
             echo 'keyAlias=bulka-ci'
             echo 'keyPassword=ci-release-password'
           } > android/key.properties
+          ci_fingerprint=$(
+            keytool -exportcert \
+              -keystore android/keystore/ci-release.jks \
+              -storepass ci-release-password \
+              -alias bulka-ci -rfc \
+              | openssl x509 -noout -fingerprint -sha256 \
+              | cut -d= -f2
+          )
+          test -n "$ci_fingerprint"
+          echo "ANDROID_APP_SHA256_CERT_FINGERPRINTS=$ci_fingerprint" >> "$GITHUB_ENV"
       - name: Create ephemeral Firebase iOS configuration
         shell: bash
         run: cp ../test/fixtures/firebase-ios/GoogleService-Info.plist ios/Runner/GoogleService-Info.plist
       - name: Validate native release configuration
-        working-directory: .
+        working-directory: ${{ github.workspace }}
         shell: pwsh
         run: ./scripts/check-native-release.ps1 -SkipNetwork
       - run: flutter build apk --debug --dart-define=BULKA_API_BASE_URL=https://bulka.com.kz
@@ -174,8 +181,8 @@ jobs:
           --dart-define=BULKA_API_BASE_URL=https://bulka.com.kz
       - run: >
           flutter build web --release --no-wasm-dry-run --csp -O4
-          --base-href /app/ --pwa-strategy=none
-          --dart-define=BULKA_API_BASE_URL=https://bulka.com.kz
+          --base-href / --pwa-strategy=none
+          --dart-define=FIREBASE_WEB_VAPID_KEY=${FIREBASE_WEB_VAPID_KEY}
       - name: Finalize versioned Flutter web release
         run: >
           node ../scripts/finalize-flutter-web.js
@@ -186,23 +193,22 @@ jobs:
       - name: Generate Flutter dependency inventory
         run: flutter pub deps --json > build/flutter-dependencies.json
       - name: Install QA server dependencies
-        working-directory: .
+        working-directory: ${{ github.workspace }}
         run: npm ci
       - run: python -m pip install playwright==1.61.0
       - run: python -m playwright install --with-deps chromium
       - name: Run Flutter browser QA matrix
         shell: bash
         run: |
-          mkdir -p ../scratch/qa-web/app
-          cp -R build/web/. ../scratch/qa-web/app/
+          rm -rf ../scratch/qa-web
+          mkdir -p ../scratch/qa-web
           cp -R build/web/. ../scratch/qa-web/
-          cp build/web/firebase-messaging-sw.js ../scratch/qa-web/firebase-messaging-sw.js
           node ../scripts/qa-static-server.js 4173 ../scratch/qa-web >../scratch/qa-http.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
           qa_server_ready=0
           for attempt in {1..30}; do
-            if curl --fail --silent http://127.0.0.1:4173/app/ >/dev/null; then
+            if curl --fail --silent http://127.0.0.1:4173/ >/dev/null; then
               qa_server_ready=1
               break
             fi
@@ -218,12 +224,12 @@ jobs:
             ../test/catalog_shelves_ui_e2e.py \
             ../test/preloader_ui_e2e.py \
             ../test/story_viewer_ui_e2e.py; do
-            python "$test_file" http://127.0.0.1:4173/app/
+            python "$test_file" http://127.0.0.1:4173/
           done
           python ../test/white_background_ui_e2e.py \
-            http://127.0.0.1:4173/app/ ../scratch/white-background-ci.png
+            http://127.0.0.1:4173/ ../scratch/white-background-ci.png
       - name: Prepare full application browser tests
-        working-directory: .
+        working-directory: ${{ github.workspace }}
         shell: bash
         run: |
           npm ci --prefix admin-ui
@@ -231,15 +237,15 @@ jobs:
           mkdir -p public/app
           cp -R BulkaAndroid/build/web/. public/app/
       - name: Run backend and legal browser QA
-        working-directory: .
+        working-directory: ${{ github.workspace }}
         shell: bash
         env:
           NODE_ENV: test
           RUN_BOTS: 'false'
           RUN_BACKGROUND_WORKERS: 'false'
-          KASPI_POS_ENABLED: 'false'
           PORT: '4320'
           BULKA_E2E_BASE_URL: http://127.0.0.1:4320
+          BULKA_RELEASE_URL: http://127.0.0.1:4320
         run: |
           node src/server.js >scratch-full-app.log 2>&1 &
           server_pid=$!
@@ -263,6 +269,27 @@ jobs:
           python test/forte_compliance_e2e.py
           python test/guest_legal_profile_e2e.py
           python test/public_page_e2e.py http://127.0.0.1:4321
+          python test/taplink_public_ui_e2e.py http://127.0.0.1:4320
+          python scripts/e2e-release-smoke.py
+      - name: Prepare production web rebuild inventory
+        working-directory: ${{ github.workspace }}
+        shell: bash
+        run: |
+          mkdir -p artifacts/production-web
+          find BulkaAndroid/build/web admin-ui/dist -type f ! -path '*/.*' -print0 \
+            | sort -z \
+            | xargs -0 sha256sum > artifacts/production-web/SHA256SUMS
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: production-web-${{ github.sha }}
+          if-no-files-found: error
+          retention-days: 90
+          overwrite: true
+          include-hidden-files: false
+          path: |
+            BulkaAndroid/build/web
+            admin-ui/dist
+            artifacts/production-web/SHA256SUMS
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
@@ -278,6 +305,7 @@ jobs:
             scratch/qa-http.log
             scratch-full-app.log
             scratch-public-page.log
+            .tmp/release-smoke
 
   flutter-ios:
     runs-on: macos-latest

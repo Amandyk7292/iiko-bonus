@@ -144,7 +144,7 @@ const checkDatabase = async () => {
   }
 };
 
-const readinessSnapshot = async ({ kaspiReady = true, databaseCheck = checkDatabase } = {}) => {
+const readinessSnapshot = async ({ databaseCheck = checkDatabase } = {}) => {
   const database = await databaseCheck();
   const workerStates = workerSnapshot();
   const criticalWorkerFailed = workerStates.some(
@@ -155,15 +155,10 @@ const readinessSnapshot = async ({ kaspiReady = true, databaseCheck = checkDatab
       void sendOperationalAlert(worker, 'WORKER_STALE');
     }
   }
-  const kaspi = {
-    enabled: process.env.KASPI_POS_ENABLED === 'true',
-    ok: process.env.KASPI_POS_ENABLED !== 'true' || kaspiReady,
-  };
   return {
-    ok: database.ok && kaspi.ok && !criticalWorkerFailed,
+    ok: database.ok && !criticalWorkerFailed,
     dependencies: {
       database: { ok: database.ok },
-      kaspi,
     },
     workers: workerStates.map(
       ({ name, enabled, running, runs, failures, lastSuccessAt, lastFailureAt, stale }) => ({

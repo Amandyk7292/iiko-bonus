@@ -3,8 +3,10 @@ set -Eeuo pipefail
 
 release_id=${1:-}
 migration_mode=${2:-apply}
-archive=${3:-/tmp/bulka-release.zip}
+archive=${3:-}
 expected_sha256=${4:-}
+postgres_installer=${5:-}
+launcher_script=${6:-}
 project=${BULKA_PROJECT_DIR:-/var/www/iiko-bonus}
 staging=${BULKA_STAGING_DIR:-/home/deploy/iiko-bonus-staging/current}
 release_store=${BULKA_RELEASE_STORE:-/home/deploy/.bulka-releases}
@@ -13,10 +15,33 @@ preflight_log="/tmp/bulka-staging-${release_id}.log"
 preflight_pid=''
 backup_ready=0
 production_changed=0
+staging_changed=0
 previous_release="${release_id}-previous"
 current_release="${release_id}-current"
 backup="${release_store}/${previous_release}"
 stored_release="${release_store}/${current_release}"
+previous_current_release=''
+
+release_scripts=(
+  apply-migrations.js
+  backup-database.sh
+  backup-supabase-storage.js
+  configure-forte-widget-vps.sh
+  configure-iiko-astana-vps.sh
+  deploy-release.sh
+  enable-nginx-upstream-fallback.sh
+  ensure-postgres-client.sh
+  harden-nginx-access-logs.sh
+  install-database-backup-timer.sh
+  install-pm2-logrotate.sh
+  prepare-cloudflare-origin.sh
+  prepare-pg-connection.js
+  probe-iiko-city-profile.js
+  rollback-vps.sh
+  run-database-restore-drill.sh
+  setup-google-wallet.js
+  verify-database-restore.sh
+)
 
 if [[ ! $release_id =~ ^[0-9]{14}-[0-9a-f]{12}$ ]]; then
   echo 'Release id must contain a timestamp and 12-character commit id.' >&2
@@ -26,8 +51,8 @@ if [[ ! $expected_sha256 =~ ^[0-9a-f]{64}$ ]]; then
   echo 'A lowercase SHA-256 archive checksum is required.' >&2
   exit 1
 fi
-if [[ $migration_mode != 'apply' && $migration_mode != 'check' ]]; then
-  echo 'Migration mode must be apply or check.' >&2
+if [[ $migration_mode != 'apply' ]]; then
+  echo 'Production deployment requires migration mode apply.' >&2
   exit 1
 fi
 case "$project" in
@@ -42,58 +67,100 @@ case "$release_store" in
   /home/deploy/.bulka-releases) ;;
   *) echo "Unsafe release store: $release_store" >&2; exit 1 ;;
 esac
+if [[ $archive != "/tmp/bulka-release-${release_id}.zip" ]]; then
+  echo "Unsafe or non-release-specific archive path: $archive" >&2
+  exit 1
+fi
+if [[ $postgres_installer != "/tmp/bulka-ensure-postgres-client-${release_id}.sh" ]]; then
+  echo "Unsafe or non-release-specific PostgreSQL installer path: $postgres_installer" >&2
+  exit 1
+fi
+if [[ $launcher_script != "/tmp/bulka-deploy-release-${release_id}.sh" ]]; then
+  echo "Unsafe or non-release-specific deployment script path: $launcher_script" >&2
+  exit 1
+fi
 case "$temporary_release" in
   /tmp/bulka-release-[0-9]*) ;;
   *) echo "Unsafe temporary release: $temporary_release" >&2; exit 1 ;;
 esac
 
+command -v flock >/dev/null || {
+  echo 'Deployment stopped: the flock command is required.' >&2
+  exit 1
+}
+mkdir -p "$release_store"
+deployment_lock="$release_store/deployment.lock"
+exec 9>"$deployment_lock"
+if ! flock -n 9; then
+  echo 'Deployment busy: another deployment or rollback holds the production lock.' >&2
+  exit 75
+fi
+for reserved_path in "$temporary_release" "$backup" "$stored_release"; do
+  if [[ -e $reserved_path || -L $reserved_path ]]; then
+    echo "Deployment stopped: release path already exists: $reserved_path" >&2
+    exit 1
+  fi
+done
+if [[ -f "$release_store/current-release" ]]; then
+  previous_current_release=$(tr -d '\r\n' <"$release_store/current-release")
+fi
+
+validate_copy_destination() {
+  local destination=$1
+  local relative
+  local resolved_destination
+  [[ ! -L $destination ]] || {
+    echo "Refusing symlinked release destination: $destination" >&2
+    return 1
+  }
+  resolved_destination=$(realpath -m -- "$destination")
+  case "$resolved_destination" in
+    "$project"|"$staging"|"$release_store"/*) ;;
+    *) echo "Refusing unmanaged release destination: $resolved_destination" >&2; return 1 ;;
+  esac
+  for relative in \
+    src public admin-ui admin-ui/dist scripts supabase supabase/migrations \
+    index.js package.json package-lock.json supabase_schema.sql release-manifest.json; do
+    [[ ! -L "$destination/$relative" ]] || {
+      echo "Refusing symlinked release artifact: $destination/$relative" >&2
+      return 1
+    }
+  done
+}
+
 copy_artifacts() {
   local source=$1
   local destination=$2
+  local script
+  local -a script_filters=()
+  validate_copy_destination "$destination" || return
   mkdir -p \
     "$destination/public" \
     "$destination/admin-ui" \
-    "$destination/kaspi-pos-automation-main" \
     "$destination/scripts" \
-    "$destination/supabase"
-  rsync -a --delete "$source/src/" "$destination/src/"
-  rsync -a --delete "$source/supabase/migrations/" "$destination/supabase/migrations/"
-  rsync -a --delete "$source/public/" "$destination/public/"
-  rsync -a --delete "$source/admin-ui/dist/" "$destination/admin-ui/dist/"
+    "$destination/supabase" || return
+  rsync -a --delete "$source/src/" "$destination/src/" || return
   rsync -a --delete \
-    "$source/kaspi-pos-automation-main/src/" \
-    "$destination/kaspi-pos-automation-main/src/"
+    "$source/supabase/migrations/" \
+    "$destination/supabase/migrations/" || return
+  rsync -a --delete "$source/public/" "$destination/public/" || return
   rsync -a --delete \
-    "$source/kaspi-pos-automation-main/public/" \
-    "$destination/kaspi-pos-automation-main/public/"
-  for script in \
-    apply-migrations.js \
-    backup-database.sh \
-    setup-google-wallet.js \
-    deploy-release.sh \
-    enable-nginx-upstream-fallback.sh \
-    ensure-postgres-client.sh \
-    install-database-backup-timer.sh \
-    install-pm2-logrotate.sh \
-    rollback-vps.sh \
-    verify-database-restore.sh \
-    run-database-restore-drill.sh \
-    prepare-cloudflare-origin.sh \
-    configure-iiko-astana-vps.sh \
-    probe-iiko-city-profile.js \
-    harden-nginx-access-logs.sh; do
-    if [[ -f "$source/scripts/$script" ]]; then
-      cp "$source/scripts/$script" "$destination/scripts/$script"
-    fi
+    "$source/admin-ui/dist/" \
+    "$destination/admin-ui/dist/" || return
+  for script in "${release_scripts[@]}"; do
+    script_filters+=(--include="/$script")
   done
+  rsync -a --delete --delete-excluded \
+    "${script_filters[@]}" --exclude='*' \
+    "$source/scripts/" "$destination/scripts/" || return
   cp \
     "$source/index.js" \
     "$source/package.json" \
     "$source/package-lock.json" \
     "$source/supabase_schema.sql" \
-    "$destination/"
+    "$destination/" || return
   if [[ -f "$source/release-manifest.json" ]]; then
-    cp "$source/release-manifest.json" "$destination/release-manifest.json"
+    cp "$source/release-manifest.json" "$destination/release-manifest.json" || return
   else
     cat >"$destination/release-manifest.json" <<EOF
 {
@@ -106,12 +173,8 @@ copy_artifacts() {
   "source": "legacy-production-backup"
 }
 EOF
+    [[ $? -eq 0 ]] || return
   fi
-  cp \
-    "$source/kaspi-pos-automation-main/server.js" \
-    "$source/kaspi-pos-automation-main/package.json" \
-    "$source/kaspi-pos-automation-main/package-lock.json" \
-    "$destination/kaspi-pos-automation-main/"
 }
 
 quarantine_legacy_migrations() {
@@ -191,7 +254,7 @@ verify_client_shell() {
   local response_file
   local status
   local valid=1
-  response_file=$(mktemp /tmp/bulka-client-shell.XXXXXX)
+  response_file=$(mktemp "/tmp/bulka-client-shell-${release_id}.XXXXXX")
   status=$(
     curl -sS \
       -H 'Accept: application/json' \
@@ -257,7 +320,6 @@ start_staging_release() {
       RUN_WHATSAPP_OUTBOX_WORKER=false \
       RUN_YANDEX_DELIVERY_WORKER=false \
       YANDEX_DELIVERY_ENABLED=false \
-      KASPI_POS_ENABLED=false \
       GEMINI_ASSISTANT_ENABLED=false \
       pm2 start src/server.js --name iiko-bonus-staging --cwd "$staging" --update-env
   )
@@ -370,25 +432,49 @@ cleanup_incomplete_release() {
   esac
 }
 
+write_current_release() {
+  local release_name=$1
+  local marker_tmp="$release_store/.current-release.${release_id}.$$"
+  if [[ -z $release_name ]]; then
+    rm -f -- "$release_store/current-release"
+    return 0
+  fi
+  printf '%s\n' "$release_name" >"$marker_tmp" || return
+  mv -f -- "$marker_tmp" "$release_store/current-release"
+}
+
+restore_previous_production() {
+  echo 'Deployment failed; restoring the previously healthy release.' >&2
+  copy_artifacts "$backup" "$project" || return
+  (
+    cd "$project" && npm ci --omit=dev --no-audit --no-fund
+  ) || return
+  reload_production || return
+  wait_for_health 'http://127.0.0.1:3000/readyz' 20 || return
+  if ! start_staging_release "$backup"; then
+    echo 'Restored production is healthy, but staging restore failed and was disabled.' >&2
+    pm2 delete iiko-bonus-staging >/dev/null 2>&1 || true
+  fi
+  write_current_release "$previous_current_release" || return
+  pm2 save || return
+  echo 'The previously healthy production release was restored successfully.' >&2
+}
+
 rollback_failed_deploy() {
   local exit_code=$?
   trap - ERR
   stop_preflight
   if [[ $production_changed -eq 1 && $backup_ready -eq 1 ]]; then
-    echo 'Deployment failed; restoring the previously healthy release.' >&2
-    copy_artifacts "$backup" "$project"
-    (
-      cd "$project"
-      npm ci --omit=dev --no-audit --no-fund
-      npm --prefix kaspi-pos-automation-main ci --omit=dev --no-audit --no-fund
-    )
-    reload_production
-    wait_for_health 'http://127.0.0.1:3000/readyz' 20 || true
+    if ! restore_previous_production; then
+      echo 'CRITICAL: automatic deployment recovery failed; production requires immediate inspection.' >&2
+    fi
+  elif [[ $staging_changed -eq 1 && $backup_ready -eq 1 ]]; then
+    echo 'Deployment failed before production mutation; restoring the previous staging release.' >&2
     if ! start_staging_release "$backup"; then
-      echo 'Rollback staging failed; disabling it to avoid serving a mismatched release.' >&2
+      echo 'Staging recovery failed and the staging process was disabled.' >&2
       pm2 delete iiko-bonus-staging >/dev/null 2>&1 || true
     fi
-    pm2 save
+    pm2 save || true
   fi
   cleanup_incomplete_release "$backup"
   cleanup_incomplete_release "$stored_release"
@@ -396,15 +482,17 @@ rollback_failed_deploy() {
     /tmp/bulka-release-[0-9]*) rm -rf -- "$temporary_release" ;;
   esac
   rm -f -- "$archive" "$preflight_log"
+  rm -f -- "$postgres_installer" "$launcher_script"
   exit "$exit_code"
 }
 trap rollback_failed_deploy ERR
 
+test -f "$postgres_installer"
+bash "$postgres_installer"
 test -f "$archive"
 test -f "$project/.env"
 printf '%s  %s\n' "$expected_sha256" "$archive" | sha256sum --check --status
 curl -fsS 'http://127.0.0.1:3000/readyz' >/dev/null
-mkdir -p "$release_store"
 mkdir -p "$temporary_release"
 unzip -oq "$archive" -d "$temporary_release"
 
@@ -423,20 +511,12 @@ for required_file in \
   public/taplink/assets/fonts/GolosText-SemiBold.ttf \
   public/taplink/assets/fonts/Montserrat-Regular-subset.ttf \
   admin-ui/dist/index.html \
-  kaspi-pos-automation-main/server.js \
   supabase/migrations/20260725120000_customer_access_hardening.sql \
-  scripts/apply-migrations.js \
-  scripts/backup-database.sh \
-  scripts/backup-supabase-storage.js \
-  scripts/deploy-release.sh \
-  scripts/ensure-postgres-client.sh \
-  scripts/install-database-backup-timer.sh \
-  scripts/install-pm2-logrotate.sh \
-  scripts/configure-iiko-astana-vps.sh \
-  scripts/probe-iiko-city-profile.js \
-  scripts/rollback-vps.sh \
   release-manifest.json; do
   test -f "$temporary_release/$required_file"
+done
+for script in "${release_scripts[@]}"; do
+  test -f "$temporary_release/scripts/$script"
 done
 
 manifest_commit=$(
@@ -498,7 +578,6 @@ env \
   RUN_WHATSAPP_OUTBOX_WORKER=false \
   RUN_YANDEX_DELIVERY_WORKER=false \
   YANDEX_DELIVERY_ENABLED=false \
-  KASPI_POS_ENABLED=false \
   GEMINI_ASSISTANT_ENABLED=false \
   node src/server.js >"$preflight_log" 2>&1 &
 preflight_pid=$!
@@ -508,28 +587,25 @@ curl -fsS 'http://127.0.0.1:3199/admin/' >/dev/null
 verify_client_shell 'http://127.0.0.1:3199/app/'
 stop_preflight
 
-if [[ $migration_mode == 'apply' ]]; then
-  if ! configure_postgres_client; then
-    echo 'Deployment stopped: PostgreSQL backup tools are unavailable.' >&2
-    exit 1
-  fi
-  create_pre_migration_backup
-  (
-    cd "$temporary_release"
-    DOTENV_CONFIG_PATH="$project/.env" \
-      npm run db:migrate -- \
-        --baseline-existing \
-        --baseline-through=20260723120000_admin_operations_realtime.sql
-  )
-else
-  (cd "$temporary_release" && npm run db:migrate:check)
+if ! configure_postgres_client; then
+  echo 'Deployment stopped: PostgreSQL backup tools are unavailable.' >&2
+  exit 1
 fi
+create_pre_migration_backup
+(
+  cd "$temporary_release"
+  DOTENV_CONFIG_PATH="$project/.env" \
+    npm run db:migrate -- \
+      --baseline-existing \
+      --baseline-through=20260723120000_admin_operations_realtime.sql
+)
 
 copy_artifacts "$project" "$backup"
 printf 'healthy_at=%s\nsource=pre_deploy\n' "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
   >"$backup/.healthy"
 backup_ready=1
 
+staging_changed=1
 start_staging_release "$temporary_release"
 bash "$temporary_release/scripts/install-pm2-logrotate.sh"
 if [[ ${BULKA_CONFIGURE_NGINX_FALLBACK:-true} == 'true' ]]; then
@@ -550,7 +626,6 @@ quarantine_legacy_migrations "$project"
 (
   cd "$project"
   npm ci --omit=dev --no-audit --no-fund
-  npm --prefix kaspi-pos-automation-main ci --omit=dev --no-audit --no-fund
 )
 reload_production
 wait_for_health 'http://127.0.0.1:3000/readyz' 20
@@ -568,7 +643,7 @@ copy_artifacts "$temporary_release" "$stored_release"
 printf 'healthy_at=%s\nsource=deployment\ncommit=%s\n' \
   "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "$manifest_commit" \
   >"$stored_release/.healthy"
-printf '%s\n' "$current_release" >"$release_store/current-release"
+write_current_release "$current_release"
 
 mapfile -t obsolete_releases < <(
   find "$release_store" -mindepth 1 -maxdepth 1 -type d \
@@ -593,7 +668,7 @@ pm2 save
 trap - ERR
 stop_preflight
 rm -rf -- "$temporary_release"
-rm -f -- "$archive" "$preflight_log"
+rm -f -- "$archive" "$preflight_log" "$postgres_installer" "$launcher_script"
 echo "Production release ${release_id} is healthy."
 echo 'Staging is healthy on http://127.0.0.1:3101.'
 echo "Rollback versions retained: $(find "$release_store" -mindepth 1 -maxdepth 1 -type d \( -name '*-current' -o -name '*-previous' \) | wc -l)."

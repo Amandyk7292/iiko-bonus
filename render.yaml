@@ -2,12 +2,12 @@ services:
   - type: web
     name: iiko-bonus
     runtime: node
-    buildCommand: npm ci && npm ci --prefix admin-ui && npm ci --prefix kaspi-pos-automation-main && npm run build:admin
+    buildCommand: npm ci && npm ci --prefix admin-ui && npm run build:admin
     startCommand: npm start
-    healthCheckPath: /healthz
+    healthCheckPath: /readyz
     envVars:
       - key: NODE_VERSION
-        value: 22.14.0
+        value: 22.17.0
       - key: NODE_ENV
         value: production
       - key: PUBLIC_BASE_URL
@@ -18,20 +18,18 @@ services:
         value: com.bulka.bonus
       - key: ALLOWED_ORIGINS
         value: https://bulka.com.kz
-      - key: KASPI_POS_ENABLED
-        value: "false"
       - key: FORTE_ENABLED
-        value: "false"
+        value: 'false'
       - key: FORTE_TEST_MODE
-        value: "false"
+        value: 'false'
       - key: FORTE_API_BASE_URL
         value: https://api.fortebank.com
       - key: RUN_BACKGROUND_WORKERS
-        value: "false"
+        value: 'false'
       - key: RUN_BOTS
-        value: "false"
+        value: 'false'
       - key: GEMINI_ASSISTANT_ENABLED
-        value: "false"
+        value: 'false'
       - key: GEMINI_MODEL
         value: gemini-3.1-flash-lite
       - key: GEMINI_API_KEY
@@ -46,10 +44,12 @@ services:
         generateValue: true
       - key: CUSTOMER_JWT_SECRET
         generateValue: true
+      - key: RECEIPT_SIGNING_SECRET
+        generateValue: true
       - key: ADMIN_USERS_JSON
         sync: false
       - key: ADMIN_REQUIRE_MFA
-        value: "true"
+        value: 'true'
       - key: IIKO_API_LOGIN
         sync: false
       - key: IIKO_APP_ID
@@ -62,12 +62,6 @@ services:
         sync: false
       - key: IIKO_TERMINAL_GROUPS_JSON
         sync: false
-      - key: IIKO_PAYMENT_TYPE_ID
-        sync: false
-      - key: KASPI_INTERNAL_SECRET
-        generateValue: true
-      - key: KASPI_WEBHOOK_SECRET
-        generateValue: true
       - key: FORTE_API_USERNAME
         sync: false
       - key: FORTE_API_PASSWORD
@@ -75,16 +69,4 @@ services:
       - key: FORTE_ORDER_CREDENTIAL_KEY
         sync: false
       - key: FORTE_MERCHANT_ID
-        sync: false
-      - key: IIKO_ORDER_EXPORT_ENABLED
-        value: "false"
-      - key: TOKEN_SECRET_KEY
-        sync: false
-      - key: KEYPAIR_JSON_B64
-        sync: false
-      - key: DEVICE_JSON_B64
-        sync: false
-      - key: ECDH_KEYPAIR_JSON_B64
-        sync: false
-      - key: SESSION_JSON_B64
         sync: false

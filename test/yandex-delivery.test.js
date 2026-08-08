@@ -13,6 +13,16 @@ const {
 } = require('../src/services/yandex-delivery.service');
 const { dispatchAcceptedDeliveryOrder } = require('../src/services/delivery-orchestration.service');
 
+function installModule(t, modulePath, exports) {
+  const resolved = require.resolve(modulePath);
+  const previous = require.cache[resolved];
+  require.cache[resolved] = { id: resolved, filename: resolved, loaded: true, exports };
+  t.after(() => {
+    if (previous) require.cache[resolved] = previous;
+    else delete require.cache[resolved];
+  });
+}
+
 const config = {
   senderName: 'Bulka',
   senderPhone: '+77001234567',
@@ -226,4 +236,151 @@ test('canonical Yandex delivery migration contains the required constraints', ()
   );
   assert.match(migration, /delivery_jobs_one_active_per_order_idx/);
   assert.match(migration, /client_request_id uuid not null/);
+});
+
+test('terminal Yandex delivery completion stays retryable after a transient failure', () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'services', 'yandex-delivery.service.js'),
+    'utf8',
+  );
+  assert.doesNotMatch(source, /updateAdminOrderStatus\(job\.order_id, 'completed'\)\.catch/);
+  assert.match(
+    source,
+    /if \(internalStatus === 'delivered'\) \{[\s\S]*?updateOrderFromJob\([\s\S]*?updateJob\(job\.id, updates\)/,
+  );
+  assert.match(source, /\.eq\('internal_status', 'delivered'\)[\s\S]*?\.not\('last_error'/);
+  assert.match(
+    source,
+    /if \(job\.internal_status === 'delivered' && job\.last_error\)[\s\S]*?last_error: null/,
+  );
+});
+
+test('Yandex completion retries the same job after a transient order failure', async (t) => {
+  const state = {
+    order: {
+      id: order.id,
+      order_number: order.order_number,
+      customer_id: 'customer-1',
+      branch_id: 'branch-1',
+      fulfillment_status: 'ready',
+      delivery_status: 'en_route',
+      courier_assigned_at: '2026-08-08T09:00:00.000Z',
+      handed_to_courier_at: '2026-08-08T09:10:00.000Z',
+      out_for_delivery_at: '2026-08-08T09:20:00.000Z',
+      delivered_at: null,
+    },
+    job: {
+      id: 'delivery-job-1',
+      order_id: order.id,
+      provider: 'yandex',
+      external_claim_id: 'claim-1',
+      provider_status: 'delivery_arrived',
+      internal_status: 'en_route',
+      external_version: 4,
+      last_error: null,
+      last_synced_at: '2026-08-08T09:20:00.000Z',
+    },
+  };
+  let insertCalls = 0;
+  const fakeSupabase = {
+    from(table) {
+      let action = 'select';
+      let payload = null;
+      const run = async () => {
+        const target = table === 'kaspi_orders' ? state.order : state.job;
+        if (action === 'update') Object.assign(target, payload);
+        if (action === 'insert') insertCalls += 1;
+        return { data: { ...target }, error: null };
+      };
+      const builder = {
+        select() {
+          return builder;
+        },
+        update(value) {
+          action = 'update';
+          payload = value;
+          return builder;
+        },
+        insert(value) {
+          action = 'insert';
+          payload = value;
+          return builder;
+        },
+        eq() {
+          return builder;
+        },
+        maybeSingle: run,
+        single: run,
+        then(resolve, reject) {
+          return run().then(resolve, reject);
+        },
+      };
+      return builder;
+    },
+  };
+
+  installModule(t, '../src/config/supabase', { supabase: fakeSupabase });
+  installModule(t, '../src/services/realtime.service', { publish: () => undefined });
+  let completionCalls = 0;
+  installModule(t, '../src/services/customer-order.service', {
+    updateAdminOrderStatus: async (orderId, nextStatus) => {
+      assert.equal(orderId, order.id);
+      assert.equal(nextStatus, 'completed');
+      completionCalls += 1;
+      if (completionCalls === 1) throw new Error('transient order completion failure');
+      state.order.fulfillment_status = 'completed';
+    },
+  });
+  installModule(t, 'node-fetch', async () => ({
+    ok: true,
+    status: 200,
+    text: async () =>
+      JSON.stringify({
+        status: 'delivered_finish',
+        version: 5,
+        route_points: [],
+        performer_info: {},
+      }),
+  }));
+
+  const envKeys = [
+    'YANDEX_DELIVERY_ENABLED',
+    'YANDEX_DELIVERY_API_TOKEN',
+    'YANDEX_DELIVERY_SENDER_PHONE',
+  ];
+  const previousEnv = Object.fromEntries(envKeys.map((key) => [key, process.env[key]]));
+  process.env.YANDEX_DELIVERY_ENABLED = 'true';
+  process.env.YANDEX_DELIVERY_API_TOKEN = 'test-token';
+  process.env.YANDEX_DELIVERY_SENDER_PHONE = '+77001234567';
+  t.after(() => {
+    for (const key of envKeys) {
+      if (previousEnv[key] === undefined) delete process.env[key];
+      else process.env[key] = previousEnv[key];
+    }
+  });
+
+  const servicePath = require.resolve('../src/services/yandex-delivery.service');
+  const previousService = require.cache[servicePath];
+  delete require.cache[servicePath];
+  t.after(() => {
+    if (previousService) require.cache[servicePath] = previousService;
+    else delete require.cache[servicePath];
+  });
+  const service = require(servicePath);
+
+  await assert.rejects(
+    service.syncDeliveryJob({ ...state.job }),
+    /transient order completion failure/,
+  );
+  assert.equal(state.job.provider_status, 'delivery_arrived');
+  assert.equal(state.job.internal_status, 'en_route');
+  assert.match(state.job.last_error, /transient order completion failure/);
+
+  const completed = await service.syncDeliveryJob({ ...state.job });
+  assert.equal(completed.status, 'delivered_finish');
+  assert.equal(completed.deliveryStatus, 'delivered');
+  assert.equal(completed.lastError, null);
+  assert.equal(state.order.fulfillment_status, 'completed');
+  assert.equal(completionCalls, 2);
+  assert.equal(insertCalls, 0);
 });

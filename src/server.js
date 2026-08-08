@@ -11,7 +11,6 @@ const {
 const { startPolling: startTelegramBot } = require('./services/telegram.service');
 const { getSettings } = require('./services/settings.service');
 const { shouldRunBots } = require('./config/env');
-const kaspiService = require('./services/kaspi.service');
 const forteService = require('./services/forte.service');
 const forteWidgetService = require('./services/forte-widget.service');
 const {
@@ -20,12 +19,11 @@ const {
 } = require('./services/commerce-marketing.service');
 const { syncActiveDeliveries } = require('./services/yandex-delivery.service');
 const { processDeliveryDispatchQueue } = require('./services/delivery-orchestration.service');
-const {
-  processIikoOrderSyncQueue,
-  syncIikoDeliveryStatuses,
-} = require('./services/iiko-order-sync.service');
 const { registerWorker, runMonitoredWorker } = require('./services/operational-health.service');
 const { cleanupExpiredPayments } = require('./services/payment-cleanup.service');
+const {
+  reconcileClosedOrderReservations,
+} = require('./services/reservation-reconciliation.service');
 const { processPrivacyStorageCleanupJobs } = require('./services/privacy-storage-cleanup.service');
 const paymentOperations = require('./services/payment-operations.service');
 const { reconcileUnknownFullRefunds } = require('./services/full-refund-reconciliation.service');
@@ -37,6 +35,7 @@ const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 const PAYMENT_PROVIDER_PROBE_INTERVAL_MS = 30 * 60 * 1000;
 const WHATSAPP_SESSION_CLEANUP_INTERVAL_MS = 15 * 60 * 1000;
+const RESERVATION_RECONCILIATION_INTERVAL_MS = 60 * 1000;
 
 if (!process.env.VERCEL) {
   const runWorkers = process.env.RUN_BACKGROUND_WORKERS === 'true';
@@ -68,11 +67,6 @@ if (!process.env.VERCEL) {
     setTimeout(runDailyChecks, 5000);
     setInterval(runDailyChecks, 24 * 60 * 60 * 1000);
 
-    const reconcileKaspiOrders = () =>
-      runMonitoredWorker('kaspi-reconciliation', () => kaspiService.reconcileOrders());
-    setTimeout(reconcileKaspiOrders, 15 * 1000);
-    setInterval(reconcileKaspiOrders, 60 * 1000);
-
     const reconcileForteOrders = () =>
       runMonitoredWorker('forte-reconciliation', async () => {
         const [legacy, widget, fullRefunds] = await Promise.all([
@@ -89,6 +83,15 @@ if (!process.env.VERCEL) {
       runMonitoredWorker('payment-expiration-cleanup', cleanupExpiredPayments);
     setTimeout(cleanupUnpaidOrders, 25 * 1000);
     setInterval(cleanupUnpaidOrders, 60 * 1000);
+
+    const reconcileClosedReservations = () =>
+      runMonitoredWorker('reservation-reconciliation', reconcileClosedOrderReservations);
+    setTimeout(reconcileClosedReservations, 28 * 1000);
+    const reservationReconciliationTimer = setInterval(
+      reconcileClosedReservations,
+      RESERVATION_RECONCILIATION_INTERVAL_MS,
+    );
+    reservationReconciliationTimer.unref?.();
 
     const runMarketing = () =>
       runMonitoredWorker('marketing-automation', async () => {
@@ -122,11 +125,6 @@ if (!process.env.VERCEL) {
     setTimeout(reconcilePartialRefunds, 40 * 1000);
     setInterval(reconcilePartialRefunds, 60 * 1000);
   }
-  registerWorker('kaspi-reconciliation', {
-    enabled: runWorkers && process.env.KASPI_POS_ENABLED === 'true',
-    intervalMs: 60 * 1000,
-    critical: true,
-  });
   registerWorker('push-outbox', {
     enabled: runWorkers,
     intervalMs: 10 * 1000,
@@ -142,6 +140,11 @@ if (!process.env.VERCEL) {
   registerWorker('payment-expiration-cleanup', {
     enabled: runWorkers,
     intervalMs: 60 * 1000,
+    critical: true,
+  });
+  registerWorker('reservation-reconciliation', {
+    enabled: runWorkers,
+    intervalMs: RESERVATION_RECONCILIATION_INTERVAL_MS,
     critical: true,
   });
   registerWorker('marketing-automation', {
@@ -172,35 +175,12 @@ if (!process.env.VERCEL) {
     intervalMs: 15 * 1000,
     critical: true,
   });
-  registerWorker('iiko-order-export', {
-    enabled: runWorkers && process.env.IIKO_ORDER_EXPORT_ENABLED === 'true',
-    intervalMs: 30 * 1000,
-    critical: true,
-  });
-  registerWorker('iiko-delivery-status', {
-    enabled: runWorkers && process.env.IIKO_ORDER_EXPORT_ENABLED === 'true',
-    intervalMs: 30 * 1000,
-    critical: true,
-  });
   if (runWorkers) {
     const dispatchAcceptedOrders = () =>
       runMonitoredWorker('delivery-dispatch-queue', processDeliveryDispatchQueue);
     setTimeout(dispatchAcceptedOrders, 8 * 1000);
     const deliveryDispatchTimer = setInterval(dispatchAcceptedOrders, 15 * 1000);
     deliveryDispatchTimer.unref?.();
-
-    if (process.env.IIKO_ORDER_EXPORT_ENABLED === 'true') {
-      const exportIikoOrders = () =>
-        runMonitoredWorker('iiko-order-export', processIikoOrderSyncQueue);
-      const pollIikoDeliveries = () =>
-        runMonitoredWorker('iiko-delivery-status', syncIikoDeliveryStatuses);
-      setTimeout(exportIikoOrders, 12 * 1000);
-      setTimeout(pollIikoDeliveries, 20 * 1000);
-      const iikoExportTimer = setInterval(exportIikoOrders, 30 * 1000);
-      const iikoStatusTimer = setInterval(pollIikoDeliveries, 30 * 1000);
-      iikoExportTimer.unref?.();
-      iikoStatusTimer.unref?.();
-    }
   }
 
   // Delivery tracking is part of the request lifecycle, not an optional

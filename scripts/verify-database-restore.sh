@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+umask 077
+
 archive=${1:-}
 restore_url=${BULKA_RESTORE_DATABASE_URL:-}
 restore_jobs=${BULKA_RESTORE_JOBS:-4}
@@ -26,6 +28,20 @@ if [[ ! $restore_jobs =~ ^[1-8]$ ]]; then
   exit 1
 fi
 
+connection_dir=$(mktemp -d)
+trap 'rm -rf -- "$connection_dir"' EXIT
+BULKA_DATABASE_URL="$restore_url" \
+  BULKA_PG_CONNECTION_DIR="$connection_dir" \
+  node "$(dirname "$0")/prepare-pg-connection.js"
+export PGPASSFILE="$connection_dir/pgpass"
+pg_host=$(<"$connection_dir/host")
+pg_port=$(<"$connection_dir/port")
+pg_user=$(<"$connection_dir/username")
+pg_database=$(<"$connection_dir/database")
+pg_sslmode=$(<"$connection_dir/sslmode")
+if [[ -n $pg_sslmode ]]; then export PGSSLMODE="$pg_sslmode"; fi
+pg_connection=(--host="$pg_host" --port="$pg_port" --username="$pg_user" --dbname="$pg_database")
+
 pg_restore --list "$archive" >/dev/null
 if [[ ! -f $archive.sha256 ]]; then
   echo "Verified checksum sidecar is missing: $archive.sha256" >&2
@@ -35,7 +51,7 @@ sha256sum --check --status "$archive.sha256" || {
   echo 'Restore archive checksum verification failed.' >&2
   exit 1
 }
-database_name=$(psql "$restore_url" -X -A -t -c 'select current_database()')
+database_name=$(psql "${pg_connection[@]}" -X -A -t -c 'select current_database()')
 database_name=${database_name//$'\r'/}
 database_name=${database_name//$'\n'/}
 if [[ ! $database_name =~ (restore|recovery|drill) ]]; then
@@ -43,7 +59,7 @@ if [[ ! $database_name =~ (restore|recovery|drill) ]]; then
   exit 1
 fi
 
-existing_tables=$(psql "$restore_url" -X -A -t -v ON_ERROR_STOP=1 -c \
+existing_tables=$(psql "${pg_connection[@]}" -X -A -t -v ON_ERROR_STOP=1 -c \
   "select count(*) from information_schema.tables where table_schema in ('auth', 'public')")
 existing_tables=${existing_tables//$'\r'/}
 existing_tables=${existing_tables//$'\n'/}
@@ -52,7 +68,7 @@ if [[ ! $existing_tables =~ ^[0-9]+$ ]] || ((existing_tables != 0)); then
   exit 1
 fi
 
-psql "$restore_url" -X -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
+psql "${pg_connection[@]}" -X -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
 create schema if not exists extensions;
 create schema if not exists auth;
 create extension if not exists "uuid-ossp" with schema extensions;
@@ -62,7 +78,10 @@ SQL
 
 restore_started=$(date +%s)
 pg_restore \
-  --dbname="$restore_url" \
+  --host="$pg_host" \
+  --port="$pg_port" \
+  --username="$pg_user" \
+  --dbname="$pg_database" \
   --schema=auth \
   --schema=public \
   --jobs="$restore_jobs" \
@@ -71,7 +90,7 @@ pg_restore \
   --no-acl \
   "$archive"
 
-metrics=$(psql "$restore_url" -X -A -t -F '|' -v ON_ERROR_STOP=1 -c "
+metrics=$(psql "${pg_connection[@]}" -X -A -t -F '|' -v ON_ERROR_STOP=1 -c "
   select
     (select count(*) from information_schema.tables where table_schema = 'public'),
     (select count(*) from information_schema.tables where table_schema = 'auth'),

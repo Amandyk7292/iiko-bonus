@@ -1,12 +1,12 @@
 const forteService = require('../services/forte.service');
 const forteWidgetService = require('../services/forte-widget.service');
-const kaspiService = require('../services/kaspi.service');
+const orderPaymentState = require('../services/order-payment-state.service');
 const paymentOperations = require('../services/payment-operations.service');
 const { isSafeWidgetFallbackError } = paymentOperations;
-const kaspiController = require('./kaspi.controller');
 const { priceOrder } = require('../services/order.service');
 const { getCitiesWithPoints } = require('../services/location.service');
-const { validateCheckout } = require('../services/checkout.service');
+const { normalizeOrderType, validateCheckout } = require('../services/checkout.service');
+const { forecastOrderEta } = require('../services/eta.service');
 const { SingleFlight } = require('../utils/single-flight.util');
 const {
   attachPromotionReservation,
@@ -87,6 +87,50 @@ const availability = async (req, res) => {
       message: 'Оплата картой ForteBank временно недоступна.',
     }),
   });
+};
+
+const quotePayment = async (req, res) => {
+  try {
+    normalizeOrderType(req.body?.orderType ?? req.body?.fulfillmentType ?? 'pickup');
+    const cities = await getCitiesWithPoints({ throwOnError: true });
+    const checkout = validateCheckout(req.body, cities);
+    const pricing = await priceOrder(req.body?.items, req.body?.promoCode, {
+      deliveryFee: checkout.deliveryFee,
+      branchId: checkout.branchId,
+      customerId: req.customerAuth.id,
+      orderType: checkout.orderType,
+    });
+    if (pricing.subtotal < checkout.deliveryMinimumOrder) {
+      return res.status(400).json({
+        error: `Минимальная сумма доставки — ${checkout.deliveryMinimumOrder.toLocaleString(
+          'ru-RU',
+        )} ₸`,
+      });
+    }
+    const eta = await forecastOrderEta({
+      branchId: checkout.branchId,
+      orderType: checkout.effectiveFulfillmentType,
+      scheduledAt: checkout.scheduledAt,
+      preparationMinutes: pricing.preparationMinutes,
+      deliveryAddress: checkout.deliveryAddress,
+      deliveryZone: checkout.deliveryZone,
+    });
+    return res.json({
+      success: true,
+      subtotal: pricing.subtotal,
+      discount: pricing.discount,
+      deliveryFee: pricing.deliveryFee,
+      total: pricing.total,
+      promoCode: pricing.promoCode,
+      branchId: checkout.branchId,
+      deliveryZone: checkout.deliveryZone,
+      eta,
+    });
+  } catch (error) {
+    return res
+      .status(error.statusCode || 500)
+      .json({ error: publicError(error, 'Не удалось рассчитать заказ') });
+  }
 };
 
 const createPayment = async (req, res) => {
@@ -201,7 +245,7 @@ const createPayment = async (req, res) => {
           }
         });
         if (order?.status === 'pending') {
-          await kaspiService
+          await orderPaymentState
             .updateOrderStatus(order.operation_id, 'expired')
             .catch(() => undefined);
         }
@@ -379,5 +423,5 @@ module.exports = {
   listPaymentMethods,
   removePaymentMethod,
   setDefaultPaymentMethod,
-  quotePayment: kaspiController.quotePayment,
+  quotePayment,
 };

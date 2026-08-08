@@ -38,10 +38,25 @@ command -v pg_dump >/dev/null || {
 }
 
 install -d -m 0700 -- "$backup_root"
-trap 'rm -f -- "$temporary"' EXIT
+connection_dir=$(mktemp -d)
+trap 'rm -rf -- "$connection_dir"; rm -f -- "$temporary"' EXIT
+
+BULKA_DATABASE_URL="$database_url" \
+  BULKA_PG_CONNECTION_DIR="$connection_dir" \
+  node "$(dirname "$0")/prepare-pg-connection.js"
+export PGPASSFILE="$connection_dir/pgpass"
+pg_host=$(<"$connection_dir/host")
+pg_port=$(<"$connection_dir/port")
+pg_user=$(<"$connection_dir/username")
+pg_database=$(<"$connection_dir/database")
+pg_sslmode=$(<"$connection_dir/sslmode")
+if [[ -n $pg_sslmode ]]; then export PGSSLMODE="$pg_sslmode"; fi
 
 PGCONNECT_TIMEOUT=${PGCONNECT_TIMEOUT:-10} pg_dump \
-  --dbname="$database_url" \
+  --host="$pg_host" \
+  --port="$pg_port" \
+  --username="$pg_user" \
+  --dbname="$pg_database" \
   --format=custom \
   --compress=9 \
   --no-owner \

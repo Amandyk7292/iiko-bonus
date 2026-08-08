@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:bulka_bonus/main.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -10,7 +9,6 @@ void main() {
   test(
     'web refresh aborts an account A retry after the cookie switches to B',
     () async {
-      expect(kIsWeb, isTrue);
       var staleRequestCalls = 0;
       var identityHydrated = false;
       late final BulkaApiClient api;
@@ -39,6 +37,7 @@ void main() {
           api.setSession(accessToken: access, cacheScope: api.sessionPhone);
           identityHydrated = true;
         },
+        useCookieSessionTransport: true,
       )..setSession(accessToken: 'account-a-access', cacheScope: '77000000001');
 
       await expectLater(
@@ -75,6 +74,7 @@ void main() {
           200,
         );
       }),
+      useCookieSessionTransport: true,
     )..setSession(accessToken: 'tab-cached-access', cacheScope: '77000000001');
 
     expect(await api.restoreSession(force: true), isTrue);

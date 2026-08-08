@@ -481,9 +481,7 @@ const adminCsrfMiddleware = (req, res, next) => {
 const cashierMutationAllowed = (req, area) => {
   const path = String(req.path || '').replace(/^\/+/, '');
   if (area === 'orders' && req.method === 'PATCH' && /^orders\/[0-9a-f-]+\/status$/i.test(path)) {
-    return new Set(['accepted', 'preparing', 'ready', 'completed']).has(
-      String(req.body?.status || ''),
-    );
+    return new Set(['accepted', 'preparing', 'ready']).has(String(req.body?.status || ''));
   }
   if (area === 'kitchen' && req.method === 'PATCH' && /^kitchen\/[0-9a-f-]+\/status$/i.test(path)) {
     return new Set(['preparing', 'ready', 'handed_over']).has(String(req.body?.status || ''));

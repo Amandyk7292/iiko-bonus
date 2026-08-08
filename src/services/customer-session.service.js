@@ -112,17 +112,21 @@ class CustomerSessionService {
     for (let attempt = 0; attempt < 5; attempt += 1) {
       const { data: latest, error } = await this.db
         .from('customer_refresh_tokens')
-        .select('id,customer_id,expires_at,revoked_at,replaced_by,user_agent_hash')
+        .select('id,customer_id,expires_at,revoked_at,replaced_by,user_agent_hash,last_used_at')
         .eq('id', currentId)
         .maybeSingle();
       if (error) throw error;
       const revokedAt = Date.parse(latest?.revoked_at || '');
+      const lastUsedAt = Date.parse(latest?.last_used_at || '');
       const age = this.now().getTime() - revokedAt;
       if (
         !latest ||
         !Number.isFinite(revokedAt) ||
+        !Number.isFinite(lastUsedAt) ||
+        lastUsedAt !== revokedAt ||
         age < -1000 ||
         age > refreshReuseGraceMs() ||
+        Date.parse(latest.expires_at || '') <= this.now().getTime() ||
         String(latest.user_agent_hash || '') !== String(expectedUserAgent || '')
       ) {
         throw sessionError('Refresh session is invalid or expired');
@@ -157,6 +161,32 @@ class CustomerSessionService {
           token: nextToken.value,
           expiresAt: replacement.expires_at,
         });
+      }
+
+      // A process may stop after atomically claiming the old token but before
+      // inserting its deterministic successor. Only a genuine rotation claim
+      // has last_used_at equal to revoked_at; ordinary explicit revocations do
+      // not satisfy that invariant. The unique token hash makes concurrent
+      // recovery attempts converge on one row.
+      if (!latest.replaced_by) {
+        const customer = await this.loadCustomer(latest.customer_id);
+        if (!customer) throw sessionError('Customer no longer exists');
+        try {
+          const recovered = await this.createRefreshToken(latest.customer_id, req, {
+            token: nextToken.value,
+          });
+          const { error: linkError } = await this.db
+            .from('customer_refresh_tokens')
+            .update({ replaced_by: recovered.id })
+            .eq('id', latest.id)
+            .is('replaced_by', null);
+          if (linkError) {
+            console.error('Не удалось связать восстановленные refresh-токены:', linkError.message);
+          }
+          return this.sessionPayload(customer, recovered);
+        } catch (recoveryError) {
+          if (recoveryError?.code !== '23505') throw recoveryError;
+        }
       }
       await this.wait(10 * (attempt + 1));
     }

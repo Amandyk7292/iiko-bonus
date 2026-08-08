@@ -44,7 +44,8 @@ test('release deployment keeps a healthy staging fallback during graceful reload
   assert.match(deploy, /public\/taplink\/index\.html/);
   assert.match(deploy, /public\/taplink\/assets\/brand\/bulka_logo\.png/);
   assert.match(deploy, /public\/taplink\/assets\/fonts\/GolosText-Regular\.ttf/);
-  assert.match(pm2Logrotate, /pm2 install pm2-logrotate/);
+  assert.match(pm2Logrotate, /logrotate_version='3\.0\.0'/);
+  assert.match(pm2Logrotate, /pm2 install "\$logrotate_package"/);
   assert.match(pm2Logrotate, /pm2-logrotate:max_size 20M/);
   assert.match(pm2Logrotate, /pm2-logrotate:retain 14/);
   assert.match(pm2Logrotate, /pm2-logrotate:compress true/);
@@ -61,6 +62,116 @@ test('release deployment keeps a healthy staging fallback during graceful reload
   assert.match(deploy, /start_staging_release "\$backup"/);
   assert.match(rollback, /start_staging_release/);
   assert.match(rollback, /pm2 delete iiko-bonus-staging/);
+});
+
+test('deployment and rollback are exclusive, transactional and use one artifact inventory', () => {
+  const deploy = read('scripts/deploy-release.sh');
+  const rollback = read('scripts/rollback-vps.sh');
+  const packageRelease = read('scripts/deploy-vps.ps1');
+  const pm2Logrotate = read('scripts/install-pm2-logrotate.sh');
+  const expectedScripts = [
+    'apply-migrations.js',
+    'backup-database.sh',
+    'backup-supabase-storage.js',
+    'configure-forte-widget-vps.sh',
+    'configure-iiko-astana-vps.sh',
+    'deploy-release.sh',
+    'enable-nginx-upstream-fallback.sh',
+    'ensure-postgres-client.sh',
+    'harden-nginx-access-logs.sh',
+    'install-database-backup-timer.sh',
+    'install-pm2-logrotate.sh',
+    'prepare-cloudflare-origin.sh',
+    'prepare-pg-connection.js',
+    'probe-iiko-city-profile.js',
+    'rollback-vps.sh',
+    'run-database-restore-drill.sh',
+    'setup-google-wallet.js',
+    'verify-database-restore.sh',
+  ];
+
+  assert.deepEqual(bashReleaseInventory(deploy), expectedScripts);
+  assert.deepEqual(bashReleaseInventory(rollback), expectedScripts);
+  assert.deepEqual(powerShellReleaseInventory(packageRelease), expectedScripts);
+  assert.match(deploy, /Production deployment requires migration mode apply/);
+  assert.doesNotMatch(deploy, /npm run db:migrate:check/);
+  assert.match(packageRelease, /-SkipMigrations is retired/);
+  assert.match(packageRelease, /\$migrationMode = 'apply'/);
+
+  for (const script of [deploy, rollback, packageRelease]) {
+    assert.doesNotMatch(script, /kaspi-pos-automation-main/i);
+  }
+  assert.match(packageRelease, /bulka-release-\$releaseId\.zip/);
+  assert.match(packageRelease, /bulka-deploy-release-\$releaseId\.sh/);
+  assert.match(packageRelease, /bulka-ensure-postgres-client-\$releaseId\.sh/);
+  assert.doesNotMatch(packageRelease, /['"]\/tmp\/bulka-release\.zip['"]/);
+  assert.match(deploy, /archive != "\/tmp\/bulka-release-\$\{release_id\}\.zip"/);
+  assert.match(deploy, /postgres_installer != "\/tmp\/bulka-ensure-postgres-client-\$\{release_id\}\.sh"/);
+  assert.match(deploy, /launcher_script != "\/tmp\/bulka-deploy-release-\$\{release_id\}\.sh"/);
+  assert.ok(
+    deploy.indexOf('flock -n 9') < deploy.indexOf('bash "$postgres_installer"'),
+    'the PostgreSQL installer must run under the deployment lock',
+  );
+
+  for (const script of [deploy, rollback]) {
+    assert.match(script, /deployment_lock="\$release_store\/deployment\.lock"/);
+    assert.match(script, /exec 9>"\$deployment_lock"/);
+    assert.match(script, /flock -n 9/);
+    assert.match(script, /another deployment or rollback holds the production lock/);
+  }
+  assert.match(rollback, /\.rollback-transaction-\$\{requested\}-\$\$/);
+  assert.match(rollback, /restore_previous_release/);
+  assert.match(rollback, /copy_release "\$transaction_backup" "\$project"/);
+  assert.match(rollback, /write_current_release "\$current"/);
+  assert.match(deploy, /write_current_release "\$previous_current_release"/);
+  assert.match(deploy, /staging_changed=1[\s\S]*start_staging_release "\$temporary_release"/);
+  assert.match(deploy, /restoring the previous staging release/);
+  for (const script of [deploy, rollback]) {
+    assert.match(script, /validate_copy_destination/);
+    assert.match(script, /Refusing symlinked release artifact/);
+  }
+  assert.match(rollback, /Recovery snapshot retained at/);
+
+  assert.match(pm2Logrotate, /pm2-logrotate@\$\{logrotate_version\}/);
+  assert.match(pm2Logrotate, /chmod 0700/);
+  assert.match(pm2Logrotate, /chmod 0600/);
+  assert.match(pm2Logrotate, /secure_regular_file "\$pm2_home\/dump\.pm2"/);
+  assert.match(pm2Logrotate, /! -L \$file/);
+});
+
+test('deployment requires an attested immutable GitHub CI web artifact', () => {
+  const packageRelease = read('scripts/deploy-vps.ps1');
+  const provenance = read('scripts/check-release-provenance.js');
+  const workflow = read('.github/workflows/ci.yml');
+
+  assert.match(packageRelease, /--download-artifact \$ciArtifactArchive --json/);
+  assert.match(packageRelease, /Install-CiWebArtifact/);
+  assert.match(packageRelease, /SHA256SUMS/);
+  assert.match(packageRelease, /Uninventoried file in CI artifact/);
+  assert.match(packageRelease, /EmergencyBypassProvenanceGate/);
+  assert.match(provenance, /ls-remote/);
+  assert.match(provenance, /refs\/heads\/\$\{REQUIRED_BRANCH\}/);
+  assert.match(provenance, /production-web-\$\{headSha\}/);
+  assert.match(provenance, /artifact\.digest/);
+  assert.match(provenance, /GITHUB_TOKEN with Actions: read permission is required/);
+  assert.match(workflow, /name: production-web-\$\{\{ github\.sha \}\}/);
+  assert.match(workflow, /artifacts\/production-web\/SHA256SUMS/);
+  assert.match(workflow, /python scripts\/e2e-release-smoke\.py/);
+});
+
+test('production shell scripts pass bash syntax validation', () => {
+  const bash = process.platform === 'win32' ? 'C:\\Program Files\\Git\\bin\\bash.exe' : 'bash';
+  for (const script of [
+    'scripts/deploy-release.sh',
+    'scripts/rollback-vps.sh',
+    'scripts/install-pm2-logrotate.sh',
+  ]) {
+    const result = spawnSync(bash, ['-n', script], {
+      cwd: root,
+      encoding: 'utf8',
+    });
+    assert.equal(result.status, 0, `${script}: ${result.stderr || result.stdout}`);
+  }
 });
 
 test('database backups are private, verified and restricted to dedicated storage', () => {
@@ -141,4 +252,22 @@ function deployScriptIndex(script, backupNeedle, migrationNeedle) {
     backup: script.lastIndexOf(backupNeedle, script.indexOf(migrationNeedle)),
     migration: script.indexOf(migrationNeedle),
   };
+}
+
+function bashReleaseInventory(script) {
+  const match = script.match(/release_scripts=\(\r?\n([\s\S]*?)\r?\n\)/);
+  assert.ok(match, 'bash release inventory is missing');
+  return match[1]
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function powerShellReleaseInventory(script) {
+  const match = script.match(/foreach \(\$scriptName in @\(\r?\n([\s\S]*?)\r?\n\)\)/);
+  assert.ok(match, 'PowerShell release inventory is missing');
+  return match[1]
+    .split(/\r?\n/)
+    .map((line) => line.trim().replace(/^'|'[,]?$/g, ''))
+    .filter(Boolean);
 }

@@ -73,6 +73,19 @@ restore_url=$(
 )
 
 install -d -m 0700 -- "$report_root"
+source_connection_dir=$(mktemp -d)
+BULKA_DATABASE_URL="$source_url" \
+  BULKA_PG_CONNECTION_DIR="$source_connection_dir" \
+  node "$(dirname "$0")/prepare-pg-connection.js"
+export PGPASSFILE="$source_connection_dir/pgpass"
+pg_host=$(<"$source_connection_dir/host")
+pg_port=$(<"$source_connection_dir/port")
+pg_user=$(<"$source_connection_dir/username")
+pg_database=$(<"$source_connection_dir/database")
+pg_sslmode=$(<"$source_connection_dir/sslmode")
+if [[ -n $pg_sslmode ]]; then export PGSSLMODE="$pg_sslmode"; fi
+source_connection=(--host="$pg_host" --port="$pg_port" --username="$pg_user" --maintenance-db="$pg_database")
+
 log_file="$report_root/$timestamp.log"
 status_file="$report_root/$timestamp.status"
 printf 'running\n' >"$status_file"
@@ -82,7 +95,7 @@ created=false
 cleanup() {
   exit_code=$?
   if [[ $created == true ]]; then
-    if dropdb --maintenance-db="$source_url" --force "$database_name" >>"$log_file" 2>&1; then
+    if dropdb "${source_connection[@]}" --force "$database_name" >>"$log_file" 2>&1; then
       printf 'Disposable database removed: %s\n' "$database_name" >>"$log_file"
     else
       printf 'Disposable database cleanup failed: %s\n' "$database_name" >>"$log_file"
@@ -91,11 +104,12 @@ cleanup() {
   if ((exit_code != 0)); then
     printf 'failed\n' >"$status_file"
   fi
+  rm -rf -- "$source_connection_dir"
   exit "$exit_code"
 }
 trap cleanup EXIT
 
-createdb --maintenance-db="$source_url" "$database_name"
+createdb "${source_connection[@]}" "$database_name"
 created=true
 printf 'Disposable database created: %s\n' "$database_name" >>"$log_file"
 
@@ -107,7 +121,7 @@ if ! BULKA_RESTORE_DATABASE_URL="$restore_url" \
   exit 1
 fi
 
-dropdb --maintenance-db="$source_url" --force "$database_name"
+dropdb "${source_connection[@]}" --force "$database_name"
 created=false
 printf 'Disposable database removed: %s\n' "$database_name" >>"$log_file"
 printf 'succeeded\n' >"$status_file"

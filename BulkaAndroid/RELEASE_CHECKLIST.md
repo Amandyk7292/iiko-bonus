@@ -4,7 +4,7 @@
 
 1. Run backend, admin, and Flutter checks.
 2. Apply every pending migration before uploading a build.
-3. Keep `IIKO_ORDER_EXPORT_ENABLED=false` until Bulka explicitly enables iiko export.
+3. Confirm that the cashier tablet receives paid orders; the cashier enters them in iikoFront manually.
 4. Run `powershell -ExecutionPolicy Bypass -File ..\scripts\check-native-release.ps1`.
 5. Verify account deletion at `https://bulka.com.kz/account-deletion` and in Profile → Personal data.
 

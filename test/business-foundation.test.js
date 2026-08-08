@@ -142,6 +142,15 @@ test('business contracts reject forged fields and ambiguous handoff credentials'
     false,
   );
   assert.equal(
+    giftCertificatePurchaseBodySchema.safeParse({
+      requestId: branchId,
+      amount: 500,
+      recipient: { phone: '+7 700 000 00 00' },
+      paymentMethod: 'kaspi',
+    }).success,
+    false,
+  );
+  assert.equal(
     pickupHandoffVerifyBodySchema.safeParse({
       token: 'a'.repeat(32),
       pin: '123456',

@@ -32,7 +32,6 @@ def initial_diagnostics():
             "updatedAt": None,
         },
         "providers": {
-            "kaspi": copy.deepcopy(BASE_PROVIDER),
             "forteHosted": copy.deepcopy(BASE_PROVIDER),
             "forteWidget": {
                 **copy.deepcopy(BASE_PROVIDER),
@@ -45,12 +44,6 @@ def initial_diagnostics():
             },
         },
         "webhooks": {
-            "kaspi": {
-                "configured": True,
-                "lastSuccessAt": "2026-07-27T11:55:00.000Z",
-                "lastFailureAt": None,
-                "lastErrorCode": None,
-            },
             "forteWidget": {
                 "configured": True,
                 "lastSuccessAt": None,

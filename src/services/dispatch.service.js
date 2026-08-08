@@ -13,7 +13,7 @@ async function listDispatchState({ branchIds = [] } = {}) {
   let ordersQuery = supabase
     .from('kaspi_orders')
     .select(
-      'id,order_number,branch_id,branch_name,fulfillment_type,preorder_fulfillment_type,delivery_latitude,delivery_longitude,delivery_address,courier_id,delivery_status,estimated_delivery_at,eta_min_at,eta_max_at,eta_confidence,route_distance_km,kitchen_status,promised_ready_at,created_at,amount,courier_dispatch_status,courier_dispatch_provider,courier_dispatch_requested_at,courier_dispatch_error,iiko_sync_status,iiko_sync_error,iiko_delivery_status,bulka_locations(latitude,longitude,name,address)',
+      'id,order_number,branch_id,branch_name,fulfillment_type,preorder_fulfillment_type,delivery_latitude,delivery_longitude,delivery_address,courier_id,delivery_status,estimated_delivery_at,eta_min_at,eta_max_at,eta_confidence,route_distance_km,kitchen_status,promised_ready_at,created_at,amount,courier_dispatch_status,courier_dispatch_provider,courier_dispatch_requested_at,courier_dispatch_error,bulka_locations(latitude,longitude,name,address)',
     )
     .eq('status', 'paid')
     .or(
@@ -83,9 +83,6 @@ async function listDispatchState({ branchIds = [] } = {}) {
         courierDispatchProvider: order.courier_dispatch_provider || null,
         courierDispatchRequestedAt: order.courier_dispatch_requested_at || null,
         courierDispatchError: order.courier_dispatch_error || null,
-        iikoSyncStatus: order.iiko_sync_status || null,
-        iikoSyncError: order.iiko_sync_error || null,
-        iikoDeliveryStatus: order.iiko_delivery_status || null,
         estimatedDeliveryAt: order.estimated_delivery_at,
         etaMinAt: order.eta_min_at || null,
         etaMaxAt: order.eta_max_at || null,

@@ -54,7 +54,10 @@ function fakeOrderDb(initialOrder) {
   };
 }
 
-function loadKaspiService(t, { order, reservationStatus, promotionStatus, refundFailures = 0 }) {
+function loadOrderPaymentState(
+  t,
+  { order, reservationStatus, promotionStatus, refundFailures = 0 },
+) {
   const events = [];
   const database = fakeOrderDb(order);
   let refundAttempts = 0;
@@ -111,19 +114,19 @@ function loadKaspiService(t, { order, reservationStatus, promotionStatus, refund
     ensurePaymentReceipt: async () => events.push(['receipt']),
   });
 
-  const servicePath = modulePath('../src/services/kaspi.service');
+  const servicePath = modulePath('../src/services/order-payment-state.service');
   const previousService = require.cache[servicePath];
   delete require.cache[servicePath];
-  const { KaspiService } = require(servicePath);
+  const { OrderPaymentStateService } = require(servicePath);
   t.after(() => {
     if (previousService) require.cache[servicePath] = previousService;
     else delete require.cache[servicePath];
   });
-  return { service: new KaspiService(), database, events };
+  return { service: new OrderPaymentStateService(), database, events };
 }
 
 test('late paid order is automatically refunded before bonuses when capacity is gone', async (t) => {
-  const { service, events } = loadKaspiService(t, {
+  const { service, events } = loadOrderPaymentState(t, {
     order: {
       id: '11111111-1111-4111-8111-111111111111',
       operation_id: '12345',
@@ -159,7 +162,7 @@ test('late paid order is automatically refunded before bonuses when capacity is 
 });
 
 test('paid order becomes new only after inventory and promotion are secured', async (t) => {
-  const { service, events, database } = loadKaspiService(t, {
+  const { service, events, database } = loadOrderPaymentState(t, {
     order: {
       id: '11111111-1111-4111-8111-111111111111',
       operation_id: '67890',
@@ -194,7 +197,7 @@ test('paid order becomes new only after inventory and promotion are secured', as
 });
 
 test('failed late-payment auto-refund is retried without reacquiring capacity', async (t) => {
-  const { service, events, database } = loadKaspiService(t, {
+  const { service, events, database } = loadOrderPaymentState(t, {
     order: {
       id: '11111111-1111-4111-8111-111111111111',
       operation_id: '24680',

@@ -26,12 +26,10 @@ export interface PaymentDiagnostics {
     updatedAt: string | null;
   };
   providers: {
-    kaspi: PaymentProviderDiagnostic;
     forteHosted: PaymentProviderDiagnostic;
     forteWidget: PaymentProviderDiagnostic;
   };
   webhooks: {
-    kaspi: PaymentWebhookDiagnostic;
     forteWidget: PaymentWebhookDiagnostic;
   };
   cleanup: {

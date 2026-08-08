@@ -9,9 +9,8 @@ const {
 } = require('../src/services/checkout.service');
 const {
   eligibleOrderAmount,
-  pendingReconciliationWindowMs,
   paymentStatusCanTransition,
-} = require('../src/services/kaspi.service');
+} = require('../src/services/order-payment-state.service');
 const {
   canMarkCustomerArrived,
   canCustomerCancelOrder,
@@ -343,19 +342,6 @@ test('payment state machine never downgrades paid or refunded orders', () => {
   assert.equal(paymentStatusCanTransition('paid', 'expired'), false);
   assert.equal(paymentStatusCanTransition('refunded', 'paid'), false);
   assert.equal(paymentStatusCanTransition('refunded', 'failed'), false);
-});
-
-test('Kaspi reconciliation keeps a safe payment verification window', () => {
-  const previous = process.env.KASPI_PENDING_RECONCILIATION_MS;
-  try {
-    delete process.env.KASPI_PENDING_RECONCILIATION_MS;
-    assert.equal(pendingReconciliationWindowMs(), 24 * 60 * 60 * 1000);
-    process.env.KASPI_PENDING_RECONCILIATION_MS = '1000';
-    assert.equal(pendingReconciliationWindowMs(), 15 * 60 * 1000);
-  } finally {
-    if (previous === undefined) delete process.env.KASPI_PENDING_RECONCILIATION_MS;
-    else process.env.KASPI_PENDING_RECONCILIATION_MS = previous;
-  }
 });
 
 test('delivery fee is excluded from loyalty earning and fulfillment metadata is returned', () => {

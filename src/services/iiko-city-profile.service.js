@@ -34,12 +34,6 @@ const astanaConfiguration = () => ({
   externalMenuName: String(process.env.IIKO_ASTANA_EXTERNAL_MENU_NAME || '').trim(),
   priceCategoryId: String(process.env.IIKO_ASTANA_PRICE_CATEGORY_ID || '').trim(),
   priceCategoryName: String(process.env.IIKO_ASTANA_PRICE_CATEGORY_NAME || '').trim(),
-  terminalGroupId: String(process.env.IIKO_ASTANA_TERMINAL_GROUP_ID || '').trim(),
-  terminalGroupsJson: String(process.env.IIKO_ASTANA_TERMINAL_GROUPS_JSON || '{}').trim(),
-  paymentTypeId: String(process.env.IIKO_ASTANA_PAYMENT_TYPE_ID || '').trim(),
-  deliveryAddressFormat: String(
-    process.env.IIKO_ASTANA_ADDRESS_FORMAT || process.env.IIKO_ADDRESS_FORMAT || 'city',
-  ).trim(),
 });
 
 const astanaProfileConfigured = () => Boolean(astanaConfiguration().apiLogin);
@@ -93,9 +87,6 @@ const profileStatus = () => ({
     ),
     priceCategoryConfigured: Boolean(
       process.env.IIKO_ASTANA_PRICE_CATEGORY_ID || process.env.IIKO_ASTANA_PRICE_CATEGORY_NAME,
-    ),
-    deliveryConfigured: Boolean(
-      process.env.IIKO_ASTANA_TERMINAL_GROUP_ID && process.env.IIKO_ASTANA_PAYMENT_TYPE_ID,
     ),
   },
 });

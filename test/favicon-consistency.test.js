@@ -10,7 +10,6 @@ const canonicalLink =
 const staticHtmlFiles = [
   'BulkaAndroid/web/index.html',
   'admin-ui/index.html',
-  'kaspi-pos-automation-main/public/index.html',
   'public/app.html',
   'public/courier.html',
   'public/forte-widget.html',

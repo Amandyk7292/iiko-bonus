@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 const test = require('node:test');
@@ -27,12 +28,9 @@ test('health check stays independent from external services', async (t) => {
 
 test('readiness and metrics endpoints expose bounded operational state', async (t) => {
   const previousMetricsToken = process.env.METRICS_BEARER_TOKEN;
-  const previousKaspiReady = app.locals.kaspiReady;
   const metricsToken = 'metrics-test-token-that-is-at-least-32-characters';
   process.env.METRICS_BEARER_TOKEN = metricsToken;
-  app.locals.kaspiReady = true;
   t.after(() => {
-    app.locals.kaspiReady = previousKaspiReady;
     if (previousMetricsToken === undefined) delete process.env.METRICS_BEARER_TOKEN;
     else process.env.METRICS_BEARER_TOKEN = previousMetricsToken;
   });
@@ -675,7 +673,13 @@ test('manual iiko menu synchronization is protected by the admin session', async
   assert.equal(body.requestId, response.headers.get('x-request-id'));
 });
 
-test('Kaspi reconnection console is protected by the admin session', async (t) => {
+test('retired payment endpoints and webhook are not mounted', async (t) => {
+  const publicRoutesSource = fs.readFileSync(
+    path.join(__dirname, '..', 'src', 'routes', 'public.routes.js'),
+    'utf8',
+  );
+  assert.doesNotMatch(publicRoutesSource, /\/api\/customer\/kaspi-pay|\/webhooks\/kaspi/);
+
   const server = http.createServer(app);
   await new Promise((resolve, reject) => {
     server.once('error', reject);
@@ -683,11 +687,19 @@ test('Kaspi reconnection console is protected by the admin session', async (t) =
   });
   t.after(() => server.close());
 
-  const response = await fetch(`http://127.0.0.1:${server.address().port}/admin/kaspi-pos/`);
-  assert.equal(response.status, 401);
-  const body = await response.json();
-  assert.equal(body.error, 'Admin session is invalid or expired');
-  assert.equal(body.requestId, response.headers.get('x-request-id'));
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  for (const [route, options, expectedStatus] of [
+    ['/api/customer/kaspi-pay/availability', undefined, 401],
+    ['/api/customer/kaspi-pay/create', { method: 'POST', body: '{}' }, 401],
+    ['/webhooks/kaspi', { method: 'POST', body: '{}' }, 404],
+    ['/kaspi-pos/api/payment/availability', undefined, 404],
+  ]) {
+    const response = await fetch(`${origin}${route}`, {
+      ...options,
+      headers: options ? { 'Content-Type': 'application/json' } : undefined,
+    });
+    assert.equal(response.status, expectedStatus, `${route} must stay unmounted`);
+  }
 });
 
 test('embedded Yandex map hides the external map footer labels', async (t) => {

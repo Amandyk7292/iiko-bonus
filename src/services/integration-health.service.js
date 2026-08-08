@@ -21,10 +21,9 @@ async function latestTimestamp(table, column) {
 }
 
 async function getIntegrationHealth({ canManagePayments = false } = {}) {
-  const [settings, inventorySyncedAt, latestOrderAt, payments] = await Promise.all([
+  const [settings, inventorySyncedAt, payments] = await Promise.all([
     getAssistantSettings({ allowFallback: true }),
     latestTimestamp('branch_product_inventory', 'last_synced_at'),
-    latestTimestamp('kaspi_orders', 'updated_at'),
     paymentOperations.getDiagnostics({ canManage: canManagePayments }),
   ]);
   const whatsapp = getWhatsAppStatus(settings);
@@ -35,12 +34,6 @@ async function getIntegrationHealth({ canManagePayments = false } = {}) {
     booleanEnvironment('IIKO_APP_ID') === booleanEnvironment('IIKO_CLIENT_SECRET');
   const iikoConfigured = iikoLoginConfigured && iikoV2CredentialsComplete;
   const iikoProfiles = profileStatus();
-  const kaspiEnabled = process.env.KASPI_POS_ENABLED === 'true';
-  const kaspiConfigured =
-    kaspiEnabled &&
-    booleanEnvironment('KASPI_INTERNAL_SECRET') &&
-    booleanEnvironment('TOKEN_SECRET_KEY');
-
   return {
     checkedAt: new Date().toISOString(),
     payments,
@@ -97,18 +90,6 @@ async function getIntegrationHealth({ canManagePayments = false } = {}) {
             ? 'External Menu определяется автоматически'
             : '',
         updatedAt: inventorySyncedAt,
-      },
-      {
-        id: 'kaspi',
-        name: 'Kaspi Pay',
-        state: kaspiConfigured ? 'healthy' : kaspiEnabled ? 'error' : 'disabled',
-        summary: kaspiConfigured
-          ? 'Сервис оплаты настроен'
-          : kaspiEnabled
-            ? 'Проверьте секреты сервиса'
-            : 'Выключен',
-        detail: '',
-        updatedAt: latestOrderAt,
       },
       {
         id: 'yandex',

@@ -81,7 +81,8 @@ const orderTimeline = (order) => {
       id: `payment:${order.id}`,
       kind: 'payment',
       title: 'Оплата подтверждена',
-      description: order.payment_method === 'forte_card' ? 'ForteBank' : 'Kaspi Pay',
+      description:
+        order.payment_method === 'forte_card' ? 'ForteBank' : 'Исторический способ оплаты',
       status: order.status,
       occurredAt: order.payment_reconciled_at || order.updated_at,
     });

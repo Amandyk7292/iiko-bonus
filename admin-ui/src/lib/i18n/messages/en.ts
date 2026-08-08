@@ -694,7 +694,7 @@ const en: Record<string, string> = {
   'orders.total': 'Total',
   'orders.item': 'Item',
   'orders.empty': 'No orders yet',
-  'orders.emptyHint': 'A Kaspi-paid order will appear here.',
+  'orders.emptyHint': 'An online-paid order will appear here.',
   'orders.changeStatus': 'Change status',
   'orders.statusSaved': 'Order status updated',
   'orders.cancelReasonPrompt': 'Cancellation reason (visible to the customer)',
@@ -975,7 +975,7 @@ const en: Record<string, string> = {
   'access.ipListEmpty': 'The list is empty',
   'access.ipListEmptyHint': 'Add IP addresses that may open the site.',
   'access.scopeHint':
-    'The admin panel, mobile API, document pages, and iiko/Kaspi integrations are not blocked.',
+    'The admin panel, mobile API, document pages, and the iiko integration are not blocked.',
   'access.saveSiteAccess': 'Save access',
   'access.onlineOrdering': 'Online purchases and orders',
   'access.onlineOrderingOffState': 'Users cannot quote, place, or pay for a new order.',

@@ -1,12 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
 
-const _mapApiBaseUrl = String.fromEnvironment(
-  'BULKA_API_BASE_URL',
-  defaultValue: 'https://bulka.com.kz',
-);
+import '../../core/api_origin.dart';
 
-String get yandexMapUrl => '$_mapApiBaseUrl/maps/yandex';
+String get yandexMapUrl => '$bulkaApiBaseUrl/maps/yandex';
 
 class YandexDeliveryZone {
   const YandexDeliveryZone({

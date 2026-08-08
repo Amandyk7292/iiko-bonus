@@ -1,6 +1,5 @@
 const { supabase } = require('../config/supabase');
 const { logger } = require('../config/logger');
-const kaspiService = require('./kaspi.service');
 const forteService = require('./forte.service');
 const forteWidgetService = require('./forte-widget.service');
 
@@ -8,7 +7,6 @@ const WIDGET_PREFERENCE_KEY = 'payment_forte_widget_enabled';
 const PROVIDER_PROBE_KEY = 'payment_provider_probe';
 const PAYMENT_CLEANUP_KEY = 'payment_cleanup_status';
 const WEBHOOK_KEYS = Object.freeze({
-  kaspi: 'payment_webhook_kaspi',
   forte_widget: 'payment_webhook_forte_widget',
 });
 const CACHE_TTL_MS = 5000;
@@ -79,7 +77,7 @@ const defaultWriteSetting = async (key, value) => {
 const paymentProviderLabel = (order) => {
   if (order?.provider_payment_system === 'forte_widget') return 'Forte Widget';
   if (order?.payment_method === 'forte_card') return 'Forte /flex';
-  return 'Kaspi Pay';
+  return 'Исторический способ оплаты';
 };
 
 const defaultListPaymentErrors = async () => {
@@ -159,7 +157,6 @@ class PaymentOperationsService {
     readSetting = defaultReadSetting,
     writeSetting = defaultWriteSetting,
     listPaymentErrors = defaultListPaymentErrors,
-    kaspi = kaspiService,
     forte = forteService,
     widget = forteWidgetService,
     env = process.env,
@@ -168,7 +165,6 @@ class PaymentOperationsService {
     this.readSetting = readSetting;
     this.writeSetting = writeSetting;
     this.listPaymentErrors = listPaymentErrors;
-    this.kaspi = kaspi;
     this.forte = forte;
     this.widget = widget;
     this.env = env;
@@ -237,7 +233,6 @@ class PaymentOperationsService {
       PROVIDER_PROBE_KEY,
       {
         checkedAt: null,
-        kaspi: null,
         forteHosted: null,
         forteWidget: null,
       },
@@ -248,14 +243,10 @@ class PaymentOperationsService {
   async runSafeProbe({ scheduled = false } = {}) {
     const checkedAt = this.now().toISOString();
     const previousProbe = await this.getProviderProbe({ forceRefresh: true });
-    const kaspiConfigured =
-      this.env.KASPI_POS_ENABLED === 'true' &&
-      String(this.env.KASPI_INTERNAL_SECRET || '').length >= 32;
     const hostedConfigured = this.forte.availability();
     const widgetConfigured = this.widget.availability();
 
-    const [kaspiResult, hostedResult, widgetResult] = await Promise.allSettled([
-      kaspiConfigured ? this.kaspi.availability() : Promise.resolve(false),
+    const [hostedResult, widgetResult] = await Promise.allSettled([
       hostedConfigured
         ? this.forte.probeConnection()
         : Promise.resolve({ available: false, message: 'Не настроен' }),
@@ -272,21 +263,6 @@ class PaymentOperationsService {
 
     const rawProbe = {
       checkedAt,
-      kaspi:
-        kaspiResult.status === 'fulfilled'
-          ? providerResult({
-              configured: kaspiConfigured,
-              available: kaspiResult.value === true,
-              checkedAt,
-              message: kaspiResult.value === true ? 'Сервис отвечает' : 'Сервис недоступен',
-            })
-          : providerResult({
-              configured: kaspiConfigured,
-              available: false,
-              checkedAt,
-              message: 'Сервис не ответил',
-              errorCode: kaspiResult.reason?.code || 'KASPI_PROBE_FAILED',
-            }),
       forteHosted:
         hostedResult.status === 'fulfilled'
           ? providerResult({
@@ -328,10 +304,6 @@ class PaymentOperationsService {
     };
     const probe = {
       ...rawProbe,
-      kaspi: applyProbeHealth(rawProbe.kaspi, previousProbe?.kaspi, {
-        checkedAt,
-        scheduled,
-      }),
       forteHosted: applyProbeHealth(rawProbe.forteHosted, previousProbe?.forteHosted, {
         checkedAt,
         scheduled,
@@ -348,7 +320,6 @@ class PaymentOperationsService {
   async runScheduledSafeProbe() {
     const probe = await this.runSafeProbe({ scheduled: true });
     const unavailable = [
-      ['kaspi', probe.kaspi],
       ['forteHosted', probe.forteHosted],
       ['forteWidget', probe.forteWidget],
     ]
@@ -461,40 +432,30 @@ class PaymentOperationsService {
   }
 
   async getDiagnostics({ canManage = false } = {}) {
-    const [decision, probe, kaspiWebhook, widgetWebhook, cleanup, latestErrors] = await Promise.all(
-      [
-        this.getForteCheckoutDecision(),
-        this.getProviderProbe(),
-        this.getSetting(WEBHOOK_KEYS.kaspi, {
-          lastSuccessAt: null,
-          lastFailureAt: null,
-          lastErrorCode: null,
-        }),
-        this.getSetting(WEBHOOK_KEYS.forte_widget, {
-          lastSuccessAt: null,
-          lastFailureAt: null,
-          lastErrorCode: null,
-        }),
-        this.getSetting(PAYMENT_CLEANUP_KEY, {
-          checkedAt: null,
-          inspected: 0,
-          expired: 0,
-          cancelled: 0,
-          released: 0,
-          errors: 0,
-        }),
-        this.listPaymentErrors().catch((error) => {
-          logger.warn(
-            { err: error, event: 'payment_diagnostic_errors_read_failed' },
-            'Could not load payment errors',
-          );
-          return [];
-        }),
-      ],
-    );
-    const kaspiConfigured =
-      this.env.KASPI_POS_ENABLED === 'true' &&
-      String(this.env.KASPI_INTERNAL_SECRET || '').length >= 32;
+    const [decision, probe, widgetWebhook, cleanup, latestErrors] = await Promise.all([
+      this.getForteCheckoutDecision(),
+      this.getProviderProbe(),
+      this.getSetting(WEBHOOK_KEYS.forte_widget, {
+        lastSuccessAt: null,
+        lastFailureAt: null,
+        lastErrorCode: null,
+      }),
+      this.getSetting(PAYMENT_CLEANUP_KEY, {
+        checkedAt: null,
+        inspected: 0,
+        expired: 0,
+        cancelled: 0,
+        released: 0,
+        errors: 0,
+      }),
+      this.listPaymentErrors().catch((error) => {
+        logger.warn(
+          { err: error, event: 'payment_diagnostic_errors_read_failed' },
+          'Could not load payment errors',
+        );
+        return [];
+      }),
+    ]);
     return {
       canManage,
       checkedAt: probe?.checkedAt || null,
@@ -506,13 +467,6 @@ class PaymentOperationsService {
         updatedAt: decision.preferenceUpdatedAt,
       },
       providers: {
-        kaspi: {
-          enabled: this.env.KASPI_POS_ENABLED === 'true',
-          configured: kaspiConfigured,
-          available: probe?.kaspi?.available ?? null,
-          checkedAt: probe?.kaspi?.checkedAt || null,
-          message: probe?.kaspi?.message || 'Проверка ещё не запускалась',
-        },
         forteHosted: {
           enabled: this.env.FORTE_ENABLED === 'true',
           configured: this.forte.availability(),
@@ -531,10 +485,6 @@ class PaymentOperationsService {
         },
       },
       webhooks: {
-        kaspi: {
-          configured: String(this.env.KASPI_WEBHOOK_SECRET || '').length >= 32,
-          ...kaspiWebhook,
-        },
         forteWidget: {
           configured:
             decision.widgetConfigured &&

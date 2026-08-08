@@ -63,34 +63,6 @@ function validateRuntimeConfig() {
       missing.push('ADMIN_USERS_JSON(valid JSON)');
     }
   }
-  if (process.env.KASPI_POS_ENABLED === 'true') {
-    for (const [name, minLength] of [
-      ['KASPI_INTERNAL_SECRET', 32],
-      ['KASPI_WEBHOOK_SECRET', 32],
-      ['TOKEN_SECRET_KEY', 32],
-    ]) {
-      if (String(process.env[name] || '').length < minLength) missing.push(name);
-    }
-    if (!/^[0-9a-fA-F]{64}$/.test(String(process.env.TOKEN_SECRET_KEY || ''))) {
-      missing.push('TOKEN_SECRET_KEY(64-char hex)');
-    }
-    for (const name of [
-      'KEYPAIR_JSON_B64',
-      'DEVICE_JSON_B64',
-      'ECDH_KEYPAIR_JSON_B64',
-      'SESSION_JSON_B64',
-    ]) {
-      if (!String(process.env[name] || '').trim()) continue;
-      try {
-        const parsed = JSON.parse(
-          Buffer.from(String(process.env[name] || ''), 'base64').toString('utf8'),
-        );
-        if (!parsed || typeof parsed !== 'object') throw new Error('Invalid object');
-      } catch {
-        missing.push(`${name}(base64 JSON)`);
-      }
-    }
-  }
   if (process.env.FORTE_ENABLED === 'true') {
     for (const [name, minLength] of [
       ['FORTE_API_USERNAME', 8],

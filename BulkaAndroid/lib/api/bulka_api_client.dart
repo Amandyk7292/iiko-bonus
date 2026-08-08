@@ -1,9 +1,6 @@
 part of '../main.dart';
 
-const _apiBaseUrl = String.fromEnvironment(
-  'BULKA_API_BASE_URL',
-  defaultValue: 'https://bulka.com.kz',
-);
+String get _apiBaseUrl => bulkaApiBaseUrl;
 
 @visibleForTesting
 const bulkaPublicOfferVersion = '2026-07-27';
@@ -35,10 +32,13 @@ class BulkaApiClient {
     http.Client? client,
     Future<void> Function(String? accessToken, String? refreshToken)?
     onSessionChanged,
+    @visibleForTesting bool? useCookieSessionTransport,
   }) : _client = client ?? createBulkaHttpClient(),
-       _onSessionChanged = onSessionChanged;
+       _onSessionChanged = onSessionChanged,
+       _usesCookieSessionTransport = useCookieSessionTransport ?? kIsWeb;
 
   final http.Client _client;
+  final bool _usesCookieSessionTransport;
   final String _analyticsSessionId = _newAnalyticsId();
   Future<void> Function(String? accessToken, String? refreshToken)?
   _onSessionChanged;
@@ -115,7 +115,7 @@ class BulkaApiClient {
       if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
       'Accept-Language': AppLang.current,
       'X-Bulka-Session': _analyticsSessionId,
-      if (kIsWeb) 'X-Bulka-Session-Transport': 'cookie',
+      if (_usesCookieSessionTransport) 'X-Bulka-Session-Transport': 'cookie',
     };
   }
 
@@ -472,81 +472,6 @@ class BulkaApiClient {
     return const {};
   }
 
-  Future<Map<String, dynamic>> createKaspiPayment({
-    required List<Map<String, dynamic>> cartItems,
-    required String orderType,
-    required String scheduledAt,
-    required String checkoutId,
-    String? preorderFulfillmentType,
-    String? branch,
-    String? branchId,
-    DeliveryAddress? deliveryAddress,
-    String? additionalPhone,
-    String? promoCode,
-    String? comment,
-    String substitutionPreference = 'call_customer',
-  }) async {
-    final json = await _post('/api/customer/kaspi-pay/create', {
-      'items': cartItems,
-      'orderType': orderType,
-      'preorderFulfillmentType': preorderFulfillmentType,
-      'branch': branch,
-      'branchId': branchId,
-      'scheduledAt': scheduledAt,
-      'pickupTime': scheduledAt,
-      'deliveryAddress': deliveryAddress?.toOrderPayload(),
-      'checkoutId': checkoutId,
-      'additionalPhone': additionalPhone,
-      'promoCode': promoCode,
-      'comment': comment,
-      'substitutionPreference': substitutionPreference,
-    });
-    if (json['success'] != true) {
-      throw ApiException(
-        _messageFrom(json, 'error_kaspi_payment'.tr),
-        code: _nullableString(json['code']),
-        requestId: _requestIdFrom(json),
-      );
-    }
-    return json;
-  }
-
-  Future<bool> isKaspiPaymentAvailable() async {
-    final json = await _get('/api/customer/kaspi-pay/availability');
-    _onlineOrderingDisabled = json['onlineOrderingDisabled'] == true;
-    return json['success'] == true && json['available'] == true;
-  }
-
-  Future<Map<String, dynamic>> quoteKaspiOrder({
-    required List<Map<String, dynamic>> cartItems,
-    String? orderType,
-    String? branch,
-    String? branchId,
-    String? scheduledAt,
-    String? preorderFulfillmentType,
-    DeliveryAddress? deliveryAddress,
-    String? promoCode,
-  }) async {
-    final json = await _post('/api/customer/kaspi-pay/quote', {
-      'items': cartItems,
-      'orderType': orderType,
-      'preorderFulfillmentType': preorderFulfillmentType,
-      'branch': branch,
-      'branchId': branchId,
-      'scheduledAt': scheduledAt,
-      'deliveryAddress': deliveryAddress?.toOrderPayload(),
-      'promoCode': promoCode,
-    });
-    if (json['success'] != true) {
-      throw ApiException(
-        _messageFrom(json, 'error_kaspi_payment'.tr),
-        code: _nullableString(json['code']),
-        requestId: _requestIdFrom(json),
-      );
-    }
-    return json;
-  }
-
   Future<Map<String, dynamic>> quoteForteOrder({
     required List<Map<String, dynamic>> cartItems,
     String? orderType,
@@ -573,18 +498,6 @@ class BulkaApiClient {
         code: _nullableString(json['code']),
         requestId: _requestIdFrom(json),
       );
-    }
-    return json;
-  }
-
-  Future<Map<String, dynamic>> checkKaspiPaymentStatus(
-    String operationId,
-  ) async {
-    final json = await _get(
-      '/api/customer/kaspi-pay/status/${Uri.encodeComponent(operationId)}',
-    );
-    if (json['success'] != true) {
-      throw ApiException(_messageFrom(json, 'error_kaspi_status'.tr));
     }
     return json;
   }
@@ -1420,13 +1333,17 @@ class BulkaApiClient {
 
   Future<void> logoutSession() async {
     final refreshToken = _refreshToken;
-    if (!kIsWeb && (refreshToken == null || refreshToken.isEmpty)) return;
+    if (!_usesCookieSessionTransport &&
+        (refreshToken == null || refreshToken.isEmpty)) {
+      return;
+    }
     try {
       await _request(
         'POST',
         '/api/auth/logout',
         body: {
-          if (!kIsWeb && refreshToken != null) 'refreshToken': refreshToken,
+          if (!_usesCookieSessionTransport && refreshToken != null)
+            'refreshToken': refreshToken,
         },
         allowRefresh: false,
       );
@@ -1622,7 +1539,7 @@ class BulkaApiClient {
     if (response.statusCode == 401 &&
         allowRefresh &&
         bearerToken == null &&
-        (kIsWeb || _refreshToken?.isNotEmpty == true)) {
+        (_usesCookieSessionTransport || _refreshToken?.isNotEmpty == true)) {
       final refresh = await _refreshSession();
       if (refresh == _SessionRefreshResult.refreshed) {
         response = await send();
@@ -1643,7 +1560,9 @@ class BulkaApiClient {
 
   Future<bool> restoreSession({bool force = false}) async {
     if (isAuthenticated && !force) return true;
-    if (!kIsWeb && _refreshToken?.isNotEmpty != true) return false;
+    if (!_usesCookieSessionTransport && _refreshToken?.isNotEmpty != true) {
+      return false;
+    }
     final result = await _refreshSession();
     return result == _SessionRefreshResult.refreshed ||
         result == _SessionRefreshResult.identityChanged;
@@ -1680,7 +1599,8 @@ class BulkaApiClient {
     final refreshToken = _refreshToken;
     final previousSessionPhone =
         _sessionPhone ?? _nullableString(_sessionCacheScope);
-    if (!kIsWeb && (refreshToken == null || refreshToken.isEmpty)) {
+    if (!_usesCookieSessionTransport &&
+        (refreshToken == null || refreshToken.isEmpty)) {
       return _SessionRefreshResult.rejected;
     }
     try {
@@ -1689,7 +1609,8 @@ class BulkaApiClient {
             _uri('/api/auth/refresh'),
             headers: _headers(),
             body: jsonEncode({
-              if (!kIsWeb && refreshToken != null) 'refreshToken': refreshToken,
+              if (!_usesCookieSessionTransport && refreshToken != null)
+                'refreshToken': refreshToken,
             }),
           )
           .timeout(const Duration(seconds: 15));
@@ -1710,10 +1631,11 @@ class BulkaApiClient {
       final sessionPhone = _nullableString(
         sessionIdentity['phone'] ?? json['phone'],
       );
-      if (accessToken == null || (!kIsWeb && nextRefresh == null)) {
+      if (accessToken == null ||
+          (!_usesCookieSessionTransport && nextRefresh == null)) {
         return _SessionRefreshResult.unavailable;
       }
-      if (kIsWeb && sessionPhone == null) {
+      if (_usesCookieSessionTransport && sessionPhone == null) {
         await _rejectSession();
         return _SessionRefreshResult.rejected;
       }
@@ -1722,7 +1644,7 @@ class BulkaApiClient {
           sessionPhone != null &&
           !_sameSessionPhone(previousSessionPhone, sessionPhone);
       _accessToken = accessToken;
-      _refreshToken = kIsWeb ? null : nextRefresh;
+      _refreshToken = _usesCookieSessionTransport ? null : nextRefresh;
       _sessionPhone = sessionPhone ?? _sessionPhone;
       if (sessionPhone != null) _sessionCacheScope = sessionPhone;
       if (identityChanged) {

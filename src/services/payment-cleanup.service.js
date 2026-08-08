@@ -1,6 +1,6 @@
 const { supabase } = require('../config/supabase');
 const { logger } = require('../config/logger');
-const kaspiService = require('./kaspi.service');
+const orderPaymentState = require('./order-payment-state.service');
 const forteService = require('./forte.service');
 const forteWidgetService = require('./forte-widget.service');
 const { releaseOrderReservations } = require('./inventory.service');
@@ -10,7 +10,7 @@ const { releasePromotionReservation } = require('./commerce-marketing.service');
 
 const MINIMUM_PENDING_AGE_MS = 10 * 60 * 1000;
 const WIDGET_EXPIRATION_GRACE_MS = 5 * 60 * 1000;
-const KASPI_INVOICE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const RETIRED_PROVIDER_PENDING_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const FINAL_UNPAID_STATUSES = new Set(['failed', 'expired']);
 
 const orderCreatedAtMs = (order) => Date.parse(order?.created_at || '') || 0;
@@ -73,12 +73,11 @@ class PaymentCleanupService {
     updateFulfillment = defaultUpdateFulfillment,
     releaseReservations = releaseOrderReservations,
     releasePromotion,
-    kaspi = kaspiService,
+    orderState = orderPaymentState,
     forte = forteService,
     widget = forteWidgetService,
     operations = paymentOperations,
     publish = realtime.publish.bind(realtime),
-    env = process.env,
     loggerInstance = logger,
   } = {}) {
     this.listPendingOrders = listPendingOrders;
@@ -90,12 +89,11 @@ class PaymentCleanupService {
       (releaseReservations === releaseOrderReservations
         ? releasePromotionReservation
         : async () => false);
-    this.kaspi = kaspi;
+    this.orderState = orderState;
     this.forte = forte;
     this.widget = widget;
     this.operations = operations;
     this.publish = publish;
-    this.env = env;
     this.logger = loggerInstance;
   }
 
@@ -147,7 +145,7 @@ class PaymentCleanupService {
         widgetExpirationMs(order) > 0 &&
         now.getTime() >= widgetExpirationMs(order) + WIDGET_EXPIRATION_GRACE_MS
       ) {
-        const updated = await this.kaspi.updateOrderStatus(order.operation_id, 'expired');
+        const updated = await this.orderState.updateOrderStatus(order.operation_id, 'expired');
         return {
           order: updated || currentOrder,
           status: 'expired',
@@ -164,18 +162,13 @@ class PaymentCleanupService {
       return { order: result?.order || order, status: result?.status || order.status };
     }
 
-    if (this.env.KASPI_POS_ENABLED !== 'true') return { order, status: order.status };
-    const status = await this.kaspi.syncRemoteOrder(order.operation_id);
-    if (
-      status === 'pending' &&
-      order.payment_method === 'invoice' &&
-      now.getTime() - orderCreatedAtMs(order) >= KASPI_INVOICE_MAX_AGE_MS
-    ) {
-      await this.kaspi.cancelInvoice(order.operation_id);
-      const updated = await this.kaspi.updateOrderStatus(order.operation_id, 'expired');
+    // Retired-provider orders are settled locally only. No provider call is made,
+    // but abandoned reservations still need a bounded lifetime.
+    if (now.getTime() - orderCreatedAtMs(order) >= RETIRED_PROVIDER_PENDING_MAX_AGE_MS) {
+      const updated = await this.orderState.updateOrderStatus(order.operation_id, 'expired');
       return { order: updated || order, status: 'expired', expiredByCleanup: true };
     }
-    return { order, status: status || order.status, expiredByCleanup: false };
+    return { order, status: order.status, expiredByCleanup: false };
   }
 
   async cleanupExpiredPayments({ limit = 100, now = new Date() } = {}) {

@@ -319,9 +319,9 @@ export default function DispatchPage() {
                 const quotePrice = external?.price ?? external?.quotedPrice;
                 const kitchenAccepted = Boolean(
                   order.courierDispatchRequestedAt ||
-                    ['preparing', 'ready', 'handed_over'].includes(
-                      String(order.kitchenStatus || 'queued'),
-                    ),
+                  ['preparing', 'ready', 'handed_over'].includes(
+                    String(order.kitchenStatus || 'queued'),
+                  ),
                 );
                 return (
                   <article className="ops-row ops-order-row" key={order.id}>
@@ -368,11 +368,6 @@ export default function DispatchPage() {
                       {order.courierDispatchError && (
                         <small className="external-delivery-error">
                           Вызов курьера: {order.courierDispatchError}
-                        </small>
-                      )}
-                      {order.iikoSyncError && (
-                        <small className="external-delivery-error">
-                          Синхронизация iiko: {order.iikoSyncError}
                         </small>
                       )}
                     </div>

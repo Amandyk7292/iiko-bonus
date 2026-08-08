@@ -706,7 +706,7 @@ const ru: Record<string, string> = {
   'orders.total': 'Сумма',
   'orders.item': 'Товар',
   'orders.empty': 'Заказов пока нет',
-  'orders.emptyHint': 'После оплаты Kaspi заказ появится здесь.',
+  'orders.emptyHint': 'После онлайн-оплаты заказ появится здесь.',
   'orders.changeStatus': 'Изменить статус',
   'orders.statusSaved': 'Статус заказа обновлён',
   'orders.cancelReasonPrompt': 'Причина отмены (увидит клиент)',
@@ -994,7 +994,7 @@ const ru: Record<string, string> = {
   'access.ipListEmpty': 'Список пока пуст',
   'access.ipListEmptyHint': 'Добавьте IP, которым разрешён вход на сайт.',
   'access.scopeHint':
-    'Админ-панель, мобильное API, страницы документов и интеграции iiko/Kaspi не блокируются.',
+    'Админ-панель, мобильное API, страницы документов и интеграция iiko не блокируются.',
   'access.saveSiteAccess': 'Сохранить доступ',
   'access.onlineOrdering': 'Онлайн-покупки и заказы',
   'access.onlineOrderingOffState':

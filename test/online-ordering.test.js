@@ -103,8 +103,6 @@ test('every checkout quote and create route has the global ordering guard', () =
     'utf8',
   );
   const guardedRoutes = [
-    '/api/customer/kaspi-pay/create',
-    '/api/customer/kaspi-pay/quote',
     '/api/customer/forte-pay/create',
     '/api/customer/forte-pay/quote',
   ];

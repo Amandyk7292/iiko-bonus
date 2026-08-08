@@ -105,8 +105,6 @@ def make_api_route(state, slow=False):
             fulfill(route, {"success": True, "stories": []})
         elif path.endswith("/api/guest/news"):
             fulfill(route, {"success": True, "news": []})
-        elif path.endswith("/api/customer/kaspi-pay/availability"):
-            fulfill(route, {"success": True, "available": True})
         else:
             fulfill(route, {"success": True, "notifications": [], "cities": [], "locations": []})
 

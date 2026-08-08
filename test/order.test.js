@@ -2,7 +2,6 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const { applyPromoCode, calculateOrderTotal } = require('../src/services/order.service');
-const iikoApi = require('../src/services/iiko.service');
 
 test('order total uses server catalog and ignores client price fields', () => {
   const catalog = new Map([
@@ -75,18 +74,4 @@ test('promo is calculated server-side with minimum order and cap', () => {
   });
   assert.throws(() => applyPromoCode(500, 'BULKA10', promos), /от суммы/);
   assert.throws(() => applyPromoCode(2500, 'UNKNOWN', promos), /не найден/);
-});
-
-test('order export to iiko stays disabled unless explicitly enabled', async () => {
-  const previous = process.env.IIKO_ORDER_EXPORT_ENABLED;
-  delete process.env.IIKO_ORDER_EXPORT_ENABLED;
-  try {
-    await assert.rejects(
-      () => iikoApi.createDeliveryOrder({}),
-      /отправка заказов в iiko отключена/,
-    );
-  } finally {
-    if (previous === undefined) delete process.env.IIKO_ORDER_EXPORT_ENABLED;
-    else process.env.IIKO_ORDER_EXPORT_ENABLED = previous;
-  }
 });

@@ -47,8 +47,6 @@ BulkaAndroid/android/key.properties
 BulkaAndroid/keystore/
 IikoBonusPlugin/Resto.Front.Api.IikoBonusPlugin.dll.config
 
-# Local Kaspi credential/runtime backup; never include it in a release or commit.
-kaspi-pos-automation-main copy/
 .tmp/
 
 # Generated outputs belong to CI/release artifacts, not source control.
