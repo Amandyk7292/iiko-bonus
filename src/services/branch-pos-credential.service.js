@@ -72,22 +72,12 @@ async function getBranchPosCoverage({ db = supabase } = {}) {
     const indexedResult = await activeQuery().is('pos_branch_id', null);
     if (!indexedResult.error) return Number(indexedResult.count || 0);
 
-    const errorText = [
-      indexedResult.error.code,
-      indexedResult.error.message,
-      indexedResult.error.details,
-      indexedResult.error.hint,
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase();
-    const missingPreMigrationColumn =
-      /(?:42703|pgrst204)/i.test(String(indexedResult.error.code || '')) &&
-      errorText.includes('pos_branch_id');
-    if (!missingPreMigrationColumn) throw indexedResult.error;
-
     // Deployment starts the new app before applying pending DDL. Fall back only
     // for that short pre-migration window; after DDL the indexed query above wins.
+    // Some PostgREST/Supabase versions return only { message: '' } for a HEAD
+    // request that references an unknown column, so the fallback itself is the
+    // capability check. Any real database/auth/network failure also fails the
+    // second query and therefore still makes readiness fail closed.
     const fallbackResult = await activeQuery().not('order_id', 'like', 'bp1:%');
     if (fallbackResult.error) throw fallbackResult.error;
     return Number(fallbackResult.count || 0);

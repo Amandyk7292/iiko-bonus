@@ -199,7 +199,9 @@ test('strict-mode coverage detects legacy reservations on the pre-migration sche
             return Promise.resolve({
               data: null,
               count: null,
-              error: { code: '42703', message: 'column pos_branch_id does not exist' },
+              // Production Supabase returns this empty shape for the pre-DDL
+              // HEAD/count query, without a PostgreSQL or PostgREST code.
+              error: { message: '' },
             }).then(resolve);
           }
           return Promise.resolve({
@@ -260,6 +262,51 @@ test('strict-mode coverage uses the indexed branch column after migration', asyn
   const coverage = await getBranchPosCoverage({ db });
   assert.equal(coverage.activeLegacyReservations, 0);
   assert.equal(coverage.readyForEnforcement, true);
+});
+
+test('strict-mode coverage fails closed when both schema paths fail', async () => {
+  const { getBranchPosCoverage } = require('../src/services/branch-pos-credential.service');
+  const databaseError = { message: 'database unavailable' };
+  let loyaltyQueries = 0;
+  const db = {
+    from(table) {
+      const query = {
+        select() {
+          return this;
+        },
+        eq() {
+          return this;
+        },
+        gt() {
+          return this;
+        },
+        is() {
+          return this;
+        },
+        not() {
+          return this;
+        },
+        then(resolve) {
+          if (table !== 'loyalty_reservations') {
+            return Promise.resolve({ data: [], count: null, error: null }).then(resolve);
+          }
+          loyaltyQueries += 1;
+          return Promise.resolve({
+            data: null,
+            count: null,
+            error: loyaltyQueries === 1 ? { message: '' } : databaseError,
+          }).then(resolve);
+        },
+      };
+      return query;
+    },
+  };
+
+  await assert.rejects(
+    () => getBranchPosCoverage({ db }),
+    (error) => error === databaseError,
+  );
+  assert.equal(loyaltyQueries, 2);
 });
 
 test('a POS credential authenticates only its own branch', async (t) => {
