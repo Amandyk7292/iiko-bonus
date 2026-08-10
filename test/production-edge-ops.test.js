@@ -75,6 +75,53 @@ test('www activation ignores resolver-generated IPv4-mapped IPv6 addresses', () 
   assert.equal(result.stdout.trim(), '2001:db8::73');
 });
 
+test('www activation retries TLS redirect verification without nested ERR traps', () => {
+  const script = read('scripts/activate-www-domain.sh');
+  const verify = script.match(/verify_www_redirect\(\) \{[\s\S]*?^\}/m);
+  const wait = script.match(/wait_for_www_redirect\(\) \{[\s\S]*?^\}/m);
+  assert.ok(verify, 'single-attempt redirect verification must remain independently testable');
+  assert.ok(wait, 'bounded redirect retry must remain independently testable');
+  assert.match(verify[0], /if ! response=\$\(/);
+  assert.match(verify[0], /--connect-timeout 3 --max-time 5/);
+  assert.match(wait[0], /attempt <= attempts/);
+  assert.doesNotMatch(script, /status=\$\(curl/);
+  assert.doesNotMatch(script, /location=\$\(curl/);
+
+  const bash = process.platform === 'win32' ? 'C:\\Program Files\\Git\\bin\\bash.exe' : 'bash';
+  const result = spawnSync(
+    bash,
+    [
+      '-c',
+      [
+        'set -E',
+        'domain=bulka.com.kz',
+        'www_domain=www.bulka.com.kz',
+        "trap 'printf ERR >&2' ERR",
+        'attempt_file=$(mktemp)',
+        'printf \'0\\n\' >"$attempt_file"',
+        'curl() {',
+        '  local attempt',
+        '  attempt=$(cat "$attempt_file")',
+        '  attempt=$((attempt + 1))',
+        '  printf \'%s\\n\' "$attempt" >"$attempt_file"',
+        '  if (( attempt < 3 )); then return 60; fi',
+        "  printf 'HTTP/1.1 308 Permanent Redirect\\r\\nLocation: https://bulka.com.kz/healthz\\r\\n\\r\\n\\n308'",
+        '}',
+        'sleep() { :; }',
+        verify[0],
+        wait[0],
+        'wait_for_www_redirect 3 0',
+        'test "$(cat "$attempt_file")" = 3',
+        'rm -f "$attempt_file"',
+      ].join('\n'),
+    ],
+    { cwd: root, encoding: 'utf8' },
+  );
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(result.stderr, '');
+});
+
 test('Cloudflare origin lockdown validates every range before mutation and rolls back', () => {
   const script = read('scripts/prepare-cloudflare-origin.sh');
   const validation = script.indexOf(

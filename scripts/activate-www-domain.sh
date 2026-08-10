@@ -39,6 +39,41 @@ filter_native_ipv6_addresses() {
   }'
 }
 
+verify_www_redirect() {
+  local response
+  local status
+  local location
+  if ! response=$(
+    curl --silent --show-error --head \
+      --connect-timeout 3 --max-time 5 \
+      --write-out $'\n%{http_code}' \
+      "https://${www_domain}/healthz" 2>/dev/null
+  ); then
+    return 1
+  fi
+  status=${response##*$'\n'}
+  location=$(
+    printf '%s\n' "$response" |
+      awk 'BEGIN{IGNORECASE=1} /^location:/{sub(/\r$/,"",$2); print $2; exit}'
+  )
+  [[ $status == 308 && $location == "https://${domain}/healthz" ]]
+}
+
+wait_for_www_redirect() {
+  local attempts=${1:-15}
+  local delay_seconds=${2:-1}
+  local attempt
+  for ((attempt = 1; attempt <= attempts; attempt += 1)); do
+    if verify_www_redirect; then
+      return 0
+    fi
+    if (( attempt < attempts )); then
+      sleep "$delay_seconds"
+    fi
+  done
+  return 1
+}
+
 for hostname in "$domain" "$www_domain"; do
   mapfile -t resolved_v4 < <(getent ahostsv4 "$hostname" | awk '{print $1}' | sort -u)
   resolved_v6=$(
@@ -121,10 +156,10 @@ EOF
 nginx -t
 systemctl reload nginx
 systemctl is-active --quiet nginx
-status=$(curl -sS -o /dev/null -w '%{http_code}' "https://${www_domain}/healthz")
-location=$(curl -sSI "https://${www_domain}/healthz" | awk 'BEGIN{IGNORECASE=1} /^location:/{sub(/\r$/,""); print $2; exit}')
-[[ $status == 308 ]]
-[[ $location == "https://${domain}/healthz" ]]
+if ! wait_for_www_redirect 15 1; then
+  echo 'Renewed TLS certificate and canonical www redirect did not become visible in time.' >&2
+  false
+fi
 
 trap - ERR
 echo "${www_domain} now redirects permanently to https://${domain}."
