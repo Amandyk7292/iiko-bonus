@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
@@ -53,14 +54,40 @@ test('www activation refuses DNS mismatch and verifies canonical redirect', () =
   assert.match(script, /rollback\(\)/);
 });
 
+test('www activation ignores resolver-generated IPv4-mapped IPv6 addresses', () => {
+  const script = read('scripts/activate-www-domain.sh');
+  const filter = script.match(/filter_native_ipv6_addresses\(\) \{[\s\S]*?^\}/m);
+  assert.ok(filter, 'native IPv6 filter must remain independently testable');
+
+  const bash = process.platform === 'win32' ? 'C:\\Program Files\\Git\\bin\\bash.exe' : 'bash';
+  const result = spawnSync(bash, ['-c', `${filter[0]}\nfilter_native_ipv6_addresses`], {
+    cwd: root,
+    encoding: 'utf8',
+    input: [
+      '::ffff:185.113.132.73 STREAM',
+      '0:0:0:0:0:ffff:b971:8449 STREAM',
+      '2001:db8::73 STREAM',
+      '',
+    ].join('\n'),
+  });
+
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(result.stdout.trim(), '2001:db8::73');
+});
+
 test('Cloudflare origin lockdown validates every range before mutation and rolls back', () => {
   const script = read('scripts/prepare-cloudflare-origin.sh');
-  const validation = script.indexOf('def validate(filename: str, version: int, expected_count: int)');
+  const validation = script.indexOf(
+    'def validate(filename: str, version: int, expected_count: int)',
+  );
   const backup = script.indexOf('install -d -m 0700 "$backup_dir"');
   const mutation = script.indexOf('>"$nginx_conf"');
   const directVerification = script.indexOf("if [[ $direct_status != '403' ]]");
 
-  assert.ok(validation >= 0 && validation < backup, 'CIDRs must be validated before backup/mutation');
+  assert.ok(
+    validation >= 0 && validation < backup,
+    'CIDRs must be validated before backup/mutation',
+  );
   assert.ok(backup >= 0 && backup < mutation, 'backup must precede Nginx mutation');
   assert.ok(directVerification > mutation, 'direct-origin verification must follow mutation');
   assert.match(script, /ipaddress\.ip_network\(raw_network, strict=True\)/);

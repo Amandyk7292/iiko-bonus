@@ -28,9 +28,24 @@ if [[ ! $expected_origin =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   exit 1
 fi
 
+filter_native_ipv6_addresses() {
+  # glibc may expose IPv4 A records as IPv4-mapped results for ahostsv6.
+  # They are resolver compatibility entries, not proof of a DNS AAAA record.
+  awk '{
+    address = tolower($1)
+    if (address !~ /^(::ffff:|0:0:0:0:0:ffff:)/) {
+      print address
+    }
+  }'
+}
+
 for hostname in "$domain" "$www_domain"; do
   mapfile -t resolved_v4 < <(getent ahostsv4 "$hostname" | awk '{print $1}' | sort -u)
-  resolved_v6=$(getent ahostsv6 "$hostname" 2>/dev/null | awk '{print $1}' | sort -u || true)
+  resolved_v6=$(
+    getent ahostsv6 "$hostname" 2>/dev/null |
+      filter_native_ipv6_addresses |
+      sort -u || true
+  )
   if (( ${#resolved_v4[@]} != 1 )) || [[ ${resolved_v4[0]:-} != "$expected_origin" ]]; then
     echo "${hostname} must resolve only to the approved IPv4 origin ${expected_origin}." >&2
     exit 1
