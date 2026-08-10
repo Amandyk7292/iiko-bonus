@@ -252,26 +252,23 @@ jobs:
         run: |
           node src/server.js >scratch-full-app.log 2>&1 &
           server_pid=$!
-          node scripts/qa-static-server.js 4321 . >scratch-public-page.log 2>&1 &
-          static_pid=$!
-          trap 'kill "$server_pid" "$static_pid" 2>/dev/null || true' EXIT
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
           full_app_ready=0
           for attempt in {1..30}; do
-            if curl --fail --silent http://127.0.0.1:4320/healthz >/dev/null &&
-              curl --fail --silent http://127.0.0.1:4321/public/app.html >/dev/null; then
+            if curl --fail --silent http://127.0.0.1:4320/healthz >/dev/null; then
               full_app_ready=1
               break
             fi
             sleep 1
           done
           if [[ "$full_app_ready" != 1 ]]; then
-            cat scratch-full-app.log scratch-public-page.log
+            cat scratch-full-app.log
             exit 1
           fi
           python test/csp_browser_e2e.py http://127.0.0.1:4320
           python test/forte_compliance_e2e.py
           python test/guest_legal_profile_e2e.py
-          python test/public_page_e2e.py http://127.0.0.1:4321
+          python test/public_page_e2e.py http://127.0.0.1:4320/guest
           python test/taplink_public_ui_e2e.py http://127.0.0.1:4320
           python scripts/e2e-release-smoke.py
       - name: Prepare production web rebuild inventory

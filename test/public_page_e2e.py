@@ -1,12 +1,18 @@
 from pathlib import Path
 import json
 import sys
+from urllib.parse import urlparse
 
 from playwright.sync_api import sync_playwright
 
 
-BASE_URL = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:4174"
+TARGET_URL = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:4174/guest"
 ROOT = Path(__file__).resolve().parents[1]
+
+target = urlparse(TARGET_URL)
+assert target.scheme == "http" and target.hostname in {"127.0.0.1", "localhost"}, (
+    "Public-page fixtures may only run against a local test server"
+)
 
 
 def json_response(route, payload, status=200):
@@ -26,7 +32,14 @@ with sync_playwright() as playwright:
     )
     page = context.new_page()
     console_errors = []
+    failed_responses = []
     page.on("console", lambda message: console_errors.append(message.text) if message.type == "error" else None)
+    page.on(
+        "response",
+        lambda response: failed_responses.append(f"{response.status} {response.url}")
+        if response.status >= 400
+        else None,
+    )
 
     page.route(
         "**/api/auth/request-otp",
@@ -50,7 +63,7 @@ with sync_playwright() as playwright:
         lambda route: json_response(route, {"success": True, "customerId": "test-customer"}),
     )
 
-    page.goto(BASE_URL + "/public/app.html")
+    page.goto(TARGET_URL)
     page.wait_for_load_state("networkidle")
 
     assert page.locator("h1").inner_text() == "Карта лояльности"
@@ -79,6 +92,7 @@ with sync_playwright() as playwright:
     page.get_by_role("button", name="Verify and register").click()
     page.locator("#successMessage").wait_for(state="visible")
     assert "Registration complete" in page.locator("#successMessage").inner_text()
+    assert not failed_responses, f"Failed HTTP responses: {failed_responses}"
     assert not console_errors, f"Browser console errors: {console_errors}"
 
     screenshot_path = ROOT / "scratch" / "public-registration-e2e.png"
