@@ -23,6 +23,7 @@ stored_release="${release_store}/${current_release}"
 previous_current_release=''
 
 release_scripts=(
+  activate-www-domain.sh
   apply-migrations.js
   backup-database.sh
   backup-supabase-storage.js
@@ -32,6 +33,7 @@ release_scripts=(
   enable-nginx-upstream-fallback.sh
   ensure-postgres-client.sh
   harden-nginx-access-logs.sh
+  harden-vps-ssh.sh
   install-database-backup-timer.sh
   install-pm2-logrotate.sh
   prepare-cloudflare-origin.sh

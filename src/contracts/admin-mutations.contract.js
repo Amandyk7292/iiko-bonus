@@ -943,6 +943,7 @@ const promotionBodySchema = z
   );
 const giftCardBodySchema = z
   .object({
+    idempotencyKey: uuidSchema,
     amount: z.coerce.number().int().min(500).max(1_000_000),
     purchaserCustomerId: uuidSchema.nullable().optional(),
     recipientCustomerId: uuidSchema.nullable().optional(),

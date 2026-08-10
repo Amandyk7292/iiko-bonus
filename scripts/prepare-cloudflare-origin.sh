@@ -34,8 +34,48 @@ fi
 
 curl -fsS 'https://www.cloudflare.com/ips-v4' -o "$ipv4_file"
 curl -fsS 'https://www.cloudflare.com/ips-v6' -o "$ipv6_file"
-grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/[0-9]+$' "$ipv4_file"
-grep -Eq '^[0-9a-fA-F:]+/[0-9]+$' "$ipv6_file"
+
+# Cloudflare currently publishes exactly 15 IPv4 and 7 IPv6 ranges. Validate
+# every nonblank line semantically before any Nginx file is touched. Rewriting
+# the temporary files to canonical CIDR text also prevents unvalidated input
+# from being interpolated into the generated configuration.
+python3 - "$ipv4_file" "$ipv6_file" <<'PY'
+import ipaddress
+import sys
+from pathlib import Path
+
+
+def validate(filename: str, version: int, expected_count: int) -> None:
+    path = Path(filename)
+    raw_networks = [
+        line.strip()
+        for line in path.read_text(encoding="ascii").splitlines()
+        if line.strip()
+    ]
+    if len(raw_networks) != expected_count:
+        raise SystemExit(
+            f"Cloudflare IPv{version} list contains {len(raw_networks)} ranges; "
+            f"expected {expected_count}"
+        )
+
+    networks = []
+    for raw_network in raw_networks:
+        try:
+            network = ipaddress.ip_network(raw_network, strict=True)
+        except ValueError as error:
+            raise SystemExit(f"Invalid Cloudflare IPv{version} range") from error
+        if network.version != version:
+            raise SystemExit(f"Unexpected address family in Cloudflare IPv{version} list")
+        networks.append(str(network))
+
+    if len(set(networks)) != expected_count:
+        raise SystemExit(f"Cloudflare IPv{version} list contains duplicate ranges")
+    path.write_text("\n".join(networks) + "\n", encoding="ascii")
+
+
+validate(sys.argv[1], 4, 15)
+validate(sys.argv[2], 6, 7)
+PY
 
 install -d -m 0700 "$backup_dir"
 cp -a "$site_conf" "$backup_dir/iiko-bonus"
@@ -109,7 +149,9 @@ direct_status=$(curl -sk -o /dev/null -w '%{http_code}' \
   --resolve "${domain}:443:185.113.132.73" "https://${domain}/healthz")
 if [[ $direct_status != '403' ]]; then
   echo "Direct origin request returned ${direct_status}; expected 403." >&2
-  exit 1
+  # A plain `exit` bypasses the ERR trap. This failing command deliberately
+  # enters rollback so the previous Nginx configuration is restored.
+  false
 fi
 
 trap - ERR

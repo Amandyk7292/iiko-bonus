@@ -10,7 +10,10 @@ const {
   adminAuthMiddleware,
   adminCsrfMiddleware,
   adminMutationRoleMiddleware,
+  GIFT_CARD_ACTIONS,
   ROLE_AREAS,
+  requireAdminAction,
+  requireAdminMfa,
 } = require('../middlewares/auth.middleware');
 const { adminRateLimit } = require('../middlewares/rate-limit.middleware');
 const {
@@ -215,6 +218,18 @@ const requireWhatsAppConfigurationRole = (req, res, next) => {
     return res.status(403).json({
       success: false,
       error: 'Настройки ассистента доступны только владельцу и администратору',
+    });
+  }
+  return next();
+};
+
+const requireCourierIdentityRole = (req, res, next) => {
+  if (!['admin', 'owner'].includes(req.admin?.role)) {
+    return res.status(403).json({
+      success: false,
+      error:
+        'Создание, личные данные и отключение курьеров доступны только владельцу или администратору',
+      code: 'COURIER_IDENTITY_FORBIDDEN',
     });
   }
   return next();
@@ -740,6 +755,7 @@ router.get('/admin/api/couriers', async (_req, res) => {
 });
 router.post(
   '/admin/api/couriers',
+  requireCourierIdentityRole,
   validateRequest(adminMutationSchemas.courierCreate),
   async (req, res) => {
     try {
@@ -751,6 +767,7 @@ router.post(
 );
 router.put(
   '/admin/api/couriers/:id',
+  requireCourierIdentityRole,
   validateRequest(adminMutationSchemas.courierUpdate),
   async (req, res) => {
     try {
@@ -762,6 +779,7 @@ router.put(
 );
 router.patch(
   '/admin/api/couriers/:id/active',
+  requireCourierIdentityRole,
   validateRequest(adminMutationSchemas.courierActive),
   async (req, res) => {
     try {
@@ -1476,6 +1494,8 @@ router.get('/admin/api/gift-cards', async (_req, res) => {
 });
 router.post(
   '/admin/api/gift-cards',
+  requireAdminAction(GIFT_CARD_ACTIONS.ISSUE),
+  requireAdminMfa,
   validateRequest(adminMutationSchemas.giftCard),
   async (req, res) => {
     try {

@@ -60,9 +60,69 @@ async function getBranchPosCredentialStatus(branchId) {
   };
 }
 
+async function getBranchPosCoverage({ db = supabase } = {}) {
+  const countActiveLegacyReservations = async () => {
+    const activeQuery = () =>
+      db
+        .from('loyalty_reservations')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'active')
+        .gt('expires_at', new Date().toISOString());
+
+    const indexedResult = await activeQuery().is('pos_branch_id', null);
+    if (!indexedResult.error) return Number(indexedResult.count || 0);
+
+    const errorText = [
+      indexedResult.error.code,
+      indexedResult.error.message,
+      indexedResult.error.details,
+      indexedResult.error.hint,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    const missingPreMigrationColumn =
+      /(?:42703|pgrst204)/i.test(String(indexedResult.error.code || '')) &&
+      errorText.includes('pos_branch_id');
+    if (!missingPreMigrationColumn) throw indexedResult.error;
+
+    // Deployment starts the new app before applying pending DDL. Fall back only
+    // for that short pre-migration window; after DDL the indexed query above wins.
+    const fallbackResult = await activeQuery().not('order_id', 'like', 'bp1:%');
+    if (fallbackResult.error) throw fallbackResult.error;
+    return Number(fallbackResult.count || 0);
+  };
+
+  const [
+    { data: branches, error: branchError },
+    { data: credentials, error: credentialError },
+    activeLegacyReservations,
+  ] = await Promise.all([
+    db.from('bulka_locations').select('id').eq('active', true),
+    db.from('branch_pos_credentials').select('branch_id').eq('active', true),
+    countActiveLegacyReservations(),
+  ]);
+  if (branchError) throw branchError;
+  if (credentialError) throw credentialError;
+  const configured = new Set((credentials || []).map((row) => String(row.branch_id)));
+  const activeBranchIds = (branches || []).map((row) => String(row.id));
+  const configuredActiveBranches = activeBranchIds.filter((id) => configured.has(id)).length;
+  return {
+    activeBranches: activeBranchIds.length,
+    configuredActiveBranches,
+    missingActiveBranches: activeBranchIds.length - configuredActiveBranches,
+    activeLegacyReservations,
+    readyForEnforcement:
+      activeBranchIds.length > 0 &&
+      configuredActiveBranches === activeBranchIds.length &&
+      activeLegacyReservations === 0,
+  };
+}
+
 module.exports = {
   POS_TOKEN_PREFIX,
   branchPosTokenHash,
+  getBranchPosCoverage,
   getBranchPosCredentialStatus,
   rotateBranchPosCredential,
 };

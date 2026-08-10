@@ -3,7 +3,10 @@ const router = express.Router();
 const loyaltyController = require('../controllers/loyalty.controller');
 const { webhookMiddleware } = require('../middlewares/webhook.middleware');
 const { webhookRateLimit } = require('../middlewares/rate-limit.middleware');
-const { branchPosAuthMiddleware } = require('../middlewares/branch-pos-auth.middleware');
+const {
+  branchPosAuthMiddleware,
+  branchPosRolloutMiddleware,
+} = require('../middlewares/branch-pos-auth.middleware');
 const { validateRequest } = require('../middlewares/validation.middleware');
 const {
   loyaltyApplyBodySchema,
@@ -26,7 +29,10 @@ const {
   validateGiftCardForPos,
 } = require('../services/gift-card-pos.service');
 
-router.use('/api/loyalty', webhookRateLimit, webhookMiddleware);
+// The shared API token is only a transport-level defence. Compatibility mode
+// supports a measured rollout of independently rotatable branch credentials;
+// required mode rejects every unscoped POS request. See the rollout runbook.
+router.use('/api/loyalty', webhookRateLimit, webhookMiddleware, branchPosRolloutMiddleware);
 router.get('/api/loyalty/config-check', loyaltyController.configCheck);
 router.post(
   '/api/loyalty/customer',

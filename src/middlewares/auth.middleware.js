@@ -169,6 +169,10 @@ const TAPLINK_ACTIONS = Object.freeze({
   PUBLISH: 'taplink:publish',
 });
 
+const GIFT_CARD_ACTIONS = Object.freeze({
+  ISSUE: 'gift-cards:issue',
+});
+
 /**
  * Area access controls navigation. Action access controls the sensitive
  * operation itself, so adding a role to the customers area never grants
@@ -201,11 +205,22 @@ const requireAdminAction = (action) => (req, res, next) => {
   return next();
 };
 
+const requireAdminMfa = (req, res, next) => {
+  if (req.admin?.mfa !== true) {
+    return res.status(403).json({
+      error: 'Для выпуска денежного сертификата войдите с двухфакторной защитой',
+      code: 'ADMIN_MFA_REQUIRED',
+    });
+  }
+  return next();
+};
+
 const adminUserResponse = (admin) => ({
   username: String(admin?.username || admin?.sub || ''),
   role: String(admin?.role || 'viewer'),
   branchIds: Array.isArray(admin?.branchIds) ? admin.branchIds.map(String) : [],
   actions: [...actionsForRole(admin?.role)],
+  mfaVerified: admin?.mfa === true || admin?.mfaVerified === true,
 });
 
 const adminArea = (req) => {
@@ -418,7 +433,12 @@ const adminLoginHandler = async (req, res) => {
   if (!ADMIN_ROLES.has(role)) {
     return res.status(503).json({ error: 'Admin role is invalid' });
   }
-  const admin = { username: String(user.username), role, branchIds };
+  const admin = {
+    username: String(user.username),
+    role,
+    branchIds,
+    mfaVerified: mfaRequired,
+  };
   return issueAdminSession(req, res, admin);
 };
 
@@ -494,6 +514,12 @@ const adminMutationRoleMiddleware = (req, res, next) => {
   if (req.admin.role === 'viewer' && !readOnly) {
     return res.status(403).json({ error: 'Viewer role is read-only' });
   }
+  if (req.admin.role === 'courier' && !readOnly) {
+    return res.status(403).json({
+      error: 'Курьер изменяет только собственный статус через кабинет курьера',
+      code: 'COURIER_SELF_SERVICE_REQUIRED',
+    });
+  }
   const areas = ROLE_AREAS[req.admin.role] || new Set();
   const area = adminArea(req);
   if (!areas.has('*') && !areas.has(area)) {
@@ -554,6 +580,7 @@ module.exports = {
   whatsappOperatorAccessHandler,
   ADMIN_ROLES,
   CUSTOMER_ACTIONS,
+  GIFT_CARD_ACTIONS,
   PAYMENT_ACTIONS,
   TAPLINK_ACTIONS,
   ROLE_ACTIONS,
@@ -561,4 +588,5 @@ module.exports = {
   actionsForRole,
   hasAdminAction,
   requireAdminAction,
+  requireAdminMfa,
 };

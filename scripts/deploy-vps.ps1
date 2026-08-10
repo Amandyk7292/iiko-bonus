@@ -370,6 +370,7 @@ Copy-Item -LiteralPath (Join-Path $projectRoot 'package-lock.json') -Destination
 Copy-Item -LiteralPath (Join-Path $projectRoot 'supabase_schema.sql') -Destination $stageFull
 
 foreach ($scriptName in @(
+    'activate-www-domain.sh',
     'apply-migrations.js',
     'backup-database.sh',
     'backup-supabase-storage.js',
@@ -379,6 +380,7 @@ foreach ($scriptName in @(
     'enable-nginx-upstream-fallback.sh',
     'ensure-postgres-client.sh',
     'harden-nginx-access-logs.sh',
+    'harden-vps-ssh.sh',
     'install-database-backup-timer.sh',
     'install-pm2-logrotate.sh',
     'prepare-cloudflare-origin.sh',

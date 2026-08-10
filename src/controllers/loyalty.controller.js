@@ -10,6 +10,8 @@ const {
 } = require('../services/customer.service');
 const { notifyBonusChange } = require('../services/push.service');
 const { queueCustomerLoyaltySync } = require('../services/loyalty-sync.service');
+const { getBranchPosCoverage } = require('../services/branch-pos-credential.service');
+const { branchPosEnforcementMode } = require('../middlewares/branch-pos-auth.middleware');
 const {
   cancelLoyalty,
   commitLoyalty,
@@ -23,6 +25,11 @@ function requestError(message, statusCode = 400) {
   error.statusCode = statusCode;
   return error;
 }
+
+const loyaltyAuthContext = (req) => ({
+  branchId: req.posBranchId,
+  allowLegacy: req.posAuthMode === 'legacy',
+});
 
 function validateCustomerId(customerId) {
   if (!UUID_PATTERN.test(String(customerId || ''))) {
@@ -49,6 +56,7 @@ async function logIikoOperation(payload, result, errorMsg) {
     const { error } = await supabase.from('iiko_operation_logs').insert([
       {
         order_id: String(payload.orderId),
+        branch_id: payload.branchId || null,
         customer_id: payload.customerId || null,
         status: errorMsg ? 'error' : result?.duplicate ? 'duplicate' : 'success',
         duplicate: Boolean(result?.duplicate),
@@ -73,6 +81,7 @@ const commitLogPayload = (payload, result) => {
   const earnedBonus = Number(result?.earnedBonus || 0);
   const paidAmount = Math.max(0, orderTotal - discountAmount);
   return {
+    branchId: payload?.branchId || null,
     customerId: payload?.customerId,
     orderId: payload?.orderId,
     orderTotal,
@@ -121,6 +130,7 @@ async function configCheck(req, res) {
   try {
     const settings = await getSettings();
     const loyaltyTiers = await getActiveLoyaltyTiers(settings);
+    const posCoverage = await getBranchPosCoverage();
     res.json({
       success: true,
       service: 'Bulka Bonus loyalty',
@@ -136,6 +146,11 @@ async function configCheck(req, res) {
         max_discount_percent: settings.max_discount_percent,
       },
       loyaltyTiers,
+      posAuthentication: {
+        mode: branchPosEnforcementMode(),
+        requestAuthenticated: req.posAuthMode === 'branch',
+        ...posCoverage,
+      },
     });
   } catch (_error) {
     res.status(500).json({ success: false, error: 'Internal server error' });
@@ -290,6 +305,7 @@ async function applyBonus(req, res) {
         ? 0
         : Number(settings.bonus_activation?.delay_days || 0);
     logPayload = {
+      branchId: req.posBranchId,
       customerId,
       orderId: normalizedOrderId,
       discountAmount: discount,
@@ -299,19 +315,25 @@ async function applyBonus(req, res) {
       items,
     };
 
-    reservation = await reserveLoyalty({
-      customerId,
-      orderId: normalizedOrderId,
-      discountAmount: discount,
-      orderTotal: total,
-    });
-    const result = await commitLoyalty({
-      customerId,
-      orderId: normalizedOrderId,
-      reservationId: reservation.reservationId,
-      orderTotal: total,
-      items,
-    });
+    reservation = await reserveLoyalty(
+      {
+        customerId,
+        orderId: normalizedOrderId,
+        discountAmount: discount,
+        orderTotal: total,
+      },
+      loyaltyAuthContext(req),
+    );
+    const result = await commitLoyalty(
+      {
+        customerId,
+        orderId: normalizedOrderId,
+        reservationId: reservation.reservationId,
+        orderTotal: total,
+        items,
+      },
+      loyaltyAuthContext(req),
+    );
     logPayload = await recordCommittedLoyalty(logPayload, result);
     notifyCommittedLoyalty(logPayload, result).catch((error) =>
       console.error('Loyalty notification failed:', error.message),
@@ -330,11 +352,14 @@ async function applyBonus(req, res) {
     });
   } catch (error) {
     if (reservation?.reservationId) {
-      await cancelLoyalty({
-        customerId: req.body?.customerId,
-        orderId: req.body?.orderId,
-        reservationId: reservation.reservationId,
-      }).catch(() => {});
+      await cancelLoyalty(
+        {
+          customerId: req.body?.customerId,
+          orderId: req.body?.orderId,
+          reservationId: reservation.reservationId,
+        },
+        loyaltyAuthContext(req),
+      ).catch(() => {});
     }
     if (logPayload) await logIikoOperation(logPayload, null, error.message);
     res
@@ -345,7 +370,7 @@ async function applyBonus(req, res) {
 
 async function reserveBonus(req, res) {
   try {
-    res.json(await reserveLoyalty(req.body));
+    res.json(await reserveLoyalty(req.body, loyaltyAuthContext(req)));
   } catch (error) {
     res
       .status(error.statusCode || 500)
@@ -355,14 +380,17 @@ async function reserveBonus(req, res) {
 
 async function commitReservedBonus(req, res) {
   try {
-    const result = await commitLoyalty(req.body);
-    const logPayload = await recordCommittedLoyalty(req.body, result);
+    const result = await commitLoyalty(req.body, loyaltyAuthContext(req));
+    const logPayload = await recordCommittedLoyalty(
+      { ...req.body, branchId: req.posBranchId },
+      result,
+    );
     res.json(result);
     notifyCommittedLoyalty(logPayload, result).catch((error) =>
       console.error('Loyalty notification failed:', error.message),
     );
   } catch (error) {
-    await logIikoOperation(req.body, null, error.message);
+    await logIikoOperation({ ...req.body, branchId: req.posBranchId }, null, error.message);
     res
       .status(error.statusCode || 500)
       .json({ error: error.statusCode ? error.message : 'Internal server error' });
@@ -371,7 +399,7 @@ async function commitReservedBonus(req, res) {
 
 async function cancelReservedBonus(req, res) {
   try {
-    res.json(await cancelLoyalty(req.body));
+    res.json(await cancelLoyalty(req.body, loyaltyAuthContext(req)));
   } catch (error) {
     res
       .status(error.statusCode || 500)
@@ -380,6 +408,7 @@ async function cancelReservedBonus(req, res) {
 }
 
 module.exports = {
+  commitLogPayload,
   configCheck,
   getCustomerInfo,
   searchCustomersHandler,

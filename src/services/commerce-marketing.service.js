@@ -2,12 +2,14 @@ const crypto = require('crypto');
 const { supabase } = require('../config/supabase');
 const { sendPushToCustomer } = require('./push.service');
 const { queueCustomerLoyaltySync } = require('./loyalty-sync.service');
+const { decryptSecret, encryptSecret } = require('../utils/secret-envelope.util');
 
 const commerceError = (message, statusCode = 400) =>
   Object.assign(new Error(message), { statusCode });
 
 const MAX_PROMOTION_AMOUNT = 10000000;
 const MAX_PROMOTION_AUDIENCE = 500;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const normalizeCode = (value) =>
   String(value || '')
@@ -260,40 +262,95 @@ async function issueGiftCard(payload = {}, requestedBy = 'admin') {
   if (!Number.isSafeInteger(amount) || amount < 500 || amount > 1000000) {
     throw commerceError('Сумма сертификата должна быть от 500 до 1 000 000 ₸');
   }
-  const code = `BLK-${crypto.randomBytes(8).toString('hex').toUpperCase()}`;
   const expiresAt = promotionDate(payload.expiresAt, 'Срок действия');
   if (expiresAt && expiresAt <= new Date()) {
     throw commerceError('Срок действия сертификата должен быть в будущем');
   }
-  const { data, error } = await supabase
-    .from('gift_cards')
-    .insert({
-      code_hash: giftHash(code),
-      code_last4: code.slice(-4),
-      initial_balance: amount,
-      balance: amount,
-      purchaser_customer_id: payload.purchaserCustomerId || null,
-      recipient_customer_id: payload.recipientCustomerId || null,
-      recipient_name:
-        String(payload.recipientName || '')
-          .trim()
-          .slice(0, 160) || null,
-      message:
-        String(payload.message || '')
-          .trim()
-          .slice(0, 500) || null,
-      expires_at: expiresAt?.toISOString() || null,
-    })
-    .select('*')
-    .single();
-  if (error) throw error;
-  await supabase.from('gift_card_transactions').insert({
-    gift_card_id: data.id,
-    customer_id: payload.purchaserCustomerId || null,
-    type: 'issue',
+  const requestId = String(payload.idempotencyKey || '')
+    .trim()
+    .toLowerCase();
+  if (!UUID_PATTERN.test(requestId)) {
+    throw commerceError('Для выпуска сертификата нужен уникальный ключ запроса');
+  }
+  const issuer = String(requestedBy || 'admin')
+    .trim()
+    .slice(0, 160);
+  const normalized = {
+    requestId,
     amount,
+    purchaserCustomerId: payload.purchaserCustomerId || null,
+    recipientCustomerId: payload.recipientCustomerId || null,
+    recipientName:
+      String(payload.recipientName || '')
+        .trim()
+        .slice(0, 160) || null,
+    message:
+      String(payload.message || '')
+        .trim()
+        .slice(0, 500) || null,
+    expiresAt: expiresAt?.toISOString() || null,
+    issuer,
+  };
+  const payloadHash = crypto
+    .createHash('sha256')
+    .update(JSON.stringify(normalized), 'utf8')
+    .digest('hex');
+  const code = `BLK-${crypto.randomBytes(8).toString('hex').toUpperCase()}`;
+  const codeCiphertext = encryptSecret(code, {
+    purpose: 'admin-gift-card-code',
+    aad: `admin-gift:${requestId}`,
   });
-  return { ...data, code, requestedBy };
+  const configuredAmountLimit = Number(process.env.ADMIN_GIFT_CARD_DAILY_AMOUNT_LIMIT || 2000000);
+  const configuredCountLimit = Number(process.env.ADMIN_GIFT_CARD_DAILY_COUNT_LIMIT || 20);
+  const dailyAmountLimit = Number.isSafeInteger(configuredAmountLimit)
+    ? Math.min(100000000, Math.max(500, configuredAmountLimit))
+    : 2000000;
+  const dailyCountLimit = Number.isSafeInteger(configuredCountLimit)
+    ? Math.min(1000, Math.max(1, configuredCountLimit))
+    : 20;
+  const { data, error } = await supabase.rpc('issue_admin_gift_card', {
+    p_request_id: requestId,
+    p_payload_hash: payloadHash,
+    p_code_hash: giftHash(code),
+    p_code_last4: code.slice(-4),
+    p_code_ciphertext: codeCiphertext,
+    p_amount: amount,
+    p_purchaser_customer_id: normalized.purchaserCustomerId,
+    p_recipient_customer_id: normalized.recipientCustomerId,
+    p_recipient_name: normalized.recipientName,
+    p_message: normalized.message,
+    p_expires_at: normalized.expiresAt,
+    p_issued_by: issuer,
+    p_daily_amount_limit: dailyAmountLimit,
+    p_daily_count_limit: dailyCountLimit,
+  });
+  if (error) {
+    const message = String(error.message || '');
+    if (/idempotency conflict/i.test(message)) {
+      throw commerceError('Ключ запроса уже использован с другими данными', 409);
+    }
+    if (/daily limit exceeded/i.test(message)) {
+      throw commerceError('Дневной лимит выпуска сертификатов исчерпан', 429);
+    }
+    if (/invalid admin gift card/i.test(message)) {
+      throw commerceError('Некорректные данные выпуска сертификата');
+    }
+    throw error;
+  }
+  const card = data?.card;
+  if (!card || !data?.codeCiphertext) {
+    throw commerceError('Сервис выпуска вернул неполный результат', 503);
+  }
+  const issuedCode = decryptSecret(data.codeCiphertext, {
+    purpose: 'admin-gift-card-code',
+    aad: `admin-gift:${requestId}`,
+  });
+  return {
+    ...card,
+    code: issuedCode,
+    requestedBy: issuer,
+    duplicate: data.duplicate === true,
+  };
 }
 
 async function redeemGiftCard(customerId, code) {

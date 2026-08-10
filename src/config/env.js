@@ -1,3 +1,57 @@
+const LOYALTY_POS_LIMIT_DEFAULTS = Object.freeze({
+  LOYALTY_POS_MAX_ORDER_TOTAL: 250_000,
+  LOYALTY_POS_MAX_DISCOUNT_AMOUNT: 100_000,
+  LOYALTY_POS_MAX_EARNED_BONUS: 25_000,
+  LOYALTY_POS_BRANCH_ROLLING_ORDER_COUNT: 2_000,
+  LOYALTY_POS_BRANCH_ROLLING_ORDER_TOTAL: 25_000_000,
+  LOYALTY_POS_BRANCH_ROLLING_DISCOUNT_AMOUNT: 2_000_000,
+  LOYALTY_POS_BRANCH_ROLLING_EARNED_BONUS: 1_250_000,
+});
+
+function loyaltyPosConfigurationErrors(env = process.env) {
+  const errors = [];
+  const mode = String(env.LOYALTY_BRANCH_POS_ENFORCEMENT || '')
+    .trim()
+    .toLowerCase();
+  if (!['compatibility', 'required'].includes(mode)) {
+    errors.push('LOYALTY_BRANCH_POS_ENFORCEMENT(compatibility|required; explicit)');
+  }
+
+  const values = {};
+  for (const [name, fallback] of Object.entries(LOYALTY_POS_LIMIT_DEFAULTS)) {
+    const value = Number(env[name] || fallback);
+    const integer = name === 'LOYALTY_POS_BRANCH_ROLLING_ORDER_COUNT';
+    if (
+      !Number.isFinite(value) ||
+      value <= 0 ||
+      value > (integer ? 100_000 : 100_000_000) ||
+      (integer && !Number.isSafeInteger(value))
+    ) {
+      errors.push(`${name}(valid positive safety limit)`);
+    }
+    values[name] = value;
+  }
+  if (values.LOYALTY_POS_MAX_ORDER_TOTAL < 500) {
+    errors.push('LOYALTY_POS_MAX_ORDER_TOTAL(>=500)');
+  }
+  if (values.LOYALTY_POS_MAX_DISCOUNT_AMOUNT > values.LOYALTY_POS_MAX_ORDER_TOTAL) {
+    errors.push('LOYALTY_POS_MAX_DISCOUNT_AMOUNT(<=max order total)');
+  }
+  if (values.LOYALTY_POS_MAX_EARNED_BONUS > values.LOYALTY_POS_MAX_ORDER_TOTAL) {
+    errors.push('LOYALTY_POS_MAX_EARNED_BONUS(<=max order total)');
+  }
+  if (values.LOYALTY_POS_BRANCH_ROLLING_ORDER_TOTAL < values.LOYALTY_POS_MAX_ORDER_TOTAL) {
+    errors.push('LOYALTY_POS_BRANCH_ROLLING_ORDER_TOTAL(>=max order total)');
+  }
+  if (values.LOYALTY_POS_BRANCH_ROLLING_DISCOUNT_AMOUNT < values.LOYALTY_POS_MAX_DISCOUNT_AMOUNT) {
+    errors.push('LOYALTY_POS_BRANCH_ROLLING_DISCOUNT_AMOUNT(>=max discount amount)');
+  }
+  if (values.LOYALTY_POS_BRANCH_ROLLING_EARNED_BONUS < values.LOYALTY_POS_MAX_EARNED_BONUS) {
+    errors.push('LOYALTY_POS_BRANCH_ROLLING_EARNED_BONUS(>=max earned bonus)');
+  }
+  return errors;
+}
+
 function validateRuntimeConfig() {
   const isProduction =
     process.env.NODE_ENV === 'production' || Boolean(process.env.RENDER || process.env.VERCEL);
@@ -15,6 +69,7 @@ function validateRuntimeConfig() {
   const missing = required
     .filter(([name, minLength]) => String(process.env[name] || '').length < minLength)
     .map(([name]) => name);
+  missing.push(...loyaltyPosConfigurationErrors(process.env));
   if (apiSecret.length < 32) missing.push('API_SECRET');
   if (process.env.ADMIN_JWT_SECRET && String(process.env.ADMIN_JWT_SECRET).length < 32) {
     missing.push('ADMIN_JWT_SECRET(32+ characters)');
@@ -200,6 +255,15 @@ function validateRuntimeConfig() {
       missing.push(`${name}(positive number <= ${maximum})`);
     }
   }
+  for (const [name, fallback, minimum, maximum] of [
+    ['ADMIN_GIFT_CARD_DAILY_AMOUNT_LIMIT', 2_000_000, 500, 100_000_000],
+    ['ADMIN_GIFT_CARD_DAILY_COUNT_LIMIT', 20, 1, 1_000],
+  ]) {
+    const value = Number(process.env[name] || fallback);
+    if (!Number.isSafeInteger(value) || value < minimum || value > maximum) {
+      missing.push(`${name}(${minimum}..${maximum})`);
+    }
+  }
   if (
     process.env.RECEIPT_ALLOW_LEGACY_LINKS &&
     !['true', 'false'].includes(process.env.RECEIPT_ALLOW_LEGACY_LINKS)
@@ -239,4 +303,4 @@ function shouldRunBots(env = process.env) {
   return env.RUN_BOTS !== 'false';
 }
 
-module.exports = { validateRuntimeConfig, shouldRunBots };
+module.exports = { loyaltyPosConfigurationErrors, validateRuntimeConfig, shouldRunBots };

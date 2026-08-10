@@ -50,7 +50,13 @@ const publicAppIndex = path.resolve(
   'index.html',
 );
 const appScriptHashes = inlineHashesFromFile(publicAppIndex, 'script');
+const registrationPolicy = {
+  ...staticDocumentPolicy('public/app.html'),
+  imgSrc: ["'self'", 'data:'],
+};
 const staticDocumentPolicies = new Map([
+  ['/guest', registrationPolicy],
+  ['/wallet', registrationPolicy],
   ['/courier', staticDocumentPolicy('public/courier.html')],
   ['/account-deletion', staticDocumentPolicy('public/legal/account-deletion.html')],
 ]);
@@ -234,27 +240,39 @@ function isApiPath(requestPath) {
     requestPath === '/healthz' ||
     requestPath === '/livez' ||
     requestPath === '/readyz' ||
-    requestPath.startsWith('/internal/') ||
-    requestPath.startsWith('/api/') ||
-    requestPath.startsWith('/admin/api/') ||
-    requestPath.startsWith('/webhooks/') ||
-    requestPath.startsWith('/.well-known/')
+    ['/internal', '/api', '/admin/api', '/webhooks', '/.well-known'].some(
+      (prefix) => requestPath === prefix || requestPath.startsWith(`${prefix}/`),
+    )
   );
 }
 
 function directivesForPath(requestPath, nonce) {
-  if (isApiPath(requestPath)) return apiPolicy;
-  if (requestPath === '/maps/yandex') return mapPolicy(nonce);
-  if (requestPath === '/payments/forte-widget') return forteWidgetPolicy;
-  if (legalPagePaths.has(requestPath)) return legalPagePolicy;
-  if (staticDocumentPolicies.has(requestPath)) return staticDocumentPolicies.get(requestPath);
-  if (requestPath.startsWith('/payment-receipts/')) return receiptPolicy;
-  if (requestPath.startsWith('/wallet/')) return walletPolicy;
-  if (requestPath.startsWith('/tilda-copy-bot')) {
+  const normalizedPath = normalizePolicyPath(requestPath);
+  if (isApiPath(normalizedPath)) return apiPolicy;
+  if (normalizedPath === '/maps/yandex') return mapPolicy(nonce);
+  if (normalizedPath === '/payments/forte-widget') return forteWidgetPolicy;
+  if (legalPagePaths.has(normalizedPath)) return legalPagePolicy;
+  if (staticDocumentPolicies.has(normalizedPath)) {
+    return staticDocumentPolicies.get(normalizedPath);
+  }
+  if (normalizedPath.startsWith('/payment-receipts/')) return receiptPolicy;
+  if (normalizedPath.startsWith('/wallet/')) return walletPolicy;
+  if (normalizedPath.startsWith('/tilda-copy-bot')) {
     return isolatedLegacyPolicy;
   }
-  if (requestPath === '/admin' || requestPath.startsWith('/admin/')) return adminPolicy;
+  if (normalizedPath === '/admin' || normalizedPath.startsWith('/admin/')) return adminPolicy;
   return appPolicy;
+}
+
+function normalizePolicyPath(requestPath) {
+  const rawPath = String(requestPath || '/');
+  const suffixIndex = rawPath.search(/[?#]/);
+  const pathname = (suffixIndex >= 0 ? rawPath.slice(0, suffixIndex) : rawPath) || '/';
+
+  // Express' default route matching accepts one optional trailing slash. CSP
+  // selection must mirror that behavior, while deliberately leaving doubled
+  // slashes and encoded path separators unmatched.
+  return pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
 }
 
 function serializePolicy(directives) {
@@ -278,5 +296,6 @@ module.exports = {
   cspHash,
   directivesForPath,
   inlineHashes,
+  normalizePolicyPath,
   serializePolicy,
 };

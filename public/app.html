@@ -6,13 +6,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#fcfbf9" />
     <title>Регистрация в бонусной системе</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=Inter:wght@300;400;500;600&display=swap"
-      rel="stylesheet"
-    />
     <style>
+      @font-face {
+        font-family: "Golos Text";
+        src: url("/taplink/assets/fonts/GolosText-Regular.ttf") format("truetype");
+        font-style: normal;
+        font-weight: 300 500;
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: "Golos Text";
+        src: url("/taplink/assets/fonts/GolosText-SemiBold.ttf") format("truetype");
+        font-style: normal;
+        font-weight: 600 700;
+        font-display: swap;
+      }
+
       :root {
         --page: #fcfbf9;
         --surface: #ffffff;
@@ -45,7 +55,7 @@
         place-items: center;
         background: var(--page);
         color: var(--text);
-        font-family: "Inter", sans-serif;
+        font-family: "Golos Text", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
         line-height: 1.5;
       }
 
@@ -98,7 +108,7 @@
       h1 {
         margin: 0 0 8px;
         color: var(--heading);
-        font-family: "Playfair Display", serif;
+        font-family: Georgia, "Times New Roman", serif;
         font-size: clamp(1.8rem, 7vw, 2.2rem);
         line-height: 1.15;
         text-align: center;

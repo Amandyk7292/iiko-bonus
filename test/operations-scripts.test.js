@@ -70,6 +70,7 @@ test('deployment and rollback are exclusive, transactional and use one artifact 
   const packageRelease = read('scripts/deploy-vps.ps1');
   const pm2Logrotate = read('scripts/install-pm2-logrotate.sh');
   const expectedScripts = [
+    'activate-www-domain.sh',
     'apply-migrations.js',
     'backup-database.sh',
     'backup-supabase-storage.js',
@@ -79,6 +80,7 @@ test('deployment and rollback are exclusive, transactional and use one artifact 
     'enable-nginx-upstream-fallback.sh',
     'ensure-postgres-client.sh',
     'harden-nginx-access-logs.sh',
+    'harden-vps-ssh.sh',
     'install-database-backup-timer.sh',
     'install-pm2-logrotate.sh',
     'prepare-cloudflare-origin.sh',
@@ -106,7 +108,10 @@ test('deployment and rollback are exclusive, transactional and use one artifact 
   assert.match(packageRelease, /bulka-ensure-postgres-client-\$releaseId\.sh/);
   assert.doesNotMatch(packageRelease, /['"]\/tmp\/bulka-release\.zip['"]/);
   assert.match(deploy, /archive != "\/tmp\/bulka-release-\$\{release_id\}\.zip"/);
-  assert.match(deploy, /postgres_installer != "\/tmp\/bulka-ensure-postgres-client-\$\{release_id\}\.sh"/);
+  assert.match(
+    deploy,
+    /postgres_installer != "\/tmp\/bulka-ensure-postgres-client-\$\{release_id\}\.sh"/,
+  );
   assert.match(deploy, /launcher_script != "\/tmp\/bulka-deploy-release-\$\{release_id\}\.sh"/);
   assert.ok(
     deploy.indexOf('flock -n 9') < deploy.indexOf('bash "$postgres_installer"'),
@@ -165,6 +170,9 @@ test('production shell scripts pass bash syntax validation', () => {
     'scripts/deploy-release.sh',
     'scripts/rollback-vps.sh',
     'scripts/install-pm2-logrotate.sh',
+    'scripts/activate-www-domain.sh',
+    'scripts/harden-vps-ssh.sh',
+    'scripts/prepare-cloudflare-origin.sh',
   ]) {
     const result = spawnSync(bash, ['-n', script], {
       cwd: root,

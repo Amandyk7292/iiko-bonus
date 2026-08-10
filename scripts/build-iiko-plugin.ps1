@@ -45,6 +45,19 @@ function Assert-ProductionConfig([string]$Path) {
     if ([string]::IsNullOrWhiteSpace($token) -or $token.Length -lt 32 -or $token -match '(?i)replace|change-me|secret-here') {
         throw 'IIKO_LOYALTY_API_TOKEN must contain the real production secret (at least 32 characters).'
     }
+    $branchId = $settings['IIKO_BRANCH_ID']
+    $parsedBranchId = [Guid]::Empty
+    if ([string]::IsNullOrWhiteSpace($branchId) -or -not [Guid]::TryParse($branchId, [ref]$parsedBranchId)) {
+        throw 'IIKO_BRANCH_ID must contain the UUID of this terminal branch.'
+    }
+    $branchPosToken = $settings['IIKO_BRANCH_POS_TOKEN']
+    if (
+        [string]::IsNullOrWhiteSpace($branchPosToken) -or
+        $branchPosToken.Length -lt 40 -or
+        $branchPosToken -match '(?i)replace|change-me|secret-here'
+    ) {
+        throw 'IIKO_BRANCH_POS_TOKEN must contain the separately rotated token for this branch.'
+    }
     $discountName = $settings['IIKO_LOYALTY_DISCOUNT_TYPE_NAME']
     $discountId = $settings['IIKO_LOYALTY_DISCOUNT_TYPE_ID']
     if ([string]::IsNullOrWhiteSpace($discountName) -and [string]::IsNullOrWhiteSpace($discountId)) {

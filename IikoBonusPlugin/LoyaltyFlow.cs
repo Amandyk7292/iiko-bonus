@@ -418,7 +418,10 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 PluginContext.Log.Error("IikoBonusPlugin: Cannot read pending queue for status: " + ex);
                 return "Bulka Bonus\nAPI: " + ApiBaseUrl + "\nОшибка чтения локальной очереди. Проверьте журнал плагина.";
             }
-            var tokenStatus = IsTokenConfigured() ? "токен задан" : "токен НЕ задан";
+            var tokenStatus = IsTokenConfigured() ? "общий токен задан" : "общий токен НЕ задан";
+            var branchTokenStatus = IsBranchPosConfigured()
+                ? "ключ филиала задан"
+                : "ключ филиала НЕ задан";
             var waitingCount = pending.Count(x => !x.terminal);
             var failedCount = pending.Count(x => x.terminal);
             var checkedAt = _lastConnectionCheckUtc.HasValue
@@ -428,7 +431,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 ? ""
                 : "\n\nОшибки:\n" + string.Join("\n", pending.Where(x => x.terminal).Take(5).Select(x =>
                     NormalizeOperation(x.operation) + " / " + x.orderId + ": " + GetSafeErrorBody(x.lastError)));
-            return "Bulka Bonus\nAPI: " + ApiBaseUrl + "\n" + tokenStatus +
+            return "Bulka Bonus\nAPI: " + ApiBaseUrl + "\n" + tokenStatus + "\n" + branchTokenStatus +
                    "\nСвязь: " + _lastConnectionStatus + "\nПоследняя проверка: " + checkedAt +
                    "\nОжидают отправки: " + waitingCount + "\nТребуют внимания: " + failedCount +
                    "\nДанные: " + DataDirectory + failedDetails;
@@ -449,6 +452,14 @@ namespace Resto.Front.Api.IikoBonusPlugin
                    string.IsNullOrEmpty(uri.Query) && string.IsNullOrEmpty(uri.Fragment);
         }
 
+        private static bool IsBranchPosConfigured()
+        {
+            Guid branchId;
+            return Guid.TryParse(BranchId, out branchId) &&
+                   !string.IsNullOrWhiteSpace(BranchPosToken) &&
+                   BranchPosToken.Trim().Length >= 40;
+        }
+
         internal static bool EnsureApiConfiguration(IViewManager vm)
         {
             if (!IsApiUrlConfigured())
@@ -458,24 +469,13 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 try { vm.ShowErrorPopup(message, "ОК"); } catch { }
                 return false;
             }
-            return EnsureApiToken(vm);
+            if (!EnsureApiToken(vm)) return false;
+            return EnsureBranchPosToken(vm);
         }
 
         internal static bool EnsureBranchPosConfiguration(IViewManager vm)
         {
-            if (!EnsureApiConfiguration(vm)) return false;
-            Guid branchId;
-            if (!Guid.TryParse(BranchId, out branchId) ||
-                string.IsNullOrWhiteSpace(BranchPosToken) ||
-                BranchPosToken.Trim().Length < 40)
-            {
-                const string message =
-                    "Для защищённых операций задайте IIKO_BRANCH_ID и IIKO_BRANCH_POS_TOKEN этой кассы.";
-                PluginContext.Log.Error("IikoBonusPlugin: Branch POS credentials are not configured.");
-                try { vm.ShowErrorPopup(message, "ОК"); } catch { }
-                return false;
-            }
-            return true;
+            return EnsureApiConfiguration(vm);
         }
 
         private static bool EnsureApiConfiguration()
@@ -485,7 +485,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 PluginContext.Log.Error("IikoBonusPlugin: IIKO_LOYALTY_API_BASE_URL must be a valid HTTPS URL.");
                 return false;
             }
-            return EnsureApiToken();
+            if (!EnsureApiToken()) return false;
+            return EnsureBranchPosToken();
         }
 
         private static bool EnsureApiToken(IViewManager vm)
@@ -501,6 +502,23 @@ namespace Resto.Front.Api.IikoBonusPlugin
         {
             if (IsTokenConfigured()) return true;
             PluginContext.Log.Error("IikoBonusPlugin: Не задан IIKO_LOYALTY_API_TOKEN для бонусной системы.");
+            return false;
+        }
+
+        private static bool EnsureBranchPosToken(IViewManager vm)
+        {
+            if (IsBranchPosConfigured()) return true;
+            const string message =
+                "Задайте IIKO_BRANCH_ID и отдельный IIKO_BRANCH_POS_TOKEN этой кассы.";
+            PluginContext.Log.Error("IikoBonusPlugin: Branch POS credentials are not configured.");
+            try { vm.ShowErrorPopup(message, "ОК"); } catch { }
+            return false;
+        }
+
+        private static bool EnsureBranchPosToken()
+        {
+            if (IsBranchPosConfigured()) return true;
+            PluginContext.Log.Error("IikoBonusPlugin: IIKO_BRANCH_ID / IIKO_BRANCH_POS_TOKEN are not configured.");
             return false;
         }
 

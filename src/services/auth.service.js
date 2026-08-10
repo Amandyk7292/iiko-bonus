@@ -67,6 +67,7 @@ function signAdminToken(admin = {}, { expiresIn = '2h', jti = crypto.randomUUID(
       sub: String(admin.username || admin.sub || 'admin'),
       role: String(admin.role || 'admin'),
       branchIds: Array.isArray(admin.branchIds) ? admin.branchIds.map(String).slice(0, 50) : [],
+      mfa: admin.mfaVerified === true,
       jti,
     },
     requireAdminJwtSecret(),

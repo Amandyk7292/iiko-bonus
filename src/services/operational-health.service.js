@@ -1,9 +1,22 @@
 const { logger } = require('../config/logger');
 const { supabase } = require('../config/supabase');
+const { getBranchPosCoverage } = require('./branch-pos-credential.service');
+const {
+  branchPosAuthSnapshot,
+  branchPosEnforcementMode,
+} = require('../middlewares/branch-pos-auth.middleware');
+const { posLoyaltySafetySnapshot } = require('./loyalty-reservation.service');
 
 const bootedAt = Date.now();
 const workers = new Map();
 const alertTimestamps = new Map();
+let latestBranchPosCoverage = {
+  activeBranches: 0,
+  configuredActiveBranches: 0,
+  missingActiveBranches: 0,
+  activeLegacyReservations: 0,
+  readyForEnforcement: false,
+};
 
 const sendOperationalAlert = async (worker, errorCode) => {
   const webhookUrl = String(process.env.OPS_ALERT_WEBHOOK_URL || '').trim();
@@ -144,8 +157,22 @@ const checkDatabase = async () => {
   }
 };
 
-const readinessSnapshot = async ({ databaseCheck = checkDatabase } = {}) => {
-  const database = await databaseCheck();
+const checkBranchPosCoverage = async () => {
+  if (process.env.NODE_ENV === 'test') {
+    return { ...latestBranchPosCoverage, skipped: true };
+  }
+  return getBranchPosCoverage();
+};
+
+const readinessSnapshot = async ({
+  databaseCheck = checkDatabase,
+  branchPosCheck = checkBranchPosCoverage,
+} = {}) => {
+  const [database, branchPosCoverage] = await Promise.all([databaseCheck(), branchPosCheck()]);
+  latestBranchPosCoverage = { ...latestBranchPosCoverage, ...branchPosCoverage };
+  const branchPosMode = branchPosEnforcementMode();
+  const branchPosOk =
+    branchPosMode !== 'required' || branchPosCoverage.readyForEnforcement === true;
   const workerStates = workerSnapshot();
   const criticalWorkerFailed = workerStates.some(
     (worker) => worker.enabled && worker.critical && worker.stale,
@@ -156,9 +183,18 @@ const readinessSnapshot = async ({ databaseCheck = checkDatabase } = {}) => {
     }
   }
   return {
-    ok: database.ok && !criticalWorkerFailed,
+    ok: database.ok && branchPosOk && !criticalWorkerFailed,
     dependencies: {
       database: { ok: database.ok },
+      branchPosCredentials: {
+        ok: branchPosOk,
+        mode: branchPosMode,
+        activeBranches: Number(branchPosCoverage.activeBranches || 0),
+        configuredActiveBranches: Number(branchPosCoverage.configuredActiveBranches || 0),
+        missingActiveBranches: Number(branchPosCoverage.missingActiveBranches || 0),
+        activeLegacyReservations: Number(branchPosCoverage.activeLegacyReservations || 0),
+        readyForEnforcement: branchPosCoverage.readyForEnforcement === true,
+      },
     },
     workers: workerStates.map(
       ({ name, enabled, running, runs, failures, lastSuccessAt, lastFailureAt, stale }) => ({
@@ -176,6 +212,8 @@ const readinessSnapshot = async ({ databaseCheck = checkDatabase } = {}) => {
 };
 
 const renderWorkerMetrics = () => {
+  const branchPosAuth = branchPosAuthSnapshot();
+  const posLoyaltySafety = posLoyaltySafetySnapshot();
   const lines = [
     '# HELP bulka_worker_runs_total Background worker executions.',
     '# TYPE bulka_worker_runs_total counter',
@@ -192,6 +230,29 @@ const renderWorkerMetrics = () => {
       }`,
     );
   }
+  lines.push(
+    '# HELP bulka_branch_pos_credential_coverage Branches with active POS credentials.',
+    '# TYPE bulka_branch_pos_credential_coverage gauge',
+    `bulka_branch_pos_credential_coverage ${latestBranchPosCoverage.configuredActiveBranches}`,
+    '# HELP bulka_branch_pos_active_branches Active branches requiring POS credentials.',
+    '# TYPE bulka_branch_pos_active_branches gauge',
+    `bulka_branch_pos_active_branches ${latestBranchPosCoverage.activeBranches}`,
+    '# HELP bulka_loyalty_pos_active_legacy_reservations Legacy reservations that must drain before strict enforcement.',
+    '# TYPE bulka_loyalty_pos_active_legacy_reservations gauge',
+    `bulka_loyalty_pos_active_legacy_reservations ${latestBranchPosCoverage.activeLegacyReservations}`,
+    '# HELP bulka_branch_pos_enforcement_ready Whether every active branch has a POS credential.',
+    '# TYPE bulka_branch_pos_enforcement_ready gauge',
+    `bulka_branch_pos_enforcement_ready ${latestBranchPosCoverage.readyForEnforcement ? 1 : 0}`,
+    '# HELP bulka_loyalty_pos_auth_requests_total Loyalty requests by POS authentication result.',
+    '# TYPE bulka_loyalty_pos_auth_requests_total counter',
+    `bulka_loyalty_pos_auth_requests_total{mode="branch"} ${branchPosAuth.branch}`,
+    `bulka_loyalty_pos_auth_requests_total{mode="legacy"} ${branchPosAuth.legacy}`,
+    `bulka_loyalty_pos_auth_requests_total{mode="rejected"} ${branchPosAuth.rejected}`,
+    '# HELP bulka_loyalty_pos_safety_rejections_total POS loyalty requests rejected by financial safety limits.',
+    '# TYPE bulka_loyalty_pos_safety_rejections_total counter',
+    `bulka_loyalty_pos_safety_rejections_total{kind="transaction"} ${posLoyaltySafety.transaction}`,
+    `bulka_loyalty_pos_safety_rejections_total{kind="rolling"} ${posLoyaltySafety.rolling}`,
+  );
   return `${lines.join('\n')}\n`;
 };
 

@@ -6,9 +6,9 @@
     <add key="IIKO_LOYALTY_DISCOUNT_TYPE_NAME" value="Bulka Bonus" />
     <!-- If several similar discount types exist, set the exact iiko discount UUID below. -->
     <add key="IIKO_LOYALTY_DISCOUNT_TYPE_ID" value="" />
-    <!-- UUID филиала из раздела «Локации» админки. Нужен для QR/PIN-выдачи онлайн-заказов. -->
+    <!-- Обязательный UUID филиала из раздела «Локации» админки. -->
     <add key="IIKO_BRANCH_ID" value="" />
-    <!-- Уникальный секрет кассы/филиала, который создаётся в админке Bulka. -->
+    <!-- Обязательный уникальный секрет филиала для всех запросов лояльности. -->
     <add key="IIKO_BRANCH_POS_TOKEN" value="" />
     <!-- Отдельная гибкая скидка для оплаты подарочным сертификатом. Не используйте тип Bulka Bonus. -->
     <add key="IIKO_GIFT_DISCOUNT_TYPE_NAME" value="Bulka Gift Certificate" />

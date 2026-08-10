@@ -57,6 +57,7 @@ export default function MarketingPage() {
   const [editingPromotion, setEditingPromotion] = useState<any | null>(null);
   const [promotionDraft, setPromotionDraft] = useState<any>(emptyPromotion);
   const [giftOpen, setGiftOpen] = useState(false);
+  const [giftIssueRequestId, setGiftIssueRequestId] = useState(() => crypto.randomUUID());
   const [giftDraft, setGiftDraft] = useState({
     amount: 5000,
     recipientName: '',
@@ -151,6 +152,7 @@ export default function MarketingPage() {
     try {
       const result = await api.issueGiftCard({
         ...giftDraft,
+        idempotencyKey: giftIssueRequestId,
         recipientCustomerId: giftDraft.recipientCustomerId || null,
         expiresAt: giftDraft.expiresAt || null,
       });
@@ -348,6 +350,7 @@ export default function MarketingPage() {
               className="btn-classic px-5 inline-flex items-center gap-2"
               type="button"
               onClick={() => {
+                setGiftIssueRequestId(crypto.randomUUID());
                 setGiftOpen(true);
                 setIssuedCode('');
               }}

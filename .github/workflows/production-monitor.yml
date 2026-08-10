@@ -1,0 +1,72 @@
+name: Production monitor
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: production-monitor
+  cancel-in-progress: true
+
+jobs:
+  edge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22.17.0
+      - name: Check public production edge
+        env:
+          MONITOR_REQUIRE_CLOUDFLARE: ${{ vars.PRODUCTION_REQUIRE_CLOUDFLARE || 'false' }}
+        run: node scripts/check-production-edge.mjs
+      - name: Record production incident
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INCIDENT_TITLE: '[monitor] Production edge is unhealthy'
+        run: |
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          body=$(printf 'The independent production-edge monitor failed.\n\n- Workflow: %s\n- Detected: %s\n- Service: https://bulka.com.kz\n\nReview the failed checks before closing this incident.' \
+            "$run_url" "$(date -u +%FT%TZ)")
+          issue_number=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open \
+            --search '"[monitor] Production edge is unhealthy" in:title' \
+            --json number,title \
+            --jq 'map(select(.title == "[monitor] Production edge is unhealthy")) | .[0].number // empty' \
+            | head -n 1)
+          if [ -n "$issue_number" ]; then
+            gh issue edit "$issue_number" --repo "$GITHUB_REPOSITORY" --body "$body"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$INCIDENT_TITLE" \
+              --body "$body" --label production-incident 2>/dev/null || \
+              gh issue create --repo "$GITHUB_REPOSITORY" --title "$INCIDENT_TITLE" --body "$body"
+          fi
+      - name: Notify external receiver
+        if: failure()
+        env:
+          ALERT_URL: ${{ secrets.PRODUCTION_MONITOR_WEBHOOK_URL }}
+          ALERT_TOKEN: ${{ secrets.PRODUCTION_MONITOR_BEARER_TOKEN }}
+        run: |
+          if [ -z "$ALERT_URL" ]; then
+            echo '::warning::PRODUCTION_MONITOR_WEBHOOK_URL is not configured; relying on GitHub Actions failure notifications.'
+            exit 0
+          fi
+          case "$ALERT_URL" in
+            https://*) ;;
+            *) echo '::error::PRODUCTION_MONITOR_WEBHOOK_URL must use HTTPS.'; exit 1 ;;
+          esac
+          payload=$(printf '{"event":"bulka_production_monitor_failed","service":"bulka.com.kz","runUrl":"%s/%s/actions/runs/%s","occurredAt":"%s"}' \
+            "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$(date -u +%FT%TZ)")
+          auth=()
+          if [ -n "$ALERT_TOKEN" ]; then
+            auth=(-H "Authorization: Bearer $ALERT_TOKEN")
+          fi
+          curl --fail --silent --show-error --max-time 10 \
+            -H 'Content-Type: application/json' "${auth[@]}" \
+            --data "$payload" "$ALERT_URL" >/dev/null
