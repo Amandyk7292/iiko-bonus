@@ -1,9 +1,32 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { applyAdminScopeHeaders, composeRequestAbortSignal } from './api';
+import { api, applyAdminScopeHeaders, composeRequestAbortSignal } from './api';
 
 describe('admin API request abort composition', () => {
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it('only sends the literal iikoFront confirmation for kitchen acceptance', async () => {
+    const fetchMock = vi.fn().mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ success: true, order: {} }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.updateKitchenStatus('order-1', 'ready');
+    await api.updateKitchenStatus('order-2', 'preparing', 20, true);
+
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({ status: 'ready' });
+    expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toEqual({
+      status: 'preparing',
+      preparationMinutes: 20,
+      iikoManualEntryConfirmed: true,
+    });
   });
 
   it('forwards caller cancellation and removes its listener during cleanup', () => {
@@ -42,8 +65,7 @@ describe('admin API request abort composition', () => {
   });
 
   it('sends every city branch to regular APIs and one technical branch to menu APIs', () => {
-    const scope =
-      'city:%D0%B0%D1%81%D1%82%D0%B0%D0%BD%D0%B0|branch-a,branch-b';
+    const scope = 'city:%D0%B0%D1%81%D1%82%D0%B0%D0%BD%D0%B0|branch-a,branch-b';
     const operationsHeaders = new Headers();
     applyAdminScopeHeaders(operationsHeaders, '/operations/summary', scope);
     expect(operationsHeaders.get('X-Bulka-Branch-Ids')).toBe('branch-a,branch-b');

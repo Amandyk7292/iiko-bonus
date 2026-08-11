@@ -70,7 +70,7 @@ export default function Topbar({
 }) {
   const { t } = useI18n();
   const location = useLocation();
-  const { summary, soundEnabled, setSoundEnabled } = useAdminRealtime();
+  const { summary, connectionStatus, soundEnabled, setSoundEnabled } = useAdminRealtime();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const notificationsRef = useRef<HTMLDivElement>(null);
   const notificationsButtonRef = useRef<HTMLButtonElement>(null);
@@ -80,6 +80,8 @@ export default function Topbar({
   const cityScopes = getAdminCityScopes(scopeLocations);
   const selectedScope = parseAdminScopeSelection(selectedBranchId);
   const selectedCity = cityScopeForSelection(cityScopes, selectedBranchId);
+  const cashierBranch =
+    scopeLocations.find((branch) => branch.id === selectedBranchId) ?? scopeLocations[0] ?? null;
   const counts = summary?.counts;
   const actionCount = counts
     ? counts.newOrders +
@@ -181,7 +183,45 @@ export default function Topbar({
       </div>
       <div className="topbar-actions">
         {!operatorMode && !cashierMode && <AdminGlobalSearch />}
-        {!operatorMode && usesBranchScope && scopeLocations.length > 0 && (
+        {cashierMode && (
+          <div className="cashier-staff-controls">
+            <div
+              className="cashier-branch realtime-status"
+              aria-label={t('adminScope.branch')}
+            >
+              <span className="realtime-status-copy">
+                <small>{t('adminScope.branch')}</small>
+                <strong>{cashierBranch?.name || t('adminScope.branch')}</strong>
+              </span>
+            </div>
+            <div
+              className={`cashier-connection realtime-status realtime-status-${connectionStatus || 'connecting'}`}
+              role="status"
+              aria-label={`${t('staff.connection')}: ${t(
+                `realtime.${connectionStatus || 'connecting'}`,
+              )}`}
+            >
+              <span className="realtime-status-dot" aria-hidden="true" />
+              <span className="realtime-status-copy">
+                <strong>{t(`realtime.${connectionStatus || 'connecting'}`)}</strong>
+              </span>
+            </div>
+            <button
+              type="button"
+              className="btn-outline cashier-sound-toggle"
+              aria-pressed={soundEnabled}
+              onClick={() => setSoundEnabled(!soundEnabled)}
+            >
+              {soundEnabled ? (
+                <Volume2 aria-hidden="true" size={18} />
+              ) : (
+                <VolumeX aria-hidden="true" size={18} />
+              )}
+              <span>{t(soundEnabled ? 'staff.soundOn' : 'staff.soundOff')}</span>
+            </button>
+          </div>
+        )}
+        {!operatorMode && !cashierMode && usesBranchScope && scopeLocations.length > 0 && (
           <div className="topbar-scope-selectors">
             <label className="topbar-branch-select topbar-city-select">
               <span>{t('adminScope.city')}</span>
@@ -236,7 +276,7 @@ export default function Topbar({
             )}
           </div>
         )}
-        {!operatorMode && (
+        {!operatorMode && !cashierMode && (
           <div className="topbar-notifications" ref={notificationsRef}>
             <button
               ref={notificationsButtonRef}

@@ -204,7 +204,9 @@ test('kitchen status responds before slow ETA and notification side effects fini
   });
 
   const result = await Promise.race([
-    service.updateKitchenStatus(ORDER_ID, 'preparing', 15),
+    service.updateKitchenStatus(ORDER_ID, 'preparing', 15, {
+      iikoManualEntryConfirmed: true,
+    }),
     new Promise((_, reject) =>
       setTimeout(() => reject(new Error('status update waited for side effects')), 100),
     ),
@@ -221,7 +223,9 @@ test('accepting a paid delivery queues and starts courier dispatch', async (t) =
     t,
     baseOrder({ fulfillment_type: 'delivery', delivery_status: 'unassigned' }),
   );
-  const result = await service.updateKitchenStatus(ORDER_ID, 'preparing', 20);
+  const result = await service.updateKitchenStatus(ORDER_ID, 'preparing', 20, {
+    iikoManualEntryConfirmed: true,
+  });
   await waitForBackgroundTasks();
   assert.equal(result.kitchenStatus, 'preparing');
   assert.equal(getOrder().courier_dispatch_status, 'pending');
@@ -251,6 +255,25 @@ test('kitchen cannot hand food to a non-automobile courier', async (t) => {
   assert.equal(getOrder().kitchen_status, 'ready');
 });
 
+test('queued order cannot start until manual iikoFront entry is explicitly confirmed', async (t) => {
+  const { service, events, getOrder } = loadKitchen(t, baseOrder());
+
+  await assert.rejects(
+    () => service.updateKitchenStatus(ORDER_ID, 'preparing', 15),
+    (error) => error.statusCode === 409 && /iikoFront/i.test(error.message),
+  );
+  assert.equal(getOrder().kitchen_status, 'queued');
+  assert.equal(
+    events.some(([name]) => name === 'update-filters'),
+    false,
+  );
+
+  const accepted = await service.updateKitchenStatus(ORDER_ID, 'preparing', 15, {
+    iikoManualEntryConfirmed: true,
+  });
+  assert.equal(accepted.kitchenStatus, 'preparing');
+});
+
 test('stale kitchen transition cannot overwrite a concurrent refund claim', async (t) => {
   const { service, events, getOrder } = loadKitchen(t, baseOrder(), {
     beforeKitchenUpdate: (order) => ({
@@ -262,7 +285,10 @@ test('stale kitchen transition cannot overwrite a concurrent refund claim', asyn
   });
 
   await assert.rejects(
-    () => service.updateKitchenStatus(ORDER_ID, 'preparing'),
+    () =>
+      service.updateKitchenStatus(ORDER_ID, 'preparing', null, {
+        iikoManualEntryConfirmed: true,
+      }),
     (error) => error.statusCode === 409 && /уже изменился/i.test(error.message),
   );
   assert.equal(getOrder().fulfillment_status, 'cancelled');

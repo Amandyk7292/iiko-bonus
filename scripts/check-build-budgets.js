@@ -39,14 +39,15 @@ if (adminDirectory) {
   assertBudget(
     'Admin total JavaScript gzip',
     javascriptGzip.reduce((sum, size) => sum + size, 0),
-    // Cashier access, the lazy-loaded Taplink constructor, and explicit
-    // accessible selection markers account for the latest growth. Keep the
-    // ratchet close to the measured build instead of removing visible state.
-    329_000,
+    // Cashier access, the iPad staff workflow, the lazy-loaded Taplink
+    // constructor, and explicit accessible states account for the latest
+    // growth. Keep a small cross-platform build margin without hiding
+    // meaningful regressions.
+    330_000,
   );
   assertBudget('Admin largest JavaScript gzip', Math.max(0, ...javascriptGzip), 82_000);
-  // Focus rings and contrast-safe selected/disabled surfaces are intentional.
-  assertBudget('Admin largest CSS gzip', Math.max(0, ...styleGzip), 30_500);
+  // Focus rings, 48px staff controls, and contrast-safe states are intentional.
+  assertBudget('Admin largest CSS gzip', Math.max(0, ...styleGzip), 31_000);
 }
 
 const flutterDirectory = option('--flutter');

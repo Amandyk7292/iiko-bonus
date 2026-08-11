@@ -40,6 +40,7 @@ import 'widgets/yandex_map/yandex_map.dart';
 part 'api/bulka_api_client.dart';
 part 'app/app.dart';
 part 'core/app_release.dart';
+part 'core/admin_portal_wakelock.dart';
 part 'core/helpers.dart';
 part 'core/catalog_search.dart';
 part 'core/home_widget_sync.dart';

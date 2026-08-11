@@ -3,6 +3,14 @@ const { isDeliveryFulfillment } = require('../utils/fulfillment.util');
 
 const MAX_DISPATCH_ATTEMPTS = 10;
 const AUTOMOBILE_TRANSPORT_TYPES = new Set(['car', 'auto', 'automobile', 'van', 'truck']);
+const YANDEX_HANDOFF_ELIGIBLE_STATUSES = new Set([
+  'performer_found',
+  'pickup_arrived',
+  'ready_for_pickup_confirmation',
+  'pickuped',
+  'delivery_arrived',
+  'ready_for_delivery_confirmation',
+]);
 
 const orchestrationError = (message, statusCode = 409, code = null) =>
   Object.assign(new Error(message), { statusCode, ...(code && { code }) });
@@ -247,6 +255,21 @@ async function assertAutomobileCourierForHandoff(order) {
     .limit(1);
   if (error) throw error;
   const job = jobs?.[0];
+  const providerStatus = String(job?.provider_status || '').trim();
+  if (job && require('./yandex-delivery.service').isTerminalStatus(providerStatus)) {
+    throw orchestrationError(
+      `Передача запрещена: заявка Яндекс.Доставки завершена со статусом «${providerStatus}». Вызовите нового автокурьера.`,
+      409,
+      'YANDEX_DELIVERY_NOT_ACTIVE',
+    );
+  }
+  if (job && !YANDEX_HANDOFF_ELIGIBLE_STATUSES.has(providerStatus)) {
+    throw orchestrationError(
+      `Передача запрещена: заявка Яндекс.Доставки не готова к передаче (статус «${providerStatus || 'не указан'}»). Дождитесь назначения автокурьера.`,
+      409,
+      'YANDEX_DELIVERY_NOT_HANDOFF_ELIGIBLE',
+    );
+  }
   const vehicle = [job?.courier_car_model, job?.courier_car_number].filter(Boolean).join(' ');
   if (job && isAutomobileTransport(job.courier_transport_type, vehicle)) return true;
   if (job?.courier_transport_type) {
@@ -265,6 +288,7 @@ async function assertAutomobileCourierForHandoff(order) {
 
 module.exports = {
   AUTOMOBILE_TRANSPORT_TYPES,
+  YANDEX_HANDOFF_ELIGIBLE_STATUSES,
   assertAutomobileCourierForHandoff,
   dispatchAcceptedDeliveryOrder,
   dispatchRequestUpdates,

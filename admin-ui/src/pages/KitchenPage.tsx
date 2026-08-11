@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
-import { CheckCircle2, ChefHat, Clock3, LoaderCircle, PackageCheck, RefreshCw } from 'lucide-react';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ChefHat,
+  Clock3,
+  LoaderCircle,
+  PackageCheck,
+  RefreshCw,
+  ShoppingBag,
+} from 'lucide-react';
 import Modal from '../components/Modal';
 import PageState from '../components/PageState';
 import { useFeedback } from '../components/Feedback';
@@ -31,9 +40,29 @@ const columns = [
   },
 ];
 
+const dispatchStatuses = [
+  'not_started',
+  'pending',
+  'processing',
+  'retrying',
+  'succeeded',
+  'failed',
+];
+
 const elapsedMinutes = (value?: string | null) => {
   if (!value) return null;
   return Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 60_000));
+};
+
+const dispatchStatusKey = (value?: string | null) => {
+  const status = String(value || 'not_started');
+  return dispatchStatuses.includes(status) ? status : 'not_started';
+};
+
+const dispatchProviderLabel = (value?: string | null) => {
+  const provider = String(value || '').toLowerCase();
+  if (provider === 'bulka' || provider === 'internal') return 'Bulka';
+  return value || '';
 };
 
 const optimisticKitchenOrder = (order: any, next: string, minutes?: number) => {
@@ -66,6 +95,7 @@ export default function KitchenPage() {
   const savingIdsRef = useRef(new Set<string>());
   const [preparationOrder, setPreparationOrder] = useState<any | null>(null);
   const [preparationMinutes, setPreparationMinutes] = useState('30');
+  const [iikoManualEntryConfirmed, setIikoManualEntryConfirmed] = useState(false);
   const [, setTick] = useState(0);
   const isSaving = (id?: string) => Boolean(id && savingIdsRef.current.has(id));
   const modalSaving = isSaving(preparationOrder?.id);
@@ -110,7 +140,12 @@ export default function KitchenPage() {
     [load],
   );
 
-  const persistUpdate = async (order: any, next: string, minutes?: number) => {
+  const persistUpdate = async (
+    order: any,
+    next: string,
+    minutes?: number,
+    manualEntryConfirmed = false,
+  ) => {
     if (isSaving(order.id)) return false;
     const optimistic = optimisticKitchenOrder(order, next, minutes);
     setOrderSaving(order.id, true);
@@ -120,7 +155,10 @@ export default function KitchenPage() {
         : current.map((item) => (item.id === order.id ? optimistic : item)),
     );
     try {
-      const result = await api.updateKitchenStatus(order.id, next, minutes);
+      const result =
+        next === 'preparing'
+          ? await api.updateKitchenStatus(order.id, next, minutes, manualEntryConfirmed)
+          : await api.updateKitchenStatus(order.id, next, minutes);
       if (next !== 'handed_over') {
         setOrders((current) => current.map((item) => (item.id === order.id ? result.order : item)));
       }
@@ -142,6 +180,7 @@ export default function KitchenPage() {
     if (next === 'preparing') {
       setPreparationOrder(order);
       setPreparationMinutes(String(order.preparationMinutes || 30));
+      setIikoManualEntryConfirmed(false);
       return;
     }
     void persistUpdate(order, next);
@@ -149,14 +188,22 @@ export default function KitchenPage() {
 
   const submitPreparation = async (event: FormEvent) => {
     event.preventDefault();
-    if (!preparationOrder || modalSaving) return;
+    if (!preparationOrder || modalSaving || !iikoManualEntryConfirmed) return;
     const minutes = Number(preparationMinutes);
     if (!Number.isFinite(minutes) || minutes < 1 || minutes > 240) return;
     const order = preparationOrder;
     setPreparationOrder(null);
-    if (!(await persistUpdate(order, 'preparing', minutes))) {
+    if (!(await persistUpdate(order, 'preparing', minutes, true))) {
       setPreparationOrder(order);
+    } else {
+      setIikoManualEntryConfirmed(false);
     }
+  };
+
+  const closePreparation = () => {
+    if (modalSaving) return;
+    setPreparationOrder(null);
+    setIikoManualEntryConfirmed(false);
   };
 
   const lateCount = useMemo(
@@ -217,6 +264,14 @@ export default function KitchenPage() {
                       new Date(order.promisedReadyAt) < new Date() &&
                       order.kitchenStatus !== 'ready',
                     );
+                    const delivery = order.fulfillmentType === 'delivery';
+                    const dispatchStatus = dispatchStatusKey(order.courierDispatchStatus);
+                    const actionLabel =
+                      column.next === 'handed_over'
+                        ? delivery
+                          ? t('kitchen.handoff.delivery')
+                          : t('kitchen.handoff.pickup')
+                        : t(column.actionKey);
                     return (
                       <article
                         className={`card kitchen-ticket ${late ? 'kitchen-ticket-late' : ''}`}
@@ -232,6 +287,16 @@ export default function KitchenPage() {
                                     elapsedMinutes(order.kitchenStartedAt || order.createdAt) ?? 0,
                                 })}
                           </span>
+                        </div>
+                        <div
+                          className={`status-pill mt-2 gap-2 ${delivery ? 'status-warning' : 'status-active'}`}
+                        >
+                          {delivery ? (
+                            <ShoppingBag aria-hidden="true" size={17} />
+                          ) : (
+                            <PackageCheck aria-hidden="true" size={17} />
+                          )}
+                          <span>{t(delivery ? 'locations.delivery' : 'locations.pickup')}</span>
                         </div>
                         <p>{order.branch || t('kitchen.branch')}</p>
                         <ul>
@@ -262,6 +327,38 @@ export default function KitchenPage() {
                             </small>
                           </div>
                         )}
+                        {delivery && (
+                          <div
+                            className={`inline-alert items-start mt-3 ${
+                              dispatchStatus === 'failed'
+                                ? 'inline-alert-error'
+                                : dispatchStatus === 'succeeded'
+                                  ? 'inline-alert-success'
+                                  : 'inline-alert-warning'
+                            }`}
+                            role={dispatchStatus === 'failed' ? 'alert' : 'status'}
+                          >
+                            <ShoppingBag aria-hidden="true" size={18} />
+                            <span className="grid min-w-0 gap-1 break-words">
+                              <strong>{t(`kitchen.dispatch.${dispatchStatus}`)}</strong>
+                              {order.courierDispatchProvider && (
+                                <small>
+                                  {t('kitchen.dispatch.provider', {
+                                    provider:
+                                      String(order.courierDispatchProvider).toLowerCase() === 'yandex'
+                                        ? t('kitchen.dispatch.yandex')
+                                        : dispatchProviderLabel(order.courierDispatchProvider),
+                                  })}
+                                </small>
+                              )}
+                              {order.courierDispatchError && (
+                                <small className="value-negative">
+                                  {order.courierDispatchError}
+                                </small>
+                              )}
+                            </span>
+                          </div>
+                        )}
                         <div className="kitchen-time">
                           <Clock3 aria-hidden="true" size={15} />
                           {order.promisedReadyAt ? (
@@ -275,7 +372,7 @@ export default function KitchenPage() {
                           )}
                         </div>
                         <button
-                          className="btn-classic kitchen-action"
+                          className="btn-classic w-full min-h-12 gap-2 text-base"
                           type="button"
                           disabled={isSaving(order.id)}
                           onClick={() => update(order, column.next)}
@@ -285,7 +382,7 @@ export default function KitchenPage() {
                           ) : (
                             <PackageCheck aria-hidden="true" size={17} />
                           )}
-                          {t(column.actionKey)}
+                          {actionLabel}
                         </button>
                       </article>
                     );
@@ -300,7 +397,7 @@ export default function KitchenPage() {
         open={Boolean(preparationOrder)}
         title={t('kitchen.actionStart')}
         description={preparationOrder ? `№${preparationOrder.number}` : undefined}
-        onClose={() => !modalSaving && setPreparationOrder(null)}
+        onClose={closePreparation}
         size="sm"
       >
         <form className="modal-body form-stack" onSubmit={(event) => void submitPreparation(event)}>
@@ -320,22 +417,42 @@ export default function KitchenPage() {
               value={preparationMinutes}
               onChange={(event) => setPreparationMinutes(event.target.value)}
               required
-              autoFocus
             />
           </div>
+          {preparationOrder?.fulfillmentType === 'delivery' && (
+            <div className="inline-alert inline-alert-warning items-start" role="note">
+              <AlertTriangle aria-hidden="true" size={20} />
+              <span className="grid gap-1">
+                <strong>{t('kitchen.deliveryWarning')}</strong>
+                <small>{t('kitchen.deliveryWarningHint')}</small>
+              </span>
+            </div>
+          )}
+          <label className="form-section inline-alert kitchen-iiko-confirmation cursor-pointer">
+            <input
+              type="checkbox"
+              checked={iikoManualEntryConfirmed}
+              onChange={(event) => setIikoManualEntryConfirmed(event.target.checked)}
+              required
+            />
+            <span className="grid gap-1">
+              <strong>{t('kitchen.iikoConfirmation')}</strong>
+              <small>{t('kitchen.iikoConfirmationHint')}</small>
+            </span>
+          </label>
           <div className="modal-actions">
             <button
               type="button"
-              className="btn-outline px-5"
-              onClick={() => setPreparationOrder(null)}
+              className="btn-outline px-5 min-h-12"
+              onClick={closePreparation}
               disabled={modalSaving}
             >
               {t('common.cancel')}
             </button>
             <button
               type="submit"
-              className="btn-classic px-5 inline-flex items-center gap-2"
-              disabled={modalSaving}
+              className="btn-classic px-5 min-h-12 inline-flex items-center gap-2"
+              disabled={modalSaving || !iikoManualEntryConfirmed}
             >
               {modalSaving && <LoaderCircle aria-hidden="true" className="spin" size={17} />}
               {t('kitchen.actionStart')}

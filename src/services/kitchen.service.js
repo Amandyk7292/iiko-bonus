@@ -135,7 +135,7 @@ async function updateKitchenStatus(
   orderId,
   nextStatus,
   preparationMinutes = null,
-  { branchIds = [], cancellationReason = '' } = {},
+  { branchIds = [], cancellationReason = '', iikoManualEntryConfirmed = false } = {},
 ) {
   if (!Object.hasOwn(TRANSITIONS, nextStatus)) throw kitchenError('Некорректный статус кухни');
   const { data: current, error: readError } = await supabase
@@ -160,6 +160,9 @@ async function updateKitchenStatus(
   }
   if (!(TRANSITIONS[from] || []).includes(nextStatus)) {
     throw kitchenError(`Нельзя изменить «${from}» на «${nextStatus}»`, 409);
+  }
+  if (from === 'queued' && nextStatus === 'preparing' && iikoManualEntryConfirmed !== true) {
+    throw kitchenError('Подтвердите ручное внесение заказа в iikoFront', 409);
   }
   if (nextStatus === 'handed_over' && isDeliveryFulfillment(current)) {
     await assertAutomobileCourierForHandoff(current);

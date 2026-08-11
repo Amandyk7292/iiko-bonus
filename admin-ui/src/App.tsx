@@ -435,12 +435,22 @@ export default function App() {
   }, [sidebarCollapsed]);
 
   useEffect(() => {
+    if (adminUser?.role === 'cashier') setSidebarCollapsed(true);
+  }, [adminUser?.role]);
+
+  useEffect(() => {
     if (isAuthenticated !== true || adminUser?.role === 'whatsapp_operator') return;
     let active = true;
     api.getAdminScope().then(
       (response) => {
         if (!active) return;
         setScopeLocations(response.locations);
+        if (adminUser?.role === 'cashier' && response.locations.length === 1) {
+          const cashierBranchId = response.locations[0].id;
+          setAdminBranchScope(cashierBranchId);
+          setSelectedBranchIdState(cashierBranchId);
+          return;
+        }
         const stored = getAdminBranchScope();
         const selection = parseAdminScopeSelection(stored);
         if (selection.kind === 'city') {

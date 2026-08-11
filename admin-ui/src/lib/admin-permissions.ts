@@ -84,7 +84,7 @@ export const ADMIN_ALLOWED_PATHS: Record<string, string[]> = {
     '/transactions',
     '/integrations',
   ],
-  cashier: ['/orders', '/kitchen'],
+  cashier: ['/kitchen', '/orders'],
   whatsapp_operator: ['/whatsapp'],
 };
 

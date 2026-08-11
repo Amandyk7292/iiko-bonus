@@ -235,9 +235,11 @@
   color: var(--sagi-muted);
   font-size: var(--type-caption);
 }
-.kitchen-action {
-  width: 100%;
-  gap: 7px;
+.kitchen-iiko-confirmation input {
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  accent-color: #8a3f1e;
 }
 .segmented-control {
   display: flex;
@@ -1430,5 +1432,16 @@
     50% {
       opacity: 1;
     }
+  }
+}
+
+@media (min-width: 900px) {
+  .kitchen-board {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow-x: visible;
+  }
+
+  .kitchen-column {
+    min-width: 0;
   }
 }

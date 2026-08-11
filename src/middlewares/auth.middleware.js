@@ -34,6 +34,17 @@ const ADMIN_ROLES = new Set([
   'whatsapp_operator',
 ]);
 
+const DEFAULT_ADMIN_SESSION_OPTIONS = Object.freeze({
+  expiresIn: '2h',
+  maxAgeMs: 2 * 60 * 60 * 1000,
+});
+const CASHIER_SESSION_OPTIONS = Object.freeze({
+  expiresIn: '12h',
+  maxAgeMs: 12 * 60 * 60 * 1000,
+});
+const sessionOptionsForAdmin = (admin) =>
+  admin?.role === 'cashier' ? CASHIER_SESSION_OPTIONS : DEFAULT_ADMIN_SESSION_OPTIONS;
+
 const ROLE_AREAS = {
   owner: new Set(['*']),
   admin: new Set(['*']),
@@ -288,9 +299,10 @@ const issueAdminSession = async (
   req,
   res,
   admin,
-  { expiresIn = '2h', maxAgeMs = 2 * 60 * 60 * 1000 } = {},
+  sessionOptions = sessionOptionsForAdmin(admin),
 ) => {
   try {
+    const { expiresIn, maxAgeMs } = sessionOptions;
     const jti = crypto.randomUUID();
     const token = signAdminToken(admin, { expiresIn, jti });
     const payload = verifyToken(token, 'bulka-admin');
@@ -500,9 +512,6 @@ const adminCsrfMiddleware = (req, res, next) => {
 
 const cashierMutationAllowed = (req, area) => {
   const path = String(req.path || '').replace(/^\/+/, '');
-  if (area === 'orders' && req.method === 'PATCH' && /^orders\/[0-9a-f-]+\/status$/i.test(path)) {
-    return new Set(['accepted', 'preparing', 'ready']).has(String(req.body?.status || ''));
-  }
   if (area === 'kitchen' && req.method === 'PATCH' && /^kitchen\/[0-9a-f-]+\/status$/i.test(path)) {
     return new Set(['preparing', 'ready', 'handed_over']).has(String(req.body?.status || ''));
   }
@@ -527,7 +536,7 @@ const adminMutationRoleMiddleware = (req, res, next) => {
   }
   if (req.admin.role === 'cashier' && !readOnly && !cashierMutationAllowed(req, area)) {
     return res.status(403).json({
-      error: 'Кассир может только продвигать заказ и кухню по рабочим статусам',
+      error: 'Кассир может продвигать заказ только через экран кухни',
       code: 'CASHIER_ACTION_FORBIDDEN',
     });
   }
@@ -585,8 +594,10 @@ module.exports = {
   TAPLINK_ACTIONS,
   ROLE_ACTIONS,
   ROLE_AREAS,
+  CASHIER_SESSION_OPTIONS,
   actionsForRole,
   hasAdminAction,
   requireAdminAction,
   requireAdminMfa,
+  sessionOptionsForAdmin,
 };

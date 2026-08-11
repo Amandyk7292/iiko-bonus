@@ -61,11 +61,56 @@ class AdminPortalScreen extends StatefulWidget {
   State<AdminPortalScreen> createState() => _AdminPortalScreenState();
 }
 
-class _AdminPortalScreenState extends State<AdminPortalScreen> {
+class _AdminPortalScreenState extends State<AdminPortalScreen>
+    with WidgetsBindingObserver {
   int _progress = 0;
   int _retryKey = 0;
   bool _ready = false;
   bool _failed = false;
+  late final AdminPortalWakelockController _wakelockController;
+  bool _wakelockEligible = false;
+  bool _wakelockRequested = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _wakelockController = AdminPortalWakelockController();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _wakelockEligible = shouldKeepAdminPortalAwake(
+      screenSize: MediaQuery.sizeOf(context),
+      platform: defaultTargetPlatform,
+    );
+    final lifecycleState = WidgetsBinding.instance.lifecycleState;
+    _requestWakelock(
+      _wakelockEligible &&
+          (lifecycleState == null ||
+              lifecycleState == AppLifecycleState.resumed),
+    );
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _requestWakelock(_wakelockEligible && state == AppLifecycleState.resumed);
+  }
+
+  void _requestWakelock(bool active) {
+    if (_wakelockRequested == active) return;
+    _wakelockRequested = active;
+    unawaited(_wakelockController.setActive(active));
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _wakelockRequested = false;
+    unawaited(_wakelockController.dispose());
+    super.dispose();
+  }
 
   Future<bool> _openExternal(Uri uri) {
     return launchUrl(uri, mode: LaunchMode.externalApplication);

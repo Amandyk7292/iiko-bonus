@@ -869,10 +869,19 @@ export const api = {
     if (branchId) params.set('branchId', branchId);
     return request<{ success: boolean; orders: any[] }>(`/kitchen?${params}`);
   },
-  updateKitchenStatus: (id: string, status: string, preparationMinutes?: number) =>
+  updateKitchenStatus: (
+    id: string,
+    status: string,
+    preparationMinutes?: number,
+    iikoManualEntryConfirmed = false,
+  ) =>
     request<{ success: boolean; order: any }>(
       `/kitchen/${encodeURIComponent(id)}/status`,
-      json('PATCH', { status, preparationMinutes }),
+      json('PATCH', {
+        status,
+        preparationMinutes,
+        ...(iikoManualEntryConfirmed ? { iikoManualEntryConfirmed: true } : {}),
+      }),
     ),
   getReviews: ({ status = '', search = '', page = 1, pageSize = 30 } = {}) => {
     const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });

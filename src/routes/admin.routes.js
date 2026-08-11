@@ -100,6 +100,7 @@ const { registerPaymentIntegrationAdminRoutes } = require('./admin/payment-integ
 const { registerOrderSubstitutionAdminRoutes } = require('./admin/order-substitution.routes');
 const { registerBackendSafetyAdminRoutes } = require('./admin/backend-safety.routes');
 const { registerBusinessFoundationAdminRoutes } = require('./admin/business-foundation.routes');
+const { setAdminAuditContext } = require('../services/admin-audit.service');
 const {
   registerInventoryAdminRoutes,
   registerMenuAdminRoutes,
@@ -1346,17 +1347,30 @@ router.patch(
   validateRequest({ params: orderParamsSchema, body: kitchenStatusBodySchema }),
   async (req, res) => {
     try {
+      const order = await kitchenService.updateKitchenStatus(
+        req.params.id,
+        req.body.status,
+        req.body.preparationMinutes,
+        {
+          branchIds: scopedBranchIds(req),
+          cancellationReason: req.body.cancellationReason,
+          iikoManualEntryConfirmed: req.body.iikoManualEntryConfirmed,
+        },
+      );
+      setAdminAuditContext(req, {
+        actionCode: 'KITCHEN_STATUS_UPDATED',
+        targetType: 'order',
+        targetId: order.id,
+        branchId: order.branchId,
+        context: {
+          status: req.body.status,
+          preparationMinutes: req.body.preparationMinutes ?? null,
+          iikoManualEntryConfirmed: req.body.iikoManualEntryConfirmed === true,
+        },
+      });
       res.json({
         success: true,
-        order: await kitchenService.updateKitchenStatus(
-          req.params.id,
-          req.body?.status,
-          req.body?.preparationMinutes,
-          {
-            branchIds: scopedBranchIds(req),
-            cancellationReason: req.body?.cancellationReason,
-          },
-        ),
+        order,
       });
     } catch (error) {
       res.status(error.statusCode || 500).json({ success: false, error: error.message });

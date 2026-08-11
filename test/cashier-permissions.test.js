@@ -52,17 +52,7 @@ test('cashier role is limited to branch-scoped orders and kitchen', () => {
   );
 });
 
-test('cashier can move safe statuses forward but cannot cancel or manage delivery', () => {
-  for (const status of ['accepted', 'preparing', 'ready']) {
-    assert.equal(
-      runMutationGuard({
-        method: 'PATCH',
-        path: `/orders/${ORDER_ID}/status`,
-        body: { status },
-      }).nextCalled,
-      true,
-    );
-  }
+test('cashier can use kitchen workflow but cannot bypass it through generic orders', () => {
   assert.equal(
     runMutationGuard({
       method: 'PATCH',
@@ -73,6 +63,9 @@ test('cashier can move safe statuses forward but cannot cancel or manage deliver
   );
 
   for (const request of [
+    { method: 'PATCH', path: `/orders/${ORDER_ID}/status`, body: { status: 'accepted' } },
+    { method: 'PATCH', path: `/orders/${ORDER_ID}/status`, body: { status: 'preparing' } },
+    { method: 'PATCH', path: `/orders/${ORDER_ID}/status`, body: { status: 'ready' } },
     { method: 'PATCH', path: `/orders/${ORDER_ID}/status`, body: { status: 'completed' } },
     { method: 'PATCH', path: `/orders/${ORDER_ID}/status`, body: { status: 'cancelled' } },
     { method: 'PATCH', path: `/kitchen/${ORDER_ID}/status`, body: { status: 'cancelled' } },
@@ -88,12 +81,7 @@ test('cashier can move safe statuses forward but cannot cancel or manage deliver
 
 test('cashier credential RPCs are executable only by the service role', () => {
   const migration = fs.readFileSync(
-    path.join(
-      process.cwd(),
-      'supabase',
-      'migrations',
-      '20260807170000_cashier_credentials.sql',
-    ),
+    path.join(process.cwd(), 'supabase', 'migrations', '20260807170000_cashier_credentials.sql'),
     'utf8',
   );
   for (const functionName of [

@@ -58,7 +58,8 @@ describe('admin production invariants', () => {
     expect(topbar).toContain('topbar-notifications');
     expect(topbar).toContain('topbar-logout');
     expect(topbar).not.toContain('LanguageSelect');
-    expect(topbar).not.toContain('realtime-status');
+    expect(topbar).toContain('cashier-staff-controls');
+    expect(topbar).toContain('realtime-status');
   });
 
   it('keeps long product labels inside container-responsive cards', () => {

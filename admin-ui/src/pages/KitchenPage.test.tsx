@@ -80,19 +80,28 @@ describe('Kitchen optimistic workflow', () => {
 
     const queuedTicket = (await screen.findByText('№100041')).closest('article');
     expect(queuedTicket).not.toBeNull();
-    await user.click(within(queuedTicket!).getByRole('button', { name: 'Принять' }));
+    await user.click(within(queuedTicket!).getByRole('button', { name: 'Принять заказ' }));
     const minutes = await screen.findByLabelText('Время приготовления, минут');
+    expect(minutes).not.toHaveFocus();
     await user.clear(minutes);
     await user.type(minutes, '12');
-    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Принять' }));
+    const dialog = screen.getByRole('dialog');
+    const acceptButton = within(dialog).getByRole('button', { name: 'Принять заказ' });
+    expect(acceptButton).toBeDisabled();
+    await user.click(
+      within(dialog).getByRole('checkbox', {
+        name: /Заказ пробит вручную в iikoFront/,
+      }),
+    );
+    await user.click(acceptButton);
 
-    expect(apiMocks.updateKitchenStatus).toHaveBeenCalledWith('queued-1', 'preparing', 12);
+    expect(apiMocks.updateKitchenStatus).toHaveBeenCalledWith('queued-1', 'preparing', 12, true);
     const preparingColumn = screen.getByText('Готовится').closest<HTMLElement>('.kitchen-column');
     expect(within(preparingColumn!).getByText('№100041')).toBeInTheDocument();
 
     await user.click(
       within(screen.getByText('№100042').closest('article')!).getByRole('button', {
-        name: 'Готово',
+        name: 'Заказ готов',
       }),
     );
     await waitFor(() =>
@@ -101,7 +110,7 @@ describe('Kitchen optimistic workflow', () => {
 
     await user.click(
       within(screen.getByText('№100043').closest('article')!).getByRole('button', {
-        name: 'Передан',
+        name: 'Выдать клиенту',
       }),
     );
     await waitFor(() =>
@@ -128,7 +137,7 @@ describe('Kitchen optimistic workflow', () => {
     renderPage();
 
     const ticket = (await screen.findByText('№100042')).closest('article');
-    await user.click(within(ticket!).getByRole('button', { name: 'Готово' }));
+    await user.click(within(ticket!).getByRole('button', { name: 'Заказ готов' }));
 
     await waitFor(() => expect(toast).toHaveBeenCalledWith('kitchen conflict', 'error'));
     const preparingColumn = screen.getByText('Готовится').closest<HTMLElement>('.kitchen-column');
@@ -145,5 +154,71 @@ describe('Kitchen optimistic workflow', () => {
     expect(await screen.findByText('queue offline')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Повторить' }));
     expect(await screen.findByRole('heading', { name: 'Экран кухни' })).toBeInTheDocument();
+  });
+
+  it('explains delivery dispatch and requires manual iikoFront entry before acceptance', async () => {
+    const user = userEvent.setup();
+    const deliveryOrder = {
+      ...queuedOrder,
+      id: 'delivery-1',
+      number: 100044,
+      fulfillmentType: 'delivery',
+      courierDispatchStatus: 'failed',
+      courierDispatchProvider: 'yandex',
+      courierDispatchError: 'Временная ошибка провайдера',
+    };
+    apiMocks.getKitchenOrders.mockResolvedValueOnce({ orders: [deliveryOrder] });
+    apiMocks.updateKitchenStatus.mockResolvedValueOnce({
+      success: true,
+      order: { ...deliveryOrder, kitchenStatus: 'preparing' },
+    });
+    renderPage();
+
+    const ticket = (await screen.findByText('№100044')).closest('article');
+    expect(within(ticket!).getByText('Доставка')).toBeInTheDocument();
+    expect(within(ticket!).getByText('Не удалось вызвать автокурьера')).toBeInTheDocument();
+    expect(within(ticket!).getByText('Служба: Яндекс Go')).toBeInTheDocument();
+    expect(within(ticket!).getByText('Временная ошибка провайдера')).toBeInTheDocument();
+
+    await user.click(within(ticket!).getByRole('button', { name: 'Принять заказ' }));
+    const dialog = screen.getByRole('dialog');
+    expect(
+      within(dialog).getByText('После принятия начнётся поиск автокурьера'),
+    ).toBeInTheDocument();
+    const submit = within(dialog).getByRole('button', { name: 'Принять заказ' });
+    expect(submit).toBeDisabled();
+    await user.click(
+      within(dialog).getByRole('checkbox', { name: /Заказ пробит вручную в iikoFront/ }),
+    );
+    expect(submit).toBeEnabled();
+    await user.click(submit);
+
+    await waitFor(() =>
+      expect(apiMocks.updateKitchenStatus).toHaveBeenCalledWith(
+        'delivery-1',
+        'preparing',
+        15,
+        true,
+      ),
+    );
+  });
+
+  it('uses an explicit car-courier handoff label for delivery', async () => {
+    const deliveryReady = {
+      ...readyOrder,
+      id: 'delivery-ready',
+      number: 100045,
+      fulfillmentType: 'delivery',
+      courierDispatchStatus: 'succeeded',
+      courierDispatchProvider: 'bulka',
+    };
+    apiMocks.getKitchenOrders.mockResolvedValueOnce({ orders: [deliveryReady] });
+    apiMocks.updateKitchenStatus.mockResolvedValueOnce({ success: true, order: deliveryReady });
+    renderPage();
+
+    const ticket = (await screen.findByText('№100045')).closest('article');
+    expect(
+      within(ticket!).getByRole('button', { name: 'Передать автокурьеру' }),
+    ).toBeInTheDocument();
   });
 });

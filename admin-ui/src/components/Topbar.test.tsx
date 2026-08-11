@@ -4,11 +4,14 @@ import { I18nProvider } from '../lib/i18n';
 import { BrowserRouter } from '../lib/router';
 import Topbar from './Topbar';
 
+const setSoundEnabled = vi.hoisted(() => vi.fn());
+
 vi.mock('../lib/admin-realtime', () => ({
   useAdminRealtime: () => ({
     summary: null,
+    connectionStatus: 'online',
     soundEnabled: true,
-    setSoundEnabled: vi.fn(),
+    setSoundEnabled,
   }),
 }));
 
@@ -40,7 +43,11 @@ const locations = [
   },
 ];
 
-function topbar(selectedBranchId: string, onBranchChange: (branchId: string) => void) {
+function topbar(
+  selectedBranchId: string,
+  onBranchChange: (branchId: string) => void,
+  cashierMode = false,
+) {
   return (
     <BrowserRouter basename="/admin">
       <I18nProvider>
@@ -48,6 +55,7 @@ function topbar(selectedBranchId: string, onBranchChange: (branchId: string) => 
           scopeLocations={locations}
           selectedBranchId={selectedBranchId}
           onBranchChange={onBranchChange}
+          cashierMode={cashierMode}
         />
       </I18nProvider>
     </BrowserRouter>
@@ -57,6 +65,7 @@ function topbar(selectedBranchId: string, onBranchChange: (branchId: string) => 
 describe('Topbar city and branch scope', () => {
   beforeEach(() => {
     localStorage.setItem('adminLocale', 'ru');
+    setSoundEnabled.mockClear();
     window.history.replaceState({}, '', '/admin/operations');
   });
 
@@ -110,5 +119,19 @@ describe('Topbar city and branch scope', () => {
       'title',
       'Операционные уведомления',
     );
+  });
+
+  it('shows a cashier branch, live connection and labelled sound control without selectors', () => {
+    render(topbar('aktau-1', vi.fn(), true));
+
+    expect(screen.getByText('ЖК Дукат')).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Связь с заказами: Онлайн' })).toHaveTextContent(
+      'Онлайн',
+    );
+    const sound = screen.getByRole('button', { name: 'Звук включён' });
+    expect(sound).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(sound);
+    expect(setSoundEnabled).toHaveBeenCalledWith(false);
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
   });
 });

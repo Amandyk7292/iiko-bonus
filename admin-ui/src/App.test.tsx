@@ -52,6 +52,9 @@ vi.mock('./pages/CouriersPage', () => ({
 vi.mock('./pages/OrdersPage', () => ({
   default: ({ role }: { role: string }) => <div>orders-page:{role}</div>,
 }));
+vi.mock('./pages/KitchenPage', () => ({
+  default: () => <div>kitchen-page</div>,
+}));
 vi.mock('./pages/WhatsAppPage', () => ({
   default: ({ role }: { role: string }) => <div>whatsapp-page:{role}</div>,
 }));
@@ -120,7 +123,7 @@ describe('Admin application authentication and role guards', () => {
     expect(window.location.pathname).toBe('/admin/couriers');
   });
 
-  it('routes a cashier to branch orders and enables the restricted topbar', async () => {
+  it('routes a cashier to the kitchen first and collapses the sidebar', async () => {
     apiMocks.session.mockResolvedValue({
       user: {
         username: 'cashier.aktau',
@@ -131,9 +134,12 @@ describe('Admin application authentication and role guards', () => {
     window.history.replaceState({}, '', '/admin/access');
     renderApp();
 
-    expect(await screen.findByText('orders-page:cashier')).toBeInTheDocument();
+    expect(await screen.findByText('kitchen-page')).toBeInTheDocument();
     expect(screen.getByTestId('topbar')).toHaveTextContent('cashier-topbar');
-    expect(window.location.pathname).toBe('/admin/orders');
+    expect(window.location.pathname).toBe('/admin/kitchen');
+    await waitFor(() =>
+      expect(document.querySelector('.sagi-shell')).toHaveClass('sidebar-is-collapsed'),
+    );
   });
 
   it('keeps a WhatsApp operator inside the single permitted workspace', async () => {
