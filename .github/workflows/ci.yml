@@ -173,9 +173,16 @@ jobs:
         working-directory: ${{ github.workspace }}
         shell: pwsh
         run: ./scripts/check-native-release.ps1 -SkipNetwork
-      - run: flutter build apk --debug --dart-define=BULKA_API_BASE_URL=https://bulka.com.kz
+      - name: Compile Android debug APK
+        run: >
+          node ../scripts/run-with-backoff.mjs
+          --attempts 3 --initial-delay-seconds 10 --
+          flutter build apk --debug
+          --dart-define=BULKA_API_BASE_URL=https://bulka.com.kz
       - name: Compile Android release bundle
         run: >
+          node ../scripts/run-with-backoff.mjs
+          --attempts 3 --initial-delay-seconds 10 --
           flutter build appbundle --release
           --build-number=${{ github.run_number }}
           --dart-define=BULKA_API_BASE_URL=https://bulka.com.kz
