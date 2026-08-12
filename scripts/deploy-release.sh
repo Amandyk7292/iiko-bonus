@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+umask 022
 
 release_id=${1:-}
 migration_mode=${2:-apply}
@@ -130,6 +131,72 @@ validate_copy_destination() {
   done
 }
 
+# Archives assembled on Windows can unpack as 0666/0777. Normalize only the
+# immutable payload; .env and npm-created runtime directories stay untouched.
+normalize_release_payload_permissions() {
+  local root=$1
+  local relative
+  local resolved_root
+  local unexpected_symlink
+  local -a payload_roots=()
+  local -a required_directories=(
+    src
+    public
+    admin-ui
+    admin-ui/dist
+    scripts
+    supabase
+    supabase/migrations
+  )
+  local -a root_files=(
+    index.js
+    package.json
+    package-lock.json
+    supabase_schema.sql
+    release-manifest.json
+  )
+
+  [[ -d $root && ! -L $root ]] || {
+    echo "Refusing invalid release payload root: $root" >&2
+    return 1
+  }
+  resolved_root=$(realpath -m -- "$root")
+  case "$resolved_root" in
+    "$temporary_release"|"$project"|"$staging"|"$release_store"/*) ;;
+    *) echo "Refusing to normalize unmanaged release payload: $resolved_root" >&2; return 1 ;;
+  esac
+
+  for relative in "${required_directories[@]}"; do
+    [[ -d "$root/$relative" && ! -L "$root/$relative" ]] || {
+      echo "Refusing invalid release payload directory: $root/$relative" >&2
+      return 1
+    }
+  done
+  payload_roots=(
+    "$root/src"
+    "$root/public"
+    "$root/admin-ui/dist"
+    "$root/scripts"
+    "$root/supabase/migrations"
+  )
+  unexpected_symlink=$(find "${payload_roots[@]}" -type l -print -quit)
+  if [[ -n $unexpected_symlink ]]; then
+    echo "Refusing symlinked release payload entry: $unexpected_symlink" >&2
+    return 1
+  fi
+
+  chmod 0755 -- "$root" "$root/admin-ui" "$root/supabase" || return
+  find "${payload_roots[@]}" -type d -exec chmod 0755 -- {} + || return
+  find "${payload_roots[@]}" -type f -exec chmod 0644 -- {} + || return
+  for relative in "${root_files[@]}"; do
+    [[ -f "$root/$relative" && ! -L "$root/$relative" ]] || {
+      echo "Refusing invalid release payload file: $root/$relative" >&2
+      return 1
+    }
+    chmod 0644 -- "$root/$relative" || return
+  done
+}
+
 copy_artifacts() {
   local source=$1
   local destination=$2
@@ -177,6 +244,7 @@ copy_artifacts() {
 EOF
     [[ $? -eq 0 ]] || return
   fi
+  normalize_release_payload_permissions "$destination" || return
 }
 
 quarantine_legacy_migrations() {
@@ -498,6 +566,7 @@ printf '%s  %s\n' "$expected_sha256" "$archive" | sha256sum --check --status
 curl -fsS 'http://127.0.0.1:3000/readyz' >/dev/null
 mkdir -p "$temporary_release"
 unzip -oq "$archive" -d "$temporary_release"
+normalize_release_payload_permissions "$temporary_release"
 
 for required_file in \
   src/server.js \
@@ -563,6 +632,7 @@ fi
 # Keep one prior set of content-hashed chunks. Tabs opened before deployment can
 # finish their current navigation while newer tabs receive the new index.
 retain_previous_admin_assets "$project" "$temporary_release"
+normalize_release_payload_permissions "$temporary_release"
 
 ln -sfn "$project/.env" "$temporary_release/.env"
 (

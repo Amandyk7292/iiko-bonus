@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
+umask 022
 
 project=${BULKA_PROJECT_DIR:-/var/www/iiko-bonus}
 staging=${BULKA_STAGING_DIR:-/home/deploy/iiko-bonus-staging/current}
@@ -80,6 +81,73 @@ validate_copy_destination() {
   done
 }
 
+# Normalize only immutable release files. In particular, do not traverse the
+# root or admin-ui node_modules trees, whose writable directories and symlinks
+# are created by npm rather than copied from the release payload.
+normalize_release_payload_permissions() {
+  local root=$1
+  local relative
+  local resolved_root
+  local unexpected_symlink
+  local -a payload_roots=()
+  local -a required_directories=(
+    src
+    public
+    admin-ui
+    admin-ui/dist
+    scripts
+    supabase
+    supabase/migrations
+  )
+  local -a root_files=(
+    index.js
+    package.json
+    package-lock.json
+    supabase_schema.sql
+    release-manifest.json
+  )
+
+  [[ -d $root && ! -L $root ]] || {
+    echo "Refusing invalid release payload root: $root" >&2
+    return 1
+  }
+  resolved_root=$(realpath -m -- "$root")
+  case "$resolved_root" in
+    "$project"|"$staging"|"$release_store"/*) ;;
+    *) echo "Refusing to normalize unmanaged release payload: $resolved_root" >&2; return 1 ;;
+  esac
+
+  for relative in "${required_directories[@]}"; do
+    [[ -d "$root/$relative" && ! -L "$root/$relative" ]] || {
+      echo "Refusing invalid release payload directory: $root/$relative" >&2
+      return 1
+    }
+  done
+  payload_roots=(
+    "$root/src"
+    "$root/public"
+    "$root/admin-ui/dist"
+    "$root/scripts"
+    "$root/supabase/migrations"
+  )
+  unexpected_symlink=$(find "${payload_roots[@]}" -type l -print -quit)
+  if [[ -n $unexpected_symlink ]]; then
+    echo "Refusing symlinked release payload entry: $unexpected_symlink" >&2
+    return 1
+  fi
+
+  chmod 0755 -- "$root" "$root/admin-ui" "$root/supabase" || return
+  find "${payload_roots[@]}" -type d -exec chmod 0755 -- {} + || return
+  find "${payload_roots[@]}" -type f -exec chmod 0644 -- {} + || return
+  for relative in "${root_files[@]}"; do
+    [[ -f "$root/$relative" && ! -L "$root/$relative" ]] || {
+      echo "Refusing invalid release payload file: $root/$relative" >&2
+      return 1
+    }
+    chmod 0644 -- "$root/$relative" || return
+  done
+}
+
 copy_release() {
   local source=$1
   local destination=$2
@@ -127,6 +195,7 @@ copy_release() {
 EOF
     [[ $? -eq 0 ]] || return
   fi
+  normalize_release_payload_permissions "$destination" || return
 }
 
 wait_for_health() {
@@ -262,6 +331,7 @@ test -f "$target/.healthy"
 test -f "$target/src/server.js"
 test -f "$target/package-lock.json"
 test -f "$target/release-manifest.json"
+normalize_release_payload_permissions "$target"
 
 transaction_backup="$release_store/.rollback-transaction-${requested}-$$"
 case "$transaction_backup" in

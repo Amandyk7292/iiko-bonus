@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const test = require('node:test');
@@ -154,6 +155,157 @@ test('deployment and rollback are exclusive, transactional and use one artifact 
   assert.match(pm2Logrotate, /! -L \$file/);
 });
 
+test('release payload permissions are normalized without touching runtime state', () => {
+  const deploy = read('scripts/deploy-release.sh');
+  const rollback = read('scripts/rollback-vps.sh');
+
+  for (const script of [deploy, rollback]) {
+    assert.match(script, /^#!\/usr\/bin\/env bash\r?\nset -Eeuo pipefail\r?\numask 022/m);
+    const normalizer = extractBashFunction(script, 'normalize_release_payload_permissions');
+    assert.match(normalizer, /find "\$\{payload_roots\[@\]\}" -type d -exec chmod 0755 -- \{\} \+/);
+    assert.match(normalizer, /find "\$\{payload_roots\[@\]\}" -type f -exec chmod 0644 -- \{\} \+/);
+    assert.match(normalizer, /Refusing symlinked release payload entry/);
+    assert.match(normalizer, /index\.js[\s\S]*package\.json[\s\S]*release-manifest\.json/);
+    assert.doesNotMatch(normalizer, /node_modules|\.env/);
+  }
+
+  assert.match(
+    deploy,
+    /unzip -oq "\$archive" -d "\$temporary_release"\r?\nnormalize_release_payload_permissions "\$temporary_release"/,
+  );
+  assert.match(
+    deploy,
+    /retain_previous_admin_assets "\$project" "\$temporary_release"\r?\nnormalize_release_payload_permissions "\$temporary_release"/,
+  );
+  assert.match(
+    deploy,
+    /copy_artifacts\(\)[\s\S]*normalize_release_payload_permissions "\$destination" \|\| return\r?\n\}/,
+  );
+  assert.match(
+    rollback,
+    /copy_release\(\)[\s\S]*normalize_release_payload_permissions "\$destination" \|\| return\r?\n\}/,
+  );
+  const targetNormalization = rollback.indexOf('normalize_release_payload_permissions "$target"');
+  assert.notEqual(targetNormalization, -1, 'rollback target normalization is missing');
+  assert.ok(
+    targetNormalization < rollback.indexOf('copy_release "$target" "$project"'),
+    'a stored rollback target must be made non-writable before it is promoted',
+  );
+});
+
+test(
+  'release permission normalizer converts Windows archive modes on Linux',
+  { skip: process.platform === 'win32' ? 'POSIX mode assertions require Linux' : false },
+  (t) => {
+    const deploy = read('scripts/deploy-release.sh');
+    const normalizer = extractBashFunction(deploy, 'normalize_release_payload_permissions');
+    const fixture = fs.mkdtempSync(path.join(os.tmpdir(), 'bulka-release-permissions-'));
+    t.after(() => fs.rmSync(fixture, { recursive: true, force: true }));
+
+    const directories = [
+      'src/nested',
+      'public/app',
+      'admin-ui/dist/assets',
+      'admin-ui/node_modules/.bin',
+      'scripts',
+      'supabase/migrations',
+      'node_modules/runtime',
+    ];
+    for (const relative of directories) {
+      fs.mkdirSync(path.join(fixture, relative), { recursive: true, mode: 0o777 });
+    }
+    const payloadDirectories = [
+      '',
+      'src',
+      'src/nested',
+      'public',
+      'public/app',
+      'admin-ui',
+      'admin-ui/dist',
+      'admin-ui/dist/assets',
+      'scripts',
+      'supabase',
+      'supabase/migrations',
+    ];
+    for (const relative of payloadDirectories) {
+      fs.chmodSync(path.join(fixture, relative), 0o777);
+    }
+    const payloadFiles = [
+      'src/nested/service.js',
+      'public/app/index.html',
+      'admin-ui/dist/assets/app.js',
+      'scripts/deploy-release.sh',
+      'supabase/migrations/20260812000000_example.sql',
+      'index.js',
+      'package.json',
+      'package-lock.json',
+      'supabase_schema.sql',
+      'release-manifest.json',
+    ];
+    for (const relative of payloadFiles) {
+      const absolute = path.join(fixture, relative);
+      fs.writeFileSync(absolute, 'fixture\n', { mode: 0o666 });
+      fs.chmodSync(absolute, 0o666);
+    }
+    const runtimeFile = path.join(fixture, 'node_modules/runtime/cache.bin');
+    fs.writeFileSync(runtimeFile, 'runtime\n', { mode: 0o660 });
+    fs.chmodSync(runtimeFile, 0o660);
+    fs.chmodSync(path.dirname(runtimeFile), 0o770);
+    const adminRuntimeTarget = path.join(fixture, 'admin-ui/node_modules/runtime-cli.js');
+    fs.writeFileSync(adminRuntimeTarget, 'runtime cli\n', { mode: 0o660 });
+    fs.chmodSync(adminRuntimeTarget, 0o660);
+    const adminRuntimeLink = path.join(fixture, 'admin-ui/node_modules/.bin/runtime-cli');
+    fs.symlinkSync('../runtime-cli.js', adminRuntimeLink);
+    const envFile = path.join(fixture, '.env');
+    fs.writeFileSync(envFile, 'SECRET=hidden\n', { mode: 0o600 });
+    fs.chmodSync(envFile, 0o600);
+
+    const runner = path.join(fixture, 'run-normalizer.sh');
+    fs.writeFileSync(
+      runner,
+      [
+        '#!/usr/bin/env bash',
+        'set -Eeuo pipefail',
+        'temporary_release=$1',
+        "project='/var/empty/bulka-project'",
+        "staging='/var/empty/bulka-staging'",
+        "release_store='/var/empty/bulka-releases'",
+        normalizer,
+        'normalize_release_payload_permissions "$temporary_release"',
+      ].join('\n'),
+      { mode: 0o700 },
+    );
+    const result = spawnSync('bash', [runner, fixture], { encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+
+    for (const relative of payloadFiles) {
+      assert.equal(posixMode(path.join(fixture, relative)), 0o644, relative);
+    }
+    for (const relative of payloadDirectories) {
+      assert.equal(posixMode(path.join(fixture, relative)), 0o755, relative);
+    }
+    assert.equal(posixMode(runtimeFile), 0o660, 'node_modules file remains writable');
+    assert.equal(
+      posixMode(path.dirname(runtimeFile)),
+      0o770,
+      'node_modules directory is preserved',
+    );
+    assert.equal(posixMode(adminRuntimeTarget), 0o660, 'admin runtime file remains writable');
+    assert.equal(
+      fs.readlinkSync(adminRuntimeLink),
+      '../runtime-cli.js',
+      'admin runtime symlink is preserved',
+    );
+    assert.equal(posixMode(envFile), 0o600, '.env remains private and untouched');
+
+    const payloadLink = path.join(fixture, 'src/nested/runtime-link');
+    fs.symlinkSync('../../node_modules/runtime/cache.bin', payloadLink);
+    const rejected = spawnSync('bash', [runner, fixture], { encoding: 'utf8' });
+    assert.notEqual(rejected.status, 0, 'a symlink inside the immutable payload must be rejected');
+    assert.match(rejected.stderr, /Refusing symlinked release payload entry/);
+  },
+);
+
 test('deployment requires an attested immutable GitHub CI web artifact', () => {
   const packageRelease = read('scripts/deploy-vps.ps1');
   const provenance = read('scripts/check-release-provenance.js');
@@ -270,6 +422,17 @@ function deployScriptIndex(script, backupNeedle, migrationNeedle) {
     backup: script.lastIndexOf(backupNeedle, script.indexOf(migrationNeedle)),
     migration: script.indexOf(migrationNeedle),
   };
+}
+
+function extractBashFunction(script, name) {
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = script.match(new RegExp(`(${escapedName}\\(\\) \\{[\\s\\S]*?\\n\\})\\n\\n`));
+  assert.ok(match, `${name} is missing`);
+  return match[1];
+}
+
+function posixMode(file) {
+  return fs.statSync(file).mode & 0o777;
 }
 
 function bashReleaseInventory(script) {
