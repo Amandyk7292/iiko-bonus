@@ -173,6 +173,8 @@ import type {
   AdminGlobalCustomerProfile,
   AdminGlobalSupportSummary,
   AdminPhoneLoginChallenge,
+  StaffPushDevice,
+  StaffPushPlatform,
   WhatsAppAssistantSettings,
   WhatsAppConnectionStatus,
   WhatsAppConversation,
@@ -226,6 +228,8 @@ export type {
   AdminGlobalCustomerProfile,
   AdminGlobalSupportSummary,
   AdminPhoneLoginChallenge,
+  StaffPushDevice,
+  StaffPushPlatform,
   WhatsAppAssistantSettings,
   WhatsAppConnectionStatus,
   WhatsAppConversation,
@@ -404,9 +408,37 @@ export const api = {
       selectedBranchId: string | null;
     }>('/scope'),
   logout: async () => {
-    await request('/logout', json('POST')).catch(() => undefined);
+    // Keep the authenticated UI visible unless the server confirms that the
+    // session has been revoked. Network/5xx failures remain retryable.
+    await request('/logout', json('POST'));
     window.dispatchEvent(new Event('unauthorized'));
   },
+
+  registerStaffPushDevice: (data: {
+    fcmToken: string;
+    installationId: string;
+    platform: StaffPushPlatform;
+  }) =>
+    request<{ success: true; device: StaffPushDevice }>(
+      '/staff/push-token',
+      json('POST', data),
+    ),
+  getStaffPushDeviceStatus: (device: StaffPushDevice) => {
+    const params = new URLSearchParams({
+      installationId: device.installationId,
+      platform: device.platform,
+    });
+    return request<{ success: true; enabled: boolean; device: StaffPushDevice | null }>(
+      `/staff/push-token?${params}`,
+    );
+  },
+  unregisterStaffPushDevice: (data: StaffPushDevice) =>
+    request<void>('/staff/push-token', json('DELETE', data)),
+  testStaffPushDevice: (data: StaffPushDevice) =>
+    request<{
+      success: true;
+      delivery: { status: 'sent' | 'retry' | 'failed'; attempted: 1; delivered: 0 | 1 };
+    }>('/staff/push-test', json('POST', data)),
 
   getStats: () => request<Record<string, any>>('/stats'),
   globalSearch: (query: string, limit = 20, signal?: AbortSignal) => {

@@ -29,6 +29,92 @@ describe('admin API request abort composition', () => {
     });
   });
 
+  it('registers and unregisters a staff device with the strict backend contract', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: true,
+            device: { platform: 'ios', installationId: 'installation-1' },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ success: true, enabled: true, device: {
+          platform: 'ios', installationId: 'installation-1',
+        } }), { status: 200, headers: { 'Content-Type': 'application/json' } }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: true,
+            delivery: { status: 'sent', attempted: 1, delivered: 1 },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await api.registerStaffPushDevice({
+      fcmToken: 'private-token',
+      installationId: 'installation-1',
+      platform: 'ios',
+    });
+    await api.getStaffPushDeviceStatus({
+      installationId: 'installation-1',
+      platform: 'ios',
+    });
+    await api.testStaffPushDevice({ installationId: 'installation-1', platform: 'ios' });
+    await api.unregisterStaffPushDevice({
+      installationId: 'installation-1',
+      platform: 'ios',
+    });
+
+    expect(fetchMock.mock.calls[0][0]).toBe('/admin/api/staff/push-token');
+    expect(fetchMock.mock.calls[0][1]?.method).toBe('POST');
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({
+      fcmToken: 'private-token',
+      installationId: 'installation-1',
+      platform: 'ios',
+    });
+    expect(fetchMock.mock.calls[1][0]).toBe(
+      '/admin/api/staff/push-token?installationId=installation-1&platform=ios',
+    );
+    expect(fetchMock.mock.calls[1][1]?.method).toBeUndefined();
+    expect(fetchMock.mock.calls[2][0]).toBe('/admin/api/staff/push-test');
+    expect(fetchMock.mock.calls[2][1]?.method).toBe('POST');
+    expect(JSON.parse(String(fetchMock.mock.calls[2][1]?.body))).toEqual({
+      installationId: 'installation-1',
+      platform: 'ios',
+    });
+    expect(fetchMock.mock.calls[3][1]?.method).toBe('DELETE');
+    expect(JSON.parse(String(fetchMock.mock.calls[3][1]?.body))).toEqual({
+      installationId: 'installation-1',
+      platform: 'ios',
+    });
+  });
+
+  it('does not announce logout until the server confirms session revocation', async () => {
+    const unauthorized = vi.fn();
+    window.addEventListener('unauthorized', unauthorized);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ error: 'Internal Server Error' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      ),
+    );
+
+    await expect(api.logout()).rejects.toBeDefined();
+    expect(unauthorized).not.toHaveBeenCalled();
+    window.removeEventListener('unauthorized', unauthorized);
+  });
+
   it('forwards caller cancellation and removes its listener during cleanup', () => {
     vi.useFakeTimers();
     const caller = new AbortController();

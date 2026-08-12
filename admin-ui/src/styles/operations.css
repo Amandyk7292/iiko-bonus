@@ -32,8 +32,38 @@
 
 .cashier-branch.realtime-status,
 .cashier-connection.realtime-status,
-.cashier-sound-toggle {
+.cashier-sound-toggle,
+.cashier-push-toggle,
+.cashier-push-test {
   min-height: 48px;
+}
+
+.cashier-push-wrap {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cashier-push-toggle {
+  white-space: nowrap;
+}
+
+.cashier-push-enabled {
+  border-color: #8fb9a2;
+  background: #eef8f2;
+  color: #1f6944;
+}
+
+.cashier-push-denied,
+.cashier-push-error {
+  border-color: #d8a49a;
+  background: #fff5f2;
+  color: #95382f;
+}
+
+.cashier-push-toggle .is-pending {
+  animation: realtime-pulse 1.25s ease-in-out infinite;
 }
 
 .cashier-branch.realtime-status {
@@ -63,6 +93,7 @@
 
   .cashier-staff-controls {
     flex: 1 1 100%;
+    flex-wrap: wrap;
   }
 
   .cashier-branch {
@@ -82,6 +113,12 @@
 
   .cashier-connection {
     justify-content: center;
+  }
+
+  .cashier-push-wrap,
+  .cashier-push-toggle,
+  .cashier-push-test {
+    width: 100%;
   }
 }
 

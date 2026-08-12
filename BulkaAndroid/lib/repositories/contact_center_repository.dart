@@ -10,6 +10,7 @@ enum NotificationTargetKind {
   promos,
   support,
   notifications,
+  staffKitchen,
   external,
 }
 
@@ -19,6 +20,14 @@ class NotificationTarget {
   final NotificationTargetKind kind;
   final String? resourceId;
   final Uri? uri;
+}
+
+bool notificationTargetRequiresCustomerAuth(NotificationTargetKind kind) {
+  return const {
+    NotificationTargetKind.order,
+    NotificationTargetKind.orders,
+    NotificationTargetKind.support,
+  }.contains(kind);
 }
 
 Uri? _safeHttpsUri(String raw) {
@@ -45,6 +54,16 @@ NotificationTarget resolveNotificationPayload(
   Map<String, dynamic> payload, {
   String fallbackType = '',
 }) {
+  final messageType = _asString(
+    payload['type'],
+    fallback: fallbackType,
+  ).trim().toLowerCase();
+  // Staff notifications can also contain an orderId. Resolve their exact type
+  // first so they never enter a customer's order screen or use an arbitrary
+  // URL supplied by a notification payload.
+  if (messageType == 'staff.order.new' || messageType == 'staff.order.test') {
+    return const NotificationTarget(NotificationTargetKind.staffKitchen);
+  }
   final destination = _asString(
     payload['destination'] ?? payload['route'] ?? payload['screen'],
     fallback: fallbackType,

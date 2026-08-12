@@ -80,8 +80,10 @@ class _MainShellState extends State<MainShell> {
     unawaited(_restoreCatalogOrderType());
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _catalogKey.currentState?.applyClientUri(clientRouteNotifier.value);
-      if (mounted && widget.api.isAuthenticated) {
-        PushNotifications.listenForeground(context);
+      if (mounted) {
+        // Staff devices can be intentionally signed out of the customer
+        // account while remaining registered to a branch in the admin portal.
+        unawaited(PushNotifications.listenForeground(context));
       }
     });
   }

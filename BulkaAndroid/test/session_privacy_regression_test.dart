@@ -127,6 +127,27 @@ void main() {
     api.dispose();
   });
 
+  test('strict logout surfaces a missing server confirmation', () async {
+    final api =
+        BulkaApiClient(
+          client: MockClient((request) async {
+            expect(request.url.path, '/api/auth/logout');
+            throw http.ClientException('offline');
+          }),
+        )..setSession(
+          accessToken: 'access-token',
+          refreshToken: 'refresh-token',
+          cacheScope: '+7 776 200 33 90',
+        );
+
+    await expectLater(
+      api.logoutSession(requireServerConfirmation: true),
+      throwsA(isA<http.ClientException>()),
+    );
+    expect(api.isAuthenticated, isTrue);
+    api.dispose();
+  });
+
   test('rejected refresh clears the invalid session', () async {
     final changes = <List<String?>>[];
     final api = BulkaApiClient(

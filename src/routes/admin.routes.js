@@ -59,6 +59,7 @@ const { registerContactCenterAdminRoutes } = require('./admin/contact-center.rou
 const { registerTaplinkAdminRoutes } = require('./admin/taplink.routes');
 const { registerAccessAdminRoutes } = require('./admin/access.routes');
 const { registerAdminAuthRoutes } = require('./admin/auth.routes');
+const { registerStaffPushAdminRoutes } = require('./admin/staff-push.routes');
 const {
   getSiteAccessConfig,
   normalizeIpAddress,
@@ -286,6 +287,7 @@ router.use(
 
 registerTaplinkAdminRoutes(router);
 registerAccessAdminRoutes(router);
+registerStaffPushAdminRoutes(router);
 router.get('/admin/api/settings', adminAuthMiddleware, adminController.getSettingsHandler);
 router.get('/admin/api/scope', async (req, res) => {
   try {

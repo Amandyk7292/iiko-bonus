@@ -65,6 +65,84 @@ const INVALID_TOKEN_CODES = new Set([
   'messaging/registration-token-not-registered',
 ]);
 const PUSH_SCHEMA_MISSING_CODES = new Set(['42P01', '42883', 'PGRST202', 'PGRST205']);
+const AMBIGUOUS_FIREBASE_APP_CODES = new Set([
+  'app/internal-error',
+  'app/network-error',
+  'app/network-timeout',
+  'app/unable-to-parse-response',
+]);
+const PRE_ACCEPT_TRANSPORT_CODES = new Set([
+  'CERT_HAS_EXPIRED',
+  'DEPTH_ZERO_SELF_SIGNED_CERT',
+  'EAI_AGAIN',
+  'ECONNREFUSED',
+  'ENOTFOUND',
+  'ERR_INVALID_ARG_TYPE',
+  'ERR_INVALID_URL',
+  'ERR_TLS_CERT_ALTNAME_INVALID',
+  'SELF_SIGNED_CERT_IN_CHAIN',
+  'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+]);
+const AMBIGUOUS_TRANSPORT_CODES = new Set([
+  'ECONNABORTED',
+  'ECONNRESET',
+  'ENETRESET',
+  'EPIPE',
+  'ERR_HTTP2_GOAWAY_SESSION',
+  'ERR_HTTP2_STREAM_CANCEL',
+  'ERR_HTTP2_STREAM_ERROR',
+  'ETIMEDOUT',
+  'UND_ERR_CONNECT_TIMEOUT',
+  'UND_ERR_SOCKET',
+]);
+
+const normalizedErrorCode = (error) => String(error?.code || '').trim();
+
+function nestedTransportCode(error) {
+  let current = error;
+  const seen = new Set();
+  for (let depth = 0; current && depth < 5 && !seen.has(current); depth += 1) {
+    seen.add(current);
+    const code = normalizedErrorCode(current);
+    if (code && !code.startsWith('app/') && !code.startsWith('messaging/')) return code;
+    current = current.cause;
+  }
+  return '';
+}
+
+function classifyPushSendError(error) {
+  const code = normalizedErrorCode(error);
+  const transportCode = nestedTransportCode(error);
+  const hasProviderResponse = Boolean(
+    error?.httpResponse || error?.response || error?.cause?.response,
+  );
+
+  // A structured FCM response (including 4xx/5xx) proves that this attempt was
+  // rejected without a message id. Firebase Messaging client codes are only
+  // constructed from such responses or local pre-send validation failures.
+  if (hasProviderResponse || code.startsWith('messaging/')) {
+    return { outcomeUnknown: false, error: code || 'messaging/rejected' };
+  }
+
+  // DNS, connection-refused, certificate and local argument failures prove the
+  // request could not have reached FCM. Everything else is fail-closed because
+  // the provider may have accepted the POST before its response was lost.
+  if (PRE_ACCEPT_TRANSPORT_CODES.has(transportCode || code)) {
+    return { outcomeUnknown: false, error: transportCode || code };
+  }
+  if (code.startsWith('app/') && !AMBIGUOUS_FIREBASE_APP_CODES.has(code)) {
+    return { outcomeUnknown: false, error: code };
+  }
+  const ambiguousCode = AMBIGUOUS_TRANSPORT_CODES.has(transportCode || code)
+    ? transportCode || code
+    : code.startsWith('app/')
+      ? code
+      : 'push/transport-outcome-unknown';
+  return {
+    outcomeUnknown: true,
+    error: ambiguousCode,
+  };
+}
 
 function normalizePushData(data = {}) {
   return Object.fromEntries(
@@ -127,6 +205,7 @@ async function sendPushNotificationDetailed(fcmToken, title, body, data = {}) {
       click_action: 'FLUTTER_NOTIFICATION_CLICK',
     };
     const isOrderStatus = ['order', 'delivery'].includes(normalizedData.type);
+    const isStaffOrder = ['staff.order.new', 'staff.order.test'].includes(normalizedData.type);
     const closedStatuses = new Set(['completed', 'cancelled', 'delivered']);
     const closedOrder =
       closedStatuses.has(String(normalizedData.orderStatus || '').toLowerCase()) ||
@@ -155,7 +234,7 @@ async function sendPushNotificationDetailed(fcmToken, title, body, data = {}) {
               }
             : {
                 sound: 'default',
-                channelId: 'bulka_bonus_notifications',
+                channelId: isStaffOrder ? 'bulka_staff_orders' : 'bulka_bonus_notifications',
                 priority: 'high',
                 defaultSound: true,
                 ...(normalizedData.pushDedupeKey
@@ -196,7 +275,8 @@ async function sendPushNotificationDetailed(fcmToken, title, body, data = {}) {
     console.log('Successfully sent push notification:', response);
     return { delivered: true, terminal: true, providerMessageId: response };
   } catch (error) {
-    console.error('Error sending push notification:', error.message);
+    const failure = classifyPushSendError(error);
+    console.error('Error sending push notification:', failure.error);
     const terminal = INVALID_TOKEN_CODES.has(String(error.code || ''));
     if (terminal) {
       await removeInvalidPushToken(token);
@@ -204,7 +284,8 @@ async function sendPushNotificationDetailed(fcmToken, title, body, data = {}) {
     return {
       delivered: false,
       terminal,
-      error: String(error.code || error.message || 'FCM delivery failed').slice(0, 500),
+      outcomeUnknown: failure.outcomeUnknown,
+      error: failure.error.slice(0, 120),
     };
   }
 }
@@ -469,9 +550,11 @@ async function notifyBonusChange({
 }
 
 module.exports = {
+  classifyPushSendError,
   getCustomerPushTokens,
   flushPushOutbox,
   sendPushNotification,
+  sendPushNotificationDetailed,
   sendPushToCustomer,
   notifyBonusChange,
   getPushStatus,

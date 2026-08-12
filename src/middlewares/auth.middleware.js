@@ -159,7 +159,7 @@ const ROLE_AREAS = {
     'transactions',
     'whatsapp',
   ]),
-  cashier: new Set(['session', 'scope', 'events', 'orders', 'kitchen']),
+  cashier: new Set(['session', 'scope', 'events', 'orders', 'kitchen', 'staff']),
   whatsapp_operator: new Set(['session', 'events', 'whatsapp']),
 };
 
@@ -512,6 +512,10 @@ const adminCsrfMiddleware = (req, res, next) => {
 
 const cashierMutationAllowed = (req, area) => {
   const path = String(req.path || '').replace(/^\/+/, '');
+  if (area === 'staff' && ['POST', 'DELETE'].includes(req.method) && path === 'staff/push-token') {
+    return true;
+  }
+  if (area === 'staff' && req.method === 'POST' && path === 'staff/push-test') return true;
   if (area === 'kitchen' && req.method === 'PATCH' && /^kitchen\/[0-9a-f-]+\/status$/i.test(path)) {
     return new Set(['preparing', 'ready', 'handed_over']).has(String(req.body?.status || ''));
   }
@@ -561,6 +565,13 @@ const adminAuditMiddleware = (req, res, next) => {
 const adminLogoutHandler = async (req, res) => {
   try {
     await revokeAdminSession(req.admin?.jti);
+    const { deactivateStaffDevicesForSession } = require('../services/staff-push.service');
+    await deactivateStaffDevicesForSession(req.admin?.jti).catch((error) =>
+      req?.log?.warn(
+        { err: error, event: 'staff_push_logout_cleanup_failed' },
+        'Staff push cleanup failed after session revocation',
+      ),
+    );
     res.clearCookie('bulka_admin', { httpOnly: true, sameSite: 'strict', path: '/admin' });
     return res.json({ success: true });
   } catch {

@@ -25,6 +25,8 @@
     <string name="notification_channel_general_description">Акциялар, бонустар және тапсырыс мәртебелері</string>
     <string name="notification_channel_order_name">Тапсырыс мәртебесі</string>
     <string name="notification_channel_order_description">Белсенді тапсырыстың тұрақты мәртебесі</string>
+    <string name="notification_channel_staff_orders_name">Қызметкерлерге жаңа тапсырыстар</string>
+    <string name="notification_channel_staff_orders_description">Филиалдың жаңа тапсырыстары туралы шұғыл хабарламалар</string>
     <string name="order_notification_updating">Тапсырыс жаңартылып жатыр</string>
     <string name="order_notification_eta">%1$s-ге</string>
     <string name="order_notification_title">№%1$d тапсырыс</string>

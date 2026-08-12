@@ -1331,10 +1331,16 @@ class BulkaApiClient {
         '${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
   }
 
-  Future<void> logoutSession() async {
+  Future<void> logoutSession({bool requireServerConfirmation = false}) async {
     final refreshToken = _refreshToken;
     if (!_usesCookieSessionTransport &&
         (refreshToken == null || refreshToken.isEmpty)) {
+      if (requireServerConfirmation) {
+        throw ApiException(
+          'logout_failed_retry'.tr,
+          code: 'LOGOUT_RETRY_REQUIRED',
+        );
+      }
       return;
     }
     try {
@@ -1347,7 +1353,9 @@ class BulkaApiClient {
         },
         allowRefresh: false,
       );
-    } catch (_) {}
+    } catch (_) {
+      if (requireServerConfirmation) rethrow;
+    }
   }
 
   void _startEventLoopIfAuthenticated() {

@@ -6,11 +6,16 @@ Uri bulkaAdminPortalUri({String? baseUrl}) {
       ? parsed
       : Uri.https('bulka.com.kz', '/');
   return base.replace(
-    path: '/admin/',
+    // Open the kitchen before the SPA login transition so the trusted native
+    // staff-push bridge is available as soon as the employee authenticates.
+    path: '/admin/kitchen',
     queryParameters: const {'embedded': 'app'},
     fragment: null,
   );
 }
+
+Uri bulkaAdminKitchenUri({String? baseUrl}) =>
+    bulkaAdminPortalUri(baseUrl: baseUrl);
 
 bool isTrustedAdminPortalUri(Uri uri, Uri portalUri) {
   if (uri.scheme.toLowerCase() != portalUri.scheme.toLowerCase()) return false;
@@ -18,8 +23,8 @@ bool isTrustedAdminPortalUri(Uri uri, Uri portalUri) {
   return uri.port == portalUri.port;
 }
 
-Future<void> openAdminPortal(BuildContext context) async {
-  final uri = bulkaAdminPortalUri();
+Future<void> openAdminPortal(BuildContext context, {Uri? initialUri}) async {
+  final uri = initialUri ?? bulkaAdminPortalUri();
   if (kIsWeb) {
     navigateCurrentWindow(uri);
     return;
@@ -70,6 +75,15 @@ class _AdminPortalScreenState extends State<AdminPortalScreen>
   late final AdminPortalWakelockController _wakelockController;
   bool _wakelockEligible = false;
   bool _wakelockRequested = false;
+
+  bool get _staffPushBridgeSupported => supportsNativeStaffPushBridge(
+    isWeb: kIsWeb,
+    platform: switch (defaultTargetPlatform) {
+      TargetPlatform.iOS => 'ios',
+      TargetPlatform.android => 'android',
+      _ => 'unknown',
+    },
+  );
 
   @override
   void initState() {
@@ -244,6 +258,15 @@ class _AdminPortalScreenState extends State<AdminPortalScreen>
                 },
                 openExternalUri: _openExternal,
                 onExternalOpenFailed: _showExternalOpenError,
+                onStaffPushBridgeRequest: _staffPushBridgeSupported
+                    ? PushNotifications.handleStaffPushBridgeRequest
+                    : null,
+                staffPushTokenEvents: _staffPushBridgeSupported
+                    ? PushNotifications.staffTokenEvents
+                    : null,
+                onStaffPushBridgeActivationChanged: _staffPushBridgeSupported
+                    ? PushNotifications.setStaffPushBridgeActivated
+                    : null,
               ),
             if (_failed)
               _AdminPortalErrorState(

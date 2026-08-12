@@ -25,6 +25,8 @@
     <string name="notification_channel_general_description">Offers, rewards, and order updates</string>
     <string name="notification_channel_order_name">Order status</string>
     <string name="notification_channel_order_description">Ongoing active order status</string>
+    <string name="notification_channel_staff_orders_name">New staff orders</string>
+    <string name="notification_channel_staff_orders_description">Urgent alerts for new branch orders</string>
     <string name="order_notification_updating">Order is updating</string>
     <string name="order_notification_eta">by %1$s</string>
     <string name="order_notification_title">Order #%1$d</string>

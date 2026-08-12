@@ -358,6 +358,7 @@ export default function App() {
   );
   const navigate = useNavigate();
   const location = useLocation();
+  const embeddedStaffMode = useRef(isEmbeddedAdminPortal(window.location.search)).current;
   const operatorAccessExchange = useRef<Promise<{ user: AdminUser }> | null>(null);
   const [operatorAccessError, setOperatorAccessError] = useState('');
   const isOperatorAccessRoute = location.pathname === '/whatsapp-access';
@@ -541,6 +542,7 @@ export default function App() {
           <Topbar
             operatorMode={isWhatsAppOperator}
             cashierMode={role === 'cashier'}
+            embeddedStaffMode={embeddedStaffMode}
             scopeLocations={scopeLocations}
             selectedBranchId={selectedBranchId}
             onBranchChange={handleBranchChange}

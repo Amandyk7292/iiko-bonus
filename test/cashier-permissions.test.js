@@ -42,14 +42,36 @@ const runMutationGuard = ({ method, path, body = {} }) => {
   return { nextCalled, responseStatus, responseBody };
 };
 
-test('cashier role is limited to branch-scoped orders and kitchen', () => {
+test('cashier role is limited to branch-scoped orders, kitchen and own push binding', () => {
   assert.equal(ADMIN_ROLES.has('cashier'), true);
-  assert.deepEqual([...ROLE_AREAS.cashier], ['session', 'scope', 'events', 'orders', 'kitchen']);
+  assert.deepEqual(
+    [...ROLE_AREAS.cashier],
+    ['session', 'scope', 'events', 'orders', 'kitchen', 'staff'],
+  );
   assert.deepEqual(branchScopeForAdmin({ role: 'cashier', branchIds: [BRANCH_ID] }), [BRANCH_ID]);
   assert.throws(
     () => applyAdminBranchSelection({ role: 'cashier', branchIds: [BRANCH_ID] }, OTHER_BRANCH_ID),
     /Филиал не входит/,
   );
+});
+
+test('cashier may mutate only own staff push token and test endpoints', () => {
+  for (const request of [
+    { method: 'POST', path: '/staff/push-token' },
+    { method: 'DELETE', path: '/staff/push-token' },
+    { method: 'POST', path: '/staff/push-test' },
+  ]) {
+    assert.equal(runMutationGuard(request).nextCalled, true);
+  }
+  for (const request of [
+    { method: 'PUT', path: '/staff/push-token' },
+    { method: 'DELETE', path: '/staff/push-test' },
+    { method: 'POST', path: '/staff/credentials' },
+  ]) {
+    const result = runMutationGuard(request);
+    assert.equal(result.nextCalled, false);
+    assert.equal(result.responseBody.code, 'CASHIER_ACTION_FORBIDDEN');
+  }
 });
 
 test('cashier can use kitchen workflow but cannot bypass it through generic orders', () => {

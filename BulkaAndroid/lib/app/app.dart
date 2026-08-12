@@ -47,6 +47,9 @@ Future<void> reconcileReturnedForteCheckout({
   await prefs.setString('lastAppScreen', 'customer-orders');
 }
 
+@visibleForTesting
+Future<void> resumePushNotifications() => PushNotifications.initialize();
+
 class BulkaBonusApp extends StatefulWidget {
   const BulkaBonusApp({super.key, this.appReleaseChecksEnabled = true});
 
@@ -149,6 +152,11 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      // This is deliberately independent of customer authentication. A forced
+      // logout can leave a Firebase token deletion pending while the app stays
+      // alive for days. initialize() is silent, coalesced, and in the ready
+      // state retries only that durable cleanup; it never prompts permission.
+      unawaited(resumePushNotifications());
       unawaited(_refreshRequiredAppUpdate());
     }
     final phone = _savedPhone;
@@ -326,11 +334,11 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
           (_) => unawaited(_openCustomerOrders()),
         );
       }
-      if (_pendingPushTarget != null) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) unawaited(_openPendingPushTarget());
-        });
-      }
+    }
+    if (_pendingPushTarget != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(_openPendingPushTarget());
+      });
     }
   }
 
@@ -443,11 +451,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   Future<void> _openPendingPushTarget() async {
     final target = _pendingPushTarget;
     if (target == null) return;
-    final requiresAuth = {
-      NotificationTargetKind.order,
-      NotificationTargetKind.orders,
-      NotificationTargetKind.support,
-    }.contains(target.kind);
+    final requiresAuth = notificationTargetRequiresCustomerAuth(target.kind);
     if (requiresAuth && _savedPhone == null) return;
     _pendingPushTarget = null;
     switch (target.kind) {
@@ -489,6 +493,19 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
                 onOpenOrders: (orderId) =>
                     _openCustomerOrders(initialOrderId: orderId),
               ),
+            ),
+          );
+        }
+        return;
+      case NotificationTargetKind.staffKitchen:
+        final navigator = _navigatorKey.currentState;
+        if (navigator != null) {
+          await navigator.push<void>(
+            MaterialPageRoute(
+              settings: const RouteSettings(name: 'admin-portal'),
+              fullscreenDialog: true,
+              builder: (_) =>
+                  AdminPortalScreen(initialUri: bulkaAdminKitchenUri()),
             ),
           );
         }
@@ -582,7 +599,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       final profile = await _api.getProfile(phone);
       if (!mounted) return;
       if (!profile.exists || profile.customer == null) {
-        await _logout();
+        await _forceLocalLogout();
         return;
       }
       if (_api.accessToken != requestAccessToken ||
@@ -619,7 +636,9 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
         HomeWidgetSync.update(customer: customer, activeOrder: _widgetOrder),
       );
     } catch (error) {
-      if (error is ApiException && error.statusCode == 401) await _logout();
+      if (error is ApiException && error.statusCode == 401) {
+        await _forceLocalLogout();
+      }
     }
   }
 
@@ -858,8 +877,42 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
 
   Future<void> _logout() async {
     _refreshTimer?.cancel();
-    await PushNotifications.unregister(_api);
-    await _api.logoutSession();
+    final pushUnregistered = await PushNotifications.unregister(
+      _api,
+      customerIdentity: _savedPhone,
+    );
+    if (!pushUnregistered) {
+      if (!_api.isAuthenticated) {
+        await _clearSession();
+        return;
+      }
+      throw ApiException(
+        'logout_failed_retry'.tr,
+        code: 'LOGOUT_RETRY_REQUIRED',
+      );
+    }
+    try {
+      await _api.logoutSession(requireServerConfirmation: true);
+    } catch (_) {
+      if (!_api.isAuthenticated) {
+        await _clearSession();
+        return;
+      }
+      throw ApiException(
+        'logout_failed_retry'.tr,
+        code: 'LOGOUT_RETRY_REQUIRED',
+      );
+    }
+    await _clearSession();
+  }
+
+  Future<void> _forceLocalLogout() async {
+    _refreshTimer?.cancel();
+    await PushNotifications.deferCustomerUnregister(
+      _api,
+      customerIdentity: _savedPhone,
+      invalidateInstallationToken: true,
+    );
     await _clearSession();
   }
 
@@ -1068,7 +1121,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     } catch (_) {
       if (_api.accessToken == accessToken &&
           _sameSessionPhone(_api.sessionPhone, sessionPhone)) {
-        await _clearSession();
+        await _forceLocalLogout();
       }
     }
   }
@@ -1078,12 +1131,12 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     String? refreshToken,
   ) async {
     if (accessToken == null || (!kIsWeb && refreshToken == null)) {
-      await _clearSession();
+      await _forceLocalLogout();
       return;
     }
     final verifiedPhone = _api.sessionPhone;
     if (kIsWeb && verifiedPhone == null) {
-      await _clearSession();
+      await _forceLocalLogout();
       return;
     }
     if (kIsWeb &&

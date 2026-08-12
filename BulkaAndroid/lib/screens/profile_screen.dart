@@ -164,7 +164,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
 
       if (confirmed == true) {
-        await widget.onLogout();
+        try {
+          await widget.onLogout();
+        } catch (error) {
+          if (!mounted) return;
+          showApiErrorSnackBar(
+            context,
+            error,
+            fallbackKey: 'logout_failed_retry',
+          );
+        }
       }
     });
   }

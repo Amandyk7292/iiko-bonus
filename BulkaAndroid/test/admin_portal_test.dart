@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:bulka_bonus/main.dart';
+import 'package:bulka_bonus/core/staff_push_bridge_contract.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -16,7 +17,7 @@ void main() {
 
     expect(portal.scheme, 'https');
     expect(portal.host, 'bulka.com.kz');
-    expect(portal.path, '/admin/');
+    expect(portal.path, '/admin/kitchen');
     expect(portal.queryParameters['embedded'], 'app');
     expect(
       isTrustedAdminPortalUri(
@@ -43,6 +44,152 @@ void main() {
       ),
       isFalse,
     );
+  });
+
+  test('staff push bridge accepts only strict signed native requests', () {
+    const nonce = 'trusted-page-nonce';
+    final request = StaffPushBridgeRequest.tryParse(
+      '{"version":1,"requestId":"request_12345678",'
+      '"action":"register","nonce":"trusted-page-nonce",'
+      '"userInitiated":true}',
+      expectedNonce: nonce,
+    );
+
+    expect(request, isNotNull);
+    expect(request!.action, StaffPushBridgeAction.register);
+    expect(request.userInitiated, isTrue);
+    expect(
+      StaffPushBridgeRequest.tryParse(
+        '{"version":1,"requestId":"request_12345678",'
+        '"action":"register","nonce":"attacker",'
+        '"userInitiated":true}',
+        expectedNonce: nonce,
+      ),
+      isNull,
+    );
+    expect(
+      StaffPushBridgeRequest.tryParse(
+        '{"version":1,"requestId":"request_12345678",'
+        '"action":"erase","nonce":"trusted-page-nonce",'
+        '"userInitiated":true}',
+        expectedNonce: nonce,
+      ),
+      isNull,
+    );
+    expect(
+      StaffPushBridgeRequest.tryParse(
+        '{"version":1,"requestId":"request_12345678",'
+        '"action":"register","nonce":"trusted-page-nonce",'
+        '"userInitiated":true,"token":"leak"}',
+        expectedNonce: nonce,
+      ),
+      isNull,
+    );
+  });
+
+  test('staff push bridge route is exact and native mobile only', () {
+    expect(isStaffPushBridgePath('/admin/kitchen'), isTrue);
+    expect(isStaffPushBridgePath('/admin/kitchen/'), isTrue);
+    expect(isStaffPushBridgePath('/admin'), isFalse);
+    expect(isStaffPushBridgePath('/admin/kitchen/export'), isFalse);
+    expect(isStaffPushCapabilityPath('/admin/orders'), isTrue);
+    expect(isStaffPushCapabilityPath('/admin/orders/'), isTrue);
+    expect(isStaffPushCapabilityPath('/admin'), isTrue);
+    expect(isStaffPushCapabilityPath('/admin2'), isFalse);
+    expect(isStaffPushCapabilityPath('/customer/orders'), isFalse);
+    expect(
+      supportsNativeStaffPushBridge(isWeb: false, platform: 'ios'),
+      isTrue,
+    );
+    expect(
+      supportsNativeStaffPushBridge(isWeb: false, platform: 'android'),
+      isTrue,
+    );
+    expect(
+      supportsNativeStaffPushBridge(isWeb: true, platform: 'ios'),
+      isFalse,
+    );
+    expect(
+      supportsNativeStaffPushBridge(isWeb: false, platform: 'windows'),
+      isFalse,
+    );
+  });
+
+  test(
+    'all admin pages announce native capability but only kitchen gets requests',
+    () {
+      final ordersBootstrap = buildStaffPushBridgeBootstrap(
+        platform: 'ios',
+        nonce: null,
+        exposeRequestBridge: false,
+      );
+      final kitchenBootstrap = buildStaffPushBridgeBootstrap(
+        platform: 'ios',
+        nonce: 'trusted-page-nonce',
+        exposeRequestBridge: true,
+      );
+
+      expect(ordersBootstrap, contains(staffPushBridgeReadyEvent));
+      expect(
+        RegExp(
+          RegExp.escape(staffPushBridgeReadyEvent),
+        ).allMatches(ordersBootstrap),
+        hasLength(1),
+      );
+      expect(ordersBootstrap, contains(staffPushCapabilityMarker));
+      expect(ordersBootstrap, contains('configurable: false'));
+      expect(ordersBootstrap, contains('writable: false'));
+      expect(ordersBootstrap, contains("delete window.BulkaStaffPushBridge"));
+      expect(ordersBootstrap, isNot(contains(staffPushNativeChannel)));
+      expect(kitchenBootstrap, contains(staffPushBridgeReadyEvent));
+      expect(kitchenBootstrap, contains(staffPushNativeChannel));
+      expect(kitchenBootstrap, contains('trusted-page-nonce'));
+      expect(kitchenBootstrap, contains("'BulkaStaffPushBridge'"));
+    },
+  );
+
+  test('staff push bridge activation follows SPA route transitions', () {
+    final spaPaths = [
+      '/admin',
+      '/admin/kitchen', // history.pushState after employee login
+      '/admin/orders',
+      '/admin/kitchen', // popstate/back to the kitchen
+    ];
+
+    expect(spaPaths.map(isStaffPushBridgePath), [false, true, false, true]);
+  });
+
+  test('staff order payload wins over a generic customer order id', () {
+    final target = resolveNotificationPayload({
+      'type': 'staff.order.new',
+      'orderId': 'customer-order-must-not-open',
+      'url': 'https://attacker.example/admin',
+    });
+
+    expect(target.kind, NotificationTargetKind.staffKitchen);
+    expect(target.resourceId, isNull);
+    expect(target.uri, isNull);
+    expect(notificationTargetRequiresCustomerAuth(target.kind), isFalse);
+    expect(
+      notificationTargetRequiresCustomerAuth(NotificationTargetKind.order),
+      isTrue,
+    );
+    expect(bulkaAdminKitchenUri().path, '/admin/kitchen');
+    expect(bulkaAdminKitchenUri().queryParameters['embedded'], 'app');
+  });
+
+  test('staff test push opens only the hardcoded kitchen target', () {
+    final target = resolveNotificationPayload({
+      'type': 'staff.order.test',
+      'orderId': 'customer-order-must-not-open',
+      'url': 'https://attacker.example/admin',
+      'deepLink': '/admin/users',
+    });
+
+    expect(target.kind, NotificationTargetKind.staffKitchen);
+    expect(target.resourceId, isNull);
+    expect(target.uri, isNull);
+    expect(notificationTargetRequiresCustomerAuth(target.kind), isFalse);
   });
 
   test('admin portal wakelock is limited to native tablets', () {

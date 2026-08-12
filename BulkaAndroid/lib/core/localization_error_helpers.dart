@@ -20,6 +20,8 @@ String localizeErrorMessage(
       return 'checkout_online_ordering_disabled'.tr;
     case 'SESSION_IDENTITY_CHANGED':
       return 'error_session_changed'.tr;
+    case 'LOGOUT_RETRY_REQUIRED':
+      return 'logout_failed_retry'.tr;
     case 'INVALID_OTP':
     case 'OTP_EXPIRED':
     case 'OTP_ATTEMPTS_EXCEEDED':

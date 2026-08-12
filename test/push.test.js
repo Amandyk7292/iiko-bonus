@@ -140,6 +140,33 @@ require.cache[messagingModulePath] = {
           error.code = 'messaging/registration-token-not-registered';
           throw error;
         }
+        if (message.token === 'timeout-device-token-1234567890') {
+          const cause = new Error('socket timed out after request write');
+          cause.code = 'ETIMEDOUT';
+          const error = new Error('Firebase request timed out');
+          error.code = 'app/network-timeout';
+          error.cause = cause;
+          throw error;
+        }
+        if (message.token === 'reset-device-token-123456789012') {
+          const error = new Error('socket reset after request write');
+          error.code = 'ECONNRESET';
+          throw error;
+        }
+        if (message.token === 'server-reject-token-123456789012') {
+          const error = new Error('FCM server unavailable');
+          error.code = 'messaging/server-unavailable';
+          error.httpResponse = { status: 503 };
+          throw error;
+        }
+        if (message.token === 'dns-failure-token-12345678901234') {
+          const cause = new Error('host was not resolved');
+          cause.code = 'ENOTFOUND';
+          const error = new Error('Firebase network error');
+          error.code = 'app/network-error';
+          error.cause = cause;
+          throw error;
+        }
         sentMessages.push(message);
         return `message-${sentMessages.length}`;
       },
@@ -154,7 +181,12 @@ require.cache[supabaseModulePath] = {
 };
 
 delete require.cache[pushModulePath];
-const { sendPushNotification, sendPushToCustomer } = require('../src/services/push.service');
+const {
+  classifyPushSendError,
+  sendPushNotification,
+  sendPushNotificationDetailed,
+  sendPushToCustomer,
+} = require('../src/services/push.service');
 
 test.after(() => {
   for (const [modulePath, cached] of previousModules) {
@@ -207,6 +239,58 @@ test('FCM invalid-token errors remove the stale installation', async () => {
     'remove_invalid_customer_push_token',
     { p_token: 'invalid-device-token-1234567890' },
   ]);
+});
+
+test('FCM transport timeouts and resets report an unknown provider outcome', async () => {
+  const timeout = await sendPushNotificationDetailed(
+    'timeout-device-token-1234567890',
+    'Title',
+    'Body',
+  );
+  const reset = await sendPushNotificationDetailed(
+    'reset-device-token-123456789012',
+    'Title',
+    'Body',
+  );
+
+  assert.deepEqual(timeout, {
+    delivered: false,
+    terminal: false,
+    outcomeUnknown: true,
+    error: 'ETIMEDOUT',
+  });
+  assert.deepEqual(reset, {
+    delivered: false,
+    terminal: false,
+    outcomeUnknown: true,
+    error: 'ECONNRESET',
+  });
+});
+
+test('FCM response rejection and pre-connect DNS failure remain safely retryable', async () => {
+  const rejected = await sendPushNotificationDetailed(
+    'server-reject-token-123456789012',
+    'Title',
+    'Body',
+  );
+  const dnsFailure = await sendPushNotificationDetailed(
+    'dns-failure-token-12345678901234',
+    'Title',
+    'Body',
+  );
+
+  assert.equal(rejected.outcomeUnknown, false);
+  assert.equal(rejected.error, 'messaging/server-unavailable');
+  assert.equal(dnsFailure.outcomeUnknown, false);
+  assert.equal(dnsFailure.error, 'ENOTFOUND');
+});
+
+test('unknown thrown transports bias to an uncertain outcome', () => {
+  const unknown = classifyPushSendError(new Error('opaque provider transport failure'));
+  assert.deepEqual(unknown, {
+    outcomeUnknown: true,
+    error: 'push/transport-outcome-unknown',
+  });
 });
 
 test('a post-send outbox failure never falls back to a duplicate immediate send', async () => {

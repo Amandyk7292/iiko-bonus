@@ -171,6 +171,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       case NotificationTargetKind.notifications:
         await _reloadNotifications();
         return;
+      case NotificationTargetKind.staffKitchen:
       case NotificationTargetKind.none:
         await _reloadNotifications();
         return;

@@ -430,6 +430,13 @@ export interface AdminUser {
   actions?: string[];
 }
 
+export type StaffPushPlatform = 'ios' | 'android';
+
+export interface StaffPushDevice {
+  platform: StaffPushPlatform;
+  installationId: string;
+}
+
 export interface AdminScopeLocation {
   id: string;
   name: string;

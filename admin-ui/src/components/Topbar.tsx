@@ -21,7 +21,13 @@ import {
 } from '../lib/admin-city-scope';
 import { useAdminRealtime } from '../lib/admin-realtime';
 import { useI18n } from '../lib/i18n';
+import {
+  STAFF_PUSH_LOGOUT_FAILED,
+  STAFF_PUSH_LOGOUT_ROUTE_REQUIRED,
+} from '../lib/staff-push-bridge';
 import AdminGlobalSearch from './AdminGlobalSearch';
+import { useFeedback } from './Feedback';
+import StaffPushControl, { type StaffPushControlHandle } from './StaffPushControl';
 
 const routeKeys: Record<string, string> = {
   '/operations': 'operations',
@@ -57,6 +63,7 @@ export default function Topbar({
   onMenuClick,
   operatorMode = false,
   cashierMode = false,
+  embeddedStaffMode = false,
   scopeLocations = [],
   selectedBranchId = '',
   onBranchChange,
@@ -64,16 +71,20 @@ export default function Topbar({
   onMenuClick?: () => void;
   operatorMode?: boolean;
   cashierMode?: boolean;
+  embeddedStaffMode?: boolean;
   scopeLocations?: AdminScopeLocation[];
   selectedBranchId?: string;
   onBranchChange?: (branchId: string) => void;
 }) {
   const { t } = useI18n();
+  const { toast } = useFeedback();
   const location = useLocation();
   const { summary, connectionStatus, soundEnabled, setSoundEnabled } = useAdminRealtime();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const notificationsRef = useRef<HTMLDivElement>(null);
   const notificationsButtonRef = useRef<HTMLButtonElement>(null);
+  const staffPushRef = useRef<StaffPushControlHandle>(null);
   const page = routeKeys[location.pathname] ?? 'operations';
   const usesCityScope = location.pathname === '/menu';
   const usesBranchScope = location.pathname !== '/taplink';
@@ -219,6 +230,11 @@ export default function Topbar({
               )}
               <span>{t(soundEnabled ? 'staff.soundOn' : 'staff.soundOff')}</span>
             </button>
+            <StaffPushControl
+              ref={staffPushRef}
+              active={location.pathname === '/kitchen'}
+              embedded={embeddedStaffMode}
+            />
           </div>
         )}
         {!operatorMode && !cashierMode && usesBranchScope && scopeLocations.length > 0 && (
@@ -354,12 +370,36 @@ export default function Topbar({
         )}
         <button
           type="button"
-          onClick={() => void api.logout()}
+          onClick={() =>
+            void (async () => {
+              if (loggingOut) return;
+              setLoggingOut(true);
+              try {
+                if (cashierMode) await staffPushRef.current?.unregisterBeforeLogout();
+                await api.logout();
+              } catch (error) {
+                const code = error instanceof Error ? error.message : '';
+                toast(
+                  t(
+                    code === STAFF_PUSH_LOGOUT_ROUTE_REQUIRED
+                      ? 'staff.push.logoutRequiresKitchen'
+                      : code === STAFF_PUSH_LOGOUT_FAILED
+                        ? 'staff.push.logoutError'
+                        : 'auth.logoutError',
+                  ),
+                  'error',
+                );
+              } finally {
+                setLoggingOut(false);
+              }
+            })()
+          }
+          disabled={loggingOut}
           className="btn-outline topbar-logout"
-          aria-label={t('auth.logoutFull')}
+          aria-label={t(loggingOut ? 'auth.loggingOut' : 'auth.logoutFull')}
         >
-          <LogOut aria-hidden="true" size={17} />
-          <span>{t('auth.logout')}</span>
+          <LogOut aria-hidden="true" size={17} className={loggingOut ? 'spin' : undefined} />
+          <span>{t(loggingOut ? 'auth.loggingOut' : 'auth.logout')}</span>
         </button>
       </div>
     </header>

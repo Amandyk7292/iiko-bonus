@@ -20,12 +20,25 @@ import java.util.Locale
 class MainActivity : FlutterActivity() {
     private val orderStatusChannel = "com.bulka.bonus/order_status"
     private val orderNotificationChannel = "bulka_order_status"
+    private val staffOrderNotificationChannel = "bulka_staff_orders"
     private val orderNotificationId = 4021
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    staffOrderNotificationChannel,
+                    getString(R.string.notification_channel_staff_orders_name),
+                    NotificationManager.IMPORTANCE_HIGH,
+                ).apply {
+                    description = getString(R.string.notification_channel_staff_orders_description)
+                    enableVibration(true)
+                    setShowBadge(true)
+                    lockscreenVisibility = Notification.VISIBILITY_PRIVATE
+                },
+            )
             manager.createNotificationChannel(
                 NotificationChannel(
                     "bulka_bonus_notifications",

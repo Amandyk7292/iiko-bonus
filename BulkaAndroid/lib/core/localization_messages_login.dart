@@ -300,4 +300,11 @@ const Map<String, Map<String, String>> _loginTranslations = {
   },
   'logout_confirm_cancel': {'ru': 'Отмена', 'kk': 'Болдырмау', 'en': 'Cancel'},
   'logout_confirm_yes': {'ru': 'Выйти', 'kk': 'Шығу', 'en': 'Log out'},
+  'logout_failed_retry': {
+    'ru':
+        'Не удалось безопасно выйти. Проверьте подключение и повторите попытку.',
+    'kk':
+        'Қауіпсіз шығу мүмкін болмады. Байланысты тексеріп, қайталап көріңіз.',
+    'en': 'Could not log out safely. Check your connection and try again.',
+  },
 };

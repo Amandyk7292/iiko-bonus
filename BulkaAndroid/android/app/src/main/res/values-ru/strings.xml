@@ -25,6 +25,8 @@
     <string name="notification_channel_general_description">Акции, бонусы и статусы заказов</string>
     <string name="notification_channel_order_name">Статус заказа</string>
     <string name="notification_channel_order_description">Постоянный статус активного заказа</string>
+    <string name="notification_channel_staff_orders_name">Новые заказы сотрудникам</string>
+    <string name="notification_channel_staff_orders_description">Срочные уведомления о новых заказах филиала</string>
     <string name="order_notification_updating">Заказ обновляется</string>
     <string name="order_notification_eta">к %1$s</string>
     <string name="order_notification_title">Заказ №%1$d</string>
