@@ -64,6 +64,8 @@ const INVALID_TOKEN_CODES = new Set([
   'messaging/invalid-registration-token',
   'messaging/registration-token-not-registered',
 ]);
+const STAFF_NEW_ORDER_TTL_MS = 15 * 60 * 1000;
+const STAFF_TEST_TTL_MS = 2 * 60 * 1000;
 const PUSH_SCHEMA_MISSING_CODES = new Set(['42P01', '42883', 'PGRST202', 'PGRST205']);
 const AMBIGUOUS_FIREBASE_APP_CODES = new Set([
   'app/internal-error',
@@ -187,7 +189,7 @@ async function removeInvalidPushToken(fcmToken) {
   }
 }
 
-async function sendPushNotificationDetailed(fcmToken, title, body, data = {}) {
+async function sendPushNotificationDetailed(fcmToken, title, body, data = {}, options = {}) {
   const token = String(fcmToken || '').trim();
   if (!token) {
     return { delivered: false, terminal: true, error: 'Push token is missing' };
@@ -206,6 +208,33 @@ async function sendPushNotificationDetailed(fcmToken, title, body, data = {}) {
     };
     const isOrderStatus = ['order', 'delivery'].includes(normalizedData.type);
     const isStaffOrder = ['staff.order.new', 'staff.order.test'].includes(normalizedData.type);
+    const defaultStaffTtlMs =
+      normalizedData.type === 'staff.order.new'
+        ? STAFF_NEW_ORDER_TTL_MS
+        : normalizedData.type === 'staff.order.test'
+          ? STAFF_TEST_TTL_MS
+          : null;
+    const staffNowMs = Date.now();
+    const requestedStaffExpiry = Date.parse(String(options.expiresAt || ''));
+    const staffExpiryMs = defaultStaffTtlMs
+      ? Math.min(
+          Number.isFinite(requestedStaffExpiry)
+            ? requestedStaffExpiry
+            : staffNowMs + defaultStaffTtlMs,
+          staffNowMs + defaultStaffTtlMs,
+        )
+      : null;
+    const staffTtlMs = staffExpiryMs
+      ? Math.floor((staffExpiryMs - staffNowMs) / 1000) * 1000
+      : null;
+    if (defaultStaffTtlMs && staffTtlMs <= 0) {
+      return {
+        delivered: false,
+        terminal: false,
+        expired: true,
+        error: 'push/expired',
+      };
+    }
     const closedStatuses = new Set(['completed', 'cancelled', 'delivered']);
     const closedOrder =
       closedStatuses.has(String(normalizedData.orderStatus || '').toLowerCase()) ||
@@ -219,6 +248,7 @@ async function sendPushNotificationDetailed(fcmToken, title, body, data = {}) {
       data: normalizedData,
       android: {
         priority: isOrderStatus ? 'normal' : 'high',
+        ...(staffTtlMs ? { ttl: staffTtlMs } : {}),
         ...(normalizedData.pushDedupeKey
           ? { collapseKey: `bulka-${normalizedData.pushDedupeKey}`.slice(0, 64) }
           : {}),
@@ -244,10 +274,21 @@ async function sendPushNotificationDetailed(fcmToken, title, body, data = {}) {
         },
       },
       apns: {
-        ...(normalizedData.pushDedupeKey
+        ...(normalizedData.pushDedupeKey || staffTtlMs
           ? {
               headers: {
-                'apns-collapse-id': `bulka-${normalizedData.pushDedupeKey}`.slice(0, 64),
+                ...(normalizedData.pushDedupeKey
+                  ? {
+                      'apns-collapse-id': `bulka-${normalizedData.pushDedupeKey}`.slice(0, 64),
+                    }
+                  : {}),
+                ...(staffTtlMs
+                  ? {
+                      // APNs accepts an absolute Unix timestamp. Keep staff
+                      // notifications bounded even if a device reconnects late.
+                      'apns-expiration': String(Math.floor(staffExpiryMs / 1000)),
+                    }
+                  : {}),
               },
             }
           : {}),

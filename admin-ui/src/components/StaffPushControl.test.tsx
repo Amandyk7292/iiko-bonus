@@ -15,6 +15,7 @@ const apiMocks = vi.hoisted(() => ({
   registerStaffPushDevice: vi.fn(),
   getStaffPushDeviceStatus: vi.fn(),
   unregisterStaffPushDevice: vi.fn(),
+  touchStaffPushDeviceHeartbeat: vi.fn(),
   testStaffPushDevice: vi.fn(),
 }));
 
@@ -27,19 +28,13 @@ const renderControl = (
   ref,
   ...render(
     <I18nProvider>
-      <StaffPushControl
-        ref={ref}
-        active={props.active ?? true}
-        embedded={props.embedded ?? true}
-      />
+      <StaffPushControl ref={ref} active={props.active ?? true} embedded={props.embedded ?? true} />
     </I18nProvider>,
   ),
 });
 
 function respondingBridge(
-  onRequest?: (
-    request: StaffPushBridgeRequest,
-  ) => Partial<{
+  onRequest?: (request: StaffPushBridgeRequest) => Partial<{
     ok: boolean;
     permission: string;
     platform: 'ios' | 'android';
@@ -88,6 +83,10 @@ describe('embedded cashier staff push control', () => {
       device: null,
     });
     apiMocks.unregisterStaffPushDevice.mockReset().mockResolvedValue(undefined);
+    apiMocks.touchStaffPushDeviceHeartbeat.mockReset().mockResolvedValue({
+      success: true,
+      active: true,
+    });
     apiMocks.testStaffPushDevice.mockReset().mockResolvedValue({
       success: true,
       delivery: { status: 'sent', attempted: 1, delivered: 1 },
@@ -244,9 +243,9 @@ describe('embedded cashier staff push control', () => {
     await screen.findByRole('button', { name: 'Push включён' });
 
     await waitFor(() => expect(apiMocks.registerStaffPushDevice).toHaveBeenCalledTimes(1));
-    expect(apiMocks.registerStaffPushDevice.mock.calls.map(([payload]) => payload.fcmToken)).toEqual([
-      'early-refresh-token',
-    ]);
+    expect(
+      apiMocks.registerStaffPushDevice.mock.calls.map(([payload]) => payload.fcmToken),
+    ).toEqual(['early-refresh-token']);
   });
 
   it('keeps a newer refresh as the final token while restoring enrollment', async () => {
@@ -443,9 +442,7 @@ describe('embedded cashier staff push control', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Push выключен' }));
     await screen.findByRole('button', { name: 'Push включён' });
 
-    await expect(ref.current?.unregisterBeforeLogout()).rejects.toThrow(
-      'STAFF_PUSH_LOGOUT_FAILED',
-    );
+    await expect(ref.current?.unregisterBeforeLogout()).rejects.toThrow('STAFF_PUSH_LOGOUT_FAILED');
     expect(apiMocks.unregisterStaffPushDevice).toHaveBeenCalledTimes(1);
 
     await expect(ref.current?.unregisterBeforeLogout()).resolves.toBeUndefined();
@@ -541,5 +538,36 @@ describe('embedded cashier staff push control', () => {
       installationId: 'installation-1',
       platform: 'ios',
     });
+  });
+
+  it('heartbeats only after native enrollment becomes active', async () => {
+    const setIntervalSpy = vi.spyOn(window, 'setInterval');
+    const clearIntervalSpy = vi.spyOn(window, 'clearInterval');
+    window.history.replaceState({}, '', '/admin/kitchen?embedded=app');
+    respondingBridge();
+    const view = renderControl();
+    expect(apiMocks.touchStaffPushDeviceHeartbeat).not.toHaveBeenCalled();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Push выключен' }));
+    await screen.findByRole('button', { name: 'Push включён' });
+    await waitFor(() =>
+      expect(apiMocks.touchStaffPushDeviceHeartbeat).toHaveBeenCalledWith({
+        installationId: 'installation-1',
+        platform: 'ios',
+      }),
+    );
+
+    const heartbeatTimer = setIntervalSpy.mock.calls.find(([, delay]) => delay === 30_000);
+    expect(heartbeatTimer).toBeDefined();
+    apiMocks.touchStaffPushDeviceHeartbeat.mockClear();
+    const heartbeatTick = heartbeatTimer?.[0] as () => void;
+    act(() => heartbeatTick());
+    await waitFor(() => expect(apiMocks.touchStaffPushDeviceHeartbeat).toHaveBeenCalledTimes(1));
+
+    const timerId = setIntervalSpy.mock.results.find(
+      (_, index) => setIntervalSpy.mock.calls[index]?.[1] === 30_000,
+    )?.value;
+    view.unmount();
+    expect(clearIntervalSpy).toHaveBeenCalledWith(timerId);
   });
 });

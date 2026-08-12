@@ -107,6 +107,37 @@ test('staff push registration rejects non-cashier sessions before database acces
   );
 });
 
+test('staff iPad heartbeat is session-bound and returns only active state', async (t) => {
+  const calls = [];
+  await withService(
+    t,
+    {
+      rpc: async (name, args) => {
+        calls.push([name, args]);
+        return { data: true, error: null };
+      },
+      sendToken: async () => ({ delivered: true, terminal: true }),
+    },
+    async ({ touchStaffPushDeviceHeartbeat }) => {
+      const active = await touchStaffPushDeviceHeartbeat(
+        { jti: 'session-1', role: 'cashier' },
+        { platform: 'ios', installationId: 'ipad.branch.1' },
+      );
+      assert.equal(active, true);
+      assert.deepEqual(calls, [
+        [
+          'touch_staff_push_device_heartbeat',
+          {
+            p_session_jti_hash: 'hash:session-1',
+            p_platform: 'ios',
+            p_installation_id: 'ipad.branch.1',
+          },
+        ],
+      ]);
+    },
+  );
+});
+
 test('staff push worker emits a generic non-PII new-order payload and completes its lease', async (t) => {
   const calls = [];
   const sent = [];
@@ -115,7 +146,7 @@ test('staff push worker emits a generic non-PII new-order payload and completes 
     {
       rpc: async (name, args) => {
         calls.push([name, args]);
-        if (name === 'claim_staff_push_deliveries') {
+        if (name === 'claim_staff_push_deliveries_v2') {
           return {
             data: [
               {
@@ -127,6 +158,7 @@ test('staff push worker emits a generic non-PII new-order payload and completes 
                 order_number: 100123,
                 attempt_count: 1,
                 max_attempts: 8,
+                expires_at: '2026-08-12T12:15:00.000Z',
               },
             ],
             error: null,
@@ -153,9 +185,59 @@ test('staff push worker emits a generic non-PII new-order payload and completes 
         pushOutboxId: 'outbox-1',
         pushDedupeKey: 'staff-order:11111111-1111-4111-8111-111111111111',
       });
+      assert.deepEqual(sent[0][4], { expiresAt: '2026-08-12T12:15:00.000Z' });
       assert.doesNotMatch(JSON.stringify(sent[0]), /phone|address|amount|cart|customer/i);
       assert.equal(calls.at(-1)[0], 'complete_staff_push_delivery');
       assert.equal(calls.at(-1)[1].p_lease_token, 'lease-1');
+    },
+  );
+});
+
+test('staff push worker never contacts FCM when the pre-dispatch recheck skips expired work', async (t) => {
+  const calls = [];
+  let sends = 0;
+  await withService(
+    t,
+    {
+      rpc: async (name, args) => {
+        calls.push([name, args]);
+        if (name === 'claim_staff_push_deliveries_v2') {
+          return {
+            data: [
+              {
+                delivery_id: 'delivery-expired',
+                outbox_id: 'outbox-expired',
+                lease_token: 'lease-expired',
+                token: 'private-expired-token-1234567890',
+                order_id: '12121212-1212-4212-8212-121212121212',
+                order_number: 100130,
+                attempt_count: 1,
+                max_attempts: 8,
+                expires_at: '2026-08-12T00:00:00.000Z',
+              },
+            ],
+            error: null,
+          };
+        }
+        if (name === 'begin_staff_push_delivery_dispatch_v2') {
+          return { data: 'skipped', error: null };
+        }
+        throw new Error(`Unexpected RPC ${name}`);
+      },
+      sendToken: async () => {
+        sends += 1;
+        return { delivered: true, terminal: true };
+      },
+    },
+    async ({ flushStaffPushOutbox }) => {
+      assert.deepEqual(await flushStaffPushOutbox(), [
+        { deliveryId: 'delivery-expired', status: 'skipped', attempted: 0, delivered: 0 },
+      ]);
+      assert.equal(sends, 0);
+      assert.deepEqual(
+        calls.map(([name]) => name),
+        ['claim_staff_push_deliveries_v2', 'begin_staff_push_delivery_dispatch_v2'],
+      );
     },
   );
 });
@@ -167,7 +249,7 @@ test('ambiguous provider result is persisted as terminal uncertain without leaki
     {
       rpc: async (name, args) => {
         calls.push([name, args]);
-        if (name === 'claim_staff_push_deliveries') {
+        if (name === 'claim_staff_push_deliveries_v2') {
           return {
             data: [
               {
@@ -222,7 +304,7 @@ test('thrown transport with no proven rejection is also completed as uncertain',
     {
       rpc: async (name, args) => {
         calls.push([name, args]);
-        if (name === 'claim_staff_push_deliveries') {
+        if (name === 'claim_staff_push_deliveries_v2') {
           return {
             data: [
               {
@@ -270,7 +352,7 @@ test('failed uncertain completion is quarantined after lease expiry and never re
     {
       rpc: async (name, args) => {
         calls.push([name, args]);
-        if (name === 'claim_staff_push_deliveries') {
+        if (name === 'claim_staff_push_deliveries_v2') {
           if (deliveryStatus === 'queued') {
             deliveryStatus = 'processing';
             return {
@@ -290,13 +372,13 @@ test('failed uncertain completion is quarantined after lease expiry and never re
             };
           }
           if (deliveryStatus === 'dispatching') {
-            // Models claim_staff_push_deliveries after the five-minute lease:
+            // Models claim_staff_push_deliveries_v2 after the five-minute lease:
             // stale dispatching rows are terminally quarantined, not claimed.
             deliveryStatus = 'uncertain';
           }
           return { data: [], error: null };
         }
-        if (name === 'begin_staff_push_delivery_dispatch') {
+        if (name === 'begin_staff_push_delivery_dispatch_v2') {
           deliveryStatus = 'dispatching';
           return { data: true, error: null };
         }
@@ -359,7 +441,7 @@ test('one persistence failure releases its claim and never strands the remaining
     {
       rpc: async (name, args) => {
         calls.push([name, args]);
-        if (name === 'claim_staff_push_deliveries') {
+        if (name === 'claim_staff_push_deliveries_v2') {
           return {
             data: [
               {
@@ -446,7 +528,7 @@ test('FCM-accepted completion recovers as sent and is never released for retry',
     {
       rpc: async (name, args) => {
         calls.push([name, args]);
-        if (name === 'claim_staff_push_deliveries') {
+        if (name === 'claim_staff_push_deliveries_v2') {
           claimCount += 1;
           return claimCount === 1
             ? {
@@ -527,7 +609,7 @@ test('FCM is never contacted unless the durable dispatch boundary commits', asyn
     {
       rpc: async (name, args) => {
         calls.push([name, args]);
-        if (name === 'claim_staff_push_deliveries') {
+        if (name === 'claim_staff_push_deliveries_v2') {
           return {
             data: [
               {
@@ -544,7 +626,7 @@ test('FCM is never contacted unless the durable dispatch boundary commits', asyn
             error: null,
           };
         }
-        if (name === 'begin_staff_push_delivery_dispatch') {
+        if (name === 'begin_staff_push_delivery_dispatch_v2') {
           return {
             data: null,
             error: { code: 'DISPATCH_BOUNDARY_FAILED', message: 'commit not confirmed' },
@@ -575,8 +657,8 @@ test('FCM is never contacted unless the durable dispatch boundary commits', asyn
         },
       );
       assert.equal(sends, 0);
-      assert.equal(calls[0][0], 'claim_staff_push_deliveries');
-      assert.equal(calls[1][0], 'begin_staff_push_delivery_dispatch');
+      assert.equal(calls[0][0], 'claim_staff_push_deliveries_v2');
+      assert.equal(calls[1][0], 'begin_staff_push_delivery_dispatch_v2');
       assert.equal(calls[2][0], 'release_staff_push_delivery_claim');
     },
   );
@@ -591,7 +673,7 @@ test('FCM-accepted delivery becomes fail-closed when every sent recovery call fa
     {
       rpc: async (name, args) => {
         calls.push([name, args]);
-        if (name === 'claim_staff_push_deliveries') {
+        if (name === 'claim_staff_push_deliveries_v2') {
           claimCount += 1;
           return claimCount === 1
             ? {
@@ -658,7 +740,7 @@ test('terminal staff token failures deactivate the token and are not retried', a
     {
       rpc: async (name, args) => {
         calls.push([name, args]);
-        if (name === 'claim_staff_push_deliveries') {
+        if (name === 'claim_staff_push_deliveries_v2') {
           return {
             data: [
               {
@@ -681,13 +763,13 @@ test('terminal staff token failures deactivate the token and are not retried', a
     },
     async ({ flushStaffPushOutbox }) => {
       const [result] = await flushStaffPushOutbox();
-      assert.equal(result.status, 'skipped');
+      assert.equal(result.status, 'failed');
       assert.equal(
         calls.some(([name]) => name === 'deactivate_invalid_staff_push_token'),
         true,
       );
       const complete = calls.find(([name]) => name === 'complete_staff_push_delivery');
-      assert.equal(complete[1].p_status, 'skipped');
+      assert.equal(complete[1].p_status, 'failed');
     },
   );
 });
@@ -862,6 +944,86 @@ test('staff push migration provides atomic paid trigger, TTL, authorization and 
   assert.match(sql, /revoke all on public\.staff_push_devices[\s\S]+anon, authenticated/i);
 });
 
+test('staff push reliability migration backfills only fresh unaccepted same-branch orders', () => {
+  const sql = fs.readFileSync(
+    path.join(__dirname, '../supabase/migrations/20260812110000_staff_push_ttl_backfill.sql'),
+    'utf8',
+  );
+  const registerStart = sql.indexOf('function public.register_staff_push_device');
+  const registerSql = sql.slice(registerStart);
+  const deliveryInsert = registerSql.indexOf('insert into public.staff_push_deliveries');
+
+  assert.ok(registerStart >= 0);
+  assert.ok(deliveryInsert > 0);
+  assert.match(
+    sql,
+    /staff_push_outbox_max_ttl_check[\s\S]+expires_at <= created_at \+ interval '15 minutes'/i,
+  );
+  assert.match(
+    registerSql,
+    /role = 'cashier'[\s\S]+revoked_at is null[\s\S]+expires_at > now\(\)/i,
+  );
+  assert.match(registerSql, /credential\.auth_version = v_session\.auth_version/i);
+  assert.match(registerSql, /profile\.branch_ids = array\[v_branch_id\]/i);
+  assert.match(
+    registerSql.slice(deliveryInsert),
+    /outbox\.branch_id = v_branch_id[\s\S]+orders\.branch_id = v_branch_id/i,
+  );
+  assert.match(
+    registerSql.slice(deliveryInsert),
+    /outbox\.created_at >= now\(\) - interval '15 minutes'[\s\S]+outbox\.expires_at > now\(\)/i,
+  );
+  assert.match(
+    registerSql.slice(deliveryInsert),
+    /orders\.status = 'paid'[\s\S]+orders\.fulfillment_status in \('pending', 'new'\)[\s\S]+orders\.kitchen_status = 'queued'/i,
+  );
+  assert.match(
+    registerSql.slice(deliveryInsert),
+    /on conflict \(outbox_id, device_id\) do update[\s\S]+staff_push_deliveries\.status in \('failed', 'skipped'\)/i,
+  );
+  assert.doesNotMatch(
+    registerSql.slice(deliveryInsert),
+    /staff_push_deliveries\.status in \([^)]*(?:sent|uncertain|dispatching)/i,
+  );
+  assert.match(
+    registerSql.slice(deliveryInsert),
+    /status = case when outbox\.status in \('failed', 'skipped'\) then 'queued'/i,
+  );
+  assert.doesNotMatch(registerSql.slice(deliveryInsert), /phone|address|customer_id|cart_items/i);
+  assert.match(registerSql, /security definer[\s\S]+set search_path = public, pg_temp/i);
+  assert.match(
+    sql,
+    /function public\.claim_staff_push_deliveries_v2[\s\S]+insert into public\.staff_push_deliveries[\s\S]+on conflict \(outbox_id, device_id\) do nothing[\s\S]+claim_staff_push_deliveries\(p_limit\)[\s\S]+outbox\.expires_at/i,
+  );
+  const hardening = fs.readFileSync(
+    path.join(
+      __dirname,
+      '../supabase/migrations/20260812130000_staff_order_reliability_hardening.sql',
+    ),
+    'utf8',
+  );
+  assert.match(
+    hardening,
+    /function public\.claim_staff_push_deliveries\(p_limit integer default 100\)[\s\S]+orders\.fulfillment_status in \('pending', 'new'\)/i,
+  );
+  assert.match(
+    hardening,
+    /function public\.touch_staff_push_device_heartbeat[\s\S]+device\.last_seen_at >= now\(\) - interval '90 seconds'/i,
+  );
+  assert.match(
+    hardening,
+    /on conflict on constraint staff_push_deliveries_outbox_id_device_id_key/i,
+  );
+  assert.match(
+    sql,
+    /function public\.begin_staff_push_delivery_dispatch_v2[\s\S]+v_expires_at <= now\(\)[\s\S]+v_order_status <> 'paid'[\s\S]+v_fulfillment_status not in \('pending', 'new'\)[\s\S]+v_kitchen_status <> 'queued'[\s\S]+v_device_active[\s\S]+session\.revoked_at is null[\s\S]+credential\.auth_version = v_device_auth_version/i,
+  );
+  assert.match(
+    sql,
+    /revoke all on function public\.register_staff_push_device\(text,text,text,text\)[\s\S]+public, anon, authenticated/i,
+  );
+});
+
 test('staff push routes are strict, cashier-scoped, and never expose a device token', () => {
   const routes = fs.readFileSync(
     path.join(__dirname, '../src/routes/admin/staff-push.routes.js'),
@@ -880,6 +1042,7 @@ test('staff push routes are strict, cashier-scoped, and never expose a device to
   assert.match(routes, /router\.post\([\s\S]+staff\/push-token[\s\S]+validateRequest/);
   assert.match(routes, /router\.delete\([\s\S]+staff\/push-token[\s\S]+validateRequest/);
   assert.match(routes, /staff\/push-test[\s\S]+validateRequest/);
+  assert.match(routes, /staff\/push-heartbeat[\s\S]+validateRequest/);
   assert.doesNotMatch(routes, /fcmToken\s*:/);
   assert.match(contract, /\.strict\(\)/);
   assert.doesNotMatch(contract, /branchId|username|authVersion|session/i);

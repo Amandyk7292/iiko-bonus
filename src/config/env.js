@@ -52,6 +52,19 @@ function loyaltyPosConfigurationErrors(env = process.env) {
   return errors;
 }
 
+function hasValidFirebaseServiceAccount(env = process.env) {
+  const raw = env.FIREBASE_SERVICE_ACCOUNT || env.GOOGLE_CREDENTIALS_JSON;
+  if (!raw) return false;
+  try {
+    const account = typeof raw === 'string' ? JSON.parse(raw.trim()) : raw;
+    return ['project_id', 'client_email', 'private_key'].every(
+      (field) => typeof account?.[field] === 'string' && account[field].trim().length > 0,
+    );
+  } catch {
+    return false;
+  }
+}
+
 function validateRuntimeConfig() {
   const isProduction =
     process.env.NODE_ENV === 'production' || Boolean(process.env.RENDER || process.env.VERCEL);
@@ -285,6 +298,12 @@ function validateRuntimeConfig() {
   ) {
     missing.push('OPS_ALERT_BEARER_TOKEN(24+ characters)');
   }
+  if (
+    process.env.OPS_ALERT_RECEIVER_REQUIRED &&
+    !['true', 'false'].includes(process.env.OPS_ALERT_RECEIVER_REQUIRED)
+  ) {
+    missing.push('OPS_ALERT_RECEIVER_REQUIRED(true or false)');
+  }
   const readinessTimeout = Number(process.env.READINESS_TIMEOUT_MS || 3000);
   if (
     !Number.isSafeInteger(readinessTimeout) ||
@@ -292,6 +311,28 @@ function validateRuntimeConfig() {
     readinessTimeout > 10_000
   ) {
     missing.push('READINESS_TIMEOUT_MS(500..10000)');
+  }
+  const staffOrderAcceptSla = Number(process.env.STAFF_ORDER_ACCEPT_SLA_SECONDS || 120);
+  if (
+    !Number.isSafeInteger(staffOrderAcceptSla) ||
+    staffOrderAcceptSla < 60 ||
+    staffOrderAcceptSla > 900
+  ) {
+    missing.push('STAFF_ORDER_ACCEPT_SLA_SECONDS(60..900)');
+  }
+  if (
+    process.env.STAFF_PUSH_REQUIRED &&
+    !['true', 'false'].includes(process.env.STAFF_PUSH_REQUIRED)
+  ) {
+    missing.push('STAFF_PUSH_REQUIRED(true or false)');
+  }
+  if (process.env.STAFF_PUSH_REQUIRED === 'true') {
+    if (process.env.RUN_BACKGROUND_WORKERS !== 'true') {
+      missing.push('RUN_BACKGROUND_WORKERS=true(staff push required)');
+    }
+    if (!hasValidFirebaseServiceAccount(process.env)) {
+      missing.push('FIREBASE_SERVICE_ACCOUNT(valid JSON; staff push required)');
+    }
   }
 
   if (missing.length > 0) {
@@ -303,4 +344,9 @@ function shouldRunBots(env = process.env) {
   return env.RUN_BOTS !== 'false';
 }
 
-module.exports = { loyaltyPosConfigurationErrors, validateRuntimeConfig, shouldRunBots };
+module.exports = {
+  hasValidFirebaseServiceAccount,
+  loyaltyPosConfigurationErrors,
+  validateRuntimeConfig,
+  shouldRunBots,
+};

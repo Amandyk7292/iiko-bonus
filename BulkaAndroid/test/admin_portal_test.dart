@@ -87,7 +87,7 @@ void main() {
     );
   });
 
-  test('staff push bridge route is exact and native mobile only', () {
+  test('staff push bridge route is exact and native tablet only', () {
     expect(isStaffPushBridgePath('/admin/kitchen'), isTrue);
     expect(isStaffPushBridgePath('/admin/kitchen/'), isTrue);
     expect(isStaffPushBridgePath('/admin'), isFalse);
@@ -98,19 +98,43 @@ void main() {
     expect(isStaffPushCapabilityPath('/admin2'), isFalse);
     expect(isStaffPushCapabilityPath('/customer/orders'), isFalse);
     expect(
-      supportsNativeStaffPushBridge(isWeb: false, platform: 'ios'),
+      supportsNativeStaffPushBridge(
+        isWeb: false,
+        platform: 'ios',
+        isTablet: true,
+      ),
       isTrue,
     );
     expect(
-      supportsNativeStaffPushBridge(isWeb: false, platform: 'android'),
+      supportsNativeStaffPushBridge(
+        isWeb: false,
+        platform: 'android',
+        isTablet: true,
+      ),
       isTrue,
     );
     expect(
-      supportsNativeStaffPushBridge(isWeb: true, platform: 'ios'),
+      supportsNativeStaffPushBridge(
+        isWeb: true,
+        platform: 'ios',
+        isTablet: true,
+      ),
       isFalse,
     );
     expect(
-      supportsNativeStaffPushBridge(isWeb: false, platform: 'windows'),
+      supportsNativeStaffPushBridge(
+        isWeb: false,
+        platform: 'windows',
+        isTablet: true,
+      ),
+      isFalse,
+    );
+    expect(
+      supportsNativeStaffPushBridge(
+        isWeb: false,
+        platform: 'ios',
+        isTablet: false,
+      ),
       isFalse,
     );
   });

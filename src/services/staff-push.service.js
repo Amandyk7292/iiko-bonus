@@ -63,6 +63,20 @@ async function staffPushDeviceStatus(admin, { platform, installationId }, { db =
   return Boolean(data);
 }
 
+async function touchStaffPushDeviceHeartbeat(
+  admin,
+  { platform, installationId },
+  { db = supabase } = {},
+) {
+  const { data, error } = await db.rpc('touch_staff_push_device_heartbeat', {
+    p_session_jti_hash: sessionKey(admin),
+    p_platform: platform,
+    p_installation_id: installationId,
+  });
+  if (error) throw error;
+  return data === true;
+}
+
 async function deactivateStaffDevicesForSession(jti, { db = supabase } = {}) {
   if (!jti) return;
   const { error } = await db.rpc('deactivate_staff_push_devices_for_session', {
@@ -158,12 +172,14 @@ async function completeDelivery(row, result, { db = supabase } = {}) {
     ? 'uncertain'
     : result.delivered
       ? 'sent'
-      : result.terminal
+      : result.expired
         ? 'skipped'
-        : finalAttempt
+        : result.terminal
           ? 'failed'
-          : 'retry';
-  if (!result.outcomeUnknown && !result.delivered && result.terminal) {
+          : finalAttempt
+            ? 'failed'
+            : 'retry';
+  if (!result.outcomeUnknown && !result.delivered && !result.expired && result.terminal) {
     const { error } = await db.rpc('deactivate_invalid_staff_push_token', {
       p_token: row.token,
     });
@@ -208,16 +224,20 @@ async function releaseDeliveryClaim(row, error, { db = supabase } = {}) {
 }
 
 async function beginDeliveryDispatch(row, { db = supabase } = {}) {
-  const { data, error } = await db.rpc('begin_staff_push_delivery_dispatch', {
+  const { data, error } = await db.rpc('begin_staff_push_delivery_dispatch_v2', {
     p_delivery_id: row.delivery_id,
     p_lease_token: row.lease_token,
   });
   if (error) throw error;
-  if (data !== true) {
+  if (data === 'skipped') return false;
+  // Boolean true keeps injected database doubles backwards-compatible; the
+  // production v2 RPC returns the explicit dispatching state.
+  if (data !== 'dispatching' && data !== true) {
     const leaseError = new Error('Staff push delivery lease was lost before dispatch');
     leaseError.code = 'STAFF_PUSH_LEASE_LOST';
     throw leaseError;
   }
+  return true;
 }
 
 async function recoverDeliveredClaim(row, result, { db = supabase } = {}) {
@@ -241,7 +261,7 @@ async function flushStaffPushOutbox(
   limit = 100,
   { db = supabase, sendToken = sendPushNotificationDetailed } = {},
 ) {
-  const { data, error } = await db.rpc('claim_staff_push_deliveries', {
+  const { data, error } = await db.rpc('claim_staff_push_deliveries_v2', {
     p_limit: Math.min(200, Math.max(1, Number(limit) || 100)),
   });
   if (error) throw error;
@@ -253,7 +273,16 @@ async function flushStaffPushOutbox(
     try {
       // FCM must only be contacted after this durable boundary commits. An
       // expired dispatching lease becomes uncertain and is never resent.
-      await beginDeliveryDispatch(row, { db });
+      const dispatchStarted = await beginDeliveryDispatch(row, { db });
+      if (!dispatchStarted) {
+        outcomes.push({
+          deliveryId: String(row.delivery_id),
+          status: 'skipped',
+          attempted: 0,
+          delivered: 0,
+        });
+        continue;
+      }
     } catch (dispatchStartError) {
       // No provider call was made, so releasing either a processing row or an
       // ambiguously committed dispatching row is safe.
@@ -269,14 +298,20 @@ async function flushStaffPushOutbox(
     }
     let result;
     try {
-      result = await sendToken(row.token, 'Новый заказ', 'Поступил новый оплаченный заказ', {
-        type: 'staff.order.new',
-        orderId: String(row.order_id),
-        orderNumber: String(row.order_number),
-        deepLink: '/admin/kitchen?embedded=app',
-        pushOutboxId: String(row.outbox_id),
-        pushDedupeKey: `staff-order:${row.order_id}`,
-      });
+      result = await sendToken(
+        row.token,
+        'Новый заказ',
+        'Поступил новый оплаченный заказ',
+        {
+          type: 'staff.order.new',
+          orderId: String(row.order_id),
+          orderNumber: String(row.order_number),
+          deepLink: '/admin/kitchen?embedded=app',
+          pushOutboxId: String(row.outbox_id),
+          pushDedupeKey: `staff-order:${row.order_id}`,
+        },
+        { expiresAt: row.expires_at },
+      );
     } catch (sendError) {
       const failure = classifyPushSendError(sendError);
       result = {
@@ -349,5 +384,6 @@ module.exports = {
   registerStaffPushDevice,
   sendStaffPushTest,
   staffPushDeviceStatus,
+  touchStaffPushDeviceHeartbeat,
   unregisterStaffPushDevice,
 };

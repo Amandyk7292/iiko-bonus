@@ -69,7 +69,27 @@ Configure these GitHub Actions secrets in the repository settings:
 Configure the same operations receiver in the VPS environment as
 `OPS_ALERT_WEBHOOK_URL` and, when required, `OPS_ALERT_BEARER_TOKEN`. Restart
 through the normal attested deployment, then trigger a supervised test alert at
-the receiver; never test by deliberately stopping production.
+the receiver; never test by deliberately stopping production. The receiver must
+return a 2xx response and deduplicate retries by the `Idempotency-Key` header.
+
+Staff-order alerts use a durable database queue and the same receiver. Keep
+`STAFF_ORDER_ACCEPT_SLA_SECONDS=120`. After the receiver is verified, set
+`OPS_ALERT_RECEIVER_REQUIRED=true` so a missing receiver or unreadable alert
+queue fails readiness. The durable alert queue always gates readiness. In
+required mode, an alert backlog older than five minutes also fails readiness.
+Before that switch, detailed readiness and Prometheus metrics report a missing
+receiver as degraded/config-pending without stopping production.
+An "active iPad" means a currently authorized, non-revoked iOS enrollment that
+has sent a kitchen-screen heartbeat within the last 90 seconds. The embedded
+staff UI sends it every 30 seconds while the kitchen page is visible and online;
+backgrounded, disconnected, expired-session, or revoked devices fail coverage.
+The `no_active_ipad` incident is demand-triggered: it opens when a branch has a
+fresh paid, unaccepted order but no active kitchen iPad. It is intentionally not
+an all-night branch-presence alarm; add an explicit shift schedule before making
+idle branches alert outside active order demand.
+Production staff push also requires `RUN_BACKGROUND_WORKERS=true`, valid Firebase
+service-account credentials, and `STAFF_PUSH_REQUIRED=true`. Required mode makes
+readiness fail if the workers are disabled or Firebase messaging cannot initialize.
 
 After Cloudflare is active, set the GitHub Actions repository variable
 `PRODUCTION_REQUIRE_CLOUDFLARE=true`. The monitor will then fail whenever the

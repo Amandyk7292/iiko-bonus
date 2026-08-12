@@ -8,7 +8,11 @@ const {
   signRegistrationToken,
   verifyToken,
 } = require('../src/services/auth.service');
-const { validateRuntimeConfig, shouldRunBots } = require('../src/config/env');
+const {
+  hasValidFirebaseServiceAccount,
+  validateRuntimeConfig,
+  shouldRunBots,
+} = require('../src/config/env');
 const { parseMoney } = require('../src/utils/money.util');
 const { getTierInfo } = require('../src/utils/tier.util');
 const {
@@ -62,6 +66,26 @@ test('password sessions and registration grants carry scoped version claims', ()
 test('bots run independently from background workers', () => {
   assert.equal(shouldRunBots({ RUN_BACKGROUND_WORKERS: 'false' }), true);
   assert.equal(shouldRunBots({ RUN_BACKGROUND_WORKERS: 'false', RUN_BOTS: 'false' }), false);
+});
+
+test('staff push requires a parseable Firebase service account', () => {
+  assert.equal(hasValidFirebaseServiceAccount({ FIREBASE_SERVICE_ACCOUNT: 'not-json' }), false);
+  assert.equal(
+    hasValidFirebaseServiceAccount({
+      FIREBASE_SERVICE_ACCOUNT: JSON.stringify({
+        project_id: 'bulka-test',
+        client_email: 'firebase@example.test',
+        private_key: 'private-key-material',
+      }),
+    }),
+    true,
+  );
+  assert.equal(
+    hasValidFirebaseServiceAccount({
+      FIREBASE_SERVICE_ACCOUNT: JSON.stringify({ project_id: 'missing-fields' }),
+    }),
+    false,
+  );
 });
 
 test('WhatsApp sender resolves from PN alternative and LID mapping', async () => {
@@ -207,8 +231,7 @@ test('WhatsApp OTP contact always returns the configured bot contact', () => {
     buildWhatsAppContact('REQUEST123456', { WHATSAPP_BUSINESS_PHONE: '+7 776 200 35 90' }),
     {
       whatsappPhone: '77762003590',
-      whatsappUrl:
-        'https://wa.me/77762003590?text=%D0%BA%D0%BE%D0%B4%20REQUEST123456',
+      whatsappUrl: 'https://wa.me/77762003590?text=%D0%BA%D0%BE%D0%B4%20REQUEST123456',
     },
   );
 });

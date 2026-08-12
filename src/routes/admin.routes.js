@@ -15,7 +15,10 @@ const {
   requireAdminAction,
   requireAdminMfa,
 } = require('../middlewares/auth.middleware');
-const { adminRateLimit } = require('../middlewares/rate-limit.middleware');
+const {
+  adminRateLimit,
+  staffPushHeartbeatPreAuthRateLimit,
+} = require('../middlewares/rate-limit.middleware');
 const {
   createBulkaCity,
   createBulkaLocation,
@@ -272,6 +275,7 @@ const whatsappErrorResponse = (res, error) =>
 const voiceDurationLabel = (seconds) =>
   `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 
+router.use('/admin/api/staff/push-heartbeat', staffPushHeartbeatPreAuthRateLimit);
 router.use('/admin/api', adminRateLimit);
 registerAdminAuthRoutes(router, {
   auth: adminAuthMiddleware,

@@ -30,6 +30,7 @@ const { reconcileUnknownFullRefunds } = require('./services/full-refund-reconcil
 const { reconcileUnknownPartialRefunds } = require('./services/partial-refund.service');
 const { flushPushOutbox } = require('./services/push.service');
 const { flushStaffPushOutbox } = require('./services/staff-push.service');
+const { flushStaffOrderAlerts } = require('./services/staff-order-alert.service');
 const { cleanupExpiredWhatsAppSessions } = require('./services/whatsapp-session-cleanup.service');
 
 const PORT = process.env.PORT || 3000;
@@ -67,6 +68,12 @@ if (!process.env.VERCEL) {
     setTimeout(deliverQueuedPush, 12 * 1000);
     const pushOutboxTimer = setInterval(deliverQueuedPush, 10 * 1000);
     pushOutboxTimer.unref?.();
+
+    const deliverStaffOrderAlerts = () =>
+      runMonitoredWorker('staff-order-alerts', () => flushStaffOrderAlerts(50));
+    setTimeout(deliverStaffOrderAlerts, 18 * 1000);
+    const staffOrderAlertTimer = setInterval(deliverStaffOrderAlerts, 15 * 1000);
+    staffOrderAlertTimer.unref?.();
 
     setTimeout(runDailyChecks, 5000);
     setInterval(runDailyChecks, 24 * 60 * 60 * 1000);
@@ -132,6 +139,12 @@ if (!process.env.VERCEL) {
   registerWorker('push-outbox', {
     enabled: runWorkers,
     intervalMs: 10 * 1000,
+    critical: true,
+  });
+  registerWorker('staff-order-alerts', {
+    enabled: runWorkers,
+    intervalMs: 15 * 1000,
+    maxRunMs: 45 * 1000,
     critical: true,
   });
   registerWorker('forte-reconciliation', {

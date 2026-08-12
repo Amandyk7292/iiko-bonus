@@ -1,4 +1,5 @@
 const { validateRequest } = require('../../middlewares/validation.middleware');
+const { staffPushHeartbeatRateLimit } = require('../../middlewares/rate-limit.middleware');
 const {
   staffPushDeviceBodySchema,
   staffPushDeviceIdentitySchema,
@@ -7,6 +8,7 @@ const {
   registerStaffPushDevice,
   sendStaffPushTest,
   staffPushDeviceStatus,
+  touchStaffPushDeviceHeartbeat,
   unregisterStaffPushDevice,
 } = require('../../services/staff-push.service');
 
@@ -50,6 +52,20 @@ const registerStaffPushAdminRoutes = (router) => {
       try {
         await unregisterStaffPushDevice(req.admin, req.body);
         return res.status(204).send();
+      } catch (error) {
+        return next(error);
+      }
+    },
+  );
+
+  router.post(
+    '/admin/api/staff/push-heartbeat',
+    staffPushHeartbeatRateLimit,
+    validateRequest({ body: staffPushDeviceIdentitySchema }),
+    async (req, res, next) => {
+      try {
+        const active = await touchStaffPushDeviceHeartbeat(req.admin, req.body);
+        return res.json({ success: true, active });
       } catch (error) {
         return next(error);
       }

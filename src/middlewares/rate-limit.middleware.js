@@ -1,5 +1,11 @@
+const crypto = require('node:crypto');
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = require('express-rate-limit');
 const { readCustomerRefreshCookie } = require('../utils/customer-session-cookie.util');
+
+const isStaffPushHeartbeatRequest = (req) =>
+  req.method === 'POST' &&
+  ['/staff/push-heartbeat', '/admin/api/staff/push-heartbeat'].includes(String(req.path || ''));
 
 const adminRateLimit = rateLimit({
   windowMs: 5 * 60 * 1000,
@@ -7,7 +13,41 @@ const adminRateLimit = rateLimit({
   message: { error: 'Too many requests' },
   standardHeaders: true,
   legacyHeaders: false,
+  // Kitchen presence has its own authenticated limiter below. It must not
+  // consume the shared admin quota for orders behind one branch NAT.
+  skip: isStaffPushHeartbeatRequest,
 });
+
+const createStaffPushHeartbeatPreAuthRateLimit = ({ windowMs = 60 * 1000, max = 180 } = {}) =>
+  rateLimit({
+    windowMs,
+    max,
+    message: {
+      error: 'Too many staff heartbeat attempts',
+      code: 'STAFF_HEARTBEAT_PREAUTH_RATE_LIMITED',
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => ipKeyGenerator(req.ip),
+  });
+
+const staffPushHeartbeatPreAuthRateLimit = createStaffPushHeartbeatPreAuthRateLimit();
+
+const createStaffPushHeartbeatRateLimit = ({ windowMs = 60 * 1000, max = 20 } = {}) =>
+  rateLimit({
+    windowMs,
+    max,
+    message: { error: 'Too many staff heartbeat requests', code: 'STAFF_HEARTBEAT_RATE_LIMITED' },
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) =>
+      crypto
+        .createHash('sha256')
+        .update([String(req.admin?.jti || ''), ipKeyGenerator(req.ip)].join('|'))
+        .digest('hex'),
+  });
+
+const staffPushHeartbeatRateLimit = createStaffPushHeartbeatRateLimit();
 
 const adminLoginRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -100,6 +140,11 @@ const siteRateLimit = rateLimit({
 
 module.exports = {
   adminRateLimit,
+  staffPushHeartbeatRateLimit,
+  staffPushHeartbeatPreAuthRateLimit,
+  createStaffPushHeartbeatRateLimit,
+  createStaffPushHeartbeatPreAuthRateLimit,
+  isStaffPushHeartbeatRequest,
   adminLoginRateLimit,
   webhookRateLimit,
   walletRateLimit,

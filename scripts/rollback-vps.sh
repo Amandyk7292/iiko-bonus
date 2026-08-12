@@ -165,6 +165,7 @@ start_staging_release() {
         PORT=3101 \
         RUN_BOTS=false \
         RUN_BACKGROUND_WORKERS=false \
+        STAFF_PUSH_REQUIRED=false \
         RUN_WHATSAPP_OUTBOX_WORKER=false \
         RUN_YANDEX_DELIVERY_WORKER=false \
         YANDEX_DELIVERY_ENABLED=false \

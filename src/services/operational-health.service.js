@@ -6,6 +6,11 @@ const {
   branchPosEnforcementMode,
 } = require('../middlewares/branch-pos-auth.middleware');
 const { posLoyaltySafetySnapshot } = require('./loyalty-reservation.service');
+const { getPushStatus } = require('./push.service');
+const {
+  refreshStaffOrderAlertHealth,
+  staffOrderAlertHealthSnapshot,
+} = require('./staff-order-alert.service');
 
 const bootedAt = Date.now();
 const workers = new Map();
@@ -53,12 +58,17 @@ const sendOperationalAlert = async (worker, errorCode) => {
   }
 };
 
-const registerWorker = (name, { enabled = true, intervalMs = 60_000, critical = false } = {}) => {
+const registerWorker = (
+  name,
+  { enabled = true, intervalMs = 60_000, critical = false, maxRunMs = null } = {},
+) => {
   const existing = workers.get(name);
   workers.set(name, {
     name,
     enabled,
     intervalMs,
+    maxRunMs:
+      Number.isFinite(maxRunMs) && maxRunMs > 0 ? maxRunMs : Math.max(intervalMs * 2, 60_000),
     critical,
     running: existing?.running || false,
     runs: existing?.runs || 0,
@@ -112,12 +122,16 @@ const runMonitoredWorker = async (name, task) => {
 const workerSnapshot = (now = Date.now()) =>
   [...workers.values()].map((worker) => {
     const lastSuccessMs = worker.lastSuccessAt ? Date.parse(worker.lastSuccessAt) : 0;
+    const lastStartedMs = worker.lastStartedAt ? Date.parse(worker.lastStartedAt) : 0;
     const graceMs = Math.max(worker.intervalMs * 3, 60_000);
+    const runningTooLong =
+      worker.running && lastStartedMs > 0 && now - lastStartedMs > worker.maxRunMs;
     const stale =
       worker.enabled &&
-      !worker.running &&
-      now - bootedAt > graceMs &&
-      (!lastSuccessMs || now - lastSuccessMs > graceMs);
+      (runningTooLong ||
+        (!worker.running &&
+          now - bootedAt > graceMs &&
+          (!lastSuccessMs || now - lastSuccessMs > graceMs)));
     return { ...worker, stale };
   });
 
@@ -164,15 +178,39 @@ const checkBranchPosCoverage = async () => {
   return getBranchPosCoverage();
 };
 
+const checkStaffOrderAlerts = async () => {
+  if (process.env.NODE_ENV === 'test') {
+    return { ...staffOrderAlertHealthSnapshot(), queueAvailable: true, skipped: true };
+  }
+  return refreshStaffOrderAlertHealth();
+};
+
 const readinessSnapshot = async ({
   databaseCheck = checkDatabase,
   branchPosCheck = checkBranchPosCoverage,
+  staffOrderAlertCheck = checkStaffOrderAlerts,
+  pushStatusCheck = getPushStatus,
 } = {}) => {
-  const [database, branchPosCoverage] = await Promise.all([databaseCheck(), branchPosCheck()]);
+  const [database, branchPosCoverage, staffOrderAlerts] = await Promise.all([
+    databaseCheck(),
+    branchPosCheck(),
+    staffOrderAlertCheck(),
+  ]);
   latestBranchPosCoverage = { ...latestBranchPosCoverage, ...branchPosCoverage };
   const branchPosMode = branchPosEnforcementMode();
   const branchPosOk =
     branchPosMode !== 'required' || branchPosCoverage.readyForEnforcement === true;
+  const alertQueueOk = staffOrderAlerts.queueAvailable === true;
+  const alertReceiverOk =
+    staffOrderAlerts.receiverRequired !== true ||
+    (staffOrderAlerts.receiverConfigured === true &&
+      Number(staffOrderAlerts.oldestPendingSeconds || 0) <= 300);
+  const staffOrderAlertsOk = alertQueueOk && alertReceiverOk;
+  const staffPushRequired = process.env.STAFF_PUSH_REQUIRED === 'true';
+  const pushStatus = pushStatusCheck();
+  const staffPushOk =
+    !staffPushRequired ||
+    (process.env.RUN_BACKGROUND_WORKERS === 'true' && pushStatus.initialized === true);
   const workerStates = workerSnapshot();
   const criticalWorkerFailed = workerStates.some(
     (worker) => worker.enabled && worker.critical && worker.stale,
@@ -183,7 +221,7 @@ const readinessSnapshot = async ({
     }
   }
   return {
-    ok: database.ok && branchPosOk && !criticalWorkerFailed,
+    ok: database.ok && branchPosOk && staffOrderAlertsOk && staffPushOk && !criticalWorkerFailed,
     dependencies: {
       database: { ok: database.ok },
       branchPosCredentials: {
@@ -194,6 +232,29 @@ const readinessSnapshot = async ({
         missingActiveBranches: Number(branchPosCoverage.missingActiveBranches || 0),
         activeLegacyReservations: Number(branchPosCoverage.activeLegacyReservations || 0),
         readyForEnforcement: branchPosCoverage.readyForEnforcement === true,
+      },
+      staffOrderAlerts: {
+        ok: staffOrderAlertsOk,
+        receiverConfigured: staffOrderAlerts.receiverConfigured === true,
+        receiverRequired: staffOrderAlerts.receiverRequired === true,
+        degraded:
+          staffOrderAlerts.receiverConfigured !== true || staffOrderAlerts.queueAvailable !== true,
+        queueAvailable: staffOrderAlerts.queueAvailable === true,
+        pending: Number(staffOrderAlerts.pending || 0),
+        queued: Number(staffOrderAlerts.queued || 0),
+        configPending: Number(staffOrderAlerts.configPending || 0),
+        processing: Number(staffOrderAlerts.processing || 0),
+        retry: Number(staffOrderAlerts.retry || 0),
+        sent: Number(staffOrderAlerts.sent || 0),
+        resolved: Number(staffOrderAlerts.resolved || 0),
+        oldestPendingSeconds: Number(staffOrderAlerts.oldestPendingSeconds || 0),
+      },
+      staffPush: {
+        ok: staffPushOk,
+        required: staffPushRequired,
+        workersEnabled: process.env.RUN_BACKGROUND_WORKERS === 'true',
+        firebaseConfigured: pushStatus.configured === true,
+        firebaseInitialized: pushStatus.initialized === true,
       },
     },
     workers: workerStates.map(
@@ -214,6 +275,9 @@ const readinessSnapshot = async ({
 const renderWorkerMetrics = () => {
   const branchPosAuth = branchPosAuthSnapshot();
   const posLoyaltySafety = posLoyaltySafetySnapshot();
+  const staffOrderAlerts = staffOrderAlertHealthSnapshot();
+  const staffPushStatus = getPushStatus();
+  const staffPushRequired = process.env.STAFF_PUSH_REQUIRED === 'true';
   const lines = [
     '# HELP bulka_worker_runs_total Background worker executions.',
     '# TYPE bulka_worker_runs_total counter',
@@ -252,6 +316,35 @@ const renderWorkerMetrics = () => {
     '# TYPE bulka_loyalty_pos_safety_rejections_total counter',
     `bulka_loyalty_pos_safety_rejections_total{kind="transaction"} ${posLoyaltySafety.transaction}`,
     `bulka_loyalty_pos_safety_rejections_total{kind="rolling"} ${posLoyaltySafety.rolling}`,
+    '# HELP bulka_staff_order_alert_receiver_configured Whether the external operations receiver is configured.',
+    '# TYPE bulka_staff_order_alert_receiver_configured gauge',
+    `bulka_staff_order_alert_receiver_configured ${staffOrderAlerts.receiverConfigured ? 1 : 0}`,
+    '# HELP bulka_staff_order_alert_receiver_required Whether receiver configuration gates readiness.',
+    '# TYPE bulka_staff_order_alert_receiver_required gauge',
+    `bulka_staff_order_alert_receiver_required ${staffOrderAlerts.receiverRequired ? 1 : 0}`,
+    '# HELP bulka_staff_order_alert_queue_available Whether the durable alert queue was readable.',
+    '# TYPE bulka_staff_order_alert_queue_available gauge',
+    `bulka_staff_order_alert_queue_available ${staffOrderAlerts.queueAvailable ? 1 : 0}`,
+    '# HELP bulka_staff_order_alerts Alerts by durable delivery state.',
+    '# TYPE bulka_staff_order_alerts gauge',
+    `bulka_staff_order_alerts{status="queued"} ${staffOrderAlerts.queued}`,
+    `bulka_staff_order_alerts{status="config_pending"} ${staffOrderAlerts.configPending}`,
+    `bulka_staff_order_alerts{status="processing"} ${staffOrderAlerts.processing}`,
+    `bulka_staff_order_alerts{status="retry"} ${staffOrderAlerts.retry}`,
+    `bulka_staff_order_alerts{status="sent"} ${staffOrderAlerts.sent}`,
+    `bulka_staff_order_alerts{status="resolved"} ${staffOrderAlerts.resolved}`,
+    '# HELP bulka_staff_order_alert_pending_total Total alerts awaiting receiver delivery.',
+    '# TYPE bulka_staff_order_alert_pending_total gauge',
+    `bulka_staff_order_alert_pending_total ${staffOrderAlerts.pending}`,
+    '# HELP bulka_staff_order_alert_oldest_pending_seconds Age of the oldest pending alert.',
+    '# TYPE bulka_staff_order_alert_oldest_pending_seconds gauge',
+    `bulka_staff_order_alert_oldest_pending_seconds ${staffOrderAlerts.oldestPendingSeconds}`,
+    '# HELP bulka_staff_push_required Whether staff push infrastructure gates readiness.',
+    '# TYPE bulka_staff_push_required gauge',
+    `bulka_staff_push_required ${staffPushRequired ? 1 : 0}`,
+    '# HELP bulka_staff_push_firebase_initialized Whether Firebase messaging initialized.',
+    '# TYPE bulka_staff_push_firebase_initialized gauge',
+    `bulka_staff_push_firebase_initialized ${staffPushStatus.initialized ? 1 : 0}`,
   );
   return `${lines.join('\n')}\n`;
 };

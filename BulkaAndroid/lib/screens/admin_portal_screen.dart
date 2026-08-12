@@ -78,6 +78,7 @@ class _AdminPortalScreenState extends State<AdminPortalScreen>
 
   bool get _staffPushBridgeSupported => supportsNativeStaffPushBridge(
     isWeb: kIsWeb,
+    isTablet: _wakelockEligible,
     platform: switch (defaultTargetPlatform) {
       TargetPlatform.iOS => 'ios',
       TargetPlatform.android => 'android',

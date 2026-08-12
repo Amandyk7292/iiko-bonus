@@ -419,10 +419,7 @@ export const api = {
     installationId: string;
     platform: StaffPushPlatform;
   }) =>
-    request<{ success: true; device: StaffPushDevice }>(
-      '/staff/push-token',
-      json('POST', data),
-    ),
+    request<{ success: true; device: StaffPushDevice }>('/staff/push-token', json('POST', data)),
   getStaffPushDeviceStatus: (device: StaffPushDevice) => {
     const params = new URLSearchParams({
       installationId: device.installationId,
@@ -434,6 +431,8 @@ export const api = {
   },
   unregisterStaffPushDevice: (data: StaffPushDevice) =>
     request<void>('/staff/push-token', json('DELETE', data)),
+  touchStaffPushDeviceHeartbeat: (data: StaffPushDevice) =>
+    request<{ success: true; active: boolean }>('/staff/push-heartbeat', json('POST', data)),
   testStaffPushDevice: (data: StaffPushDevice) =>
     request<{
       success: true;

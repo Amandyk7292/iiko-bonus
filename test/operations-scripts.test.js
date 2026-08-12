@@ -62,6 +62,16 @@ test('release deployment keeps a healthy staging fallback during graceful reload
   assert.match(deploy, /start_staging_release "\$backup"/);
   assert.match(rollback, /start_staging_release/);
   assert.match(rollback, /pm2 delete iiko-bonus-staging/);
+  assert.equal(
+    (deploy.match(/STAFF_PUSH_REQUIRED=false/g) || []).length,
+    2,
+    'deployment staging and candidate preflight must explicitly disable required staff workers',
+  );
+  assert.equal(
+    (rollback.match(/STAFF_PUSH_REQUIRED=false/g) || []).length,
+    1,
+    'rollback staging must explicitly disable required staff workers',
+  );
 });
 
 test('deployment and rollback are exclusive, transactional and use one artifact inventory', () => {

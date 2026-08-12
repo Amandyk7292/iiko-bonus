@@ -231,6 +231,71 @@ test('push is delivered to every registered installation with string data', asyn
   }
 });
 
+test('staff order pushes expire after 15 minutes and tests expire sooner', async () => {
+  const before = Math.floor(Date.now() / 1000);
+  await sendPushNotificationDetailed(
+    'staff-device-order-token-1234567890',
+    'New order',
+    'A paid order is waiting',
+    {
+      type: 'staff.order.new',
+      orderId: 'order-ttl-1',
+      pushDedupeKey: 'staff-order:order-ttl-1',
+    },
+  );
+  await sendPushNotificationDetailed(
+    'staff-device-test-token-12345678901',
+    'Test',
+    'Push is enabled',
+    { type: 'staff.order.test' },
+  );
+  const after = Math.floor(Date.now() / 1000);
+  const orderMessage = sentMessages.at(-2);
+  const testMessage = sentMessages.at(-1);
+
+  assert.equal(orderMessage.android.ttl, 15 * 60 * 1000);
+  assert.equal(testMessage.android.ttl, 2 * 60 * 1000);
+  const orderExpiration = Number(orderMessage.apns.headers['apns-expiration']);
+  const testExpiration = Number(testMessage.apns.headers['apns-expiration']);
+  assert.ok(orderExpiration >= before + 15 * 60);
+  assert.ok(orderExpiration <= after + 15 * 60);
+  assert.ok(testExpiration >= before + 2 * 60);
+  assert.ok(testExpiration <= after + 2 * 60);
+  assert.equal(orderMessage.apns.headers['apns-collapse-id'], 'bulka-staff-order:order-ttl-1');
+});
+
+test('staff transport uses the remaining outbox lifetime and never sends expired work', async () => {
+  const sentBefore = sentMessages.length;
+  const expiresAtMs = Date.now() + 60 * 1000;
+  const result = await sendPushNotificationDetailed(
+    'staff-device-aged-order-token-123456',
+    'New order',
+    'A paid order is waiting',
+    { type: 'staff.order.new', orderId: 'order-aged-1' },
+    { expiresAt: new Date(expiresAtMs).toISOString() },
+  );
+  assert.equal(result.delivered, true);
+  const message = sentMessages.at(-1);
+  assert.ok(message.android.ttl > 0);
+  assert.ok(message.android.ttl <= 60 * 1000);
+  assert.equal(message.apns.headers['apns-expiration'], String(Math.floor(expiresAtMs / 1000)));
+
+  const expired = await sendPushNotificationDetailed(
+    'staff-device-expired-order-token-1234',
+    'New order',
+    'A paid order is waiting',
+    { type: 'staff.order.new', orderId: 'order-expired-1' },
+    { expiresAt: new Date(Date.now() - 1).toISOString() },
+  );
+  assert.deepEqual(expired, {
+    delivered: false,
+    terminal: false,
+    expired: true,
+    error: 'push/expired',
+  });
+  assert.equal(sentMessages.length, sentBefore + 1);
+});
+
 test('FCM invalid-token errors remove the stale installation', async () => {
   const delivered = await sendPushNotification('invalid-device-token-1234567890', 'Title', 'Body');
 

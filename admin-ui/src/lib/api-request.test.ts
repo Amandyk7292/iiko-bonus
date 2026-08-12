@@ -42,9 +42,17 @@ describe('admin API request abort composition', () => {
         ),
       )
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ success: true, enabled: true, device: {
-          platform: 'ios', installationId: 'installation-1',
-        } }), { status: 200, headers: { 'Content-Type': 'application/json' } }),
+        new Response(
+          JSON.stringify({
+            success: true,
+            enabled: true,
+            device: {
+              platform: 'ios',
+              installationId: 'installation-1',
+            },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
       )
       .mockResolvedValueOnce(
         new Response(
@@ -54,6 +62,12 @@ describe('admin API request abort composition', () => {
           }),
           { status: 200, headers: { 'Content-Type': 'application/json' } },
         ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ success: true, active: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
       )
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
     vi.stubGlobal('fetch', fetchMock);
@@ -68,6 +82,10 @@ describe('admin API request abort composition', () => {
       platform: 'ios',
     });
     await api.testStaffPushDevice({ installationId: 'installation-1', platform: 'ios' });
+    await api.touchStaffPushDeviceHeartbeat({
+      installationId: 'installation-1',
+      platform: 'ios',
+    });
     await api.unregisterStaffPushDevice({
       installationId: 'installation-1',
       platform: 'ios',
@@ -90,8 +108,14 @@ describe('admin API request abort composition', () => {
       installationId: 'installation-1',
       platform: 'ios',
     });
-    expect(fetchMock.mock.calls[3][1]?.method).toBe('DELETE');
+    expect(fetchMock.mock.calls[3][0]).toBe('/admin/api/staff/push-heartbeat');
+    expect(fetchMock.mock.calls[3][1]?.method).toBe('POST');
     expect(JSON.parse(String(fetchMock.mock.calls[3][1]?.body))).toEqual({
+      installationId: 'installation-1',
+      platform: 'ios',
+    });
+    expect(fetchMock.mock.calls[4][1]?.method).toBe('DELETE');
+    expect(JSON.parse(String(fetchMock.mock.calls[4][1]?.body))).toEqual({
       installationId: 'installation-1',
       platform: 'ios',
     });

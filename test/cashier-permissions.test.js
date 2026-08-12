@@ -60,6 +60,7 @@ test('cashier may mutate only own staff push token and test endpoints', () => {
     { method: 'POST', path: '/staff/push-token' },
     { method: 'DELETE', path: '/staff/push-token' },
     { method: 'POST', path: '/staff/push-test' },
+    { method: 'POST', path: '/staff/push-heartbeat' },
   ]) {
     assert.equal(runMutationGuard(request).nextCalled, true);
   }

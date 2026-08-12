@@ -173,7 +173,8 @@ String buildStaffPushBridgeBootstrap({
 bool supportsNativeStaffPushBridge({
   required bool isWeb,
   required String platform,
+  required bool isTablet,
 }) {
-  if (isWeb) return false;
+  if (isWeb || !isTablet) return false;
   return platform == 'ios' || platform == 'android';
 }
