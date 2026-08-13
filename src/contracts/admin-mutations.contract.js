@@ -873,7 +873,48 @@ const productOptionsBodySchema = z
 const productOptionsParamsSchema = routeParams({ productId: safeResourceIdSchema });
 
 const dispatchOrderParamsSchema = routeParams({ orderId: uuidSchema });
+const yandexRequestBodySchema = z
+  .object({
+    deliveryJobId: uuidSchema.optional(),
+    maxPriceKzt: z.coerce.number().positive().max(100_000).optional(),
+    quoteFingerprint: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional(),
+  })
+  .strict();
 const yandexCancelBodySchema = z.object({ allowPaid: z.boolean().optional() }).strict();
+const yandexItemsResolutionBodySchema = z
+  .object({
+    deliveryJobId: uuidSchema,
+    resolution: z.enum(['returned', 'delivered']),
+    reason: shortText(240, 1),
+  })
+  .strict();
+const yandexCreateReconciliationBodySchema = z
+  .object({
+    deliveryJobId: uuidSchema,
+    resolution: z.enum(['attach', 'not_created']),
+    externalOrderId: safeResourceIdSchema.optional(),
+    reason: shortText(240, 1),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.resolution === 'attach' && !value.externalOrderId) {
+      context.addIssue({
+        code: 'custom',
+        path: ['externalOrderId'],
+        message: 'Укажите ID заказа из кабинета Яндекса',
+      });
+    }
+    if (value.resolution === 'not_created' && value.externalOrderId) {
+      context.addIssue({
+        code: 'custom',
+        path: ['externalOrderId'],
+        message: 'Для отсутствующей заявки внешний ID не указывается',
+      });
+    }
+  });
 const courierAvailabilityBodySchema = z
   .object({ status: z.enum(['offline', 'available', 'busy', 'break']) })
   .strict();
@@ -1161,7 +1202,16 @@ const adminMutationSchemas = {
   legacyPointUpdate: { params: numericParamsSchema, body: legacyPointUpdateBodySchema },
   productOptions: { params: productOptionsParamsSchema, body: productOptionsBodySchema },
   dispatchEmpty: withParams(dispatchOrderParamsSchema),
+  yandexRequest: { params: dispatchOrderParamsSchema, body: yandexRequestBodySchema },
   yandexCancel: { params: dispatchOrderParamsSchema, body: yandexCancelBodySchema },
+  yandexItemsResolution: {
+    params: dispatchOrderParamsSchema,
+    body: yandexItemsResolutionBodySchema,
+  },
+  yandexCreateReconciliation: {
+    params: orderParamsSchema,
+    body: yandexCreateReconciliationBodySchema,
+  },
   courierAvailability: {
     params: courierParamsSchema,
     body: courierAvailabilityBodySchema,

@@ -65,6 +65,130 @@ function hasValidFirebaseServiceAccount(env = process.env) {
   }
 }
 
+function yandexDeliveryConfigurationErrors(env = process.env) {
+  if (env.YANDEX_DELIVERY_ENABLED !== 'true') return [];
+
+  const errors = [];
+  const apiMode = String(env.YANDEX_DELIVERY_API_MODE || 'cargo_v2').trim();
+  if (!['cargo_v2', 'business_v2'].includes(apiMode)) {
+    return ['YANDEX_DELIVERY_API_MODE(cargo_v2 or business_v2)'];
+  }
+
+  if (apiMode === 'cargo_v2') {
+    if (String(env.YANDEX_DELIVERY_API_TOKEN || '').trim().length < 10) {
+      errors.push('YANDEX_DELIVERY_API_TOKEN');
+    }
+    const senderPhone = String(env.YANDEX_DELIVERY_SENDER_PHONE || '').replace(/\D/g, '');
+    if (!/^(7|8)\d{10}$/.test(senderPhone)) {
+      errors.push('YANDEX_DELIVERY_SENDER_PHONE(KZ)');
+    }
+    if (env.YANDEX_DELIVERY_BASE_URL && !/^https:\/\//.test(env.YANDEX_DELIVERY_BASE_URL)) {
+      errors.push('YANDEX_DELIVERY_BASE_URL(https)');
+    }
+    return errors;
+  }
+
+  if (String(env.YANDEX_BUSINESS_API_TOKEN || '').trim().length < 10) {
+    errors.push('YANDEX_BUSINESS_API_TOKEN');
+  }
+  const senderPhone = String(env.YANDEX_DELIVERY_SENDER_PHONE || '').replace(/\D/g, '');
+  if (!/^(7|8)\d{10}$/.test(senderPhone)) {
+    errors.push('YANDEX_DELIVERY_SENDER_PHONE(KZ)');
+  }
+  if (env.YANDEX_DELIVERY_AUTO_DISPATCH === 'true') {
+    errors.push('YANDEX_DELIVERY_AUTO_DISPATCH(false for business_v2 price confirmation)');
+  }
+  for (const name of ['YANDEX_BUSINESS_USER_ID', 'YANDEX_BUSINESS_CORP_CLIENT_ID']) {
+    const value = String(env[name] || '').trim();
+    if (!value || value.length > 128) errors.push(`${name}(1..128 characters)`);
+  }
+
+  try {
+    const baseUrl = new URL(
+      String(env.YANDEX_BUSINESS_BASE_URL || 'https://b2b-api.go.yandex.ru').trim(),
+    );
+    if (
+      baseUrl.protocol !== 'https:' ||
+      baseUrl.hostname.toLowerCase() !== 'b2b-api.go.yandex.ru' ||
+      baseUrl.port ||
+      baseUrl.username ||
+      baseUrl.password ||
+      !['', '/'].includes(baseUrl.pathname) ||
+      baseUrl.search ||
+      baseUrl.hash
+    ) {
+      errors.push('YANDEX_BUSINESS_BASE_URL(https://b2b-api.go.yandex.ru)');
+    }
+  } catch {
+    errors.push('YANDEX_BUSINESS_BASE_URL(valid official HTTPS origin)');
+  }
+
+  const tariffClass = String(env.YANDEX_BUSINESS_TARIFF_CLASS || 'express').trim();
+  if (!['express', 'courier'].includes(tariffClass)) {
+    errors.push('YANDEX_BUSINESS_TARIFF_CLASS(express or courier)');
+  }
+
+  const maxPriceRaw = String(env.YANDEX_BUSINESS_MAX_PRICE_KZT || '').trim();
+  const maxPrice = Number(maxPriceRaw);
+  if (!maxPriceRaw || !Number.isFinite(maxPrice) || maxPrice < 1 || maxPrice > 100_000) {
+    errors.push('YANDEX_BUSINESS_MAX_PRICE_KZT(1..100000)');
+  }
+
+  const quoteMaxAge = Number(env.YANDEX_BUSINESS_QUOTE_MAX_AGE_SECONDS || 120);
+  if (!Number.isSafeInteger(quoteMaxAge) || quoteMaxAge < 30 || quoteMaxAge > 300) {
+    errors.push('YANDEX_BUSINESS_QUOTE_MAX_AGE_SECONDS(30..300)');
+  }
+
+  const requiredRequirements = String(env.YANDEX_BUSINESS_REQUIRED_REQUIREMENTS || '').trim();
+  if (
+    requiredRequirements.length > 512 ||
+    (requiredRequirements &&
+      requiredRequirements
+        .split(',')
+        .map((value) => value.trim())
+        .some((value) => !/^[a-z][a-z0-9_]{0,63}$/.test(value)))
+  ) {
+    errors.push('YANDEX_BUSINESS_REQUIRED_REQUIREMENTS(comma-separated requirement keys)');
+  }
+
+  if (
+    env.YANDEX_BUSINESS_RESTAURANT_DELIVERY_CONFIRMED &&
+    !['true', 'false'].includes(env.YANDEX_BUSINESS_RESTAURANT_DELIVERY_CONFIRMED)
+  ) {
+    errors.push('YANDEX_BUSINESS_RESTAURANT_DELIVERY_CONFIRMED(true or false)');
+  }
+
+  if (
+    env.YANDEX_BUSINESS_ALLOW_PAID_CANCEL &&
+    !['true', 'false'].includes(env.YANDEX_BUSINESS_ALLOW_PAID_CANCEL)
+  ) {
+    errors.push('YANDEX_BUSINESS_ALLOW_PAID_CANCEL(true or false)');
+  }
+  if (env.YANDEX_BUSINESS_RESTAURANT_DELIVERY_CONFIRMED === 'true') {
+    if (env.VERCEL) {
+      errors.push('VERCEL_UNSUPPORTED(Yandex Business workers required)');
+    }
+    if (env.RUN_BACKGROUND_WORKERS !== 'true') {
+      errors.push('RUN_BACKGROUND_WORKERS=true(Yandex Business alerts required)');
+    }
+    if (env.RUN_YANDEX_DELIVERY_WORKER === 'false') {
+      errors.push('RUN_YANDEX_DELIVERY_WORKER=true(Yandex Business sync required)');
+    }
+    if (env.OPS_ALERT_RECEIVER_REQUIRED !== 'true') {
+      errors.push('OPS_ALERT_RECEIVER_REQUIRED=true(Yandex Business alerts required)');
+    }
+    try {
+      const endpoint = new URL(String(env.OPS_ALERT_WEBHOOK_URL || ''));
+      if (endpoint.protocol !== 'https:' || endpoint.username || endpoint.password) {
+        errors.push('OPS_ALERT_WEBHOOK_URL(https; Yandex Business alerts required)');
+      }
+    } catch {
+      errors.push('OPS_ALERT_WEBHOOK_URL(https; Yandex Business alerts required)');
+    }
+  }
+  return errors;
+}
+
 function validateRuntimeConfig() {
   const isProduction =
     process.env.NODE_ENV === 'production' || Boolean(process.env.RENDER || process.env.VERCEL);
@@ -213,21 +337,7 @@ function validateRuntimeConfig() {
       missing.push('FORTE_WIDGET_CHECKOUT_ENABLED(true or false)');
     }
   }
-  if (process.env.YANDEX_DELIVERY_ENABLED === 'true') {
-    if (String(process.env.YANDEX_DELIVERY_API_TOKEN || '').trim().length < 10) {
-      missing.push('YANDEX_DELIVERY_API_TOKEN');
-    }
-    const senderPhone = String(process.env.YANDEX_DELIVERY_SENDER_PHONE || '').replace(/\D/g, '');
-    if (!/^(7|8)\d{10}$/.test(senderPhone)) {
-      missing.push('YANDEX_DELIVERY_SENDER_PHONE(KZ)');
-    }
-    if (
-      process.env.YANDEX_DELIVERY_BASE_URL &&
-      !/^https:\/\//.test(process.env.YANDEX_DELIVERY_BASE_URL)
-    ) {
-      missing.push('YANDEX_DELIVERY_BASE_URL(https)');
-    }
-  }
+  missing.push(...yandexDeliveryConfigurationErrors(process.env));
   if (process.env.GEMINI_ASSISTANT_ENABLED === 'true') {
     for (const keyName of ['GEMINI_API_KEY', 'QWEN_API_KEY', 'DEEPSEEK_API_KEY']) {
       const configuredKey = String(process.env[keyName] || '').trim();
@@ -347,6 +457,7 @@ function shouldRunBots(env = process.env) {
 module.exports = {
   hasValidFirebaseServiceAccount,
   loyaltyPosConfigurationErrors,
+  yandexDeliveryConfigurationErrors,
   validateRuntimeConfig,
   shouldRunBots,
 };

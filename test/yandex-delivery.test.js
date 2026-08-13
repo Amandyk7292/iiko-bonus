@@ -238,7 +238,7 @@ test('canonical Yandex delivery migration contains the required constraints', ()
   assert.match(migration, /client_request_id uuid not null/);
 });
 
-test('terminal Yandex delivery completion stays retryable after a transient failure', () => {
+test('terminal Yandex delivery projection stays retryable after a transient failure', () => {
   const source = fs.readFileSync(
     path.join(__dirname, '..', 'src', 'services', 'yandex-delivery.service.js'),
     'utf8',
@@ -248,10 +248,13 @@ test('terminal Yandex delivery completion stays retryable after a transient fail
     source,
     /if \(internalStatus === 'delivered'\) \{[\s\S]*?updateOrderFromJob\([\s\S]*?updateJob\(job\.id, updates\)/,
   );
-  assert.match(source, /\.eq\('internal_status', 'delivered'\)[\s\S]*?\.not\('last_error'/);
   assert.match(
     source,
-    /if \(job\.internal_status === 'delivered' && job\.last_error\)[\s\S]*?last_error: null/,
+    /\.in\('internal_status', \['delivered', 'cancelled'\]\)[\s\S]*?\.not\('last_error'/,
+  );
+  assert.match(
+    source,
+    /if \(isTerminalStatus\(job\.provider_status\)\) \{[\s\S]*?updateOrderFromJob\(job, \{\}\)[\s\S]*?last_error: null/,
   );
 });
 
@@ -283,6 +286,15 @@ test('Yandex completion retries the same job after a transient order failure', a
   };
   let insertCalls = 0;
   const fakeSupabase = {
+    async rpc(name, args) {
+      assert.equal(name, 'project_yandex_delivery_status');
+      assert.equal(args.p_job_id, state.job.id);
+      assert.equal(args.p_expected_provider_status, state.job.provider_status);
+      state.job.internal_status = args.p_internal_status;
+      state.order.delivery_status =
+        args.p_internal_status === 'cancelled' ? 'unassigned' : args.p_internal_status;
+      return { data: { ...state.job }, error: null };
+    },
     from(table) {
       let action = 'select';
       let payload = null;
@@ -307,6 +319,9 @@ test('Yandex completion retries the same job after a transient order failure', a
           return builder;
         },
         eq() {
+          return builder;
+        },
+        is() {
           return builder;
         },
         maybeSingle: run,
@@ -373,7 +388,9 @@ test('Yandex completion retries the same job after a transient order failure', a
     /transient order completion failure/,
   );
   assert.equal(state.job.provider_status, 'delivery_arrived');
-  assert.equal(state.job.internal_status, 'en_route');
+  // The active job keeps its reservation while durably publishing the exact
+  // order projection that the DB guard will permit on the retry.
+  assert.equal(state.job.internal_status, 'delivered');
   assert.match(state.job.last_error, /transient order completion failure/);
 
   const completed = await service.syncDeliveryJob({ ...state.job });

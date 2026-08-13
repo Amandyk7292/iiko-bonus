@@ -136,7 +136,7 @@ async function findNearestCourier(orderId, { branchIds = [] } = {}) {
 
 async function autoAssignOrder(orderId, { branchIds = [] } = {}) {
   const match = await findNearestCourier(orderId, { branchIds });
-  if (match.order.externalDelivery?.claimId && !match.order.externalDelivery.terminal) {
+  if (match.order.externalDelivery?.active && !match.order.externalDelivery.terminal) {
     throw dispatchError('Сначала отмените активную заявку Яндекс.Доставки', 409);
   }
   if (!match.courier) throw dispatchError('Нет свободного курьера с актуальной геопозицией', 409);

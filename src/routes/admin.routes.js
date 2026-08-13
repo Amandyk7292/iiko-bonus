@@ -104,6 +104,9 @@ const { registerPaymentIntegrationAdminRoutes } = require('./admin/payment-integ
 const { registerOrderSubstitutionAdminRoutes } = require('./admin/order-substitution.routes');
 const { registerBackendSafetyAdminRoutes } = require('./admin/backend-safety.routes');
 const { registerBusinessFoundationAdminRoutes } = require('./admin/business-foundation.routes');
+const {
+  registerYandexItemsResolutionAdminRoute,
+} = require('./admin/yandex-items-resolution.routes');
 const { setAdminAuditContext } = require('../services/admin-audit.service');
 const {
   registerInventoryAdminRoutes,
@@ -179,14 +182,32 @@ const assertOrderAccess = async (req, orderId) => {
   return data;
 };
 
-const canManageYandexDispatch = (req) =>
+const canQuoteYandexDispatch = (req) =>
   ['admin', 'owner', 'branch_manager', 'operator'].includes(req.admin.role);
 
-const assertYandexDispatchMutationAccess = (req) => {
-  if (!canManageYandexDispatch(req)) {
+const hasYandexFinancialRole = (req) => ['admin', 'owner'].includes(req.admin.role);
+const canCreateYandexDispatch = (req) => hasYandexFinancialRole(req) && req.admin?.mfa === true;
+
+const assertYandexDispatchQuoteAccess = (req) => {
+  if (!canQuoteYandexDispatch(req)) {
     throw Object.assign(new Error('Недостаточно прав для заказа Яндекс.Доставки'), {
       statusCode: 403,
     });
+  }
+};
+
+const assertYandexDispatchCreateAccess = (req) => {
+  if (!hasYandexFinancialRole(req)) {
+    throw Object.assign(
+      new Error('Вызвать внешнего курьера с расходами могут только owner и admin'),
+      { statusCode: 403, code: 'YANDEX_DELIVERY_FINANCIAL_ACCESS_REQUIRED' },
+    );
+  }
+  if (req.admin?.mfa !== true) {
+    throw Object.assign(
+      new Error('Для платного вызова внешнего курьера войдите с двухфакторной защитой'),
+      { statusCode: 403, code: 'ADMIN_MFA_REQUIRED' },
+    );
   }
 };
 
@@ -1167,7 +1188,9 @@ router.get('/admin/api/dispatch', async (req, res) => {
       ...state,
       yandexDelivery: {
         ...state.yandexDelivery,
-        canManage: canManageYandexDispatch(req),
+        canManage: canQuoteYandexDispatch(req),
+        canQuote: canQuoteYandexDispatch(req),
+        canCreate: canCreateYandexDispatch(req),
       },
     });
   } catch (error) {
@@ -1202,7 +1225,9 @@ router.get('/admin/api/dispatch/yandex/status', (req, res) => {
   res.json({
     success: true,
     ...yandexDelivery.getConfigurationStatus(),
-    canManage: canManageYandexDispatch(req),
+    canManage: canQuoteYandexDispatch(req),
+    canQuote: canQuoteYandexDispatch(req),
+    canCreate: canCreateYandexDispatch(req),
   });
 });
 router.post(
@@ -1210,9 +1235,20 @@ router.post(
   validateRequest(adminMutationSchemas.dispatchEmpty),
   async (req, res) => {
     try {
-      assertYandexDispatchMutationAccess(req);
+      assertYandexDispatchQuoteAccess(req);
       const order = await assertOrderAccess(req, req.params.orderId);
       const delivery = await yandexDelivery.quoteOrder(req.params.orderId);
+      setAdminAuditContext(req, {
+        actionCode: 'YANDEX_DELIVERY_QUOTED',
+        targetType: 'order',
+        targetId: req.params.orderId,
+        branchId: order.branch_id,
+        context: {
+          deliveryJobId: delivery?.id || null,
+          apiFamily: delivery?.apiFamily || null,
+          quotedPrice: delivery?.quotedPrice ?? null,
+        },
+      });
       realtime.publish(
         'delivery.updated',
         { orderId: req.params.orderId, quoted: true },
@@ -1231,12 +1267,41 @@ router.post(
 );
 router.post(
   '/admin/api/dispatch/:orderId/yandex/request',
-  validateRequest(adminMutationSchemas.dispatchEmpty),
+  validateRequest(adminMutationSchemas.yandexRequest),
   async (req, res) => {
     try {
-      assertYandexDispatchMutationAccess(req);
-      await assertOrderAccess(req, req.params.orderId);
-      const delivery = await yandexDelivery.dispatchOrder(req.params.orderId);
+      assertYandexDispatchCreateAccess(req);
+      const order = await assertOrderAccess(req, req.params.orderId);
+      setAdminAuditContext(req, {
+        actionCode: 'YANDEX_DELIVERY_REQUESTED',
+        targetType: 'order',
+        targetId: req.params.orderId,
+        branchId: order.branch_id,
+        context: {
+          deliveryJobId: req.body?.deliveryJobId || null,
+          authorizedMaxPriceKzt: req.body?.maxPriceKzt ?? null,
+          quoteFingerprint: req.body?.quoteFingerprint || null,
+          requestAttempted: true,
+        },
+      });
+      const delivery = await yandexDelivery.dispatchOrder(req.params.orderId, {
+        deliveryJobId: req.body?.deliveryJobId,
+        maxPriceKzt: req.body?.maxPriceKzt,
+        quoteFingerprint: req.body?.quoteFingerprint,
+      });
+      setAdminAuditContext(req, {
+        actionCode: 'YANDEX_DELIVERY_REQUESTED',
+        targetType: 'order',
+        targetId: req.params.orderId,
+        branchId: order.branch_id,
+        context: {
+          deliveryJobId: delivery?.id || req.body?.deliveryJobId || null,
+          apiFamily: delivery?.apiFamily || null,
+          authorizedMaxPriceKzt: req.body?.maxPriceKzt ?? null,
+          quoteFingerprint: req.body?.quoteFingerprint || null,
+          providerStatus: delivery?.status || null,
+        },
+      });
       res.json({ success: true, delivery });
     } catch (error) {
       res.status(error.statusCode || 500).json({
@@ -1291,13 +1356,36 @@ router.post(
   validateRequest(adminMutationSchemas.yandexCancel),
   async (req, res) => {
     try {
-      assertYandexDispatchMutationAccess(req);
-      await assertOrderAccess(req, req.params.orderId);
+      assertYandexDispatchQuoteAccess(req);
+      if (req.body?.allowPaid === true) assertYandexDispatchCreateAccess(req);
+      const order = await assertOrderAccess(req, req.params.orderId);
+      setAdminAuditContext(req, {
+        actionCode: 'YANDEX_DELIVERY_CANCELLED',
+        targetType: 'order',
+        targetId: req.params.orderId,
+        branchId: order.branch_id,
+        context: {
+          paidOrMinimalConfirmed: req.body?.allowPaid === true,
+          cancellationAttempted: true,
+        },
+      });
+      const delivery = await yandexDelivery.cancelDelivery(req.params.orderId, {
+        allowPaid: req.body?.allowPaid === true,
+      });
+      setAdminAuditContext(req, {
+        actionCode: 'YANDEX_DELIVERY_CANCELLED',
+        targetType: 'order',
+        targetId: req.params.orderId,
+        branchId: order.branch_id,
+        context: {
+          deliveryJobId: delivery?.id || null,
+          apiFamily: delivery?.apiFamily || null,
+          paidOrMinimalConfirmed: req.body?.allowPaid === true,
+        },
+      });
       res.json({
         success: true,
-        delivery: await yandexDelivery.cancelDelivery(req.params.orderId, {
-          allowPaid: req.body?.allowPaid === true,
-        }),
+        delivery,
       });
     } catch (error) {
       res.status(error.statusCode || 500).json({
@@ -1309,6 +1397,10 @@ router.post(
     }
   },
 );
+registerYandexItemsResolutionAdminRoute(router, {
+  assertAccess: assertYandexDispatchCreateAccess,
+  assertOrderAccess,
+});
 router.patch(
   '/admin/api/dispatch/couriers/:id/availability',
   validateRequest(adminMutationSchemas.courierAvailability),

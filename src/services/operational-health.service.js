@@ -204,6 +204,7 @@ const readinessSnapshot = async ({
   const alertReceiverOk =
     staffOrderAlerts.receiverRequired !== true ||
     (staffOrderAlerts.receiverConfigured === true &&
+      process.env.RUN_BACKGROUND_WORKERS === 'true' &&
       Number(staffOrderAlerts.oldestPendingSeconds || 0) <= 300);
   const staffOrderAlertsOk = alertQueueOk && alertReceiverOk;
   const staffPushRequired = process.env.STAFF_PUSH_REQUIRED === 'true';
@@ -237,6 +238,7 @@ const readinessSnapshot = async ({
         ok: staffOrderAlertsOk,
         receiverConfigured: staffOrderAlerts.receiverConfigured === true,
         receiverRequired: staffOrderAlerts.receiverRequired === true,
+        workersEnabled: process.env.RUN_BACKGROUND_WORKERS === 'true',
         degraded:
           staffOrderAlerts.receiverConfigured !== true || staffOrderAlerts.queueAvailable !== true,
         queueAvailable: staffOrderAlerts.queueAvailable === true,

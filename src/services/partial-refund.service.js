@@ -9,6 +9,7 @@ const {
   reconcileRefundForOrder,
   refundPaymentForOrder,
 } = require('./payment-gateway.service');
+const { assertExternalDeliveryCancelled } = require('./external-delivery-lifecycle.service');
 
 const refundError = (message, statusCode = 400, code = 'PARTIAL_REFUND_INVALID') =>
   Object.assign(new Error(message), { statusCode, code });
@@ -419,6 +420,7 @@ async function createPartialRefund(orderId, payload = {}, requestedBy = 'admin')
   if (['processing', 'unknown'].includes(order.refund_status)) {
     throw refundError('По заказу уже проверяется возврат', 409, 'REFUND_IN_PROGRESS');
   }
+  await assertExternalDeliveryCancelled(order.id);
   const alreadyRefunded = await successfulRefundedQuantities(order.id);
   const calculated = calculateRefund(order, payload.items, alreadyRefunded);
   const processorToken = crypto.randomUUID();

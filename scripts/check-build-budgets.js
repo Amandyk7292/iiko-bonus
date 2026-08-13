@@ -39,11 +39,11 @@ if (adminDirectory) {
   assertBudget(
     'Admin total JavaScript gzip',
     javascriptGzip.reduce((sum, size) => sum + size, 0),
-    // Cashier access, the iPad staff workflow and its secure native push
-    // enrollment bridge and serialized token reconciliation account for the
-    // latest measured growth (333,730 B). Keep about 2% cross-platform build
-    // margin so regressions stay visible.
-    340_000,
+    // Cashier access, staff push, and the Yandex Business fixed-price,
+    // reconciliation, and custody-resolution controls account for the latest
+    // measured growth (340,190 B). Keep about 2% cross-platform build margin
+    // so regressions stay visible.
+    347_000,
   );
   assertBudget('Admin largest JavaScript gzip', Math.max(0, ...javascriptGzip), 82_000);
   // Focus rings, 48px staff controls, and contrast-safe states are intentional.

@@ -80,7 +80,8 @@ const ru: Record<string, string> = {
   'auth.logout': 'Выйти',
   'auth.logoutFull': 'Выйти из системы',
   'auth.loggingOut': 'Выходим…',
-  'auth.logoutError': 'Не удалось выйти: сервер не подтвердил завершение сессии. Повторите попытку.',
+  'auth.logoutError':
+    'Не удалось выйти: сервер не подтвердил завершение сессии. Повторите попытку.',
   'staff.push.logoutError':
     'Не удалось отключить push на устройстве. Выход отменён — повторите попытку.',
   'staff.push.logoutRequiresKitchen':
@@ -838,6 +839,109 @@ const ru: Record<string, string> = {
   'dispatch.assign': 'Назначить',
   'dispatch.assigned': 'Курьер назначен',
   'dispatch.mapTitle': 'Карта курьеров и заказов',
+  'dispatch.yandex.actionError': 'Не удалось выполнить действие',
+  'dispatch.yandex.quoteSuccess': 'Стоимость доставки рассчитана',
+  'dispatch.yandex.fixedQuoteRequired':
+    'Сначала получите свежую фиксированную цену Яндекс Go для бизнеса.',
+  'dispatch.yandex.restaurantApprovalRequired':
+    'Вызов заблокирован до письменного подтверждения Яндекса для ресторанной доставки.',
+  'dispatch.yandex.operationalAlertsRequired':
+    'Платный вызов заблокирован: настройте обязательный приёмник тревог и фоновые обработчики.',
+  'dispatch.yandex.quoteExpired': 'Расчёт цены устарел. Рассчитайте стоимость ещё раз.',
+  'dispatch.yandex.quoteExpiredShort': 'Срок действия цены истёк — рассчитайте её снова.',
+  'dispatch.yandex.quoteCountdown': 'Цена действительна ещё {{time}}',
+  'dispatch.yandex.requestConfirmTitle': 'Вызвать курьера Яндекс Go для бизнеса',
+  'dispatch.yandex.requestConfirmBody':
+    'Подтвердить вызов до {{price}} ₸? После подтверждения Яндекс начнёт поиск курьера.',
+  'dispatch.yandex.requestConfirmLabel': 'Вызвать до {{price}} ₸',
+  'dispatch.yandex.businessRequestSuccess': 'Заявка передана в Яндекс Go для бизнеса',
+  'dispatch.yandex.cargoRequestSuccess': 'Заявка передана в Яндекс.Доставку',
+  'dispatch.yandex.syncSuccess': 'Статус доставки обновлён',
+  'dispatch.yandex.cancelUnavailable': 'Курьер уже забрал заказ. Обратитесь в поддержку Яндекса.',
+  'dispatch.yandex.paidCancelRequiresManager':
+    'Платную отмену может подтвердить только владелец или администратор. Обратитесь к нему.',
+  'dispatch.yandex.cancelMayBePaid': 'Отмена может быть платной',
+  'dispatch.yandex.cancelUnknownPriceFallback':
+    'Яндекс не сообщил точную сумму. Всё равно отменить?',
+  'dispatch.yandex.cancelUnknownPrice': '{{title}}. {{message}}',
+  'dispatch.yandex.cancelPaidPrice': 'Яндекс удержит {{price}} ₸ за отмену. Всё равно отменить?',
+  'dispatch.yandex.cancelFreePrompt': 'Отменить вызов курьера Яндекс.Доставки?',
+  'dispatch.yandex.cancelTitle': 'Отмена Яндекс.Доставки',
+  'dispatch.yandex.cancelConfirm': 'Отменить доставку',
+  'dispatch.yandex.cancelPaidSuccess': 'Платная отмена подтверждена',
+  'dispatch.yandex.cancelFreeSuccess': 'Заявка Яндекс.Доставки отменена',
+  'dispatch.yandex.cancelError': 'Не удалось отменить доставку',
+  'dispatch.yandex.notConfigured': '{{provider}} пока недоступна. Заполните на VPS: {{missing}}.',
+  'dispatch.yandex.businessProvider': 'Яндекс Go для бизнеса',
+  'dispatch.yandex.cargoProvider': 'Яндекс.Доставка',
+  'dispatch.yandex.carCourier': 'Автокурьер',
+  'dispatch.yandex.kitchenRequired': 'Курьер не вызван — сначала примите заказ на кухне.',
+  'dispatch.yandex.dispatchErrorPrefix': 'Вызов курьера: {{error}}',
+  'dispatch.yandex.track': 'Отследить',
+  'dispatch.yandex.syncLabel': 'Обновить статус Яндекс.Доставки',
+  'dispatch.yandex.cancelLabel': 'Отменить Яндекс.Доставку',
+  'dispatch.yandex.quoteAction': 'Цена',
+  'dispatch.yandex.requestWithPrice': 'Вызвать · {{price}} ₸',
+  'dispatch.yandex.requestAction': 'Вызвать Яндекс',
+  'dispatch.yandex.createReconciliation.required':
+    'Яндекс не подтвердил создание заявки после всех автоматических попыток. Сначала проверьте кабинет Яндекс Go для бизнеса: заявка может уже существовать. Не создавайте дубликат.',
+  'dispatch.yandex.createReconciliation.ownerRequired':
+    'Ручное решение доступно только владельцу или администратору с MFA.',
+  'dispatch.yandex.createReconciliation.externalOrderIdInvalid':
+    'Введите ID из кабинета: 1–160 символов, только латинские буквы, цифры, точка, подчёркивание, двоеточие или дефис.',
+  'dispatch.yandex.createReconciliation.reasonRequired':
+    'Укажите причину и источник проверки. Без этого ручное решение не сохранится.',
+  'dispatch.yandex.createReconciliation.reasonTooLong':
+    'Причина длиннее 240 символов. Сократите текст и повторите действие.',
+  'dispatch.yandex.createReconciliation.actionError':
+    'Не удалось сохранить результат проверки заявки. Обновите заказ и повторите действие.',
+  'dispatch.yandex.createReconciliation.attach.action': 'Указать ID заказа Яндекса',
+  'dispatch.yandex.createReconciliation.attach.externalOrderIdPrompt':
+    'Введите точный ID заказа из кабинета Яндекс Go для бизнеса (1–160 символов).',
+  'dispatch.yandex.createReconciliation.attach.reasonPrompt':
+    'Укажите, кто, когда и где нашёл заявку Яндекса (обязательно, до 240 символов).',
+  'dispatch.yandex.createReconciliation.attach.confirmTitle': 'Привязать найденную заявку Яндекса?',
+  'dispatch.yandex.createReconciliation.attach.confirmBody':
+    'Проверьте ID ещё раз: {{externalOrderId}}. Система привяжет эту заявку и возобновит отслеживание. Причина: «{{reason}}».',
+  'dispatch.yandex.createReconciliation.attach.confirmLabel': 'Привязать заявку',
+  'dispatch.yandex.createReconciliation.attach.success':
+    'Заявка Яндекса привязана, отслеживание возобновлено',
+  'dispatch.yandex.createReconciliation.not_created.action':
+    'Подтвердить, что заказ не создан',
+  'dispatch.yandex.createReconciliation.not_created.reasonPrompt':
+    'Укажите, кто, когда и как проверил отсутствие заявки в кабинете Яндекса (обязательно, до 240 символов).',
+  'dispatch.yandex.createReconciliation.not_created.confirmTitle':
+    'Подтвердить, что заявка в Яндексе не создана?',
+  'dispatch.yandex.createReconciliation.not_created.confirmBody':
+    'Это снимет резерв внешней доставки. Продолжайте только после полной проверки кабинета Яндекса. Причина: «{{reason}}».',
+  'dispatch.yandex.createReconciliation.not_created.confirmLabel':
+    'Да, заявки в Яндексе нет',
+  'dispatch.yandex.createReconciliation.not_created.success':
+    'Отсутствие заявки подтверждено, резерв доставки снят',
+  'dispatch.yandex.itemsResolution.required':
+    'Курьер уже забрал заказ, но Яндекс завершил заявку без достоверного результата. Проверьте, где заказ, и зафиксируйте только подтверждённый факт.',
+  'dispatch.yandex.itemsResolution.reasonRequired':
+    'Укажите причину и источник подтверждения. Без этого ручное решение не сохранится.',
+  'dispatch.yandex.itemsResolution.reasonTooLong':
+    'Причина длиннее 240 символов. Сократите текст и повторите действие.',
+  'dispatch.yandex.itemsResolution.actionError':
+    'Не удалось сохранить ручной результат доставки. Обновите заказ и повторите действие.',
+  'dispatch.yandex.itemsResolution.returned.action': 'Заказ вернулся в филиал',
+  'dispatch.yandex.itemsResolution.returned.reasonPrompt':
+    'Укажите, кто и как подтвердил возврат заказа в филиал (обязательно, до 240 символов).',
+  'dispatch.yandex.itemsResolution.returned.confirmTitle': 'Подтвердить физический возврат заказа?',
+  'dispatch.yandex.itemsResolution.returned.confirmBody':
+    'Подтверждайте только после физического возврата заказа в филиал. Заказ будет отменён, а резерв доставки снят. Причина: «{{reason}}».',
+  'dispatch.yandex.itemsResolution.returned.confirmLabel': 'Да, заказ возвращён',
+  'dispatch.yandex.itemsResolution.returned.success': 'Возврат заказа в филиал зафиксирован',
+  'dispatch.yandex.itemsResolution.delivered.action': 'Заказ доставлен клиенту',
+  'dispatch.yandex.itemsResolution.delivered.reasonPrompt':
+    'Укажите, кто и как подтвердил получение заказа клиентом (обязательно, до 240 символов).',
+  'dispatch.yandex.itemsResolution.delivered.confirmTitle': 'Подтвердить доставку заказа клиенту?',
+  'dispatch.yandex.itemsResolution.delivered.confirmBody':
+    'Подтверждайте только после проверки получения клиентом. Заказ будет окончательно отмечен доставленным. Причина: «{{reason}}».',
+  'dispatch.yandex.itemsResolution.delivered.confirmLabel': 'Да, заказ доставлен',
+  'dispatch.yandex.itemsResolution.delivered.success': 'Доставка клиенту зафиксирована',
   'marketing.loadError': 'Не удалось загрузить маркетинг',
   'marketing.promoSaved': 'Промокод сохранён',
   'marketing.promoSaveError': 'Промокод не сохранён',
@@ -1212,6 +1316,7 @@ const ru: Record<string, string> = {
   'kitchen.dispatch.pending': 'Заявка на автокурьера в очереди',
   'kitchen.dispatch.processing': 'Ищем автокурьера',
   'kitchen.dispatch.retrying': 'Повторяем поиск автокурьера',
+  'kitchen.dispatch.awaiting_confirmation': 'Ожидается подтверждение цены диспетчером',
   'kitchen.dispatch.succeeded': 'Заявка передана службе доставки',
   'kitchen.dispatch.failed': 'Не удалось вызвать автокурьера',
   'kitchen.dispatch.provider': 'Служба: {{provider}}',

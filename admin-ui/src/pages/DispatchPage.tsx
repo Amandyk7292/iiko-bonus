@@ -2,15 +2,19 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Bike,
   Calculator,
+  CircleOff,
   Clock3,
   ExternalLink,
+  Link2,
   LoaderCircle,
   MapPin,
   Navigation,
+  PackageCheck,
   RefreshCw,
   Route,
   RotateCw,
   Send,
+  Undo2,
   X,
 } from 'lucide-react';
 import DispatchMap from '../components/DispatchMap';
@@ -27,6 +31,8 @@ import { useAdminRealtimeEvents } from '../lib/admin-realtime';
 import { useI18n } from '../lib/i18n';
 
 const availabilityStatuses = ['offline', 'available', 'busy', 'break'];
+type YandexItemsResolution = 'returned' | 'delivered';
+type YandexCreateResolution = 'attach' | 'not_created';
 
 const deliveryAddressText = (value: DispatchOrder['deliveryAddress']) => {
   if (!value) return '';
@@ -42,6 +48,11 @@ export default function DispatchPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState('');
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  const canQuoteYandex = Boolean(yandexConfig?.canQuote ?? yandexConfig?.canManage);
+  const canCreateYandex = Boolean(yandexConfig?.canCreate ?? yandexConfig?.canManage);
+  const canReconcileYandexCreate = yandexConfig?.canCreate === true;
 
   const load = useCallback(
     async (silent = false) => {
@@ -71,6 +82,16 @@ export default function DispatchPage() {
       document.removeEventListener('visibilitychange', refresh);
     };
   }, [load]);
+
+  useEffect(() => {
+    const hasBusinessJob = orders.some(
+      (order) => order.externalDelivery?.apiFamily === 'business_v2',
+    );
+    if (yandexConfig?.apiMode !== 'business_v2' && !hasBusinessJob) return undefined;
+    setNowMs(Date.now());
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, [orders, yandexConfig?.apiMode]);
 
   useAdminRealtimeEvents(
     ['order.created', 'order.updated', 'courier.updated', 'delivery.updated'],
@@ -110,7 +131,7 @@ export default function DispatchPage() {
       toast(successMessage);
       await load(true);
     } catch (caught) {
-      toast(caught instanceof Error ? caught.message : 'Не удалось выполнить действие', 'error');
+      toast(caught instanceof Error ? caught.message : t('dispatch.yandex.actionError'), 'error');
     } finally {
       setSaving('');
     }
@@ -121,23 +142,67 @@ export default function DispatchPage() {
       orderId,
       'quote',
       () => api.quoteYandexDelivery(orderId),
-      'Стоимость доставки рассчитана',
+      t('dispatch.yandex.quoteSuccess'),
     );
 
-  const requestYandex = (orderId: string) =>
-    runYandexAction(
+  const requestYandex = async (orderId: string, delivery: ExternalDelivery | null) => {
+    const businessMode =
+      delivery?.apiFamily === 'business_v2' ||
+      (!delivery && yandexConfig?.apiMode === 'business_v2');
+    const quotedPrice = Number(delivery?.quotedPrice ?? delivery?.price);
+    if (businessMode) {
+      if (
+        !delivery?.id ||
+        delivery.apiFamily !== 'business_v2' ||
+        !delivery.quoteFingerprint ||
+        delivery.fixedPrice !== true ||
+        !Number.isFinite(quotedPrice) ||
+        quotedPrice <= 0
+      ) {
+        toast(t('dispatch.yandex.fixedQuoteRequired'), 'error');
+        return;
+      }
+      if (!delivery.quoteExpiresAt || new Date(delivery.quoteExpiresAt).getTime() <= Date.now()) {
+        toast(t('dispatch.yandex.quoteExpired'), 'error');
+        return;
+      }
+      const accepted = await confirm({
+        title: t('dispatch.yandex.requestConfirmTitle'),
+        body: t('dispatch.yandex.requestConfirmBody', {
+          price: formatNumber(quotedPrice),
+        }),
+        confirmLabel: t('dispatch.yandex.requestConfirmLabel', {
+          price: formatNumber(quotedPrice),
+        }),
+      });
+      if (!accepted) return;
+    }
+    await runYandexAction(
       orderId,
       'request',
-      () => api.requestYandexDelivery(orderId),
-      'Заявка передана в Яндекс.Доставку',
+      () =>
+        api.requestYandexDelivery(
+          orderId,
+          businessMode
+            ? {
+                deliveryJobId: delivery?.id,
+                maxPriceKzt: quotedPrice,
+                quoteFingerprint: delivery?.quoteFingerprint || undefined,
+              }
+            : {},
+        ),
+      businessMode
+        ? t('dispatch.yandex.businessRequestSuccess')
+        : t('dispatch.yandex.cargoRequestSuccess'),
     );
+  };
 
   const syncYandex = (orderId: string) =>
     runYandexAction(
       orderId,
       'sync',
       () => api.syncYandexDelivery(orderId),
-      'Статус доставки обновлён',
+      t('dispatch.yandex.syncSuccess'),
     );
 
   const cancelYandex = async (orderId: string) => {
@@ -146,28 +211,151 @@ export default function DispatchPage() {
     try {
       const { cancellation } = await api.getYandexCancellationInfo(orderId);
       if (cancellation.cancelState === 'unavailable') {
-        toast('Курьер уже забрал заказ. Обратитесь в поддержку Яндекса.', 'error');
+        toast(t('dispatch.yandex.cancelUnavailable'), 'error');
         return;
       }
-      const paid = cancellation.cancelState === 'paid';
+      const paid = ['paid', 'minimal'].includes(cancellation.cancelState);
+      if (paid && !canCreateYandex) {
+        toast(t('dispatch.yandex.paidCancelRequiresManager'), 'error');
+        return;
+      }
       const prompt = paid
-        ? `Яндекс удержит ${formatNumber(cancellation.price)} ₸ за отмену. Всё равно отменить?`
-        : 'Отменить вызов курьера Яндекс.Доставки?';
+        ? cancellation.price == null
+          ? t('dispatch.yandex.cancelUnknownPrice', {
+              title: cancellation.title || t('dispatch.yandex.cancelMayBePaid'),
+              message: cancellation.message || t('dispatch.yandex.cancelUnknownPriceFallback'),
+            })
+          : t('dispatch.yandex.cancelPaidPrice', {
+              price: formatNumber(cancellation.price),
+            })
+        : t('dispatch.yandex.cancelFreePrompt');
       if (
         !(await confirm({
-          title: 'Отмена Яндекс.Доставки',
+          title: t('dispatch.yandex.cancelTitle'),
           body: prompt,
-          confirmLabel: 'Отменить доставку',
+          confirmLabel: t('dispatch.yandex.cancelConfirm'),
           destructive: true,
         }))
       ) {
         return;
       }
       await api.cancelYandexDelivery(orderId, paid);
-      toast(paid ? 'Платная отмена подтверждена' : 'Заявка Яндекс.Доставки отменена');
+      toast(paid ? t('dispatch.yandex.cancelPaidSuccess') : t('dispatch.yandex.cancelFreeSuccess'));
       await load(true);
     } catch (caught) {
-      toast(caught instanceof Error ? caught.message : 'Не удалось отменить доставку', 'error');
+      toast(caught instanceof Error ? caught.message : t('dispatch.yandex.cancelError'), 'error');
+    } finally {
+      setSaving('');
+    }
+  };
+
+  const resolveYandexItems = async (
+    orderId: string,
+    delivery: ExternalDelivery,
+    resolution: YandexItemsResolution,
+  ) => {
+    if (saving || !canCreateYandex) return;
+    setSaving(`${orderId}:resolve-${resolution}`);
+    try {
+      const enteredReason = window.prompt(
+        t(`dispatch.yandex.itemsResolution.${resolution}.reasonPrompt`),
+      );
+      if (enteredReason === null) return;
+      const reason = enteredReason.trim();
+      if (!reason) {
+        toast(t('dispatch.yandex.itemsResolution.reasonRequired'), 'error');
+        return;
+      }
+      if (reason.length > 240) {
+        toast(t('dispatch.yandex.itemsResolution.reasonTooLong'), 'error');
+        return;
+      }
+      const accepted = await confirm({
+        title: t(`dispatch.yandex.itemsResolution.${resolution}.confirmTitle`),
+        body: t(`dispatch.yandex.itemsResolution.${resolution}.confirmBody`, { reason }),
+        confirmLabel: t(`dispatch.yandex.itemsResolution.${resolution}.confirmLabel`),
+        destructive: resolution === 'returned',
+      });
+      if (!accepted) return;
+      await api.resolveYandexDeliveryItems(orderId, {
+        deliveryJobId: delivery.id,
+        resolution,
+        reason,
+      });
+      toast(t(`dispatch.yandex.itemsResolution.${resolution}.success`));
+      await load(true);
+    } catch (caught) {
+      toast(
+        caught instanceof Error ? caught.message : t('dispatch.yandex.itemsResolution.actionError'),
+        'error',
+      );
+    } finally {
+      setSaving('');
+    }
+  };
+
+  const resolveYandexCreate = async (
+    orderId: string,
+    delivery: ExternalDelivery,
+    resolution: YandexCreateResolution,
+  ) => {
+    if (saving || !canReconcileYandexCreate) return;
+    const action = resolution === 'attach' ? 'reconcile-attach' : 'reconcile-not-created';
+    setSaving(`${orderId}:${action}`);
+    try {
+      let externalOrderId: string | undefined;
+      if (resolution === 'attach') {
+        const enteredExternalOrderId = window.prompt(
+          t('dispatch.yandex.createReconciliation.attach.externalOrderIdPrompt'),
+        );
+        if (enteredExternalOrderId === null) return;
+        externalOrderId = enteredExternalOrderId.trim();
+        if (!/^[0-9A-Za-z._:-]{1,160}$/.test(externalOrderId)) {
+          toast(t('dispatch.yandex.createReconciliation.externalOrderIdInvalid'), 'error');
+          return;
+        }
+      }
+
+      const enteredReason = window.prompt(
+        t(`dispatch.yandex.createReconciliation.${resolution}.reasonPrompt`),
+      );
+      if (enteredReason === null) return;
+      const reason = enteredReason.trim();
+      if (!reason) {
+        toast(t('dispatch.yandex.createReconciliation.reasonRequired'), 'error');
+        return;
+      }
+      if (reason.length > 240) {
+        toast(t('dispatch.yandex.createReconciliation.reasonTooLong'), 'error');
+        return;
+      }
+
+      const accepted = await confirm({
+        title: t(`dispatch.yandex.createReconciliation.${resolution}.confirmTitle`),
+        body: t(`dispatch.yandex.createReconciliation.${resolution}.confirmBody`, {
+          externalOrderId: externalOrderId || '',
+          reason,
+        }),
+        confirmLabel: t(`dispatch.yandex.createReconciliation.${resolution}.confirmLabel`),
+        destructive: resolution === 'not_created',
+      });
+      if (!accepted) return;
+
+      await api.resolveYandexCreateReconciliation(orderId, {
+        deliveryJobId: delivery.id,
+        resolution,
+        ...(externalOrderId ? { externalOrderId } : {}),
+        reason,
+      });
+      toast(t(`dispatch.yandex.createReconciliation.${resolution}.success`));
+      await load(true);
+    } catch (caught) {
+      toast(
+        caught instanceof Error
+          ? caught.message
+          : t('dispatch.yandex.createReconciliation.actionError'),
+        'error',
+      );
     } finally {
       setSaving('');
     }
@@ -212,7 +400,10 @@ export default function DispatchPage() {
       </div>
       {yandexConfig && !yandexConfig.configured && (
         <div className="inline-alert inline-alert-warning" role="status">
-          Яндекс.Доставка пока недоступна. Заполните на VPS: {yandexConfig.missing.join(', ')}.
+          {t('dispatch.yandex.notConfigured', {
+            provider: yandexConfig.providerLabel || t('dispatch.yandex.cargoProvider'),
+            missing: yandexConfig.missing.join(', '),
+          })}
         </div>
       )}
       <section className="ops-metrics-grid">
@@ -314,15 +505,70 @@ export default function DispatchPage() {
                     ? `https://yandex.kz/maps/?rtext=${order.branchLatitude},${order.branchLongitude}~${order.deliveryLatitude},${order.deliveryLongitude}&rtt=auto`
                     : '';
                 const external = order.externalDelivery;
-                const hasActiveYandex = Boolean(external?.claimId && !external.terminal);
+                const createReconciliationRequired = Boolean(
+                  external?.apiFamily === 'business_v2' &&
+                    (external.createReconciliationExhausted ||
+                      external.status === 'creating_exhausted'),
+                );
+                const hasReservedYandex = Boolean(
+                  external &&
+                    !external.terminal &&
+                    (external.active || createReconciliationRequired),
+                );
+                const hasActiveYandex = Boolean(
+                  hasReservedYandex && !['draft', 'quoted'].includes(external?.status || ''),
+                );
                 const busy = saving.startsWith(`${order.id}:`);
                 const quotePrice = external?.price ?? external?.quotedPrice;
+                const businessMode =
+                  external?.apiFamily === 'business_v2' ||
+                  (!external && yandexConfig?.apiMode === 'business_v2');
+                const quoteExpiresAtMs = external?.quoteExpiresAt
+                  ? new Date(external.quoteExpiresAt).getTime()
+                  : Number.NaN;
+                const quoteRemainingSeconds = Number.isFinite(quoteExpiresAtMs)
+                  ? Math.max(0, Math.ceil((quoteExpiresAtMs - nowMs) / 1_000))
+                  : 0;
+                const quoteCountdown = `${String(Math.floor(quoteRemainingSeconds / 60)).padStart(2, '0')}:${String(quoteRemainingSeconds % 60).padStart(2, '0')}`;
+                const businessQuoteReady = Boolean(
+                  external?.apiFamily === 'business_v2' &&
+                  external.fixedPrice === true &&
+                  Number(external.quotedPrice) > 0 &&
+                  quoteRemainingSeconds > 0,
+                );
                 const kitchenAccepted = Boolean(
                   order.courierDispatchRequestedAt ||
                   ['preparing', 'ready', 'handed_over'].includes(
                     String(order.kitchenStatus || 'queued'),
                   ),
                 );
+                const requestDisabledReason = !kitchenAccepted
+                  ? t('dispatch.yandex.kitchenRequired')
+                  : businessMode && yandexConfig?.restaurantDeliveryConfirmed !== true
+                    ? t('dispatch.yandex.restaurantApprovalRequired')
+                    : businessMode && yandexConfig?.dispatchReady === false
+                      ? t('dispatch.yandex.operationalAlertsRequired')
+                    : businessMode && !businessQuoteReady
+                      ? external?.apiFamily === 'business_v2' &&
+                        external.fixedPrice === true &&
+                        Number(external.quotedPrice) > 0 &&
+                        quoteRemainingSeconds <= 0
+                        ? t('dispatch.yandex.quoteExpired')
+                        : t('dispatch.yandex.fixedQuoteRequired')
+                      : '';
+                const requestDisabledReasonId = `yandex-request-disabled-${order.id}`;
+                const itemsResolutionRequired = Boolean(
+                  external?.apiFamily === 'business_v2' &&
+                  (external.itemsResolutionRequired ||
+                    [
+                      'cancelled_items_unresolved',
+                      'items_resolution_returned',
+                      'items_resolution_delivered',
+                    ].includes(external.status)),
+                );
+                const resolutionInProgress = external?.status.startsWith('items_resolution_');
+                const itemsResolutionHintId = `yandex-items-resolution-${order.id}`;
+                const createReconciliationHintId = `yandex-create-reconciliation-${order.id}`;
                 return (
                   <article className="ops-row ops-order-row" key={order.id}>
                     <div className="ops-row-icon">
@@ -345,13 +591,28 @@ export default function DispatchPage() {
                       </small>
                       {external && (
                         <small className="external-delivery-summary">
-                          Яндекс: {external.statusLabel}
+                          {external.apiFamily === 'business_v2'
+                            ? t('dispatch.yandex.businessProvider')
+                            : t('dispatch.yandex.cargoProvider')}
+                          : {external.statusLabel}
                           {quotePrice != null ? ` · ${formatNumber(quotePrice)} ₸` : ''}
                           {external.courier?.name ? ` · ${external.courier.name}` : ''}
-                          {external.courier?.isAutomobile === true ? ' · Автокурьер' : ''}
+                          {external.courier?.isAutomobile === true
+                            ? ` · ${t('dispatch.yandex.carCourier')}`
+                            : ''}
                           {external.courier?.vehicle ? ` · ${external.courier.vehicle}` : ''}
                         </small>
                       )}
+                      {external?.apiFamily === 'business_v2' &&
+                        external.fixedPrice === true &&
+                        Number(external.quotedPrice) > 0 &&
+                        external.quoteExpiresAt && (
+                          <small className="external-delivery-summary tabular-nums">
+                            {quoteRemainingSeconds > 0
+                              ? t('dispatch.yandex.quoteCountdown', { time: quoteCountdown })
+                              : t('dispatch.yandex.quoteExpiredShort')}
+                          </small>
+                        )}
                       {external?.transportWarning && (
                         <small className="external-delivery-error">
                           {external.transportWarning}
@@ -360,14 +621,37 @@ export default function DispatchPage() {
                       {external?.lastError && (
                         <small className="external-delivery-error">{external.lastError}</small>
                       )}
+                      {itemsResolutionRequired && (
+                        <small
+                          className="external-delivery-resolution-alert"
+                          id={itemsResolutionHintId}
+                          role="alert"
+                        >
+                          {t('dispatch.yandex.itemsResolution.required')}
+                        </small>
+                      )}
+                      {createReconciliationRequired && (
+                        <small
+                          className="external-delivery-resolution-alert"
+                          id={createReconciliationHintId}
+                          role="alert"
+                        >
+                          {t('dispatch.yandex.createReconciliation.required')}
+                          {!canReconcileYandexCreate
+                            ? ` ${t('dispatch.yandex.createReconciliation.ownerRequired')}`
+                            : ''}
+                        </small>
+                      )}
                       {!kitchenAccepted && (
                         <small className="external-delivery-summary">
-                          Курьер не вызван — сначала примите заказ на кухне.
+                          {t('dispatch.yandex.kitchenRequired')}
                         </small>
                       )}
                       {order.courierDispatchError && (
                         <small className="external-delivery-error">
-                          Вызов курьера: {order.courierDispatchError}
+                          {t('dispatch.yandex.dispatchErrorPrefix', {
+                            error: order.courierDispatchError,
+                          })}
                         </small>
                       )}
                     </div>
@@ -391,34 +675,36 @@ export default function DispatchPage() {
                           rel="noreferrer"
                           className="btn-outline compact-button"
                         >
-                          Отследить
+                          {t('dispatch.yandex.track')}
                         </a>
                       )}
                       {hasActiveYandex ? (
                         <>
                           <span className="status-pill status-info">{external?.statusLabel}</span>
-                          <button
-                            type="button"
-                            className="icon-button icon-button-sm"
-                            disabled={Boolean(saving)}
-                            onClick={() => void syncYandex(order.id)}
-                            aria-label="Обновить статус Яндекс.Доставки"
-                            title="Обновить статус Яндекс.Доставки"
-                          >
-                            {saving === `${order.id}:sync` ? (
-                              <LoaderCircle aria-hidden="true" className="spin" size={15} />
-                            ) : (
-                              <RotateCw aria-hidden="true" size={15} />
-                            )}
-                          </button>
-                          {external?.canCancel && (
+                          {canQuoteYandex && !createReconciliationRequired && (
+                            <button
+                              type="button"
+                              className="icon-button icon-button-sm"
+                              disabled={Boolean(saving)}
+                              onClick={() => void syncYandex(order.id)}
+                              aria-label={t('dispatch.yandex.syncLabel')}
+                              title={t('dispatch.yandex.syncLabel')}
+                            >
+                              {saving === `${order.id}:sync` ? (
+                                <LoaderCircle aria-hidden="true" className="spin" size={15} />
+                              ) : (
+                                <RotateCw aria-hidden="true" size={15} />
+                              )}
+                            </button>
+                          )}
+                          {canQuoteYandex && external?.canCancel && (
                             <button
                               type="button"
                               className="icon-button icon-button-sm icon-button-danger"
                               disabled={Boolean(saving)}
                               onClick={() => void cancelYandex(order.id)}
-                              aria-label="Отменить Яндекс.Доставку"
-                              title="Отменить Яндекс.Доставку"
+                              aria-label={t('dispatch.yandex.cancelLabel')}
+                              title={t('dispatch.yandex.cancelLabel')}
                             >
                               {saving === `${order.id}:cancel` ? (
                                 <LoaderCircle aria-hidden="true" className="spin" size={15} />
@@ -427,8 +713,87 @@ export default function DispatchPage() {
                               )}
                             </button>
                           )}
+                          {itemsResolutionRequired &&
+                            !resolutionInProgress &&
+                            canCreateYandex &&
+                            external && (
+                              <>
+                                <button
+                                  type="button"
+                                  className="btn-outline compact-button danger-outline"
+                                  disabled={Boolean(saving)}
+                                  aria-describedby={itemsResolutionHintId}
+                                  onClick={() =>
+                                    void resolveYandexItems(order.id, external, 'returned')
+                                  }
+                                >
+                                  {saving === `${order.id}:resolve-returned` ? (
+                                    <LoaderCircle aria-hidden="true" className="spin" size={15} />
+                                  ) : (
+                                    <Undo2 aria-hidden="true" size={15} />
+                                  )}
+                                  {t('dispatch.yandex.itemsResolution.returned.action')}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-classic compact-button"
+                                  disabled={Boolean(saving)}
+                                  aria-describedby={itemsResolutionHintId}
+                                  onClick={() =>
+                                    void resolveYandexItems(order.id, external, 'delivered')
+                                  }
+                                >
+                                  {saving === `${order.id}:resolve-delivered` ? (
+                                    <LoaderCircle aria-hidden="true" className="spin" size={15} />
+                                  ) : (
+                                    <PackageCheck aria-hidden="true" size={15} />
+                                  )}
+                                  {t('dispatch.yandex.itemsResolution.delivered.action')}
+                                </button>
+                              </>
+                            )}
+                          {createReconciliationRequired && canReconcileYandexCreate && external && (
+                            <>
+                              <button
+                                type="button"
+                                className="btn-outline compact-button"
+                                disabled={Boolean(saving)}
+                                aria-busy={saving === `${order.id}:reconcile-attach`}
+                                aria-describedby={createReconciliationHintId}
+                                onClick={() =>
+                                  void resolveYandexCreate(order.id, external, 'attach')
+                                }
+                              >
+                                {saving === `${order.id}:reconcile-attach` ? (
+                                  <LoaderCircle aria-hidden="true" className="spin" size={15} />
+                                ) : (
+                                  <Link2 aria-hidden="true" size={15} />
+                                )}
+                                {t('dispatch.yandex.createReconciliation.attach.action')}
+                              </button>
+                              <button
+                                type="button"
+                                className="btn-danger compact-button"
+                                disabled={Boolean(saving)}
+                                aria-busy={saving === `${order.id}:reconcile-not-created`}
+                                aria-describedby={createReconciliationHintId}
+                                onClick={() =>
+                                  void resolveYandexCreate(order.id, external, 'not_created')
+                                }
+                              >
+                                {saving === `${order.id}:reconcile-not-created` ? (
+                                  <LoaderCircle aria-hidden="true" className="spin" size={15} />
+                                ) : (
+                                  <CircleOff aria-hidden="true" size={15} />
+                                )}
+                                {t('dispatch.yandex.createReconciliation.not_created.action')}
+                              </button>
+                            </>
+                          )}
                         </>
-                      ) : !order.courierId && yandexConfig?.configured && yandexConfig.canManage ? (
+                      ) : !order.courierId &&
+                        (yandexConfig?.configured || Boolean(external)) &&
+                        canQuoteYandex ? (
                         <>
                           <button
                             type="button"
@@ -441,26 +806,57 @@ export default function DispatchPage() {
                             ) : (
                               <Calculator aria-hidden="true" size={15} />
                             )}
-                            Цена
+                            {t('dispatch.yandex.quoteAction')}
                           </button>
-                          <button
-                            type="button"
-                            className="btn-classic compact-button"
-                            disabled={Boolean(saving) || !kitchenAccepted}
-                            onClick={() => void requestYandex(order.id)}
-                          >
-                            {saving === `${order.id}:request` ? (
-                              <LoaderCircle aria-hidden="true" className="spin" size={15} />
-                            ) : (
-                              <Send aria-hidden="true" size={15} />
-                            )}
-                            {quotePrice != null
-                              ? `Вызвать · ${formatNumber(quotePrice)} ₸`
-                              : 'Вызвать Яндекс'}
-                          </button>
+                          {canCreateYandex && (
+                            <>
+                              <button
+                                type="button"
+                                className="btn-classic compact-button"
+                                disabled={Boolean(saving) || Boolean(requestDisabledReason)}
+                                aria-describedby={
+                                  requestDisabledReason ? requestDisabledReasonId : undefined
+                                }
+                                title={requestDisabledReason || undefined}
+                                onClick={() => void requestYandex(order.id, external || null)}
+                              >
+                                {saving === `${order.id}:request` ? (
+                                  <LoaderCircle aria-hidden="true" className="spin" size={15} />
+                                ) : (
+                                  <Send aria-hidden="true" size={15} />
+                                )}
+                                {quotePrice != null
+                                  ? t('dispatch.yandex.requestWithPrice', {
+                                      price: formatNumber(quotePrice),
+                                    })
+                                  : t('dispatch.yandex.requestAction')}
+                              </button>
+                              {requestDisabledReason && (
+                                <span className="sr-only" id={requestDisabledReasonId}>
+                                  {requestDisabledReason}
+                                </span>
+                              )}
+                            </>
+                          )}
+                          {external?.canCancel && (
+                            <button
+                              type="button"
+                              className="icon-button icon-button-sm icon-button-danger"
+                              disabled={Boolean(saving)}
+                              onClick={() => void cancelYandex(order.id)}
+                              aria-label={t('dispatch.yandex.cancelLabel')}
+                              title={t('dispatch.yandex.cancelLabel')}
+                            >
+                              {saving === `${order.id}:cancel` ? (
+                                <LoaderCircle aria-hidden="true" className="spin" size={15} />
+                              ) : (
+                                <X aria-hidden="true" size={15} />
+                              )}
+                            </button>
+                          )}
                         </>
                       ) : null}
-                      {!order.courierId && !hasActiveYandex && (
+                      {!order.courierId && !hasReservedYandex && (
                         <button
                           type="button"
                           className="btn-outline compact-button"

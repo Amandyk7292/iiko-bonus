@@ -10,6 +10,7 @@ const { getBranchAvailability, listInventory } = require('./inventory.service');
 const { loadOrderCatalog } = require('./order.service');
 const { validateCartOptions } = require('./product-options.service');
 const { paymentProviderName, refundPaymentForOrder } = require('./payment-gateway.service');
+const { assertExternalDeliveryCancelled } = require('./external-delivery-lifecycle.service');
 const { queueCustomerLoyaltySync } = require('./loyalty-sync.service');
 const { sendPushToCustomer } = require('./push.service');
 const realtime = require('./realtime.service');
@@ -247,6 +248,7 @@ async function createPriceDifferenceRefund(order, request, amount, requestedBy) 
   if (!Number.isSafeInteger(normalizedAmount) || normalizedAmount <= 0) {
     throw conflict('SUBSTITUTION_REFUND_INVALID', 'Некорректная сумма возврата за замену');
   }
+  await assertExternalDeliveryCancelled(order.id);
   const processorToken = crypto.randomUUID();
   const reason = `Разница стоимости замены «${request.product_name}» → «${request.replacement_product_name}»`;
   const { data: claimedData, error: claimError } = await supabase.rpc('claim_partial_refund', {

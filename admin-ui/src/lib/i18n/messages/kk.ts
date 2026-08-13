@@ -79,9 +79,9 @@ const kk: Record<string, string> = {
   'auth.logout': 'Шығу',
   'auth.logoutFull': 'Жүйеден шығу',
   'auth.loggingOut': 'Шығудамыз…',
-  'auth.logoutError': 'Шығу мүмкін болмады: сервер сессияның аяқталғанын растамады. Қайталап көріңіз.',
-  'staff.push.logoutError':
-    'Құрылғыдағы push өшірілмеді. Шығу тоқтатылды — қайталап көріңіз.',
+  'auth.logoutError':
+    'Шығу мүмкін болмады: сервер сессияның аяқталғанын растамады. Қайталап көріңіз.',
+  'staff.push.logoutError': 'Құрылғыдағы push өшірілмеді. Шығу тоқтатылды — қайталап көріңіз.',
   'staff.push.logoutRequiresKitchen':
     'Қауіпсіз шығу үшін асүй экранына оралып, әрекетті қайталаңыз.',
   'bonus.promocodes': 'Промокодтар',
@@ -823,6 +823,116 @@ const kk: Record<string, string> = {
   'dispatch.assign': 'Тағайындау',
   'dispatch.assigned': 'Курьер тағайындалды',
   'dispatch.mapTitle': 'Курьерлер мен тапсырыстар картасы',
+  'dispatch.yandex.actionError': 'Әрекетті орындау мүмкін болмады',
+  'dispatch.yandex.quoteSuccess': 'Жеткізу құны есептелді',
+  'dispatch.yandex.fixedQuoteRequired':
+    'Алдымен Бизнеске арналған Яндекс Go қызметінен жаңа бекітілген бағаны алыңыз.',
+  'dispatch.yandex.restaurantApprovalRequired':
+    'Yandex мейрамхана жеткізуін жазбаша растағанша курьер шақыру бұғатталған.',
+  'dispatch.yandex.operationalAlertsRequired':
+    'Ақылы шақыру бұғатталған: міндетті ескерту қабылдағышын және фондық өңдеушілерді баптаңыз.',
+  'dispatch.yandex.quoteExpired': 'Баға есебі ескірді. Құнын қайта есептеңіз.',
+  'dispatch.yandex.quoteExpiredShort': 'Бағаның мерзімі бітті — қайта есептеңіз.',
+  'dispatch.yandex.quoteCountdown': 'Баға тағы {{time}} жарамды',
+  'dispatch.yandex.requestConfirmTitle': 'Бизнеске арналған Яндекс Go курьерін шақыру',
+  'dispatch.yandex.requestConfirmBody':
+    '{{price}} ₸ дейінгі шақыруды растау керек пе? Растағаннан кейін Яндекс курьер іздей бастайды.',
+  'dispatch.yandex.requestConfirmLabel': '{{price}} ₸ дейін шақыру',
+  'dispatch.yandex.businessRequestSuccess':
+    'Өтінім Бизнеске арналған Яндекс Go қызметіне жіберілді',
+  'dispatch.yandex.cargoRequestSuccess': 'Өтінім Яндекс.Жеткізу қызметіне жіберілді',
+  'dispatch.yandex.syncSuccess': 'Жеткізу мәртебесі жаңартылды',
+  'dispatch.yandex.cancelUnavailable':
+    'Курьер тапсырысты алып кетті. Яндекс қолдау қызметіне хабарласыңыз.',
+  'dispatch.yandex.paidCancelRequiresManager':
+    'Ақылы бас тартуды тек иесі немесе әкімші растай алады. Солардың біріне хабарласыңыз.',
+  'dispatch.yandex.cancelMayBePaid': 'Бас тарту ақылы болуы мүмкін',
+  'dispatch.yandex.cancelUnknownPriceFallback':
+    'Яндекс нақты соманы хабарламады. Сонда да бас тарту керек пе?',
+  'dispatch.yandex.cancelUnknownPrice': '{{title}}. {{message}}',
+  'dispatch.yandex.cancelPaidPrice':
+    'Яндекс бас тарту үшін {{price}} ₸ ұстайды. Сонда да бас тарту керек пе?',
+  'dispatch.yandex.cancelFreePrompt': 'Яндекс.Жеткізу курьерінің шақыруынан бас тарту керек пе?',
+  'dispatch.yandex.cancelTitle': 'Яндекс.Жеткізуден бас тарту',
+  'dispatch.yandex.cancelConfirm': 'Жеткізуден бас тарту',
+  'dispatch.yandex.cancelPaidSuccess': 'Ақылы бас тарту расталды',
+  'dispatch.yandex.cancelFreeSuccess': 'Яндекс.Жеткізу өтінімінен бас тартылды',
+  'dispatch.yandex.cancelError': 'Жеткізуден бас тарту мүмкін болмады',
+  'dispatch.yandex.notConfigured':
+    '{{provider}} әзірше қолжетімсіз. VPS ішінде толтырыңыз: {{missing}}.',
+  'dispatch.yandex.businessProvider': 'Бизнеске арналған Яндекс Go',
+  'dispatch.yandex.cargoProvider': 'Яндекс.Жеткізу',
+  'dispatch.yandex.carCourier': 'Автокурьер',
+  'dispatch.yandex.kitchenRequired': 'Курьер шақырылмады — алдымен тапсырысты асүйде қабылдаңыз.',
+  'dispatch.yandex.dispatchErrorPrefix': 'Курьерді шақыру: {{error}}',
+  'dispatch.yandex.track': 'Бақылау',
+  'dispatch.yandex.syncLabel': 'Яндекс.Жеткізу мәртебесін жаңарту',
+  'dispatch.yandex.cancelLabel': 'Яндекс.Жеткізуден бас тарту',
+  'dispatch.yandex.quoteAction': 'Баға',
+  'dispatch.yandex.requestWithPrice': 'Шақыру · {{price}} ₸',
+  'dispatch.yandex.requestAction': 'Яндекс курьерін шақыру',
+  'dispatch.yandex.createReconciliation.required':
+    'Барлық автоматты әрекеттен кейін Яндекс өтінімнің жасалғанын растамады. Алдымен Бизнеске арналған Яндекс Go кабинетін тексеріңіз: өтінім бар болуы мүмкін. Қайталама өтінім жасамаңыз.',
+  'dispatch.yandex.createReconciliation.ownerRequired':
+    'Қолмен шешімді MFA қосылған иесі немесе әкімші ғана қабылдай алады.',
+  'dispatch.yandex.createReconciliation.externalOrderIdInvalid':
+    'Кабинеттегі ID енгізіңіз: 1–160 таңба, тек латын әріптері, цифрлар, нүкте, астын сызу, қос нүкте немесе дефис.',
+  'dispatch.yandex.createReconciliation.reasonRequired':
+    'Себебін және тексеру көзін көрсетіңіз. Онсыз қолмен қабылданған шешім сақталмайды.',
+  'dispatch.yandex.createReconciliation.reasonTooLong':
+    'Себеп 240 таңбадан ұзын. Мәтінді қысқартып, әрекетті қайталаңыз.',
+  'dispatch.yandex.createReconciliation.actionError':
+    'Өтінімді тексеру нәтижесін сақтау мүмкін болмады. Тапсырысты жаңартып, қайталаңыз.',
+  'dispatch.yandex.createReconciliation.attach.action': 'Яндекс тапсырысының ID-сін көрсету',
+  'dispatch.yandex.createReconciliation.attach.externalOrderIdPrompt':
+    'Бизнеске арналған Яндекс Go кабинетіндегі тапсырыстың нақты ID-сін енгізіңіз (1–160 таңба).',
+  'dispatch.yandex.createReconciliation.attach.reasonPrompt':
+    'Яндекс өтінімін кім, қашан және қайдан тапқанын көрсетіңіз (міндетті, 240 таңбаға дейін).',
+  'dispatch.yandex.createReconciliation.attach.confirmTitle':
+    'Табылған Яндекс өтінімін байланыстыру керек пе?',
+  'dispatch.yandex.createReconciliation.attach.confirmBody':
+    'ID-ді қайта тексеріңіз: {{externalOrderId}}. Жүйе осы өтінімді байланыстырып, бақылауды жалғастырады. Себеп: «{{reason}}».',
+  'dispatch.yandex.createReconciliation.attach.confirmLabel': 'Өтінімді байланыстыру',
+  'dispatch.yandex.createReconciliation.attach.success':
+    'Яндекс өтінімі байланыстырылды, бақылау жалғасты',
+  'dispatch.yandex.createReconciliation.not_created.action':
+    'Тапсырыс жасалмағанын растау',
+  'dispatch.yandex.createReconciliation.not_created.reasonPrompt':
+    'Яндекс кабинетінде өтінімнің жоқтығын кім, қашан және қалай тексергенін көрсетіңіз (міндетті, 240 таңбаға дейін).',
+  'dispatch.yandex.createReconciliation.not_created.confirmTitle':
+    'Яндекс өтінімі жасалмағанын растау керек пе?',
+  'dispatch.yandex.createReconciliation.not_created.confirmBody':
+    'Бұл сыртқы жеткізу резервін алып тастайды. Яндекс кабинетін толық тексергеннен кейін ғана жалғастырыңыз. Себеп: «{{reason}}».',
+  'dispatch.yandex.createReconciliation.not_created.confirmLabel':
+    'Иә, Яндексте өтінім жоқ',
+  'dispatch.yandex.createReconciliation.not_created.success':
+    'Өтінімнің жоқтығы расталды, жеткізу резерві алынды',
+  'dispatch.yandex.itemsResolution.required':
+    'Курьер тапсырысты алып кеткен, бірақ Яндекс өтінімді нақты нәтижесіз аяқтады. Тапсырыстың қайда екенін тексеріп, тек расталған фактіні белгілеңіз.',
+  'dispatch.yandex.itemsResolution.reasonRequired':
+    'Себебін және растау көзін көрсетіңіз. Онсыз қолмен қабылданған шешім сақталмайды.',
+  'dispatch.yandex.itemsResolution.reasonTooLong':
+    'Себеп 240 таңбадан ұзын. Мәтінді қысқартып, әрекетті қайталаңыз.',
+  'dispatch.yandex.itemsResolution.actionError':
+    'Жеткізудің қолмен белгіленген нәтижесін сақтау мүмкін болмады. Тапсырысты жаңартып, қайталаңыз.',
+  'dispatch.yandex.itemsResolution.returned.action': 'Тапсырыс филиалға қайтты',
+  'dispatch.yandex.itemsResolution.returned.reasonPrompt':
+    'Тапсырыстың филиалға қайтарылғанын кім және қалай растағанын көрсетіңіз (міндетті, 240 таңбаға дейін).',
+  'dispatch.yandex.itemsResolution.returned.confirmTitle':
+    'Тапсырыстың нақты қайтарылғанын растау керек пе?',
+  'dispatch.yandex.itemsResolution.returned.confirmBody':
+    'Тек тапсырыс филиалға нақты қайтарылғаннан кейін растаңыз. Тапсырыс тоқтатылып, жеткізу резерві алынады. Себеп: «{{reason}}».',
+  'dispatch.yandex.itemsResolution.returned.confirmLabel': 'Иә, тапсырыс қайтарылды',
+  'dispatch.yandex.itemsResolution.returned.success': 'Тапсырыстың филиалға қайтарылуы тіркелді',
+  'dispatch.yandex.itemsResolution.delivered.action': 'Тапсырыс клиентке жеткізілді',
+  'dispatch.yandex.itemsResolution.delivered.reasonPrompt':
+    'Клиенттің тапсырысты алғанын кім және қалай растағанын көрсетіңіз (міндетті, 240 таңбаға дейін).',
+  'dispatch.yandex.itemsResolution.delivered.confirmTitle':
+    'Тапсырыстың клиентке жеткізілгенін растау керек пе?',
+  'dispatch.yandex.itemsResolution.delivered.confirmBody':
+    'Клиенттің алғанын тексергеннен кейін ғана растаңыз. Тапсырыс түпкілікті жеткізілді деп белгіленеді. Себеп: «{{reason}}».',
+  'dispatch.yandex.itemsResolution.delivered.confirmLabel': 'Иә, тапсырыс жеткізілді',
+  'dispatch.yandex.itemsResolution.delivered.success': 'Клиентке жеткізу тіркелді',
   'marketing.loadError': 'Маркетингті жүктеу мүмкін болмады',
   'marketing.promoSaved': 'Промокод сақталды',
   'marketing.promoSaveError': 'Промокод сақталмады',
@@ -1190,6 +1300,7 @@ const kk: Record<string, string> = {
   'kitchen.dispatch.pending': 'Автокурьер өтінімі кезекте',
   'kitchen.dispatch.processing': 'Автокурьер ізделуде',
   'kitchen.dispatch.retrying': 'Автокурьерді қайта іздеудеміз',
+  'kitchen.dispatch.awaiting_confirmation': 'Диспетчер бағаны растауы керек',
   'kitchen.dispatch.succeeded': 'Өтінім жеткізу қызметіне жіберілді',
   'kitchen.dispatch.failed': 'Автокурьерді шақыру мүмкін болмады',
   'kitchen.dispatch.provider': 'Қызмет: {{provider}}',

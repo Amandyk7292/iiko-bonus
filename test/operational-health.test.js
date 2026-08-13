@@ -99,6 +99,7 @@ test('readiness reports database state without retired payment dependencies', as
       ok: true,
       receiverConfigured: false,
       receiverRequired: false,
+      workersEnabled: false,
       degraded: true,
       queueAvailable: true,
       pending: 2,
@@ -263,4 +264,27 @@ test('required staff push gates readiness on workers and initialized Firebase', 
   });
   assert.equal(ready.ok, true);
   assert.equal(ready.dependencies.staffPush.ok, true);
+});
+
+test('a required alert receiver fails readiness immediately when its worker is disabled', async (t) => {
+  const previousWorkers = process.env.RUN_BACKGROUND_WORKERS;
+  t.after(() => {
+    if (previousWorkers === undefined) delete process.env.RUN_BACKGROUND_WORKERS;
+    else process.env.RUN_BACKGROUND_WORKERS = previousWorkers;
+  });
+  process.env.RUN_BACKGROUND_WORKERS = 'false';
+  const snapshot = await readinessSnapshot({
+    databaseCheck: async () => ({ ok: true }),
+    branchPosCheck: async () => ({ readyForEnforcement: true }),
+    staffOrderAlertCheck: async () => ({
+      receiverRequired: true,
+      receiverConfigured: true,
+      queueAvailable: true,
+      oldestPendingSeconds: 0,
+    }),
+    pushStatusCheck: () => ({ configured: false, initialized: false }),
+  });
+  assert.equal(snapshot.ok, false);
+  assert.equal(snapshot.dependencies.staffOrderAlerts.ok, false);
+  assert.equal(snapshot.dependencies.staffOrderAlerts.workersEnabled, false);
 });

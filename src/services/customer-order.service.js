@@ -7,6 +7,7 @@ const realtime = require('./realtime.service');
 const { sendOrderLiveActivity } = require('./live-activity.service');
 const { paymentReceiptUrl } = require('./payment-receipt.service');
 const { paymentProviderName, refundPaymentForOrder } = require('./payment-gateway.service');
+const { assertExternalDeliveryCancelled } = require('./external-delivery-lifecycle.service');
 const { effectiveFulfillmentType, isDeliveryFulfillment } = require('../utils/fulfillment.util');
 const { runBackgroundTask } = require('../utils/background-task.util');
 
@@ -747,6 +748,8 @@ async function cancelPaidOrder(
       'PAYMENT_REFUND_CONFLICT',
     );
   }
+
+  await assertExternalDeliveryCancelled(current.id);
 
   const requestedAt = new Date().toISOString();
   const refundRequestId = retryRequestId || crypto.randomUUID();

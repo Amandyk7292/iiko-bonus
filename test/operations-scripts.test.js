@@ -147,6 +147,28 @@ test('deployment and rollback are exclusive, transactional and use one artifact 
     assert.match(script, /Refusing symlinked release artifact/);
   }
   assert.match(rollback, /Recovery snapshot retained at/);
+  assert.match(packageRelease, /yandexBusinessV2 = \$true/);
+  assert.match(packageRelease, /yandexProjectionGuardV1 = \$true/);
+  assert.match(rollback, /target_supports_yandex_business/);
+  assert.match(rollback, /target_supports_yandex_projection_guard/);
+  assert.match(rollback, /api_family = \$2/);
+  assert.match(rollback, /Business ledger row\(s\) exist/);
+  assert.match(rollback, /public\.staff_order_alerts/);
+  assert.match(rollback, /alert_type in \(\$3, \$4, \$5\)/);
+  assert.match(rollback, /pending Yandex alert\(s\) exist/);
+  assert.match(rollback, /projection_guarded = true/);
+  assert.match(rollback, /active guarded job\(s\) exist/);
+  assert.match(rollback, /pm2 stop iiko-bonus[\s\S]*check_legacy_target_business_compatibility/);
+  assert.ok(
+    rollback.indexOf('target_supports_yandex_business=') <
+      rollback.indexOf('copy_release "$target" "$project"'),
+    'rollback compatibility must be checked before production files change',
+  );
+  assert.ok(
+    rollback.indexOf('check_legacy_target_business_compatibility') <
+      rollback.indexOf('copy_release "$target" "$project"'),
+    'a legacy rollback target must be checked after the writable app is drained',
+  );
 
   assert.match(pm2Logrotate, /pm2-logrotate@\$\{logrotate_version\}/);
   assert.match(pm2Logrotate, /chmod 0700/);

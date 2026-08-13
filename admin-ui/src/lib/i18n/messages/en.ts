@@ -80,11 +80,11 @@ const en: Record<string, string> = {
   'auth.logout': 'Sign out',
   'auth.logoutFull': 'Sign out',
   'auth.loggingOut': 'Signing out…',
-  'auth.logoutError': 'Could not sign out: the server did not confirm session revocation. Please retry.',
+  'auth.logoutError':
+    'Could not sign out: the server did not confirm session revocation. Please retry.',
   'staff.push.logoutError':
     'Could not disable push on this device. Sign-out was cancelled — please retry.',
-  'staff.push.logoutRequiresKitchen':
-    'Return to the kitchen screen and retry to sign out safely.',
+  'staff.push.logoutRequiresKitchen': 'Return to the kitchen screen and retry to sign out safely.',
   'bonus.promocodes': 'Promo codes',
   'bonus.promocodesHint': 'The server validates discounts during checkout.',
   'bonus.addPromo': 'Add promo code',
@@ -826,6 +826,114 @@ const en: Record<string, string> = {
   'dispatch.assign': 'Assign',
   'dispatch.assigned': 'Courier assigned',
   'dispatch.mapTitle': 'Courier and order map',
+  'dispatch.yandex.actionError': 'The action could not be completed',
+  'dispatch.yandex.quoteSuccess': 'Delivery price calculated',
+  'dispatch.yandex.fixedQuoteRequired':
+    'First get a fresh fixed price from Yandex Go for Business.',
+  'dispatch.yandex.restaurantApprovalRequired':
+    'Dispatch is blocked until Yandex confirms restaurant delivery in writing.',
+  'dispatch.yandex.operationalAlertsRequired':
+    'Paid dispatch is blocked: configure the required alert receiver and background workers.',
+  'dispatch.yandex.quoteExpired': 'The price quote has expired. Calculate it again.',
+  'dispatch.yandex.quoteExpiredShort': 'The price has expired — calculate it again.',
+  'dispatch.yandex.quoteCountdown': 'Price valid for {{time}} more',
+  'dispatch.yandex.requestConfirmTitle': 'Request a Yandex Go for Business courier',
+  'dispatch.yandex.requestConfirmBody':
+    'Confirm a request costing up to {{price}} ₸? After confirmation, Yandex will start searching for a courier.',
+  'dispatch.yandex.requestConfirmLabel': 'Request for up to {{price}} ₸',
+  'dispatch.yandex.businessRequestSuccess': 'Request sent to Yandex Go for Business',
+  'dispatch.yandex.cargoRequestSuccess': 'Request sent to Yandex Delivery',
+  'dispatch.yandex.syncSuccess': 'Delivery status updated',
+  'dispatch.yandex.cancelUnavailable':
+    'The courier has already collected the order. Contact Yandex support.',
+  'dispatch.yandex.paidCancelRequiresManager':
+    'Only an owner or administrator can approve a paid cancellation. Contact one of them.',
+  'dispatch.yandex.cancelMayBePaid': 'Cancellation may incur a charge',
+  'dispatch.yandex.cancelUnknownPriceFallback':
+    'Yandex did not provide the exact amount. Cancel anyway?',
+  'dispatch.yandex.cancelUnknownPrice': '{{title}}. {{message}}',
+  'dispatch.yandex.cancelPaidPrice':
+    'Yandex will charge {{price}} ₸ for cancellation. Cancel anyway?',
+  'dispatch.yandex.cancelFreePrompt': 'Cancel the Yandex Delivery courier request?',
+  'dispatch.yandex.cancelTitle': 'Cancel Yandex Delivery',
+  'dispatch.yandex.cancelConfirm': 'Cancel delivery',
+  'dispatch.yandex.cancelPaidSuccess': 'Paid cancellation confirmed',
+  'dispatch.yandex.cancelFreeSuccess': 'Yandex Delivery request cancelled',
+  'dispatch.yandex.cancelError': 'The delivery could not be cancelled',
+  'dispatch.yandex.notConfigured':
+    '{{provider}} is not available yet. Configure on the VPS: {{missing}}.',
+  'dispatch.yandex.businessProvider': 'Yandex Go for Business',
+  'dispatch.yandex.cargoProvider': 'Yandex Delivery',
+  'dispatch.yandex.carCourier': 'Car courier',
+  'dispatch.yandex.kitchenRequired':
+    'Courier not requested — first accept the order in the kitchen.',
+  'dispatch.yandex.dispatchErrorPrefix': 'Courier request: {{error}}',
+  'dispatch.yandex.track': 'Track',
+  'dispatch.yandex.syncLabel': 'Refresh Yandex Delivery status',
+  'dispatch.yandex.cancelLabel': 'Cancel Yandex Delivery',
+  'dispatch.yandex.quoteAction': 'Price',
+  'dispatch.yandex.requestWithPrice': 'Request · {{price}} ₸',
+  'dispatch.yandex.requestAction': 'Request Yandex',
+  'dispatch.yandex.createReconciliation.required':
+    'Yandex did not confirm request creation after all automatic attempts. Check the Yandex Go for Business cabinet first: the request may already exist. Do not create a duplicate.',
+  'dispatch.yandex.createReconciliation.ownerRequired':
+    'Only an owner or administrator with MFA can record the manual decision.',
+  'dispatch.yandex.createReconciliation.externalOrderIdInvalid':
+    'Enter the cabinet ID: 1–160 characters using only Latin letters, digits, periods, underscores, colons, or hyphens.',
+  'dispatch.yandex.createReconciliation.reasonRequired':
+    'Enter the reason and source of the check. The manual decision cannot be saved without it.',
+  'dispatch.yandex.createReconciliation.reasonTooLong':
+    'The reason is longer than 240 characters. Shorten it and try again.',
+  'dispatch.yandex.createReconciliation.actionError':
+    'The request check result could not be saved. Refresh the order and try again.',
+  'dispatch.yandex.createReconciliation.attach.action': 'Enter Yandex order ID',
+  'dispatch.yandex.createReconciliation.attach.externalOrderIdPrompt':
+    'Enter the exact order ID from the Yandex Go for Business cabinet (1–160 characters).',
+  'dispatch.yandex.createReconciliation.attach.reasonPrompt':
+    'State who found the Yandex request, when, and where (required, up to 240 characters).',
+  'dispatch.yandex.createReconciliation.attach.confirmTitle': 'Attach the located Yandex request?',
+  'dispatch.yandex.createReconciliation.attach.confirmBody':
+    'Check the ID again: {{externalOrderId}}. The system will attach this request and resume tracking. Reason: “{{reason}}”.',
+  'dispatch.yandex.createReconciliation.attach.confirmLabel': 'Attach request',
+  'dispatch.yandex.createReconciliation.attach.success':
+    'Yandex request attached and tracking resumed',
+  'dispatch.yandex.createReconciliation.not_created.action':
+    'Confirm the order was not created',
+  'dispatch.yandex.createReconciliation.not_created.reasonPrompt':
+    'State who checked the Yandex cabinet, when, and how they confirmed the request is absent (required, up to 240 characters).',
+  'dispatch.yandex.createReconciliation.not_created.confirmTitle':
+    'Confirm that no Yandex request was created?',
+  'dispatch.yandex.createReconciliation.not_created.confirmBody':
+    'This will release the external delivery reservation. Continue only after fully checking the Yandex cabinet. Reason: “{{reason}}”.',
+  'dispatch.yandex.createReconciliation.not_created.confirmLabel':
+    'Yes, no Yandex request exists',
+  'dispatch.yandex.createReconciliation.not_created.success':
+    'Request absence confirmed and delivery reservation released',
+  'dispatch.yandex.itemsResolution.required':
+    'The courier collected the order, but Yandex closed the request without a reliable outcome. Locate the order and record only a verified fact.',
+  'dispatch.yandex.itemsResolution.reasonRequired':
+    'Enter the reason and source of confirmation. The manual decision cannot be saved without it.',
+  'dispatch.yandex.itemsResolution.reasonTooLong':
+    'The reason is longer than 240 characters. Shorten it and try again.',
+  'dispatch.yandex.itemsResolution.actionError':
+    'The manual delivery outcome could not be saved. Refresh the order and try again.',
+  'dispatch.yandex.itemsResolution.returned.action': 'Order returned to branch',
+  'dispatch.yandex.itemsResolution.returned.reasonPrompt':
+    'State who confirmed the return to the branch and how (required, up to 240 characters).',
+  'dispatch.yandex.itemsResolution.returned.confirmTitle':
+    'Confirm the physical return of the order?',
+  'dispatch.yandex.itemsResolution.returned.confirmBody':
+    'Confirm only after the order has physically returned to the branch. The order will be cancelled and the delivery reservation released. Reason: “{{reason}}”.',
+  'dispatch.yandex.itemsResolution.returned.confirmLabel': 'Yes, order was returned',
+  'dispatch.yandex.itemsResolution.returned.success': 'Return to the branch recorded',
+  'dispatch.yandex.itemsResolution.delivered.action': 'Order delivered to customer',
+  'dispatch.yandex.itemsResolution.delivered.reasonPrompt':
+    'State who confirmed receipt by the customer and how (required, up to 240 characters).',
+  'dispatch.yandex.itemsResolution.delivered.confirmTitle': 'Confirm delivery to the customer?',
+  'dispatch.yandex.itemsResolution.delivered.confirmBody':
+    'Confirm only after verifying receipt by the customer. The order will be permanently marked as delivered. Reason: “{{reason}}”.',
+  'dispatch.yandex.itemsResolution.delivered.confirmLabel': 'Yes, order was delivered',
+  'dispatch.yandex.itemsResolution.delivered.success': 'Customer delivery recorded',
   'marketing.loadError': 'Could not load marketing',
   'marketing.promoSaved': 'Promo code saved',
   'marketing.promoSaveError': 'Promo code was not saved',
@@ -1190,6 +1298,7 @@ const en: Record<string, string> = {
   'kitchen.dispatch.pending': 'Car courier request is queued',
   'kitchen.dispatch.processing': 'Searching for a car courier',
   'kitchen.dispatch.retrying': 'Retrying the car courier search',
+  'kitchen.dispatch.awaiting_confirmation': 'Waiting for dispatcher price confirmation',
   'kitchen.dispatch.succeeded': 'Request sent to the delivery provider',
   'kitchen.dispatch.failed': 'Could not request a car courier',
   'kitchen.dispatch.provider': 'Provider: {{provider}}',

@@ -9,6 +9,7 @@ requested=${1:-}
 current=''
 transaction_backup=''
 production_changed=0
+production_stopped=0
 
 release_scripts=(
   activate-www-domain.sh
@@ -286,6 +287,14 @@ rollback_failed() {
   local exit_code=$?
   local recovery_failed=0
   trap - ERR
+  if [[ $production_stopped -eq 1 && $production_changed -eq 0 ]]; then
+    if reload_production && wait_for_health 'http://127.0.0.1:3000/readyz' 20; then
+      production_stopped=0
+    else
+      echo 'CRITICAL: production was drained for compatibility validation and could not be restarted.' >&2
+      recovery_failed=1
+    fi
+  fi
   if [[ $production_changed -eq 1 && -d $transaction_backup ]]; then
     if ! restore_previous_release; then
       echo 'CRITICAL: automatic rollback recovery failed; production requires immediate inspection.' >&2
@@ -333,6 +342,126 @@ test -f "$target/package-lock.json"
 test -f "$target/release-manifest.json"
 normalize_release_payload_permissions "$target"
 
+target_supports_yandex_business=$(
+  node -e '
+    const manifest = require(process.argv[1]);
+    process.stdout.write(manifest?.capabilities?.yandexBusinessV2 === true ? "true" : "false");
+  ' "$target/release-manifest.json"
+)
+target_supports_yandex_projection_guard=$(
+  node -e '
+    const manifest = require(process.argv[1]);
+    process.stdout.write(manifest?.capabilities?.yandexProjectionGuardV1 === true ? "true" : "false");
+  ' "$target/release-manifest.json"
+)
+
+check_legacy_target_business_compatibility() {
+  local business_rollback_blockers
+  local business_history_rows
+  local pending_business_alerts
+  local guarded_active_rows
+
+  # Stop every writable production request and worker before the final DB
+  # snapshot. The deployment flock alone does not serialize API mutations.
+  # Nginx can use the already healthy staging fallback during this short drain.
+  pm2 stop iiko-bonus >/dev/null
+  production_stopped=1
+  set -a
+  # shellcheck disable=SC1090
+  source "$project/.env"
+  set +a
+  if ! business_rollback_blockers=$(
+    node -e '
+      const { Client } = require("pg");
+      const url = process.env.SUPABASE_DB_URL || process.env.DATABASE_URL;
+      if (!url) throw new Error("Database URL is unavailable for rollback compatibility check");
+      const client = new Client({ connectionString: url, ssl: { rejectUnauthorized: false } });
+      (async () => {
+        await client.connect();
+        const result = await client.query(`
+          select
+            (
+              select count(*)::integer
+              from public.delivery_jobs
+              where provider = $1
+                and api_family = $2
+            ) as business_history_rows,
+            (
+              select count(*)::integer
+              from public.delivery_jobs
+              where provider = $1
+                and projection_guarded = true
+                and (
+                  (api_family = 'cargo_v2' and provider_status not in (
+                    'estimating_failed', 'performer_not_found', 'delivered', 'delivered_finish',
+                    'returned', 'returned_finish', 'failed', 'cancelled',
+                    'cancelled_with_payment', 'cancelled_by_taxi',
+                    'cancelled_with_items_on_hands'
+                  ))
+                  or
+                  (api_family = 'business_v2' and provider_status not in (
+                    'complete', 'finished', 'cancelled', 'failed'
+                  ))
+                )
+            ) as guarded_active_rows,
+            (
+              select count(*)::integer
+              from public.staff_order_alerts
+              where alert_type in ($3, $4, $5)
+                and status in ('queued', 'config_pending', 'processing', 'retry')
+            ) as pending_alerts
+        `, [
+          "yandex",
+          "business_v2",
+          "yandex_price_overrun",
+          "yandex_items_unresolved",
+          "yandex_create_uncertain",
+        ]);
+        const row = result.rows[0] || {};
+        process.stdout.write(
+          `${Number(row.business_history_rows || 0)}:${Number(row.pending_alerts || 0)}:${Number(row.guarded_active_rows || 0)}`,
+        );
+      })().finally(() => client.end()).catch((error) => {
+        process.stderr.write(`Rollback compatibility check failed: ${error.message}\n`);
+        process.exitCode = 1;
+      });
+    '
+  ); then
+    echo 'Rollback compatibility query failed; restoring the current production process.' >&2
+    reload_production
+    production_stopped=0
+    return 1
+  fi
+  if [[ ! $business_rollback_blockers =~ ^[0-9]+:[0-9]+:[0-9]+$ ]]; then
+    echo 'Rollback stopped: invalid Business compatibility counts.' >&2
+    reload_production
+    production_stopped=0
+    return 1
+  fi
+  business_history_rows=${business_rollback_blockers%%:*}
+  pending_business_alerts=${business_rollback_blockers#*:}
+  pending_business_alerts=${pending_business_alerts%%:*}
+  guarded_active_rows=${business_rollback_blockers##*:}
+  if [[ $target_supports_yandex_business != true ]] && (( business_history_rows > 0 )); then
+    echo "Rollback stopped: target lacks Yandex Business API support while $business_history_rows Business ledger row(s) exist." >&2
+    reload_production
+    production_stopped=0
+    return 1
+  fi
+  if [[ $target_supports_yandex_business != true ]] && (( pending_business_alerts > 0 )); then
+    echo "Rollback stopped: target lacks Yandex Business alert support while $pending_business_alerts pending Yandex alert(s) exist." >&2
+    reload_production
+    production_stopped=0
+    return 1
+  fi
+  if [[ $target_supports_yandex_projection_guard != true ]] && (( guarded_active_rows > 0 )); then
+    echo "Rollback stopped: target lacks guarded Yandex projection support while $guarded_active_rows active guarded job(s) exist." >&2
+    reload_production
+    production_stopped=0
+    return 1
+  fi
+}
+
 transaction_backup="$release_store/.rollback-transaction-${requested}-$$"
 case "$transaction_backup" in
   "$release_store"/.rollback-transaction-*) ;;
@@ -341,12 +470,17 @@ esac
 test ! -e "$transaction_backup"
 copy_release "$project" "$transaction_backup"
 
+if [[ $target_supports_yandex_business != true || $target_supports_yandex_projection_guard != true ]]; then
+  check_legacy_target_business_compatibility
+fi
+
 production_changed=1
 copy_release "$target" "$project"
 (
   cd "$project" && npm ci --omit=dev --no-audit --no-fund
 )
 reload_production
+production_stopped=0
 wait_for_health 'http://127.0.0.1:3000/readyz' 20
 curl -fsS 'http://127.0.0.1:3000/admin/' >/dev/null
 if ! start_staging_release "$target"; then

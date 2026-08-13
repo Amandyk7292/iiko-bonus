@@ -125,6 +125,14 @@
 .ops-row-copy .external-delivery-error {
   color: var(--color-danger, #b42318);
 }
+.ops-row-copy .external-delivery-resolution-alert {
+  color: var(--color-danger, #b42318);
+  font-weight: 700;
+  line-height: 1.4;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+}
 .ops-order-row .row-actions {
   justify-content: flex-end;
   flex-wrap: wrap;

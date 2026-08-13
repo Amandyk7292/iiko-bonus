@@ -333,6 +333,10 @@ $manifest = [ordered]@{
     builtAt = [DateTime]::UtcNow.ToString('o')
     migrationMode = $migrationMode
     source = 'clean-git-worktree'
+    capabilities = [ordered]@{
+        yandexBusinessV2 = $true
+        yandexProjectionGuardV1 = $true
+    }
     provenance = $provenance
 }
 [IO.File]::WriteAllText(

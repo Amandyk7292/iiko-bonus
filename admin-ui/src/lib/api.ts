@@ -155,6 +155,8 @@ import type {
   CourierActivity,
   DeliveryProof,
   ExternalDelivery,
+  YandexCreateReconciliationInput,
+  YandexDeliveryItemsResolutionInput,
   DispatchOrder,
   YandexDeliveryConfiguration,
   AdminUser,
@@ -210,6 +212,8 @@ export type {
   CourierActivity,
   DeliveryProof,
   ExternalDelivery,
+  YandexCreateReconciliationInput,
+  YandexDeliveryItemsResolutionInput,
   DispatchOrder,
   YandexDeliveryConfiguration,
   AdminUser,
@@ -866,10 +870,13 @@ export const api = {
       `/dispatch/${encodeURIComponent(orderId)}/yandex/quote`,
       json('POST'),
     ),
-  requestYandexDelivery: (orderId: string) =>
+  requestYandexDelivery: (
+    orderId: string,
+    options: { deliveryJobId?: string; maxPriceKzt?: number; quoteFingerprint?: string } = {},
+  ) =>
     request<{ success: boolean; delivery: ExternalDelivery }>(
       `/dispatch/${encodeURIComponent(orderId)}/yandex/request`,
-      json('POST'),
+      json('POST', options),
     ),
   syncYandexDelivery: (orderId: string) =>
     request<{ success: boolean; delivery: ExternalDelivery | null }>(
@@ -880,15 +887,30 @@ export const api = {
     request<{
       success: boolean;
       cancellation: {
-        cancelState: 'free' | 'paid' | 'unavailable';
-        price: number;
+        cancelState: 'free' | 'paid' | 'minimal' | 'unavailable';
+        price: number | null;
         currency: string;
+        message?: string | null;
+        title?: string | null;
       };
     }>(`/dispatch/${encodeURIComponent(orderId)}/yandex/cancel-info`, json('POST')),
   cancelYandexDelivery: (orderId: string, allowPaid = false) =>
     request<{ success: boolean; delivery: ExternalDelivery }>(
       `/dispatch/${encodeURIComponent(orderId)}/yandex/cancel`,
       json('POST', { allowPaid }),
+    ),
+  resolveYandexDeliveryItems: (orderId: string, input: YandexDeliveryItemsResolutionInput) =>
+    request<{ success: boolean; delivery: ExternalDelivery }>(
+      `/dispatch/${encodeURIComponent(orderId)}/yandex/resolve-items`,
+      json('POST', input),
+    ),
+  resolveYandexCreateReconciliation: (
+    orderId: string,
+    input: YandexCreateReconciliationInput,
+  ) =>
+    request<{ success: boolean; delivery: ExternalDelivery }>(
+      `/dispatch/${encodeURIComponent(orderId)}/yandex/resolve-create`,
+      json('POST', input),
     ),
   setCourierAvailability: (id: string, status: string) =>
     request<{ success: boolean; courier: any }>(

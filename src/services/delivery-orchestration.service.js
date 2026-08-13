@@ -10,6 +10,8 @@ const YANDEX_HANDOFF_ELIGIBLE_STATUSES = new Set([
   'pickuped',
   'delivery_arrived',
   'ready_for_delivery_confirmation',
+  'waiting',
+  'transporting',
 ]);
 
 const orchestrationError = (message, statusCode = 409, code = null) =>
@@ -78,6 +80,13 @@ async function dispatchAcceptedDeliveryOrder(order, { yandexDelivery, dispatchSe
   const externalDelivery = yandexDelivery || require('./yandex-delivery.service');
   const internalDispatch = dispatchService || require('./dispatch.service');
   const yandexStatus = externalDelivery.getConfigurationStatus();
+  if (yandexStatus.apiMode === 'business_v2' && !yandexStatus.autoDispatch) {
+    return {
+      skipped: true,
+      provider: 'yandex',
+      reason: 'business_price_confirmation_required',
+    };
+  }
   if (yandexStatus.autoDispatch) {
     if (!yandexStatus.configured) {
       throw orchestrationError(
@@ -156,6 +165,20 @@ async function processDeliveryDispatch(orderId, dependencies = {}) {
   try {
     const result = await dispatchAcceptedDeliveryOrder(claimed, dependencies);
     const provider = result.provider || claimed.courier_dispatch_provider || null;
+    if (result.reason === 'business_price_confirmation_required') {
+      const { error } = await supabase
+        .from('kaspi_orders')
+        .update({
+          courier_dispatch_status: 'awaiting_confirmation',
+          courier_dispatch_provider: 'yandex',
+          courier_dispatch_next_attempt_at: null,
+          courier_dispatch_error: null,
+        })
+        .eq('id', orderId)
+        .eq('courier_dispatch_status', 'processing');
+      if (error) throw error;
+      return result;
+    }
     const completedAt = new Date().toISOString();
     const { error } = await supabase
       .from('kaspi_orders')
@@ -198,6 +221,38 @@ async function processDeliveryDispatchQueue(limit = 20) {
     .limit(100);
   if (staleError) throw staleError;
   for (const order of stale || []) {
+    const { data: uncertainBusinessJob, error: uncertainReadError } = await supabase
+      .from('delivery_jobs')
+      .select('id,external_claim_id,provider_status')
+      .eq('order_id', order.id)
+      .eq('provider', 'yandex')
+      .eq('api_family', 'business_v2')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (uncertainReadError) throw uncertainReadError;
+    const yandexDelivery = require('./yandex-delivery.service');
+    const mustPreserveBusinessReservation =
+      uncertainBusinessJob &&
+      (['creating', 'creating_uncertain', 'creating_exhausted'].includes(
+        uncertainBusinessJob.provider_status,
+      ) ||
+        (Boolean(uncertainBusinessJob.external_claim_id) &&
+          !yandexDelivery.isTerminalStatus(uncertainBusinessJob.provider_status, 'business_v2')));
+    if (mustPreserveBusinessReservation) {
+      // A Business create timeout/5xx can mean that Yandex accepted the
+      // request. Keep the order reservation and recover with the same
+      // idempotency UUID; never release it to another courier automatically.
+      await yandexDelivery
+        .syncOrderDelivery(order.id)
+        .catch((error) =>
+          console.error(
+            `Не удалось восстановить неопределённую Business-заявку заказа ${order.id}:`,
+            error.message,
+          ),
+        );
+      continue;
+    }
     await supabase
       .from('kaspi_orders')
       .update({
@@ -247,7 +302,7 @@ async function assertAutomobileCourierForHandoff(order) {
   const { data: jobs, error } = await supabase
     .from('delivery_jobs')
     .select(
-      'courier_transport_type,courier_car_model,courier_car_number,provider_status,created_at',
+      'api_family,courier_transport_type,courier_car_model,courier_car_number,provider_status,created_at',
     )
     .eq('order_id', order.id)
     .eq('provider', 'yandex')
@@ -256,7 +311,13 @@ async function assertAutomobileCourierForHandoff(order) {
   if (error) throw error;
   const job = jobs?.[0];
   const providerStatus = String(job?.provider_status || '').trim();
-  if (job && require('./yandex-delivery.service').isTerminalStatus(providerStatus)) {
+  if (
+    job &&
+    require('./yandex-delivery.service').isTerminalStatus(
+      providerStatus,
+      job.api_family || 'cargo_v2',
+    )
+  ) {
     throw orchestrationError(
       `Передача запрещена: заявка Яндекс.Доставки завершена со статусом «${providerStatus}». Вызовите нового автокурьера.`,
       409,

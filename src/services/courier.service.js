@@ -671,10 +671,21 @@ async function assignCourier(
       updated_at: now,
     })
     .eq('id', orderId)
+    .is('courier_id', null)
+    .eq('delivery_status', 'unassigned')
+    .or(
+      'courier_dispatch_provider.is.null,courier_dispatch_provider.neq.yandex,courier_dispatch_status.in.(pending,retrying,awaiting_confirmation,failed)',
+    )
     .select(
       '*,couriers(id,name,phone,vehicle,transport_type,current_latitude,current_longitude,location_updated_at)',
     )
     .maybeSingle();
+  if (
+    error?.code === 'P0001' ||
+    error?.message?.includes('DELIVERY_PROVIDER_RESERVATION_CONFLICT')
+  ) {
+    throw courierError('Заказ уже зарезервирован внешним курьером. Обновите список.', 409);
+  }
   if (error) throw error;
   if (!data) throw courierError('Заказ уже изменился. Обновите список.', 409);
   runBackgroundTask(`Courier assignment ${orderId} side effects`, async () => {

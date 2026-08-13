@@ -364,12 +364,22 @@ export interface DeliveryProof {
 export interface ExternalDelivery {
   id: string;
   provider: 'yandex';
+  apiFamily?: 'cargo_v2' | 'business_v2';
   claimId?: string | null;
   status: string;
+  active?: boolean;
   statusLabel: string;
   deliveryStatus: string;
   quotedPrice?: number | null;
   price?: number | null;
+  authorizedMaxPrice?: number | null;
+  priceOverrun?: boolean;
+  itemsResolutionRequired?: boolean;
+  attentionRequired?: boolean;
+  createReconciliationExhausted?: boolean;
+  reconciliationAttempts?: number;
+  reconciliationRetryAt?: string | null;
+  fixedPrice?: boolean | null;
   currency: string;
   etaMinutes?: number | null;
   distanceMeters?: number | null;
@@ -387,6 +397,21 @@ export interface ExternalDelivery {
   terminal: boolean;
   lastError?: string | null;
   lastSyncedAt?: string | null;
+  quoteExpiresAt?: string | null;
+  quoteFingerprint?: string | null;
+}
+
+export interface YandexDeliveryItemsResolutionInput {
+  deliveryJobId: string;
+  resolution: 'returned' | 'delivered';
+  reason: string;
+}
+
+export interface YandexCreateReconciliationInput {
+  deliveryJobId: string;
+  resolution: 'attach' | 'not_created';
+  externalOrderId?: string;
+  reason: string;
 }
 
 export interface DispatchOrder {
@@ -415,8 +440,23 @@ export interface DispatchOrder {
 export interface YandexDeliveryConfiguration {
   enabled: boolean;
   configured: boolean;
+  dispatchReady?: boolean;
   canManage: boolean;
+  canQuote?: boolean;
+  canCreate?: boolean;
   missing: string[];
+  apiMode?: 'cargo_v2' | 'business_v2';
+  providerLabel?: string;
+  autoDispatch?: boolean;
+  maxPriceKzt?: number | null;
+  quoteMaxAgeSeconds?: number | null;
+  restaurantDeliveryConfirmed?: boolean;
+  alertReceiverConfigured?: boolean;
+  alertReceiverRequired?: boolean;
+  alertReceiverReady?: boolean;
+  alertWorkersEnabled?: boolean;
+  deliverySyncWorkerEnabled?: boolean;
+  dispatchMissing?: string[];
   taxiClass: string;
   cargoOptions?: string[];
   automobileOnly?: boolean;

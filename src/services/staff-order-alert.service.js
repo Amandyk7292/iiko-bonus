@@ -6,8 +6,13 @@ const ALERT_TYPES = new Set([
   'delivery_failed',
   'delivery_uncertain',
   'order_unaccepted',
+  'yandex_price_overrun',
+  'yandex_items_unresolved',
+  'yandex_create_uncertain',
 ]);
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const PROVIDER_STATUS_PATTERN = /^[a-z0-9_]{1,80}$/;
+const MAX_ALERT_PRICE_KZT = 9_999_999_999.99;
 const EMPTY_COUNTS = Object.freeze({
   queued: 0,
   configPending: 0,
@@ -76,6 +81,73 @@ function safeAlertRow(row) {
     error.code = 'STAFF_ORDER_ALERT_INVALID_ROW';
     throw error;
   }
+  let details;
+  if (alertType === 'yandex_price_overrun') {
+    const rawDetails = row?.alert_details;
+    const deliveryJobId = String(rawDetails?.deliveryJobId || '');
+    const actualPriceKzt = rawDetails?.actualPriceKzt;
+    const authorizedMaxPriceKzt = rawDetails?.authorizedMaxPriceKzt;
+    if (
+      !rawDetails ||
+      typeof rawDetails !== 'object' ||
+      Array.isArray(rawDetails) ||
+      !UUID_PATTERN.test(deliveryJobId) ||
+      typeof actualPriceKzt !== 'number' ||
+      !Number.isFinite(actualPriceKzt) ||
+      actualPriceKzt < 0 ||
+      actualPriceKzt > MAX_ALERT_PRICE_KZT ||
+      typeof authorizedMaxPriceKzt !== 'number' ||
+      !Number.isFinite(authorizedMaxPriceKzt) ||
+      authorizedMaxPriceKzt < 0 ||
+      authorizedMaxPriceKzt > MAX_ALERT_PRICE_KZT ||
+      actualPriceKzt <= authorizedMaxPriceKzt ||
+      rawDetails.currency !== 'KZT'
+    ) {
+      const error = new Error('Invalid staff order alert details');
+      error.code = 'STAFF_ORDER_ALERT_INVALID_ROW';
+      throw error;
+    }
+    details = {
+      deliveryJobId,
+      actualPriceKzt,
+      authorizedMaxPriceKzt,
+      currency: 'KZT',
+    };
+  } else if (alertType === 'yandex_items_unresolved') {
+    const rawDetails = row?.alert_details;
+    const deliveryJobId = String(rawDetails?.deliveryJobId || '');
+    const providerReportedStatus = String(rawDetails?.providerReportedStatus || '');
+    if (
+      !rawDetails ||
+      typeof rawDetails !== 'object' ||
+      Array.isArray(rawDetails) ||
+      !UUID_PATTERN.test(deliveryJobId) ||
+      !PROVIDER_STATUS_PATTERN.test(providerReportedStatus)
+    ) {
+      const error = new Error('Invalid staff order alert details');
+      error.code = 'STAFF_ORDER_ALERT_INVALID_ROW';
+      throw error;
+    }
+    details = { deliveryJobId, providerReportedStatus };
+  } else if (alertType === 'yandex_create_uncertain') {
+    const rawDetails = row?.alert_details;
+    const deliveryJobId = String(rawDetails?.deliveryJobId || '');
+    const attemptCount = rawDetails?.attemptCount;
+    if (
+      !rawDetails ||
+      typeof rawDetails !== 'object' ||
+      Array.isArray(rawDetails) ||
+      !UUID_PATTERN.test(deliveryJobId) ||
+      !Number.isSafeInteger(attemptCount) ||
+      attemptCount < 1 ||
+      attemptCount > 8
+    ) {
+      const error = new Error('Invalid staff order alert details');
+      error.code = 'STAFF_ORDER_ALERT_INVALID_ROW';
+      throw error;
+    }
+    details = { deliveryJobId, attemptCount };
+  }
   return {
     alertId,
     orderId,
@@ -83,6 +155,7 @@ function safeAlertRow(row) {
     orderNumber,
     alertType,
     eventAt: eventDate.toISOString(),
+    ...(details && { details }),
   };
 }
 
@@ -111,6 +184,7 @@ async function deliverAlert(row, { fetchImpl = fetch, env = process.env } = {}) 
       branchId: safe.branchId,
       orderNumber: safe.orderNumber,
       occurredAt: safe.eventAt,
+      ...(safe.details && { details: safe.details }),
     }),
     redirect: 'error',
     signal: AbortSignal.timeout(5000),
@@ -185,7 +259,7 @@ async function completeAlert(row, result, { db = supabase } = {}) {
 }
 
 async function validateAlertClaim(row, slaSeconds, { db = supabase } = {}) {
-  const { data, error } = await db.rpc('validate_staff_order_alert_claim', {
+  const { data, error } = await db.rpc('validate_staff_order_alert_claim_v2', {
     p_alert_id: row.alert_id,
     p_lease_token: row.lease_token,
     p_sla_seconds: slaSeconds,
@@ -227,7 +301,7 @@ async function flushStaffOrderAlerts(
     return { attempted: 0, sent: 0, receiverConfigured: false, pending: health.pending };
   }
 
-  const { data, error } = await db.rpc('claim_staff_order_alerts', {
+  const { data, error } = await db.rpc('claim_staff_order_alerts_v2', {
     p_limit: Math.min(200, Math.max(1, Number(limit) || 50)),
     p_sla_seconds: slaSeconds,
   });

@@ -14,6 +14,7 @@ const ALERT_ID = '11111111-1111-4111-8111-111111111111';
 const ORDER_ID = '22222222-2222-4222-8222-222222222222';
 const BRANCH_ID = '33333333-3333-4333-8333-333333333333';
 const LEASE_ID = '44444444-4444-4444-8444-444444444444';
+const DELIVERY_JOB_ID = '99999999-9999-4999-8999-999999999999';
 const alertRow = {
   alert_id: ALERT_ID,
   lease_token: LEASE_ID,
@@ -31,10 +32,10 @@ function dbDouble({ claimed = [], snapshot = {} } = {}) {
     calls,
     rpc: async (name, args) => {
       calls.push([name, args]);
-      if (name === 'claim_staff_order_alerts') return { data: claimed, error: null };
+      if (name === 'claim_staff_order_alerts_v2') return { data: claimed, error: null };
       if (name === 'staff_order_alert_snapshot') return { data: [snapshot], error: null };
       if (name === 'complete_staff_order_alert') return { data: true, error: null };
-      if (name === 'validate_staff_order_alert_claim') return { data: true, error: null };
+      if (name === 'validate_staff_order_alert_claim_v2') return { data: true, error: null };
       return { data: 0, error: null };
     },
   };
@@ -70,7 +71,10 @@ test('missing receiver durably defers alerts without claiming or sending them', 
 });
 
 test('configured receiver gets a PII-free payload and stable idempotency key', async () => {
-  const db = dbDouble({ claimed: [alertRow], snapshot: { sent: 1 } });
+  const db = dbDouble({
+    claimed: [{ ...alertRow, alert_details: { phone: '+70000000000' } }],
+    snapshot: { sent: 1 },
+  });
   let request;
   const result = await flushStaffOrderAlerts(50, {
     db,
@@ -103,6 +107,160 @@ test('configured receiver gets a PII-free payload and stable idempotency key', a
   const completion = db.calls.find(([name]) => name === 'complete_staff_order_alert');
   assert.equal(completion[1].p_sent, true);
   assert.equal(completion[1].p_error_code, null);
+  assert.equal(
+    db.calls.some(([name]) => name === 'claim_staff_order_alerts_v2'),
+    true,
+  );
+  assert.equal(
+    db.calls.some(([name]) => name === 'validate_staff_order_alert_claim_v2'),
+    true,
+  );
+  assert.equal(
+    db.calls.some(
+      ([name]) =>
+        name === 'claim_staff_order_alerts' || name === 'validate_staff_order_alert_claim',
+    ),
+    false,
+  );
+});
+
+test('Yandex price overrun details are strictly bounded and stripped of extra fields', async () => {
+  let request;
+  await deliverAlert(
+    {
+      ...alertRow,
+      alert_type: 'yandex_price_overrun',
+      alert_details: {
+        deliveryJobId: DELIVERY_JOB_ID,
+        actualPriceKzt: 2450.5,
+        authorizedMaxPriceKzt: 2200,
+        currency: 'KZT',
+        customerPhone: '+70000000000',
+      },
+    },
+    {
+      env: { OPS_ALERT_WEBHOOK_URL: 'https://alerts.example.test/bulka' },
+      fetchImpl: async (_url, options) => {
+        request = options;
+        return { ok: true, status: 202 };
+      },
+    },
+  );
+
+  const payload = JSON.parse(request.body);
+  assert.deepEqual(payload.details, {
+    deliveryJobId: DELIVERY_JOB_ID,
+    actualPriceKzt: 2450.5,
+    authorizedMaxPriceKzt: 2200,
+    currency: 'KZT',
+  });
+  assert.doesNotMatch(request.body, /customerPhone|70000000000/i);
+});
+
+test('Yandex unresolved-item details expose only a safe provider status', async () => {
+  let request;
+  await deliverAlert(
+    {
+      ...alertRow,
+      alert_type: 'yandex_items_unresolved',
+      alert_details: {
+        deliveryJobId: DELIVERY_JOB_ID,
+        providerReportedStatus: 'cancelled_by_taxi',
+        address: 'must not leave the backend',
+      },
+    },
+    {
+      env: { OPS_ALERT_WEBHOOK_URL: 'https://alerts.example.test/bulka' },
+      fetchImpl: async (_url, options) => {
+        request = options;
+        return { ok: true, status: 202 };
+      },
+    },
+  );
+
+  const payload = JSON.parse(request.body);
+  assert.deepEqual(payload.details, {
+    deliveryJobId: DELIVERY_JOB_ID,
+    providerReportedStatus: 'cancelled_by_taxi',
+  });
+  assert.doesNotMatch(request.body, /address|must not leave/i);
+});
+
+test('Yandex exhausted reconciliation details expose only job ID and bounded attempts', async () => {
+  let request;
+  await deliverAlert(
+    {
+      ...alertRow,
+      alert_type: 'yandex_create_uncertain',
+      alert_details: {
+        deliveryJobId: DELIVERY_JOB_ID,
+        attemptCount: 8,
+        requestPayload: { address: 'must not leave the backend' },
+      },
+    },
+    {
+      env: { OPS_ALERT_WEBHOOK_URL: 'https://alerts.example.test/bulka' },
+      fetchImpl: async (_url, options) => {
+        request = options;
+        return { ok: true, status: 202 };
+      },
+    },
+  );
+
+  const payload = JSON.parse(request.body);
+  assert.deepEqual(payload.details, {
+    deliveryJobId: DELIVERY_JOB_ID,
+    attemptCount: 8,
+  });
+  assert.doesNotMatch(request.body, /requestPayload|address|must not leave/i);
+});
+
+test('malformed Yandex alert details are rejected before webhook delivery', async () => {
+  let called = false;
+  await assert.rejects(
+    () =>
+      deliverAlert(
+        {
+          ...alertRow,
+          alert_type: 'yandex_price_overrun',
+          alert_details: {
+            deliveryJobId: DELIVERY_JOB_ID,
+            actualPriceKzt: '2450.50',
+            authorizedMaxPriceKzt: 2200,
+            currency: 'KZT',
+          },
+        },
+        {
+          env: { OPS_ALERT_WEBHOOK_URL: 'https://alerts.example.test/bulka' },
+          fetchImpl: async () => {
+            called = true;
+            return { ok: true, status: 202 };
+          },
+        },
+      ),
+    /Invalid staff order alert details/,
+  );
+  assert.equal(called, false);
+
+  await assert.rejects(
+    () =>
+      deliverAlert(
+        {
+          ...alertRow,
+          alert_type: 'yandex_create_uncertain',
+          alert_details: { deliveryJobId: DELIVERY_JOB_ID, attemptCount: 9 },
+        },
+        {
+          env: { OPS_ALERT_WEBHOOK_URL: 'https://alerts.example.test/bulka' },
+          fetchImpl: async () => {
+            called = true;
+            return { ok: true, status: 202 };
+          },
+        },
+      ),
+    /Invalid staff order alert details/,
+  );
+  assert.equal(called, false);
 });
 
 test('webhook failures remain durable retries with bounded safe error codes', async () => {
@@ -140,7 +298,7 @@ test('state is revalidated immediately before webhook dispatch', async () => {
   const db = dbDouble({ claimed: [alertRow], snapshot: { resolved: 1 } });
   const originalRpc = db.rpc;
   db.rpc = async (name, args) => {
-    if (name === 'validate_staff_order_alert_claim') {
+    if (name === 'validate_staff_order_alert_claim_v2') {
       db.calls.push([name, args]);
       return { data: false, error: null };
     }

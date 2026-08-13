@@ -45,6 +45,7 @@ const dispatchStatuses = [
   'pending',
   'processing',
   'retrying',
+  'awaiting_confirmation',
   'succeeded',
   'failed',
 ];
@@ -345,7 +346,8 @@ export default function KitchenPage() {
                                 <small>
                                   {t('kitchen.dispatch.provider', {
                                     provider:
-                                      String(order.courierDispatchProvider).toLowerCase() === 'yandex'
+                                      String(order.courierDispatchProvider).toLowerCase() ===
+                                      'yandex'
                                         ? t('kitchen.dispatch.yandex')
                                         : dispatchProviderLabel(order.courierDispatchProvider),
                                   })}
