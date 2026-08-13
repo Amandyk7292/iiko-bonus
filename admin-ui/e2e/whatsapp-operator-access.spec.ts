@@ -28,15 +28,37 @@ const secondConversation = {
   lastMessagePreview: 'Второй диалог',
 };
 
-const selectConversation = async (page: Page, index: number) => {
-  const backButton = page.getByRole('button', { name: 'К списку диалогов' });
-  if (await backButton.isVisible()) await backButton.click();
-  await page.locator('.whatsapp-conversation-item').nth(index).click();
+const createSignal = () => {
+  let signal!: () => void;
+  const promise = new Promise<void>((resolve) => {
+    signal = resolve;
+  });
+  return { promise, signal };
+};
+
+const selectConversation = async (page: Page, displayName: string) => {
+  const conversationPane = page.getByRole('complementary', { name: 'Список диалогов' });
+  if (!(await conversationPane.isVisible())) {
+    const backButton = page.getByRole('button', { name: 'К списку диалогов' });
+    await expect(backButton).toBeVisible();
+    await backButton.click();
+  }
+  await expect(conversationPane).toBeVisible();
+  const conversationItem = conversationPane
+    .locator('.whatsapp-conversation-item')
+    .filter({ hasText: displayName });
+  await expect(conversationItem).toHaveCount(1);
+  await expect(conversationItem).toBeVisible();
+  await conversationItem.click();
 };
 
 test('protected operator link opens only chats and allows a reply', async ({ page }) => {
   const exchangedTokens: string[] = [];
   const replies: string[] = [];
+  const initialConversationRequestStarted = createSignal();
+  const releaseInitialConversationResponse = createSignal();
+  const initialConversationResponseSettled = createSignal();
+  let holdInitialConversationResponse = true;
 
   await page.route('**/admin/api/**', async (route) => {
     const request = route.request();
@@ -128,33 +150,41 @@ test('protected operator link opens only chats and allows a reply', async ({ pag
       });
     }
     if (path.endsWith(`/${conversation.id}`) || path.endsWith(`/${secondConversation.id}`)) {
-      if (target.id === conversation.id) {
-        await new Promise((resolve) => setTimeout(resolve, 250));
+      const isHeldInitialResponse =
+        target.id === conversation.id && holdInitialConversationResponse;
+      if (isHeldInitialResponse) {
+        holdInitialConversationResponse = false;
+        initialConversationRequestStarted.signal();
+        await releaseInitialConversationResponse.promise;
       }
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          success: true,
-          conversation: target,
-          memories: [],
-          messages: [
-            {
-              id: '33333333-3333-4333-8333-333333333333',
-              conversationId: target.id,
-              whatsappMessageId: 'wa-in-1',
-              direction: 'inbound',
-              senderType: 'customer',
-              content:
-                target.id === conversation.id
-                  ? 'Здравствуйте, есть ли круассаны?'
-                  : 'Сообщение второго клиента',
-              deliveryStatus: 'received',
-              createdAt: now,
-            },
-          ],
-        }),
-      });
+      try {
+        return await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            conversation: target,
+            memories: [],
+            messages: [
+              {
+                id: '33333333-3333-4333-8333-333333333333',
+                conversationId: target.id,
+                whatsappMessageId: 'wa-in-1',
+                direction: 'inbound',
+                senderType: 'customer',
+                content:
+                  target.id === conversation.id
+                    ? 'Здравствуйте, есть ли круассаны?'
+                    : 'Сообщение второго клиента',
+                deliveryStatus: 'received',
+                createdAt: now,
+              },
+            ],
+          }),
+        });
+      } finally {
+        if (isHeldInitialResponse) initialConversationResponseSettled.signal();
+      }
     }
     return route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
   });
@@ -170,29 +200,30 @@ test('protected operator link opens only chats and allows a reply', async ({ pag
   await expect(page.getByText('Память клиента')).toHaveCount(0);
   await expect(page.locator('.sagi-sidebar')).toHaveCount(0);
 
-  const conversationItems = page.locator('.whatsapp-conversation-item');
-  await selectConversation(page, 1);
+  await initialConversationRequestStarted.promise;
+  await selectConversation(page, secondConversation.displayName);
   await expect(page.locator('.whatsapp-chat-person').getByText('Второй клиент')).toBeVisible();
-  await page.waitForTimeout(300);
+  releaseInitialConversationResponse.signal();
+  await initialConversationResponseSettled.promise;
   await expect(page.locator('.whatsapp-chat-person').getByText('Второй клиент')).toBeVisible();
 
-  await selectConversation(page, 0);
+  await selectConversation(page, conversation.displayName);
   const reply = page.getByLabel('Ответ клиенту');
   await expect(reply).toBeEnabled();
   await reply.fill('Черновик первого клиента');
-  await selectConversation(page, 1);
+  await selectConversation(page, secondConversation.displayName);
   const warning = page.getByRole('alertdialog');
   await expect(warning).toContainText('Черновик останется');
   await warning.getByRole('button', { name: 'Отмена' }).click();
   await expect(warning).toBeHidden();
   await expect(reply).toHaveValue('Черновик первого клиента');
 
-  await selectConversation(page, 1);
+  await selectConversation(page, secondConversation.displayName);
   const confirmedWarning = page.getByRole('alertdialog');
   await expect(confirmedWarning).toBeVisible();
   await confirmedWarning.getByRole('button', { name: 'Перейти' }).click();
   await expect(page.getByLabel('Ответ клиенту')).toHaveValue('');
-  await selectConversation(page, 0);
+  await selectConversation(page, conversation.displayName);
   await expect(page.getByLabel('Ответ клиенту')).toHaveValue('Черновик первого клиента');
   await reply.fill('Здравствуйте! Да, круассаны есть.');
   await page.getByRole('button', { name: 'Отправить сообщение' }).click();

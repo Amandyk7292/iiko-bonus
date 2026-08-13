@@ -862,8 +862,7 @@ for (const envelopeFailure of ['key mismatch', 'corrupt envelope']) {
     const job = harness.state.jobs[0];
     job.reconciliation_next_at = '2020-01-01T00:00:00.000Z';
     if (envelopeFailure === 'key mismatch') {
-      process.env.CUSTOMER_JWT_SECRET =
-        'rotated-yandex-business-integration-secret-material-987654321';
+      process.env.CUSTOMER_JWT_SECRET = 'r'.repeat(64);
     } else {
       job.request_payload_ciphertext = 'v1.corrupt-envelope';
     }
