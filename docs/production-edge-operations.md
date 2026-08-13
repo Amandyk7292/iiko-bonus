@@ -91,6 +91,27 @@ Production staff push also requires `RUN_BACKGROUND_WORKERS=true`, valid Firebas
 service-account credentials, and `STAFF_PUSH_REQUIRED=true`. Required mode makes
 readiness fail if the workers are disabled or Firebase messaging cannot initialize.
 
+Each paid order has two independent staff-push episodes: the immediate new-order
+push and one reminder due 60 seconds after the durable paid transition. The reminder
+uses its own provider ID and dedupe key, but keeps the original paid-transition
+expiry, so neither notification can live longer than 15 minutes. Its recipient
+snapshot includes every still-authorized, non-revoked iOS cashier enrollment for the
+branch, even when the app was backgrounded and its 90-second coverage heartbeat is
+stale. Authorization, branch, token, order state, acceptance state, and TTL are
+revalidated immediately before contacting Firebase. A terminal reminder failure or
+uncertain outcome enters the same durable operations-alert queue; no Telegram-specific
+integration is required.
+
+The kitchen screen is the on-device fallback: while a paid order remains server-
+confirmed `queued`, it shows a sticky critical banner and repeats one shared siren
+every 25 seconds. iPad Safari may require the visible **Enable/Unlock sound** action
+after launch or an audio interruption. The alarm stops only after the server commits
+the first `queued -> preparing` acknowledgement. That acknowledgement records a
+server-derived actor, timestamp, session hash, and (when unambiguous) installation;
+only a masked iPad label is returned to the admin UI. Visibility, reconnect, and
+online events trigger an immediate coalesced refresh so a different iPad's acceptance
+clears the alarm without waiting for the 30-second poll.
+
 After Cloudflare is active, set the GitHub Actions repository variable
 `PRODUCTION_REQUIRE_CLOUDFLARE=true`. The monitor will then fail whenever the
 `CF-Ray` signal disappears.

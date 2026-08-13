@@ -378,9 +378,221 @@ async function flushStaffPushOutbox(
   return outcomes;
 }
 
+async function completeReminderDelivery(row, result, { db = supabase } = {}) {
+  const finalAttempt = Number(row.attempt_count) >= Number(row.max_attempts);
+  const status = result.outcomeUnknown
+    ? 'uncertain'
+    : result.delivered
+      ? 'sent'
+      : result.expired
+        ? 'skipped'
+        : result.terminal
+          ? 'failed'
+          : finalAttempt
+            ? 'failed'
+            : 'retry';
+  if (!result.outcomeUnknown && !result.delivered && !result.expired && result.terminal) {
+    const { error } = await db.rpc('deactivate_invalid_staff_push_token', {
+      p_token: row.token,
+    });
+    if (error) throw error;
+  }
+  const { data, error } = await db.rpc('complete_staff_push_reminder_delivery', {
+    p_delivery_id: row.delivery_id,
+    p_lease_token: row.lease_token,
+    p_status: status,
+    p_last_error: result.delivered ? null : safeDeliveryError(result, status),
+    p_provider_message_id: result.providerMessageId || null,
+    p_retry_seconds: status === 'retry' ? retryDelaySeconds(row.attempt_count) : null,
+  });
+  if (error) throw error;
+  if (data !== true) {
+    const leaseError = new Error('Staff reminder delivery lease was lost');
+    leaseError.code = 'STAFF_REMINDER_LEASE_LOST';
+    throw leaseError;
+  }
+  return {
+    deliveryId: String(row.delivery_id),
+    status,
+    attempted: 1,
+    delivered: result.delivered ? 1 : 0,
+  };
+}
+
+async function releaseReminderClaim(row, error, { db = supabase } = {}) {
+  try {
+    const { data, error: releaseError } = await db.rpc('release_staff_push_reminder_claim', {
+      p_delivery_id: row.delivery_id,
+      p_lease_token: row.lease_token,
+      p_last_error: String(
+        error?.code || error?.message || 'Staff reminder delivery interrupted',
+      ).slice(0, 500),
+      p_retry_seconds: retryDelaySeconds(row.attempt_count),
+    });
+    return !releaseError && data === true;
+  } catch {
+    return false;
+  }
+}
+
+async function beginReminderDispatch(row, { db = supabase } = {}) {
+  const { data, error } = await db.rpc('begin_staff_push_reminder_dispatch', {
+    p_delivery_id: row.delivery_id,
+    p_lease_token: row.lease_token,
+  });
+  if (error) throw error;
+  if (data === 'skipped') return false;
+  if (data !== 'dispatching' && data !== true) {
+    const leaseError = new Error('Staff reminder lease was lost before dispatch');
+    leaseError.code = 'STAFF_REMINDER_LEASE_LOST';
+    throw leaseError;
+  }
+  return true;
+}
+
+async function recoverDeliveredReminder(row, result, { db = supabase } = {}) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      const { data, error } = await db.rpc('recover_staff_push_reminder_sent', {
+        p_delivery_id: row.delivery_id,
+        p_lease_token: row.lease_token,
+        p_provider_message_id: result.providerMessageId || null,
+      });
+      if (!error && data === true) return true;
+    } catch {
+      // Never resend a provider-accepted reminder merely because persisting
+      // its success had an ambiguous database response.
+    }
+  }
+  return false;
+}
+
+async function flushStaffPushReminders(
+  limit = 100,
+  { db = supabase, sendToken = sendPushNotificationDetailed } = {},
+) {
+  const { data, error } = await db.rpc('claim_staff_push_reminder_deliveries', {
+    p_limit: Math.min(200, Math.max(1, Number(limit) || 100)),
+  });
+  if (error) throw error;
+  const outcomes = [];
+  const failures = [];
+  for (const row of data || []) {
+    try {
+      const dispatchStarted = await beginReminderDispatch(row, { db });
+      if (!dispatchStarted) {
+        outcomes.push({
+          deliveryId: String(row.delivery_id),
+          status: 'skipped',
+          attempted: 0,
+          delivered: 0,
+        });
+        continue;
+      }
+    } catch (dispatchStartError) {
+      failures.push({
+        row,
+        error: dispatchStartError,
+        released: await releaseReminderClaim(row, dispatchStartError, { db }),
+        recovered: false,
+        stage: 'dispatch-start',
+      });
+      continue;
+    }
+
+    let result;
+    try {
+      result = await sendToken(
+        row.token,
+        'Заказ не принят',
+        'Оплаченный заказ ждёт подтверждения',
+        {
+          // Keep the established native staff-kitchen route for installed app
+          // versions; distinct durable ids prevent dedupe with the first push.
+          type: 'staff.order.new',
+          orderId: String(row.order_id),
+          orderNumber: String(row.order_number),
+          reminderSequence: String(row.reminder_sequence || 1),
+          deepLink: '/admin/kitchen?embedded=app',
+          pushOutboxId: String(row.reminder_id),
+          pushDedupeKey: `staff-order:${row.order_id}:reminder:${row.reminder_sequence || 1}`,
+        },
+        { expiresAt: row.expires_at },
+      );
+    } catch (sendError) {
+      const failure = classifyPushSendError(sendError);
+      result = {
+        delivered: false,
+        terminal: false,
+        outcomeUnknown: failure.outcomeUnknown,
+        error: failure.error,
+      };
+    }
+
+    try {
+      outcomes.push(await completeReminderDelivery(row, result, { db }));
+    } catch (completionError) {
+      if (result.delivered) {
+        const recovered = await recoverDeliveredReminder(row, result, { db });
+        if (recovered) {
+          outcomes.push({
+            deliveryId: String(row.delivery_id),
+            status: 'sent',
+            attempted: 1,
+            delivered: 1,
+            recovered: true,
+          });
+        }
+        failures.push({
+          row,
+          error: completionError,
+          released: false,
+          recovered,
+          uncertain: !recovered,
+        });
+      } else if (result.outcomeUnknown) {
+        failures.push({
+          row,
+          error: completionError,
+          released: false,
+          recovered: false,
+          uncertain: true,
+        });
+      } else {
+        failures.push({
+          row,
+          error: completionError,
+          released: await releaseReminderClaim(row, completionError, { db }),
+          recovered: false,
+        });
+      }
+    }
+  }
+  if (failures.length) {
+    const batchError = new Error(
+      `Staff reminder batch completed with ${failures.length} persistence failure(s)`,
+    );
+    batchError.code = 'STAFF_REMINDER_BATCH_PARTIAL_FAILURE';
+    batchError.outcomes = outcomes;
+    batchError.failures = failures.map(
+      ({ row, error: failure, released, recovered, uncertain, stage }) => ({
+        deliveryId: String(row.delivery_id),
+        code: String(failure?.code || 'STAFF_REMINDER_DELIVERY_FAILED'),
+        released,
+        recovered,
+        ...(uncertain ? { uncertain: true } : {}),
+        ...(stage ? { stage } : {}),
+      }),
+    );
+    throw batchError;
+  }
+  return outcomes;
+}
+
 module.exports = {
   deactivateStaffDevicesForSession,
   flushStaffPushOutbox,
+  flushStaffPushReminders,
   registerStaffPushDevice,
   sendStaffPushTest,
   staffPushDeviceStatus,

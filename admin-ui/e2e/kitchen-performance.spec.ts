@@ -208,3 +208,113 @@ test('cashier iPad shell keeps branch, connection and sound controls visible wit
     if (viewport.width >= 900) expect(layout.columns).toBe(3);
   }
 });
+
+test('unaccepted paid order keeps the iPad alarm visible until the server confirms acceptance', async ({
+  page,
+}) => {
+  const queuedOrder = {
+    ...kitchenOrder(firstOrderId, 3003),
+    fulfillmentStatus: 'new',
+    kitchenStatus: 'queued',
+    kitchenStartedAt: null,
+    acceptanceRequestedAt: '2026-08-03T17:58:00.000Z',
+    acceptedAt: null,
+    acceptedBy: null,
+    acceptedDeviceLabel: null,
+  };
+  let currentOrder = queuedOrder;
+  let releaseAcceptance!: () => void;
+  const acceptanceGate = new Promise<void>((resolve) => {
+    releaseAcceptance = resolve;
+  });
+
+  await page.route('**/admin/api/**', async (route) => {
+    const request = route.request();
+    const path = new URL(request.url()).pathname;
+    if (path === '/admin/api/session') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          user: { username: 'cashier.aktau', role: 'cashier', branchIds: [branchId] },
+        }),
+      });
+    }
+    if (path === '/admin/api/scope') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          locations: [
+            {
+              id: branchId,
+              name: '19-й микрорайон',
+              address: 'Актау',
+              city: 'Актау',
+              active: true,
+            },
+          ],
+          selectedBranchId: branchId,
+        }),
+      });
+    }
+    if (path === '/admin/api/kitchen' && request.method() === 'GET') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, orders: [currentOrder] }),
+      });
+    }
+    if (path === `/admin/api/kitchen/${firstOrderId}/status` && request.method() === 'PATCH') {
+      expect(request.postDataJSON()).toEqual({
+        status: 'preparing',
+        preparationMinutes: 30,
+        iikoManualEntryConfirmed: true,
+      });
+      await acceptanceGate;
+      currentOrder = {
+        ...queuedOrder,
+        fulfillmentStatus: 'preparing',
+        kitchenStatus: 'preparing',
+        kitchenStartedAt: new Date().toISOString(),
+        acceptedAt: new Date().toISOString(),
+        acceptedBy: 'cashier.aktau',
+        acceptedDeviceLabel: 'iPad ••••EN01',
+      };
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, order: currentOrder }),
+      });
+    }
+    if (path === '/admin/api/events') {
+      return route.fulfill({ status: 200, contentType: 'text/event-stream', body: '' });
+    }
+    return route.fulfill({
+      status: 404,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: `not mocked: ${request.method()} ${path}` }),
+    });
+  });
+
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await page.goto('/admin/kitchen?embedded=app');
+
+  const alarm = page.getByRole('alert').filter({ hasText: 'Не приняты оплаченные заказы: 1' });
+  await expect(alarm).toBeVisible();
+  const acceptButton = alarm.getByRole('button', { name: 'Принять заказ' });
+  expect((await acceptButton.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+  await acceptButton.click();
+
+  const dialog = page.getByRole('dialog');
+  await dialog.getByText('Заказ пробит вручную в iikoFront').click();
+  await dialog.getByRole('button', { name: 'Принять заказ' }).click();
+  await expect(alarm).toContainText('Сохраняем принятие на сервере');
+
+  releaseAcceptance();
+  await expect(alarm).toHaveCount(0);
+  await expect(page.getByText('Принял: cashier.aktau')).toBeVisible();
+  await expect(page.getByText(/iPad ••••EN01/)).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(768);
+});

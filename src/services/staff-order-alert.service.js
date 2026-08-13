@@ -5,6 +5,8 @@ const ALERT_TYPES = new Set([
   'no_active_ipad',
   'delivery_failed',
   'delivery_uncertain',
+  'reminder_delivery_failed',
+  'reminder_delivery_uncertain',
   'order_unaccepted',
   'yandex_price_overrun',
   'yandex_items_unresolved',
@@ -259,7 +261,7 @@ async function completeAlert(row, result, { db = supabase } = {}) {
 }
 
 async function validateAlertClaim(row, slaSeconds, { db = supabase } = {}) {
-  const { data, error } = await db.rpc('validate_staff_order_alert_claim_v2', {
+  const { data, error } = await db.rpc('validate_staff_order_alert_claim_v3', {
     p_alert_id: row.alert_id,
     p_lease_token: row.lease_token,
     p_sla_seconds: slaSeconds,
@@ -301,7 +303,7 @@ async function flushStaffOrderAlerts(
     return { attempted: 0, sent: 0, receiverConfigured: false, pending: health.pending };
   }
 
-  const { data, error } = await db.rpc('claim_staff_order_alerts_v2', {
+  const { data, error } = await db.rpc('claim_staff_order_alerts_v3', {
     p_limit: Math.min(200, Math.max(1, Number(limit) || 50)),
     p_sla_seconds: slaSeconds,
   });

@@ -193,6 +193,265 @@ test('staff push worker emits a generic non-PII new-order payload and completes 
   );
 });
 
+test('staff reminder worker sends one independently deduplicated bounded kitchen push', async (t) => {
+  const calls = [];
+  const sent = [];
+  await withService(
+    t,
+    {
+      rpc: async (name, args) => {
+        calls.push([name, args]);
+        if (name === 'claim_staff_push_reminder_deliveries') {
+          return {
+            data: [
+              {
+                delivery_id: 'reminder-delivery-1',
+                reminder_id: '22222222-2222-4222-8222-222222222222',
+                lease_token: 'reminder-lease-1',
+                token: 'private-reminder-fcm-token-123',
+                order_id: '11111111-1111-4111-8111-111111111111',
+                order_number: 100123,
+                reminder_sequence: 1,
+                attempt_count: 1,
+                max_attempts: 8,
+                expires_at: '2026-08-13T12:15:00.000Z',
+              },
+            ],
+            error: null,
+          };
+        }
+        if (name === 'begin_staff_push_reminder_dispatch') {
+          return { data: 'dispatching', error: null };
+        }
+        return { data: true, error: null };
+      },
+      sendToken: async (...args) => {
+        sent.push(args);
+        return { delivered: true, terminal: true, providerMessageId: 'provider-reminder-1' };
+      },
+    },
+    async ({ flushStaffPushReminders }) => {
+      assert.deepEqual(await flushStaffPushReminders(), [
+        {
+          deliveryId: 'reminder-delivery-1',
+          status: 'sent',
+          attempted: 1,
+          delivered: 1,
+        },
+      ]);
+      assert.equal(sent[0][0], 'private-reminder-fcm-token-123');
+      assert.equal(sent[0][1], 'Заказ не принят');
+      assert.equal(sent[0][2], 'Оплаченный заказ ждёт подтверждения');
+      assert.deepEqual(sent[0][3], {
+        type: 'staff.order.new',
+        orderId: '11111111-1111-4111-8111-111111111111',
+        orderNumber: '100123',
+        reminderSequence: '1',
+        deepLink: '/admin/kitchen?embedded=app',
+        pushOutboxId: '22222222-2222-4222-8222-222222222222',
+        pushDedupeKey: 'staff-order:11111111-1111-4111-8111-111111111111:reminder:1',
+      });
+      assert.deepEqual(sent[0][4], { expiresAt: '2026-08-13T12:15:00.000Z' });
+      assert.doesNotMatch(JSON.stringify(sent[0]), /phone|address|amount|cart|customer/i);
+      assert.equal(calls.at(-1)[0], 'complete_staff_push_reminder_delivery');
+    },
+  );
+});
+
+test('accepted-between-claim-and-dispatch reminder never contacts FCM', async (t) => {
+  const calls = [];
+  let sends = 0;
+  await withService(
+    t,
+    {
+      rpc: async (name, args) => {
+        calls.push([name, args]);
+        if (name === 'claim_staff_push_reminder_deliveries') {
+          return {
+            data: [
+              {
+                delivery_id: 'reminder-delivery-accepted',
+                reminder_id: 'reminder-accepted',
+                lease_token: 'reminder-lease-accepted',
+                token: 'private-reminder-accepted-token',
+                order_id: '11111111-1111-4111-8111-111111111111',
+                order_number: 100124,
+                reminder_sequence: 1,
+                attempt_count: 1,
+                max_attempts: 8,
+                expires_at: '2026-08-13T12:15:00.000Z',
+              },
+            ],
+            error: null,
+          };
+        }
+        if (name === 'begin_staff_push_reminder_dispatch') {
+          return { data: 'skipped', error: null };
+        }
+        throw new Error(`Unexpected RPC ${name}`);
+      },
+      sendToken: async () => {
+        sends += 1;
+        return { delivered: true, terminal: true };
+      },
+    },
+    async ({ flushStaffPushReminders }) => {
+      assert.deepEqual(await flushStaffPushReminders(), [
+        {
+          deliveryId: 'reminder-delivery-accepted',
+          status: 'skipped',
+          attempted: 0,
+          delivered: 0,
+        },
+      ]);
+      assert.equal(sends, 0);
+      assert.deepEqual(
+        calls.map(([name]) => name),
+        ['claim_staff_push_reminder_deliveries', 'begin_staff_push_reminder_dispatch'],
+      );
+    },
+  );
+});
+
+test('FCM-accepted reminder recovers as sent without a duplicate or claim release', async (t) => {
+  const calls = [];
+  let sends = 0;
+  await withService(
+    t,
+    {
+      rpc: async (name, args) => {
+        calls.push([name, args]);
+        if (name === 'claim_staff_push_reminder_deliveries') {
+          return {
+            data: [
+              {
+                delivery_id: 'reminder-delivery-recovery',
+                reminder_id: 'reminder-recovery',
+                lease_token: 'reminder-lease-recovery',
+                token: 'private-reminder-recovery-token',
+                order_id: '11111111-1111-4111-8111-111111111111',
+                order_number: 100125,
+                reminder_sequence: 1,
+                attempt_count: 1,
+                max_attempts: 8,
+                expires_at: '2026-08-13T12:15:00.000Z',
+              },
+            ],
+            error: null,
+          };
+        }
+        if (name === 'begin_staff_push_reminder_dispatch') {
+          return { data: 'dispatching', error: null };
+        }
+        if (name === 'complete_staff_push_reminder_delivery') {
+          return { data: null, error: new Error('completion response lost') };
+        }
+        if (name === 'recover_staff_push_reminder_sent') {
+          return { data: true, error: null };
+        }
+        throw new Error(`Unexpected RPC ${name}`);
+      },
+      sendToken: async () => {
+        sends += 1;
+        return { delivered: true, terminal: true, providerMessageId: 'provider-reminder-2' };
+      },
+    },
+    async ({ flushStaffPushReminders }) => {
+      await assert.rejects(
+        () => flushStaffPushReminders(),
+        (error) => {
+          assert.equal(error.code, 'STAFF_REMINDER_BATCH_PARTIAL_FAILURE');
+          assert.deepEqual(error.outcomes, [
+            {
+              deliveryId: 'reminder-delivery-recovery',
+              status: 'sent',
+              attempted: 1,
+              delivered: 1,
+              recovered: true,
+            },
+          ]);
+          assert.equal(error.failures[0].recovered, true);
+          assert.equal(error.failures[0].released, false);
+          return true;
+        },
+      );
+      assert.equal(sends, 1);
+      assert.equal(
+        calls.some(([name]) => name === 'release_staff_push_reminder_claim'),
+        false,
+      );
+    },
+  );
+});
+
+test('one reminder persistence failure does not strand a later claimed delivery', async (t) => {
+  const calls = [];
+  const sent = [];
+  await withService(
+    t,
+    {
+      rpc: async (name, args) => {
+        calls.push([name, args]);
+        if (name === 'claim_staff_push_reminder_deliveries') {
+          return {
+            data: ['one', 'two'].map((suffix, index) => ({
+              delivery_id: `reminder-delivery-${suffix}`,
+              reminder_id: `reminder-${suffix}`,
+              lease_token: `reminder-lease-${suffix}`,
+              token: `private-reminder-token-${suffix}-123`,
+              order_id: `${index + 1}1111111-1111-4111-8111-111111111111`,
+              order_number: 100126 + index,
+              reminder_sequence: 1,
+              attempt_count: 1,
+              max_attempts: 8,
+              expires_at: '2026-08-13T12:15:00.000Z',
+            })),
+            error: null,
+          };
+        }
+        if (name === 'begin_staff_push_reminder_dispatch' && args.p_delivery_id.endsWith('one')) {
+          return { data: null, error: new Error('temporary database failure') };
+        }
+        if (name === 'begin_staff_push_reminder_dispatch') {
+          return { data: 'dispatching', error: null };
+        }
+        return { data: true, error: null };
+      },
+      sendToken: async (token) => {
+        sent.push(token);
+        return { delivered: true, terminal: true, providerMessageId: 'provider-reminder-3' };
+      },
+    },
+    async ({ flushStaffPushReminders }) => {
+      await assert.rejects(
+        () => flushStaffPushReminders(),
+        (error) => {
+          assert.equal(error.code, 'STAFF_REMINDER_BATCH_PARTIAL_FAILURE');
+          assert.equal(error.failures.length, 1);
+          assert.deepEqual(error.outcomes, [
+            {
+              deliveryId: 'reminder-delivery-two',
+              status: 'sent',
+              attempted: 1,
+              delivered: 1,
+            },
+          ]);
+          return true;
+        },
+      );
+      assert.deepEqual(sent, ['private-reminder-token-two-123']);
+      assert.equal(
+        calls.some(
+          ([name, args]) =>
+            name === 'release_staff_push_reminder_claim' &&
+            args.p_delivery_id === 'reminder-delivery-one',
+        ),
+        true,
+      );
+    },
+  );
+});
+
 test('staff push worker never contacts FCM when the pre-dispatch recheck skips expired work', async (t) => {
   const calls = [];
   let sends = 0;

@@ -1453,6 +1453,7 @@ router.patch(
           branchIds: scopedBranchIds(req),
           cancellationReason: req.body.cancellationReason,
           iikoManualEntryConfirmed: req.body.iikoManualEntryConfirmed,
+          admin: req.admin,
         },
       );
       setAdminAuditContext(req, {
@@ -1464,6 +1465,7 @@ router.patch(
           status: req.body.status,
           preparationMinutes: req.body.preparationMinutes ?? null,
           iikoManualEntryConfirmed: req.body.iikoManualEntryConfirmed === true,
+          acceptedAt: order.acceptedAt || null,
         },
       });
       res.json({

@@ -11,6 +11,7 @@ const {
   processDeliveryDispatch,
 } = require('./delivery-orchestration.service');
 const { runBackgroundTask } = require('../utils/background-task.util');
+const { sessionHash } = require('./admin-session.service');
 
 const KITCHEN_ORDER_FIELDS = [
   'id',
@@ -28,6 +29,10 @@ const KITCHEN_ORDER_FIELDS = [
   'promised_ready_at',
   'scheduled_at',
   'kitchen_started_at',
+  'staff_acceptance_requested_at',
+  'staff_accepted_at',
+  'staff_accepted_by',
+  'staff_accepted_installation_id',
   'kitchen_ready_at',
   'handed_to_courier_at',
   'preparation_minutes',
@@ -50,6 +55,12 @@ const TRANSITIONS = {
   cancelled: [],
 };
 
+const maskedStaffDeviceLabel = (installationId) => {
+  const normalized = String(installationId || '').trim();
+  if (!normalized) return null;
+  return `iPad ••••${normalized.slice(-4).toUpperCase()}`;
+};
+
 const normalize = (order) => ({
   id: String(order.id),
   number: Number(order.order_number || 0),
@@ -64,6 +75,10 @@ const normalize = (order) => ({
   createdAt: order.created_at,
   promisedReadyAt: order.promised_ready_at || order.scheduled_at || null,
   kitchenStartedAt: order.kitchen_started_at || null,
+  acceptanceRequestedAt: order.staff_acceptance_requested_at || null,
+  acceptedAt: order.staff_accepted_at || null,
+  acceptedBy: order.staff_accepted_by || null,
+  acceptedDeviceLabel: maskedStaffDeviceLabel(order.staff_accepted_installation_id),
   kitchenReadyAt: order.kitchen_ready_at || null,
   handedToCourierAt: order.handed_to_courier_at || null,
   preparationMinutes: order.preparation_minutes == null ? null : Number(order.preparation_minutes),
@@ -74,6 +89,44 @@ const normalize = (order) => ({
   courierDispatchError: order.courier_dispatch_error || null,
   customerArrivedAt: order.customer_arrived_at || null,
 });
+
+async function resolveAcceptanceAudit(admin, branchId, now) {
+  const acceptedBy = String(admin?.sub || admin?.username || '')
+    .trim()
+    .slice(0, 160);
+  const jti = String(admin?.jti || '').trim();
+  if (!acceptedBy || !jti) {
+    return {
+      acceptedBy: acceptedBy || null,
+      acceptedSessionHash: jti ? sessionHash(jti) : null,
+      acceptedInstallationId: null,
+    };
+  }
+
+  const acceptedSessionHash = sessionHash(jti);
+  const heartbeatCutoff = new Date(Date.parse(now) - 90 * 1000).toISOString();
+  const { data, error } = await supabase
+    .from('staff_push_devices')
+    .select('installation_id')
+    .eq('session_jti_hash', acceptedSessionHash)
+    .eq('branch_id', branchId)
+    .eq('platform', 'ios')
+    .eq('active', true)
+    .is('revoked_at', null)
+    .gte('last_seen_at', heartbeatCutoff)
+    .limit(2);
+  if (error) throw error;
+  const devices = data || [];
+  return {
+    acceptedBy,
+    acceptedSessionHash,
+    // An exact installation is only attributable when this authenticated
+    // session has one current iPad in the order branch. Ambiguity is retained
+    // as null instead of guessing or trusting a client-supplied identifier.
+    acceptedInstallationId:
+      devices.length === 1 ? String(devices[0].installation_id || '') || null : null,
+  };
+}
 
 async function listKitchenOrders({ branchId = null, branchIds = [], includeClosed = false } = {}) {
   let query = supabase
@@ -135,7 +188,7 @@ async function updateKitchenStatus(
   orderId,
   nextStatus,
   preparationMinutes = null,
-  { branchIds = [], cancellationReason = '', iikoManualEntryConfirmed = false } = {},
+  { branchIds = [], cancellationReason = '', iikoManualEntryConfirmed = false, admin = null } = {},
 ) {
   if (!Object.hasOwn(TRANSITIONS, nextStatus)) throw kitchenError('Некорректный статус кухни');
   const { data: current, error: readError } = await supabase
@@ -202,8 +255,13 @@ async function updateKitchenStatus(
     updates.promised_ready_at = new Date(Date.now() + duration * 60000).toISOString();
   }
   if (nextStatus === 'preparing') {
+    const acceptance = await resolveAcceptanceAudit(admin, current.branch_id, now);
     updates.kitchen_started_at = now;
     updates.fulfillment_status = 'preparing';
+    updates.staff_accepted_at = now;
+    updates.staff_accepted_by = acceptance.acceptedBy;
+    updates.staff_accepted_session_jti_hash = acceptance.acceptedSessionHash;
+    updates.staff_accepted_installation_id = acceptance.acceptedInstallationId;
     Object.assign(updates, dispatchRequestUpdates(current, now));
   }
   if (nextStatus === 'ready') {
@@ -232,7 +290,23 @@ async function updateKitchenStatus(
   updateQuery = updateQuery.or('refund_status.is.null,refund_status.not.in.(processing,unknown)');
   const { data, error } = await updateQuery.select('*').maybeSingle();
   if (error) throw error;
-  if (!data) throw kitchenError('Заказ уже изменился. Обновите экран.', 409);
+  if (!data) {
+    // A second tap (or a second iPad) may have raced the same acceptance.
+    // Return the first immutable acknowledgement instead of overwriting its
+    // actor/device or running courier/notification side effects twice.
+    if (from === 'queued' && nextStatus === 'preparing') {
+      const { data: accepted, error: acceptedError } = await supabase
+        .from('kaspi_orders')
+        .select(KITCHEN_ORDER_FIELDS)
+        .eq('id', orderId)
+        .eq('status', 'paid')
+        .eq('kitchen_status', 'preparing')
+        .maybeSingle();
+      if (acceptedError) throw acceptedError;
+      if (accepted?.staff_accepted_at) return normalize(accepted);
+    }
+    throw kitchenError('Заказ уже изменился. Обновите экран.', 409);
+  }
   realtime.publish(
     'order.updated',
     {

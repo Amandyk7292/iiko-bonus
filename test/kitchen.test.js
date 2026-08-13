@@ -22,12 +22,33 @@ function loadKitchen(
     refreshOrderEta = async (value) => value,
     notifyOrderStatus = async () => {},
     assertAutomobileCourierForHandoff = async () => true,
+    staffDevices = [],
   } = {},
 ) {
   let order = structuredClone(initialOrder);
   const events = [];
   const db = {
     from(table) {
+      if (table === 'staff_push_devices') {
+        const staffQuery = {
+          select() {
+            return this;
+          },
+          eq() {
+            return this;
+          },
+          is() {
+            return this;
+          },
+          gte() {
+            return this;
+          },
+          limit() {
+            return Promise.resolve({ data: structuredClone(staffDevices), error: null });
+          },
+        };
+        return staffQuery;
+      }
       assert.equal(table, 'kaspi_orders');
       let operation = 'select';
       let updates = {};
@@ -272,6 +293,51 @@ test('queued order cannot start until manual iikoFront entry is explicitly confi
     iikoManualEntryConfirmed: true,
   });
   assert.equal(accepted.kitchenStatus, 'preparing');
+});
+
+test('acceptance audit derives its actor and one current iPad from the authenticated session', async (t) => {
+  const { service, getOrder } = loadKitchen(t, baseOrder(), {
+    staffDevices: [{ installation_id: 'ipad.branch.SECRETAB12' }],
+  });
+
+  const accepted = await service.updateKitchenStatus(ORDER_ID, 'preparing', 15, {
+    iikoManualEntryConfirmed: true,
+    admin: { sub: 'cashier.oral', jti: 'session-jti-1', role: 'cashier' },
+  });
+
+  assert.ok(accepted.acceptedAt);
+  assert.equal(accepted.acceptedBy, 'cashier.oral');
+  assert.equal(accepted.acceptedDeviceLabel, 'iPad ••••AB12');
+  assert.equal(Object.hasOwn(accepted, 'acceptedInstallationId'), false);
+  assert.equal(getOrder().staff_accepted_installation_id, 'ipad.branch.SECRETAB12');
+  assert.match(getOrder().staff_accepted_session_jti_hash, /^[a-f0-9]{64}$/);
+});
+
+test('a concurrent second acceptance returns the first immutable acknowledgement', async (t) => {
+  const firstAcceptedAt = '2026-08-13T12:00:00.000Z';
+  const { service, events } = loadKitchen(t, baseOrder(), {
+    beforeKitchenUpdate: (order) => ({
+      ...order,
+      kitchen_status: 'preparing',
+      fulfillment_status: 'preparing',
+      kitchen_started_at: firstAcceptedAt,
+      staff_accepted_at: firstAcceptedAt,
+      staff_accepted_by: 'cashier.first',
+      staff_accepted_installation_id: 'ipad.branch.FIRST001',
+    }),
+  });
+
+  const accepted = await service.updateKitchenStatus(ORDER_ID, 'preparing', 15, {
+    iikoManualEntryConfirmed: true,
+  });
+
+  assert.equal(accepted.acceptedAt, firstAcceptedAt);
+  assert.equal(accepted.acceptedBy, 'cashier.first');
+  assert.equal(accepted.acceptedDeviceLabel, 'iPad ••••T001');
+  assert.equal(
+    events.some(([name]) => ['publish', 'notify', 'dispatch'].includes(name)),
+    false,
+  );
 });
 
 test('stale kitchen transition cannot overwrite a concurrent refund claim', async (t) => {

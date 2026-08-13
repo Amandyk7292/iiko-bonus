@@ -28,7 +28,10 @@ interface AdminRealtimeValue {
   refreshSummary: () => Promise<void>;
   subscribe: (types: string[], listener: RealtimeListener) => () => void;
   soundEnabled: boolean;
+  soundReady: boolean;
   setSoundEnabled: (enabled: boolean) => void;
+  unlockSound: () => Promise<boolean>;
+  playOrderAlarm: () => boolean;
 }
 
 const EVENT_TYPES = [
@@ -70,7 +73,35 @@ const SUMMARY_EVENT_TYPES = new Set([
 
 const AdminRealtimeContext = createContext<AdminRealtimeValue | null>(null);
 
-function playOrderTone() {
+let orderAudioContext: AudioContext | null = null;
+let lastOrderToneAt = 0;
+const orderAudioStateListeners = new Set<() => void>();
+
+function notifyOrderAudioState() {
+  for (const listener of orderAudioStateListeners) {
+    try {
+      listener();
+    } catch {
+      // One mounted consumer must not break audio recovery for the others.
+    }
+  }
+}
+
+function discardOrderAudioContext(context: AudioContext | null) {
+  if (orderAudioContext === context) orderAudioContext = null;
+  lastOrderToneAt = 0;
+  if (context) {
+    try {
+      const closeRequest = context.close?.();
+      if (closeRequest) void closeRequest.catch(() => undefined);
+    } catch {
+      // Some WebKit implementations can throw while tearing down a failed graph.
+    }
+  }
+  notifyOrderAudioState();
+}
+
+function getOrderAudioContext() {
   const AudioContextClass =
     (
       window as typeof window & {
@@ -78,20 +109,88 @@ function playOrderTone() {
       }
     ).AudioContext ??
     (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-  if (!AudioContextClass) return;
-  const context = new AudioContextClass();
-  const gain = context.createGain();
-  const oscillator = context.createOscillator();
-  gain.gain.setValueAtTime(0.0001, context.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.12, context.currentTime + 0.02);
-  gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.34);
-  oscillator.frequency.setValueAtTime(660, context.currentTime);
-  oscillator.frequency.setValueAtTime(880, context.currentTime + 0.16);
-  oscillator.connect(gain);
-  gain.connect(context.destination);
-  oscillator.start();
-  oscillator.stop(context.currentTime + 0.36);
-  oscillator.addEventListener('ended', () => void context.close(), { once: true });
+  if (!AudioContextClass) return null;
+  try {
+    if (orderAudioContext && orderAudioContext.state !== 'closed') return orderAudioContext;
+  } catch {
+    discardOrderAudioContext(orderAudioContext);
+  }
+  try {
+    const context = new AudioContextClass();
+    orderAudioContext = context;
+    context.addEventListener('statechange', notifyOrderAudioState);
+    return context;
+  } catch {
+    discardOrderAudioContext(orderAudioContext);
+    return null;
+  }
+}
+
+function isOrderAudioReady() {
+  try {
+    return orderAudioContext?.state === 'running';
+  } catch {
+    return false;
+  }
+}
+
+function playOrderTone(force = false) {
+  const context = getOrderAudioContext();
+  if (!context) return false;
+  try {
+    if (context.state !== 'running') return false;
+    const now = Date.now();
+    if (!force && now - lastOrderToneAt < 4_000) return true;
+    const gain = context.createGain();
+    const oscillator = context.createOscillator();
+    gain.gain.setValueAtTime(0.0001, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.16, context.currentTime + 0.03);
+    gain.gain.setValueAtTime(0.16, context.currentTime + 0.58);
+    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.78);
+    oscillator.frequency.setValueAtTime(720, context.currentTime);
+    oscillator.frequency.setValueAtTime(960, context.currentTime + 0.2);
+    oscillator.frequency.setValueAtTime(720, context.currentTime + 0.4);
+    oscillator.frequency.setValueAtTime(960, context.currentTime + 0.6);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start();
+    oscillator.stop(context.currentTime + 0.8);
+    oscillator.addEventListener(
+      'ended',
+      () => {
+        try {
+          oscillator.disconnect();
+        } catch {
+          // The context may already have been discarded after an iOS audio interruption.
+        }
+        try {
+          gain.disconnect();
+        } catch {
+          // The context may already have been discarded after an iOS audio interruption.
+        }
+      },
+      { once: true },
+    );
+    lastOrderToneAt = now;
+    return true;
+  } catch {
+    discardOrderAudioContext(context);
+    return false;
+  }
+}
+
+async function unlockOrderAudio(testTone = true) {
+  const context = getOrderAudioContext();
+  if (!context) return false;
+  try {
+    if (context.state !== 'running') await context.resume();
+    if (context.state !== 'running') return false;
+    if (testTone && !playOrderTone(true)) return false;
+    return true;
+  } catch {
+    discardOrderAudioContext(context);
+    return false;
+  }
 }
 
 export function AdminRealtimeProvider({
@@ -107,12 +206,23 @@ export function AdminRealtimeProvider({
   const [connectionStatus, setConnectionStatus] = useState<AdminRealtimeStatus>('connecting');
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
   const [soundEnabled, setSoundEnabledState] = useState(
-    () => localStorage.getItem('adminOrderSoundEnabled') === 'true',
+    () => localStorage.getItem('adminOrderSoundEnabled') !== 'false',
   );
+  const [soundReady, setSoundReady] = useState(isOrderAudioReady);
   const listenersRef = useRef(new Set<{ types: Set<string>; listener: RealtimeListener }>());
   const refreshTimerRef = useRef<number | null>(null);
   const summaryRequestRef = useRef<Promise<void> | null>(null);
   const canLoadSummary = role !== 'whatsapp_operator' && role !== 'courier' && role !== 'cashier';
+
+  useEffect(() => {
+    const syncSoundState = () => setSoundReady(isOrderAudioReady());
+    orderAudioStateListeners.add(syncSoundState);
+    syncSoundState();
+    return () => {
+      orderAudioStateListeners.delete(syncSoundState);
+      if (orderAudioStateListeners.size === 0) discardOrderAudioContext(orderAudioContext);
+    };
+  }, []);
 
   const refreshSummary = useCallback(async () => {
     if (!canLoadSummary) return;
@@ -153,11 +263,37 @@ export function AdminRealtimeProvider({
     return () => listenersRef.current.delete(subscription);
   }, []);
 
-  const setSoundEnabled = useCallback((enabled: boolean) => {
-    setSoundEnabledState(enabled);
-    localStorage.setItem('adminOrderSoundEnabled', String(enabled));
-    if (enabled) playOrderTone();
+  const playOrderAlarm = useCallback(() => {
+    const played = playOrderTone();
+    setSoundReady(isOrderAudioReady());
+    return played;
   }, []);
+
+  const unlockSound = useCallback(async (testTone = true) => {
+    const unlocked = await unlockOrderAudio(testTone);
+    setSoundReady(unlocked);
+    return unlocked;
+  }, []);
+
+  const setSoundEnabled = useCallback(
+    (enabled: boolean) => {
+      setSoundEnabledState(enabled);
+      localStorage.setItem('adminOrderSoundEnabled', String(enabled));
+      if (enabled) void unlockSound();
+    },
+    [unlockSound],
+  );
+
+  useEffect(() => {
+    if (!soundEnabled || soundReady) return;
+    const unlockFromGesture = () => void unlockSound(false);
+    window.addEventListener('pointerdown', unlockFromGesture, { capture: true, once: true });
+    window.addEventListener('keydown', unlockFromGesture, { capture: true, once: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlockFromGesture, { capture: true });
+      window.removeEventListener('keydown', unlockFromGesture, { capture: true });
+    };
+  }, [soundEnabled, soundReady, unlockSound]);
 
   useEffect(() => {
     setSummary(null);
@@ -207,7 +343,7 @@ export function AdminRealtimeProvider({
           soundEnabled &&
           String(event.data.paymentStatus || '') === 'paid'
         ) {
-          playOrderTone();
+          playOrderAlarm();
         }
       };
       handlers.set(type, handler);
@@ -219,7 +355,7 @@ export function AdminRealtimeProvider({
       source.onerror = null;
       source.close();
     };
-  }, [branchId, scheduleSummaryRefresh, soundEnabled]);
+  }, [branchId, playOrderAlarm, scheduleSummaryRefresh, soundEnabled]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -244,7 +380,10 @@ export function AdminRealtimeProvider({
       refreshSummary,
       subscribe,
       soundEnabled,
+      soundReady,
       setSoundEnabled,
+      unlockSound,
+      playOrderAlarm,
     }),
     [
       connectionStatus,
@@ -252,8 +391,11 @@ export function AdminRealtimeProvider({
       refreshSummary,
       setSoundEnabled,
       soundEnabled,
+      soundReady,
       subscribe,
       summary,
+      unlockSound,
+      playOrderAlarm,
     ],
   );
 

@@ -32,10 +32,10 @@ function dbDouble({ claimed = [], snapshot = {} } = {}) {
     calls,
     rpc: async (name, args) => {
       calls.push([name, args]);
-      if (name === 'claim_staff_order_alerts_v2') return { data: claimed, error: null };
+      if (name === 'claim_staff_order_alerts_v3') return { data: claimed, error: null };
       if (name === 'staff_order_alert_snapshot') return { data: [snapshot], error: null };
       if (name === 'complete_staff_order_alert') return { data: true, error: null };
-      if (name === 'validate_staff_order_alert_claim_v2') return { data: true, error: null };
+      if (name === 'validate_staff_order_alert_claim_v3') return { data: true, error: null };
       return { data: 0, error: null };
     },
   };
@@ -108,11 +108,11 @@ test('configured receiver gets a PII-free payload and stable idempotency key', a
   assert.equal(completion[1].p_sent, true);
   assert.equal(completion[1].p_error_code, null);
   assert.equal(
-    db.calls.some(([name]) => name === 'claim_staff_order_alerts_v2'),
+    db.calls.some(([name]) => name === 'claim_staff_order_alerts_v3'),
     true,
   );
   assert.equal(
-    db.calls.some(([name]) => name === 'validate_staff_order_alert_claim_v2'),
+    db.calls.some(([name]) => name === 'validate_staff_order_alert_claim_v3'),
     true,
   );
   assert.equal(
@@ -298,7 +298,7 @@ test('state is revalidated immediately before webhook dispatch', async () => {
   const db = dbDouble({ claimed: [alertRow], snapshot: { resolved: 1 } });
   const originalRpc = db.rpc;
   db.rpc = async (name, args) => {
-    if (name === 'validate_staff_order_alert_claim_v2') {
+    if (name === 'validate_staff_order_alert_claim_v3') {
       db.calls.push([name, args]);
       return { data: false, error: null };
     }

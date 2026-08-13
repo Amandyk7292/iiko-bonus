@@ -29,7 +29,7 @@ const paymentOperations = require('./services/payment-operations.service');
 const { reconcileUnknownFullRefunds } = require('./services/full-refund-reconciliation.service');
 const { reconcileUnknownPartialRefunds } = require('./services/partial-refund.service');
 const { flushPushOutbox } = require('./services/push.service');
-const { flushStaffPushOutbox } = require('./services/staff-push.service');
+const { flushStaffPushOutbox, flushStaffPushReminders } = require('./services/staff-push.service');
 const { flushStaffOrderAlerts } = require('./services/staff-order-alert.service');
 const { cleanupExpiredWhatsAppSessions } = require('./services/whatsapp-session-cleanup.service');
 
@@ -63,7 +63,11 @@ if (!process.env.VERCEL) {
   if (runWorkers) {
     const deliverQueuedPush = () =>
       runMonitoredWorker('push-outbox', () =>
-        Promise.all([flushPushOutbox(100), flushStaffPushOutbox(100)]),
+        Promise.all([
+          flushPushOutbox(100),
+          flushStaffPushOutbox(100),
+          flushStaffPushReminders(100),
+        ]),
       );
     setTimeout(deliverQueuedPush, 12 * 1000);
     const pushOutboxTimer = setInterval(deliverQueuedPush, 10 * 1000);

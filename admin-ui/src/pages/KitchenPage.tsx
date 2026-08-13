@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
   AlertTriangle,
+  BellRing,
   CheckCircle2,
   ChefHat,
   Clock3,
@@ -8,12 +9,15 @@ import {
   PackageCheck,
   RefreshCw,
   ShoppingBag,
+  Volume2,
+  VolumeX,
+  WifiOff,
 } from 'lucide-react';
 import Modal from '../components/Modal';
 import PageState from '../components/PageState';
 import { useFeedback } from '../components/Feedback';
 import { api } from '../lib/api';
-import { useAdminRealtimeEvents } from '../lib/admin-realtime';
+import { useAdminRealtime, useAdminRealtimeEvents } from '../lib/admin-realtime';
 import { useI18n } from '../lib/i18n';
 
 const columns = [
@@ -55,6 +59,13 @@ const elapsedMinutes = (value?: string | null) => {
   return Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 60_000));
 };
 
+const acceptanceRequestedAt = (order: any) => order.acceptanceRequestedAt || order.createdAt;
+
+const kitchenElapsedFrom = (order: any) =>
+  order.kitchenStatus === 'queued'
+    ? acceptanceRequestedAt(order)
+    : order.kitchenStartedAt || order.createdAt;
+
 const dispatchStatusKey = (value?: string | null) => {
   const status = String(value || 'not_started');
   return dispatchStatuses.includes(status) ? status : 'not_started';
@@ -86,9 +97,32 @@ const optimisticKitchenOrder = (order: any, next: string, minutes?: number) => {
   return { ...order, ...updates };
 };
 
+const kitchenStatusRank = (status?: string | null) => {
+  if (status === 'queued') return 0;
+  if (status === 'preparing') return 1;
+  if (status === 'ready') return 2;
+  if (status === 'handed_over' || status === 'cancelled') return 3;
+  return -1;
+};
+
+const shouldApplyKitchenMutation = (current: any, incoming: any, hasNewerLoad: boolean) => {
+  const currentRank = kitchenStatusRank(current?.kitchenStatus);
+  const incomingRank = kitchenStatusRank(incoming?.kitchenStatus);
+  if (incomingRank !== currentRank) return incomingRank > currentRank;
+  return !hasNewerLoad;
+};
+
 export default function KitchenPage() {
   const { formatDate, t } = useI18n();
   const { toast } = useFeedback();
+  const {
+    connectionStatus,
+    playOrderAlarm,
+    setSoundEnabled,
+    soundEnabled,
+    soundReady,
+    unlockSound,
+  } = useAdminRealtime();
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -98,6 +132,12 @@ export default function KitchenPage() {
   const [preparationMinutes, setPreparationMinutes] = useState('30');
   const [iikoManualEntryConfirmed, setIikoManualEntryConfirmed] = useState(false);
   const [, setTick] = useState(0);
+  const loadRequestRef = useRef(0);
+  const appliedLoadRequestRef = useRef(0);
+  const loadBarrierRef = useRef(0);
+  const loadInFlightRef = useRef<Promise<any[] | null> | null>(null);
+  const trailingLoadRef = useRef(false);
+  const trailingLoadSilentRef = useRef(true);
   const isSaving = (id?: string) => Boolean(id && savingIdsRef.current.has(id));
   const modalSaving = isSaving(preparationOrder?.id);
 
@@ -107,19 +147,62 @@ export default function KitchenPage() {
     setSavingIds(new Set(savingIdsRef.current));
   };
 
-  const load = useCallback(
+  const executeLoad = useCallback(
     async (silent = false) => {
+      const requestId = ++loadRequestRef.current;
+      const barrier = loadBarrierRef.current;
       if (!silent) setLoading(true);
       try {
-        setOrders((await api.getKitchenOrders()).orders ?? []);
+        const nextOrders = (await api.getKitchenOrders()).orders ?? [];
+        if (barrier !== loadBarrierRef.current || requestId <= appliedLoadRequestRef.current) {
+          return null;
+        }
+        appliedLoadRequestRef.current = requestId;
+        setOrders(nextOrders);
         setError('');
+        return nextOrders;
       } catch (caught) {
-        if (!silent) setError(caught instanceof Error ? caught.message : t('kitchen.loadError'));
+        if (!silent) {
+          setError(caught instanceof Error ? caught.message : t('kitchen.loadError'));
+        }
+        return null;
       } finally {
         if (!silent) setLoading(false);
       }
     },
     [t],
+  );
+
+  const load = useCallback(
+    (silent = false) => {
+      if (loadInFlightRef.current) {
+        trailingLoadRef.current = true;
+        trailingLoadSilentRef.current = trailingLoadSilentRef.current && silent;
+        if (!silent) setLoading(true);
+        return loadInFlightRef.current;
+      }
+
+      const runQueuedLoads = async () => {
+        let nextSilent = silent;
+        let lastSuccessfulOrders: any[] | null = null;
+        while (true) {
+          trailingLoadRef.current = false;
+          trailingLoadSilentRef.current = true;
+          const nextOrders = await executeLoad(nextSilent);
+          if (nextOrders !== null) lastSuccessfulOrders = nextOrders;
+          if (!trailingLoadRef.current) return lastSuccessfulOrders;
+          nextSilent = trailingLoadSilentRef.current;
+        }
+      };
+
+      let request: Promise<any[] | null>;
+      request = runQueuedLoads().finally(() => {
+        if (loadInFlightRef.current === request) loadInFlightRef.current = null;
+      });
+      loadInFlightRef.current = request;
+      return request;
+    },
+    [executeLoad],
   );
 
   useEffect(() => {
@@ -129,17 +212,55 @@ export default function KitchenPage() {
       30_000,
     );
     const tickTimer = window.setInterval(() => setTick((value) => value + 1), 30_000);
+    const refreshVisible = () => {
+      if (document.visibilityState === 'visible') void load(true);
+    };
+    const refreshOnline = () => void load(true);
+    document.addEventListener('visibilitychange', refreshVisible);
+    window.addEventListener('online', refreshOnline);
     return () => {
       window.clearInterval(refreshTimer);
       window.clearInterval(tickTimer);
+      document.removeEventListener('visibilitychange', refreshVisible);
+      window.removeEventListener('online', refreshOnline);
     };
   }, [load]);
 
   useAdminRealtimeEvents(
-    ['order.created', 'order.updated', 'order.customer_arrived'],
-    () => document.visibilityState === 'visible' && void load(true),
+    ['connected', 'order.created', 'order.updated', 'order.customer_arrived'],
+    () => void load(true),
     [load],
   );
+
+  const unacceptedOrders = useMemo(
+    () =>
+      orders
+        .filter((order) => order.kitchenStatus === 'queued')
+        .sort(
+          (left, right) =>
+            new Date(acceptanceRequestedAt(left) || 0).getTime() -
+            new Date(acceptanceRequestedAt(right) || 0).getTime(),
+        ),
+    [orders],
+  );
+  const hasUnacceptedOrders = unacceptedOrders.length > 0;
+  const oldestUnacceptedOrder = unacceptedOrders[0] || null;
+
+  useEffect(() => {
+    if (!hasUnacceptedOrders || !soundEnabled) return;
+    const ring = () => {
+      if (document.visibilityState === 'visible') playOrderAlarm();
+    };
+    ring();
+    const alarmTimer = window.setInterval(ring, 25_000);
+    document.addEventListener('visibilitychange', ring);
+    window.addEventListener('online', ring);
+    return () => {
+      window.clearInterval(alarmTimer);
+      document.removeEventListener('visibilitychange', ring);
+      window.removeEventListener('online', ring);
+    };
+  }, [hasUnacceptedOrders, playOrderAlarm, soundEnabled, soundReady]);
 
   const persistUpdate = async (
     order: any,
@@ -148,27 +269,63 @@ export default function KitchenPage() {
     manualEntryConfirmed = false,
   ) => {
     if (isSaving(order.id)) return false;
+    const waitsForServerAcceptance = next === 'preparing';
     const optimistic = optimisticKitchenOrder(order, next, minutes);
+    const loadVersionAtMutation = appliedLoadRequestRef.current;
     setOrderSaving(order.id, true);
-    setOrders((current) =>
-      next === 'handed_over'
-        ? current.filter((item) => item.id !== order.id)
-        : current.map((item) => (item.id === order.id ? optimistic : item)),
-    );
+    if (!waitsForServerAcceptance) {
+      setOrders((current) =>
+        next === 'handed_over'
+          ? current.filter((item) => item.id !== order.id)
+          : current.map((item) => (item.id === order.id ? optimistic : item)),
+      );
+    }
     try {
       const result =
         next === 'preparing'
           ? await api.updateKitchenStatus(order.id, next, minutes, manualEntryConfirmed)
           : await api.updateKitchenStatus(order.id, next, minutes);
+      // A server-confirmed acceptance wins over any older kitchen GET still in flight.
+      loadBarrierRef.current += 1;
       if (next !== 'handed_over') {
-        setOrders((current) => current.map((item) => (item.id === order.id ? result.order : item)));
+        setOrders((current) =>
+          current.map((item) =>
+            item.id === order.id &&
+            shouldApplyKitchenMutation(
+              item,
+              result.order,
+              appliedLoadRequestRef.current > loadVersionAtMutation,
+            )
+              ? result.order
+              : item,
+          ),
+        );
       }
       return true;
     } catch (caught) {
-      setOrders((current) => {
-        const restored = current.map((item) => (item.id === order.id ? order : item));
-        return restored.some((item) => item.id === order.id) ? restored : [...restored, order];
-      });
+      if (waitsForServerAcceptance) {
+        const reconciledOrders = await load(true);
+        if (reconciledOrders !== null) {
+          const reconciledOrder = reconciledOrders.find((item) => item.id === order.id);
+          if (!reconciledOrder || kitchenStatusRank(reconciledOrder.kitchenStatus) > 0) return true;
+        }
+      } else if (next === 'handed_over') {
+        if (appliedLoadRequestRef.current === loadVersionAtMutation) {
+          setOrders((current) =>
+            current.some((item) => item.id === order.id) ? current : [...current, order],
+          );
+        }
+      } else {
+        setOrders((current) =>
+          current.map((item) =>
+            item.id === order.id &&
+            item.kitchenStatus === optimistic.kitchenStatus &&
+            item.updatedAt === optimistic.updatedAt
+              ? order
+              : item,
+          ),
+        );
+      }
       toast(caught instanceof Error ? caught.message : t('kitchen.statusError'), 'error');
       return false;
     } finally {
@@ -223,6 +380,72 @@ export default function KitchenPage() {
 
   return (
     <div className="page-stack">
+      {oldestUnacceptedOrder && (
+        <section
+          className="kitchen-acceptance-alert"
+          role="alert"
+          aria-labelledby="kitchen-acceptance-alert-title"
+        >
+          <BellRing className="mt-1" aria-hidden="true" size={32} />
+          <div className="min-w-0">
+            <h2 className="m-0 text-xl leading-tight" id="kitchen-acceptance-alert-title">
+              {t('kitchen.alarmTitle', { count: unacceptedOrders.length })}
+            </h2>
+            <p className="m-0 mt-1 text-base font-bold tabular" aria-live="off">
+              {t('kitchen.alarmOldest', {
+                number: oldestUnacceptedOrder.number,
+                count: elapsedMinutes(acceptanceRequestedAt(oldestUnacceptedOrder)) ?? 0,
+              })}
+            </p>
+            <small className="mt-1 block text-sm leading-relaxed">
+              {isSaving(oldestUnacceptedOrder.id)
+                ? t('kitchen.alarmSaving')
+                : t('kitchen.alarmHint')}
+            </small>
+            {(connectionStatus === 'offline' || connectionStatus === 'reconnecting') && (
+              <span
+                className="inline-alert kitchen-acceptance-offline mt-2 inline-flex items-center gap-2"
+                role="status"
+              >
+                <WifiOff aria-hidden="true" size={17} />
+                {t('kitchen.alarmOffline')}
+              </span>
+            )}
+          </div>
+          <div className="kitchen-acceptance-alert-actions grid gap-2">
+            <button
+              className="btn-outline kitchen-acceptance-primary min-h-12 w-full gap-2 px-5 text-base"
+              type="button"
+              disabled={isSaving(oldestUnacceptedOrder.id)}
+              onClick={() => update(oldestUnacceptedOrder, 'preparing')}
+            >
+              {isSaving(oldestUnacceptedOrder.id) ? (
+                <LoaderCircle aria-hidden="true" className="spin" size={20} />
+              ) : (
+                <PackageCheck aria-hidden="true" size={20} />
+              )}
+              {t('kitchen.actionStart')}
+            </button>
+            {(!soundEnabled || !soundReady) && (
+              <button
+                className="btn-outline kitchen-acceptance-sound min-h-12 w-full gap-2 px-5"
+                type="button"
+                onClick={() => {
+                  if (!soundEnabled) setSoundEnabled(true);
+                  else void unlockSound();
+                }}
+              >
+                {soundEnabled ? (
+                  <Volume2 aria-hidden="true" size={19} />
+                ) : (
+                  <VolumeX aria-hidden="true" size={19} />
+                )}
+                {t(soundEnabled ? 'kitchen.alarmUnlockSound' : 'kitchen.alarmEnableSound')}
+              </button>
+            )}
+          </div>
+        </section>
+      )}
       <div className="page-actions-row">
         <div>
           <h2 className="content-heading">{t('kitchen.heading')}</h2>
@@ -275,17 +498,18 @@ export default function KitchenPage() {
                         : t(column.actionKey);
                     return (
                       <article
-                        className={`card kitchen-ticket ${late ? 'kitchen-ticket-late' : ''}`}
+                        className={`card kitchen-ticket ${
+                          order.kitchenStatus === 'queued' || late ? 'kitchen-ticket-late' : ''
+                        }`}
                         key={order.id}
                       >
                         <div className="kitchen-ticket-head">
                           <strong>№{order.number}</strong>
                           <span>
-                            {elapsedMinutes(order.kitchenStartedAt || order.createdAt) == null
+                            {elapsedMinutes(kitchenElapsedFrom(order)) == null
                               ? '—'
                               : t('kitchen.elapsed', {
-                                  count:
-                                    elapsedMinutes(order.kitchenStartedAt || order.createdAt) ?? 0,
+                                  count: elapsedMinutes(kitchenElapsedFrom(order)) ?? 0,
                                 })}
                           </span>
                         </div>
@@ -326,6 +550,29 @@ export default function KitchenPage() {
                             <small>
                               {formatDate(order.customerArrivedAt, { timeStyle: 'short' })}
                             </small>
+                          </div>
+                        )}
+                        {order.acceptedAt && (
+                          <div
+                            className="inline-alert inline-alert-success mt-3 flex items-start gap-2"
+                            role="status"
+                          >
+                            <CheckCircle2 aria-hidden="true" size={17} />
+                            <span className="grid min-w-0 gap-1">
+                              <strong>
+                                {t('kitchen.acceptedBy', {
+                                  name: order.acceptedBy || t('kitchen.acceptedUnknown'),
+                                })}
+                              </strong>
+                              <small className="break-words">
+                                {formatDate(order.acceptedAt, { timeStyle: 'short' })}
+                                {order.acceptedDeviceLabel
+                                  ? ` · ${t('kitchen.acceptedDevice', {
+                                      device: order.acceptedDeviceLabel,
+                                    })}`
+                                  : ''}
+                              </small>
+                            </span>
                           </div>
                         )}
                         {delivery && (
