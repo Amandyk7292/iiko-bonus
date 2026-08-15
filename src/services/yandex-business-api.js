@@ -59,6 +59,21 @@ const replaceControlCharacters = (value) =>
 const boundedString = (value, maximum = 500) =>
   replaceControlCharacters(value).trim().slice(0, maximum);
 
+// Operators often paste the complete header value into the environment. The
+// API client adds the scheme itself, so accept and remove one optional scheme
+// prefix here instead of sending the invalid `Bearer Bearer ...` value.
+function normalizeOAuthToken(value) {
+  let token = String(value == null ? '' : value).trim();
+  if (
+    token.length >= 2 &&
+    ((token.startsWith('"') && token.endsWith('"')) ||
+      (token.startsWith("'") && token.endsWith("'")))
+  ) {
+    token = token.slice(1, -1).trim();
+  }
+  return token.replace(/^(?:Bearer|OAuth)\s+/i, '').trim();
+}
+
 const safeErrorCode = (value, fallback = 'YANDEX_BUSINESS_API_ERROR') => {
   const code = String(value || '')
     .toUpperCase()
@@ -159,7 +174,7 @@ function normalizeBusinessApiConfig(input = {}) {
   );
   return {
     enabled: input.enabled === true,
-    token: String(input.token || '').trim(),
+    token: normalizeOAuthToken(input.token),
     clientId: boundedString(input.clientId, 160),
     userId: boundedString(input.userId, 160),
     senderPhone: normalizeKazakhstanPhone(input.senderPhone),
@@ -827,17 +842,29 @@ async function businessApiRequest(
       // Even a nominal provider "code" is untrusted and can contain echoed
       // contact/address data. The HTTP class is sufficient for retry policy.
       const providerCode = `YANDEX_BUSINESS_HTTP_${response.status}`;
+      const providerRequestIdRaw =
+        response.headers?.get?.('x-ya-request-id') ||
+        response.headers?.get?.('x-request-id') ||
+        response.headers?.get?.('x-ya-trace-id') ||
+        response.headers?.get?.('trace-id') ||
+        null;
+      const providerRequestId = providerRequestIdRaw
+        ? boundedString(providerRequestIdRaw, 160).replace(/[^A-Za-z0-9._:-]/g, '_') || null
+        : null;
       const statusCode = [401, 403, 429].includes(response.status)
         ? 503
         : response.status >= 500
           ? 502
           : 422;
       throw businessApiError(
-        `Yandex Business API отклонил запрос (HTTP ${response.status}, ${providerCode})`,
+        `Yandex Business API отклонил запрос (HTTP ${response.status}, ${providerCode})${
+          providerRequestId ? `, Request ID ${providerRequestId}` : ''
+        }`,
         statusCode,
         providerCode,
         {
           providerStatus: response.status,
+          ...(providerRequestId ? { providerRequestId } : {}),
           ...(uncertain && ![400, 403, 404, 406].includes(response.status)
             ? { uncertain: true }
             : {}),
@@ -946,6 +973,7 @@ module.exports = {
   isBusinessTerminalStatus,
   mapBusinessStatus,
   normalizeBusinessInfo: normalizeBusinessOrderInfo,
+  normalizeOAuthToken,
   normalizeBusinessOrderInfo,
   normalizeBusinessOrderProgress,
   parseLocalizedPrice,

@@ -20,6 +20,7 @@ const {
   mapBusinessStatus,
   normalizeBusinessOrderInfo,
   normalizeBusinessOrderProgress,
+  normalizeOAuthToken,
   parseLocalizedPrice,
   pickAvailableDeliveryClass,
   selectAvailableServiceLevel,
@@ -383,6 +384,14 @@ test('Business statuses and order info normalize into the Bulka lifecycle', () =
   );
 });
 
+test('OAuth token normalization accepts a copied header value without weakening validation', () => {
+  assert.equal(normalizeOAuthToken('  y0__token-value  '), 'y0__token-value');
+  assert.equal(normalizeOAuthToken('Bearer y0__token-value'), 'y0__token-value');
+  assert.equal(normalizeOAuthToken('OAuth y0__token-value'), 'y0__token-value');
+  assert.equal(normalizeOAuthToken('"Bearer y0__token-value"'), 'y0__token-value');
+  assert.equal(normalizeOAuthToken(''), '');
+});
+
 test('HTTP client uses Business auth, selected client and create idempotency headers', async () => {
   const calls = [];
   const client = createBusinessApiClient(
@@ -423,6 +432,34 @@ test('HTTP client uses Business auth, selected client and create idempotency hea
     `${DEFAULT_BUSINESS_API_BASE_URL}/orders/cancel?order_id=business-order-1`,
   );
   assert.deepEqual(JSON.parse(calls[4].options.body), { state: 'free' });
+});
+
+test('auth failures preserve only the provider request ID for support diagnostics', async () => {
+  const secret = 'secret-business-token';
+  const client = createBusinessApiClient(
+    { token: `Bearer ${secret}`, clientId: 'corp-client-1', userId: 'employee-1' },
+    {
+      fetchImpl: async () => ({
+        ok: false,
+        status: 401,
+        headers: { get: (name) => (name === 'x-ya-request-id' ? 'trace-401-1' : null) },
+        text: async () => JSON.stringify({ code: 'unauthorized', message: 'not authorized' }),
+      }),
+    },
+  );
+
+  await assert.rejects(
+    () => client.listClients(),
+    (error) => {
+      assert.equal(error.code, 'YANDEX_BUSINESS_HTTP_401');
+      assert.equal(error.statusCode, 503);
+      assert.equal(error.providerStatus, 401);
+      assert.equal(error.providerRequestId, 'trace-401-1');
+      assert.match(error.message, /Request ID trace-401-1/);
+      assert.equal(error.message.includes(secret), false);
+      return true;
+    },
+  );
 });
 
 test('configuration status and errors never return the Business API token', async () => {
