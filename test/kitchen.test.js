@@ -68,6 +68,12 @@ function loadKitchen(
           equalFilters.push([column, value]);
           return this;
         },
+        in() {
+          return this;
+        },
+        order() {
+          return this;
+        },
         is(column, value) {
           nullFilters.push([column, value]);
           return this;
@@ -102,6 +108,9 @@ function loadKitchen(
           }
           order = { ...order, ...updates };
           return Promise.resolve({ data: structuredClone(order), error: null });
+        },
+        limit() {
+          return Promise.resolve({ data: [structuredClone(order)], error: null });
         },
       };
     },
@@ -189,6 +198,39 @@ test('kitchen cancellation uses the paid-order refund workflow before closing', 
       .find(([name]) => name === 'update-filters')[1]
       .some(([column, value]) => column === 'refund_status' && value === 'succeeded'),
   );
+});
+
+test('kitchen exposes the active Yandex courier snapshot for branch staff', async (t) => {
+  const { service } = loadKitchen(
+    t,
+    baseOrder({
+      fulfillment_type: 'delivery',
+      delivery_jobs: [
+        {
+          id: 'job-1',
+          provider: 'yandex',
+          provider_status: 'performer_found',
+          internal_status: 'assigned',
+          tracking_url: 'https://tracking.example.test/order-1',
+          courier_name: 'Айдар',
+          courier_phone: '+77011872233',
+          courier_car_model: 'Toyota Prius',
+          courier_car_number: '123ABC',
+          courier_latitude: 43.65,
+          courier_longitude: 51.17,
+          courier_location_updated_at: '2026-08-17T10:00:00.000Z',
+          updated_at: '2026-08-17T10:00:01.000Z',
+        },
+      ],
+    }),
+  );
+  const [order] = await service.listKitchenOrders({ branchId: baseOrder().branch_id });
+  assert.equal(order.externalDelivery.provider, 'yandex');
+  assert.equal(order.externalDelivery.courier.name, 'Айдар');
+  assert.equal(order.externalDelivery.courier.phone, '+77011872233');
+  assert.equal(order.externalDelivery.courier.latitude, 43.65);
+  assert.equal(order.externalDelivery.courier.longitude, 51.17);
+  assert.equal(order.externalDelivery.trackingUrl, 'https://tracking.example.test/order-1');
 });
 
 test('handed-over transition releases reservations and repeated close is idempotent', async (t) => {

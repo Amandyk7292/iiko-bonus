@@ -50,8 +50,13 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
         unawaited(_reload());
       }
     });
-    _clock = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (mounted) setState(() => _now = DateTime.now());
+    _clock = Timer.periodic(const Duration(seconds: 15), (_) {
+      if (!mounted) return;
+      setState(() => _now = DateTime.now());
+      // SSE normally delivers the update immediately. This bounded fallback
+      // keeps the courier marker moving when iOS suspends/reconnects the
+      // EventSource or a network transition drops one event.
+      unawaited(_reload());
     });
     unawaited(_loadPickupHandoff());
   }

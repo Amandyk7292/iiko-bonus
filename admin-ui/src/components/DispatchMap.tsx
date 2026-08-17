@@ -22,6 +22,18 @@ type DispatchOrder = {
   deliveryLongitude?: number | null;
   deliveryAddress?: string | null;
   courierId?: string | null;
+  deliveryStatus?: string | null;
+  externalDelivery?: {
+    courier?: {
+      name?: string | null;
+      phone?: string | null;
+      vehicle?: string | null;
+      latitude?: number | null;
+      longitude?: number | null;
+      locationUpdatedAt?: string | null;
+    } | null;
+    trackingUrl?: string | null;
+  } | null;
 };
 
 export default function DispatchMap({

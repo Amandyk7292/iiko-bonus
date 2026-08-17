@@ -906,16 +906,14 @@ const ru: Record<string, string> = {
   'dispatch.yandex.createReconciliation.attach.confirmLabel': 'Привязать заявку',
   'dispatch.yandex.createReconciliation.attach.success':
     'Заявка Яндекса привязана, отслеживание возобновлено',
-  'dispatch.yandex.createReconciliation.not_created.action':
-    'Подтвердить, что заказ не создан',
+  'dispatch.yandex.createReconciliation.not_created.action': 'Подтвердить, что заказ не создан',
   'dispatch.yandex.createReconciliation.not_created.reasonPrompt':
     'Укажите, кто, когда и как проверил отсутствие заявки в кабинете Яндекса (обязательно, до 240 символов).',
   'dispatch.yandex.createReconciliation.not_created.confirmTitle':
     'Подтвердить, что заявка в Яндексе не создана?',
   'dispatch.yandex.createReconciliation.not_created.confirmBody':
     'Это снимет резерв внешней доставки. Продолжайте только после полной проверки кабинета Яндекса. Причина: «{{reason}}».',
-  'dispatch.yandex.createReconciliation.not_created.confirmLabel':
-    'Да, заявки в Яндексе нет',
+  'dispatch.yandex.createReconciliation.not_created.confirmLabel': 'Да, заявки в Яндексе нет',
   'dispatch.yandex.createReconciliation.not_created.success':
     'Отсутствие заявки подтверждено, резерв доставки снят',
   'dispatch.yandex.itemsResolution.required':
@@ -1036,6 +1034,10 @@ const ru: Record<string, string> = {
   'kitchen.acceptedBy': 'Принял: {{name}}',
   'kitchen.acceptedUnknown': 'сотрудник кухни',
   'kitchen.acceptedDevice': '{{device}}',
+  'kitchen.courierTracking': 'Курьер в пути',
+  'kitchen.courierUpdated': 'GPS обновлён в {{time}}',
+  'kitchen.courierOpenMap': 'Показать на карте',
+  'kitchen.courierLiveLink': 'Живое отслеживание',
   'reviews.reviewStatus.published': 'Опубликован',
   'reviews.reviewStatus.hidden': 'Скрыт',
   'reviews.reviewStatus.requiresAttention': 'Требует внимания',

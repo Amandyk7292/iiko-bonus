@@ -137,7 +137,15 @@ router.get('/maps/yandex', (_req, res) => {
       const normalizedDeliveryOrders = () => (Array.isArray(state.deliveryOrders) ? state.deliveryOrders : []).map((order, index) => ({
         id:String(order.id || index), number:Number(order.number) || 0, address:String(order.deliveryAddress || ''),
         courierId:order.courierId ? String(order.courierId) : null,
-        point:point([order.deliveryLatitude,order.deliveryLongitude])
+        point:point([order.deliveryLatitude,order.deliveryLongitude]),
+        courierPoint:point([
+          order.externalDelivery?.courier?.latitude,
+          order.externalDelivery?.courier?.longitude
+        ]),
+        courierName:String(order.externalDelivery?.courier?.name || ''),
+        courierPhone:String(order.externalDelivery?.courier?.phone || ''),
+        courierVehicle:String(order.externalDelivery?.courier?.vehicle || ''),
+        trackingUrl:String(order.externalDelivery?.trackingUrl || '')
       })).filter(order => order.point);
       const selectedBranch = branches => {
         const selected = point(state.selected) || point(state.center) || defaults.center;
@@ -222,6 +230,16 @@ router.get('/maps/yandex', (_req, res) => {
               balloonContent:'<strong>Заказ №' + order.number + '</strong><br>' + escapeHtml(order.address) + '<br>' + (order.courierId ? 'Курьер назначен' : 'Ожидает курьера')
             }, { preset:order.courierId ? 'islands#orangeStretchyIcon' : 'islands#redStretchyIcon', zIndex:520 });
             map.geoObjects.add(placemark);
+            if (order.courierPoint) {
+              const courierLabel = order.courierName || 'Курьер Яндекс.Доставки';
+              const courierDetails = [courierLabel, order.courierVehicle, order.courierPhone].filter(Boolean).join(' · ');
+              const trackingLink = String(order.trackingUrl).toLowerCase().startsWith('https://') ? '<br><a href="' + escapeHtml(order.trackingUrl) + '" target="_blank" rel="noopener">Открыть отслеживание</a>' : '';
+              const courierPlacemark = new ymaps.Placemark(order.courierPoint, {
+                hintContent:courierDetails,
+                balloonContent:'<strong>' + escapeHtml(courierLabel) + '</strong><br>' + escapeHtml(order.courierVehicle || '') + (order.courierPhone ? '<br>' + escapeHtml(order.courierPhone) : '') + trackingLink
+              }, { preset:'islands#blueCircleDotIcon', zIndex:700 });
+              map.geoObjects.add(courierPlacemark);
+            }
           });
           normalizedCouriers().forEach(courier => {
             const preset = courier.status === 'available' ? 'islands#greenCircleDotIcon' : courier.status === 'busy' ? 'islands#orangeCircleDotIcon' : 'islands#grayCircleDotIcon';

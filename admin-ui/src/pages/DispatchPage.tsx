@@ -601,6 +601,10 @@ export default function DispatchPage() {
                             ? ` · ${t('dispatch.yandex.carCourier')}`
                             : ''}
                           {external.courier?.vehicle ? ` · ${external.courier.vehicle}` : ''}
+                          {external.courier?.phone ? ` · ${external.courier.phone}` : ''}
+                          {external.courier?.locationUpdatedAt
+                            ? ` · GPS ${formatDate(external.courier.locationUpdatedAt, { timeStyle: 'short' })}`
+                            : ''}
                         </small>
                       )}
                       {external?.apiFamily === 'business_v2' &&

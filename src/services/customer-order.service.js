@@ -128,7 +128,9 @@ const latestExternalDelivery = (order) =>
     : null;
 
 const externalCourier = (job) => {
-  if (!job?.courier_name && !job?.courier_car_model && !job?.courier_transport_type) return null;
+  const hasPoint = job?.courier_latitude != null && job?.courier_longitude != null;
+  if (!job?.courier_name && !job?.courier_car_model && !job?.courier_transport_type && !hasPoint)
+    return null;
   const vehicle =
     [job.courier_car_color, job.courier_car_model, job.courier_car_number]
       .filter(Boolean)
@@ -152,9 +154,13 @@ const externalCourier = (job) => {
     vehicle,
     transportType,
     isAutomobile,
-    latitude: null,
-    longitude: null,
-    locationUpdatedAt: job.updated_at || null,
+    latitude: job.courier_latitude == null ? null : Number(job.courier_latitude),
+    longitude: job.courier_longitude == null ? null : Number(job.courier_longitude),
+    locationUpdatedAt: job.courier_location_updated_at || null,
+    locationAccuracy:
+      job.courier_location_accuracy == null ? null : Number(job.courier_location_accuracy),
+    speed: job.courier_speed == null ? null : Number(job.courier_speed),
+    direction: job.courier_direction == null ? null : Number(job.courier_direction),
   };
 };
 
@@ -294,7 +300,7 @@ const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
 };
 
 const DELIVERY_JOB_FIELDS =
-  'delivery_jobs(id,provider,provider_status,internal_status,provider_price,currency,tracking_url,courier_name,courier_phone,courier_transport_type,courier_car_model,courier_car_number,courier_car_color,eta_minutes,created_at,updated_at)';
+  'delivery_jobs(id,provider,provider_status,internal_status,provider_price,currency,tracking_url,courier_name,courier_phone,courier_transport_type,courier_car_model,courier_car_number,courier_car_color,courier_latitude,courier_longitude,courier_location_updated_at,courier_location_accuracy,courier_speed,courier_direction,eta_minutes,created_at,updated_at)';
 const SUBSTITUTION_FIELDS =
   'order_substitution_requests(id,line_key,product_id,product_name,quantity,action,status,replacement_product_id,replacement_product_name,note,error,refund_id,created_at,updated_at,responded_at,completed_at)';
 

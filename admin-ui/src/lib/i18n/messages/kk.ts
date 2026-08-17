@@ -895,16 +895,14 @@ const kk: Record<string, string> = {
   'dispatch.yandex.createReconciliation.attach.confirmLabel': 'Өтінімді байланыстыру',
   'dispatch.yandex.createReconciliation.attach.success':
     'Яндекс өтінімі байланыстырылды, бақылау жалғасты',
-  'dispatch.yandex.createReconciliation.not_created.action':
-    'Тапсырыс жасалмағанын растау',
+  'dispatch.yandex.createReconciliation.not_created.action': 'Тапсырыс жасалмағанын растау',
   'dispatch.yandex.createReconciliation.not_created.reasonPrompt':
     'Яндекс кабинетінде өтінімнің жоқтығын кім, қашан және қалай тексергенін көрсетіңіз (міндетті, 240 таңбаға дейін).',
   'dispatch.yandex.createReconciliation.not_created.confirmTitle':
     'Яндекс өтінімі жасалмағанын растау керек пе?',
   'dispatch.yandex.createReconciliation.not_created.confirmBody':
     'Бұл сыртқы жеткізу резервін алып тастайды. Яндекс кабинетін толық тексергеннен кейін ғана жалғастырыңыз. Себеп: «{{reason}}».',
-  'dispatch.yandex.createReconciliation.not_created.confirmLabel':
-    'Иә, Яндексте өтінім жоқ',
+  'dispatch.yandex.createReconciliation.not_created.confirmLabel': 'Иә, Яндексте өтінім жоқ',
   'dispatch.yandex.createReconciliation.not_created.success':
     'Өтінімнің жоқтығы расталды, жеткізу резерві алынды',
   'dispatch.yandex.itemsResolution.required':
@@ -1021,6 +1019,10 @@ const kk: Record<string, string> = {
   'kitchen.acceptedBy': 'Қабылдаған: {{name}}',
   'kitchen.acceptedUnknown': 'асүй қызметкері',
   'kitchen.acceptedDevice': '{{device}}',
+  'kitchen.courierTracking': 'Курьер жолда',
+  'kitchen.courierUpdated': 'GPS {{time}} жаңартылды',
+  'kitchen.courierOpenMap': 'Картадан көрсету',
+  'kitchen.courierLiveLink': 'Тікелей бақылау',
   'reviews.reviewStatus.published': 'Жарияланды',
   'reviews.reviewStatus.hidden': 'Жасырын',
   'reviews.reviewStatus.requiresAttention': 'Назар аударуды қажет етеді',

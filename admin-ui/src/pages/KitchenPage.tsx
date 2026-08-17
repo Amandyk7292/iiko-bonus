@@ -5,8 +5,11 @@ import {
   CheckCircle2,
   ChefHat,
   Clock3,
+  ExternalLink,
   LoaderCircle,
+  MapPin,
   PackageCheck,
+  Phone,
   RefreshCw,
   ShoppingBag,
   Volume2,
@@ -490,6 +493,13 @@ export default function KitchenPage() {
                     );
                     const delivery = order.fulfillmentType === 'delivery';
                     const dispatchStatus = dispatchStatusKey(order.courierDispatchStatus);
+                    const externalCourier = order.externalDelivery?.courier;
+                    const courierMapUrl =
+                      externalCourier?.latitude != null && externalCourier?.longitude != null
+                        ? `https://yandex.kz/maps/?pt=${encodeURIComponent(
+                            `${externalCourier.longitude},${externalCourier.latitude}`,
+                          )}&z=16&l=map`
+                        : null;
                     const actionLabel =
                       column.next === 'handed_over'
                         ? delivery
@@ -605,6 +615,57 @@ export default function KitchenPage() {
                                   {order.courierDispatchError}
                                 </small>
                               )}
+                            </span>
+                          </div>
+                        )}
+                        {delivery && (externalCourier || order.externalDelivery?.trackingUrl) && (
+                          <div className="inline-alert inline-alert-success items-start mt-3">
+                            <MapPin aria-hidden="true" size={18} />
+                            <span className="grid min-w-0 gap-1 break-words">
+                              <strong>{t('kitchen.courierTracking')}</strong>
+                              {externalCourier?.name && <small>{externalCourier.name}</small>}
+                              {externalCourier?.phone && (
+                                <small className="inline-flex items-center gap-1">
+                                  <Phone aria-hidden="true" size={13} />
+                                  <a href={`tel:${externalCourier.phone}`}>
+                                    {externalCourier.phone}
+                                  </a>
+                                </small>
+                              )}
+                              {externalCourier?.vehicle && <small>{externalCourier.vehicle}</small>}
+                              {externalCourier?.locationUpdatedAt && (
+                                <small>
+                                  {t('kitchen.courierUpdated', {
+                                    time: formatDate(externalCourier.locationUpdatedAt, {
+                                      timeStyle: 'short',
+                                    }),
+                                  })}
+                                </small>
+                              )}
+                              <span className="flex flex-wrap gap-2">
+                                {courierMapUrl && (
+                                  <a
+                                    className="btn-outline inline-flex min-h-10 items-center gap-1 px-3 text-sm"
+                                    href={courierMapUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    <MapPin aria-hidden="true" size={14} />
+                                    {t('kitchen.courierOpenMap')}
+                                  </a>
+                                )}
+                                {order.externalDelivery?.trackingUrl && (
+                                  <a
+                                    className="btn-outline inline-flex min-h-10 items-center gap-1 px-3 text-sm"
+                                    href={order.externalDelivery.trackingUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    <ExternalLink aria-hidden="true" size={14} />
+                                    {t('kitchen.courierLiveLink')}
+                                  </a>
+                                )}
+                              </span>
                             </span>
                           </div>
                         )}

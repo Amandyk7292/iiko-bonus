@@ -42,6 +42,7 @@ const KITCHEN_ORDER_FIELDS = [
   'courier_dispatch_provider',
   'courier_dispatch_error',
   'customer_arrived_at',
+  'delivery_jobs(id,provider,provider_status,internal_status,tracking_url,courier_name,courier_phone,courier_transport_type,courier_car_model,courier_car_number,courier_car_color,courier_latitude,courier_longitude,courier_location_updated_at,courier_location_accuracy,courier_speed,courier_direction,updated_at,created_at)',
 ].join(',');
 
 const kitchenError = (message, statusCode = 400) =>
@@ -59,6 +60,74 @@ const maskedStaffDeviceLabel = (installationId) => {
   const normalized = String(installationId || '').trim();
   if (!normalized) return null;
   return `iPad ••••${normalized.slice(-4).toUpperCase()}`;
+};
+
+const DELIVERY_TERMINAL_STATUSES = new Set([
+  'delivered',
+  'delivered_finish',
+  'returned',
+  'returned_finish',
+  'failed',
+  'cancelled',
+  'cancelled_with_payment',
+  'cancelled_by_taxi',
+  'cancelled_with_items_on_hands',
+]);
+
+const normalizeKitchenExternalDelivery = (jobs) => {
+  const job = (Array.isArray(jobs) ? jobs : [])
+    .filter((candidate) => {
+      const status = String(candidate?.provider_status || '').toLowerCase();
+      return (
+        String(candidate?.provider || '').toLowerCase() === 'yandex' &&
+        !DELIVERY_TERMINAL_STATUSES.has(status)
+      );
+    })
+    .sort(
+      (left, right) =>
+        new Date(right?.updated_at || right?.created_at || 0).getTime() -
+        new Date(left?.updated_at || left?.created_at || 0).getTime(),
+    )[0];
+  if (!job) return null;
+  const latitude = job.courier_latitude == null ? null : Number(job.courier_latitude);
+  const longitude = job.courier_longitude == null ? null : Number(job.courier_longitude);
+  const hasCourier = Boolean(
+    job.courier_name ||
+    job.courier_phone ||
+    job.courier_car_model ||
+    job.courier_car_number ||
+    (Number.isFinite(latitude) && Number.isFinite(longitude)),
+  );
+  if (!hasCourier && !job.tracking_url) return null;
+  const vehicle =
+    [job.courier_car_color, job.courier_car_model, job.courier_car_number]
+      .filter(Boolean)
+      .join(' · ') ||
+    job.courier_transport_type ||
+    null;
+  return {
+    provider: 'yandex',
+    status: job.provider_status || null,
+    internalStatus: job.internal_status || null,
+    trackingUrl:
+      typeof job.tracking_url === 'string' && job.tracking_url.startsWith('https://')
+        ? job.tracking_url
+        : null,
+    courier: hasCourier
+      ? {
+          name: job.courier_name || 'Курьер Яндекс.Доставки',
+          phone: job.courier_phone || null,
+          vehicle,
+          latitude: Number.isFinite(latitude) ? latitude : null,
+          longitude: Number.isFinite(longitude) ? longitude : null,
+          locationUpdatedAt: job.courier_location_updated_at || null,
+          locationAccuracy:
+            job.courier_location_accuracy == null ? null : Number(job.courier_location_accuracy),
+          speed: job.courier_speed == null ? null : Number(job.courier_speed),
+          direction: job.courier_direction == null ? null : Number(job.courier_direction),
+        }
+      : null,
+  };
 };
 
 const normalize = (order) => ({
@@ -87,6 +156,7 @@ const normalize = (order) => ({
   courierDispatchStatus: order.courier_dispatch_status || null,
   courierDispatchProvider: order.courier_dispatch_provider || null,
   courierDispatchError: order.courier_dispatch_error || null,
+  externalDelivery: normalizeKitchenExternalDelivery(order.delivery_jobs),
   customerArrivedAt: order.customer_arrived_at || null,
 });
 

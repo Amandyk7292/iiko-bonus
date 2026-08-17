@@ -390,6 +390,12 @@ export interface ExternalDelivery {
     vehicle?: string | null;
     transportType?: string | null;
     isAutomobile?: boolean | null;
+    latitude?: number | null;
+    longitude?: number | null;
+    locationUpdatedAt?: string | null;
+    locationAccuracy?: number | null;
+    speed?: number | null;
+    direction?: number | null;
   } | null;
   automobileRequired?: boolean;
   transportWarning?: string | null;

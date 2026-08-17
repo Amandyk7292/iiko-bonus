@@ -686,6 +686,7 @@ function normalizeDeliveryJob(job) {
     .filter(Boolean)
     .join(' · ');
   const transportType = String(job.courier_transport_type || '').trim() || null;
+  const hasCourierPoint = job.courier_latitude != null && job.courier_longitude != null;
   const isAutomobile =
     car ||
     ['car', 'auto', 'automobile', 'van', 'truck'].includes(
@@ -732,13 +733,20 @@ function normalizeDeliveryJob(job) {
     distanceMeters: job.distance_meters == null ? null : Number(job.distance_meters),
     trackingUrl: job.tracking_url || null,
     courier:
-      job.courier_name || car || transportType
+      job.courier_name || car || transportType || hasCourierPoint
         ? {
             name: job.courier_name || 'Курьер Яндекс.Доставки',
             phone: job.courier_phone || '',
             vehicle: car || transportType || null,
             transportType,
             isAutomobile,
+            latitude: job.courier_latitude == null ? null : Number(job.courier_latitude),
+            longitude: job.courier_longitude == null ? null : Number(job.courier_longitude),
+            locationUpdatedAt: job.courier_location_updated_at || null,
+            locationAccuracy:
+              job.courier_location_accuracy == null ? null : Number(job.courier_location_accuracy),
+            speed: job.courier_speed == null ? null : Number(job.courier_speed),
+            direction: job.courier_direction == null ? null : Number(job.courier_direction),
           }
         : null,
     automobileRequired: true,
@@ -1624,6 +1632,55 @@ async function markOrderExternalDispatchActive(orderId) {
 async function supplementaryCourierData(info, job, config) {
   if (!COURIER_VISIBLE_STATUSES.has(info.status)) return {};
   const updates = {};
+  try {
+    const position = await apiRequest('/claims/performer-position', {
+      method: 'GET',
+      query: { claim_id: job.external_claim_id },
+      config,
+    });
+    const point = position?.position;
+    const latitude = Number(point?.lat);
+    const longitude = Number(point?.lon);
+    if (
+      Number.isFinite(latitude) &&
+      latitude >= -90 &&
+      latitude <= 90 &&
+      Number.isFinite(longitude) &&
+      longitude >= -180 &&
+      longitude <= 180
+    ) {
+      const timestamp = Number(point?.timestamp);
+      const locationUpdatedAt =
+        Number.isFinite(timestamp) && timestamp > 0
+          ? new Date(timestamp * 1000).toISOString()
+          : new Date().toISOString();
+      const currentLocationTime = Date.parse(job.courier_location_updated_at || '');
+      const nextLocationTime = Date.parse(locationUpdatedAt);
+      if (
+        !Number.isFinite(currentLocationTime) ||
+        !Number.isFinite(nextLocationTime) ||
+        nextLocationTime >= currentLocationTime
+      ) {
+        updates.courier_latitude = latitude;
+        updates.courier_longitude = longitude;
+        updates.courier_location_updated_at = locationUpdatedAt;
+        if (Number.isFinite(Number(point?.accuracy)) && Number(point.accuracy) >= 0) {
+          updates.courier_location_accuracy = Number(point.accuracy);
+        }
+        if (Number.isFinite(Number(point?.speed)) && Number(point.speed) >= 0) {
+          updates.courier_speed = Number(point.speed);
+        }
+        if (Number.isFinite(Number(point?.direction)) && Number(point.direction) >= 0) {
+          updates.courier_direction = Math.min(360, Number(point.direction));
+        }
+      }
+    }
+  } catch (error) {
+    // A position is an enhancement, not a reason to lose the authoritative
+    // claim status. Yandex returns 404/409 until a performer is assigned and
+    // may throttle this optional endpoint; keep the last known point then.
+    if (![404, 409, 422, 429].includes(error.statusCode)) throw error;
+  }
   if (!job.tracking_url) {
     try {
       const links = await apiRequest('/claims/tracking-links', {
@@ -2341,6 +2398,16 @@ async function syncDeliveryJob(jobOrId) {
       courier_car_color: performer.car_color || job.courier_car_color,
       ...(extra.tracking_url && { tracking_url: extra.tracking_url }),
       ...(extra.courier_phone && { courier_phone: extra.courier_phone }),
+      ...(extra.courier_latitude != null && {
+        courier_latitude: extra.courier_latitude,
+        courier_longitude: extra.courier_longitude,
+        courier_location_updated_at: extra.courier_location_updated_at,
+        ...(extra.courier_location_accuracy != null && {
+          courier_location_accuracy: extra.courier_location_accuracy,
+        }),
+        ...(extra.courier_speed != null && { courier_speed: extra.courier_speed }),
+        ...(extra.courier_direction != null && { courier_direction: extra.courier_direction }),
+      }),
       accepted_at: ['accepted', 'performer_lookup', 'performer_draft', 'performer_found'].includes(
         info.status,
       )

@@ -160,6 +160,12 @@ test('external delivery is normalized for the Russian admin interface', () => {
     courier_name: 'Ерлан',
     courier_car_model: 'Toyota Camry',
     courier_car_number: '123 ABC 12',
+    courier_latitude: 43.6512345,
+    courier_longitude: 51.1978123,
+    courier_location_updated_at: '2026-07-20T10:01:15.000Z',
+    courier_location_accuracy: 8.5,
+    courier_speed: 6.2,
+    courier_direction: 92,
     created_at: '2026-07-20T10:00:00.000Z',
     updated_at: '2026-07-20T10:01:00.000Z',
   });
@@ -168,6 +174,11 @@ test('external delivery is normalized for the Russian admin interface', () => {
   assert.equal(normalized.courier.name, 'Ерлан');
   assert.match(normalized.courier.vehicle, /Toyota Camry/);
   assert.equal(normalized.courier.isAutomobile, true);
+  assert.equal(normalized.courier.latitude, 43.6512345);
+  assert.equal(normalized.courier.longitude, 51.1978123);
+  assert.equal(normalized.courier.locationUpdatedAt, '2026-07-20T10:01:15.000Z');
+  assert.equal(normalized.courier.speed, 6.2);
+  assert.equal(normalized.courier.direction, 92);
   assert.equal(normalized.transportWarning, null);
 });
 
@@ -311,6 +322,23 @@ test('canonical Yandex delivery migration contains the required constraints', ()
   );
   assert.match(migration, /delivery_jobs_one_active_per_order_idx/);
   assert.match(migration, /client_request_id uuid not null/);
+});
+
+test('courier tracking migration stores bounded position snapshots', () => {
+  const migration = fs.readFileSync(
+    path.join(
+      __dirname,
+      '..',
+      'supabase',
+      'migrations',
+      '20260813120000_yandex_courier_tracking.sql',
+    ),
+    'utf8',
+  );
+  assert.match(migration, /courier_latitude numeric\(10,\s*7\)/);
+  assert.match(migration, /courier_longitude numeric\(10,\s*7\)/);
+  assert.match(migration, /courier_location_updated_at timestamptz/);
+  assert.match(migration, /delivery_jobs_courier_location_idx/);
 });
 
 test('terminal Yandex delivery projection stays retryable after a transient failure', () => {

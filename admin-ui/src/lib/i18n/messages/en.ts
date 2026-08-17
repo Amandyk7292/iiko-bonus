@@ -897,16 +897,14 @@ const en: Record<string, string> = {
   'dispatch.yandex.createReconciliation.attach.confirmLabel': 'Attach request',
   'dispatch.yandex.createReconciliation.attach.success':
     'Yandex request attached and tracking resumed',
-  'dispatch.yandex.createReconciliation.not_created.action':
-    'Confirm the order was not created',
+  'dispatch.yandex.createReconciliation.not_created.action': 'Confirm the order was not created',
   'dispatch.yandex.createReconciliation.not_created.reasonPrompt':
     'State who checked the Yandex cabinet, when, and how they confirmed the request is absent (required, up to 240 characters).',
   'dispatch.yandex.createReconciliation.not_created.confirmTitle':
     'Confirm that no Yandex request was created?',
   'dispatch.yandex.createReconciliation.not_created.confirmBody':
     'This will release the external delivery reservation. Continue only after fully checking the Yandex cabinet. Reason: “{{reason}}”.',
-  'dispatch.yandex.createReconciliation.not_created.confirmLabel':
-    'Yes, no Yandex request exists',
+  'dispatch.yandex.createReconciliation.not_created.confirmLabel': 'Yes, no Yandex request exists',
   'dispatch.yandex.createReconciliation.not_created.success':
     'Request absence confirmed and delivery reservation released',
   'dispatch.yandex.itemsResolution.required':
@@ -1022,6 +1020,10 @@ const en: Record<string, string> = {
   'kitchen.acceptedBy': 'Accepted by: {{name}}',
   'kitchen.acceptedUnknown': 'kitchen staff',
   'kitchen.acceptedDevice': '{{device}}',
+  'kitchen.courierTracking': 'Courier en route',
+  'kitchen.courierUpdated': 'GPS updated at {{time}}',
+  'kitchen.courierOpenMap': 'Show on map',
+  'kitchen.courierLiveLink': 'Live tracking',
   'reviews.reviewStatus.published': 'Published',
   'reviews.reviewStatus.hidden': 'Hidden',
   'reviews.reviewStatus.requiresAttention': 'Needs attention',
