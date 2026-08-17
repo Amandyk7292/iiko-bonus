@@ -20,6 +20,15 @@ const BUSINESS_CREATE_RESOLUTION_STATUSES = Object.freeze({
 });
 const BUSINESS_POST_PICKUP_FAILURES = new Set(['cancelled', 'failed']);
 const BUSINESS_RECONCILIATION_MAX_ATTEMPTS = 8;
+const NON_RETRYABLE_DELIVERY_CODES = new Set([
+  'BRANCH_COORDINATES_REQUIRED',
+  'BRANCH_CITY_REQUIRED',
+  'DELIVERY_COORDINATES_REQUIRED',
+  'DELIVERY_CITY_REQUIRED',
+  'DELIVERY_CITY_MISMATCH',
+  'DELIVERY_ADDRESS_REQUIRED',
+  'CUSTOMER_PHONE_REQUIRED',
+]);
 const TERMINAL_STATUSES = new Set([
   'estimating_failed',
   'performer_not_found',
@@ -78,6 +87,7 @@ const deliveryError = (message, statusCode = 400, code, details) =>
   Object.assign(new Error(message), {
     statusCode,
     ...(code && { code }),
+    ...(code && { retryable: !NON_RETRYABLE_DELIVERY_CODES.has(code) }),
     ...(details && { details }),
   });
 
@@ -325,13 +335,22 @@ const orderItemsSummary = (order, maximum = 350) => {
 
 const money = (value) => Math.max(0, Number(value) || 0).toFixed(2);
 
+const normalizeCity = (value) =>
+  String(value || '')
+    .trim()
+    .toLocaleLowerCase('ru-RU')
+    .replace(/ё/g, 'е')
+    .replace(/^(?:город|г)\.?\s*/u, '')
+    .replace(/[«»"']/gu, '')
+    .replace(/[^a-zа-яё0-9]+/giu, '');
+
 function destinationAddress(order) {
   const raw =
     order.delivery_address && typeof order.delivery_address === 'object'
       ? order.delivery_address
       : {};
   const address = boundedString(raw.address || raw.fullname || raw.fullAddress || raw.label, 300);
-  const city = boundedString(raw.city || order.bulka_locations?.city || 'Астана', 100);
+  const city = boundedString(raw.city || raw.town || raw.locality || order.delivery_city, 100);
   return {
     ...raw,
     city,
@@ -404,6 +423,14 @@ function validateDeliveryOrder(order, config = getConfig()) {
   if (!isDeliveryFulfillment(order)) throw deliveryError('Заказ не относится к доставке', 409);
   if (order.courier_id) throw deliveryError('На заказ уже назначен курьер Bulka', 409);
   const branch = order.bulka_locations || {};
+  const branchCity = boundedString(branch.city, 100);
+  if (!branchCity || !normalizeCity(branchCity)) {
+    throw deliveryError(
+      'У филиала не указан город. Курьер не вызван; укажите город точки.',
+      422,
+      'BRANCH_CITY_REQUIRED',
+    );
+  }
   if (
     finiteCoordinate(branch.latitude, -90, 90) == null ||
     finiteCoordinate(branch.longitude, -180, 180) == null
@@ -421,15 +448,38 @@ function validateDeliveryOrder(order, config = getConfig()) {
     );
   }
   const customerPhone = normalizeKazakhstanPhone(
-    order.additional_phone || order.phone || order.customers?.phone,
+    order.customers?.phone || order.phone || order.additional_phone,
   );
   if (!customerPhone)
-    throw deliveryError('У клиента указан некорректный телефон', 422, 'CUSTOMER_PHONE_REQUIRED');
+    throw deliveryError(
+      'У клиента не найден зарегистрированный телефон приложения. Курьер не вызван.',
+      422,
+      'CUSTOMER_PHONE_REQUIRED',
+    );
   const destination = destinationAddress(order);
-  if (!destination.fullname)
-    throw deliveryError('У заказа не заполнен адрес доставки', 422, 'DELIVERY_ADDRESS_REQUIRED');
+  if (!destination.city || !normalizeCity(destination.city)) {
+    throw deliveryError(
+      'В сохранённом адресе клиента не указан город. Курьер не вызван; выберите адрес с городом.',
+      422,
+      'DELIVERY_CITY_REQUIRED',
+    );
+  }
+  if (normalizeCity(branchCity) !== normalizeCity(destination.city)) {
+    throw deliveryError(
+      `Курьер не вызван: филиал «${branchCity}», а адрес клиента указан в городе «${destination.city}». Выберите адрес в городе филиала.`,
+      422,
+      'DELIVERY_CITY_MISMATCH',
+      { branchCity, destinationCity: destination.city },
+    );
+  }
+  if (!destination.address || !destination.fullname)
+    throw deliveryError(
+      'В сохранённом адресе клиента не указан полный адрес. Курьер не вызван.',
+      422,
+      'DELIVERY_ADDRESS_REQUIRED',
+    );
   if (!config.senderPhone) throw deliveryError('Не заполнен телефон пекарни для курьера', 503);
-  return { branch, customerPhone, destination };
+  return { branch, branchCity, customerPhone, destination };
 }
 
 function buildQuotePayload(order, config = getConfig()) {
@@ -495,7 +545,7 @@ function buildClaimPayload(order, config = getConfig()) {
           fullname: [branch.city, branch.address].filter(Boolean).join(', '),
           coordinates: [Number(branch.longitude), Number(branch.latitude)],
           country: config.country,
-          city: boundedString(branch.city || 'Астана', 100),
+          city: boundedString(branch.city, 100),
           comment: pickupComment,
         },
         skip_confirmation: config.skipConfirmation,
@@ -3317,10 +3367,12 @@ module.exports = {
   listJobsForOrders,
   mapYandexStatus,
   normalizeDeliveryJob,
+  normalizeCity,
   quoteOrder,
   resolveBusinessCreateReconciliation,
   resolveBusinessDeliveryItems,
   syncActiveDeliveries,
   syncDeliveryJob,
   syncOrderDelivery,
+  validateDeliveryOrder,
 };

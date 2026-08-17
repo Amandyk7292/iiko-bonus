@@ -1,5 +1,6 @@
 const { supabase } = require('../config/supabase');
 const { isDeliveryFulfillment } = require('../utils/fulfillment.util');
+const realtime = require('./realtime.service');
 
 const MAX_DISPATCH_ATTEMPTS = 10;
 const AUTOMOBILE_TRANSPORT_TYPES = new Set(['car', 'auto', 'automobile', 'van', 'truck']);
@@ -95,6 +96,12 @@ async function dispatchAcceptedDeliveryOrder(order, { yandexDelivery, dispatchSe
         'YANDEX_DELIVERY_NOT_CONFIGURED',
       );
     }
+    // Run the same local validation before entering the provider adapter. It
+    // guarantees that a bad saved address (especially a city mismatch) never
+    // reaches Yandex and gives the cashier a deterministic reason immediately.
+    if (typeof externalDelivery.validateDeliveryOrder === 'function') {
+      externalDelivery.validateDeliveryOrder(order);
+    }
     return {
       skipped: false,
       provider: 'yandex',
@@ -144,6 +151,7 @@ async function processDeliveryDispatch(orderId, dependencies = {}) {
 
   const attempts = Number(current.courier_dispatch_attempts || 0) + 1;
   const attemptedAt = new Date().toISOString();
+  const realtimeService = dependencies.realtime || realtime;
   let claim = supabase
     .from('kaspi_orders')
     .update({
@@ -192,21 +200,42 @@ async function processDeliveryDispatch(orderId, dependencies = {}) {
       .eq('id', orderId)
       .eq('courier_dispatch_status', 'processing');
     if (error) throw error;
+    realtimeService.publish(
+      'order.updated',
+      {
+        orderId,
+        courierDispatchStatus: 'succeeded',
+        courierDispatchProvider: provider,
+        courierDispatchError: null,
+      },
+      { includeAdmins: true, branchId: current.branch_id },
+    );
     return result;
   } catch (error) {
-    const exhausted = attempts >= MAX_DISPATCH_ATTEMPTS;
+    // Validation failures (for example a destination city different from the
+    // branch city) are deterministic. Retrying them would only spam Yandex;
+    // keep the order visible to the cashier as a terminal dispatch failure.
+    const exhausted = attempts >= MAX_DISPATCH_ATTEMPTS || error?.retryable === false;
+    const dispatchError = String(error?.message || 'Не удалось вызвать курьера').slice(0, 2000);
     await supabase
       .from('kaspi_orders')
       .update({
         courier_dispatch_status: exhausted ? 'failed' : 'retrying',
         courier_dispatch_next_attempt_at: exhausted ? null : dispatchRetryAt(attempts),
-        courier_dispatch_error: String(error?.message || 'Не удалось вызвать курьера').slice(
-          0,
-          2000,
-        ),
+        courier_dispatch_error: dispatchError,
       })
       .eq('id', orderId)
       .eq('courier_dispatch_status', 'processing');
+    realtimeService.publish(
+      'order.updated',
+      {
+        orderId,
+        courierDispatchStatus: exhausted ? 'failed' : 'retrying',
+        courierDispatchProvider: 'yandex',
+        courierDispatchError: dispatchError,
+      },
+      { includeAdmins: true, branchId: current.branch_id },
+    );
     throw error;
   }
 }

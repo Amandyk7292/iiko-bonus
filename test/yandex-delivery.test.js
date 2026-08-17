@@ -9,7 +9,9 @@ const {
   getConfigurationStatus,
   isTerminalStatus,
   mapYandexStatus,
+  normalizeCity,
   normalizeDeliveryJob,
+  validateDeliveryOrder,
 } = require('../src/services/yandex-delivery.service');
 const { dispatchAcceptedDeliveryOrder } = require('../src/services/delivery-orchestration.service');
 
@@ -90,6 +92,52 @@ test('Yandex claim payload contains contacts, address details and API-compatible
   assert.equal(payload.client_requirements.assign_robot, false);
 });
 
+test('delivery validation matches the saved address city to the branch and prefers the registered app phone', () => {
+  assert.equal(normalizeCity('г. Актау'), 'актау');
+  assert.equal(normalizeCity('Актау'), 'актау');
+  const candidate = {
+    ...order,
+    phone: '+77001112222',
+    additional_phone: '+77003334455',
+    customers: { name: 'Аружан', phone: '+77009998877' },
+  };
+  const validated = validateDeliveryOrder(candidate, config);
+  assert.equal(validated.customerPhone, '+77009998877');
+  assert.equal(validated.destination.city, 'Актау');
+});
+
+test('delivery validation fails closed on a city mismatch before a provider call', () => {
+  assert.throws(
+    () =>
+      buildClaimPayload(
+        {
+          ...order,
+          delivery_address: { ...order.delivery_address, city: 'Астана' },
+        },
+        config,
+      ),
+    (error) =>
+      error.code === 'DELIVERY_CITY_MISMATCH' &&
+      error.retryable === false &&
+      /Актау/.test(error.message) &&
+      /Астана/.test(error.message),
+  );
+});
+
+test('delivery validation requires an explicit city in the saved destination address', () => {
+  assert.throws(
+    () =>
+      buildClaimPayload(
+        {
+          ...order,
+          delivery_address: { address: '17-й микрорайон, дом 34' },
+        },
+        config,
+      ),
+    (error) => error.code === 'DELIVERY_CITY_REQUIRED' && error.retryable === false,
+  );
+});
+
 test('Yandex statuses map to Bulka delivery lifecycle', () => {
   assert.equal(mapYandexStatus('performer_found'), 'assigned');
   assert.equal(mapYandexStatus('pickuped'), 'picked_up');
@@ -143,6 +191,33 @@ test('accepted delivery prefers opt-in Yandex dispatch over an internal courier'
 
   assert.equal(result.provider, 'yandex');
   assert.deepEqual(calls, [`yandex:${order.id}`]);
+});
+
+test('automatic dispatch validates the destination before calling Yandex', async () => {
+  const calls = [];
+  await assert.rejects(
+    () =>
+      dispatchAcceptedDeliveryOrder(
+        {
+          ...order,
+          delivery_status: 'unassigned',
+          courier_id: null,
+          delivery_address: { ...order.delivery_address, city: 'Астана' },
+        },
+        {
+          yandexDelivery: {
+            getConfigurationStatus: () => ({ configured: true, autoDispatch: true }),
+            validateDeliveryOrder: (candidate) => validateDeliveryOrder(candidate, config),
+            dispatchOrder: async () => calls.push('yandex'),
+          },
+          dispatchService: {
+            autoAssignOrder: async () => calls.push('internal'),
+          },
+        },
+      ),
+    (error) => error.code === 'DELIVERY_CITY_MISMATCH' && error.retryable === false,
+  );
+  assert.deepEqual(calls, []);
 });
 
 test('accepted delivery keeps the internal dispatcher when Yandex auto-dispatch is disabled', async () => {
