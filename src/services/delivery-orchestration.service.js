@@ -152,6 +152,7 @@ async function processDeliveryDispatch(orderId, dependencies = {}) {
   const attempts = Number(current.courier_dispatch_attempts || 0) + 1;
   const attemptedAt = new Date().toISOString();
   const realtimeService = dependencies.realtime || realtime;
+  let provider = current.courier_dispatch_provider || null;
   let claim = supabase
     .from('kaspi_orders')
     .update({
@@ -172,7 +173,7 @@ async function processDeliveryDispatch(orderId, dependencies = {}) {
 
   try {
     const result = await dispatchAcceptedDeliveryOrder(claimed, dependencies);
-    const provider = result.provider || claimed.courier_dispatch_provider || null;
+    provider = result.provider || claimed.courier_dispatch_provider || provider;
     if (result.reason === 'business_price_confirmation_required') {
       const { error } = await supabase
         .from('kaspi_orders')
@@ -231,7 +232,7 @@ async function processDeliveryDispatch(orderId, dependencies = {}) {
       {
         orderId,
         courierDispatchStatus: exhausted ? 'failed' : 'retrying',
-        courierDispatchProvider: 'yandex',
+        courierDispatchProvider: provider || claimed.courier_dispatch_provider || null,
         courierDispatchError: dispatchError,
       },
       { includeAdmins: true, branchId: current.branch_id },
