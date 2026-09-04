@@ -720,6 +720,25 @@ export interface WhatsAppAssistantSettings {
   updatedAt: string | null;
 }
 
+export type WhatsAppAssistantSettingsUpdate = Partial<
+  Pick<
+    WhatsAppAssistantSettings,
+    | 'assistantEnabled'
+    | 'autoReplyEnabled'
+    | 'memoryEnabled'
+    | 'provider'
+    | 'model'
+    | 'botName'
+    | 'tone'
+    | 'supportedLanguages'
+    | 'historyMessages'
+    | 'businessDescription'
+    | 'customInstructions'
+    | 'welcomeMessage'
+    | 'fallbackMessage'
+  >
+> & { apiKey?: string };
+
 export interface WhatsAppConnectionStatus {
   state:
     | 'starting'

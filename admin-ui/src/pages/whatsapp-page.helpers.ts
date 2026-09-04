@@ -1,5 +1,6 @@
 import type {
   WhatsAppAssistantSettings,
+  WhatsAppAssistantSettingsUpdate,
   WhatsAppConnectionStatus,
   WhatsAppConversation,
   WhatsAppKnowledgeDocument,
@@ -11,6 +12,26 @@ export type KnowledgeDraft = Pick<
   WhatsAppKnowledgeDocument,
   'title' | 'category' | 'content' | 'isActive'
 >;
+
+export function whatsappSettingsUpdatePayload(
+  settings: WhatsAppAssistantSettings,
+): WhatsAppAssistantSettingsUpdate {
+  return {
+    assistantEnabled: settings.assistantEnabled,
+    autoReplyEnabled: settings.autoReplyEnabled,
+    memoryEnabled: settings.memoryEnabled,
+    provider: settings.provider,
+    model: settings.model,
+    botName: settings.botName,
+    tone: settings.tone,
+    supportedLanguages: settings.supportedLanguages,
+    historyMessages: settings.historyMessages,
+    businessDescription: settings.businessDescription,
+    customInstructions: settings.customInstructions,
+    welcomeMessage: settings.welcomeMessage,
+    fallbackMessage: settings.fallbackMessage,
+  };
+}
 
 export const emptyKnowledgeDraft = (): KnowledgeDraft => ({
   title: '',

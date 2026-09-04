@@ -18,6 +18,7 @@ import {
   newClientMessageId,
   preferredVoiceMimeType,
   providerModels,
+  whatsappSettingsUpdatePayload,
   type ConsoleView,
   type KnowledgeDraft,
   type VoiceMode,
@@ -812,7 +813,7 @@ export function useWhatsAppPageController({ role = 'viewer' }: WhatsAppPageProps
     setBusy('settings');
     try {
       const response = await api.updateWhatsAppSettings({
-        ...settingsDraft,
+        ...whatsappSettingsUpdatePayload(settingsDraft),
         ...(providerApiKey.trim() ? { apiKey: providerApiKey.trim() } : {}),
       });
       setSettings(response.settings);

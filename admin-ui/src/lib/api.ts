@@ -178,6 +178,7 @@ import type {
   StaffPushDevice,
   StaffPushPlatform,
   WhatsAppAssistantSettings,
+  WhatsAppAssistantSettingsUpdate,
   WhatsAppConnectionStatus,
   WhatsAppConversation,
   WhatsAppMessage,
@@ -235,6 +236,7 @@ export type {
   StaffPushDevice,
   StaffPushPlatform,
   WhatsAppAssistantSettings,
+  WhatsAppAssistantSettingsUpdate,
   WhatsAppConnectionStatus,
   WhatsAppConversation,
   WhatsAppMessage,
@@ -636,7 +638,7 @@ export const api = {
     ),
   getWhatsAppSettings: () =>
     request<{ success: boolean; settings: WhatsAppAssistantSettings }>('/whatsapp/settings'),
-  updateWhatsAppSettings: (data: Partial<WhatsAppAssistantSettings> & { apiKey?: string }) =>
+  updateWhatsAppSettings: (data: WhatsAppAssistantSettingsUpdate) =>
     request<{ success: boolean; settings: WhatsAppAssistantSettings }>(
       '/whatsapp/settings',
       json('PUT', data),
