@@ -102,7 +102,16 @@ abstract final class PendingForteOperationStore {
 
   static Future<void> clear(BulkaApiClient api) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_key(api));
+    await Future.wait([
+      prefs.remove(_key(api)),
+      // The checkout id is only valid for the pending operation. Clearing the
+      // operation after a paid/terminal result must also prevent a later cart
+      // from reusing that id.
+      prefs.remove(customerPreferenceKey('checkout_id', api.sessionCacheScope)),
+      prefs.remove(
+        customerPreferenceKey('checkout_id_created_at', api.sessionCacheScope),
+      ),
+    ]);
   }
 }
 

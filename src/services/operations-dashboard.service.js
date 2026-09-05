@@ -4,6 +4,18 @@ const { isDeliveryFulfillment } = require('../utils/fulfillment.util');
 const CLOSED_ORDER_STATUSES = new Set(['completed', 'cancelled']);
 const CLOSED_DELIVERY_STATUSES = new Set(['delivered', 'cancelled']);
 const CLOSED_SUPPORT_STATUSES = new Set(['resolved', 'rejected']);
+const DASHBOARD_PAGE_SIZE = 1000;
+
+const fetchAllPages = async (buildQuery) => {
+  const rows = [];
+  for (let offset = 0; ; offset += DASHBOARD_PAGE_SIZE) {
+    const { data, error } = await buildQuery(offset, offset + DASHBOARD_PAGE_SIZE - 1);
+    if (error) return { data: rows, error };
+    const page = Array.isArray(data) ? data : [];
+    rows.push(...page);
+    if (page.length < DASHBOARD_PAGE_SIZE) return { data: rows, error: null };
+  }
+};
 
 const normalizeOrderItem = (order) => ({
   id: order.id,
@@ -47,26 +59,46 @@ async function getOperationsSummary({
   assignedTo = '',
 } = {}) {
   const scoped = Array.isArray(branchIds) ? branchIds.map(String).filter(Boolean) : [];
-  let orderQuery = supabase
-    .from('kaspi_orders')
-    .select(
-      'id,order_number,amount,branch_id,branch_name,status,fulfillment_status,fulfillment_type,preorder_fulfillment_type,kitchen_status,promised_ready_at,delivery_status,courier_id,refund_status,last_error,created_at,updated_at',
-    )
-    .order('created_at', { ascending: false })
-    .limit(400);
-  if (scoped.length) orderQuery = orderQuery.in('branch_id', scoped);
+  const orderSelect =
+    'id,order_number,amount,branch_id,branch_name,status,fulfillment_status,fulfillment_type,preorder_fulfillment_type,kitchen_status,promised_ready_at,delivery_status,courier_id,refund_status,last_error,created_at,updated_at';
+  // Load the complete actionable set instead of taking the newest N orders.
+  // An unresolved order can be old while still requiring an operator's
+  // attention, so closed history must not displace it in this dashboard.
+  const activeOrderQuery = (from, to) => {
+    let query = supabase
+      .from('kaspi_orders')
+      .select(orderSelect)
+      .eq('status', 'paid')
+      .not('fulfillment_status', 'in', '(completed,cancelled)')
+      .order('created_at', { ascending: false });
+    if (scoped.length) query = query.in('branch_id', scoped);
+    return query.range(from, to);
+  };
+
+  const paymentIssueQuery = (from, to) => {
+    let query = supabase
+      .from('kaspi_orders')
+      .select(orderSelect)
+      .or('status.in.(failed,expired),refund_status.in.(failed,unknown),last_error.not.is.null')
+      .order('created_at', { ascending: false });
+    if (scoped.length) query = query.in('branch_id', scoped);
+    return query.range(from, to);
+  };
 
   const orderRelation = scoped.length
     ? 'kaspi_orders!inner(order_number,branch_id,branch_name)'
     : 'kaspi_orders(order_number,branch_id,branch_name)';
-  let supportQuery = supabase
-    .from('customer_support_requests')
-    .select(
-      `id,category,message,last_message_preview,status,priority,assigned_to,due_at,last_message_at,created_at,updated_at,customers(name,phone),${orderRelation}`,
-    )
-    .order('last_message_at', { ascending: false, nullsFirst: false })
-    .limit(250);
-  if (scoped.length) supportQuery = supportQuery.in('kaspi_orders.branch_id', scoped);
+  const supportQuery = (from, to) => {
+    let query = supabase
+      .from('customer_support_requests')
+      .select(
+        `id,category,message,last_message_preview,status,priority,assigned_to,due_at,last_message_at,created_at,updated_at,customers(name,phone),${orderRelation}`,
+      )
+      .not('status', 'in', '(resolved,rejected)')
+      .order('last_message_at', { ascending: false, nullsFirst: false });
+    if (scoped.length) query = query.in('kaspi_orders.branch_id', scoped);
+    return query.range(from, to);
+  };
 
   let inventoryQuery = supabase
     .from('branch_product_inventory')
@@ -75,8 +107,9 @@ async function getOperationsSummary({
   if (scoped.length) inventoryQuery = inventoryQuery.in('branch_id', scoped);
 
   const promises = [
-    includeOrders ? orderQuery : Promise.resolve({ data: [], error: null }),
-    includeSupport ? supportQuery : Promise.resolve({ data: [], error: null }),
+    includeOrders ? fetchAllPages(activeOrderQuery) : Promise.resolve({ data: [], error: null }),
+    includeOrders ? fetchAllPages(paymentIssueQuery) : Promise.resolve({ data: [], error: null }),
+    includeSupport ? fetchAllPages(supportQuery) : Promise.resolve({ data: [], error: null }),
     includeInventory ? inventoryQuery : Promise.resolve({ data: [], error: null }),
   ];
   if (includeWhatsApp) {
@@ -89,16 +122,27 @@ async function getOperationsSummary({
         .limit(100),
     );
   }
-  const [ordersResult, supportResult, inventoryResult, whatsappResult] =
+  const [activeOrdersResult, paymentIssuesResult, supportResult, inventoryResult, whatsappResult] =
     await Promise.all(promises);
-  for (const result of [ordersResult, supportResult, inventoryResult, whatsappResult].filter(
-    Boolean,
-  )) {
+  for (const result of [
+    activeOrdersResult,
+    paymentIssuesResult,
+    supportResult,
+    inventoryResult,
+    whatsappResult,
+  ].filter(Boolean)) {
     if (result.error) throw result.error;
   }
 
   const now = Date.now();
-  const orders = ordersResult.data || [];
+  const orders = Array.from(
+    new Map(
+      [...(activeOrdersResult.data || []), ...(paymentIssuesResult.data || [])].map((order) => [
+        String(order.id),
+        order,
+      ]),
+    ).values(),
+  );
   const support = supportResult.data || [];
   const inventory = inventoryResult.data || [];
   const whatsapp = whatsappResult?.data || [];
@@ -128,7 +172,7 @@ async function getOperationsSummary({
   );
   const paymentIssues = orders.filter(
     (order) =>
-      order.status === 'failed' ||
+      ['failed', 'expired'].includes(order.status) ||
       ['failed', 'unknown'].includes(order.refund_status) ||
       Boolean(order.last_error),
   );

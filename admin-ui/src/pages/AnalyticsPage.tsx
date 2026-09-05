@@ -46,6 +46,7 @@ export default function AnalyticsPage() {
 
   const totalEarned = stats.totalEarned || 0;
   const totalBurned = stats.totalBurned || 0;
+  const totalRedeemed = stats.totalRedeemed ?? totalBurned;
   const totalSales = stats.totalSales || 0;
   const branches = Array.isArray(stats.branchPerformance) ? stats.branchPerformance : [];
   const topProducts = Array.isArray(stats.topProducts) ? stats.topProducts : [];
@@ -73,7 +74,7 @@ export default function AnalyticsPage() {
     labels: [t('analytics.issued'), t('analytics.redeemed')],
     datasets: [
       {
-        data: [totalEarned, totalBurned],
+        data: [totalEarned, totalRedeemed],
         backgroundColor: ['#b88c5a', '#7e5d40'],
         borderWidth: 2,
         borderColor: '#ffffff',
@@ -85,7 +86,7 @@ export default function AnalyticsPage() {
     labels: [t('analytics.cash'), t('analytics.bonusPaid')],
     datasets: [
       {
-        data: [totalSales, totalBurned],
+        data: [totalSales, totalRedeemed],
         backgroundColor: ['#2563eb', '#d97706'],
         borderWidth: 2,
         borderColor: '#ffffff',
@@ -230,7 +231,7 @@ export default function AnalyticsPage() {
           <p className="sr-only">
             {t('analytics.chartSummary', {
               first: `${t('analytics.issued')}: ${formatNumber(totalEarned)}`,
-              second: `${t('analytics.redeemed')}: ${formatNumber(totalBurned)}`,
+              second: `${t('analytics.redeemed')}: ${formatNumber(totalRedeemed)}`,
             })}
           </p>
           <div className="chart-box" aria-hidden="true">
@@ -242,7 +243,7 @@ export default function AnalyticsPage() {
           <p className="sr-only">
             {t('analytics.chartSummary', {
               first: `${t('analytics.cash')}: ${formatNumber(totalSales)}`,
-              second: `${t('analytics.bonusPaid')}: ${formatNumber(totalBurned)}`,
+              second: `${t('analytics.bonusPaid')}: ${formatNumber(totalRedeemed)}`,
             })}
           </p>
           <div className="chart-box" aria-hidden="true">

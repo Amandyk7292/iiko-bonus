@@ -410,11 +410,18 @@ async function getStats({ branchIds = null } = {}) {
     });
   }
 
-  const { data: txs } = await supabase.from('transactions').select('type, amount, timestamp');
+  const { data: txs } = await supabase
+    .from('transactions')
+    .select('type, amount, timestamp, order_id');
   let totalBurned = 0;
+  let totalRedeemed = 0;
   let totalEarned = 0;
   let earnedLast30Days = 0;
   let burnedLast30Days = 0;
+  let bonusRestored = 0;
+  let bonusRestoredLast30Days = 0;
+  let earnedReversed = 0;
+  let earnedReversedLast30Days = 0;
 
   if (txs) {
     txs.forEach((t) => {
@@ -424,20 +431,42 @@ async function getStats({ branchIds = null } = {}) {
         totalBurned += amt;
         if (isRecent) burnedLast30Days += amt;
       }
-      if (t.type === 'deposit' || t.type === 'manual_deposit' || t.type === 'manual') {
+      // Only a withdrawal attached to a real order represents payment with
+      // bonuses. Expirations and manual write-offs affect the liability
+      // balance but must not inflate the payment mix.
+      if (t.type === 'withdrawal' && t.order_id) totalRedeemed += amt;
+      if (t.type === 'refund_bonus_restore') {
+        bonusRestored += amt;
+        if (isRecent) bonusRestoredLast30Days += amt;
+      }
+      if (
+        t.type === 'deposit' ||
+        t.type === 'pending_deposit' ||
+        t.type === 'manual_deposit' ||
+        t.type === 'manual'
+      ) {
         totalEarned += amt;
         if (isRecent) earnedLast30Days += amt;
       }
       if (t.type === 'refund_reversal') {
-        totalEarned = Math.max(0, totalEarned - amt);
-        if (isRecent) earnedLast30Days = Math.max(0, earnedLast30Days - amt);
+        earnedReversed += amt;
+        if (isRecent) earnedReversedLast30Days += amt;
       }
     });
   }
 
-  const totalGrossRevenue = totalSpent + totalBurned;
+  // The transaction query has no ordering guarantee. Apply compensating
+  // refund entries after summing the original movements so an older debit
+  // cannot be added back accidentally when its restore row is returned first.
+  totalRedeemed = Math.max(0, totalRedeemed - bonusRestored);
+  totalBurned = Math.max(0, totalBurned - bonusRestored);
+  burnedLast30Days = Math.max(0, burnedLast30Days - bonusRestoredLast30Days);
+  totalEarned = Math.max(0, totalEarned - earnedReversed);
+  earnedLast30Days = Math.max(0, earnedLast30Days - earnedReversedLast30Days);
+
+  const totalGrossRevenue = totalSpent + totalRedeemed;
   const bonusPaymentPercent =
-    totalGrossRevenue > 0 ? ((totalBurned / totalGrossRevenue) * 100).toFixed(1) : '0.0';
+    totalGrossRevenue > 0 ? ((totalRedeemed / totalGrossRevenue) * 100).toFixed(1) : '0.0';
 
   return attachFunnel({
     totalCustomers: customers ? customers.length : 0,
@@ -445,6 +474,7 @@ async function getStats({ branchIds = null } = {}) {
     totalSales: totalSpent,
     totalEarned,
     totalBurned,
+    totalRedeemed,
     earnedLast30Days,
     burnedLast30Days,
     bonusPaymentPercent,

@@ -120,6 +120,7 @@ const updateAdminStatus = async (req, res) => {
       req.body?.cancellationReason,
       {
         branchIds: branchScopeFor(req),
+        admin: req.admin,
       },
     );
     res.json({ success: true, order });

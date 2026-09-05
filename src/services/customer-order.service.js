@@ -893,7 +893,7 @@ async function updateAdminOrderStatus(
   id,
   nextStatus,
   cancellationReason = '',
-  { branchIds = [] } = {},
+  { branchIds = [], admin = null } = {},
 ) {
   if (!ORDER_STATUSES.includes(nextStatus)) throw httpError(400, 'Некорректный статус заказа');
   const { data: current, error: readError } = await supabase
@@ -929,6 +929,42 @@ async function updateAdminOrderStatus(
       409,
       `Нельзя изменить заказ, пока проверяется возврат через ${paymentProviderName(current)}`,
     );
+  }
+
+  // The kitchen is the source of truth for work-in-progress states. Orders
+  // used to update only fulfillment_status, leaving the kitchen queue,
+  // acceptance audit and delivery dispatch untouched. Route these transitions
+  // through the same state machine as the Kitchen screen so both views and all
+  // side effects stay consistent, including when an old order is out of sync.
+  if (nextStatus === 'preparing' || nextStatus === 'ready') {
+    if (
+      nextStatus !== currentStatus &&
+      !(STATUS_TRANSITIONS[currentStatus] || []).includes(nextStatus)
+    ) {
+      throw httpError(409, `Нельзя изменить статус «${currentStatus}» на «${nextStatus}»`);
+    }
+    const { updateKitchenStatus } = require('./kitchen.service');
+    const kitchenFrom = String(current.kitchen_status || 'queued');
+    if (nextStatus === 'ready' && kitchenFrom === 'queued') {
+      await updateKitchenStatus(id, 'preparing', null, {
+        branchIds: scopedBranchIds,
+        iikoManualEntryConfirmed: true,
+        admin,
+      });
+    }
+    await updateKitchenStatus(id, nextStatus, null, {
+      branchIds: scopedBranchIds,
+      iikoManualEntryConfirmed: true,
+      admin,
+    });
+    const { data: refreshed, error: refreshError } = await supabase
+      .from('kaspi_orders')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (refreshError) throw refreshError;
+    if (!refreshed) throw httpError(404, 'Заказ не найден');
+    return normalizeOrder(refreshed);
   }
   if (nextStatus === currentStatus) return normalizeOrder(current);
   if (!(STATUS_TRANSITIONS[currentStatus] || []).includes(nextStatus)) {

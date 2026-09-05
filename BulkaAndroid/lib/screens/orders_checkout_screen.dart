@@ -6,12 +6,14 @@ class _CheckoutScreen extends StatefulWidget {
     required this.total,
     required this.cartItems,
     required this.onSubmit,
+    this.initialCheckoutId,
   });
 
   final BulkaApiClient api;
   final int total;
   final List<Map<String, dynamic>> cartItems;
-  final Future<bool> Function(_CheckoutDetails details) onSubmit;
+  final Future<FortePaymentOutcome> Function(_CheckoutDetails details) onSubmit;
+  final String? initialCheckoutId;
 
   @override
   State<_CheckoutScreen> createState() => _CheckoutScreenState();
@@ -59,6 +61,14 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   @override
   void initState() {
     super.initState();
+    final initialCheckoutId = widget.initialCheckoutId;
+    if (initialCheckoutId != null &&
+        RegExp(
+          r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+          caseSensitive: false,
+        ).hasMatch(initialCheckoutId)) {
+      _checkoutId = initialCheckoutId;
+    }
     _phoneController = TextEditingController();
     _promoController.addListener(_refreshPromoButton);
     _phoneController.addListener(_saveDraft);
@@ -87,58 +97,6 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       _onlineOrderingDisabled = widget.api.onlineOrderingDisabled;
       if (!available) _selectedPaymentMethodId = null;
     });
-  }
-
-  Future<void> _loadCheckoutPreferences() async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedBranch = prefs.getString('selected_bakery_location') ?? '';
-    final savedType = _orderTypeFromWire(
-      prefs.getString('selected_order_type'),
-    );
-    final savedPreorderFulfillment =
-        prefs.getString(_draftKey('checkout_preorder_fulfillment')) ==
-            'delivery'
-        ? _OrderType.delivery
-        : _OrderType.pickup;
-    DeliveryAddress? address;
-    try {
-      address = await AddressRepository(api: widget.api).loadSelectedAddress();
-    } catch (_) {
-      address = null;
-    }
-    List<BakeryLocation> locations = const [];
-    var locationsLoaded = false;
-    try {
-      locations = await widget.api.getFulfillmentLocations();
-      locationsLoaded = true;
-    } catch (_) {
-      // Checkout remains usable for pickup while branch availability retries.
-    }
-    final savedScheduledAt = prefs.getString(
-      _draftKey('checkout_scheduled_at'),
-    );
-    final parsedScheduledAt = DateTime.tryParse(savedScheduledAt ?? '');
-    if (!mounted) return;
-    _phoneController.text = prefs.getString(_draftKey('checkout_phone')) ?? '';
-    _promoController.text = prefs.getString(_draftKey('checkout_promo')) ?? '';
-    _commentController.text =
-        prefs.getString(_draftKey('checkout_comment')) ?? '';
-    setState(() {
-      _branch = savedBranch;
-      _branchId = prefs.getString('selected_bakery_location_id');
-      _orderType = savedType;
-      _preorderFulfillment = savedPreorderFulfillment;
-      _deliveryAddress = address;
-      _scheduledSlot = null;
-      _locations = locations;
-      _deliveryAvailable = locations.any(
-        (location) => location.active && location.deliveryEnabled,
-      );
-      _deliveryAvailabilityChecked = locationsLoaded;
-    });
-    if (parsedScheduledAt != null) {
-      await _restoreScheduledSlot(parsedScheduledAt);
-    }
   }
 
   void _refreshPromoButton() {
@@ -711,7 +669,18 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         if (mounted) setState(() => _isSubmitting = false);
         return;
       }
-      final completed = await widget.onSubmit(
+      final prefs = await SharedPreferences.getInstance();
+      // Keep the id before the network call. A crash after the order is
+      // created but before the response is received must still retry the
+      // same idempotent request after restart.
+      await Future.wait([
+        prefs.setString(_draftKey('checkout_id'), _checkoutId),
+        prefs.setString(
+          _draftKey('checkout_id_created_at'),
+          DateTime.now().toUtc().toIso8601String(),
+        ),
+      ]);
+      final outcome = await widget.onSubmit(
         _CheckoutDetails(
           checkoutId: _checkoutId,
           orderType: _orderType,
@@ -728,7 +697,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
           comment: _commentController.text.trim(),
         ),
       );
-      if (mounted && completed) {
+      if (mounted && outcome == FortePaymentOutcome.paid) {
         final prefs = await SharedPreferences.getInstance();
         await Future.wait([
           prefs.remove(_draftKey('checkout_scheduled_at')),
@@ -736,13 +705,26 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
           prefs.remove(_draftKey('checkout_promo')),
           prefs.remove(_draftKey('checkout_comment')),
           prefs.remove(_draftKey('checkout_preorder_fulfillment')),
+          prefs.remove(_draftKey('checkout_id')),
+          prefs.remove(_draftKey('checkout_id_created_at')),
         ]);
         if (mounted) Navigator.pop(context, true);
       }
-      if (mounted && !completed) {
+      if (mounted && outcome != FortePaymentOutcome.paid) {
         setState(() {
           _isSubmitting = false;
-          _checkoutId = _newCheckoutId();
+          // Keep the id while Forte is still pending so a retry resumes the
+          // same idempotent operation. A terminal failure clears the pending
+          // record and is the only safe point to issue a new checkout id.
+          if (outcome == FortePaymentOutcome.failed) {
+            _checkoutId = _newCheckoutId();
+            unawaited(
+              Future.wait([
+                prefs.remove(_draftKey('checkout_id')),
+                prefs.remove(_draftKey('checkout_id_created_at')),
+              ]),
+            );
+          }
         });
       }
     } catch (error) {

@@ -95,6 +95,7 @@ const ROLE_AREAS = {
     'stories',
     'news',
     'bonus',
+    'settings',
     'loyalty-tiers',
     'promotions',
     'gift-cards',
@@ -129,6 +130,7 @@ const ROLE_AREAS = {
     'stories',
     'news',
     'bonus',
+    'settings',
     'loyalty-tiers',
     'promotions',
     'gift-cards',
@@ -236,7 +238,23 @@ const adminUserResponse = (admin) => ({
 
 const adminArea = (req) => {
   const value = String(req.path || req.originalUrl || '').replace(/^\/+/, '');
-  return value.split('/')[0] || 'session';
+  const [root, child] = value.split('/');
+  // The API keeps a few historical route names while the role matrix uses
+  // the names shown in the admin navigation. Keep that translation in one
+  // place so a permitted section is not rejected just because its endpoint
+  // has a legacy prefix.
+  if (root === 'stats') return 'analytics';
+  if (root === 'push' && child === 'mass') return 'broadcast';
+  if (root === 'settings') {
+    // App release policy is owner/admin configuration. Bonus settings share
+    // the generic settings endpoint, so only that payload is available to
+    // marketing/editor roles through the area permission below.
+    if (req.method === 'POST' && Object.hasOwn(req.body || {}, 'app_release_policy')) {
+      return 'app-release-settings';
+    }
+    return 'settings';
+  }
+  return root || 'session';
 };
 
 const parseAdminUsers = () => {
@@ -538,6 +556,24 @@ const adminMutationRoleMiddleware = (req, res, next) => {
   const area = adminArea(req);
   if (!areas.has('*') && !areas.has(area)) {
     return res.status(403).json({ error: 'Недостаточно прав для этого раздела' });
+  }
+  if (area === 'menu' && !['admin', 'owner'].includes(req.admin.role)) {
+    const selectedBranchIds = Array.from(
+      new Set(
+        [
+          ...(Array.isArray(req.admin.selectedBranchIds) ? req.admin.selectedBranchIds : []),
+          ...(req.admin.selectedBranchId ? [req.admin.selectedBranchId] : []),
+        ]
+          .map((branchId) => String(branchId || '').trim())
+          .filter(Boolean),
+      ),
+    );
+    if (selectedBranchIds.length !== 1) {
+      return res.status(409).json({
+        error: 'Для работы с меню выберите один филиал',
+        code: 'MENU_BRANCH_SELECTION_REQUIRED',
+      });
+    }
   }
   if (req.admin.role === 'cashier' && !readOnly && !cashierMutationAllowed(req, area)) {
     return res.status(403).json({

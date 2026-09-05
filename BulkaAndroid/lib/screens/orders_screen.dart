@@ -144,8 +144,11 @@ class _OrdersScreenState extends State<OrdersScreen> {
   List<Map<String, dynamic>> _paymentItems(CartProvider cart) =>
       cart.items.values.map((item) => item.toOrderPayload()).toList();
 
-  Future<bool> _createOrder(CartProvider cart, _CheckoutDetails details) async {
-    if (cart.items.isEmpty) return false;
+  Future<FortePaymentOutcome> _createOrder(
+    CartProvider cart,
+    _CheckoutDetails details,
+  ) async {
+    if (cart.items.isEmpty) return FortePaymentOutcome.failed;
     final items = cart.items.values
         .map((item) => item.toOrderPayload())
         .toList();
@@ -171,18 +174,27 @@ class _OrdersScreenState extends State<OrdersScreen> {
     if (forteRedirectUrl.isEmpty) {
       throw ApiException('forte_checkout_invalid'.tr);
     }
-    if (!mounted) return false;
+    // Persist the provider operation before opening the web checkout. If the
+    // app is killed or the hosted page is closed, the next attempt can resume
+    // this operation instead of creating another order.
+    await PendingForteOperationStore.save(
+      widget.api,
+      operationId: operationId,
+      checkoutId: details.checkoutId,
+    );
+    if (!mounted) return FortePaymentOutcome.pending;
     final paymentResult = await Navigator.of(context).push<FortePaymentResult>(
       MaterialPageRoute(
         builder: (_) => FortePaymentScreen(
           api: widget.api,
           operationId: operationId,
           redirectUrl: forteRedirectUrl,
+          checkoutId: details.checkoutId,
         ),
       ),
     );
     if (paymentResult?.paid == true) cart.clear();
-    return paymentResult?.paid == true;
+    return paymentResult?.outcome ?? FortePaymentOutcome.pending;
   }
 
   Future<void> _openCheckout(BuildContext context, CartProvider cart) async {
@@ -203,6 +215,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
     bool? completed;
     try {
       if (!context.mounted) return;
+      final pending = await PendingForteOperationStore.load(widget.api);
+      if (!context.mounted) return;
       completed = await Navigator.of(context).push<bool>(
         MaterialPageRoute(
           settings: const RouteSettings(name: 'checkout'),
@@ -210,6 +224,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
             api: widget.api,
             total: cart.totalAmount,
             cartItems: _paymentItems(cart),
+            initialCheckoutId: pending?.checkoutId,
             onSubmit: (details) => _createOrder(cart, details),
           ),
         ),

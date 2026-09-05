@@ -80,6 +80,7 @@ part 'screens/checkout_payment_widgets.dart';
 part 'screens/orders_screen.dart';
 part 'screens/orders_cart_widgets.dart';
 part 'screens/orders_checkout_screen.dart';
+part 'screens/orders_checkout_state.dart';
 part 'screens/orders_checkout_layout.dart';
 part 'screens/orders_checkout_ordering_notice.dart';
 part 'screens/orders_checkout_widgets.dart';
