@@ -24,6 +24,13 @@ const boundedSeconds = (value, fallback, minimum, maximum) => {
 
 const hasProducts = (menu) => Array.isArray(menu?.products) && menu.products.length > 0;
 
+// iiko External Menu can expose the localized "full name" field as the item
+// name.  Some catalogues use that field for a composition ("Состав: ..."),
+// while the canonical product name remains available in nomenclature v1.
+const compositionNamePattern = /^\s*(?:состав|құрамы|ingredients?)\s*:/iu;
+
+const isCompositionOnlyName = (value) => compositionNamePattern.test(String(value || ''));
+
 const hasFinitePrice = (value) =>
   value !== null &&
   value !== undefined &&
@@ -581,6 +588,45 @@ class IikoAPI {
     );
   }
 
+  async _repairCompositionNames(menu, token, organizationId) {
+    const productsWithCompositionNames = (menu?.products || []).filter((product) =>
+      isCompositionOnlyName(product?.name),
+    );
+    if (!productsWithCompositionNames.length) return menu;
+
+    try {
+      const nomenclature = await this._fetchNomenclatureMenu(token, organizationId);
+      const canonicalNames = new Map(
+        (Array.isArray(nomenclature?.products) ? nomenclature.products : [])
+          .map((product) => [
+            String(product?.id || product?.iikoProductId || '').trim(),
+            String(product?.name || '').trim(),
+          ])
+          .filter(([id, name]) => id && name && !isCompositionOnlyName(name)),
+      );
+      let repairedCount = 0;
+      const products = (menu.products || []).map((product) => {
+        if (!isCompositionOnlyName(product?.name)) return product;
+        const canonicalName = canonicalNames.get(String(product.id || '').trim());
+        if (!canonicalName) return product;
+        repairedCount += 1;
+        return { ...product, name: canonicalName };
+      });
+      if (repairedCount) {
+        console.warn(
+          `[iiko] Исправлено названий товаров из номенклатуры: ${repairedCount}; ` +
+            'External Menu содержал состав в поле названия.',
+        );
+      }
+      return { ...menu, products };
+    } catch (error) {
+      // The External Menu remains authoritative. A temporary nomenclature
+      // failure must not make an otherwise valid online menu unavailable.
+      console.warn('[iiko] Не удалось восстановить названия из номенклатуры:', error.message);
+      return menu;
+    }
+  }
+
   async _fetchMenuFromIiko({ requireExternal = false } = {}) {
     this._apiCallCount++;
     console.log(`[iiko] Запрос меню #${this._apiCallCount} в ${new Date().toISOString()}`);
@@ -591,6 +637,9 @@ class IikoAPI {
     let externalError = null;
     try {
       externalMenu = await this._fetchExternalMenu(token, organizationId);
+      if (externalMenu) {
+        externalMenu = await this._repairCompositionNames(externalMenu, token, organizationId);
+      }
     } catch (error) {
       externalError = error;
       console.warn('[iiko] External Menu v2 недоступно:', error.message);

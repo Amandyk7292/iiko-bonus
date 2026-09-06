@@ -164,6 +164,41 @@ test('External Menu price wins even when nomenclature v1 is non-empty', async ()
   );
 });
 
+test('External Menu restores a canonical name when full name contains composition', async () => {
+  let nomenclatureRequests = 0;
+  const fetchMock = async (url) => {
+    const path = new URL(url).pathname;
+    if (path === '/api/2/menu') {
+      return jsonResponse({ externalMenus: [{ id: 'menu-main', name: 'Основное меню' }] });
+    }
+    if (path === '/api/2/menu/by_id') {
+      return jsonResponse(externalItems(750, 'Құрамы: ұн, тұз, шұжық'));
+    }
+    if (path === '/api/1/nomenclature') {
+      nomenclatureRequests += 1;
+      return jsonResponse({
+        groups: [{ id: 'v1-group', name: 'ХЛЕБА' }],
+        products: [
+          {
+            id: 'product-1',
+            name: 'Хот дог',
+            parentGroup: 'v1-group',
+            sizePrices: [{ price: { currentPrice: 750 } }],
+          },
+        ],
+      });
+    }
+    throw new Error(`Unexpected iiko request: ${path}`);
+  };
+
+  await withIikoService({ fetchMock }, async (service) => {
+    const menu = await service.getMenu({ strict: true, forceRefresh: true });
+    assert.equal(menu.products[0].name, 'Хот дог');
+    assert.equal(menu.products[0].description, '');
+    assert.equal(nomenclatureRequests, 1);
+  });
+});
+
 test('External Menu matches both grouped and direct organization price shapes', async () => {
   let groupedShape = true;
   const fetchMock = async (url) => {
