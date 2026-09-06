@@ -1,76 +1,36 @@
 part of '../main.dart';
 
 extension _CatalogDataController on _CatalogScreenState {
-  Future<void> _silentRefresh() async {
-    if (!mounted) return;
-    final revision = ++_menuLoadRevision;
-    final endpoint = _menuEndpoint;
-    final cacheKey = _menuCacheKey;
-    try {
-      final json = await _api._get(endpoint);
-      if (!_isCurrentMenuRequest(revision, endpoint)) return;
-
-      final categoriesRaw = json['categories'] as List? ?? [];
-      final productsRaw = json['products'] as List? ?? [];
-
-      final categoryNames = <String>[_catalogAllCategoryKey];
-      final categoryMap = <String, String>{};
-      final categoryImages = <String, String>{};
-      for (final c in categoriesRaw) {
-        final id = (c['id'] ?? '').toString();
-        final name = _catalogDisplayName(c['name'] ?? '');
-        final imageUrl = (c['imageUrl'] ?? '').toString();
-        if (name.isNotEmpty) {
-          categoryNames.add(name);
-          categoryMap[id] = name;
-          if (imageUrl.isNotEmpty) categoryImages[name] = imageUrl;
-        }
-      }
-
-      final products = <CatalogProduct>[];
-      for (final p in productsRaw) {
-        products.add(_catalogProduct(p, categoryMap));
-      }
-      for (final product in products) {
-        if (product.imageUrl.trim().isNotEmpty) {
-          categoryImages.putIfAbsent(product.category, () => product.imageUrl);
-          categoryImages.putIfAbsent(
-            _catalogAllCategoryKey,
-            () => product.imageUrl,
-          );
-        }
-      }
-
-      final cachedAt = await _cacheMenu(json, cacheKey: cacheKey);
-      if (!_isCurrentMenuRequest(revision, endpoint)) return;
-      _syncCartWithMenu(products);
-
-      _updateCatalogState(() {
-        _categories = categoryNames;
-        _apiCategoryImages = categoryImages;
-        _allProducts = products;
-        _usingCachedMenu = false;
-        _menuCachedAt = cachedAt;
-        _loadError = null;
-      });
-      unawaited(_refreshProductOptionFlags(products));
-      unawaited(_warmProductImages(products));
-    } catch (_) {
-      // Тихая ошибка — не показываем пользователю
-    }
+  Future<void> _silentRefresh() {
+    if (!mounted || _activeMenuLoads > 0) return Future<void>.value();
+    return _silentRefreshRequest ??= _loadMenu(silent: true).whenComplete(() {
+      _silentRefreshRequest = null;
+    });
   }
 
-  Future<void> _loadMenu() async {
+  Future<void> _loadMenu({bool silent = false}) async {
     if (!mounted) return;
+    _activeMenuLoads++;
     final revision = ++_menuLoadRevision;
     final endpoint = _menuEndpoint;
     final cacheKey = _menuCacheKey;
     try {
-      _updateCatalogState(() {
-        _isLoading = _allProducts.isEmpty;
-        if (_allProducts.isEmpty) _usingCachedMenu = false;
-        _loadError = null;
-      });
+      if (!silent) {
+        _updateCatalogState(() {
+          _isLoading = _allProducts.isEmpty;
+          if (_allProducts.isEmpty) _usingCachedMenu = false;
+          _loadError = null;
+        });
+      }
+      if (_allProducts.isEmpty) {
+        await _restoreCachedMenu(
+          cacheKey: cacheKey,
+          revision: revision,
+          endpoint: endpoint,
+          preview: true,
+        );
+        if (!_isCurrentMenuRequest(revision, endpoint)) return;
+      }
       final json = await _api._get(endpoint);
       if (!_isCurrentMenuRequest(revision, endpoint)) return;
 
@@ -116,6 +76,7 @@ extension _CatalogDataController on _CatalogScreenState {
         _isLoading = false;
         _usingCachedMenu = false;
         _menuCachedAt = cachedAt;
+        _loadError = null;
       });
       unawaited(_refreshProductOptionFlags(products));
       _applyPendingClientUri();
@@ -130,13 +91,14 @@ extension _CatalogDataController on _CatalogScreenState {
         );
       }
     } catch (e) {
-      if (!_isCurrentMenuRequest(revision, endpoint)) return;
+      if (silent || !_isCurrentMenuRequest(revision, endpoint)) return;
       if (_allProducts.isNotEmpty) {
         _updateCatalogState(() {
           _isLoading = false;
           _usingCachedMenu = true;
           _loadError = null;
         });
+        _applyPendingClientUri();
         return;
       }
       if (_allProducts.isEmpty &&
@@ -152,6 +114,8 @@ extension _CatalogDataController on _CatalogScreenState {
         _isLoading = false;
         _loadError = e.toString();
       });
+    } finally {
+      _activeMenuLoads--;
     }
   }
 
@@ -320,15 +284,19 @@ extension _CatalogDataController on _CatalogScreenState {
     Map<String, dynamic> json, {
     required String cacheKey,
   }) async {
-    final prefs = await SharedPreferences.getInstance();
     final cachedAt = DateTime.now();
-    await prefs.setString(
-      cacheKey,
-      jsonEncode({
-        'cachedAt': cachedAt.toUtc().toIso8601String(),
-        'payload': json,
-      }),
-    );
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        cacheKey,
+        jsonEncode({
+          'cachedAt': cachedAt.toUtc().toIso8601String(),
+          'payload': json,
+        }),
+      );
+    } catch (_) {
+      // Storage quota/privacy errors must not discard a successful response.
+    }
     return cachedAt;
   }
 
@@ -336,6 +304,7 @@ extension _CatalogDataController on _CatalogScreenState {
     required String cacheKey,
     required int revision,
     required String endpoint,
+    bool preview = false,
   }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -376,7 +345,9 @@ extension _CatalogDataController on _CatalogScreenState {
       if (!_isCurrentMenuRequest(revision, endpoint) || products.isEmpty) {
         return false;
       }
-      _syncCartWithMenu(products);
+      // Cached prices and stock may be stale: only the live response should
+      // update cart lines during online revalidation.
+      if (!preview) _syncCartWithMenu(products);
       _updateCatalogState(() {
         _categories = categoryNames;
         _apiCategoryImages = categoryImages;
@@ -386,8 +357,10 @@ extension _CatalogDataController on _CatalogScreenState {
         _menuCachedAt = cachedAt;
         _loadError = null;
       });
-      unawaited(_refreshProductOptionFlags(products));
-      _applyPendingClientUri();
+      if (!preview) {
+        unawaited(_refreshProductOptionFlags(products));
+        _applyPendingClientUri();
+      }
       unawaited(_warmProductImages(products));
       return true;
     } catch (_) {

@@ -757,16 +757,24 @@ router.get('/api/guest/menu', async (req, res) => {
     }
 
     const selectedIikoApi = getIikoClientForCity(branchSettings?.city);
-    const rawMenu = await selectedIikoApi.getMenu({ strict: true });
-    const rawGroups = Array.isArray(rawMenu.groups) ? rawMenu.groups : [];
-    const rawProducts = Array.isArray(rawMenu.products) ? rawMenu.products : [];
 
     // Menu visibility, prices and stop-list state are order-critical. If one
     // source is unavailable, fail the request instead of publishing stale or
     // partially configured products.
     const menuService = require('../services/menu.service');
-    const [stopIds, productOverrides, categoryOverrides, customProducts] = await Promise.all([
-      selectedIikoApi.getStopListProductIds(undefined, { strict: true }),
+    const [
+      { rawMenu, stopIds },
+      productOverrides,
+      categoryOverrides,
+      customProducts,
+      branchAvailability,
+    ] = await Promise.all([
+      // Keep iiko authentication ordered while fetching independent database
+      // sources concurrently with its remote menu request.
+      selectedIikoApi.getMenu({ strict: true }).then(async (rawMenu) => ({
+        rawMenu,
+        stopIds: await selectedIikoApi.getStopListProductIds(undefined, { strict: true }),
+      })),
       menuService.getProductOverrides({
         strict: true,
         profileKey: selectedIikoApi.profileKey,
@@ -779,7 +787,10 @@ router.get('/api/guest/menu', async (req, res) => {
         strict: true,
         profileKey: selectedIikoApi.profileKey,
       }),
+      branchId ? getBranchAvailability(branchId, { strict: true }) : Promise.resolve(new Map()),
     ]);
+    const rawGroups = Array.isArray(rawMenu.groups) ? rawMenu.groups : [];
+    const rawProducts = Array.isArray(rawMenu.products) ? rawMenu.products : [];
 
     const prodOverridesMap = new Map(productOverrides.map((o) => [o.iiko_product_id, o]));
     const catOverridesMap = new Map(categoryOverrides.map((o) => [o.iiko_category_id, o]));
@@ -801,9 +812,6 @@ router.get('/api/guest/menu', async (req, res) => {
         iikoClient: selectedIikoApi,
       });
     }
-    const branchAvailability = branchId
-      ? await getBranchAvailability(branchId, { strict: true })
-      : new Map();
 
     // Categories
     const baseCategories = rawGroups

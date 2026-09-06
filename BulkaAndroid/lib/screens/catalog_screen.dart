@@ -61,6 +61,8 @@ class _CatalogScreenState extends State<CatalogScreen>
   String _trackedCatalogKey = '';
   int _menuLoadRevision = 0;
   int _productOptionsRevision = 0;
+  Future<void>? _silentRefreshRequest;
+  int _activeMenuLoads = 0;
 
   // Авто-обновление меню каждую минуту
   Timer? _autoRefreshTimer;
@@ -93,9 +95,13 @@ class _CatalogScreenState extends State<CatalogScreen>
     _menuEventSubscription = _api.customerEvents.listen((event) {
       if (event['type'] == 'menu.updated') unawaited(_silentRefresh());
     });
-    // Тихое фоновое обновление каждые 30 секунд
+    // Hidden tabs keep their state, but must not poll in the background.
     _autoRefreshTimer = Timer.periodic(_menuRefreshInterval, (_) {
-      _silentRefresh();
+      if (mounted &&
+          TickerMode.of(context) &&
+          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+        unawaited(_silentRefresh());
+      }
     });
   }
 
@@ -193,6 +199,10 @@ class _CatalogScreenState extends State<CatalogScreen>
       return;
     }
     setState(() {
+      _menuLoadRevision++;
+      _productOptionsRevision++;
+      _resolvedProductOptionIds = const {};
+      _configurableProductIds = const {};
       _selectedCategory = _catalogAllCategoryKey;
       _openedCategory = null;
       _categories = const [_catalogAllCategoryKey];

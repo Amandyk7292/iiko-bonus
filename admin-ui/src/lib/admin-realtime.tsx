@@ -212,6 +212,7 @@ export function AdminRealtimeProvider({
   const listenersRef = useRef(new Set<{ types: Set<string>; listener: RealtimeListener }>());
   const refreshTimerRef = useRef<number | null>(null);
   const summaryRequestRef = useRef<Promise<void> | null>(null);
+  const summaryGenerationRef = useRef(0);
   const canLoadSummary = role !== 'whatsapp_operator' && role !== 'courier' && role !== 'cashier';
 
   useEffect(() => {
@@ -227,9 +228,11 @@ export function AdminRealtimeProvider({
   const refreshSummary = useCallback(async () => {
     if (!canLoadSummary) return;
     if (summaryRequestRef.current) return summaryRequestRef.current;
+    const generation = summaryGenerationRef.current;
     const request = api
       .getOperationsSummary()
       .then((response) => {
+        if (generation !== summaryGenerationRef.current) return;
         if (
           response &&
           typeof response === 'object' &&
@@ -243,7 +246,7 @@ export function AdminRealtimeProvider({
       })
       .catch(() => undefined)
       .finally(() => {
-        summaryRequestRef.current = null;
+        if (summaryRequestRef.current === request) summaryRequestRef.current = null;
       });
     summaryRequestRef.current = request;
     return request;
@@ -296,8 +299,14 @@ export function AdminRealtimeProvider({
   }, [soundEnabled, soundReady, unlockSound]);
 
   useEffect(() => {
+    summaryGenerationRef.current++;
+    summaryRequestRef.current = null;
     setSummary(null);
     void refreshSummary();
+    return () => {
+      summaryGenerationRef.current++;
+      summaryRequestRef.current = null;
+    };
   }, [branchId, refreshSummary]);
 
   useEffect(() => {

@@ -75,6 +75,7 @@ part 'screens/address_selection_screen.dart';
 part 'screens/app_update_screen.dart';
 part 'screens/admin_portal_screen.dart';
 part 'screens/home_screen.dart';
+part 'screens/home_feed_controller.dart';
 part 'screens/login_screen.dart';
 part 'screens/checkout_payment_widgets.dart';
 part 'screens/orders_screen.dart';

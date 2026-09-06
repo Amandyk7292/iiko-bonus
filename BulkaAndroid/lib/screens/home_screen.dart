@@ -43,15 +43,15 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    unawaited(_loadCachedFeed());
+    unawaited(_initializeFeed());
     unawaited(_loadViewedStoryGroups());
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) unawaited(_loadFeed());
+    _feedRefreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted &&
+          TickerMode.of(context) &&
+          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+        unawaited(_loadFeed());
+      }
     });
-    _feedRefreshTimer = Timer.periodic(
-      const Duration(minutes: 1),
-      (_) => _loadFeed(),
-    );
   }
 
   @override
@@ -60,96 +60,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  Future<void> _loadCachedFeed() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!mounted) return;
-    final cachedStories = prefs.getString('cached_stories_json');
-    final cachedNews = prefs.getString('cached_news_json');
-    if (cachedStories != null && _stories.isEmpty) {
-      try {
-        final decoded = jsonDecode(cachedStories) as List<dynamic>;
-        setState(() {
-          _stories = decoded
-              .map((e) => PromoStory.fromJson(_asMap(e)))
-              .toList();
-          _initialLoading = false;
-        });
-      } catch (_) {}
-    }
-    if (cachedNews != null && _news.isEmpty) {
-      try {
-        final decoded = jsonDecode(cachedNews) as List<dynamic>;
-        setState(() {
-          _news = decoded.map((e) => NewsItem.fromJson(_asMap(e))).toList();
-        });
-      } catch (_) {}
-    }
-  }
-
-  Future<void> _loadViewedStoryGroups() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!mounted) return;
-    setState(() {
-      _viewedStoryGroups =
-          (prefs.getStringList('viewed_story_groups') ?? const []).toSet();
-    });
-  }
-
-  Future<void> _loadFeed() async {
-    if (_feedLoading) return;
-    _feedLoading = true;
-    if (mounted) {
-      setState(() {
-        _storiesLoadFailed = false;
-        _newsLoadFailed = false;
-      });
-    }
-    try {
-      final results = await Future.wait<Object?>([
-        widget.api
-            .getStories()
-            .then<Object?>((value) => value)
-            .catchError((_) => null),
-        widget.api
-            .getNews()
-            .then<Object?>((value) => value)
-            .catchError((_) => null),
-      ]);
-      if (!mounted) return;
-      setState(() {
-        final stories = results[0];
-        final news = results[1];
-        _storiesLoadFailed = stories == null;
-        _newsLoadFailed = news == null;
-        if (stories is List<PromoStory>) {
-          _stories = stories;
-          SharedPreferences.getInstance().then((prefs) {
-            prefs.setString(
-              'cached_stories_json',
-              jsonEncode(stories.map((s) => s.toJson()).toList()),
-            );
-          });
-        }
-        if (news is List<NewsItem>) {
-          _news = news;
-          SharedPreferences.getInstance().then((prefs) {
-            prefs.setString(
-              'cached_news_json',
-              jsonEncode(news.map((n) => n.toJson()).toList()),
-            );
-          });
-        }
-        _initialLoading = false;
-      });
-    } finally {
-      _feedLoading = false;
-      if (mounted && _initialLoading) {
-        setState(() {
-          _initialLoading = false;
-        });
-      }
-    }
-  }
+  void _updateHomeState(VoidCallback update) => setState(update);
 
   Future<void> _openDeliveryAddresses() async {
     await _navigationGate.run(() async {
