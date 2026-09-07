@@ -14,11 +14,9 @@ import {
   Store,
   Users,
   UtensilsCrossed,
-  Warehouse,
   ClipboardList,
   KeyRound,
   ContactRound,
-  MessageSquareText,
   MessageCircle,
   PanelLeftClose,
   Workflow,
@@ -49,7 +47,6 @@ const sections = [
     items: [
       { to: '/orders', label: 'nav.orders', icon: ShoppingBag },
       { to: '/kitchen', label: 'nav.kitchen', icon: ClipboardList },
-      { to: '/inventory', label: 'nav.inventory', icon: Warehouse },
     ],
   },
   {
@@ -57,7 +54,6 @@ const sections = [
     items: [
       { to: '/customers', label: 'nav.customers', icon: Users },
       { to: '/whatsapp', label: 'nav.whatsapp', icon: MessageCircle },
-      { to: '/reviews', label: 'nav.reviews', icon: MessageSquareText },
       { to: '/support', label: 'nav.support', icon: Headphones },
     ],
   },

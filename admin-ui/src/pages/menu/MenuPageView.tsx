@@ -1,3 +1,4 @@
+import ProductQrButton from '../../components/ProductQrButton';
 import {
   Eye,
   EyeOff,
@@ -192,7 +193,7 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
                     }`}
                   >
                     {/* Фото */}
-                    <div className="relative h-32 bg-gradient-to-br from-amber-50 to-orange-50 rounded-t-2xl overflow-hidden">
+                    <div className={`relative ${imgUrl ? "h-32 bg-amber-50" : "h-16"} rounded-t-2xl overflow-hidden`}>
                       {imgUrl ? (
                         <img
                           src={imgUrl}
@@ -202,13 +203,9 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
                           height="120"
                           loading="lazy"
                         />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <ImageIcon className="text-amber-200" size={36} />
-                        </div>
-                      )}
+                      ) : null}
                       {/* Цена — бейдж в углу */}
-                      <div className="absolute bottom-2 right-2 px-2.5 py-1 bg-white/90 backdrop-blur rounded-lg shadow text-sm font-bold text-amber-700">
+                      <div className={`absolute bottom-2 ${imgUrl ? "right-2" : "left-3"} px-2.5 py-1 bg-white/90 backdrop-blur rounded-lg shadow text-sm font-bold text-amber-700`}>
                         {displayPrice > 0 ? `${displayPrice.toLocaleString()} ₸` : '—'}
                       </div>
                       {/* Загрузить фото */}
@@ -261,7 +258,7 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
                       </p>
 
                       {/* Кнопки действий */}
-                      <div className="mt-3 flex items-center gap-1.5">
+                      <div className="mt-3 flex flex-wrap items-center gap-1.5">
                         <button
                           type="button"
                           onClick={() => openEditModal(p)}
@@ -270,6 +267,7 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
                           <Pencil aria-hidden="true" size={14} />
                           Изменить
                         </button>
+                        <ProductQrButton id={p.id} name={displayName} />
                         <button
                           type="button"
                           onClick={() => void openOptionsModal(p)}
@@ -487,7 +485,7 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
                   <div>
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-16 h-16 rounded-xl bg-gray-100 overflow-hidden flex items-center justify-center shrink-0">
+                        {cp.image_url && <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0">
                           {cp.image_url ? (
                             <img
                               src={cp.image_url}
@@ -497,10 +495,8 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
                               height="120"
                               loading="lazy"
                             />
-                          ) : (
-                            <ImageIcon className="text-gray-400" size={24} />
-                          )}
-                        </div>
+                          ) : null}
+                        </div>}
                         <div>
                           <h3 className="font-semibold text-gray-900 text-sm">{cp.name}</h3>
                           <p className="text-xs text-amber-600 font-medium mt-0.5">{cp.price} ₸</p>
@@ -513,7 +509,8 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-1">
+                      <div className="flex flex-wrap items-center gap-1">
+                        {cp.id && <ProductQrButton id={cp.id} name={cp.name} />}
                         <button
                           type="button"
                           onClick={() => {

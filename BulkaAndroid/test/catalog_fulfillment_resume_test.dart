@@ -71,7 +71,7 @@ void main() {
           await tester.pumpAndSettle();
           expect(find.byType(ProductDetailsScreen), findsOneWidget);
         }
-        await tester.tap(find.byKey(const ValueKey('catalog-image-add')).first);
+        await tester.tap(find.byKey(const ValueKey('catalog-image-add')).hitTestable().last);
         await tester.pumpAndSettle();
         await tester.tap(
           find.byKey(const ValueKey('catalog-order-type-required-ok')),
@@ -142,7 +142,7 @@ void main() {
     await tester.tap(find.text('Плюшка'));
     await tester.pumpAndSettle();
     expect(find.byType(ProductDetailsScreen), findsOneWidget);
-    await tester.tap(find.byKey(const ValueKey('catalog-image-add')));
+    await tester.tap(find.byKey(const ValueKey('catalog-image-add')).hitTestable().last);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Продолжить просмотр'));
     await tester.pumpAndSettle();

@@ -37,11 +37,9 @@ const BonusPage = lazy(() => import('./pages/BonusPage'));
 const LoyaltyTiersPage = lazy(() => import('./pages/LoyaltyTiersPage'));
 const MenuPage = lazy(() => import('./pages/MenuPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
-const InventoryPage = lazy(() => import('./pages/InventoryPage'));
 const SecurityPage = lazy(() => import('./pages/SecurityPage'));
 const KitchenPage = lazy(() => import('./pages/KitchenPage'));
 const MarketingPage = lazy(() => import('./pages/MarketingPage'));
-const ReviewsPage = lazy(() => import('./pages/ReviewsPage'));
 const AccessPage = lazy(() => import('./pages/AccessPage'));
 const ContactCenterPage = lazy(() => import('./pages/ContactCenterPage'));
 const WhatsAppPage = lazy(() => import('./pages/WhatsAppPage'));
@@ -605,7 +603,7 @@ export default function App() {
                 />
                 <Route
                   path="/inventory"
-                  element={guard('/inventory', <InventoryPage role={role} />)}
+                  element={<Navigate to={canOpen('/menu') ? '/menu' : firstPath} replace />}
                 />
                 <Route path="/couriers" element={<Navigate to={deliveryWorkspacePath} replace />} />
                 <Route path="/dispatch" element={<Navigate to={deliveryWorkspacePath} replace />} />
@@ -621,13 +619,16 @@ export default function App() {
                 />
                 <Route path="/kitchen" element={guard('/kitchen', <KitchenPage />)} />
                 <Route path="/marketing" element={guard('/marketing', <MarketingPage />)} />
-                <Route path="/reviews" element={guard('/reviews', <ReviewsPage />)} />
+                <Route
+                  path="/reviews"
+                  element={<Navigate to={canOpen('/support') ? '/support' : firstPath} replace />}
+                />
                 <Route path="/support" element={guard('/support', <SupportPage />)} />
                 <Route
                   path="/integrations"
                   element={guard('/integrations', <IntegrationsPage />)}
                 />
-                <Route path="/access" element={guard('/access', <AccessPage />)} />
+                <Route path="/access" element={guard('/access', <AccessPage user={adminUser} />)} />
                 <Route path="/security" element={guard('/security', <SecurityPage />)} />
                 <Route path="*" element={<Navigate to={firstPath} replace />} />
               </Routes>

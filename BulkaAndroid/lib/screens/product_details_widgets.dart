@@ -1,78 +1,79 @@
 part of '../main.dart';
 
-class _ProductPhotoHeader extends StatelessWidget {
+class _ProductPhotoHeader extends StatefulWidget {
   const _ProductPhotoHeader({required this.product});
 
   final CatalogProduct product;
+
+  @override
+  State<_ProductPhotoHeader> createState() => _ProductPhotoHeaderState();
+}
+
+class _ProductPhotoHeaderState extends State<_ProductPhotoHeader> {
+  bool _failed = false;
+  CatalogProduct get product => widget.product;
+
+  @override
+  void didUpdateWidget(covariant _ProductPhotoHeader oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.product.imageUrl != product.imageUrl) _failed = false;
+  }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.bulkaColors;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final extent = product.imageUrl.trim().isEmpty
-            ? 320.0
-            : (constraints.maxWidth * 1.16).clamp(360.0, 520.0);
-        final fallback = DecoratedBox(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFFF7ECD7), Color(0xFFEED7B4)],
-            ),
-          ),
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.only(bottom: 56),
-              child: Opacity(
-                opacity: 0.48,
-                child: Image.asset(
-                  'assets/brand/bulka_logo.png',
-                  width: 112,
-                  excludeFromSemantics: true,
-                ),
-              ),
-            ),
-          ),
-        );
+        final hasPhoto = product.imageUrl.trim().isNotEmpty && !_failed;
+        final extent = (constraints.maxWidth * 1.16).clamp(360.0, 520.0);
         return ClipRRect(
           borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
           child: Stack(
             key: const ValueKey('product-photo-area'),
             children: [
-              Positioned.fill(
-                child: BulkaHero(
-                  tag: 'catalog-product-${product.id}',
-                  child: _NetworkImage(
-                    url: product.imageUrl,
-                    fit: BoxFit.cover,
-                    semanticLabel: product.title,
-                    loadingPlaceholder: fallback,
-                    errorPlaceholder: fallback,
+              if (hasPhoto)
+                Positioned.fill(
+                  child: BulkaHero(
+                    tag: 'catalog-product-${product.id}',
+                    child: _NetworkImage(
+                      url: product.imageUrl,
+                      fit: BoxFit.cover,
+                      semanticLabel: product.title,
+                      loadingPlaceholder: const SizedBox.shrink(),
+                      errorPlaceholder: const SizedBox.shrink(),
+                      onError: () {
+                        if (mounted && !_failed) setState(() => _failed = true);
+                      },
+                    ),
                   ),
                 ),
-              ),
-              const Positioned.fill(
-                child: IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Color(0x00FFFFFF),
-                          Color(0x00FFFFFF),
-                          Color(0xE6FFFFFF),
-                          Colors.white,
-                        ],
-                        stops: [0, 0.55, 0.84, 1],
+              if (hasPhoto)
+                const Positioned.fill(
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Color(0x00FFFFFF),
+                            Color(0x00FFFFFF),
+                            Color(0xE6FFFFFF),
+                            Colors.white,
+                          ],
+                          stops: [0, 0.55, 0.84, 1],
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
               Padding(
-                padding: EdgeInsets.fromLTRB(24, extent - 78, 24, 20),
+                padding: EdgeInsets.fromLTRB(
+                  24,
+                  hasPhoto ? extent - 78 : 88,
+                  24,
+                  20,
+                ),
                 child: Align(
                   alignment: Alignment.center,
                   child: Text(

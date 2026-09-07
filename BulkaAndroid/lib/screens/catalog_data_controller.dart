@@ -2,7 +2,9 @@ part of '../main.dart';
 
 extension _CatalogDataController on _CatalogScreenState {
   Future<void> _silentRefresh() {
-    if (!mounted || _activeMenuLoads > 0) return Future<void>.value();
+    if (!mounted || !_menuScopeReady || _activeMenuLoads > 0) {
+      return Future<void>.value();
+    }
     return _silentRefreshRequest ??= _loadMenu(silent: true).whenComplete(() {
       _silentRefreshRequest = null;
     });
@@ -11,6 +13,7 @@ extension _CatalogDataController on _CatalogScreenState {
   Future<void> _loadMenu({bool silent = false}) async {
     if (!mounted) return;
     _activeMenuLoads++;
+    _lastMenuAttempt = DateTime.now();
     final revision = ++_menuLoadRevision;
     final endpoint = _menuEndpoint;
     final cacheKey = _menuCacheKey;
@@ -92,7 +95,7 @@ extension _CatalogDataController on _CatalogScreenState {
         );
       }
     } catch (e) {
-      if (silent || !_isCurrentMenuRequest(revision, endpoint)) return;
+      if (!_isCurrentMenuRequest(revision, endpoint)) return;
       if (_allProducts.isNotEmpty) {
         _updateCatalogState(() {
           _isLoading = false;

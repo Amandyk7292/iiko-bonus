@@ -186,6 +186,9 @@ class _CatalogProductImage extends StatelessWidget {
         child: image,
       );
     }
+    if (url.trim().isEmpty) {
+      return const SizedBox(height: 64, width: double.infinity);
+    }
     return AspectRatio(aspectRatio: 1, child: image);
   }
 }

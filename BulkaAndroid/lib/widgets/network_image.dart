@@ -69,6 +69,7 @@ class _NetworkImage extends StatelessWidget {
     this.semanticLabel,
     this.loadingPlaceholder,
     this.errorPlaceholder,
+    this.onError,
   });
 
   final String url;
@@ -76,11 +77,19 @@ class _NetworkImage extends StatelessWidget {
   final String? semanticLabel;
   final Widget? loadingPlaceholder;
   final Widget? errorPlaceholder;
+  final VoidCallback? onError;
+
+  Widget _failedImage() {
+    if (onError != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => onError?.call());
+    }
+    return errorPlaceholder ?? const SizedBox.shrink();
+  }
 
   @override
   Widget build(BuildContext context) {
     if (url.isEmpty) {
-      return errorPlaceholder ?? const BulkaImagePlaceholder();
+      return _failedImage();
     }
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -126,8 +135,7 @@ class _NetworkImage extends StatelessWidget {
                 gaplessPlayback: true,
                 filterQuality: FilterQuality.medium,
                 semanticLabel: semanticLabel,
-                errorBuilder: (_, _, _) =>
-                    errorPlaceholder ?? const BulkaImagePlaceholder(),
+                errorBuilder: (_, _, _) => _failedImage(),
                 frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
                   if (wasSynchronouslyLoaded) return child;
                   final loaded = frame != null;
@@ -142,8 +150,7 @@ class _NetworkImage extends StatelessWidget {
                             duration: transitionDuration,
                             curve: BulkaMotion.exitCurve,
                             child:
-                                loadingPlaceholder ??
-                                const BulkaImagePlaceholder(isLoading: true),
+                                loadingPlaceholder ?? const SizedBox.shrink(),
                           ),
                         ),
                       ),
@@ -173,10 +180,8 @@ class _NetworkImage extends StatelessWidget {
                 fadeOutCurve: BulkaMotion.exitCurve,
                 useOldImageOnUrlChange: true,
                 placeholder: (_, _) =>
-                    loadingPlaceholder ??
-                    const BulkaImagePlaceholder(isLoading: true),
-                errorWidget: (_, _, _) =>
-                    errorPlaceholder ?? const BulkaImagePlaceholder(),
+                    loadingPlaceholder ?? const SizedBox.shrink(),
+                errorWidget: (_, _, _) => _failedImage(),
                 imageBuilder: (context, provider) => Image(
                   image: provider,
                   width: constraints.hasBoundedWidth
@@ -196,155 +201,6 @@ class _NetworkImage extends StatelessWidget {
           child: image,
         );
       },
-    );
-  }
-}
-
-class BulkaImagePlaceholder extends StatefulWidget {
-  const BulkaImagePlaceholder({super.key, this.isLoading = false});
-
-  final bool isLoading;
-
-  @override
-  State<BulkaImagePlaceholder> createState() => _BulkaImagePlaceholderState();
-}
-
-class _BulkaImagePlaceholderState extends State<BulkaImagePlaceholder>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _shimmerController;
-  bool _isAnimating = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _shimmerController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1100),
-    );
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _syncAnimation();
-  }
-
-  @override
-  void didUpdateWidget(covariant BulkaImagePlaceholder oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    _syncAnimation();
-  }
-
-  void _syncAnimation() {
-    final shouldAnimate =
-        widget.isLoading &&
-        !BulkaMotion.reduced(context) &&
-        TickerMode.of(context);
-    if (shouldAnimate == _isAnimating) return;
-    _isAnimating = shouldAnimate;
-    if (shouldAnimate) {
-      _shimmerController.repeat();
-    } else {
-      _shimmerController
-        ..stop()
-        ..value = 0;
-    }
-  }
-
-  @override
-  void dispose() {
-    _shimmerController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final reduceMotion = BulkaMotion.reduced(context);
-    return ExcludeSemantics(
-      child: RepaintBoundary(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final width =
-                constraints.hasBoundedWidth && constraints.maxWidth > 0
-                ? constraints.maxWidth
-                : 240.0;
-            return Stack(
-              key: ValueKey(
-                widget.isLoading
-                    ? 'network-image-loading-placeholder'
-                    : 'network-image-error-placeholder',
-              ),
-              fit: StackFit.expand,
-              children: [
-                const DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [Color(0xFFFFF9EF), Color(0xFFF2E2CA)],
-                    ),
-                  ),
-                ),
-                if (widget.isLoading && !reduceMotion)
-                  ClipRect(
-                    child: AnimatedBuilder(
-                      key: const ValueKey('network-image-shimmer'),
-                      animation: _shimmerController,
-                      child: FractionallySizedBox(
-                        alignment: Alignment.centerLeft,
-                        widthFactor: 0.42,
-                        child: const DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                Color(0x00FFFFFF),
-                                Color(0x99FFFFFF),
-                                Color(0x00FFFFFF),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      builder: (context, child) => Transform.translate(
-                        offset: Offset(
-                          (-0.55 + _shimmerController.value * 1.9) * width,
-                          0,
-                        ),
-                        child: child,
-                      ),
-                    ),
-                  ),
-                Center(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.72),
-                      shape: BoxShape.circle,
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Color(0x1A5A3316),
-                          blurRadius: 16,
-                          offset: Offset(0, 5),
-                        ),
-                      ],
-                    ),
-                    child: SizedBox(
-                      width: 48,
-                      height: 48,
-                      child: Icon(
-                        widget.isLoading
-                            ? Icons.bakery_dining_rounded
-                            : Icons.image_not_supported_rounded,
-                        size: 27,
-                        color: const Color(0xFFB1773E),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
-      ),
     );
   }
 }

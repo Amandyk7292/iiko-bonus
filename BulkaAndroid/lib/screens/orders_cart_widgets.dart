@@ -51,11 +51,12 @@ class _CartProductCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          SizedBox(
-            width: compact ? 110 : 126,
-            height: double.infinity,
-            child: _NetworkImage(url: item.imageUrl, fit: BoxFit.cover),
-          ),
+          if (item.imageUrl.trim().isNotEmpty)
+            SizedBox(
+              width: compact ? 110 : 126,
+              height: double.infinity,
+              child: _NetworkImage(url: item.imageUrl, fit: BoxFit.cover),
+            ),
           Expanded(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(14, 12, 10, 10),
@@ -74,25 +75,25 @@ class _CartProductCard extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(height: 5),
-                  Text(
-                    item.isStopListed
-                        ? 'cart_unavailable'.tr
-                        : '${'cart_contains'.tr} · ${item.quantity} ${'cart_units'.tr}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: item.isStopListed ? colors.danger : colors.success,
-                      fontSize: BulkaTypeScale.caption,
-                      fontWeight: FontWeight.w600,
+                  if (item.isStopListed) ...[
+                    const SizedBox(height: 5),
+                    Text(
+                      'cart_unavailable'.tr,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: colors.danger,
+                        fontSize: BulkaTypeScale.caption,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
+                  ],
                   const Spacer(),
                   Row(
                     children: [
                       Expanded(
                         child: Text(
-                          '${_formatCartMoney(item.total)} ₸',
+                          '${_formatCartMoney(item.price)} ₸',
                           maxLines: 1,
                           style: TextStyle(
                             fontFamily: _headingFont,

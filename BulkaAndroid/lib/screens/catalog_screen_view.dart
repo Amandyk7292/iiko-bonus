@@ -234,32 +234,11 @@ extension _CatalogScreenView on _CatalogScreenState {
                             : extent >= 620
                             ? 3
                             : 2;
-                        final cardWidth =
-                            (extent - spacing * (columnCount - 1)) /
-                            columnCount;
-                        final textScale = MediaQuery.textScalerOf(
-                          context,
-                        ).scale(1);
-                        return SliverGrid(
+                        return _buildProductRows(
+                          products,
+                          columnCount,
+                          spacing,
                           key: ValueKey('catalog-category-grid-$category'),
-                          gridDelegate:
-                              SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: columnCount,
-                                mainAxisSpacing: 18,
-                                crossAxisSpacing: spacing,
-                                mainAxisExtent:
-                                    cardWidth + (textScale > 1.2 ? 162 : 122),
-                              ),
-                          delegate: SliverChildBuilderDelegate((
-                            context,
-                            index,
-                          ) {
-                            final product = products[index];
-                            return _buildProductCard(
-                              product,
-                              cart.getQuantity(product.id),
-                            );
-                          }, childCount: products.length),
                         );
                       },
                     ),

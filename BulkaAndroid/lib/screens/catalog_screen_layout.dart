@@ -490,9 +490,6 @@ extension _CatalogScreenLayout on _CatalogScreenState {
                         ),
                         sliver: SliverLayoutBuilder(
                           builder: (context, constraints) {
-                            final textScale = MediaQuery.textScalerOf(
-                              context,
-                            ).scale(1);
                             const maxCardWidth = 235.0;
                             const crossSpacing = 12.0;
                             final columnCount = max(
@@ -501,28 +498,10 @@ extension _CatalogScreenLayout on _CatalogScreenState {
                                       (maxCardWidth + crossSpacing))
                                   .ceil(),
                             ).toInt();
-                            final cardWidth =
-                                (constraints.crossAxisExtent -
-                                    crossSpacing * (columnCount - 1)) /
-                                columnCount;
-                            final mainAxisExtent =
-                                cardWidth + (textScale > 1.2 ? 162.0 : 122.0);
-                            return SliverGrid(
-                              gridDelegate:
-                                  SliverGridDelegateWithMaxCrossAxisExtent(
-                                    maxCrossAxisExtent: maxCardWidth,
-                                    mainAxisSpacing: 16,
-                                    crossAxisSpacing: crossSpacing,
-                                    mainAxisExtent: mainAxisExtent,
-                                  ),
-                              delegate: SliverChildBuilderDelegate((
-                                context,
-                                index,
-                              ) {
-                                final p = visibleProducts[index];
-                                final qty = cart.getQuantity(p.id);
-                                return _buildProductCard(p, qty);
-                              }, childCount: visibleProducts.length),
+                            return _buildProductRows(
+                              visibleProducts,
+                              columnCount,
+                              crossSpacing,
                             );
                           },
                         ),

@@ -73,6 +73,7 @@ describe('Sidebar role navigation', () => {
     expect(paths.length).toBeGreaterThan(20);
     expect(paths).not.toContain('/couriers');
     expect(paths).not.toContain('/dispatch');
+    expect(paths).not.toContain('/reviews');
   });
 
   it('caps live badges and invokes mobile and desktop controls immediately', () => {

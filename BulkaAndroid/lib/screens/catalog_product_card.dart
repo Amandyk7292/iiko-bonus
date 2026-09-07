@@ -1,6 +1,38 @@
 part of '../main.dart';
 
 extension _CatalogProductCard on _CatalogScreenState {
+  Widget _buildProductRows(
+    List<CatalogProduct> products,
+    int columns,
+    double spacing, {
+    Key? key,
+  }) {
+    final cart = context.read<CartProvider>();
+    return SliverList.builder(
+      key: key,
+      itemCount: (products.length / columns).ceil(),
+      itemBuilder: (context, row) => Padding(
+        padding: const EdgeInsets.only(bottom: 18),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var column = 0; column < columns; column++) ...[
+              if (column > 0) SizedBox(width: spacing),
+              Expanded(
+                child: row * columns + column < products.length
+                    ? _buildProductCard(
+                        products[row * columns + column],
+                        cart.getQuantity(products[row * columns + column].id),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildProductCard(CatalogProduct product, int quantity) {
     final colors = context.bulkaColors;
     final scheme = Theme.of(context).colorScheme;
@@ -9,6 +41,110 @@ extension _CatalogProductCard on _CatalogScreenState {
     final stockKey = _stockSubscriptionKey(product.id, _selectedBakeryId);
     final stockSubscribed = _stockSubscriptions.containsKey(stockKey);
     final stockBusy = _stockSubscriptionBusy.contains(stockKey);
+
+    if (product.imageUrl.trim().isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: scheme.surface,
+          borderRadius: BorderRadius.circular(BulkaRadii.card),
+          border: Border.all(color: colors.cardBorder),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            InkWell(
+              onTap: unavailable ? null : () => _openProductDetails(product),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Text(
+                  product.title,
+                  style: const TextStyle(
+                    fontFamily: _headingFont,
+                    fontSize: BulkaTypeScale.bodySmall,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+            Text(
+              '${_CatalogScreenState._formatPrice(context, product.price)} ₸',
+              style: TextStyle(
+                fontFamily: _descriptionFont,
+                fontSize: BulkaTypeScale.body,
+                fontWeight: FontWeight.w700,
+                color: colors.brandBrown,
+              ),
+            ),
+            if (unavailable)
+              Text(
+                'catalog_stop_list'.tr,
+                style: TextStyle(
+                  fontSize: BulkaTypeScale.caption,
+                  color: colors.mutedText,
+                ),
+              ),
+            const SizedBox(height: 10),
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              runSpacing: 8,
+              children: [
+                Semantics(
+                  button: true,
+                  toggled: favorite,
+                  label: favorite
+                      ? 'catalog_remove_favorite'.tr
+                      : 'catalog_add_favorite'.tr,
+                  excludeSemantics: true,
+                  child: IconButton(
+                    key: ValueKey('catalog-favorite-${product.id}'),
+                    tooltip: favorite
+                        ? 'catalog_remove_favorite'.tr
+                        : 'catalog_add_favorite'.tr,
+                    onPressed: unavailable
+                        ? null
+                        : () => unawaited(_toggleFavorite(product)),
+                    icon: Icon(
+                      favorite
+                          ? Icons.favorite_rounded
+                          : Icons.favorite_border_rounded,
+                      color: colors.brandBrown,
+                    ),
+                  ),
+                ),
+                unavailable
+                    ? IconButton(
+                        tooltip: stockSubscribed
+                            ? 'stock_notify_enabled'.tr
+                            : 'stock_notify_enable'.tr,
+                        onPressed: stockBusy
+                            ? null
+                            : () =>
+                                  unawaited(_toggleStockSubscription(product)),
+                        icon: Icon(
+                          stockSubscribed
+                              ? Icons.notifications_active_rounded
+                              : Icons.add_alert_rounded,
+                        ),
+                      )
+                    : _CatalogImageQuantityControl(
+                        quantity: quantity,
+                        stopListed: false,
+                        onAdd: () => _setProductQuantity(product, 1),
+                        onDecrease: () =>
+                            _setProductQuantity(product, quantity - 1),
+                        onIncrease:
+                            quantity >= _catalogProductQuantityLimit(product)
+                            ? null
+                            : () => _setProductQuantity(product, quantity + 1),
+                      ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
 
     return Semantics(
       container: true,

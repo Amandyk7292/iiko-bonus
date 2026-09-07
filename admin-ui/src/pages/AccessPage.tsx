@@ -18,7 +18,7 @@ import Modal from '../components/Modal';
 import PageState from '../components/PageState';
 import SelectControl from '../components/SelectControl';
 import { useFeedback } from '../components/Feedback';
-import { api, type OnlineOrderingConfig } from '../lib/api';
+import { api, type AdminUser, type OnlineOrderingConfig } from '../lib/api';
 import { useI18n } from '../lib/i18n';
 
 interface AccessProfile {
@@ -69,7 +69,7 @@ const emptyDraft = (): StaffDraft => ({
 const isPhoneProfile = (username: string) => /^\+7\d{10}$/.test(username);
 const emptyOnlineOrdering = (): OnlineOrderingConfig => ({ disabled: false });
 
-export default function AccessPage() {
+export default function AccessPage({ user }: { user?: AdminUser | null }) {
   const { toast } = useFeedback();
   const { t } = useI18n();
   const roleLabels = Object.fromEntries(
@@ -383,6 +383,7 @@ export default function AccessPage() {
           <PageState type="empty" title={t('access.noAccounts')} />
         ) : (
           profiles.map((profile) => {
+            const selfOwner = user?.username === profile.username && ['owner', 'admin'].includes(user.role);
             const phoneLogin = isPhoneProfile(profile.username);
             const cashierProfile = profile.role === 'cashier' || profile.authMethod === 'password';
             const availableRoles = cashierProfile
@@ -413,6 +414,7 @@ export default function AccessPage() {
                   <label className="switch-row">
                     <input
                       type="checkbox"
+                      disabled={selfOwner}
                       checked={profile.active !== false}
                       onChange={(event) =>
                         patchProfile(profile.username, { active: event.target.checked })
@@ -444,7 +446,7 @@ export default function AccessPage() {
                       name={`role-${profile.username}`}
                       value={profile.role}
                       onChange={(value) => patchProfile(profile.username, { role: value })}
-                      disabled={cashierProfile}
+                      disabled={cashierProfile || selfOwner}
                       options={Object.entries(availableRoles).map(([value, label]) => ({
                         value,
                         label,

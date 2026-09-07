@@ -27,6 +27,11 @@ class CatalogScreen extends StatefulWidget {
 class _CatalogScreenState extends State<CatalogScreen>
     with WidgetsBindingObserver {
   static const _menuRefreshInterval = Duration(seconds: 60);
+  static const _menuRetryInterval = Duration(seconds: 15);
+  DateTime? _lastMenuAttempt;
+  bool _menuScopeReady = false;
+  bool _wasActive = false;
+  StreamSubscription<void>? _networkRecoverySubscription;
 
   final _searchController = TextEditingController();
   final ValueNotifier<Map<String, CatalogProduct>> _liveProducts =
@@ -90,20 +95,47 @@ class _CatalogScreenState extends State<CatalogScreen>
     WidgetsBinding.instance.addObserver(this);
     appLanguageNotifier.addListener(_onLanguageChanged);
     _pendingClientUri = widget.initialClientUri;
-    unawaited(_loadSelectedBakery().then((_) => _loadMenu()));
+    unawaited(
+      _loadSelectedBakery().then((_) async {
+        if (!mounted) return;
+        _menuScopeReady = true;
+        await _loadMenu();
+      }),
+    );
     unawaited(_loadFavorites());
     unawaited(_loadStockSubscriptions());
     _menuEventSubscription = _api.customerEvents.listen((event) {
       if (event['type'] == 'menu.updated') unawaited(_silentRefresh());
     });
-    // Hidden tabs keep their state, but must not poll in the background.
-    _autoRefreshTimer = Timer.periodic(_menuRefreshInterval, (_) {
-      if (mounted &&
-          TickerMode.of(context) &&
-          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
-        unawaited(_silentRefresh());
+    _networkRecoverySubscription = networkRecoveryEvents().listen(
+      (_) => _refreshIfActive(),
+    );
+    _autoRefreshTimer = Timer.periodic(_menuRetryInterval, (_) {
+      final interval = _usingCachedMenu || _loadError != null
+          ? _menuRetryInterval
+          : _menuRefreshInterval;
+      if (_lastMenuAttempt == null ||
+          DateTime.now().difference(_lastMenuAttempt!) >= interval) {
+        _refreshIfActive();
       }
     });
+  }
+
+  void _refreshIfActive() {
+    if (!mounted || !_menuScopeReady || !TickerMode.of(context)) return;
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    if (lifecycle != null && lifecycle != AppLifecycleState.resumed) return;
+    unawaited(_silentRefresh());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final active = TickerMode.of(context);
+    if (active && !_wasActive) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _refreshIfActive());
+    }
+    _wasActive = active;
   }
 
   static Uri _categoryClientUri(String category) {
@@ -211,13 +243,20 @@ class _CatalogScreenState extends State<CatalogScreen>
       _loadError = null;
       _trackedCatalogKey = '';
     });
-    unawaited(_loadSelectedBakery().then((_) => _loadMenu()));
+    unawaited(
+      _loadSelectedBakery().then((_) async {
+        if (!mounted) return;
+        _menuScopeReady = true;
+        await _loadMenu();
+      }),
+    );
   }
 
   @override
   void dispose() {
     appLanguageNotifier.removeListener(_onLanguageChanged);
     _autoRefreshTimer?.cancel();
+    _networkRecoverySubscription?.cancel();
     _menuEventSubscription?.cancel();
     _searchController.dispose();
     _liveProducts.dispose();
@@ -229,7 +268,7 @@ class _CatalogScreenState extends State<CatalogScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Обновить меню когда приложение возвращается из фона
     if (state == AppLifecycleState.resumed) {
-      _silentRefresh();
+      _refreshIfActive();
     }
   }
 

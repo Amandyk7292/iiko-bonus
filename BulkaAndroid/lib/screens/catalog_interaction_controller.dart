@@ -357,8 +357,12 @@ extension _CatalogInteractionController on _CatalogScreenState {
       );
       try {
         await Navigator.of(context).push<void>(
-          MaterialPageRoute(
-            builder: (_) => ProductDetailsScreen(
+          PageRouteBuilder<void>(
+            opaque: false,
+            barrierDismissible: true,
+            barrierColor: Colors.black.withValues(alpha: 0.32),
+            barrierLabel: 'close_tooltip'.tr,
+            pageBuilder: (_, _, _) => ProductDetailsScreen(
               api: _api,
               product: product,
               liveProducts: _liveProducts,

@@ -24,7 +24,7 @@ describe('admin permissions shown by the frontend', () => {
 
   it('gives the supported editor role only backend-compatible sections', () => {
     expect(ADMIN_ALLOWED_PATHS.editor).toContain('/orders');
-    expect(ADMIN_ALLOWED_PATHS.editor).toContain('/inventory');
+    expect(ADMIN_ALLOWED_PATHS.editor).not.toContain('/inventory');
     expect(ADMIN_ALLOWED_PATHS.editor).not.toContain('/access');
     expect(ADMIN_ALLOWED_PATHS.editor).not.toContain('/security');
     expect(ADMIN_ALLOWED_PATHS.editor).not.toContain('/settings');
