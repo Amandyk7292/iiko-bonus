@@ -342,11 +342,8 @@ void main() {
     await tester.tap(addButton);
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('Сначала выберите, пожалуйста, тип заказа'),
-      findsOneWidget,
-    );
-    expect(find.text('Выбрать тип заказа'), findsOneWidget);
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.text('Выбрать тип заказа'), findsNWidgets(2));
     expect(find.text('Продолжить просмотр'), findsOneWidget);
     expect(
       Provider.of<CartProvider>(

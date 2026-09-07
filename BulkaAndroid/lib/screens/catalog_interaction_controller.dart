@@ -237,70 +237,21 @@ extension _CatalogInteractionController on _CatalogScreenState {
     _orderTypeDialogOpen = true;
     final chooseOrderType = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => Dialog(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.transparent,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(BulkaRadii.card),
-        ),
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'catalog_select_order_type_first'.tr,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontFamily: _headingFont,
-                    color: _textDark,
-                    fontSize: BulkaTypeScale.title,
-                    height: 1.35,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'catalog_select_order_type_resume'.tr,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(height: 1.45),
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    key: const ValueKey('catalog-order-type-required-ok'),
-                    onPressed: () => Navigator.of(dialogContext).pop(true),
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(52),
-                      backgroundColor: _bulkaYellow,
-                      foregroundColor: _textDark,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(BulkaRadii.control),
-                      ),
-                    ),
-                    child: Text(
-                      'catalog_select_order_type_ok'.tr,
-                      style: const TextStyle(
-                        fontFamily: _headingFont,
-                        fontSize: BulkaTypeScale.body,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
-                TextButton(
-                  key: const ValueKey('catalog-order-type-required-cancel'),
-                  onPressed: () => Navigator.of(dialogContext).pop(false),
-                  child: Text('catalog_continue_browsing'.tr),
-                ),
-              ],
-            ),
+      builder: (dialogContext) => AlertDialog(
+        scrollable: true,
+        title: Text('catalog_select_order_type_ok'.tr),
+        actions: [
+          TextButton(
+            key: const ValueKey('catalog-order-type-required-cancel'),
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text('catalog_continue_browsing'.tr),
           ),
-        ),
+          FilledButton(
+            key: const ValueKey('catalog-order-type-required-ok'),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text('catalog_select_order_type_ok'.tr),
+          ),
+        ],
       ),
     );
     _orderTypeDialogOpen = false;

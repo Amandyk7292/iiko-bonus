@@ -73,7 +73,9 @@ void main() {
         }
         await tester.tap(find.byKey(const ValueKey('catalog-image-add')).first);
         await tester.pumpAndSettle();
-        await tester.tap(find.text('Выбрать тип заказа'));
+        await tester.tap(
+          find.byKey(const ValueKey('catalog-order-type-required-ok')),
+        );
         await tester.pumpAndSettle();
         expect(requests, 1);
         expect(cart.itemCount, 0);
@@ -104,10 +106,7 @@ void main() {
           );
         } else {
           expect(find.byType(ProductDetailsScreen), findsNothing);
-          expect(
-            find.textContaining('сейчас недоступен в этой пекарне'),
-            findsOneWidget,
-          );
+          expect(find.textContaining('Товар недоступен'), findsOneWidget);
         }
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox.shrink());

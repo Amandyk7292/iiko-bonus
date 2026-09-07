@@ -372,8 +372,8 @@ with sync_playwright() as playwright:
     page.get_by_role("button", name="Закрыть").click()
 
     page.get_by_role("button", name="Операции").click()
-    page.get_by_role("link", name="Диспетчерская", exact=True).click()
-    page.get_by_role("heading", name="Диспетчерская", exact=True).wait_for()
+    assert page.get_by_role("link", name="Диспетчерская", exact=True).count() == 0
+    assert page.get_by_role("link", name="Курьеры", exact=True).count() == 0
     page.get_by_role("link", name="Экран кухни", exact=True).click()
     page.get_by_role("heading", name="Экран кухни", exact=True).first.wait_for()
 
