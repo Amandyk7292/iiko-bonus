@@ -13,17 +13,18 @@ async function attachOrderImages(orders, { db = supabase } = {}) {
       const batch = ids.slice(start, start + 150);
       const customIds = batch.filter((id) => /^[0-9a-f-]{36}$/i.test(id));
       const results = await Promise.all([
-        db.from('menu_overrides').select('iiko_product_id,image_url').in('iiko_product_id', batch),
+        db.from('menu_overrides').select('iiko_product_id,custom_image_url').in('iiko_product_id', batch),
         customIds.length ? db.from('custom_products').select('id,image_url').in('id', customIds)
           : Promise.resolve({ data: [] }),
       ]);
       for (const result of results) {
-        if (result.error) throw result.error;
+        if (result.error) continue;
         for (const row of result.data || []) {
-          if (!String(row.image_url || '').startsWith('https://')) continue;
+          const imageUrl = row.custom_image_url || row.image_url;
+          if (!String(imageUrl || '').startsWith('https://')) continue;
           const id = String(row.iiko_product_id || row.id);
           if (!candidates.has(id)) candidates.set(id, new Set());
-          candidates.get(id).add(row.image_url);
+          candidates.get(id).add(imageUrl);
         }
       }
     }
@@ -31,6 +32,7 @@ async function attachOrderImages(orders, { db = supabase } = {}) {
     // Photo availability must never hide a customer's purchase history.
     return orders;
   }
+  if (!candidates.size) return orders;
   return orders.map((order) => ({ ...order, items: (order.items || []).map((item) => {
     const photos = candidates.get(String(item.id || item.productId || ''));
     return item.imageUrl || item.image_url || photos?.size !== 1 ? item
