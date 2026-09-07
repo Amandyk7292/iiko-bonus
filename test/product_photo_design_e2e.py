@@ -35,7 +35,7 @@ with sync_playwright() as p:
         page.wait_for_timeout(1800)
         if photo:
             assert loaded_images, 'Product photo did not load'
-        assert any('Montserrat-Bold-subset.ttf' in url for url in loaded_fonts), loaded_fonts
+        assert any('Roboto-Bold-subset.ttf' in url for url in loaded_fonts), loaded_fonts
         assert not any('GolosText' in url for url in loaded_fonts), loaded_fonts
         assert not errors, errors
         output = ROOT / 'scratch' / ('product-photo-' + str(width) + ('-empty' if not photo else '') + '.png')

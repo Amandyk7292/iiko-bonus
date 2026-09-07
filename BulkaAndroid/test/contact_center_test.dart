@@ -54,7 +54,7 @@ void main() {
     ],
   };
 
-  test('headings use Montserrat Bold while descriptions use Montserrat', () {
+  test('headings use Roboto Bold while descriptions use Roboto', () {
     final theme = buildBulkaTheme();
     final textTheme = theme.textTheme;
     final headingStyles = <TextStyle?>[
@@ -80,17 +80,17 @@ void main() {
     expect(headingStyles, everyElement(isNotNull));
     expect(
       headingStyles.map((style) => style?.fontFamily),
-      everyElement('MontserratBold'),
+      everyElement('RobotoBold'),
     );
     expect(descriptionStyles, everyElement(isNotNull));
     expect(
       descriptionStyles.map((style) => style?.fontFamily),
-      everyElement('Montserrat'),
+      everyElement('Roboto'),
     );
 
     final style = theme.appBarTheme.titleTextStyle;
 
-    expect(style?.fontFamily, 'MontserratBold');
+    expect(style?.fontFamily, 'RobotoBold');
     expect(style?.fontSize, BulkaTypeScale.pageTitle);
     expect(style?.fontWeight, FontWeight.w400);
   });
@@ -391,7 +391,7 @@ void main() {
       );
       final title = tester.widget<Text>(titleFinder);
 
-      expect(title.style?.fontFamily, 'MontserratBold');
+      expect(title.style?.fontFamily, 'RobotoBold');
       expect(title.style?.fontSize, BulkaTypeScale.pageTitle);
       expect(title.style?.fontWeight, FontWeight.w400);
       expect(title.maxLines, 2);

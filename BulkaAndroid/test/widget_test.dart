@@ -226,16 +226,13 @@ void main() {
     }
   });
 
-  test('only Montserrat typography is registered for customer UI', () {
+  test('only Roboto typography is registered for customer UI', () {
     const familyWeights = {
-      'Montserrat': [
-        'Light',
-        'Regular',
-        'Medium',
-        'SemiBold',
-        'Bold',
-        'ExtraBold',
-        'Black',
+      'Roboto': [
+        'Regular-subset',
+        'Medium-subset',
+        'SemiBold-subset',
+        'Bold-subset',
       ],
     };
     for (final MapEntry(key: family, value: weights) in familyWeights.entries) {
@@ -250,7 +247,7 @@ void main() {
       r'^\s*-\s+family:\s*([^\s]+)',
       multiLine: true,
     ).allMatches(pubspec).map((match) => match.group(1)).toSet();
-    expect(declaredFamilies, {'MontserratBold', 'Montserrat'});
+    expect(declaredFamilies, {'RobotoBold', 'Roboto'});
   });
 
   test('customer UI uses only the two semantic font roles', () {
@@ -269,15 +266,15 @@ void main() {
     expect(violations, isEmpty);
 
     final theme = buildBulkaTheme();
-    expect(theme.textTheme.headlineMedium?.fontFamily, 'MontserratBold');
-    expect(theme.textTheme.bodyMedium?.fontFamily, 'Montserrat');
+    expect(theme.textTheme.headlineMedium?.fontFamily, 'RobotoBold');
+    expect(theme.textTheme.bodyMedium?.fontFamily, 'Roboto');
     for (final style in [
       theme.filledButtonTheme.style,
       theme.elevatedButtonTheme.style,
       theme.outlinedButtonTheme.style,
       theme.textButtonTheme.style,
     ]) {
-      expect(style?.textStyle?.resolve({})?.fontFamily, 'MontserratBold');
+      expect(style?.textStyle?.resolve({})?.fontFamily, 'RobotoBold');
     }
   });
 
