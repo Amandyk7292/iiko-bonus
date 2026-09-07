@@ -31,7 +31,6 @@ class ProductDetailsScreen extends StatefulWidget {
 class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   late int _quantity;
   late bool _isFavorite;
-  int _currentPhotoIndex = 0;
   Map<String, dynamic> _options = const {};
   final Map<String, Set<String>> _selectedModifiers = {};
   final TextEditingController _inscriptionController = TextEditingController();
@@ -711,8 +710,67 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     );
   }
 
+  Widget _buildPhotoActions(CatalogProduct product) {
+    final colors = context.bulkaColors;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          IconButton(
+            key: const ValueKey('product-share'),
+            onPressed: () => _shareProduct(product),
+            icon: const Icon(Icons.ios_share_rounded, size: 23),
+            tooltip: 'catalog_share_product'.tr,
+            style: IconButton.styleFrom(
+              minimumSize: const Size(48, 48),
+              tapTargetSize: MaterialTapTargetSize.padded,
+              backgroundColor: Colors.white,
+              foregroundColor: colors.brandBrown,
+              side: BorderSide(color: colors.cardBorder),
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            key: const ValueKey('product-favorite'),
+            onPressed: widget.onToggleFavorite == null
+                ? null
+                : _toggleProductFavorite,
+            icon: Icon(
+              _isFavorite
+                  ? Icons.favorite_rounded
+                  : Icons.favorite_border_rounded,
+              size: 24,
+            ),
+            tooltip: 'catalog_favorites'.tr,
+            style: IconButton.styleFrom(
+              minimumSize: const Size(48, 48),
+              backgroundColor: Colors.white,
+              foregroundColor: colors.brandBrown,
+              disabledForegroundColor: colors.mutedText,
+              side: BorderSide(
+                color: _isFavorite ? colors.brandGold : colors.cardBorder,
+              ),
+            ),
+          ),
+          const Spacer(),
+          IconButton(
+            key: const ValueKey('product-close'),
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(Icons.close_rounded, size: 27),
+            tooltip: 'close_tooltip'.tr,
+            style: IconButton.styleFrom(
+              minimumSize: const Size(52, 52),
+              backgroundColor: Colors.white,
+              foregroundColor: colors.brandBrown,
+              side: BorderSide(color: colors.cardBorder),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildContent(BuildContext context, CatalogProduct product) {
-    final photos = [product.imageUrl];
     final colors = context.bulkaColors;
     final scheme = Theme.of(context).colorScheme;
 
@@ -721,687 +779,481 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
+            Expanded(
+              child: Stack(
                 children: [
-                  IconButton(
-                    key: const ValueKey('product-share'),
-                    onPressed: () => _shareProduct(product),
-                    icon: const Icon(Icons.ios_share_rounded, size: 23),
-                    tooltip: 'catalog_share_product'.tr,
-                    style: IconButton.styleFrom(
-                      minimumSize: const Size(48, 48),
-                      tapTargetSize: MaterialTapTargetSize.padded,
-                      backgroundColor: Colors.white,
-                      foregroundColor: colors.brandBrown,
-                      side: BorderSide(color: colors.cardBorder),
+                  SingleChildScrollView(
+                    clipBehavior: Clip.hardEdge,
+                    padding: const EdgeInsets.only(bottom: 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _ProductPhotoHeader(product: product),
+                        Container(
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: scheme.surface,
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(BulkaRadii.card),
+                            ),
+                          ),
+                          padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              if (product.weightGrams != null) ...[
+                                const SizedBox(height: 12),
+                                Center(
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 8,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: colors.brandGold.withValues(
+                                        alpha: 0.15,
+                                      ),
+                                      borderRadius: BorderRadius.circular(
+                                        BulkaRadii.pill,
+                                      ),
+                                      border: Border.all(
+                                        color: colors.brandGold.withValues(
+                                          alpha: 0.48,
+                                        ),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      'catalog_weight_short'.trArgs({
+                                        'weight': product.weightGrams,
+                                      }),
+                                      style: TextStyle(
+                                        fontFamily: _headingFont,
+                                        color: colors.brandBrown,
+                                        fontSize: BulkaTypeScale.bodySmall,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                              if (product.hasProductDetails) ...[
+                                const SizedBox(height: 28),
+                                Center(
+                                  child: Text(
+                                    'catalog_about_product'.tr,
+                                    style: const TextStyle(
+                                      fontFamily: _headingFont,
+                                      fontSize: BulkaTypeScale.titleLarge,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 14),
+                              ],
+                              if (product.description.trim().isNotEmpty)
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(20),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(
+                                      BulkaRadii.card,
+                                    ),
+                                    border: Border.all(
+                                      color: colors.cardBorder,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    product.description.trim(),
+                                    style: TextStyle(
+                                      fontFamily: _descriptionFont,
+                                      fontSize: BulkaTypeScale.body,
+                                      color: scheme.onSurface,
+                                      height: 1.5,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                              if (product.hasNutrition ||
+                                  product.hasComposition) ...[
+                                if (product.description.trim().isNotEmpty)
+                                  const SizedBox(height: 14),
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.fromLTRB(
+                                    14,
+                                    20,
+                                    14,
+                                    18,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(
+                                      BulkaRadii.card,
+                                    ),
+                                    border: Border.all(
+                                      color: colors.cardBorder,
+                                    ),
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      if (product.hasNutrition) ...[
+                                        Text(
+                                          'catalog_product_information'.tr,
+                                          textAlign: TextAlign.center,
+                                          style: const TextStyle(
+                                            fontFamily: _headingFont,
+                                            fontSize: BulkaTypeScale.title,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 5),
+                                        Text(
+                                          'catalog_nutrition_whole_product'.tr,
+                                          style: TextStyle(
+                                            fontFamily: _descriptionFont,
+                                            color: colors.mutedText,
+                                            fontSize: BulkaTypeScale.bodySmall,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 18),
+                                        _nutritionGrid(product),
+                                      ],
+                                      if (product.hasNutrition &&
+                                          product.hasComposition)
+                                        const SizedBox(height: 18),
+                                      if (product.hasComposition)
+                                        SizedBox(
+                                          width: double.infinity,
+                                          child: OutlinedButton(
+                                            key: const ValueKey(
+                                              'product-show-ingredients',
+                                            ),
+                                            onPressed: () =>
+                                                _showIngredientsSheet(product),
+                                            style: OutlinedButton.styleFrom(
+                                              backgroundColor:
+                                                  colors.surfaceCream,
+                                              foregroundColor:
+                                                  colors.brandBrown,
+                                              side: BorderSide(
+                                                color: colors.cardBorder,
+                                              ),
+                                              minimumSize:
+                                                  const Size.fromHeight(52),
+                                              shape: const StadiumBorder(),
+                                            ),
+                                            child: Text(
+                                              'catalog_view_ingredients'.tr,
+                                              style: const TextStyle(
+                                                fontFamily: _headingFont,
+                                                fontSize: BulkaTypeScale.body,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                              if (product.storageConditions.isNotEmpty) ...[
+                                if (product.description.trim().isNotEmpty ||
+                                    product.hasNutrition ||
+                                    product.hasComposition)
+                                  const SizedBox(height: 14),
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(20),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(
+                                      BulkaRadii.card,
+                                    ),
+                                    border: Border.all(
+                                      color: colors.cardBorder,
+                                    ),
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      Text(
+                                        'catalog_storage_conditions'.tr,
+                                        textAlign: TextAlign.center,
+                                        style: const TextStyle(
+                                          fontFamily: _headingFont,
+                                          fontSize: BulkaTypeScale.title,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 18),
+                                      _ProductStorageConditions(
+                                        conditions: product.storageConditions,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                              if (product.dietaryTags.isNotEmpty) ...[
+                                if (product.description.trim().isNotEmpty ||
+                                    product.hasNutrition ||
+                                    product.hasComposition ||
+                                    product.storageConditions.isNotEmpty)
+                                  const SizedBox(height: 14),
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.all(20),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(
+                                      BulkaRadii.card,
+                                    ),
+                                    border: Border.all(
+                                      color: colors.cardBorder,
+                                    ),
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      Text(
+                                        'catalog_certificates'.tr,
+                                        style: const TextStyle(
+                                          fontFamily: _headingFont,
+                                          fontSize: BulkaTypeScale.title,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 14),
+                                      _ProductFactGrid(
+                                        values: product.dietaryTags,
+                                        isAllergen: false,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                              if (_loadingOptions) ...[
+                                const SizedBox(height: 24),
+                                const LinearProgressIndicator(
+                                  minHeight: 3,
+                                  color: _bulkaYellow,
+                                  backgroundColor: Color(0xFFEDE5DB),
+                                ),
+                              ] else if (_hasCustomOptions) ...[
+                                Builder(
+                                  builder: (context) {
+                                    final configuration = _asMap(
+                                      _options['configuration'],
+                                    );
+                                    return Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        _choiceSection(
+                                          title: 'catalog_weight'.tr,
+                                          rawOptions:
+                                              configuration['weightOptions'],
+                                          selected: _weight,
+                                          onSelected: (value) =>
+                                              setState(() => _weight = value),
+                                        ),
+                                        _choiceSection(
+                                          title: 'catalog_builder_filling'.tr,
+                                          rawOptions:
+                                              configuration['fillingOptions'],
+                                          selected: _filling,
+                                          onSelected: (value) =>
+                                              setState(() => _filling = value),
+                                        ),
+                                        _choiceSection(
+                                          title: 'catalog_builder_design'.tr,
+                                          rawOptions:
+                                              configuration['designOptions'],
+                                          selected: _design,
+                                          onSelected: (value) =>
+                                              setState(() => _design = value),
+                                        ),
+                                        _modifierSections(),
+                                        if (configuration['allowInscription'] ==
+                                            true) ...[
+                                          const SizedBox(height: 22),
+                                          Text(
+                                            'catalog_inscription'.tr,
+                                            style: TextStyle(
+                                              fontFamily: _headingFont,
+                                              fontSize: BulkaTypeScale.body,
+                                              fontWeight: FontWeight.w700,
+                                              color: scheme.onSurface,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 10),
+                                          TextField(
+                                            controller: _inscriptionController,
+                                            maxLength:
+                                                (configuration['inscriptionMaxLength']
+                                                        as num?)
+                                                    ?.toInt() ??
+                                                80,
+                                            decoration: InputDecoration(
+                                              hintText:
+                                                  'catalog_inscription_hint'.tr,
+                                              filled: true,
+                                              fillColor: Colors.white,
+                                              border: OutlineInputBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
+                                                borderSide: BorderSide.none,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                        if (configuration['allowCandles'] ==
+                                            true) ...[
+                                          const SizedBox(height: 16),
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  'catalog_candles'.tr,
+                                                  style: const TextStyle(
+                                                    fontFamily: _headingFont,
+                                                    fontSize:
+                                                        BulkaTypeScale.body,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                              ),
+                                              Semantics(
+                                                button: true,
+                                                enabled: _candles > 0,
+                                                label:
+                                                    'catalog_decrease_quantity'
+                                                        .tr,
+                                                child: ExcludeSemantics(
+                                                  child: IconButton(
+                                                    onPressed: _candles > 0
+                                                        ? () => setState(
+                                                            () => _candles--,
+                                                          )
+                                                        : null,
+                                                    tooltip:
+                                                        'catalog_decrease_quantity'
+                                                            .tr,
+                                                    icon: const Icon(
+                                                      Icons.remove_rounded,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                              SizedBox(
+                                                width: 36,
+                                                child: Text(
+                                                  '$_candles',
+                                                  textAlign: TextAlign.center,
+                                                  style: const TextStyle(
+                                                    fontFamily: _headingFont,
+                                                    fontSize:
+                                                        BulkaTypeScale.body,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                              ),
+                                              Semantics(
+                                                button: true,
+                                                enabled: _candles < 99,
+                                                label:
+                                                    'catalog_increase_quantity'
+                                                        .tr,
+                                                child: ExcludeSemantics(
+                                                  child: IconButton(
+                                                    onPressed: _candles < 99
+                                                        ? () => setState(
+                                                            () => _candles++,
+                                                          )
+                                                        : null,
+                                                    tooltip:
+                                                        'catalog_increase_quantity'
+                                                            .tr,
+                                                    icon: const Icon(
+                                                      Icons.add_rounded,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                        if (configuration['allowReferenceUpload'] ==
+                                            true) ...[
+                                          const SizedBox(height: 16),
+                                          OutlinedButton.icon(
+                                            onPressed: _uploadingReference
+                                                ? null
+                                                : _pickReference,
+                                            icon: Icon(
+                                              _referenceUrl == null
+                                                  ? Icons
+                                                        .add_photo_alternate_outlined
+                                                  : Icons
+                                                        .check_circle_outline_rounded,
+                                            ),
+                                            label: Text(
+                                              _uploadingReference
+                                                  ? 'catalog_uploading'.tr
+                                                  : _referenceUrl == null
+                                                  ? 'catalog_upload_reference'
+                                                        .tr
+                                                  : 'catalog_reference_uploaded'
+                                                        .tr,
+                                            ),
+                                            style: OutlinedButton.styleFrom(
+                                              minimumSize: const Size(
+                                                double.infinity,
+                                                52,
+                                              ),
+                                              foregroundColor:
+                                                  colors.brandBrown,
+                                              side: BorderSide(
+                                                color: colors.cardBorder,
+                                              ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(16),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    );
+                                  },
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    key: const ValueKey('product-favorite'),
-                    onPressed: widget.onToggleFavorite == null
-                        ? null
-                        : _toggleProductFavorite,
-                    icon: Icon(
-                      _isFavorite
-                          ? Icons.favorite_rounded
-                          : Icons.favorite_border_rounded,
-                      size: 24,
-                    ),
-                    tooltip: 'catalog_favorites'.tr,
-                    style: IconButton.styleFrom(
-                      minimumSize: const Size(48, 48),
-                      backgroundColor: Colors.white,
-                      foregroundColor: colors.brandBrown,
-                      disabledForegroundColor: colors.mutedText,
-                      side: BorderSide(
-                        color: _isFavorite
-                            ? colors.brandGold
-                            : colors.cardBorder,
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    key: const ValueKey('product-close'),
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close_rounded, size: 27),
-                    tooltip: 'close_tooltip'.tr,
-                    style: IconButton.styleFrom(
-                      minimumSize: const Size(52, 52),
-                      backgroundColor: Colors.white,
-                      foregroundColor: colors.brandBrown,
-                      side: BorderSide(color: colors.cardBorder),
-                    ),
+                  Positioned(
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    child: _buildPhotoActions(product),
                   ),
                 ],
               ),
             ),
-            Expanded(
-              child: SingleChildScrollView(
-                clipBehavior: Clip.hardEdge,
-                padding: const EdgeInsets.only(bottom: 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      key: const ValueKey('product-photo-area'),
-                      height: product.imageUrl.trim().isEmpty
-                          ? 160
-                          : min(
-                              440,
-                              max(330, MediaQuery.sizeOf(context).width * 1.02),
-                            ),
-                      child: PageView.builder(
-                        itemCount: photos.length,
-                        onPageChanged: (i) =>
-                            setState(() => _currentPhotoIndex = i),
-                        itemBuilder: (context, i) {
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(
-                                BulkaRadii.sheet,
-                              ),
-                              child: i == 0
-                                  ? BulkaHero(
-                                      tag: 'catalog-product-${product.id}',
-                                      child: _NetworkImage(
-                                        url: photos[i],
-                                        fit: BoxFit.cover,
-                                        semanticLabel: product.title,
-                                      ),
-                                    )
-                                  : _NetworkImage(
-                                      url: photos[i],
-                                      fit: BoxFit.cover,
-                                      semanticLabel: product.title,
-                                    ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    if (photos.length > 1) ...[
-                      const SizedBox(height: 12),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: List.generate(photos.length, (i) {
-                          final active = _currentPhotoIndex == i;
-                          return AnimatedContainer(
-                            duration: BulkaMotion.duration(
-                              context,
-                              BulkaMotion.fast,
-                            ),
-                            margin: const EdgeInsets.symmetric(horizontal: 4),
-                            width: active ? 22 : 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: active
-                                  ? _bulkaYellow
-                                  : const Color(0xFFE5E0DA),
-                              borderRadius: BorderRadius.circular(
-                                BulkaRadii.small,
-                              ),
-                            ),
-                          );
-                        }),
-                      ),
-                    ],
-                    const SizedBox(height: 24),
-                    Container(
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: scheme.surface,
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(BulkaRadii.card),
-                        ),
-                      ),
-                      padding: const EdgeInsets.fromLTRB(24, 28, 24, 40),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Center(
-                            child: Text(
-                              product.title,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                fontFamily: _headingFont,
-                                fontSize: BulkaTypeScale.titleLarge,
-                                fontWeight: FontWeight.w700,
-                                color: scheme.onSurface,
-                                height: 1.18,
-                              ),
-                            ),
-                          ),
-                          if (product.weightGrams != null) ...[
-                            const SizedBox(height: 12),
-                            Center(
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 8,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: colors.brandGold.withValues(
-                                    alpha: 0.15,
-                                  ),
-                                  borderRadius: BorderRadius.circular(
-                                    BulkaRadii.pill,
-                                  ),
-                                  border: Border.all(
-                                    color: colors.brandGold.withValues(
-                                      alpha: 0.48,
-                                    ),
-                                  ),
-                                ),
-                                child: Text(
-                                  'catalog_weight_short'.trArgs({
-                                    'weight': product.weightGrams,
-                                  }),
-                                  style: TextStyle(
-                                    fontFamily: _headingFont,
-                                    color: colors.brandBrown,
-                                    fontSize: BulkaTypeScale.bodySmall,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                          if (product.hasProductDetails) ...[
-                            const SizedBox(height: 28),
-                            Center(
-                              child: Text(
-                                'catalog_about_product'.tr,
-                                style: const TextStyle(
-                                  fontFamily: _headingFont,
-                                  fontSize: BulkaTypeScale.titleLarge,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-                          ],
-                          if (product.description.trim().isNotEmpty)
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(20),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(
-                                  BulkaRadii.card,
-                                ),
-                                border: Border.all(color: colors.cardBorder),
-                              ),
-                              child: Text(
-                                product.description.trim(),
-                                style: TextStyle(
-                                  fontFamily: _descriptionFont,
-                                  fontSize: BulkaTypeScale.body,
-                                  color: scheme.onSurface,
-                                  height: 1.5,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                          if (product.hasNutrition ||
-                              product.hasComposition) ...[
-                            if (product.description.trim().isNotEmpty)
-                              const SizedBox(height: 14),
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.fromLTRB(
-                                14,
-                                20,
-                                14,
-                                18,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(
-                                  BulkaRadii.card,
-                                ),
-                                border: Border.all(color: colors.cardBorder),
-                              ),
-                              child: Column(
-                                children: [
-                                  if (product.hasNutrition) ...[
-                                    Text(
-                                      'catalog_product_information'.tr,
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(
-                                        fontFamily: _headingFont,
-                                        fontSize: BulkaTypeScale.title,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 5),
-                                    Text(
-                                      'catalog_nutrition_whole_product'.tr,
-                                      style: TextStyle(
-                                        fontFamily: _descriptionFont,
-                                        color: colors.mutedText,
-                                        fontSize: BulkaTypeScale.bodySmall,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 18),
-                                    _nutritionGrid(product),
-                                  ],
-                                  if (product.hasNutrition &&
-                                      product.hasComposition)
-                                    const SizedBox(height: 18),
-                                  if (product.hasComposition)
-                                    SizedBox(
-                                      width: double.infinity,
-                                      child: OutlinedButton(
-                                        key: const ValueKey(
-                                          'product-show-ingredients',
-                                        ),
-                                        onPressed: () =>
-                                            _showIngredientsSheet(product),
-                                        style: OutlinedButton.styleFrom(
-                                          backgroundColor: colors.surfaceCream,
-                                          foregroundColor: colors.brandBrown,
-                                          side: BorderSide(
-                                            color: colors.cardBorder,
-                                          ),
-                                          minimumSize: const Size.fromHeight(
-                                            52,
-                                          ),
-                                          shape: const StadiumBorder(),
-                                        ),
-                                        child: Text(
-                                          'catalog_view_ingredients'.tr,
-                                          style: const TextStyle(
-                                            fontFamily: _headingFont,
-                                            fontSize: BulkaTypeScale.body,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ],
-                          if (product.storageConditions.isNotEmpty) ...[
-                            if (product.description.trim().isNotEmpty ||
-                                product.hasNutrition ||
-                                product.hasComposition)
-                              const SizedBox(height: 14),
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(20),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(
-                                  BulkaRadii.card,
-                                ),
-                                border: Border.all(color: colors.cardBorder),
-                              ),
-                              child: Column(
-                                children: [
-                                  Text(
-                                    'catalog_storage_conditions'.tr,
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(
-                                      fontFamily: _headingFont,
-                                      fontSize: BulkaTypeScale.title,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 18),
-                                  _ProductStorageConditions(
-                                    conditions: product.storageConditions,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                          if (product.dietaryTags.isNotEmpty) ...[
-                            if (product.description.trim().isNotEmpty ||
-                                product.hasNutrition ||
-                                product.hasComposition ||
-                                product.storageConditions.isNotEmpty)
-                              const SizedBox(height: 14),
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(20),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(
-                                  BulkaRadii.card,
-                                ),
-                                border: Border.all(color: colors.cardBorder),
-                              ),
-                              child: Column(
-                                children: [
-                                  Text(
-                                    'catalog_certificates'.tr,
-                                    style: const TextStyle(
-                                      fontFamily: _headingFont,
-                                      fontSize: BulkaTypeScale.title,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 14),
-                                  _ProductFactGrid(
-                                    values: product.dietaryTags,
-                                    isAllergen: false,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                          if (_loadingOptions) ...[
-                            const SizedBox(height: 24),
-                            const LinearProgressIndicator(
-                              minHeight: 3,
-                              color: _bulkaYellow,
-                              backgroundColor: Color(0xFFEDE5DB),
-                            ),
-                          ] else if (_hasCustomOptions) ...[
-                            Builder(
-                              builder: (context) {
-                                final configuration = _asMap(
-                                  _options['configuration'],
-                                );
-                                return Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    _choiceSection(
-                                      title: 'catalog_weight'.tr,
-                                      rawOptions:
-                                          configuration['weightOptions'],
-                                      selected: _weight,
-                                      onSelected: (value) =>
-                                          setState(() => _weight = value),
-                                    ),
-                                    _choiceSection(
-                                      title: 'catalog_builder_filling'.tr,
-                                      rawOptions:
-                                          configuration['fillingOptions'],
-                                      selected: _filling,
-                                      onSelected: (value) =>
-                                          setState(() => _filling = value),
-                                    ),
-                                    _choiceSection(
-                                      title: 'catalog_builder_design'.tr,
-                                      rawOptions:
-                                          configuration['designOptions'],
-                                      selected: _design,
-                                      onSelected: (value) =>
-                                          setState(() => _design = value),
-                                    ),
-                                    _modifierSections(),
-                                    if (configuration['allowInscription'] ==
-                                        true) ...[
-                                      const SizedBox(height: 22),
-                                      Text(
-                                        'catalog_inscription'.tr,
-                                        style: TextStyle(
-                                          fontFamily: _headingFont,
-                                          fontSize: BulkaTypeScale.body,
-                                          fontWeight: FontWeight.w700,
-                                          color: scheme.onSurface,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 10),
-                                      TextField(
-                                        controller: _inscriptionController,
-                                        maxLength:
-                                            (configuration['inscriptionMaxLength']
-                                                    as num?)
-                                                ?.toInt() ??
-                                            80,
-                                        decoration: InputDecoration(
-                                          hintText:
-                                              'catalog_inscription_hint'.tr,
-                                          filled: true,
-                                          fillColor: Colors.white,
-                                          border: OutlineInputBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              16,
-                                            ),
-                                            borderSide: BorderSide.none,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                    if (configuration['allowCandles'] ==
-                                        true) ...[
-                                      const SizedBox(height: 16),
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              'catalog_candles'.tr,
-                                              style: const TextStyle(
-                                                fontFamily: _headingFont,
-                                                fontSize: BulkaTypeScale.body,
-                                                fontWeight: FontWeight.w700,
-                                              ),
-                                            ),
-                                          ),
-                                          Semantics(
-                                            button: true,
-                                            enabled: _candles > 0,
-                                            label:
-                                                'catalog_decrease_quantity'.tr,
-                                            child: ExcludeSemantics(
-                                              child: IconButton(
-                                                onPressed: _candles > 0
-                                                    ? () => setState(
-                                                        () => _candles--,
-                                                      )
-                                                    : null,
-                                                tooltip:
-                                                    'catalog_decrease_quantity'
-                                                        .tr,
-                                                icon: const Icon(
-                                                  Icons.remove_rounded,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                          SizedBox(
-                                            width: 36,
-                                            child: Text(
-                                              '$_candles',
-                                              textAlign: TextAlign.center,
-                                              style: const TextStyle(
-                                                fontFamily: _headingFont,
-                                                fontSize: BulkaTypeScale.body,
-                                                fontWeight: FontWeight.w700,
-                                              ),
-                                            ),
-                                          ),
-                                          Semantics(
-                                            button: true,
-                                            enabled: _candles < 99,
-                                            label:
-                                                'catalog_increase_quantity'.tr,
-                                            child: ExcludeSemantics(
-                                              child: IconButton(
-                                                onPressed: _candles < 99
-                                                    ? () => setState(
-                                                        () => _candles++,
-                                                      )
-                                                    : null,
-                                                tooltip:
-                                                    'catalog_increase_quantity'
-                                                        .tr,
-                                                icon: const Icon(
-                                                  Icons.add_rounded,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                    if (configuration['allowReferenceUpload'] ==
-                                        true) ...[
-                                      const SizedBox(height: 16),
-                                      OutlinedButton.icon(
-                                        onPressed: _uploadingReference
-                                            ? null
-                                            : _pickReference,
-                                        icon: Icon(
-                                          _referenceUrl == null
-                                              ? Icons
-                                                    .add_photo_alternate_outlined
-                                              : Icons
-                                                    .check_circle_outline_rounded,
-                                        ),
-                                        label: Text(
-                                          _uploadingReference
-                                              ? 'catalog_uploading'.tr
-                                              : _referenceUrl == null
-                                              ? 'catalog_upload_reference'.tr
-                                              : 'catalog_reference_uploaded'.tr,
-                                        ),
-                                        style: OutlinedButton.styleFrom(
-                                          minimumSize: const Size(
-                                            double.infinity,
-                                            52,
-                                          ),
-                                          foregroundColor: colors.brandBrown,
-                                          side: BorderSide(
-                                            color: colors.cardBorder,
-                                          ),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              16,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                );
-                              },
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            Container(
-              color: scheme.surface,
-              padding: EdgeInsets.fromLTRB(
-                20,
-                16,
-                20,
-                16 + MediaQuery.paddingOf(context).bottom,
-              ),
-              child: _hasCustomOptions && !_loadingOptions
-                  ? DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFFFFD044), Color(0xFFFFA900)],
-                        ),
-                        borderRadius: BorderRadius.circular(BulkaRadii.control),
-                      ),
-                      child: FilledButton.icon(
-                        onPressed: product.isStopListed
-                            ? null
-                            : () => _addConfiguredProduct(product),
-                        icon: const Icon(Icons.shopping_bag_outlined),
-                        label: product.isStopListed
-                            ? Text('catalog_stop_list'.tr)
-                            : Text.rich(
-                                TextSpan(
-                                  children: [
-                                    TextSpan(
-                                      text: '${'catalog_add_to_cart'.tr} · ',
-                                    ),
-                                    TextSpan(
-                                      text:
-                                          '${_CatalogScreenState._formatPrice(context, _configuredPrice)} ₸',
-                                      style: const TextStyle(
-                                        fontFamily: _descriptionFont,
-                                        fontWeight: FontWeight.w700,
-                                        fontFeatures: [
-                                          FontFeature.tabularFigures(),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                        style: FilledButton.styleFrom(
-                          minimumSize: const Size(double.infinity, 56),
-                          backgroundColor: Colors.transparent,
-                          disabledBackgroundColor: const Color(0xFFD8D3CD),
-                          foregroundColor: _textDark,
-                          shadowColor: Colors.transparent,
-                          textStyle: const TextStyle(
-                            fontFamily: _headingFont,
-                            fontSize: BulkaTypeScale.body,
-                            fontWeight: FontWeight.w700,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(
-                              BulkaRadii.control,
-                            ),
-                          ),
-                        ),
-                      ),
-                    )
-                  : Container(
-                      constraints: const BoxConstraints(minHeight: 64),
-                      padding: const EdgeInsets.fromLTRB(20, 6, 8, 6),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.96),
-                        borderRadius: BorderRadius.circular(BulkaRadii.sheet),
-                        border: Border.all(color: colors.cardBorder),
-                        boxShadow: [
-                          BoxShadow(
-                            color: colors.brandBrown.withValues(alpha: 0.15),
-                            blurRadius: 14,
-                            offset: const Offset(0, 6),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              '${_CatalogScreenState._formatPrice(context, product.price)} ₸',
-                              style: TextStyle(
-                                fontFamily: _descriptionFont,
-                                color: colors.brandBrown,
-                                fontSize: BulkaTypeScale.title,
-                                fontWeight: FontWeight.w700,
-                                fontFeatures: const [
-                                  FontFeature.tabularFigures(),
-                                ],
-                              ),
-                            ),
-                          ),
-                          _CatalogImageQuantityControl(
-                            quantity: _quantity,
-                            stopListed: product.isStopListed,
-                            onAdd: () => _updateQuantity(product, 1),
-                            onDecrease: () =>
-                                _updateQuantity(product, _quantity - 1),
-                            onIncrease:
-                                _quantity >=
-                                    _catalogProductQuantityLimit(product)
-                                ? null
-                                : () => _updateQuantity(product, _quantity + 1),
-                          ),
-                        ],
-                      ),
-                    ),
+            _ProductPurchaseBar(
+              price: _hasCustomOptions ? _configuredPrice : product.price,
+              quantity: _hasCustomOptions ? 0 : _quantity,
+              disabled: product.isStopListed || _loadingOptions,
+              stopListed: product.isStopListed,
+              onAdd: () => _hasCustomOptions
+                  ? _addConfiguredProduct(product)
+                  : _updateQuantity(product, 1),
+              onDecrease: () => _updateQuantity(product, _quantity - 1),
+              onIncrease: _quantity >= _catalogProductQuantityLimit(product)
+                  ? null
+                  : () => _updateQuantity(product, _quantity + 1),
             ),
           ],
         ),

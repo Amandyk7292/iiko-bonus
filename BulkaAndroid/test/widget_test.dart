@@ -1784,6 +1784,7 @@ void main() {
     tester,
   ) async {
     appLanguageNotifier.value = 'ru';
+    var selectedQuantity = 0;
     final liveProducts = ValueNotifier<Map<String, CatalogProduct>>(const {});
     addTearDown(liveProducts.dispose);
     const product = CatalogProduct(
@@ -1806,7 +1807,7 @@ void main() {
             product: product,
             liveProducts: liveProducts,
             initialQuantity: 0,
-            onQuantityChanged: (_, _) {},
+            onQuantityChanged: (_, quantity) => selectedQuantity = quantity,
           ),
         ),
       ),
@@ -1819,6 +1820,14 @@ void main() {
       find.byKey(const ValueKey('product-show-ingredients')),
       findsNothing,
     );
+    await tester.tap(find.byKey(const ValueKey('catalog-image-add')));
+    await tester.pumpAndSettle();
+    expect(selectedQuantity, 1);
+    expect(find.byKey(const ValueKey('catalog-quantity')), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.remove_rounded));
+    await tester.pumpAndSettle();
+    expect(selectedQuantity, 0);
+    expect(find.text('В корзину'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

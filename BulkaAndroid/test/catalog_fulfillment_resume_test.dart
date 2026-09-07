@@ -101,8 +101,8 @@ void main() {
           expect(
             tester
                 .getSize(find.byKey(const ValueKey('product-photo-area')))
-                .height,
-            160,
+                .width,
+            390,
           );
         } else {
           expect(find.byType(ProductDetailsScreen), findsNothing);
