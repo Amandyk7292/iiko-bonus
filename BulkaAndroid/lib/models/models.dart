@@ -1366,6 +1366,8 @@ class BakeryLocation {
     required this.name,
     required this.address,
     required this.city,
+    this.phone = '',
+    this.twoGisId = '',
     this.latitude,
     this.longitude,
     this.hours = const {},
@@ -1383,6 +1385,8 @@ class BakeryLocation {
   final String name;
   final String address;
   final String city;
+  final String phone;
+  final String twoGisId;
   final double? latitude;
   final double? longitude;
   final Map<String, dynamic> hours;
@@ -1443,6 +1447,8 @@ class BakeryLocation {
       name: _asString(json['name']),
       address: _asString(json['address']),
       city: _asString(json['city']),
+      phone: _asString(json['phone']),
+      twoGisId: _asString(json['twoGisId'] ?? json['two_gis_id']),
       latitude: _nullableDouble(json['latitude']),
       longitude: _nullableDouble(json['longitude']),
       hours: _asMap(json['hours']),

@@ -12,6 +12,9 @@ class YandexMapView extends StatelessWidget {
     required this.branches,
     required this.semanticLabel,
     required this.unavailableLabel,
+    this.onBranchTap,
+    this.directoryMode = false,
+    this.language = 'ru',
     this.onTap,
     this.onCameraChanged,
     this.interactive = true,
@@ -28,6 +31,9 @@ class YandexMapView extends StatelessWidget {
   final YandexMapTap? onTap;
   final YandexCameraChanged? onCameraChanged;
   final bool interactive;
+  final bool directoryMode;
+  final String language;
+  final ValueChanged<String>? onBranchTap;
 
   @override
   Widget build(BuildContext context) => Semantics(

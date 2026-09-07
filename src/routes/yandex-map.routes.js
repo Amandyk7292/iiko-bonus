@@ -4,7 +4,42 @@ const router = express.Router();
 
 const apiKeyPattern = /^[a-zA-Z0-9_-]{20,200}$/;
 
-router.get('/maps/yandex', (_req, res) => {
+router.get('/maps/yandex', (req, res) => {
+  const language = ['ru', 'kk', 'en'].includes(req.query.lang) ? req.query.lang : 'ru';
+  // JS API 2.1 does not offer Kazakh basemap labels; local controls remain translated.
+  const mapLocale = language === 'en' ? 'en_RU' : 'ru_RU';
+  const copy = {
+    ru: [
+      'Карта Bulka',
+      'Управление картой',
+      'Приблизить',
+      'Отдалить',
+      'Моё местоположение',
+      'Яндекс Карты временно недоступны.',
+      'Разрешите доступ к геопозиции в настройках браузера.',
+      'Не удалось определить местоположение. Попробуйте ещё раз.',
+    ],
+    kk: [
+      'Bulka картасы',
+      'Картаны басқару',
+      'Жақындату',
+      'Алыстату',
+      'Менің орналасқан жерім',
+      'Яндекс Карталары уақытша қолжетімсіз.',
+      'Браузер параметрлерінде геолокацияға рұқсат беріңіз.',
+      'Орналасқан жерді анықтау мүмкін болмады. Қайталап көріңіз.',
+    ],
+    en: [
+      'Bulka map',
+      'Map controls',
+      'Zoom in',
+      'Zoom out',
+      'My location',
+      'Yandex Maps is temporarily unavailable.',
+      'Allow location access in your browser settings.',
+      'Could not determine your location. Please try again.',
+    ],
+  }[language];
   const nonce = res.locals.cspNonce;
   const apiKey = String(process.env.YANDEX_MAPS_API_KEY || '').trim();
   if (!apiKeyPattern.test(apiKey)) {
@@ -12,19 +47,19 @@ router.get('/maps/yandex', (_req, res) => {
       .status(503)
       .type('html')
       .send(
-        '<!doctype html><meta charset="utf-8"><link rel="icon" type="image/png" sizes="48x48" href="/favicon.png?v=20260730-1"><p>Яндекс Карты временно недоступны.</p>',
+        `<!doctype html><meta charset="utf-8"><link rel="icon" type="image/png" sizes="48x48" href="/favicon.png?v=20260730-1"><p>${copy[5]}</p>`,
       );
   }
 
   res.set('Cache-Control', 'private, no-store');
   res.set('Permissions-Policy', 'geolocation=(self)');
   res.type('html').send(`<!doctype html>
-<html lang="ru">
+<html lang="${language}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
   <link rel="icon" type="image/png" sizes="48x48" href="/favicon.png?v=20260730-1">
-  <title>Карта доставки Bulka</title>
+  <title>${copy[0]}</title>
   <style nonce="${nonce}">
     html,body,#map{width:100%;height:100%;margin:0;overflow:hidden;background:#f7f2e8}
     body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
@@ -41,21 +76,21 @@ router.get('/maps/yandex', (_req, res) => {
     #map [class*="-gototech"]{display:none!important}
     @keyframes pulse{to{opacity:.35;transform:scale(.82)}}
   </style>
-  <script nonce="${nonce}" src="https://api-maps.yandex.ru/2.1/?apikey=${encodeURIComponent(apiKey)}&lang=ru_RU"></script>
+  <script nonce="${nonce}" src="https://api-maps.yandex.ru/2.1/?apikey=${encodeURIComponent(apiKey)}&lang=${mapLocale}"></script>
 </head>
 <body>
-  <div id="map" aria-label="Карта зон доставки Bulka"></div>
-  <div id="error" role="alert">Не удалось загрузить Яндекс Карты. Проверьте подключение и настройки API-ключа.</div>
-  <div id="controls" aria-label="Управление картой">
-    <button id="zoom-in" class="map-control" type="button" aria-label="Приблизить"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
-    <button id="zoom-out" class="map-control" type="button" aria-label="Отдалить"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
-    <button id="locate" class="map-control" type="button" aria-label="Определить моё местоположение"><svg viewBox="0 0 24 24"><path d="m20 4-7.4 16-2.1-6.5L4 11.4 20 4Z"/></svg></button>
+  <div id="map" aria-label="${copy[0]}"></div>
+  <div id="error" role="alert">${copy[5]}</div>
+  <div id="controls" aria-label="${copy[1]}">
+    <button id="zoom-in" class="map-control" type="button" aria-label="${copy[2]}"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button id="zoom-out" class="map-control" type="button" aria-label="${copy[3]}"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+    <button id="locate" class="map-control" type="button" aria-label="${copy[4]}"><svg viewBox="0 0 24 24"><path d="m20 4-7.4 16-2.1-6.5L4 11.4 20 4Z"/></svg></button>
   </div>
   <script nonce="${nonce}">
     (() => {
       'use strict';
       const requestedMode = new URLSearchParams(location.search).get('mode');
-      const defaults = { center:[43.6532,51.1975], selected:[43.6532,51.1975], zoom:13, mode:['admin','dispatch'].includes(requestedMode) ? requestedMode : 'customer', branches:[], couriers:[], deliveryOrders:[] };
+      const defaults = { center:[43.6532,51.1975], selected:[43.6532,51.1975], zoom:13, mode:['admin','dispatch','directory'].includes(requestedMode) ? requestedMode : 'customer', branches:[], couriers:[], deliveryOrders:[] };
       let state = {...defaults};
       let map = null;
       let activeBranchId = null;
@@ -66,6 +101,7 @@ router.get('/maps/yandex', (_req, res) => {
       const errorBox = document.getElementById('error');
       const controls = document.getElementById('controls');
       const locateButton = document.getElementById('locate');
+      if (requestedMode === 'directory') controls.style.bottom = '16px';
 
       const parse = value => {
         if (typeof value === 'string') { try { return JSON.parse(value); } catch { return null; } }
@@ -252,7 +288,7 @@ router.get('/maps/yandex', (_req, res) => {
         }
 
         const selected = point(state.selected);
-        if (selected && state.mode !== 'admin') {
+        if (selected && !['admin','directory'].includes(state.mode)) {
           map.geoObjects.add(new ymaps.Placemark(selected, {hintContent:'Адрес доставки'}, {
             preset:'islands#blackCircleDotIcon', zIndex:600
           }));
@@ -291,7 +327,7 @@ router.get('/maps/yandex', (_req, res) => {
         event.preventDefault();
         event.stopPropagation();
         if (!navigator.geolocation) {
-          showError('Определение местоположения не поддерживается браузером.');
+          showError(${JSON.stringify(copy[7])});
           return;
         }
         locateButton.classList.add('loading');
@@ -306,11 +342,7 @@ router.get('/maps/yandex', (_req, res) => {
           locateButton.classList.remove('loading');
           locateButton.disabled = false;
         }, error => {
-          const message = error.code === 1
-            ? 'Разрешите точную геопозицию для bulka.com.kz в настройках Safari.'
-            : error.code === 3
-              ? 'Не удалось быстро определить геопозицию. Попробуйте ещё раз на открытом месте.'
-              : 'Не удалось определить местоположение. Проверьте GPS и интернет.';
+          const message = error.code === 1 ? ${JSON.stringify(copy[6])} : ${JSON.stringify(copy[7])};
           showError(message);
           emit({type:'geo-error',code:error.code,message});
           locateButton.classList.remove('loading');
@@ -344,6 +376,7 @@ router.get('/maps/yandex', (_req, res) => {
           });
         }
         map.events.add('click', event => {
+          if (state.mode === 'directory') return;
           const coordinates = event.get('coords');
           if (state.mode === 'admin') {
             const branches = normalizedBranches();

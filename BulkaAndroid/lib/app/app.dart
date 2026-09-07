@@ -1078,7 +1078,8 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     final tab = switch (segments.first) {
       'catalog' || 'p' => 1,
       'cart' => 2,
-      'promos' => 3,
+      'locations' => 3,
+      'promos' => 0,
       'profile' => 4,
       _ => null,
     };

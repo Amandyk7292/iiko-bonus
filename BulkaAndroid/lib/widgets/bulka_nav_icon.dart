@@ -1,6 +1,6 @@
 part of '../main.dart';
 
-enum BulkaNavIconKind { home, catalog, cart, promos, profile }
+enum BulkaNavIconKind { home, catalog, cart, promos, locations, profile }
 
 class BulkaNavIcon extends StatelessWidget {
   const BulkaNavIcon({
@@ -18,6 +18,13 @@ class BulkaNavIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (kind == BulkaNavIconKind.locations) {
+      return Icon(
+        active ? Icons.location_on : Icons.location_on_outlined,
+        size: size,
+        color: color,
+      );
+    }
     if (kind == BulkaNavIconKind.catalog) {
       return Icon(
         active ? Icons.bakery_dining : Icons.bakery_dining_outlined,
@@ -68,6 +75,8 @@ class _BulkaNavIconPainter extends CustomPainter {
         break;
       case BulkaNavIconKind.promos:
         _paintGift(canvas, stroke);
+        break;
+      case BulkaNavIconKind.locations:
         break;
       case BulkaNavIconKind.profile:
         _paintProfile(canvas, stroke);

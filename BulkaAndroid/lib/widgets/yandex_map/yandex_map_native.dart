@@ -15,6 +15,9 @@ class YandexMapView extends StatefulWidget {
     required this.branches,
     required this.semanticLabel,
     required this.unavailableLabel,
+    this.onBranchTap,
+    this.directoryMode = false,
+    this.language = 'ru',
     this.onTap,
     this.onCameraChanged,
     this.interactive = true,
@@ -31,6 +34,9 @@ class YandexMapView extends StatefulWidget {
   final YandexMapTap? onTap;
   final YandexCameraChanged? onCameraChanged;
   final bool interactive;
+  final bool directoryMode;
+  final String language;
+  final ValueChanged<String>? onBranchTap;
 
   @override
   State<YandexMapView> createState() => _YandexMapViewState();
@@ -59,7 +65,11 @@ class _YandexMapViewState extends State<YandexMapView> {
                 : NavigationDecision.prevent,
           ),
         )
-        ..loadRequest(Uri.parse(yandexMapUrl));
+        ..loadRequest(
+          Uri.parse(
+            '$yandexMapUrl?lang=${widget.language}&mode=${widget.directoryMode ? 'directory' : 'customer'}',
+          ),
+        );
     } catch (_) {
       _webController = null;
     }
@@ -84,6 +94,9 @@ class _YandexMapViewState extends State<YandexMapView> {
       _ready = true;
       _sendState();
     }
+    if (payload['type'] == 'branch' && payload['id'] is String) {
+      widget.onBranchTap?.call(payload['id'] as String);
+    }
     if (payload['type'] == 'point') {
       final latitude = (payload['latitude'] as num?)?.toDouble();
       final longitude = (payload['longitude'] as num?)?.toDouble();
@@ -103,10 +116,14 @@ class _YandexMapViewState extends State<YandexMapView> {
 
   Map<String, Object?> _statePayload() => {
     'type': 'state',
-    'mode': widget.interactive ? 'customer' : 'preview',
+    'mode': widget.directoryMode
+        ? 'directory'
+        : widget.interactive
+        ? 'customer'
+        : 'preview',
     // Native Flutter draws accessible map controls above the WebView. Hide
     // the HTML controls to prevent duplicated zoom/location buttons.
-    'showControls': false,
+    'showControls': widget.directoryMode,
     'center': [widget.center.latitude, widget.center.longitude],
     'selected': widget.selectedPoint == null
         ? null

@@ -481,7 +481,7 @@ app.use(
 // only Flutter assets fall through to this static middleware.
 app.use(express.static(publicAppDirectory, { setHeaders: appStaticHeaders }));
 app.get(
-  ['/orders', '/orders/*', '/catalog', '/catalog/*', '/p/*', '/cart', '/promos', '/profile'],
+  ['/orders', '/orders/*', '/catalog', '/catalog/*', '/p/*', '/cart', '/promos', '/locations', '/profile'],
   (_req, res) => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(path.join(publicAppDirectory, 'index.html'));

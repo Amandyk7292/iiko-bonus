@@ -102,6 +102,7 @@ part 'screens/promos_screen.dart';
 part 'screens/rewards_screen.dart';
 part 'screens/personal_data_screen.dart';
 part 'screens/locations_screen.dart';
+part 'screens/location_directory_screen.dart';
 part 'screens/catalog_screen.dart';
 part 'screens/catalog_screen_helpers.dart';
 part 'screens/catalog_data_controller.dart';

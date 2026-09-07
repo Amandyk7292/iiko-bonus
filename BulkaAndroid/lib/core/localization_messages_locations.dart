@@ -1,6 +1,50 @@
 part of '../main.dart';
 
 const Map<String, Map<String, String>> _locationTranslations = {
+  'nav_locations': {'ru': 'Локации', 'kk': 'Орындар', 'en': 'Locations'},
+  'directory_city': {
+    'ru': 'Выберите город',
+    'kk': 'Қаланы таңдаңыз',
+    'en': 'Select city',
+  },
+  'directory_search': {
+    'ru': 'Найти пекарню',
+    'kk': 'Наубайхананы іздеу',
+    'en': 'Find a bakery',
+  },
+  'directory_all': {'ru': 'Все', 'kk': 'Барлығы', 'en': 'All'},
+  'directory_route': {
+    'ru': 'Маршрут в 2ГИС',
+    'kk': '2GIS арқылы бағыт',
+    'en': 'Directions in 2GIS',
+  },
+  'directory_open_2gis': {
+    'ru': 'Открыть в 2ГИС',
+    'kk': '2GIS-те ашу',
+    'en': 'Open in 2GIS',
+  },
+  'directory_hours': {
+    'ru': 'График работы',
+    'kk': 'Жұмыс кестесі',
+    'en': 'Opening hours',
+  },
+  'directory_today': {'ru': 'Сегодня', 'kk': 'Бүгін', 'en': 'Today'},
+  'directory_open': {'ru': 'Открыто', 'kk': 'Ашық', 'en': 'Open'},
+  'directory_closed': {'ru': 'Закрыто', 'kk': 'Жабық', 'en': 'Closed'},
+  'directory_day_off': {'ru': 'Выходной', 'kk': 'Демалыс', 'en': 'Closed'},
+  'directory_hours_unknown': {
+    'ru': 'График не указан',
+    'kk': 'Кесте көрсетілмеген',
+    'en': 'Hours not listed',
+  },
+  'directory_bakery': {'ru': 'Пекарня', 'kk': 'Наубайхана', 'en': 'Bakery'},
+  'directory_mon': {'ru': 'Понедельник', 'kk': 'Дүйсенбі', 'en': 'Monday'},
+  'directory_tue': {'ru': 'Вторник', 'kk': 'Сейсенбі', 'en': 'Tuesday'},
+  'directory_wed': {'ru': 'Среда', 'kk': 'Сәрсенбі', 'en': 'Wednesday'},
+  'directory_thu': {'ru': 'Четверг', 'kk': 'Бейсенбі', 'en': 'Thursday'},
+  'directory_fri': {'ru': 'Пятница', 'kk': 'Жұма', 'en': 'Friday'},
+  'directory_sat': {'ru': 'Суббота', 'kk': 'Сенбі', 'en': 'Saturday'},
+  'directory_sun': {'ru': 'Воскресенье', 'kk': 'Жексенбі', 'en': 'Sunday'},
   // Addresses and locations
   'delivery_locations_title': {
     'ru': 'Филиалы с доставкой',

@@ -51,7 +51,7 @@ class _MainShellState extends State<MainShell> {
     return switch (segments.first) {
       'catalog' || 'p' => 1,
       'cart' => 2,
-      'promos' => 3,
+      'locations' => 3,
       'profile' => 4,
       _ => null,
     };
@@ -61,7 +61,7 @@ class _MainShellState extends State<MainShell> {
     return switch (index) {
       1 => Uri(path: '/catalog'),
       2 => Uri(path: '/cart'),
-      3 => Uri(path: '/promos'),
+      3 => Uri(path: '/locations'),
       4 => Uri(path: '/profile'),
       _ => Uri(path: '/'),
     };
@@ -81,6 +81,9 @@ class _MainShellState extends State<MainShell> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _catalogKey.currentState?.applyClientUri(clientRouteNotifier.value);
       if (mounted) {
+        if (clientRouteNotifier.value.path == '/promos') {
+          _onClientRouteChanged();
+        }
         // Staff devices can be intentionally signed out of the customer
         // account while remaining registered to a branch in the admin portal.
         unawaited(PushNotifications.listenForeground(context));
@@ -106,6 +109,12 @@ class _MainShellState extends State<MainShell> {
   void _onClientRouteChanged() {
     if (!mounted) return;
     final uri = clientRouteNotifier.value;
+    if (uri.path == '/promos') {
+      Navigator.of(context).push<void>(
+        MaterialPageRoute(builder: (_) => PromosScreen(api: widget.api)),
+      );
+      return;
+    }
     final routedTab = _tabForClientUri(uri);
     if (routedTab != null && routedTab != _tab) {
       setState(() => _tab = routedTab);
@@ -215,7 +224,10 @@ class _MainShellState extends State<MainShell> {
         onRequireAuth: _requireAuth,
         onOpenOrders: widget.onOpenOrders,
       ),
-      PromosScreen(key: const PageStorageKey('promos-tab'), api: widget.api),
+      LocationDirectoryScreen(
+        key: const PageStorageKey('locations-tab'),
+        api: widget.api,
+      ),
       if (customer == null)
         _GuestProfileScreen(
           key: const PageStorageKey('guest-profile-tab'),
@@ -359,7 +371,7 @@ class FloatingNavBar extends StatelessWidget {
       _NavItem('nav_home'.tr, BulkaNavIconKind.home),
       _NavItem('nav_catalog'.tr, BulkaNavIconKind.catalog),
       _NavItem('nav_cart'.tr, BulkaNavIconKind.cart, prominent: true),
-      _NavItem('nav_promos'.tr, BulkaNavIconKind.promos),
+      _NavItem('nav_locations'.tr, BulkaNavIconKind.locations),
       _NavItem('nav_profile'.tr, BulkaNavIconKind.profile),
     ];
 
@@ -661,7 +673,7 @@ class _DesktopNavigation extends StatelessWidget {
       _NavItem('nav_home'.tr, BulkaNavIconKind.home),
       _NavItem('nav_catalog'.tr, BulkaNavIconKind.catalog),
       _NavItem('nav_cart'.tr, BulkaNavIconKind.cart),
-      _NavItem('nav_promos'.tr, BulkaNavIconKind.promos),
+      _NavItem('nav_locations'.tr, BulkaNavIconKind.locations),
       _NavItem('nav_profile'.tr, BulkaNavIconKind.profile),
     ];
 

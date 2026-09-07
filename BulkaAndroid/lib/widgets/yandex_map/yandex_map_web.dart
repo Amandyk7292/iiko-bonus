@@ -17,6 +17,9 @@ class YandexMapView extends StatefulWidget {
     required this.branches,
     required this.semanticLabel,
     required this.unavailableLabel,
+    this.onBranchTap,
+    this.directoryMode = false,
+    this.language = 'ru',
     this.onTap,
     this.onCameraChanged,
     this.interactive = true,
@@ -33,6 +36,9 @@ class YandexMapView extends StatefulWidget {
   final YandexMapTap? onTap;
   final YandexCameraChanged? onCameraChanged;
   final bool interactive;
+  final bool directoryMode;
+  final String language;
+  final ValueChanged<String>? onBranchTap;
 
   @override
   State<YandexMapView> createState() => _YandexMapViewState();
@@ -49,7 +55,8 @@ class _YandexMapViewState extends State<YandexMapView> {
     super.initState();
     _viewType = 'bulka-yandex-map-${identityHashCode(this)}';
     _frame = web.HTMLIFrameElement()
-      ..src = yandexMapUrl
+      ..src =
+          '$yandexMapUrl?lang=${widget.language}&mode=${widget.directoryMode ? 'directory' : 'customer'}'
       ..title = widget.semanticLabel
       ..allow = 'geolocation'
       ..style.width = '100%'
@@ -71,6 +78,9 @@ class _YandexMapViewState extends State<YandexMapView> {
       if (payload['type'] == 'ready') {
         _ready = true;
         _sendState();
+      }
+      if (payload['type'] == 'branch' && payload['id'] is String) {
+        widget.onBranchTap?.call(payload['id'] as String);
       }
       if (payload['type'] == 'point') {
         final latitude = (payload['latitude'] as num?)?.toDouble();
@@ -102,12 +112,17 @@ class _YandexMapViewState extends State<YandexMapView> {
       oldWidget.controller.removeListener(_sendCommand);
       widget.controller.addListener(_sendCommand);
     }
+    _frame.style.pointerEvents = widget.interactive ? 'auto' : 'none';
     _sendState();
   }
 
   Map<String, Object?> _statePayload() => {
     'type': 'state',
-    'mode': widget.interactive ? 'customer' : 'preview',
+    'mode': widget.directoryMode
+        ? 'directory'
+        : widget.interactive
+        ? 'customer'
+        : 'preview',
     // Web cannot overlay Flutter controls reliably above an iframe, so the
     // map document owns the controls in this implementation.
     'showControls': true,
