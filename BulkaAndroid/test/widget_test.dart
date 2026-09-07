@@ -1521,11 +1521,16 @@ void main() {
     semantics.dispose();
   });
 
-  testWidgets('ready pickup order announces and submits customer arrival', (
+  testWidgets('customer orders omit arrival, handoff and receipt controls', (
     tester,
   ) async {
     final semantics = tester.ensureSemantics();
     final api = _ArrivalApiClient();
+    api.order = CustomerOrder.fromJson({
+      ...api.order.toJson(),
+      'receiptUrl': 'https://example.test/receipt',
+      'deliveryPin': '4812',
+    });
 
     await tester.pumpWidget(
       MaterialApp(
@@ -1543,16 +1548,16 @@ void main() {
         (widget) =>
             widget is Semantics && widget.properties.label == 'Я приехал',
       ),
-      findsOneWidget,
+      findsNothing,
     );
-    await tester.tap(find.text('Я приехал'));
+    await tester.tap(find.text('Следить за заказом'));
     await tester.pumpAndSettle();
-    expect(find.text('Вы уже у пекарни?'), findsOneWidget);
-    await tester.tap(find.text('Сообщить'));
-    await tester.pumpAndSettle();
-
-    expect(api.arrivalCalls, 1);
-    expect(find.text('Сотрудники уже знают, что вы приехали'), findsWidgets);
+    expect(api.arrivalCalls, 0);
+    expect(api.handoffCalls, 0);
+    expect(find.text('Я приехал'), findsNothing);
+    expect(find.text('Код выдачи заказа'), findsNothing);
+    expect(find.text('4812'), findsNothing);
+    expect(find.text('Открыть торговый чек'), findsNothing);
     semantics.dispose();
   });
 
@@ -2791,6 +2796,13 @@ class _DelayedSlotsApiClient extends _FakeBulkaApiClient {
 
 class _ArrivalApiClient extends _FakeBulkaApiClient {
   int arrivalCalls = 0;
+  int handoffCalls = 0;
+  @override
+  Future<PickupHandoff> getPickupHandoff(String orderId) async {
+    handoffCalls++;
+    throw StateError('The customer page must not fetch removed handoff codes');
+  }
+
   CustomerOrder order = _readyPickupOrder;
 
   @override

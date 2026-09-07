@@ -30,7 +30,6 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
   late bool _completed;
   bool _loading = true;
   bool _refreshInFlight = false;
-  final Set<String> _arrivalInFlight = {};
   final Set<String> _repeatInFlight = {};
   final Set<String> _reviewInFlight = {};
   String? _error;
@@ -393,54 +392,6 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
     }
   }
 
-  Future<void> _markArrived(CustomerOrder order) async {
-    if (_arrivalInFlight.contains(order.id)) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('orders_arrival_confirm_title'.tr),
-        content: Text(
-          'orders_arrival_confirm_body'.trArgs({'number': order.number}),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text('cancel_btn'.tr),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text('orders_arrival_send'.tr),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-    setState(() => _arrivalInFlight.add(order.id));
-    try {
-      final updated = await widget.api.markCustomerArrived(order.id);
-      if (!mounted) return;
-      setState(() {
-        _orders = [
-          for (final item in _orders) item.id == updated.id ? updated : item,
-        ];
-      });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('orders_arrival_sent'.tr)));
-    } catch (error) {
-      if (!mounted) return;
-      final message = localizeErrorMessage(
-        error,
-        fallbackKey: 'orders_arrival_error',
-      );
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
-    } finally {
-      if (mounted) setState(() => _arrivalInFlight.remove(order.id));
-    }
-  }
-
   Future<void> _openDetails(CustomerOrder order) async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
@@ -560,9 +511,7 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
           order: _orders[index],
           onRepeat: () => _repeatOrder(_orders[index]),
           onReview: () => _reviewOrder(_orders[index]),
-          onArrived: () => _markArrived(_orders[index]),
           onOpen: () => _openDetails(_orders[index]),
-          arrivalLoading: _arrivalInFlight.contains(_orders[index].id),
           repeatLoading: _repeatInFlight.contains(_orders[index].id),
           reviewLoading: _reviewInFlight.contains(_orders[index].id),
         ),
@@ -861,18 +810,14 @@ class _CustomerOrderCard extends StatelessWidget {
     required this.order,
     required this.onRepeat,
     required this.onReview,
-    required this.onArrived,
     required this.onOpen,
-    required this.arrivalLoading,
     required this.repeatLoading,
     required this.reviewLoading,
   });
   final CustomerOrder order;
   final VoidCallback onRepeat;
   final VoidCallback onReview;
-  final VoidCallback onArrived;
   final VoidCallback onOpen;
-  final bool arrivalLoading;
   final bool repeatLoading;
   final bool reviewLoading;
 
@@ -925,10 +870,6 @@ class _CustomerOrderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.bulkaColors;
     final scheme = Theme.of(context).colorScheme;
-    final canReportArrival =
-        order.paymentStatus == 'paid' &&
-        !order.usesDelivery &&
-        order.orderStatus == 'ready';
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
@@ -1175,70 +1116,6 @@ class _CustomerOrderCard extends StatelessWidget {
                 fontSize: BulkaTypeScale.bodySmall,
               ),
             ),
-          ],
-          if (canReportArrival) ...[
-            const SizedBox(height: 12),
-            if (order.customerArrivedAt != null)
-              Semantics(
-                liveRegion: true,
-                label: 'orders_arrival_sent'.tr,
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
-                  decoration: BoxDecoration(
-                    color: context.bulkaColors.success.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(BulkaRadii.control),
-                    border: Border.all(
-                      color: context.bulkaColors.success.withValues(
-                        alpha: 0.45,
-                      ),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.check_circle_rounded,
-                        color: context.bulkaColors.success,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'orders_arrival_sent'.tr,
-                          style: const TextStyle(
-                            fontFamily: _headingFont,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              )
-            else
-              Semantics(
-                button: true,
-                enabled: !arrivalLoading,
-                label: 'orders_i_arrived'.tr,
-                hint: 'orders_i_arrived_hint'.tr,
-                child: ExcludeSemantics(
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: arrivalLoading ? null : onArrived,
-                      icon: arrivalLoading
-                          ? const SizedBox.square(
-                              dimension: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.near_me_rounded),
-                      label: Text('orders_i_arrived'.tr),
-                    ),
-                  ),
-                ),
-              ),
           ],
           const SizedBox(height: 10),
           SizedBox(
