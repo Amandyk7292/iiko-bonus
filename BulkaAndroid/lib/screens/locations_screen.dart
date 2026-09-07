@@ -21,6 +21,8 @@ class LocationsScreen extends StatefulWidget {
 }
 
 class _LocationsScreenState extends State<LocationsScreen> {
+  late final BulkaApiClient _api;
+  late final _LiveRefresh _live;
   bool _showCities = true;
   String _selectedCity = '';
   String _searchQuery = '';
@@ -34,18 +36,25 @@ class _LocationsScreenState extends State<LocationsScreen> {
   @override
   void initState() {
     super.initState();
+    _api = widget.api ?? BulkaApiClient();
+    _live = _LiveRefresh(
+      _api,
+      {'locations'},
+      () => _loadLocations(silent: true),
+      busy: () => _loading,
+    );
     _loadLocations();
   }
 
-  Future<void> _loadLocations() async {
-    if (mounted) {
+  Future<void> _loadLocations({bool silent = false}) async {
+    if (mounted && !silent) {
       setState(() {
         _loading = true;
         _loadFailed = false;
       });
     }
     try {
-      final api = widget.api ?? BulkaApiClient();
+      final api = _api;
       final prefs = await SharedPreferences.getInstance();
       final hasConfirmedTypeCity =
           prefs.getBool(_confirmedFulfillmentCityTypeKey(widget.orderType)) ??
@@ -78,12 +87,15 @@ class _LocationsScreenState extends State<LocationsScreen> {
       if (!mounted) return;
       setState(() {
         _cityLocations = locs;
-        _selectedCity = _cityLocations.containsKey(savedCity) ? savedCity : '';
-        _showCities = !_deliveryList && _selectedCity.isEmpty;
+        final selected = silent ? _selectedCity : savedCity;
+        _selectedCity = _cityLocations.containsKey(selected) ? selected : '';
+        if (!silent || _selectedCity.isEmpty) {
+          _showCities = !_deliveryList && _selectedCity.isEmpty;
+        }
         _loading = false;
       });
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || silent) return;
       setState(() {
         _loading = false;
         _loadFailed = true;
@@ -116,6 +128,8 @@ class _LocationsScreenState extends State<LocationsScreen> {
 
   @override
   void dispose() {
+    _live.dispose();
+    if (widget.api == null) _api.dispose();
     _searchController.dispose();
     super.dispose();
   }

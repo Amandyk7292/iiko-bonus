@@ -359,6 +359,10 @@ async function getCustomerPushTokens(customerId, fallbackToken = null) {
 }
 
 async function sendPushToCustomer(customerId, title, body, data = {}, fallbackToken = null) {
+  // The in-app inbox updates even when the customer has disabled device push.
+  if (customerId && data.notificationId) {
+    require('./realtime.service').publish('notification.created', {}, { customerId });
+  }
   if (!(await notificationAllowed(customerId, data))) {
     return { attempted: 0, delivered: 0, failed: 0, skipped: 'preferences' };
   }

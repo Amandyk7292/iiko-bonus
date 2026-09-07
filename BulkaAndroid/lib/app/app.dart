@@ -189,6 +189,20 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       unawaited(_refreshWidgetOrder());
       return;
     }
+    if (_dataEventMatches(event, {'settings'})) {
+      unawaited(_refreshRequiredAppUpdate());
+    }
+    if (_dataEventMatches(event, {
+      'customer.updated',
+      'transaction.created',
+      'loyalty',
+      'settings',
+    })) {
+      final phone = _savedPhone;
+      if (phone != null && _api.isAuthenticated) {
+        unawaited(_refreshProfile(phone));
+      }
+    }
     if (type != 'loyalty.balance.updated') return;
     final current = _customer;
     final phone = _savedPhone;

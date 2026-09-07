@@ -628,6 +628,8 @@ const locationBodySchema = z
 const locationUpdateBodySchema = optionalPatch(
   z
     .object({
+      name: z.string().trim().min(2).max(160).optional(),
+      address: z.string().trim().min(3).max(300).optional(),
       active: z.boolean().optional(),
       pickupEnabled: z.boolean().optional(),
       preorderEnabled: z.boolean().optional(),

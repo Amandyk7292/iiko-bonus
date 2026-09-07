@@ -1,6 +1,30 @@
 part of '../main.dart';
 
 extension _CatalogDataController on _CatalogScreenState {
+  Future<void> _refreshBranchLabel() async {
+    final id = _selectedBakeryId;
+    if (id.isEmpty) return;
+    final locations = await _api.getFulfillmentLocations();
+    if (!mounted || id != _selectedBakeryId) return;
+    final branch = locations
+        .where((b) => b.id == id && b.active && b.supports(_orderType))
+        .firstOrNull;
+    _updateCatalogState(() {
+      _selectedBakery = branch?.displayLabel ?? '';
+      _selectedBakeryId = branch?.id ?? '';
+    });
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      'selected_bakery_location_$_orderType',
+      branch?.displayLabel ?? '',
+    );
+    await prefs.setString(
+      'selected_bakery_location_id_$_orderType',
+      branch?.id ?? '',
+    );
+    if (branch == null) _menuLive.request();
+  }
+
   Future<void> _silentRefresh() {
     if (!mounted || !_menuScopeReady || _activeMenuLoads > 0) {
       return Future<void>.value();

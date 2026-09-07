@@ -12,6 +12,7 @@ class PromosScreen extends StatefulWidget {
 class _PromosScreenState extends State<PromosScreen>
     with WidgetsBindingObserver {
   List<PromoStory> _stories = const [];
+  late final _LiveRefresh _live;
   Timer? _refreshTimer;
   bool _loading = true;
   bool _refreshing = false;
@@ -23,6 +24,12 @@ class _PromosScreenState extends State<PromosScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _live = _LiveRefresh(
+      widget.api,
+      {'content'},
+      () => _load(silent: true),
+      busy: () => _refreshing,
+    );
     unawaited(_load());
     _refreshTimer = Timer.periodic(
       const Duration(minutes: 1),
@@ -33,6 +40,7 @@ class _PromosScreenState extends State<PromosScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _live.dispose();
     _refreshTimer?.cancel();
     super.dispose();
   }

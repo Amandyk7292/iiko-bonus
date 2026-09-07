@@ -26,29 +26,25 @@ class _OrderSupportScreenState extends State<OrderSupportScreen> {
   String? _error;
   List<XFile> _images = const [];
   List<SupportRequest> _requests = const [];
-  StreamSubscription<Map<String, dynamic>>? _events;
-  Timer? _reloadTimer;
+  late final _LiveRefresh _live;
   bool _initialThreadOpened = false;
 
   @override
   void initState() {
     super.initState();
     if (widget.initialOrder == null) _category = 'other';
-    _events = widget.api.customerEvents.listen((event) {
-      final type = _asString(event['type']);
-      if (type != 'support.created' && type != 'support.updated') return;
-      _reloadTimer?.cancel();
-      _reloadTimer = Timer(const Duration(milliseconds: 250), () {
-        if (mounted) unawaited(_load(silent: true));
-      });
-    });
+    _live = _LiveRefresh(
+      widget.api,
+      {'support.created', 'support.updated'},
+      () => _load(silent: true),
+      busy: () => _loading,
+    );
     unawaited(_load());
   }
 
   @override
   void dispose() {
-    _reloadTimer?.cancel();
-    _events?.cancel();
+    _live.dispose();
     _message.dispose();
     super.dispose();
   }
@@ -525,8 +521,7 @@ class _SupportThreadScreenState extends State<_SupportThreadScreen> {
   final ScrollController _scroll = ScrollController();
   SupportRequest? _request;
   List<SupportMessage> _messages = const [];
-  StreamSubscription<Map<String, dynamic>>? _events;
-  Timer? _reloadTimer;
+  late final _LiveRefresh _live;
   bool _loading = true;
   bool _sending = false;
   String? _error;
@@ -535,23 +530,18 @@ class _SupportThreadScreenState extends State<_SupportThreadScreen> {
   void initState() {
     super.initState();
     _request = widget.initialRequest;
-    _events = widget.api.customerEvents.listen((event) {
-      final type = _asString(event['type']);
-      if (type != 'support.updated') return;
-      final requestId = _asString(_asMap(event['data'])['requestId']);
-      if (requestId != widget.initialRequest.id) return;
-      _reloadTimer?.cancel();
-      _reloadTimer = Timer(const Duration(milliseconds: 200), () {
-        if (mounted) unawaited(_load(silent: true));
-      });
-    });
+    _live = _LiveRefresh(
+      widget.api,
+      {'support.updated'},
+      () => _load(silent: true),
+      busy: () => _loading,
+    );
     unawaited(_load());
   }
 
   @override
   void dispose() {
-    _reloadTimer?.cancel();
-    _events?.cancel();
+    _live.dispose();
     _reply.dispose();
     _scroll.dispose();
     super.dispose();

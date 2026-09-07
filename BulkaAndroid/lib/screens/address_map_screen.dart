@@ -24,6 +24,7 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
   static const _defaultPoint = LatLng(51.1282, 71.4304);
 
   late final BulkaApiClient _api;
+  late final _LiveRefresh _live;
   final _formKey = GlobalKey<FormState>();
   final _mapController = YandexMapController();
   final _titleController = TextEditingController();
@@ -50,6 +51,12 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
   void initState() {
     super.initState();
     _api = widget.api ?? BulkaApiClient();
+    _live = _LiveRefresh(
+      _api,
+      {'locations'},
+      _loadLocations,
+      busy: () => !_locationsLoaded,
+    );
     final initialAddress = widget.initialAddress;
     final latitude =
         initialAddress?.location.latitude ?? widget.initialLatitude;
@@ -93,6 +100,7 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
     // Let the route finish its first frame before Safari displays the native
     // permission prompt. If the customer already touched the map, preserve
     // that explicit choice instead of moving the pin underneath them.
+    _live.dispose();
     _locateOnOpenTimer?.cancel();
     if (_hasPreferredCenter) return;
     _locateOnOpenTimer = Timer(const Duration(milliseconds: 250), () {

@@ -19,6 +19,7 @@ class NotificationsScreen extends StatefulWidget {
 }
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
+  late final _LiveRefresh _live;
   late final ContactCenterRepository _contactsRepository;
   late Future<List<AppContactCard>> _contactsFuture;
   Future<List<AppNotification>>? _notificationsFuture;
@@ -32,9 +33,34 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     super.initState();
     _contactsRepository = ContactCenterRepository(api: widget.api);
     _contactsFuture = _contactsRepository.load();
+    _live = _LiveRefresh(
+      widget.api,
+      {
+        'notification.created',
+        'contacts',
+        'notifications',
+        'order.updated',
+        'transaction.created',
+      },
+      () async {
+        final contacts = await _contactsRepository.load();
+        if (!mounted) return;
+        setState(() => _contactsFuture = SynchronousFuture(contacts));
+        if (_isAuthenticated) {
+          final items = await widget.api.getNotifications();
+          if (mounted) _showNotifications(items);
+        }
+      },
+    );
     if (_isAuthenticated) {
       _notificationsFuture = _fetchNotifications();
     }
+  }
+
+  @override
+  void dispose() {
+    _live.dispose();
+    super.dispose();
   }
 
   Future<List<AppNotification>> _fetchNotifications() async {

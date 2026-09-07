@@ -40,6 +40,38 @@ const activeRow = {
   sort_order: 1,
 };
 
+test('branch name and full address can be edited independently of map coordinates', async () => {
+  let updates;
+  const database = {
+    from() {
+      return {
+        select() {
+          return this;
+        },
+        eq() {
+          return this;
+        },
+        update(value) {
+          updates = value;
+          return this;
+        },
+        maybeSingle: async () => ({ data: { ...activeRow, ...updates }, error: null }),
+      };
+    },
+  };
+  await withLocationService(database, async (service) => {
+    const result = await service.updateBulkaLocation(activeRow.id, {
+      name: '  Новый филиал  ',
+      address: '  Актау, 19-й микрорайон, 17/2  ',
+    });
+    assert.equal(result.name, 'Новый филиал');
+    assert.equal(result.address, 'Актау, 19-й микрорайон, 17/2');
+    assert.equal(updates.latitude, undefined);
+    assert.equal(updates.longitude, undefined);
+    await assert.rejects(service.updateBulkaLocation(activeRow.id, { address: ' ' }));
+  });
+});
+
 test('bulk delivery zones are written to every active branch in one update', async () => {
   const calls = [];
   let fromCall = 0;
@@ -49,7 +81,9 @@ test('bulk delivery zones are written to every active branch in one update', asy
       fromCall += 1;
       if (fromCall === 1) {
         return {
-          select() { return this; },
+          select() {
+            return this;
+          },
           eq(column, value) {
             calls.push(['select-active', column, value]);
             return Promise.resolve({ data: [activeRow], error: null });
@@ -57,18 +91,28 @@ test('bulk delivery zones are written to every active branch in one update', asy
         };
       }
       return {
-        update(values) { calls.push(['update', values]); return this; },
-        eq(column, value) { calls.push(['update-active', column, value]); return this; },
+        update(values) {
+          calls.push(['update', values]);
+          return this;
+        },
+        eq(column, value) {
+          calls.push(['update-active', column, value]);
+          return this;
+        },
         select() {
           return Promise.resolve({
-            data: [{
-              ...activeRow,
-              delivery_enabled: true,
-              delivery_radius_km: 5,
-              delivery_fee: 700,
-              delivery_min_order: 3000,
-              delivery_zones: [{ id: 'zone-1', radiusKm: 5, fee: 700, minOrder: 3000, color: '#66BB6A' }],
-            }],
+            data: [
+              {
+                ...activeRow,
+                delivery_enabled: true,
+                delivery_radius_km: 5,
+                delivery_fee: 700,
+                delivery_min_order: 3000,
+                delivery_zones: [
+                  { id: 'zone-1', radiusKm: 5, fee: 700, minOrder: 3000, color: '#66BB6A' },
+                ],
+              },
+            ],
             error: null,
           });
         },
@@ -91,9 +135,10 @@ test('bulk delivery zones are written to every active branch in one update', asy
   assert.deepEqual(update.delivery_zones, [
     { id: 'zone-1', radiusKm: 5, fee: 700, minOrder: 3000, color: '#66BB6A' },
   ]);
-  assert.deepEqual(calls.filter(([name]) => name === 'update-active'), [
-    ['update-active', 'active', true],
-  ]);
+  assert.deepEqual(
+    calls.filter(([name]) => name === 'update-active'),
+    [['update-active', 'active', true]],
+  );
 });
 
 test('bulk enable is rejected before update when an active branch has no coordinates', async () => {
@@ -101,11 +146,19 @@ test('bulk enable is rejected before update when an active branch has no coordin
   const supabase = {
     from() {
       return {
-        select() { return this; },
-        eq() {
-          return Promise.resolve({ data: [{ ...activeRow, latitude: null, longitude: null }], error: null });
+        select() {
+          return this;
         },
-        update() { updateCalled = true; return this; },
+        eq() {
+          return Promise.resolve({
+            data: [{ ...activeRow, latitude: null, longitude: null }],
+            error: null,
+          });
+        },
+        update() {
+          updateCalled = true;
+          return this;
+        },
       };
     },
   };
@@ -288,10 +341,7 @@ test('a branch cannot be created far outside the selected city', async () => {
 
 test('location city migration backfills current branches and remains service-role only', () => {
   const sql = fs.readFileSync(
-    path.join(
-      __dirname,
-      '../supabase/migrations/20260726012000_location_city_management.sql',
-    ),
+    path.join(__dirname, '../supabase/migrations/20260726012000_location_city_management.sql'),
     'utf8',
   );
   assert.match(sql, /create table if not exists public\.bulka_cities/);

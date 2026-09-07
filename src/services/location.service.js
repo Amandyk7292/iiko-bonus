@@ -351,6 +351,12 @@ async function getCitiesWithPoints({ throwOnError = false } = {}) {
 async function updateBulkaLocation(id, payload = {}) {
   if (!UUID_PATTERN.test(id)) throw locationError('Некорректный идентификатор филиала');
   const updates = {};
+  if (payload.name !== undefined) {
+    updates.name = requiredText(payload.name, 'Название филиала', { minimum: 2, maximum: 160 });
+  }
+  if (payload.address !== undefined) {
+    updates.address = requiredText(payload.address, 'Адрес филиала', { minimum: 3, maximum: 300 });
+  }
   for (const [apiKey, databaseKey] of Object.entries({
     active: 'active',
     pickupEnabled: 'pickup_enabled',

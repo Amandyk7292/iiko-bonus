@@ -212,8 +212,21 @@ void main() {
       await frames(tester);
       expect(menuRequests, 1);
       for (var i = 0; i < 5; i++) {
-        events.add({'type': 'menu.updated'});
+        events.add({
+          'type': 'client.data.changed',
+          'data': {
+            'domains': ['menu'],
+          },
+        });
       }
+      await frames(tester);
+      expect(menuRequests, 2);
+      events.add({
+        'type': 'client.data.changed',
+        'data': {
+          'domains': ['menu'],
+        },
+      });
       await frames(tester);
       expect(menuRequests, 2);
       pending.complete(response(menu));
@@ -221,11 +234,11 @@ void main() {
       await tester.pumpWidget(host(false));
       await tester.pump(const Duration(minutes: 3));
       await frames(tester);
-      expect(menuRequests, 2);
+      expect(menuRequests, 3);
       await tester.pumpWidget(host(true));
       await tester.pump(const Duration(minutes: 1));
       await frames(tester);
-      expect(menuRequests, 3);
+      expect(menuRequests, 4);
       await tester.pumpWidget(const SizedBox());
       await events.close();
       api.dispose();

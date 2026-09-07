@@ -16,17 +16,31 @@ class _RewardsScreenState extends State<RewardsScreen> {
   List<Map<String, dynamic>> _receivedGiftCards = const [];
   List<Map<String, dynamic>> _giftPurchaseHistory = const [];
   PendingGiftPurchase? _pendingGiftPurchase;
+  late final _LiveRefresh _live;
   bool _loading = true;
   bool _submitting = false;
 
   @override
   void initState() {
     super.initState();
+    _live = _LiveRefresh(
+      widget.api,
+      {
+        'notification.created',
+        'rewards',
+        'loyalty',
+        'customer.updated',
+        'loyalty.balance.updated',
+      },
+      _load,
+      busy: () => _loading || _submitting,
+    );
     unawaited(_load());
   }
 
   @override
   void dispose() {
+    _live.dispose();
     _referralController.dispose();
     _giftController.dispose();
     super.dispose();

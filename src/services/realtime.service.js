@@ -62,6 +62,9 @@ const branchMatches = (subscriber, branchId) => {
 
 const canReceive = (subscriber, event) => {
   const audience = event.audience || {};
+  if (subscriber.public) {
+    return event.type === 'client.data.changed' && audience.public === true;
+  }
   if (subscriber.admin) {
     if (!(audience.adminOnly || audience.includeAdmins || audience.broadcast)) return false;
     if (
@@ -102,7 +105,27 @@ function publish(type, data = {}, audience = {}) {
       subscriber.close();
     }
   }
+  // Service/job driven updates use the same public invalidation channel.
+  if (type === 'menu.updated') publishClientChange(['menu']);
+  if (type === 'locations.updated') publishClientChange(['locations', 'menu']);
   return event;
+}
+
+function publishClientChange(domains) {
+  const allowed = new Set([
+    'menu',
+    'locations',
+    'content',
+    'contacts',
+    'rewards',
+    'settings',
+    'loyalty',
+    'checkout',
+    'notifications',
+  ]);
+  const safe = [...new Set(domains)].filter((domain) => allowed.has(domain));
+  if (!safe.length) return null;
+  return publish('client.data.changed', { domains: safe }, { public: true, broadcast: true });
 }
 
 function openStream(req, res, identity = {}) {
@@ -127,6 +150,7 @@ function openStream(req, res, identity = {}) {
   const subscriber = {
     response: res,
     customerId: identity.customerId || null,
+    public: identity.public === true,
     admin: identity.admin === true,
     role: identity.role || null,
     areas: Array.isArray(identity.areas) ? identity.areas.map(String) : [],
@@ -180,4 +204,11 @@ function resetForTests() {
   sequence = 0;
 }
 
-module.exports = { activeConnections, canReceive, openStream, publish, resetForTests };
+module.exports = {
+  activeConnections,
+  canReceive,
+  openStream,
+  publish,
+  publishClientChange,
+  resetForTests,
+};

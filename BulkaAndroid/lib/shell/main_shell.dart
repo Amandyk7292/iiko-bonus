@@ -140,8 +140,11 @@ class _MainShellState extends State<MainShell> {
     await _navigationGate.run(() async {
       await Navigator.of(context).push<void>(
         MaterialPageRoute(
-          builder: (_) =>
-              BalanceHistoryScreen(transactions: widget.transactions),
+          builder: (_) => BalanceHistoryScreen(
+            transactions: widget.transactions,
+            api: widget.api,
+            phone: widget.customer?.phone,
+          ),
         ),
       );
     });

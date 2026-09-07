@@ -1359,9 +1359,7 @@ class BulkaApiClient {
   }
 
   void _startEventLoopIfAuthenticated() {
-    if (_disposed ||
-        _accessToken == null ||
-        _eventController?.hasListener != true) {
+    if (_disposed || _eventController?.hasListener != true) {
       return;
     }
     if (_eventLoopRunning) return;
@@ -1388,12 +1386,22 @@ class BulkaApiClient {
     int generation,
   ) async {
     final done = Completer<void>();
+    Timer? watchdog;
+    void heartbeat() {
+      watchdog?.cancel();
+      watchdog = Timer(const Duration(seconds: 50), () {
+        if (!done.isCompleted) done.complete();
+      });
+    }
+
+    heartbeat();
     late final StreamSubscription<String> subscription;
     subscription = response.stream
         .transform(utf8.decoder)
         .transform(const LineSplitter())
         .listen(
           (line) {
+            heartbeat();
             if (generation != _eventGeneration || !line.startsWith('data:')) {
               return;
             }
@@ -1415,6 +1423,7 @@ class BulkaApiClient {
         );
 
     if (generation != _eventGeneration || _disposed) {
+      watchdog?.cancel();
       await subscription.cancel();
       return;
     }
@@ -1423,6 +1432,7 @@ class BulkaApiClient {
     try {
       await done.future;
     } finally {
+      watchdog?.cancel();
       if (identical(_eventStreamSubscription, subscription)) {
         _eventStreamSubscription = null;
       }
@@ -1434,10 +1444,12 @@ class BulkaApiClient {
   Future<void> _runEventLoop() async {
     try {
       while (!_disposed && _eventController?.hasListener == true) {
-        if (_accessToken == null) break;
         final generation = _eventGeneration;
         try {
-          final request = http.Request('GET', _uri('/api/customer/events'));
+          final path = _accessToken == null
+              ? '/api/public/events'
+              : '/api/customer/events';
+          final request = http.Request('GET', _uri(path));
           request.headers.addAll(_headers(json: false));
           var response = await _client
               .send(request)
@@ -1468,12 +1480,22 @@ class BulkaApiClient {
           }
           await _consumeEventStream(response, generation);
         } catch (_) {
-          if (generation != _eventGeneration || _disposed) break;
-          final wakeUp = _eventWakeUp.future;
-          await Future.any<void>([
-            Future<void>.delayed(const Duration(seconds: 3)),
-            wakeUp,
-          ]);
+          // Reconnect below for both a dropped stream and an HTTP failure.
+        }
+        if (generation != _eventGeneration ||
+            _disposed ||
+            _eventController?.hasListener != true) {
+          break;
+        }
+        final retryDone = Completer<void>();
+        final retryTimer = Timer(
+          const Duration(seconds: 3),
+          retryDone.complete,
+        );
+        try {
+          await Future.any<void>([retryDone.future, _eventWakeUp.future]);
+        } finally {
+          retryTimer.cancel();
         }
       }
     } finally {

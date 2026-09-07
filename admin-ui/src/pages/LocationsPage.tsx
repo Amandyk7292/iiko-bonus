@@ -87,6 +87,8 @@ type PointDraft = {
 type ZoneDraft = { id: string; radiusKm: string; fee: string; minOrder: string; color: string };
 type ZoneValue = { id: string; radiusKm: number; fee: number; minOrder: number; color: string };
 type Draft = {
+  name: string;
+  address: string;
   active: boolean;
   pickupEnabled: boolean;
   preorderEnabled: boolean;
@@ -111,6 +113,8 @@ const defaultZone = (): ZoneDraft => ({
   color: zoneColors[0],
 });
 const emptyDraft: Draft = {
+  name: '',
+  address: '',
   active: true,
   pickupEnabled: true,
   preorderEnabled: true,
@@ -364,6 +368,7 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
   const [pointSubmitting, setPointSubmitting] = useState(false);
   const [pointError, setPointError] = useState('');
   const [editing, setEditing] = useState<FulfillmentLocation | null>(null);
+  const [mapExpanded, setMapExpanded] = useState(false);
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
@@ -410,7 +415,10 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
   const openEditor = (location: FulfillmentLocation) => {
     const daily = location.hours?.daily;
     setEditing(location);
+    setMapExpanded(false);
     setDraft({
+      name: location.name,
+      address: location.address,
       active: location.active,
       pickupEnabled: location.pickupEnabled,
       preorderEnabled: location.preorderEnabled,
@@ -718,6 +726,8 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
     try {
       const outer = zones[zones.length - 1];
       const result = await api.updateFulfillmentLocation(editing.id, {
+        name: draft.name.trim(),
+        address: draft.address.trim(),
         active: draft.active,
         pickupEnabled: draft.pickupEnabled,
         preorderEnabled: draft.preorderEnabled,
@@ -1467,64 +1477,110 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
               <div className="location-summary">
                 <MapPin aria-hidden="true" size={20} />
                 <div>
-                  <strong>{editing.address}</strong>
+                  <strong>{draft.address}</strong>
                   <small>
                     {editing.city} · {draft.latitude}, {draft.longitude}
                   </small>
                 </div>
               </div>
-              <fieldset className="form-section location-map-section">
-                <legend>{t('locations.mapManagement')}</legend>
-                <p className="page-help">{t('locations.mapManagementHint')}</p>
-                <YandexLocationMap
-                  name={editing.name}
-                  address={editing.address}
-                  latitude={numeric(draft.latitude)}
-                  longitude={numeric(draft.longitude)}
-                  zones={previewZones}
-                  onPointChange={(latitude, longitude) =>
-                    setDraft((current) => ({
-                      ...current,
-                      latitude: latitude.toFixed(7),
-                      longitude: longitude.toFixed(7),
-                    }))
-                  }
-                />
-                <div className="form-grid form-grid-2 location-coordinate-grid">
-                  <div className="field-group">
-                    <label className="field-label" htmlFor="location-latitude">
-                      {t('locations.latitude')}
-                    </label>
-                    <input
-                      id="location-latitude"
-                      type="number"
-                      step="0.0000001"
-                      className="input-classic"
-                      value={draft.latitude}
-                      onChange={(event) =>
-                        setDraft((current) => ({ ...current, latitude: event.target.value }))
-                      }
-                      required
-                    />
-                  </div>
-                  <div className="field-group">
-                    <label className="field-label" htmlFor="location-longitude">
-                      {t('locations.longitude')}
-                    </label>
-                    <input
-                      id="location-longitude"
-                      type="number"
-                      step="0.0000001"
-                      className="input-classic"
-                      value={draft.longitude}
-                      onChange={(event) =>
-                        setDraft((current) => ({ ...current, longitude: event.target.value }))
-                      }
-                      required
-                    />
-                  </div>
+              <div className="form-grid form-grid-2">
+                <div className="field-group">
+                  <label className="field-label" htmlFor="location-name">
+                    {t('locations.pointName')}
+                  </label>
+                  <input
+                    id="location-name"
+                    className="input-classic"
+                    value={draft.name}
+                    onChange={(event) =>
+                      setDraft((current) => ({ ...current, name: event.target.value }))
+                    }
+                    minLength={2}
+                    maxLength={160}
+                    required
+                  />
                 </div>
-              </fieldset>
+                <div className="field-group">
+                  <label className="field-label" htmlFor="location-address">
+                    {t('locations.address')}
+                  </label>
+                  <input
+                    id="location-address"
+                    className="input-classic"
+                    value={draft.address}
+                    onChange={(event) =>
+                      setDraft((current) => ({ ...current, address: event.target.value }))
+                    }
+                    minLength={3}
+                    maxLength={300}
+                    required
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn-outline px-5 inline-flex items-center gap-2"
+                aria-expanded={mapExpanded}
+                aria-controls="location-map-editor"
+                onClick={() => setMapExpanded((current) => !current)}
+              >
+                <MapPin aria-hidden="true" size={18} />
+                {t('locations.mapManagement')}{' '}
+                <span aria-hidden="true">{mapExpanded ? '−' : '+'}</span>
+              </button>
+              {mapExpanded && (
+                <fieldset id="location-map-editor" className="form-section location-map-section">
+                  <p className="page-help">{t('locations.mapManagementHint')}</p>
+                  <YandexLocationMap
+                    name={draft.name}
+                    address={draft.address}
+                    latitude={numeric(draft.latitude)}
+                    longitude={numeric(draft.longitude)}
+                    zones={previewZones}
+                    onPointChange={(latitude, longitude) =>
+                      setDraft((current) => ({
+                        ...current,
+                        latitude: latitude.toFixed(7),
+                        longitude: longitude.toFixed(7),
+                      }))
+                    }
+                  />
+                  <div className="form-grid form-grid-2 location-coordinate-grid">
+                    <div className="field-group">
+                      <label className="field-label" htmlFor="location-latitude">
+                        {t('locations.latitude')}
+                      </label>
+                      <input
+                        id="location-latitude"
+                        type="number"
+                        step="0.0000001"
+                        className="input-classic"
+                        value={draft.latitude}
+                        onChange={(event) =>
+                          setDraft((current) => ({ ...current, latitude: event.target.value }))
+                        }
+                        required
+                      />
+                    </div>
+                    <div className="field-group">
+                      <label className="field-label" htmlFor="location-longitude">
+                        {t('locations.longitude')}
+                      </label>
+                      <input
+                        id="location-longitude"
+                        type="number"
+                        step="0.0000001"
+                        className="input-classic"
+                        value={draft.longitude}
+                        onChange={(event) =>
+                          setDraft((current) => ({ ...current, longitude: event.target.value }))
+                        }
+                        required
+                      />
+                    </div>
+                  </div>
+                </fieldset>
+              )}
             </>
           )}
           <fieldset className="form-section">

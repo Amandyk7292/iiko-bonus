@@ -307,6 +307,7 @@ const taplinkStaticHeaders = (res) => {
 
 // API routes must be registered before the SPA fallbacks below. Otherwise
 // GET /admin/api/* is swallowed by /admin/* and returns index.html with 200.
+app.use(require('./middlewares/client-data-events.middleware').clientDataEvents);
 app.use(adminRoutes);
 app.use(loyaltyRoutes);
 app.use(walletRoutes);
@@ -481,7 +482,17 @@ app.use(
 // only Flutter assets fall through to this static middleware.
 app.use(express.static(publicAppDirectory, { setHeaders: appStaticHeaders }));
 app.get(
-  ['/orders', '/orders/*', '/catalog', '/catalog/*', '/p/*', '/cart', '/promos', '/locations', '/profile'],
+  [
+    '/orders',
+    '/orders/*',
+    '/catalog',
+    '/catalog/*',
+    '/p/*',
+    '/cart',
+    '/promos',
+    '/locations',
+    '/profile',
+  ],
   (_req, res) => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.sendFile(path.join(publicAppDirectory, 'index.html'));

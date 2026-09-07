@@ -79,11 +79,19 @@ class _LocationDirectoryScreenState extends State<LocationDirectoryScreen> {
   bool _sheetOpen = false;
   LatLng _center = const LatLng(43.6532, 51.1975);
   double _zoom = 12;
+  late final _LiveRefresh _live;
+  final _branchUpdates = ValueNotifier<int>(0);
   Timer? _clock;
 
   @override
   void initState() {
     super.initState();
+    _live = _LiveRefresh(
+      widget.api,
+      {'locations'},
+      () => _load(silent: true),
+      busy: () => _loading,
+    );
     unawaited(_load());
     _clock = Timer.periodic(const Duration(minutes: 1), (_) {
       if (mounted) setState(() {});
@@ -92,6 +100,8 @@ class _LocationDirectoryScreenState extends State<LocationDirectoryScreen> {
 
   @override
   void dispose() {
+    _live.dispose();
+    _branchUpdates.dispose();
     _clock?.cancel();
     _search.dispose();
     _map.dispose();
@@ -111,11 +121,13 @@ class _LocationDirectoryScreenState extends State<LocationDirectoryScreen> {
       )
       .toList();
 
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _failed = false;
-    });
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) {
+      setState(() {
+        _loading = true;
+        _failed = false;
+      });
+    }
     try {
       final branches = await widget.api.getFulfillmentLocations();
       final prefs = await SharedPreferences.getInstance();
@@ -127,10 +139,11 @@ class _LocationDirectoryScreenState extends State<LocationDirectoryScreen> {
             : prefs.getString('directory_city');
         _city = _cities.contains(saved) ? saved! : _cities.firstOrNull ?? '';
         _loading = false;
-        _focusCity();
+        if (!silent || saved != _city) _focusCity();
       });
+      _branchUpdates.value++;
     } catch (_) {
-      if (mounted) {
+      if (mounted && !silent) {
         setState(() {
           _loading = false;
           _failed = true;
@@ -262,7 +275,21 @@ class _LocationDirectoryScreenState extends State<LocationDirectoryScreen> {
       isScrollControlled: true,
       showDragHandle: true,
       backgroundColor: Colors.white,
-      builder: (context) => _branchSheet(context, branch),
+      builder: (context) => ValueListenableBuilder<int>(
+        valueListenable: _branchUpdates,
+        builder: (context, _, child) {
+          final current = _branches.where((b) => b.id == branch.id).firstOrNull;
+          if (current == null) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text('directory_closed'.tr, style: _title(20)),
+              ),
+            );
+          }
+          return _branchSheet(context, current);
+        },
+      ),
     );
     if (mounted) setState(() => _sheetOpen = false);
   }

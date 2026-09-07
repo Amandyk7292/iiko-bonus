@@ -32,6 +32,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<PromoStory> _stories = const [];
   List<NewsItem> _news = const [];
   Set<String> _viewedStoryGroups = const {};
+  late final _LiveRefresh _live;
   Timer? _feedRefreshTimer;
   bool _feedLoading = false;
   bool _initialLoading = true;
@@ -42,6 +43,12 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _live = _LiveRefresh(
+      widget.api,
+      {'content'},
+      _loadFeed,
+      busy: () => _feedLoading,
+    );
     unawaited(_initializeFeed());
     unawaited(_loadViewedStoryGroups());
     _feedRefreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
@@ -56,6 +63,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _live.dispose();
     _feedRefreshTimer?.cancel();
     super.dispose();
   }

@@ -29,6 +29,7 @@ class ProductDetailsScreen extends StatefulWidget {
 }
 
 class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
+  late final _LiveRefresh _live;
   late int _quantity;
   late bool _isFavorite;
   Map<String, dynamic> _options = const {};
@@ -48,18 +49,25 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     super.initState();
     _quantity = widget.initialQuantity;
     _isFavorite = widget.initialFavorite;
+    _live = _LiveRefresh(
+      widget.api,
+      {'menu', 'menu.updated'},
+      () => _loadOptions(preserveSelection: true),
+      busy: () => _loadingOptions,
+    );
     unawaited(_loadOptions());
     unawaited(widget.api.recordProductView(widget.product.id));
   }
 
   @override
   void dispose() {
+    _live.dispose();
     updateDocumentTitle('Bulka');
     _inscriptionController.dispose();
     super.dispose();
   }
 
-  Future<void> _loadOptions() async {
+  Future<void> _loadOptions({bool preserveSelection = false}) async {
     try {
       final options = await widget.api.getProductOptions(widget.product.id);
       final configuration = _asMap(options['configuration']);
@@ -67,9 +75,25 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       if (!mounted) return;
       setState(() {
         _options = options;
-        _weight = _defaultOptionCode(configuration['weightOptions']);
-        _filling = _defaultOptionCode(configuration['fillingOptions']);
-        _design = _defaultOptionCode(configuration['designOptions']);
+        _weight =
+            preserveSelection &&
+                _containsOption(configuration['weightOptions'], _weight)
+            ? _weight
+            : _defaultOptionCode(configuration['weightOptions']);
+        _filling =
+            preserveSelection &&
+                _containsOption(configuration['fillingOptions'], _filling)
+            ? _filling
+            : _defaultOptionCode(configuration['fillingOptions']);
+        _design =
+            preserveSelection &&
+                _containsOption(configuration['designOptions'], _design)
+            ? _design
+            : _defaultOptionCode(configuration['designOptions']);
+        final previous = preserveSelection
+            ? Map<String, Set<String>>.from(_selectedModifiers)
+            : <String, Set<String>>{};
+        _selectedModifiers.clear();
         for (final raw in groups) {
           final group = _asMap(raw);
           final defaults = (group['options'] as List? ?? const [])
@@ -77,9 +101,13 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
               .map((item) => _asString(_asMap(item)['id']))
               .where((value) => value.isNotEmpty)
               .toSet();
-          if (defaults.isNotEmpty) {
-            _selectedModifiers[_asString(group['id'])] = defaults;
-          }
+          final id = _asString(group['id']);
+          final allowed = (group['options'] as List? ?? const [])
+              .map((item) => _asString(_asMap(item)['id']))
+              .toSet();
+          _selectedModifiers[id] = previous.containsKey(id)
+              ? previous[id]!.intersection(allowed)
+              : defaults;
         }
         _loadingOptions = false;
       });
@@ -87,6 +115,13 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       if (mounted) setState(() => _loadingOptions = false);
     }
   }
+
+  bool _containsOption(dynamic raw, String? code) =>
+      raw is List &&
+      code != null &&
+      raw.any(
+        (item) => _asString(_asMap(item)['code'] ?? _asMap(item)['id']) == code,
+      );
 
   String? _defaultOptionCode(dynamic raw) {
     final list = raw is List ? raw : const [];
@@ -115,7 +150,8 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
 
   int get _configuredPrice {
     final config = _asMap(_options['configuration']);
-    var total = widget.product.price;
+    var total =
+        (widget.liveProducts.value[widget.product.id] ?? widget.product).price;
     total += _optionDelta(config['weightOptions'], _weight);
     total += _optionDelta(config['fillingOptions'], _filling);
     total += _optionDelta(config['designOptions'], _design);

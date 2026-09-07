@@ -20,6 +20,8 @@ class _CheckoutScreen extends StatefulWidget {
 }
 
 class _CheckoutScreenState extends State<_CheckoutScreen> {
+  late final _LiveRefresh _live;
+  bool _preferencesReady = false;
   late final TextEditingController _phoneController;
   final _promoController = TextEditingController();
   final _commentController = TextEditingController();
@@ -76,8 +78,31 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
     _promoController.addListener(_saveDraft);
     _commentController.addListener(_saveDraft);
     _onlineOrderingDisabled = widget.api.onlineOrderingDisabled;
-    unawaited(_loadCheckoutPreferences());
+    unawaited(
+      _loadCheckoutPreferences().whenComplete(() => _preferencesReady = true),
+    );
+    _live = _LiveRefresh(
+      widget.api,
+      {'locations', 'menu', 'checkout', 'settings'},
+      _refreshLiveCheckout,
+      busy: () => !_preferencesReady || _isSubmitting || _isQuoting,
+    );
     unawaited(_loadPaymentAvailability());
+  }
+
+  Future<void> _refreshLiveCheckout() async {
+    final locations = await widget.api.getFulfillmentLocations();
+    if (!mounted) return;
+    setState(() {
+      _locations = locations;
+      _deliveryAvailable = locations.any((b) => b.active && b.deliveryEnabled);
+      _deliveryAvailabilityChecked = true;
+      final branch = locations.where((b) => b.id == _branchId).firstOrNull;
+      if (branch != null) _branch = branch.name;
+    });
+    await _loadPaymentAvailability();
+    if (!mounted) return;
+    await _refreshQuote();
   }
 
   bool get _selectedPaymentAvailable =>
@@ -314,6 +339,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
 
   @override
   void dispose() {
+    _live.dispose();
     _promoController.removeListener(_refreshPromoButton);
     _phoneController.removeListener(_saveDraft);
     _promoController.removeListener(_saveDraft);

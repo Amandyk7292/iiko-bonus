@@ -24,7 +24,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
     with WidgetsBindingObserver {
   late CustomerOrder _order;
   final YandexMapController _mapController = YandexMapController();
-  StreamSubscription<Map<String, dynamic>>? _events;
+  late final _LiveRefresh _live;
   Timer? _clock;
   bool _refreshing = false;
   bool _cancellationLoading = false;
@@ -36,15 +36,18 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
     super.initState();
     _order = widget.initialOrder;
     WidgetsBinding.instance.addObserver(this);
-    _events = widget.api.customerEvents.listen((event) {
-      final type = _asString(event['type']);
-      final data = _asMap(event['data']);
-      if ((type.startsWith('order.') || type.startsWith('delivery.')) &&
-          (data['orderId'] == null ||
-              _asString(data['orderId']) == _order.id)) {
-        unawaited(_reload());
-      }
-    });
+    _live = _LiveRefresh(
+      widget.api,
+      {
+        'order.created',
+        'order.updated',
+        'delivery.updated',
+        'order.customer_arrived',
+        'locations',
+      },
+      _reload,
+      busy: () => _refreshing,
+    );
     _clock = Timer.periodic(const Duration(seconds: 15), (_) {
       if (!mounted) return;
       setState(() => _now = DateTime.now());
@@ -58,7 +61,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _events?.cancel();
+    _live.dispose();
     _clock?.cancel();
     _mapController.dispose();
     super.dispose();

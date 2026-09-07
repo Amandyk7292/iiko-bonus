@@ -26,7 +26,7 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
     with WidgetsBindingObserver {
   Timer? _refreshTimer;
   StreamSubscription<Map<String, dynamic>>? _pushOrderSubscription;
-  StreamSubscription<Map<String, dynamic>>? _realtimeOrderSubscription;
+  late final _LiveRefresh _ordersLive;
   bool _loading = true;
   bool _refreshInFlight = false;
   final Set<String> _repeatInFlight = {};
@@ -48,15 +48,19 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
     _pushOrderSubscription = PushNotifications.orderEvents.listen(
       (_) => unawaited(_load(silent: true)),
     );
-    _realtimeOrderSubscription = widget.api.customerEvents.listen((event) {
-      final type = _asString(event['type']);
-      if (type == 'order.created' ||
-          type == 'order.updated' ||
-          type == 'delivery.updated' ||
-          type == 'order.customer_arrived') {
-        unawaited(_load(silent: true));
-      }
-    });
+    _ordersLive = _LiveRefresh(
+      widget.api,
+      {
+        'order.created',
+        'order.updated',
+        'delivery.updated',
+        'order.customer_arrived',
+        'locations',
+        'menu',
+      },
+      () => _load(silent: true),
+      busy: () => _refreshInFlight,
+    );
     unawaited(_load());
   }
 
@@ -65,7 +69,7 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
     WidgetsBinding.instance.removeObserver(this);
     _refreshTimer?.cancel();
     _pushOrderSubscription?.cancel();
-    _realtimeOrderSubscription?.cancel();
+    _ordersLive.dispose();
     super.dispose();
   }
 

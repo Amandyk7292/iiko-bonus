@@ -71,7 +71,8 @@ class _CatalogScreenState extends State<CatalogScreen>
 
   // Авто-обновление меню каждую минуту
   Timer? _autoRefreshTimer;
-  StreamSubscription<Map<String, dynamic>>? _menuEventSubscription;
+  late final _LiveRefresh _menuLive;
+  late final _LiveRefresh _branchLive;
 
   BulkaApiClient get _api => widget.api;
 
@@ -103,9 +104,18 @@ class _CatalogScreenState extends State<CatalogScreen>
     );
     unawaited(_loadFavorites());
     unawaited(_loadStockSubscriptions());
-    _menuEventSubscription = _api.customerEvents.listen((event) {
-      if (event['type'] == 'menu.updated') unawaited(_silentRefresh());
-    });
+    _menuLive = _LiveRefresh(
+      _api,
+      {'menu', 'locations', 'menu.updated'},
+      _silentRefresh,
+      busy: () => !_menuScopeReady || _activeMenuLoads > 0,
+    );
+    _branchLive = _LiveRefresh(
+      _api,
+      {'locations'},
+      _refreshBranchLabel,
+      busy: () => !_menuScopeReady,
+    );
     _networkRecoverySubscription = networkRecoveryEvents().listen(
       (_) => _refreshIfActive(),
     );
@@ -256,7 +266,8 @@ class _CatalogScreenState extends State<CatalogScreen>
     appLanguageNotifier.removeListener(_onLanguageChanged);
     _autoRefreshTimer?.cancel();
     _networkRecoverySubscription?.cancel();
-    _menuEventSubscription?.cancel();
+    _menuLive.dispose();
+    _branchLive.dispose();
     _searchController.dispose();
     _liveProducts.dispose();
     WidgetsBinding.instance.removeObserver(this);
