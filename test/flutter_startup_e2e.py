@@ -39,7 +39,7 @@ async def main():
             await page.locator('flt-semantics-placeholder').dispatch_event('click', timeout=10000)
             await expect(page.get_by_role('button', name=re.compile('^Каталог'))).to_be_visible(timeout=5000)
             elapsed = time.monotonic() - began
-            assert await page.get_by_text('Чужой профиль', exact=True).count() == 0
+            assert await page.get_by_role('button', name=re.compile('Чужой профиль')).count() == 0
             if slow:
                 assert not refresh_done, 'Public interface still waited for authentication'
             assert elapsed < 3, f'Local startup exceeded budget: {elapsed:.2f}s'
@@ -48,6 +48,39 @@ async def main():
             print(json.dumps({'slow_auth': slow, 'usable_seconds': round(elapsed, 2),
                               'first_frame_ms': await page.evaluate('window.firstFrameMs')}, ensure_ascii=False))
             await page.close()
+        # A saved account moves from splash directly to a verified profile.
+        page = await browser.new_page(viewport={'width': 390, 'height': 844}, locale='ru-RU')
+        refreshing = asyncio.Event()
+        finish_refresh = asyncio.Event()
+        customer = {'id': '11111111-1111-4111-8111-111111111111',
+                    'phone': '77000000000', 'name': 'Алия', 'balance': 1200,
+                    'total_spent': 24000, 'cashbackPercent': 5}
+
+        async def returning_api(route):
+            if urlparse(route.request.url).path == '/api/auth/refresh':
+                refreshing.set()
+                await finish_refresh.wait()
+                await route.fulfill(json={'success': True, 'accessToken': 'verified-access',
+                                          'sessionIdentity': {'phone': customer['phone']}})
+            else:
+                await route.fulfill(json={'success': True, 'exists': True, 'customer': customer,
+                    'transactions': [], 'stories': [], 'news': [], 'products': [],
+                    'categories': [], 'locations': [], 'cities': []})
+
+        await page.route('**/api/**', returning_api)
+        values = {'phone': customer['phone'], 'customer': json.dumps(customer), 'transactions': '[]'}
+        await page.add_init_script('for (const [key,value] of Object.entries(' + json.dumps(values) +
+                                   ')) localStorage.setItem("flutter."+key, JSON.stringify(value));')
+        await page.goto('http://127.0.0.1:4187/', wait_until='domcontentloaded')
+        await asyncio.wait_for(refreshing.wait(), timeout=10)
+        await page.locator('flt-semantics-placeholder').dispatch_event('click', timeout=10000)
+        await expect(page.get_by_role('button', name=re.compile('^Каталог'))).not_to_be_visible()
+        assert await page.get_by_role('button', name=re.compile('Алия')).count() == 0
+        finish_refresh.set()
+        await expect(page.get_by_role('button', name=re.compile('^Каталог'))).to_be_visible(timeout=5000)
+        await expect(page.get_by_role('button', name=re.compile('Алия.*1200 бонусов'))).to_be_visible()
+        print('Returning profile: no guest header before verified identity')
+        await page.close()
         await browser.close()
 
 asyncio.run(main())

@@ -27,7 +27,6 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
   Timer? _refreshTimer;
   StreamSubscription<Map<String, dynamic>>? _pushOrderSubscription;
   StreamSubscription<Map<String, dynamic>>? _realtimeOrderSubscription;
-  late bool _completed;
   bool _loading = true;
   bool _refreshInFlight = false;
   final Set<String> _repeatInFlight = {};
@@ -37,13 +36,11 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
   PaymentReturnNotice? _paymentReturnNotice;
   String? _pendingInitialOrderId;
 
-  String get _cacheKey =>
-      'customer_orders_cache_${widget.cacheScope}_${_completed ? 'completed' : 'active'}';
+  String get _cacheKey => 'customer_orders_cache_${widget.cacheScope}_all';
 
   @override
   void initState() {
     super.initState();
-    _completed = widget.initialCompleted;
     _paymentReturnNotice = widget.paymentReturnNotice;
     _pendingInitialOrderId = widget.initialOrderId?.trim();
     WidgetsBinding.instance.addObserver(this);
@@ -100,7 +97,15 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
       });
     }
     try {
-      final orders = await widget.api.getCustomerOrders(completed: _completed);
+      final groups = await Future.wait([
+        widget.api.getCustomerOrders(),
+        widget.api.getCustomerOrders(completed: true),
+      ]);
+      final byId = <String, CustomerOrder>{
+        for (final order in groups.expand((group) => group)) order.id: order,
+      };
+      final orders = byId.values.toList()
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(
         _cacheKey,
@@ -151,16 +156,6 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
     }
   }
 
-  void _selectTab(bool completed) {
-    if (_completed == completed) return;
-    setState(() {
-      _completed = completed;
-      _orders = const [];
-    });
-    widget.onScopeChanged?.call(completed);
-    unawaited(_load());
-  }
-
   void _scheduleInitialOrderOpen() {
     final id = _pendingInitialOrderId;
     if (id == null || id.isEmpty || !mounted) return;
@@ -178,13 +173,7 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
       });
       return;
     }
-    if (!_completed) {
-      Future<void>.delayed(Duration.zero, () {
-        if (mounted && _pendingInitialOrderId == id) _selectTab(true);
-      });
-    } else {
-      _pendingInitialOrderId = null;
-    }
+    _pendingInitialOrderId = null;
   }
 
   Future<void> _repeatOrder(CustomerOrder order) async {
@@ -295,29 +284,6 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
       ),
       body: Column(
         children: [
-          Container(
-            color: scheme.surface,
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
-            child: Row(
-              children: [
-                Expanded(
-                  child: _OrderTab(
-                    label: 'orders_active'.tr,
-                    selected: !_completed,
-                    onTap: () => _selectTab(false),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _OrderTab(
-                    label: 'orders_completed'.tr,
-                    selected: _completed,
-                    onTap: () => _selectTab(true),
-                  ),
-                ),
-              ],
-            ),
-          ),
           if (_usingOfflineCache)
             Padding(
               padding: const EdgeInsets.fromLTRB(18, 10, 18, 0),
@@ -576,49 +542,6 @@ class _PaymentCancellationNotice extends StatelessWidget {
   }
 }
 
-class _OrderTab extends StatelessWidget {
-  const _OrderTab({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.bulkaColors;
-    final scheme = Theme.of(context).colorScheme;
-    return Semantics(
-      selected: selected,
-      button: true,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(BulkaRadii.card),
-        child: AnimatedContainer(
-          duration: BulkaMotion.duration(context, BulkaMotion.standard),
-          height: 52,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: selected ? _bulkaYellow : scheme.surface,
-            borderRadius: BorderRadius.circular(BulkaRadii.card),
-            border: Border.all(color: colors.cardBorder, width: 1.2),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: selected ? _textDark : scheme.onSurface,
-              fontSize: BulkaTypeScale.body,
-              fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _OrdersEmptyState extends StatelessWidget {
   const _OrdersEmptyState();
 
@@ -686,140 +609,186 @@ class _CustomerOrderCard extends StatelessWidget {
     final colors = context.bulkaColors;
     final images = order.items
         .map((item) => _asString(item['imageUrl'] ?? item['image_url']))
-        .where((url) => url.isNotEmpty)
-        .toSet()
         .toList();
+    if (images.isEmpty) images.add('');
     final date = order.createdAt.toLocal();
+    final type = order.fulfillmentType;
+    final typeColor = type == 'delivery'
+        ? const Color(0xFF286D9E)
+        : type == 'preorder'
+        ? const Color(0xFF8062A8)
+        : const Color(0xFF3B7B60);
+    final address = order.branchAddress?.trim() ?? '';
+    final branch = order.branch.trim();
+    final location = [
+      if (branch.isNotEmpty) branch,
+      if (address.isNotEmpty &&
+          !branch.toLowerCase().contains(address.toLowerCase()))
+        address,
+    ].join('\n');
     final paymentIssue = order.paymentStatus != 'paid';
-    return Material(
+    return Container(
       key: ValueKey('customer-order-${order.id}'),
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(24),
-      child: InkWell(
-        onTap: onOpen,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: colors.cardBorder, width: 1),
         borderRadius: BorderRadius.circular(24),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x08000000),
-                blurRadius: 24,
-                offset: Offset(0, 8),
-              ),
-            ],
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x09000000),
+            blurRadius: 24,
+            offset: Offset(0, 8),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  if (images.isNotEmpty) ...[
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: SizedBox.square(
-                        dimension: MediaQuery.sizeOf(context).width < 360
-                            ? 88
-                            : 112,
-                        child: _NetworkImage(
-                          url: images.first,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                  ],
-                  Expanded(
-                    flex: 5,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${_formatCartMoney(order.amount)} ₸',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(24),
+        child: InkWell(
+          onTap: onOpen,
+          borderRadius: BorderRadius.circular(24),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 5,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${_formatCartMoney(order.amount)} ₸',
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                              height: 1.15,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          '${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}',
-                          style: TextStyle(
-                            color: colors.mutedText,
-                            fontSize: 13,
+                          const SizedBox(height: 5),
+                          Text(
+                            '${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}',
+                            style: TextStyle(
+                              color: colors.mutedText,
+                              fontSize: 12,
+                              height: 1.15,
+                            ),
                           ),
-                        ),
-                        if (order.branch.isNotEmpty) ...[
                           const SizedBox(height: 5),
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Icon(Icons.location_on_outlined, size: 16),
-                              const SizedBox(width: 4),
+                              const Icon(Icons.location_on_outlined, size: 14),
+                              const SizedBox(width: 3),
                               Expanded(
                                 child: Text(
-                                  order.branch,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
+                                  location.isNotEmpty
+                                      ? location
+                                      : 'orders_branch_unknown'.tr,
                                   style: TextStyle(
                                     color: colors.mutedText,
-                                    fontSize: 12,
+                                    fontSize: 11,
+                                    height: 1.2,
                                   ),
                                 ),
                               ),
                             ],
                           ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'order_$type'.tr,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: typeColor,
+                              height: 1.15,
+                            ),
+                          ),
                         ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  IconButton(
-                    onPressed: repeatLoading ? null : onRepeat,
-                    tooltip: 'order_repeat'.tr,
-                    icon: repeatLoading
-                        ? const SizedBox.square(
-                            dimension: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.replay_rounded, size: 26),
-                  ),
-                ],
-              ),
-              if (!order.isClosed ||
-                  paymentIssue ||
-                  order.orderStatus == 'cancelled') ...[
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    _OrderStateChip(
-                      icon: Icons.shopping_bag_outlined,
-                      label: 'order_status_${order.orderStatus}'.tr,
-                      color: order.orderStatus == 'cancelled'
-                          ? _errorRed
-                          : colors.brandBrown,
-                    ),
-                    if (order.usesDelivery && !order.isClosed)
-                      _OrderStateChip(
-                        icon: Icons.delivery_dining_outlined,
-                        label: 'delivery_status_${order.deliveryStatus}'.tr,
-                        color: colors.brandBrown,
                       ),
-                    if (paymentIssue)
-                      _OrderStateChip(
-                        icon: Icons.payments_outlined,
-                        label: 'payment_status_${order.paymentStatus}'.tr,
-                        color: order.paymentStatus == 'refunded'
-                            ? _successGreen
-                            : _errorRed,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      flex: 5,
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final count = min(
+                            images.length,
+                            max(1, (constraints.maxWidth / 42).floor()),
+                          );
+                          return Wrap(
+                            spacing: 4,
+                            runSpacing: 4,
+                            children: [
+                              for (final url in images.take(count))
+                                ClipOval(
+                                  child: SizedBox.square(
+                                    dimension: 38,
+                                    child: ColoredBox(
+                                      color: const Color(0xFFF4F3F0),
+                                      child: url.isEmpty
+                                          ? const SizedBox.expand()
+                                          : _NetworkImage(
+                                              url: url,
+                                              fit: BoxFit.cover,
+                                            ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
                       ),
+                    ),
+                    const SizedBox(width: 4),
+                    IconButton(
+                      onPressed: repeatLoading ? null : onRepeat,
+                      tooltip: 'order_repeat'.tr,
+                      icon: repeatLoading
+                          ? const SizedBox.square(
+                              dimension: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.replay_rounded, size: 26),
+                    ),
                   ],
                 ),
+                if (!order.isClosed ||
+                    paymentIssue ||
+                    order.orderStatus == 'cancelled') ...[
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      _OrderStateChip(
+                        icon: Icons.shopping_bag_outlined,
+                        label: 'order_status_${order.orderStatus}'.tr,
+                        color: order.orderStatus == 'cancelled'
+                            ? _errorRed
+                            : colors.brandBrown,
+                      ),
+                      if (order.usesDelivery && !order.isClosed)
+                        _OrderStateChip(
+                          icon: Icons.delivery_dining_outlined,
+                          label: 'delivery_status_${order.deliveryStatus}'.tr,
+                          color: colors.brandBrown,
+                        ),
+                      if (paymentIssue)
+                        _OrderStateChip(
+                          icon: Icons.payments_outlined,
+                          label: 'payment_status_${order.paymentStatus}'.tr,
+                          color: order.paymentStatus == 'refunded'
+                              ? _successGreen
+                              : _errorRed,
+                        ),
+                    ],
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),

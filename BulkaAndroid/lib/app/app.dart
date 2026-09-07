@@ -70,6 +70,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   SharedPreferences? _prefs;
   Timer? _refreshTimer;
+  Timer? _startupShellTimer;
   StreamSubscription<Map<String, dynamic>>? _pushOpenSubscription;
   StreamSubscription<Map<String, dynamic>>? _customerEventSubscription;
   StreamSubscription<Uri>? _appLinkSubscription;
@@ -121,6 +122,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     _appLinkSubscription = _appLinks.uriLinkStream.listen(_handleIncomingLink);
     unawaited(
       _bootstrap().catchError((Object error, StackTrace stack) {
+        _startupShellTimer?.cancel();
         _reportUnhandledError(error, stack, source: 'startup');
         if (mounted) setState(() => _booting = false);
         if (!_startupReady.isCompleted) _startupReady.complete();
@@ -150,6 +152,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _refreshTimer?.cancel();
+    _startupShellTimer?.cancel();
     _pushOpenSubscription?.cancel();
     _customerEventSubscription?.cancel();
     _appLinkSubscription?.cancel();
@@ -239,14 +242,23 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
         initialUri.path == '/orders';
     final ordersCompleted = prefs.getBool('ordersCompleted') ?? false;
 
-    // Public browsing does not depend on an authenticated profile. Keep all
-    // cached personal data hidden until the server verifies the session.
+    // Returning customers should not see a guest header flash before their
+    // session is verified. Public browsing still opens promptly for guests,
+    // and a bounded grace period keeps slow authentication from blocking it.
     if (mounted && kIsWeb && paymentReturnNotice == null) {
+      final returningCustomer = phone != null || cachedCustomer != null;
       setState(() {
         _prefs = prefs;
         _lastMainTab = savedTab;
-        _publicShellReady = true;
+        _publicShellReady = !returningCustomer;
       });
+      if (returningCustomer) {
+        _startupShellTimer = Timer(const Duration(milliseconds: 1500), () {
+          if (mounted && _booting) {
+            setState(() => _publicShellReady = true);
+          }
+        });
+      }
     }
 
     _api.setSession(
@@ -327,6 +339,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     }
 
     await minimumSplashDelay;
+    _startupShellTimer?.cancel();
     if (!mounted) return;
     setState(() {
       _prefs = prefs;

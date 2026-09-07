@@ -1,6 +1,11 @@
 part of '../main.dart';
 
 const Map<String, Map<String, String>> _orderAndPaymentTranslations = {
+  'orders_branch_unknown': {
+    'ru': 'Филиал не указан',
+    'kk': 'Филиал көрсетілмеген',
+    'en': 'Location not recorded',
+  },
   'purchase_add_to_cart': {
     'ru': 'Добавить в корзину',
     'kk': 'Себетке қосу',

@@ -85,6 +85,7 @@ class CustomerOrder {
     required this.subtotal,
     required this.discount,
     required this.branch,
+    this.branchAddress,
     required this.items,
     required this.earnedBonus,
     required this.createdAt,
@@ -129,6 +130,7 @@ class CustomerOrder {
   final int subtotal;
   final int discount;
   final String branch;
+  final String? branchAddress;
   final List<Map<String, dynamic>> items;
   final int earnedBonus;
   final DateTime createdAt;
@@ -174,6 +176,7 @@ class CustomerOrder {
       subtotal: _asDouble(json['subtotal']).round(),
       discount: _asDouble(json['discount']).round(),
       branch: _asString(json['branch']),
+      branchAddress: _nullableString(json['branchAddress']),
       items: rawItems is List
           ? rawItems.map((item) => _asMap(item)).toList()
           : const [],
@@ -266,6 +269,7 @@ class CustomerOrder {
     'subtotal': subtotal,
     'discount': discount,
     'branch': branch,
+    'branchAddress': branchAddress,
     'items': items,
     'earnedBonus': earnedBonus,
     'createdAt': createdAt.toUtc().toIso8601String(),

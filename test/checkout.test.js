@@ -370,6 +370,16 @@ test('delivery fee is excluded from loyalty earning and fulfillment metadata is 
   assert.equal(normalizeOrder(databaseOrder).deliveryFee, 700);
 });
 
+test('purchase history resolves branch address without substituting customer delivery address', () => {
+  const order = { id: 'fixture', created_at: '2026-09-07T10:00:00Z',
+    branch_name: 'ЖК Дукат', branch_location: { name: 'Новое название', address: '17-й микрорайон, 1' },
+    delivery_address: { address: 'Адрес клиента' } };
+  assert.equal(normalizeOrder(order).branch, 'ЖК Дукат');
+  assert.equal(normalizeOrder(order).branchAddress, '17-й микрорайон, 1');
+  assert.equal(normalizeOrder({ ...order, branch_name: '', branch_location: [order.branch_location] }).branch, 'Новое название');
+  assert.equal(normalizeOrder({ ...order, branch_name: '', branch_location: null }).branchAddress, null);
+});
+
 test('customer arrival is allowed only for paid ready pickup and preorder orders', () => {
   const readyPickup = {
     status: 'paid',

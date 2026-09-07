@@ -478,11 +478,12 @@ class _HomeGreeting extends StatelessWidget {
                     homeGreetingKey(DateTime.now().hour).tr,
                     style: TextStyle(
                       fontSize: 12,
+                      height: 1.1,
                       color: context.bulkaColors.mutedText,
                     ),
                   ),
                   if (current != null && current.name.trim().isNotEmpty) ...[
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 2),
                     Text(
                       current.name.trim(),
                       maxLines: 2,
@@ -490,16 +491,18 @@ class _HomeGreeting extends StatelessWidget {
                       style: const TextStyle(
                         fontFamily: _headingFont,
                         fontSize: 16,
+                        height: 1.1,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],
                   if (current != null) ...[
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 2),
                     Text(
                       '${formatMoney(current.balance)} ${'cart_points'.tr}',
                       style: const TextStyle(
                         fontSize: 12,
+                        height: 1.1,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -707,11 +710,37 @@ class _OrderTypeCard extends StatelessWidget {
               key: ValueKey('order-card-background-${illustration.name}'),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(BulkaRadii.control),
-                color: _bulkaYellow,
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFFFFE082),
+                    Color(0xFFFFD54F),
+                    Color(0xFFFFB300),
+                  ],
+                  stops: [0, 0.52, 1],
+                ),
               ),
               child: Stack(
                 clipBehavior: Clip.hardEdge,
                 children: [
+                  const Positioned(
+                    right: -34,
+                    top: -28,
+                    child: IgnorePointer(
+                      child: SizedBox.square(
+                        dimension: 118,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: Color(0x33FFFFFF),
+                            borderRadius: BorderRadius.all(
+                              Radius.circular(BulkaRadii.sheet),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                   Positioned(
                     // Keep the compact-card artwork anchored to the outer
                     // right corner, away from the title's reading zone.

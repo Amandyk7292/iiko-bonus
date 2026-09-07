@@ -1522,6 +1522,41 @@ void main() {
     semantics.dispose();
   });
 
+  testWidgets(
+    'purchases combine scopes chronologically and retain branch and type',
+    (tester) async {
+      final api = _MixedOrdersApiClient();
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildBulkaTheme(),
+          home: ChangeNotifierProvider(
+            create: (_) => CartProvider(),
+            child: CustomerOrdersScreen(api: api),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(api.scopes, containsAll([false, true]));
+      expect(find.text('Активные'), findsNothing);
+      expect(find.text('Завершённые'), findsNothing);
+      expect(find.text('Самовывоз'), findsOneWidget);
+      expect(find.text('Доставка'), findsOneWidget);
+      expect(find.textContaining('17-й микрорайон, 1'), findsOneWidget);
+      final active = find.byKey(
+        const ValueKey('customer-order-active-fixture'),
+      );
+      final closed = find.byKey(
+        const ValueKey('customer-order-closed-fixture'),
+      );
+      expect(
+        tester.getTopLeft(closed).dy,
+        lessThan(tester.getTopLeft(active).dy),
+      );
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    },
+  );
+
   testWidgets('customer orders omit arrival, handoff and receipt controls', (
     tester,
   ) async {
@@ -2997,3 +3032,28 @@ const _testCustomer = Customer(
   vipThreshold: 300000,
   tier: Tier(name: 'Бронза', percent: 5, remaining: 10000, progress: 0.2),
 );
+
+class _MixedOrdersApiClient extends _FakeBulkaApiClient {
+  final scopes = <bool>[];
+  @override
+  Future<List<CustomerOrder>> getCustomerOrders({
+    bool completed = false,
+  }) async {
+    scopes.add(completed);
+    return [
+      CustomerOrder.fromJson({
+        ..._readyPickupOrder.toJson(),
+        'id': completed ? 'closed-fixture' : 'active-fixture',
+        'orderStatus': completed ? 'completed' : 'new',
+        'fulfillmentType': completed ? 'delivery' : 'pickup',
+        'branch': completed ? 'ЖК Дукат' : 'ТЦ Ardager',
+        'branchAddress': completed
+            ? '17-й микрорайон, 1'
+            : '9-й микрорайон, 30/3',
+        'createdAt': completed
+            ? '2026-09-07T10:00:00Z'
+            : '2026-09-06T10:00:00Z',
+      }),
+    ];
+  }
+}

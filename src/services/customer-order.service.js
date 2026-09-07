@@ -184,6 +184,7 @@ const normalizedOrderStatus = (order) => {
 };
 
 const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
+  const branchLocation = Array.isArray(order.branch_location) ? order.branch_location[0] : order.branch_location;
   const external = latestExternalDelivery(order);
   const ownCourier = order.couriers
     ? {
@@ -243,7 +244,8 @@ const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
     preorderFulfillmentType: order.preorder_fulfillment_type || null,
     effectiveFulfillmentType: effectiveFulfillmentType(order),
     branchId: order.branch_id == null ? null : String(order.branch_id),
-    branch: order.branch_name || '',
+    branch: order.branch_name || branchLocation?.name || '',
+    branchAddress: branchLocation?.address || null,
     scheduledAt: order.scheduled_at || order.pickup_time || null,
     pickupTime: order.scheduled_at || order.pickup_time || null,
     deliveryAddress:
@@ -311,7 +313,7 @@ async function listCustomerOrders(customerId, { scope = 'active', page = 1, page
   let query = supabase
     .from('kaspi_orders')
     .select(
-      `${ORDER_FIELDS},payment_receipts(id,language),couriers(id,name,phone,vehicle,transport_type,current_latitude,current_longitude,location_updated_at),${DELIVERY_JOB_FIELDS},${SUBSTITUTION_FIELDS}`,
+      `${ORDER_FIELDS},branch_location:bulka_locations(name,address),payment_receipts(id,language),couriers(id,name,phone,vehicle,transport_type,current_latitude,current_longitude,location_updated_at),${DELIVERY_JOB_FIELDS},${SUBSTITUTION_FIELDS}`,
       { count: 'exact' },
     )
     .eq('customer_id', customerId)
