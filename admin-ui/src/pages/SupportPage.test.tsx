@@ -140,6 +140,44 @@ describe('Support operator workflow', () => {
     );
   });
 
+  it('keeps the All queue selected while clearing status and priority filters', async () => {
+    const user = userEvent.setup();
+    renderPage('');
+    await user.click(await screen.findByRole('tab', { name: 'Все' }));
+    expect(screen.getByRole('tab', { name: 'Все' })).toHaveAttribute('aria-selected', 'true');
+    expect(new URLSearchParams(window.location.search).get('queue')).toBe('all');
+    await waitFor(() =>
+      expect(apiMocks.getSupportRequests).toHaveBeenLastCalledWith(
+        expect.objectContaining({ queue: '', status: '', priority: '' }),
+      ),
+    );
+
+    await user.click(screen.getByRole('combobox', { name: 'Статус' }));
+    await user.click(screen.getByRole('option', { name: 'Решено' }));
+    await user.click(screen.getByRole('combobox', { name: 'Приоритет' }));
+    await user.click(screen.getByRole('option', { name: 'Высокий' }));
+    await waitFor(() =>
+      expect(apiMocks.getSupportRequests).toHaveBeenLastCalledWith(
+        expect.objectContaining({ queue: '', status: 'resolved', priority: 'high' }),
+      ),
+    );
+
+    await user.click(screen.getByRole('combobox', { name: 'Статус' }));
+    await user.click(screen.getByRole('option', { name: 'Все статусы' }));
+    await user.click(screen.getByRole('combobox', { name: 'Приоритет' }));
+    await user.click(screen.getByRole('option', { name: 'Все приоритеты' }));
+    await waitFor(() =>
+      expect(apiMocks.getSupportRequests).toHaveBeenLastCalledWith(
+        expect.objectContaining({ queue: '', status: '', priority: '' }),
+      ),
+    );
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get('queue')).toBe('all');
+    expect(params.has('status')).toBe(false);
+    expect(params.has('priority')).toBe(false);
+    expect(screen.getByRole('tab', { name: 'Все' })).toHaveAttribute('aria-selected', 'true');
+  });
+
   it('claims, prioritizes, replies and closes a refund request only after a public answer', async () => {
     const user = userEvent.setup();
     renderPage();
@@ -163,7 +201,9 @@ describe('Support operator workflow', () => {
         assignToMe: true,
       }),
     );
-    expect(await screen.findByRole('button', { name: 'Ответственный: Оператор Bulka' })).toBeInTheDocument();
+    expect(
+      await screen.findByRole('button', { name: 'Ответственный: Оператор Bulka' }),
+    ).toBeInTheDocument();
 
     const priorityControls = screen.getAllByRole('combobox', { name: 'Приоритет' });
     await user.click(priorityControls[priorityControls.length - 1]);

@@ -178,11 +178,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
 
   Future<bool> _ensureOrderTypeSelected() async {
     if (widget.hasSelectedOrderType) return true;
-    final allowed = await widget.onEnsureOrderTypeSelected?.call() ?? false;
-    if (!allowed && mounted && Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
-    }
-    return allowed;
+    return await widget.onEnsureOrderTypeSelected?.call() ?? false;
   }
 
   Future<void> _updateQuantity(CatalogProduct product, int newQty) async {
@@ -784,10 +780,13 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     SizedBox(
-                      height: min(
-                        440,
-                        max(330, MediaQuery.sizeOf(context).width * 1.02),
-                      ),
+                      key: const ValueKey('product-photo-area'),
+                      height: product.imageUrl.trim().isEmpty
+                          ? 160
+                          : min(
+                              440,
+                              max(330, MediaQuery.sizeOf(context).width * 1.02),
+                            ),
                       child: PageView.builder(
                         itemCount: photos.length,
                         onPageChanged: (i) =>

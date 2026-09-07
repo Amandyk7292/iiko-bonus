@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown, Download, Gift, RefreshCw, Search } from 'lucide-react';
 import { Link, useSearchParams } from '../lib/router';
 import PageState from '../components/PageState';
@@ -6,7 +6,12 @@ import SelectControl from '../components/SelectControl';
 import { api } from '../lib/api';
 import { useAdminRealtimeEvents } from '../lib/admin-realtime';
 import { useI18n } from '../lib/i18n';
-import { transactionItem, transactionLabel } from '../lib/transaction-label';
+import { csvCell } from '../lib/csv';
+import {
+  transactionItem,
+  transactionLabel,
+  transactionPresentation,
+} from '../lib/transaction-label';
 
 const transactionTypeKeys: Record<string, string> = {
   deposit: 'transaction.deposit',
@@ -22,8 +27,6 @@ const transactionTypeKeys: Record<string, string> = {
   order: 'transaction.order',
 };
 
-const csvCell = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
-
 export default function TransactionsPage() {
   const { t, formatDate, formatNumber } = useI18n();
   const [params, setParams] = useSearchParams();
@@ -31,10 +34,13 @@ export default function TransactionsPage() {
   const dateFrom = params.get('from') || '';
   const dateTo = params.get('to') || '';
   const type = params.get('type') || '';
-  const [search, setSearch] = useState(params.get('search') || '');
+  const search = params.get('search') || '';
   const [transactions, setTransactions] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [initialized, setInitialized] = useState(false);
+  const loadGeneration = useRef(0);
+  const foregroundLoadPending = useRef(true);
   const [error, setError] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const pageSize = 50;
@@ -51,31 +57,25 @@ export default function TransactionsPage() {
     [params, setParams],
   );
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const value = search.trim();
-      const next = new URLSearchParams(window.location.search);
-      if (value) next.set('search', value);
-      else next.delete('search');
-      next.delete('page');
-      setParams(next, { replace: true });
-    }, 350);
-    return () => window.clearTimeout(timer);
-  }, [search, setParams]);
-
   const fetchTransactions = useCallback(
     async (silent = false) => {
-      if (!silent) setLoading(true);
-      setError('');
+      const generation = ++loadGeneration.current;
+      const foreground = !silent || foregroundLoadPending.current;
+      foregroundLoadPending.current = foreground;
+      if (foreground) {
+        setLoading(true);
+        setError('');
+      }
       try {
         const response = await api.getTransactions({
           page,
           pageSize,
-          search: params.get('search') || '',
+          search: search.trim(),
           dateFrom,
           dateTo,
           type,
         });
+        if (generation !== loadGeneration.current) return;
         if (Array.isArray(response)) {
           setTransactions(response);
           setTotal(response.length);
@@ -83,19 +83,34 @@ export default function TransactionsPage() {
           setTransactions(response.transactions ?? []);
           setTotal(response.total ?? 0);
         }
+        setInitialized(true);
+        setError('');
       } catch (caught) {
-        if (!silent) {
+        if (generation !== loadGeneration.current) return;
+        if (foreground) {
           setError(caught instanceof Error ? caught.message : t('common.loadError'));
         }
       } finally {
-        if (!silent) setLoading(false);
+        if (generation === loadGeneration.current) {
+          foregroundLoadPending.current = false;
+          setLoading(false);
+        }
       }
     },
-    [dateFrom, dateTo, page, params, t, type],
+    [dateFrom, dateTo, page, search, t, type],
   );
 
   useEffect(() => {
-    void fetchTransactions();
+    foregroundLoadPending.current = true;
+    setLoading(true);
+    setError('');
+    const timer = window.setTimeout(() => void fetchTransactions(), 350);
+    return () => {
+      window.clearTimeout(timer);
+      // Invalidate even while the next filter is still in its debounce period.
+      loadGeneration.current += 1;
+      foregroundLoadPending.current = false;
+    };
   }, [fetchTransactions]);
 
   useAdminRealtimeEvents(
@@ -128,10 +143,10 @@ export default function TransactionsPage() {
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
-  if (loading && transactions.length === 0) {
+  if (loading && !initialized) {
     return <PageState type="loading" title={t('transactions.load')} />;
   }
-  if (error && transactions.length === 0) {
+  if (error && !initialized) {
     return <PageState type="error" description={error} onRetry={fetchTransactions} />;
   }
 
@@ -145,9 +160,9 @@ export default function TransactionsPage() {
           type="button"
           className="btn-outline px-4 inline-flex items-center gap-2"
           onClick={exportPage}
-          disabled={!transactions.length}
+          disabled={loading || !transactions.length}
         >
-          <Download aria-hidden="true" size={17} /> Экспорт страницы
+          <Download aria-hidden="true" size={17} /> {t('common.exportPage')}
         </button>
         <button
           type="button"
@@ -159,7 +174,11 @@ export default function TransactionsPage() {
           {t('common.refresh')}
         </button>
       </div>
-      {error && <div className="inline-alert inline-alert-error">{error}</div>}
+      {error && transactions.length > 0 && (
+        <div className="inline-alert inline-alert-error" role="alert">
+          {error}
+        </div>
+      )}
 
       <section className="sagi-filter" aria-label={t('common.search')}>
         <div className="field-group filter-search">
@@ -173,7 +192,7 @@ export default function TransactionsPage() {
               name="transactionSearch"
               type="search"
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => updateParams({ search: event.target.value, page: null })}
               placeholder={t('transactions.searchPlaceholder')}
               autoComplete="off"
               className="input-classic"
@@ -226,7 +245,11 @@ export default function TransactionsPage() {
         </div>
       </section>
 
-      {transactions.length === 0 ? (
+      {loading && transactions.length === 0 ? (
+        <PageState type="loading" title={t('transactions.load')} />
+      ) : error && transactions.length === 0 ? (
+        <PageState type="error" description={error} onRetry={fetchTransactions} />
+      ) : transactions.length === 0 ? (
         <PageState
           type="empty"
           title={t('transactions.empty')}
@@ -257,9 +280,7 @@ export default function TransactionsPage() {
               <tbody>
                 {transactions.map((transaction) => {
                   const transactionType = String(transaction.type ?? '');
-                  const isDeposit = ['deposit', 'manual_deposit'].includes(transactionType);
-                  const isWithdrawal =
-                    transactionType.includes('withdrawal') || transactionType === 'refund_reversal';
+                  const presentation = transactionPresentation(transaction);
                   const items = Array.isArray(transaction.items)
                     ? transaction.items.map(transactionItem)
                     : [];
@@ -313,21 +334,24 @@ export default function TransactionsPage() {
                         </td>
                         <td
                           data-label={t('transactions.used')}
-                          className={`text-right tabular ${isWithdrawal ? 'value-negative' : ''}`}
+                          className={`text-right tabular ${presentation.paidWithBonuses ? 'value-negative' : ''}`}
                         >
-                          {isWithdrawal
+                          {presentation.paidWithBonuses
                             ? formatNumber(Math.abs(Number(transaction.amount) || 0))
                             : '—'}
                         </td>
                         <td
                           data-label={t('transactions.bonus')}
-                          className={`text-right tabular ${isDeposit ? 'value-positive' : 'value-negative'}`}
+                          className={`text-right tabular ${presentation.valueClass}`}
                         >
-                          {isDeposit ? '+' : '−'}
-                          {formatNumber(Math.abs(Number(transaction.amount) || 0))}
+                          {presentation.sign
+                            ? `${presentation.sign}${formatNumber(Math.abs(Number(transaction.amount) || 0))}`
+                            : '—'}
                         </td>
                         <td data-label={t('common.status')}>
-                          <span className="status-pill status-active">{typeLabel}</span>
+                          <span className={`status-pill ${presentation.statusClass}`}>
+                            {typeLabel}
+                          </span>
                         </td>
                       </tr>
                       {expanded && (

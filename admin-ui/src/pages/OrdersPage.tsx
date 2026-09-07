@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { BadgeCheck, Camera, LoaderCircle, MapPin, RefreshCw, Search } from 'lucide-react';
 import { useSearchParams } from '../lib/router';
 import PageState from '../components/PageState';
 import Modal from '../components/Modal';
 import SelectControl from '../components/SelectControl';
 import { useFeedback } from '../components/Feedback';
-import { api, type AdminOrder, type Courier, type DeliveryProof } from '../lib/api';
+import { api, type AdminOrder, type DeliveryProof } from '../lib/api';
 import {
   availableOrderStatuses,
   canMutateOrders,
@@ -16,14 +16,9 @@ import { useAdminRealtimeEvents } from '../lib/admin-realtime';
 import { useI18n } from '../lib/i18n';
 import { isCancellationReasonValid, normalizeCancellationReason } from '../lib/order-validation';
 
-const deliveryTransitions: Record<string, string[]> = {
-  unassigned: [],
-  assigned: ['picked_up', 'en_route', 'cancelled'],
-  picked_up: ['en_route', 'delivered', 'cancelled'],
-  en_route: ['delivered', 'cancelled'],
-  delivered: [],
-  cancelled: [],
-};
+const OrderYandexDelivery = lazy(() =>
+  import('./DispatchPage').then((module) => ({ default: module.OrderYandexDelivery })),
+);
 
 const mergeMutationResult = (current: AdminOrder, updated: AdminOrder): AdminOrder => ({
   ...current,
@@ -46,7 +41,10 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
   const [params, setParams] = useSearchParams();
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [initialized, setInitialized] = useState(false);
   const [error, setError] = useState('');
+  const loadGeneration = useRef(0);
+  const foregroundLoadPending = useRef(false);
   const [search, setSearch] = useState(params.get('search') || '');
   const [paymentStatus, setPaymentStatus] = useState(params.get('payment') || '');
   const [orderStatus, setOrderStatus] = useState(params.get('status') || '');
@@ -54,7 +52,7 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
   const [total, setTotal] = useState(0);
   const [, setSavingIds] = useState<Set<string>>(() => new Set());
   const savingIdsRef = useRef(new Set<string>());
-  const [couriers, setCouriers] = useState<Courier[]>([]);
+  const [yandexOrder, setYandexOrder] = useState<AdminOrder | null>(null);
   const [deliveryProof, setDeliveryProof] = useState<DeliveryProof | null>(null);
   const [proofLoading, setProofLoading] = useState(false);
   const [cancellationOrder, setCancellationOrder] = useState<AdminOrder | null>(null);
@@ -73,27 +71,44 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
 
   const load = useCallback(
     async (silent = false) => {
-      if (!silent) {
+      const generation = ++loadGeneration.current;
+      // A realtime refresh taking over a visible load must also finish its loading/error state.
+      const foreground = !silent || foregroundLoadPending.current;
+      foregroundLoadPending.current = foreground;
+      if (foreground) {
         setLoading(true);
         setError('');
       }
       try {
         const result = await api.getOrders({ page, pageSize, search, paymentStatus, orderStatus });
+        if (generation !== loadGeneration.current) return;
         setOrders(result.orders ?? []);
         setTotal(result.total ?? 0);
-        if (!silent) setError('');
+        setInitialized(true);
+        setError('');
       } catch (caught) {
-        if (!silent) setError(caught instanceof Error ? caught.message : t('common.loadError'));
+        if (generation !== loadGeneration.current) return;
+        if (foreground) setError(caught instanceof Error ? caught.message : t('common.loadError'));
       } finally {
-        if (!silent) setLoading(false);
+        if (generation === loadGeneration.current) {
+          foregroundLoadPending.current = false;
+          setLoading(false);
+        }
       }
     },
     [orderStatus, page, paymentStatus, search, t],
   );
 
   useEffect(() => {
+    foregroundLoadPending.current = true;
+    setLoading(true);
+    setError('');
     const timer = window.setTimeout(() => void load(), 250);
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(timer);
+      loadGeneration.current += 1;
+      foregroundLoadPending.current = false;
+    };
   }, [load]);
 
   useEffect(() => {
@@ -109,14 +124,6 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
     }
     if (next.toString() !== params.toString()) setParams(next, { replace: true });
   }, [orderStatus, page, params, paymentStatus, search, setParams]);
-
-  useEffect(() => {
-    if (!orderMutationsAllowed) return;
-    void api
-      .getCouriers()
-      .then((result) => setCouriers(result.couriers ?? []))
-      .catch(() => undefined);
-  }, [orderMutationsAllowed]);
 
   useAdminRealtimeEvents(
     ['order.created', 'order.updated', 'order.customer_arrived'],
@@ -140,63 +147,6 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
       document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, [load]);
-
-  const assignCourier = async (order: AdminOrder, courierId: string) => {
-    if (!orderMutationsAllowed || !courierId || isSaving(order.id)) return;
-    const selectedCourier = couriers.find((courier) => courier.id === courierId);
-    const optimistic: AdminOrder = {
-      ...order,
-      deliveryStatus: 'assigned',
-      courier: selectedCourier
-        ? {
-            id: selectedCourier.id,
-            name: selectedCourier.name,
-            phone: selectedCourier.phone,
-            vehicle: selectedCourier.vehicle,
-            transportType: selectedCourier.transportType,
-          }
-        : order.courier,
-    };
-    setOrderSaving(order.id, true);
-    setOrders((current) => current.map((item) => (item.id === order.id ? optimistic : item)));
-    try {
-      const eta = new Date(Date.now() + 45 * 60_000).toISOString();
-      const result = await api.assignCourier(order.id, courierId, eta);
-      setOrders((current) =>
-        current.map((item) =>
-          item.id === order.id ? mergeMutationResult(item, result.order) : item,
-        ),
-      );
-      toast(t('orders.courierAssigned'));
-    } catch (caught) {
-      setOrders((current) => current.map((item) => (item.id === order.id ? order : item)));
-      toast(caught instanceof Error ? caught.message : t('common.error'), 'error');
-    } finally {
-      setOrderSaving(order.id, false);
-    }
-  };
-
-  const changeDeliveryStatus = async (order: AdminOrder, status: string) => {
-    if (!orderMutationsAllowed || !status || isSaving(order.id)) return;
-    setOrderSaving(order.id, true);
-    setOrders((current) =>
-      current.map((item) => (item.id === order.id ? { ...item, deliveryStatus: status } : item)),
-    );
-    try {
-      const result = await api.updateDeliveryStatus(order.id, status);
-      setOrders((current) =>
-        current.map((item) =>
-          item.id === order.id ? mergeMutationResult(item, result.order) : item,
-        ),
-      );
-      toast(t('orders.deliverySaved'));
-    } catch (caught) {
-      setOrders((current) => current.map((item) => (item.id === order.id ? order : item)));
-      toast(caught instanceof Error ? caught.message : t('common.error'), 'error');
-    } finally {
-      setOrderSaving(order.id, false);
-    }
-  };
 
   const persistStatus = async (order: AdminOrder, status: string, reason = '') => {
     if (!orderMutationsAllowed || (status === 'cancelled' && !refundsAllowed)) {
@@ -268,8 +218,8 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
     }
   };
 
-  if (loading && orders.length === 0) return <PageState type="loading" />;
-  if (error && orders.length === 0)
+  if (loading && !initialized) return <PageState type="loading" />;
+  if (error && !initialized)
     return <PageState type="error" description={error} onRetry={() => void load()} />;
 
   return (
@@ -290,7 +240,7 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
           {t('common.refresh')}
         </button>
       </div>
-      {error && (
+      {error && orders.length > 0 && (
         <div className="inline-alert inline-alert-error" role="alert">
           {error}
         </div>
@@ -361,7 +311,11 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
         </div>
       </section>
 
-      {orders.length === 0 ? (
+      {loading && orders.length === 0 ? (
+        <PageState type="loading" />
+      ) : error && orders.length === 0 ? (
+        <PageState type="error" description={error} onRetry={() => void load()} />
+      ) : orders.length === 0 ? (
         <PageState type="empty" title={t('orders.empty')} description={t('orders.emptyHint')} />
       ) : (
         <section className="card table-card">
@@ -424,58 +378,32 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
                               {order.courier.vehicle ? ` · ${order.courier.vehicle}` : ''} ·{' '}
                               {order.courier.phone}
                             </small>
-                          ) : orderMutationsAllowed ? (
-                            <SelectControl
-                              compact
-                              ariaLabel={t('orders.assignCourier')}
-                              className="compact-select"
-                              value=""
-                              onChange={(value) => void assignCourier(order, value)}
-                              disabled={isSaving(order.id)}
-                              options={[
-                                { value: '', label: t('orders.assignCourier') },
-                                ...couriers
-                                  .filter(
-                                    (courier) =>
-                                      courier.active && (courier.transportType || 'car') === 'car',
-                                  )
-                                  .map((courier) => ({
-                                    value: courier.id,
-                                    label: `${courier.name} · ${courier.vehicle || courier.phone}`,
-                                  })),
-                              ]}
-                            />
                           ) : (
                             <small>{t('orders.courierNotAssigned')}</small>
                           )}
+                          <small>
+                            {t(`deliveryStatus.${order.deliveryStatus || 'unassigned'}`)}
+                          </small>
+                          {order.trackingUrl && (
+                            <a
+                              href={order.trackingUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-button-refund"
+                            >
+                              {t('dispatch.yandex.track')}
+                            </a>
+                          )}
                           {orderMutationsAllowed &&
-                            order.courier &&
-                            (deliveryTransitions[order.deliveryStatus || 'unassigned']?.length ??
-                              0) > 0 && (
-                              <SelectControl
-                                compact
-                                ariaLabel={t(
-                                  `deliveryStatus.${order.deliveryStatus || 'unassigned'}`,
-                                )}
-                                className="compact-select"
-                                value=""
-                                onChange={(value) => void changeDeliveryStatus(order, value)}
-                                disabled={isSaving(order.id)}
-                                options={[
-                                  {
-                                    value: '',
-                                    label: t(
-                                      `deliveryStatus.${order.deliveryStatus || 'unassigned'}`,
-                                    ),
-                                  },
-                                  ...deliveryTransitions[order.deliveryStatus || 'unassigned'].map(
-                                    (value) => ({
-                                      value,
-                                      label: t(`deliveryStatus.${value}`),
-                                    }),
-                                  ),
-                                ]}
-                              />
+                            order.paymentStatus === 'paid' &&
+                            !['completed', 'cancelled'].includes(order.orderStatus) && (
+                              <button
+                                type="button"
+                                className="btn-outline compact-button"
+                                onClick={() => setYandexOrder(order)}
+                              >
+                                {t('kitchen.dispatch.yandex')}
+                              </button>
                             )}
                           {order.deliveryStatus === 'delivered' && (
                             <button
@@ -638,6 +566,24 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
             </button>
           </div>
         </form>
+      </Modal>
+      <Modal
+        open={Boolean(yandexOrder)}
+        onClose={() => {
+          if (document.querySelector('[role="alertdialog"]')) return;
+          setYandexOrder(null);
+          void load(true);
+        }}
+        title={`${t('kitchen.dispatch.yandex')}${yandexOrder ? ` · №${yandexOrder.number}` : ''}`}
+        size="lg"
+      >
+        <div className="modal-body">
+          {yandexOrder && (
+            <Suspense fallback={<PageState compact type="loading" />}>
+              <OrderYandexDelivery orderId={yandexOrder.id} />
+            </Suspense>
+          )}
+        </div>
       </Modal>
       <Modal
         open={proofLoading || Boolean(deliveryProof)}

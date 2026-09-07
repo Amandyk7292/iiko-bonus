@@ -48,6 +48,7 @@ class _CatalogScreenState extends State<CatalogScreen>
   Map<String, String> _apiCategoryImages = {};
   String? _openedCategory;
   bool _orderTypeDialogOpen = false;
+  String? _productPendingFulfillment;
   final _navigationGate = _AsyncActionGate();
   Uri? _pendingClientUri;
   bool _productRouteOpen = false;

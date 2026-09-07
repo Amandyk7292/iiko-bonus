@@ -102,17 +102,14 @@ export default function SupportPage() {
     [drafts],
   );
 
-  const setCurrentDraft = useCallback(
-    (patch: Partial<SupportDraft>) => {
-      const targetId = selectedIdRef.current;
-      if (!targetId) return;
-      setDrafts((current) => ({
-        ...current,
-        [targetId]: { ...(current[targetId] ?? emptySupportDraft()), ...patch },
-      }));
-    },
-    [],
-  );
+  const setCurrentDraft = useCallback((patch: Partial<SupportDraft>) => {
+    const targetId = selectedIdRef.current;
+    if (!targetId) return;
+    setDrafts((current) => ({
+      ...current,
+      [targetId]: { ...(current[targetId] ?? emptySupportDraft()), ...patch },
+    }));
+  }, []);
 
   const clearDraft = useCallback((id: string) => {
     setDrafts((current) => {
@@ -127,7 +124,8 @@ export default function SupportPage() {
     (updates: Record<string, string | number | null>) => {
       const next = new URLSearchParams(params);
       for (const [key, value] of Object.entries(updates)) {
-        if (value === null || value === '' || value === 'all') next.delete(key);
+        if (value === null || value === '' || (value === 'all' && key !== 'queue'))
+          next.delete(key);
         else next.set(key, String(value));
       }
       setParams(next, { replace: true });
@@ -254,10 +252,7 @@ export default function SupportPage() {
     request: SupportRequest;
     messages?: SupportMessage[];
   }) => {
-    if (
-      response.request.id !== selectedIdRef.current ||
-      response.request.id !== selectedId
-    ) {
+    if (response.request.id !== selectedIdRef.current || response.request.id !== selectedId) {
       await loadList(true);
       return;
     }
@@ -336,10 +331,7 @@ export default function SupportPage() {
     setSaving(true);
     try {
       const response = await api.sendSupportMessage(targetId, targetText, targetInternal);
-      if (
-        selectedIdRef.current !== targetId ||
-        response.request.id !== targetId
-      ) {
+      if (selectedIdRef.current !== targetId || response.request.id !== targetId) {
         toast(t('support.sentToOriginal'));
         return;
       }

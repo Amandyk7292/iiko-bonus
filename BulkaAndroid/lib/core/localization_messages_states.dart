@@ -134,7 +134,32 @@ const Map<String, Map<String, String>> _featureStateTranslations = {
     'kk': 'Алдымен тапсырыс түрін таңдаңыз',
     'en': 'Please select an order type first',
   },
-  'catalog_select_order_type_ok': {'ru': 'ОК', 'kk': 'ОК', 'en': 'OK'},
+  'catalog_select_order_type_ok': {
+    'ru': 'Выбрать тип заказа',
+    'kk': 'Тапсырыс түрін таңдау',
+    'en': 'Choose order type',
+  },
+  'catalog_select_order_type_resume': {
+    'ru':
+        'После выбора пекарни или адреса вернём вас к товару. Проверим цену и наличие перед добавлением.',
+    'kk':
+        'Наубайхананы немесе мекенжайды таңдаған соң тауарға қайта ораласыз. Қоспас бұрын бағасы мен бар-жоғын тексереміз.',
+    'en':
+        'After choosing a bakery or address, we will return you to this product. We will check its price and availability before you add it.',
+  },
+  'catalog_continue_browsing': {
+    'ru': 'Продолжить просмотр',
+    'kk': 'Қарауды жалғастыру',
+    'en': 'Keep browsing',
+  },
+  'catalog_selected_product_unavailable': {
+    'ru':
+        'Выбранный товар сейчас недоступен в этой пекарне. Выберите другой товар или пекарню.',
+    'kk':
+        'Таңдалған тауар қазір бұл наубайханада жоқ. Басқа тауарды немесе наубайхананы таңдаңыз.',
+    'en':
+        'This product is currently unavailable at this bakery. Choose another product or bakery.',
+  },
   'catalog_load_failed': {
     'ru': 'Не удалось загрузить меню',
     'kk': 'Мәзірді жүктеу мүмкін болмады',

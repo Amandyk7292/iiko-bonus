@@ -222,7 +222,8 @@ describe('Kitchen optimistic workflow', () => {
 
     expect(await screen.findByText('queue offline')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Повторить' }));
-    expect(await screen.findByRole('heading', { name: 'Экран кухни' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Обновить' })).toBeInTheDocument();
+    expect(screen.getAllByText('Заказов нет')).toHaveLength(3);
   });
 
   it('explains delivery dispatch and requires manual iikoFront entry before acceptance', async () => {

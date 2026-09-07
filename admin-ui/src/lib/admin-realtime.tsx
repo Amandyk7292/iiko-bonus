@@ -8,8 +8,9 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { api, type OperationsSummary } from './api';
+import { api, type AdminUser, type OperationsSummary } from './api';
 import { parseAdminScopeSelection } from './admin-city-scope';
+import { playAdminEventOnce, subscribeAdminEvents } from './admin-event-broker';
 
 export interface AdminRealtimeEvent {
   id: string;
@@ -23,6 +24,8 @@ export type AdminRealtimeStatus = 'connecting' | 'online' | 'reconnecting' | 'of
 
 interface AdminRealtimeValue {
   summary: OperationsSummary | null;
+  summaryLoading: boolean;
+  summaryError: boolean;
   connectionStatus: AdminRealtimeStatus;
   lastUpdatedAt: number | null;
   refreshSummary: () => Promise<void>;
@@ -196,13 +199,17 @@ async function unlockOrderAudio(testTone = true) {
 export function AdminRealtimeProvider({
   branchId,
   role,
+  identity,
   children,
 }: {
   branchId: string;
   role: string;
+  identity?: AdminUser | null;
   children: ReactNode;
 }) {
   const [summary, setSummary] = useState<OperationsSummary | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<AdminRealtimeStatus>('connecting');
   const [lastUpdatedAt, setLastUpdatedAt] = useState<number | null>(null);
   const [soundEnabled, setSoundEnabledState] = useState(
@@ -214,6 +221,16 @@ export function AdminRealtimeProvider({
   const summaryRequestRef = useRef<Promise<void> | null>(null);
   const summaryGenerationRef = useRef(0);
   const canLoadSummary = role !== 'whatsapp_operator' && role !== 'courier' && role !== 'cashier';
+  const streamIdentity = identity?.username
+    ? JSON.stringify([
+        identity.username,
+        identity.role,
+        [...(identity.branchIds || [])].sort(),
+        [...(identity.actions || [])].sort(),
+      ])
+    : undefined;
+  const soundEnabledRef = useRef(soundEnabled);
+  soundEnabledRef.current = soundEnabled;
 
   useEffect(() => {
     const syncSoundState = () => setSoundReady(isOrderAudioReady());
@@ -229,6 +246,7 @@ export function AdminRealtimeProvider({
     if (!canLoadSummary) return;
     if (summaryRequestRef.current) return summaryRequestRef.current;
     const generation = summaryGenerationRef.current;
+    setSummaryLoading(true);
     const request = api
       .getOperationsSummary()
       .then((response) => {
@@ -241,12 +259,20 @@ export function AdminRealtimeProvider({
           Array.isArray(response.orders)
         ) {
           setSummary(response);
+          setSummaryError(false);
           setLastUpdatedAt(Date.now());
+        } else {
+          throw new Error('Invalid operations summary');
         }
       })
-      .catch(() => undefined)
+      .catch(() => {
+        if (generation === summaryGenerationRef.current) setSummaryError(true);
+      })
       .finally(() => {
-        if (summaryRequestRef.current === request) summaryRequestRef.current = null;
+        if (summaryRequestRef.current === request) {
+          summaryRequestRef.current = null;
+          if (generation === summaryGenerationRef.current) setSummaryLoading(false);
+        }
       });
     summaryRequestRef.current = request;
     return request;
@@ -302,6 +328,8 @@ export function AdminRealtimeProvider({
     summaryGenerationRef.current++;
     summaryRequestRef.current = null;
     setSummary(null);
+    setSummaryError(false);
+    setSummaryLoading(false);
     void refreshSummary();
     return () => {
       summaryGenerationRef.current++;
@@ -320,24 +348,19 @@ export function AdminRealtimeProvider({
       );
     }
     setConnectionStatus('connecting');
-    const source = new EventSource(
-      `/admin/api/events${params.size ? `?${params.toString()}` : ''}`,
-      { withCredentials: true },
-    );
-    source.onopen = () => {
-      setConnectionStatus('online');
-      setLastUpdatedAt(Date.now());
-    };
-    source.onerror = () => {
-      setConnectionStatus(source.readyState === EventSource.CLOSED ? 'offline' : 'reconnecting');
-    };
-    const handlers = new Map<string, EventListener>();
-    for (const type of EVENT_TYPES) {
-      const handler: EventListener = (rawEvent) => {
-        if (!(rawEvent instanceof MessageEvent)) return;
+    let active = true;
+    const unsubscribe = subscribeAdminEvents({
+      url: `/admin/api/events${params.size ? `?${params.toString()}` : ''}`,
+      identity: streamIdentity,
+      eventTypes: EVENT_TYPES,
+      onStatus: (status) => {
+        setConnectionStatus(status);
+        if (status === 'online') setLastUpdatedAt(Date.now());
+      },
+      onEvent: (type, data) => {
         let event: AdminRealtimeEvent;
         try {
-          event = JSON.parse(String(rawEvent.data)) as AdminRealtimeEvent;
+          event = JSON.parse(data) as AdminRealtimeEvent;
         } catch {
           return;
         }
@@ -349,22 +372,26 @@ export function AdminRealtimeProvider({
         if (SUMMARY_EVENT_TYPES.has(type)) scheduleSummaryRefresh();
         if (
           type === 'order.created' &&
-          soundEnabled &&
+          soundEnabledRef.current &&
           String(event.data.paymentStatus || '') === 'paid'
         ) {
-          playOrderAlarm();
+          if (streamIdentity && event.id) {
+            playAdminEventOnce(
+              streamIdentity,
+              `${event.id}:${event.occurredAt}`,
+              () => active && soundEnabledRef.current && playOrderAlarm(),
+            );
+          } else {
+            playOrderAlarm();
+          }
         }
-      };
-      handlers.set(type, handler);
-      source.addEventListener(type, handler);
-    }
+      },
+    });
     return () => {
-      for (const [type, handler] of handlers) source.removeEventListener(type, handler);
-      source.onopen = null;
-      source.onerror = null;
-      source.close();
+      active = false;
+      unsubscribe();
     };
-  }, [branchId, playOrderAlarm, scheduleSummaryRefresh, soundEnabled]);
+  }, [branchId, playOrderAlarm, scheduleSummaryRefresh, streamIdentity]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -384,6 +411,8 @@ export function AdminRealtimeProvider({
   const value = useMemo(
     () => ({
       summary,
+      summaryLoading,
+      summaryError,
       connectionStatus,
       lastUpdatedAt,
       refreshSummary,
@@ -403,6 +432,8 @@ export function AdminRealtimeProvider({
       soundReady,
       subscribe,
       summary,
+      summaryLoading,
+      summaryError,
       unlockSound,
       playOrderAlarm,
     ],

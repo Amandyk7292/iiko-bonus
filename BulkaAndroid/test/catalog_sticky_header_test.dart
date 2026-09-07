@@ -346,7 +346,8 @@ void main() {
       find.text('Сначала выберите, пожалуйста, тип заказа'),
       findsOneWidget,
     );
-    expect(find.text('ОК'), findsOneWidget);
+    expect(find.text('Выбрать тип заказа'), findsOneWidget);
+    expect(find.text('Продолжить просмотр'), findsOneWidget);
     expect(
       Provider.of<CartProvider>(
         tester.element(find.byType(CatalogScreen)),

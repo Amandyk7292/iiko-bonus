@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../lib/i18n';
 import type { DispatchOrder, ExternalDelivery, YandexDeliveryConfiguration } from '../lib/api';
-import DispatchPage from './DispatchPage';
+import DispatchPage, { OrderYandexDelivery } from './DispatchPage';
 
 const apiMocks = vi.hoisted(() => ({
   getDispatch: vi.fn(),
@@ -129,6 +129,82 @@ describe('DispatchPage Yandex Business controls', () => {
     vi.restoreAllMocks();
   });
 
+  it('shows only the selected Yandex order and preserves price confirmation without own couriers', async () => {
+    apiMocks.getDispatch.mockResolvedValue({
+      success: true,
+      couriers: [{ id: 'own-courier', name: 'Внутренний курьер', availabilityStatus: 'available' }],
+      orders: [
+        dispatchOrder(businessDelivery()),
+        { ...dispatchOrder(null), id: 'other-order', number: 999999 },
+      ],
+      yandexDelivery: businessConfig(),
+    });
+    render(
+      <I18nProvider>
+        <OrderYandexDelivery orderId="order-1" />
+      </I18nProvider>,
+    );
+    await userEvent.click(await screen.findByRole('button', { name: /Вызвать ·/ }));
+    expect(screen.queryByText(/999999/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Внутренний курьер')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('dispatch-map')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Назначить$/ })).not.toBeInTheDocument();
+    expect(feedback.confirm).toHaveBeenCalledWith(
+      expect.objectContaining({ confirmLabel: expect.stringContaining('1 250 ₸') }),
+    );
+    expect(apiMocks.requestYandexDelivery).toHaveBeenCalledWith('order-1', {
+      deliveryJobId: 'delivery-job-1',
+      maxPriceKzt: 1250,
+      quoteFingerprint: 'a'.repeat(64),
+    });
+    expect(apiMocks.autoAssignCourier).not.toHaveBeenCalled();
+  });
+
+  it('preserves courier contact, status sync and explicit paid cancellation in the order panel', async () => {
+    const courier = { name: 'Яндекс курьер', phone: '+77000000001' };
+    apiMocks.getDispatch.mockResolvedValue({
+      success: true,
+      couriers: [],
+      orders: [
+        dispatchOrder(
+          businessDelivery({
+            status: 'performer_found',
+            active: true,
+            statusLabel: 'Курьер назначен',
+            courier,
+          }),
+        ),
+      ],
+      yandexDelivery: businessConfig(),
+    });
+    apiMocks.getYandexCancellationInfo.mockResolvedValue({
+      cancellation: { cancelState: 'paid', price: 500, currency: 'KZT' },
+    });
+    render(
+      <I18nProvider>
+        <OrderYandexDelivery orderId="order-1" />
+      </I18nProvider>,
+    );
+    expect(await screen.findByRole('link', { name: '+77000000001' })).toHaveAttribute(
+      'href',
+      'tel:+77000000001',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Обновить статус Яндекс.Доставки' }));
+    expect(apiMocks.syncYandexDelivery).toHaveBeenCalledWith('order-1');
+    feedback.confirm.mockResolvedValueOnce(false);
+    await userEvent.click(screen.getByRole('button', { name: 'Отменить Яндекс.Доставку' }));
+    await waitFor(() => expect(feedback.confirm).toHaveBeenCalled());
+    expect(apiMocks.cancelYandexDelivery).not.toHaveBeenCalled();
+    feedback.confirm.mockResolvedValueOnce(true);
+    await userEvent.click(screen.getByRole('button', { name: 'Отменить Яндекс.Доставку' }));
+    await waitFor(() =>
+      expect(apiMocks.cancelYandexDelivery).toHaveBeenCalledWith('order-1', true),
+    );
+    expect(feedback.confirm).toHaveBeenLastCalledWith(
+      expect.objectContaining({ destructive: true, body: expect.stringContaining('500') }),
+    );
+  });
+
   it('lets an owner/admin capability confirm the exact fixed price and sends the bound quote', async () => {
     const user = userEvent.setup();
     renderPage();
@@ -240,7 +316,9 @@ describe('DispatchPage Yandex Business controls', () => {
       ),
     );
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(/только владельцу или администратору/);
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      /только владельцу или администратору/,
+    );
     expect(
       screen.queryByRole('button', { name: 'Указать ID заказа Яндекса' }),
     ).not.toBeInTheDocument();

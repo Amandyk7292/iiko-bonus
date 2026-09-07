@@ -31,3 +31,33 @@ export function transactionItem(item: Record<string, unknown>) {
     total: Number(item.total ?? price * quantity),
   };
 }
+
+export function transactionPresentation(transaction: { type?: string; order_id?: string | null }) {
+  const type = String(transaction.type || '');
+  if (['deposit', 'manual_deposit', 'manual', 'refund_bonus_restore'].includes(type)) {
+    return {
+      sign: '+',
+      valueClass: 'value-positive',
+      statusClass: 'status-active',
+      paidWithBonuses: false,
+    };
+  }
+  if (type === 'pending_deposit') {
+    return {
+      sign: '+',
+      valueClass: 'value-info',
+      statusClass: 'status-warning',
+      paidWithBonuses: false,
+    };
+  }
+  if (['withdrawal', 'manual_withdrawal', 'expiration', 'refund_reversal'].includes(type)) {
+    return {
+      sign: '−',
+      valueClass: 'value-negative',
+      statusClass: 'status-danger',
+      paidWithBonuses: type === 'withdrawal' && Boolean(transaction.order_id),
+    };
+  }
+  // Cancelled credits and order records do not change the bonus balance.
+  return { sign: '', valueClass: '', statusClass: 'status-inactive', paidWithBonuses: false };
+}

@@ -35,7 +35,7 @@ const renderSidebar = (
 
 const visiblePaths = () =>
   screen
-    .getAllByRole('link', { hidden: true })
+    .queryAllByRole('link', { hidden: true })
     .map((link) => new URL((link as HTMLAnchorElement).href).pathname.replace(/^\/admin/, ''));
 
 describe('Sidebar role navigation', () => {
@@ -48,7 +48,6 @@ describe('Sidebar role navigation', () => {
     'branch_manager',
     'operator',
     'marketer',
-    'courier',
     'editor',
     'viewer',
     'cashier',
@@ -60,6 +59,11 @@ describe('Sidebar role navigation', () => {
     });
   }
 
+  it('does not advertise a retired courier workspace', () => {
+    renderSidebar('courier');
+    expect(visiblePaths()).toEqual([]);
+  });
+
   it('keeps privileged owner navigation complete', () => {
     renderSidebar('owner');
     const paths = visiblePaths();
@@ -67,6 +71,8 @@ describe('Sidebar role navigation', () => {
       expect(paths).toContain(privilegedPath);
     }
     expect(paths.length).toBeGreaterThan(20);
+    expect(paths).not.toContain('/couriers');
+    expect(paths).not.toContain('/dispatch');
   });
 
   it('caps live badges and invokes mobile and desktop controls immediately', () => {

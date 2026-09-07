@@ -174,6 +174,46 @@ describe('admin API request abort composition', () => {
     expect(completedRequest.didTimeout()).toBe(false);
   });
 
+  it.each([200, 500])(
+    'keeps the timeout active while an HTTP %s response body is stalled',
+    async (status) => {
+      vi.useFakeTimers();
+      let signal!: AbortSignal;
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockImplementation((_url: string, options: RequestInit) => {
+          signal = options.signal!;
+          const body = new ReadableStream({
+            start(controller) {
+              signal.addEventListener('abort', () =>
+                controller.error(new DOMException('Response aborted', 'AbortError')),
+              );
+            },
+          });
+          return Promise.resolve(
+            new Response(body, { status, headers: { 'Content-Type': 'application/json' } }),
+          );
+        }),
+      );
+      let result: unknown;
+      const request = api.getSettings().then(
+        (value) => {
+          result = value;
+        },
+        (error) => {
+          result = error;
+        },
+      );
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(signal.aborted).toBe(true);
+      expect(result).toMatchObject({
+        code: 'NETWORK_ERROR',
+        message: 'Сервер не ответил вовремя. Повторите попытку.',
+      });
+      await request;
+    },
+  );
+
   it('sends every city branch to regular APIs and one technical branch to menu APIs', () => {
     const scope = 'city:%D0%B0%D1%81%D1%82%D0%B0%D0%BD%D0%B0|branch-a,branch-b';
     const operationsHeaders = new Headers();

@@ -231,13 +231,12 @@ extension _CatalogInteractionController on _CatalogScreenState {
     return entries;
   }
 
-  Future<bool> _ensureOrderTypeSelected() async {
+  Future<bool> _ensureOrderTypeSelected(CatalogProduct product) async {
     if (widget.hasSelectedOrderType) return true;
     if (_orderTypeDialogOpen || !mounted) return false;
     _orderTypeDialogOpen = true;
-    final openHome = await showDialog<bool>(
+    final chooseOrderType = await showDialog<bool>(
       context: context,
-      barrierDismissible: false,
       builder: (dialogContext) => Dialog(
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
@@ -245,58 +244,100 @@ extension _CatalogInteractionController on _CatalogScreenState {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(BulkaRadii.card),
         ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'catalog_select_order_type_first'.tr,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontFamily: _headingFont,
-                  color: _textDark,
-                  fontSize: BulkaTypeScale.title,
-                  height: 1.35,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: FilledButton(
-                  key: const ValueKey('catalog-order-type-required-ok'),
-                  onPressed: () => Navigator.of(dialogContext).pop(true),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: _bulkaYellow,
-                    foregroundColor: _textDark,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(BulkaRadii.control),
-                    ),
-                  ),
-                  child: Text(
-                    'catalog_select_order_type_ok'.tr,
-                    style: const TextStyle(
-                      fontFamily: _headingFont,
-                      fontSize: BulkaTypeScale.body,
-                      fontWeight: FontWeight.w700,
-                    ),
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'catalog_select_order_type_first'.tr,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontFamily: _headingFont,
+                    color: _textDark,
+                    fontSize: BulkaTypeScale.title,
+                    height: 1.35,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 12),
+                Text(
+                  'catalog_select_order_type_resume'.tr,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(height: 1.45),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    key: const ValueKey('catalog-order-type-required-ok'),
+                    onPressed: () => Navigator.of(dialogContext).pop(true),
+                    style: FilledButton.styleFrom(
+                      minimumSize: const Size.fromHeight(52),
+                      backgroundColor: _bulkaYellow,
+                      foregroundColor: _textDark,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(BulkaRadii.control),
+                      ),
+                    ),
+                    child: Text(
+                      'catalog_select_order_type_ok'.tr,
+                      style: const TextStyle(
+                        fontFamily: _headingFont,
+                        fontSize: BulkaTypeScale.body,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+                TextButton(
+                  key: const ValueKey('catalog-order-type-required-cancel'),
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: Text('catalog_continue_browsing'.tr),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
     _orderTypeDialogOpen = false;
-    if (openHome == true && mounted) {
+    if (chooseOrderType == true && mounted) {
+      _productPendingFulfillment = product.id;
+      if (_productRouteOpen) Navigator.of(context).pop();
       closeCategoryPage();
       widget.onRequestOrderType?.call();
     }
     return false;
+  }
+
+  void _resumeProductAfterFulfillment() {
+    final productId = _productPendingFulfillment;
+    if (productId == null ||
+        !widget.hasSelectedOrderType ||
+        _selectedBakeryId.isEmpty) {
+      return;
+    }
+    // Resume only after a fresh branch menu arrives; never add an item using
+    // availability or prices from the city-wide preview.
+    _productPendingFulfillment = null;
+    CatalogProduct? product;
+    for (final candidate in _allProducts) {
+      if (candidate.id == productId) {
+        product = candidate;
+        break;
+      }
+    }
+    if (product == null || product.isStopListed) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('catalog_selected_product_unavailable'.tr)),
+      );
+      return;
+    }
+    _pendingClientUri = _CatalogScreenState._productClientUri(product);
+    publishClientRoute(_pendingClientUri!);
   }
 
   Future<void> _setProductQuantity(CatalogProduct product, int quantity) async {
@@ -308,7 +349,7 @@ extension _CatalogInteractionController on _CatalogScreenState {
       if (mounted) await _openProductDetails(product);
       return;
     }
-    if (next > previous && !await _ensureOrderTypeSelected()) return;
+    if (next > previous && !await _ensureOrderTypeSelected(product)) return;
     if (!mounted) return;
     if (next <= 0) {
       cart.removeItem(product.id);
@@ -377,7 +418,8 @@ extension _CatalogInteractionController on _CatalogScreenState {
               initialFavorite: _favoriteProductIds.contains(product.id),
               onToggleFavorite: () => _toggleFavorite(product),
               hasSelectedOrderType: widget.hasSelectedOrderType,
-              onEnsureOrderTypeSelected: _ensureOrderTypeSelected,
+              onEnsureOrderTypeSelected: () =>
+                  _ensureOrderTypeSelected(product),
             ),
           ),
         );

@@ -59,7 +59,8 @@ const dispatchStatuses = [
 
 const elapsedMinutes = (value?: string | null) => {
   if (!value) return null;
-  return Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 60_000));
+  const minutes = Math.floor((Date.now() - new Date(value).getTime()) / 60_000);
+  return Number.isFinite(minutes) ? Math.max(0, minutes) : null;
 };
 
 const acceptanceRequestedAt = (order: any) => order.acceptanceRequestedAt || order.createdAt;
@@ -117,6 +118,18 @@ const shouldApplyKitchenMutation = (current: any, incoming: any, hasNewerLoad: b
 
 export default function KitchenPage() {
   const { formatDate, t } = useI18n();
+  const elapsedLabel = (value?: string | null) => {
+    const minutes = elapsedMinutes(value);
+    if (minutes == null) return '—';
+    if (minutes >= 1440)
+      return t('kitchen.elapsedDays', {
+        days: Math.floor(minutes / 1440),
+        hours: Math.floor((minutes % 1440) / 60),
+      });
+    if (minutes >= 60)
+      return t('kitchen.elapsedHours', { hours: Math.floor(minutes / 60), minutes: minutes % 60 });
+    return t('kitchen.elapsed', { count: minutes });
+  };
   const { toast } = useFeedback();
   const {
     connectionStatus,
@@ -367,16 +380,12 @@ export default function KitchenPage() {
     setIikoManualEntryConfirmed(false);
   };
 
-  const lateCount = useMemo(
-    () =>
-      orders.filter(
-        (order) =>
-          order.promisedReadyAt &&
-          new Date(order.promisedReadyAt) < new Date() &&
-          order.kitchenStatus !== 'ready',
-      ).length,
-    [orders],
-  );
+  const lateCount = orders.filter(
+    (order) =>
+      order.promisedReadyAt &&
+      new Date(order.promisedReadyAt) < new Date() &&
+      order.kitchenStatus !== 'ready',
+  ).length;
   if (loading && !orders.length) return <PageState type="loading" />;
   if (error && !orders.length)
     return <PageState type="error" description={error} onRetry={() => void load()} />;
@@ -397,7 +406,7 @@ export default function KitchenPage() {
             <p className="m-0 mt-1 text-base font-bold tabular" aria-live="off">
               {t('kitchen.alarmOldest', {
                 number: oldestUnacceptedOrder.number,
-                count: elapsedMinutes(acceptanceRequestedAt(oldestUnacceptedOrder)) ?? 0,
+                duration: elapsedLabel(acceptanceRequestedAt(oldestUnacceptedOrder)),
               })}
             </p>
             <small className="mt-1 block text-sm leading-relaxed">
@@ -451,7 +460,6 @@ export default function KitchenPage() {
       )}
       <div className="page-actions-row">
         <div>
-          <h2 className="content-heading">{t('kitchen.heading')}</h2>
           <p className="page-help">{t('kitchen.intro')}</p>
         </div>
         <div className="action-cluster">
@@ -518,12 +526,8 @@ export default function KitchenPage() {
                       >
                         <div className="kitchen-ticket-head">
                           <strong>№{order.number}</strong>
-                          <span>
-                            {elapsedMinutes(kitchenElapsedFrom(order)) == null
-                              ? '—'
-                              : t('kitchen.elapsed', {
-                                  count: elapsedMinutes(kitchenElapsedFrom(order)) ?? 0,
-                                })}
+                          <span title={formatDate(kitchenElapsedFrom(order))}>
+                            {elapsedLabel(kitchenElapsedFrom(order))}
                           </span>
                         </div>
                         <div

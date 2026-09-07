@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Download, Gift, LoaderCircle, Pencil, RefreshCw, Search, Trash2 } from 'lucide-react';
 import { useSearchParams } from '../lib/router';
 import Modal from '../components/Modal';
@@ -7,6 +7,7 @@ import { useFeedback } from '../components/Feedback';
 import { api, type AdminUser } from '../lib/api';
 import { useAdminRealtimeEvents } from '../lib/admin-realtime';
 import { useI18n } from '../lib/i18n';
+import { csvCell } from '../lib/csv';
 
 interface Customer {
   id: string;
@@ -28,7 +29,9 @@ export default function CustomersPage({ user }: CustomersPageProps) {
   const [params, setParams] = useSearchParams();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [initialized, setInitialized] = useState(false);
   const [error, setError] = useState('');
+  const loadGeneration = useRef(0);
   const [search, setSearch] = useState(params.get('search') || '');
   const [page, setPage] = useState(Math.max(1, Number(params.get('page')) || 1));
   const [total, setTotal] = useState(0);
@@ -51,22 +54,32 @@ export default function CustomersPage({ user }: CustomersPageProps) {
   const canManageCustomer = canAdjustBonus || canUpdateCustomer || canDeleteCustomer;
 
   const fetchCustomers = useCallback(async () => {
+    const generation = ++loadGeneration.current;
     setLoading(true);
     setError('');
     try {
       const data = await api.getCustomers({ page, pageSize, search });
+      if (generation !== loadGeneration.current) return;
       setCustomers(data.customers ?? []);
       setTotal(data.total ?? 0);
+      setInitialized(true);
     } catch (caught) {
+      if (generation !== loadGeneration.current) return;
       setError(caught instanceof Error ? caught.message : t('common.loadError'));
     } finally {
-      setLoading(false);
+      if (generation === loadGeneration.current) setLoading(false);
     }
   }, [page, search, t]);
 
   useEffect(() => {
+    setLoading(true);
+    setError('');
     const timer = window.setTimeout(() => void fetchCustomers(), 250);
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(timer);
+      // Invalidate immediately, including the debounce before the next request starts.
+      loadGeneration.current += 1;
+    };
   }, [fetchCustomers]);
 
   useEffect(() => {
@@ -98,9 +111,7 @@ export default function CustomersPage({ user }: CustomersPageProps) {
         customer.total_spent || 0,
       ]),
     );
-    const csv = rows
-      .map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(','))
-      .join('\n');
+    const csv = rows.map((row) => row.map(csvCell).join(',')).join('\n');
     const url = URL.createObjectURL(new Blob([`\ufeff${csv}`], { type: 'text/csv;charset=utf-8' }));
     const link = document.createElement('a');
     link.href = url;
@@ -239,8 +250,8 @@ export default function CustomersPage({ user }: CustomersPageProps) {
     }
   };
 
-  if (loading && customers.length === 0) return <PageState type="loading" />;
-  if (error && customers.length === 0)
+  if (loading && !initialized) return <PageState type="loading" />;
+  if (error && !initialized)
     return <PageState type="error" description={error} onRetry={fetchCustomers} />;
 
   return (
@@ -278,14 +289,14 @@ export default function CustomersPage({ user }: CustomersPageProps) {
         <button
           type="button"
           onClick={handleExport}
-          disabled={filtered.length === 0}
+          disabled={loading || filtered.length === 0}
           className="btn-outline px-4 inline-flex items-center gap-2"
         >
           <Download aria-hidden="true" size={17} />
-          {t('customers.export')}
+          {t('common.exportPage')}
         </button>
       </div>
-      {error && (
+      {error && customers.length > 0 && (
         <div className="inline-alert inline-alert-error" role="alert">
           {error}
         </div>
@@ -315,7 +326,11 @@ export default function CustomersPage({ user }: CustomersPageProps) {
         </div>
       </section>
 
-      {filtered.length === 0 ? (
+      {loading && filtered.length === 0 ? (
+        <PageState type="loading" />
+      ) : error && filtered.length === 0 ? (
+        <PageState type="error" description={error} onRetry={fetchCustomers} />
+      ) : filtered.length === 0 ? (
         <PageState
           type="empty"
           title={t('customers.empty')}

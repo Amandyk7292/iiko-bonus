@@ -13,13 +13,19 @@ import {
 import { Link } from '../lib/router';
 import PageState from '../components/PageState';
 import { useAdminRealtime } from '../lib/admin-realtime';
+import { ORDER_STATUSES } from '../lib/admin-permissions';
 import { useI18n } from '../lib/i18n';
 
 export default function OperationsPage() {
-  const { formatDate, formatNumber } = useI18n();
-  const { summary, refreshSummary } = useAdminRealtime();
+  const { t, formatDate, formatNumber } = useI18n();
+  const { summary, summaryLoading, summaryError, refreshSummary } = useAdminRealtime();
 
-  if (!summary) return <PageState type="loading" title="Собираем операционную сводку" />;
+  if (!summary) {
+    if (summaryError && !summaryLoading) {
+      return <PageState type="error" onRetry={() => void refreshSummary()} />;
+    }
+    return <PageState type="loading" />;
+  }
 
   const cards = [
     {
@@ -43,7 +49,7 @@ export default function OperationsPage() {
       value: summary.counts.deliveryAttention,
       hint: 'Нужен курьер или контроль',
       icon: Truck,
-      path: '/dispatch',
+      path: '/orders',
       tone: summary.counts.deliveryAttention ? 'warning' : 'neutral',
     },
     {
@@ -73,7 +79,6 @@ export default function OperationsPage() {
   ].filter((card) => {
     if (card.path.startsWith('/orders')) return summary.capabilities.orders;
     if (card.path.startsWith('/kitchen')) return summary.capabilities.kitchen;
-    if (card.path.startsWith('/dispatch')) return summary.capabilities.dispatch;
     if (card.path.startsWith('/support')) return summary.capabilities.support;
     if (card.path.startsWith('/whatsapp')) return summary.capabilities.whatsapp;
     if (card.path.startsWith('/inventory')) return summary.capabilities.inventory;
@@ -93,11 +98,19 @@ export default function OperationsPage() {
           type="button"
           className="btn-outline px-4 inline-flex items-center gap-2"
           onClick={() => void refreshSummary()}
+          disabled={summaryLoading}
+          aria-busy={summaryLoading}
         >
-          <RefreshCw aria-hidden="true" size={17} />
-          Обновить
+          <RefreshCw aria-hidden="true" size={17} className={summaryLoading ? 'spin' : undefined} />
+          {t('common.refresh')}
         </button>
       </div>
+
+      {summaryError && (
+        <div className="inline-alert inline-alert-warning" role="alert">
+          {t('operations.summaryStale')}
+        </div>
+      )}
 
       <section className="operations-metric-grid" aria-label="Операционные показатели">
         {cards.map((card) => {
@@ -165,7 +178,11 @@ export default function OperationsPage() {
                         </small>
                       </span>
                       <span className={`status-pill ${overdue ? 'status-danger' : 'status-info'}`}>
-                        {overdue ? 'Просрочен' : order.orderStatus || 'Новый'}
+                        {overdue
+                          ? 'Просрочен'
+                          : ORDER_STATUSES.includes(order.orderStatus)
+                            ? t(`orderStatus.${order.orderStatus}`)
+                            : t('common.unknown')}
                       </span>
                     </Link>
                   );

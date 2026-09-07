@@ -143,67 +143,26 @@ test('menu toggles update immediately and independent actions run in parallel', 
   );
 });
 
-test('courier switches update immediately without serializing different couriers', async ({
-  page,
-}) => {
-  const mutations: Array<{ id: string; active: boolean }> = [];
-  const couriers = [
-    {
-      id: 'courier-one',
-      name: 'Курьер Один',
-      phone: '+77000000001',
-      vehicle: 'Велосипед',
-      active: true,
-      activeSessions: 1,
-    },
-    {
-      id: 'courier-two',
-      name: 'Курьер Два',
-      phone: '+77000000002',
-      vehicle: 'Скутер',
-      active: true,
-      activeSessions: 0,
-    },
-  ];
-  await installBaseMocks(page, async (route, path) => {
-    if (path === '/admin/api/couriers' && route.request().method() === 'GET') {
-      await fulfillJson(route, { success: true, couriers });
-      return true;
-    }
-    const match = path.match(/^\/admin\/api\/couriers\/([^/]+)\/active$/);
-    if (match) {
-      const body = route.request().postDataJSON() as { active: boolean };
-      mutations.push({ id: match[1], active: body.active });
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      const courier = couriers.find((item) => item.id === match[1])!;
-      await fulfillJson(route, {
-        success: true,
-        courier: { ...courier, active: body.active },
-      });
-      return true;
-    }
-    return false;
+for (const retiredPath of ['/couriers', '/dispatch']) {
+  test(`retired ${retiredPath} redirects to orders without manual courier tabs`, async ({
+    page,
+  }) => {
+    await installBaseMocks(page, async (route, path) => {
+      if (path === '/admin/api/orders') {
+        await fulfillJson(route, { orders: [], total: 0, page: 1, pageSize: 50 });
+        return true;
+      }
+      return false;
+    });
+
+    await page.goto(`/admin${retiredPath}`);
+    await expect(page).toHaveURL(/\/admin\/orders$/);
+    await expect(page.getByRole('heading', { name: 'Заказы', exact: true })).toBeVisible();
+    await expect(page.getByText('Заказов пока нет')).toBeVisible();
+    await expect(page.locator('a[href$="/couriers"], a[href$="/dispatch"]')).toHaveCount(0);
+    await expect(page.locator('.courier-card')).toHaveCount(0);
   });
-
-  await page.goto('/admin/couriers');
-  const cards = page.locator('.courier-card');
-  await expect(cards).toHaveCount(2);
-  const firstSwitch = cards.nth(0).getByRole('checkbox');
-  const secondSwitch = cards.nth(1).getByRole('checkbox');
-
-  await cards.nth(0).locator('.switch-row').click();
-  await expect(firstSwitch).not.toBeChecked({ timeout: 300 });
-  await expect(firstSwitch).toBeDisabled();
-  await expect(secondSwitch).toBeEnabled();
-
-  await cards.nth(1).locator('.switch-row').click();
-  await expect(secondSwitch).not.toBeChecked({ timeout: 300 });
-  await expect.poll(() => mutations.length).toBe(2);
-  expect(mutations).toEqual([
-    { id: 'courier-one', active: false },
-    { id: 'courier-two', active: false },
-  ]);
-});
+}
 
 test('menu toggle rolls back when persistence fails', async ({ page }) => {
   await installBaseMocks(page, async (route, path) => {

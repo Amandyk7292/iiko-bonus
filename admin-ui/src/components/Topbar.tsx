@@ -46,9 +46,8 @@ const routeKeys: Record<string, string> = {
   '/locations': 'locations',
   '/menu': 'menu',
   '/inventory': 'inventory',
-  '/couriers': 'couriers',
   '/security': 'security',
-  '/dispatch': 'dispatch',
+  '/unavailable': 'unavailable',
   '/kitchen': 'kitchen',
   '/marketing': 'marketing',
   '/reviews': 'reviews',
@@ -196,10 +195,7 @@ export default function Topbar({
         {!operatorMode && !cashierMode && <AdminGlobalSearch />}
         {cashierMode && (
           <div className="cashier-staff-controls">
-            <div
-              className="cashier-branch realtime-status"
-              aria-label={t('adminScope.branch')}
-            >
+            <div className="cashier-branch realtime-status" aria-label={t('adminScope.branch')}>
               <span className="realtime-status-copy">
                 <small>{t('adminScope.branch')}</small>
                 <strong>{cashierBranch?.name || t('adminScope.branch')}</strong>

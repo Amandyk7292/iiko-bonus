@@ -23,6 +23,11 @@ vi.mock('../lib/admin-realtime', () => ({
 vi.mock('../components/Feedback', () => ({
   useFeedback: () => ({ toast }),
 }));
+vi.mock('./DispatchPage', () => ({
+  OrderYandexDelivery: ({ orderId }: { orderId: string }) => (
+    <div data-testid="yandex-order">{orderId}</div>
+  ),
+}));
 
 const order: AdminOrder = {
   id: 'order-100039',
@@ -64,37 +69,10 @@ describe('Orders workspace permissions and refund flow', () => {
     });
     vi.clearAllMocks();
     apiMocks.getOrders.mockResolvedValue({ orders: [order], total: 1, page: 1, pageSize: 50 });
-    apiMocks.getCouriers.mockResolvedValue({
-      couriers: [
-        {
-          id: 'courier-1',
-          name: 'Айбек',
-          phone: '77010000001',
-          vehicle: 'Авто',
-          transportType: 'car',
-          active: true,
-        },
-      ],
-    });
   });
 
-  it('assigns a courier and submits cancellation with a customer-visible reason', async () => {
+  it('submits cancellation with a customer-visible reason without internal courier assignment', async () => {
     const user = userEvent.setup();
-    apiMocks.assignCourier.mockResolvedValue({
-      success: true,
-      order: {
-        ...order,
-        deliveryStatus: 'assigned',
-        courier: {
-          id: 'courier-1',
-          name: 'Айбек',
-          phone: '77010000001',
-          vehicle: 'Авто',
-          transportType: 'car',
-          isAutomobile: true,
-        },
-      },
-    });
     apiMocks.updateOrderStatus.mockResolvedValue({
       success: true,
       order: {
@@ -110,16 +88,9 @@ describe('Orders workspace permissions and refund flow', () => {
     expect(row).not.toBeNull();
     expect(within(row!).getByText('Амандық')).toBeInTheDocument();
 
-    await user.click(screen.getByRole('combobox', { name: 'Назначить курьера' }));
-    await user.click(screen.getByRole('option', { name: 'Айбек · Авто' }));
-    await waitFor(() =>
-      expect(apiMocks.assignCourier).toHaveBeenCalledWith(
-        'order-100039',
-        'courier-1',
-        expect.any(String),
-      ),
-    );
-    expect(await screen.findByText('Айбек · Автокурьер · Авто · 77010000001')).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Назначить курьера' })).not.toBeInTheDocument();
+    expect(apiMocks.getCouriers).not.toHaveBeenCalled();
+    expect(apiMocks.assignCourier).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole('combobox', { name: 'Изменить статус' }));
     await user.click(screen.getByRole('option', { name: 'Отменён' }));
@@ -140,7 +111,38 @@ describe('Orders workspace permissions and refund flow', () => {
     );
   });
 
+  it('opens the selected order Yandex workflow and keeps courier history read-only', async () => {
+    apiMocks.getOrders.mockResolvedValue({
+      orders: [
+        {
+          ...order,
+          deliveryProvider: 'yandex',
+          deliveryStatus: 'assigned',
+          courier: {
+            id: 'courier-1',
+            name: 'Айбек',
+            phone: '77010000001',
+            transportType: 'car',
+            vehicle: 'Авто',
+          },
+        },
+      ],
+      total: 1,
+    });
+    renderPage();
+    expect(await screen.findByText('Айбек · Автокурьер · Авто · 77010000001')).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Курьер назначен' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Яндекс Go' }));
+    expect(await screen.findByTestId('yandex-order')).toHaveTextContent('order-100039');
+    expect(apiMocks.getCouriers).not.toHaveBeenCalled();
+    expect(apiMocks.updateDeliveryStatus).not.toHaveBeenCalled();
+  });
+
   it('keeps order and refund mutations unavailable to a viewer', async () => {
+    apiMocks.getOrders.mockResolvedValue({
+      orders: [{ ...order, trackingUrl: 'https://example.com/tracking/100039' }],
+      total: 1,
+    });
     renderPage('viewer');
 
     const row = (await screen.findByText('№100039')).closest('tr');
@@ -148,6 +150,12 @@ describe('Orders workspace permissions and refund flow', () => {
     expect(within(row!).getByText('Принят')).toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: 'Изменить статус' })).not.toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: 'Назначить курьера' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Яндекс Go' })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('yandex-order')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Отследить' })).toHaveAttribute(
+      'href',
+      'https://example.com/tracking/100039',
+    );
   });
 
   it('offers an explicit retry after a list failure', async () => {

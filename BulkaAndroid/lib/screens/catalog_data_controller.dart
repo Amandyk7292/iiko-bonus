@@ -79,6 +79,7 @@ extension _CatalogDataController on _CatalogScreenState {
         _loadError = null;
       });
       unawaited(_refreshProductOptionFlags(products));
+      _resumeProductAfterFulfillment();
       _applyPendingClientUri();
       unawaited(_warmProductImages(products));
       final analyticsKey = '${AppLang.current}:$_orderType:$_selectedBakeryId';

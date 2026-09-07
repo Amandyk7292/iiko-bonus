@@ -46,9 +46,6 @@ vi.mock('./components/Topbar', () => ({
 vi.mock('./pages/OperationsPage', () => ({
   default: () => <div>operations-page</div>,
 }));
-vi.mock('./pages/CouriersPage', () => ({
-  default: () => <div>couriers-page</div>,
-}));
 vi.mock('./pages/OrdersPage', () => ({
   default: ({ role }: { role: string }) => <div>orders-page:{role}</div>,
 }));
@@ -112,16 +109,40 @@ describe('Admin application authentication and role guards', () => {
     }
   });
 
-  it('routes couriers to their scoped workspace', async () => {
+  it('routes retired courier accounts to an information screen without order access', async () => {
     apiMocks.session.mockResolvedValue({
       user: { username: 'courier', role: 'courier', branchIds: [] },
     });
     window.history.replaceState({}, '', '/admin/security');
     renderApp();
 
-    expect(await screen.findByText('couriers-page')).toBeInTheDocument();
-    expect(window.location.pathname).toBe('/admin/couriers');
+    expect(await screen.findByText('Курьерский кабинет отключён')).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/admin/unavailable');
+    expect(screen.queryByText('orders-page:courier')).not.toBeInTheDocument();
   });
+
+  it.each(['/dispatch', '/couriers'])(
+    'redirects retired %s URLs to orders or the role-safe landing page',
+    async (path) => {
+      for (const [role, expectedPath, expectedText] of [
+        ['admin', '/orders', 'orders-page:admin'],
+        ['branch_manager', '/orders', 'orders-page:branch_manager'],
+        ['cashier', '/orders', 'orders-page:cashier'],
+        ['marketer', '/operations', 'operations-page'],
+        ['whatsapp_operator', '/whatsapp', 'whatsapp-page:whatsapp_operator'],
+        ['courier', '/unavailable', 'Курьерский кабинет отключён'],
+      ]) {
+        apiMocks.session.mockResolvedValueOnce({
+          user: { username: role, role, branchIds: [] },
+        });
+        window.history.replaceState({}, '', `/admin${path}`);
+        const view = renderApp();
+        expect(await screen.findByText(expectedText)).toBeInTheDocument();
+        expect(window.location.pathname).toBe(`/admin${expectedPath}`);
+        view.unmount();
+      }
+    },
+  );
 
   it('routes a cashier to the kitchen first and collapses the sidebar', async () => {
     apiMocks.session.mockResolvedValue({

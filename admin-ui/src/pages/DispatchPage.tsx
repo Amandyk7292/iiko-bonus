@@ -39,7 +39,11 @@ const deliveryAddressText = (value: DispatchOrder['deliveryAddress']) => {
   return value;
 };
 
-export default function DispatchPage() {
+export function OrderYandexDelivery({ orderId }: { orderId: string }) {
+  return <DispatchPage orderId={orderId} />;
+}
+
+export default function DispatchPage({ orderId }: { orderId?: string } = {}) {
   const { formatDate, formatNumber, t } = useI18n();
   const { toast, confirm } = useFeedback();
   const [couriers, setCouriers] = useState<any[]>([]);
@@ -59,8 +63,8 @@ export default function DispatchPage() {
       if (!silent) setLoading(true);
       try {
         const result = await api.getDispatch();
-        setCouriers(result.couriers ?? []);
-        setOrders(result.orders ?? []);
+        setCouriers(orderId ? [] : (result.couriers ?? []));
+        setOrders((result.orders ?? []).filter((order) => !orderId || order.id === orderId));
         setYandexConfig(result.yandexDelivery ?? null);
         setError('');
       } catch (caught) {
@@ -69,7 +73,7 @@ export default function DispatchPage() {
         if (!silent) setLoading(false);
       }
     },
-    [t],
+    [orderId, t],
   );
 
   useEffect(() => {
@@ -386,8 +390,8 @@ export default function DispatchPage() {
     <div className="page-stack">
       <div className="page-actions-row">
         <div>
-          <h2 className="content-heading">{t('dispatch.heading')}</h2>
-          <p className="page-help">{t('dispatch.intro')}</p>
+          {!orderId && <h2 className="content-heading">{t('dispatch.heading')}</h2>}
+          <p className="page-help">{t(orderId ? 'kitchen.dispatchHelp' : 'dispatch.intro')}</p>
         </div>
         <button
           className="btn-outline px-5 inline-flex items-center gap-2"
@@ -398,6 +402,11 @@ export default function DispatchPage() {
           {t('common.refresh')}
         </button>
       </div>
+      {error && (
+        <div className="inline-alert inline-alert-error" role="alert">
+          {error}
+        </div>
+      )}
       {yandexConfig && !yandexConfig.configured && (
         <div className="inline-alert inline-alert-warning" role="status">
           {t('dispatch.yandex.notConfigured', {
@@ -406,95 +415,103 @@ export default function DispatchPage() {
           })}
         </div>
       )}
-      <section className="ops-metrics-grid">
-        <article className="card metric-card">
-          <p>{t('dispatch.onShift')}</p>
-          <strong>{activeCouriers}</strong>
-          <small>{t('dispatch.courierTotal', { count: couriers.length })}</small>
-        </article>
-        <article className="card metric-card">
-          <p>{t('dispatch.activeDeliveries')}</p>
-          <strong>{orders.length}</strong>
-          <small>
-            {t('dispatch.unassignedTotal', {
-              count: orders.filter((order) => !order.courierId).length,
-            })}
-          </small>
-        </article>
-        <article className="card metric-card">
-          <p>{t('dispatch.averageEta')}</p>
-          <strong>
-            {t('dispatch.minutesValue', {
-              count: orders.length
-                ? Math.round(
-                    orders.reduce((sum, order) => sum + Number(order.routeEtaMinutes || 0), 0) /
-                      orders.length,
-                  )
-                : 0,
-            })}
-          </strong>
-          <small>{t('dispatch.currentRoutes')}</small>
-        </article>
-      </section>
-      <section className="card dispatch-map-card">
-        <DispatchMap couriers={couriers} orders={orders} />
-      </section>
-      <div className="operations-split">
+      {!orderId && (
+        <>
+          <section className="ops-metrics-grid">
+            <article className="card metric-card">
+              <p>{t('dispatch.onShift')}</p>
+              <strong>{activeCouriers}</strong>
+              <small>{t('dispatch.courierTotal', { count: couriers.length })}</small>
+            </article>
+            <article className="card metric-card">
+              <p>{t('dispatch.activeDeliveries')}</p>
+              <strong>{orders.length}</strong>
+              <small>
+                {t('dispatch.unassignedTotal', {
+                  count: orders.filter((order) => !order.courierId).length,
+                })}
+              </small>
+            </article>
+            <article className="card metric-card">
+              <p>{t('dispatch.averageEta')}</p>
+              <strong>
+                {t('dispatch.minutesValue', {
+                  count: orders.length
+                    ? Math.round(
+                        orders.reduce((sum, order) => sum + Number(order.routeEtaMinutes || 0), 0) /
+                          orders.length,
+                      )
+                    : 0,
+                })}
+              </strong>
+              <small>{t('dispatch.currentRoutes')}</small>
+            </article>
+          </section>
+          <section className="card dispatch-map-card">
+            <DispatchMap couriers={couriers} orders={orders} />
+          </section>
+        </>
+      )}
+      <div className={orderId ? 'page-stack' : 'operations-split'}>
+        {!orderId && (
+          <section className="card ops-panel">
+            <div className="section-heading">
+              <h2>{t('dispatch.couriers')}</h2>
+              <p>{t('dispatch.locationFreshness')}</p>
+            </div>
+            <div className="ops-list">
+              {couriers.length === 0 ? (
+                <PageState compact type="empty" title={t('dispatch.noCouriers')} />
+              ) : (
+                couriers.map((courier) => (
+                  <article className="ops-row" key={courier.id}>
+                    <div className="ops-row-icon">
+                      <Bike aria-hidden="true" size={19} />
+                    </div>
+                    <div className="ops-row-copy">
+                      <strong>{courier.name}</strong>
+                      <span>
+                        {t(`couriers.transport.${courier.transportType || 'car'}`)}
+                        {' · '}
+                        {courier.vehicle || courier.phone}
+                      </span>
+                      <small>
+                        {courier.latitude == null
+                          ? t('dispatch.noLocation')
+                          : t('dispatch.courierOrders', {
+                              active: courier.activeOrders,
+                              max: courier.maxActiveOrders,
+                              updated: courier.locationUpdatedAt
+                                ? formatDate(courier.locationUpdatedAt)
+                                : t('dispatch.timeUnknown'),
+                            })}
+                      </small>
+                    </div>
+                    <SelectControl
+                      compact
+                      ariaLabel={t('dispatch.courierStatusLabel', { name: courier.name })}
+                      className="compact-select"
+                      value={courier.availabilityStatus || 'offline'}
+                      disabled={saving === courier.id}
+                      onChange={(value) => void setAvailability(courier.id, value)}
+                      options={availabilityStatuses.map((value) => ({
+                        value,
+                        label: t(`dispatch.availability.${value}`),
+                      }))}
+                    />
+                  </article>
+                ))
+              )}
+            </div>
+          </section>
+        )}
         <section className="card ops-panel">
-          <div className="section-heading">
-            <h2>{t('dispatch.couriers')}</h2>
-            <p>{t('dispatch.locationFreshness')}</p>
-          </div>
-          <div className="ops-list">
-            {couriers.length === 0 ? (
-              <PageState compact type="empty" title={t('dispatch.noCouriers')} />
-            ) : (
-              couriers.map((courier) => (
-                <article className="ops-row" key={courier.id}>
-                  <div className="ops-row-icon">
-                    <Bike aria-hidden="true" size={19} />
-                  </div>
-                  <div className="ops-row-copy">
-                    <strong>{courier.name}</strong>
-                    <span>
-                      {t(`couriers.transport.${courier.transportType || 'car'}`)}
-                      {' · '}
-                      {courier.vehicle || courier.phone}
-                    </span>
-                    <small>
-                      {courier.latitude == null
-                        ? t('dispatch.noLocation')
-                        : t('dispatch.courierOrders', {
-                            active: courier.activeOrders,
-                            max: courier.maxActiveOrders,
-                            updated: courier.locationUpdatedAt
-                              ? formatDate(courier.locationUpdatedAt)
-                              : t('dispatch.timeUnknown'),
-                          })}
-                    </small>
-                  </div>
-                  <SelectControl
-                    compact
-                    ariaLabel={t('dispatch.courierStatusLabel', { name: courier.name })}
-                    className="compact-select"
-                    value={courier.availabilityStatus || 'offline'}
-                    disabled={saving === courier.id}
-                    onChange={(value) => void setAvailability(courier.id, value)}
-                    options={availabilityStatuses.map((value) => ({
-                      value,
-                      label: t(`dispatch.availability.${value}`),
-                    }))}
-                  />
-                </article>
-              ))
-            )}
-          </div>
-        </section>
-        <section className="card ops-panel">
-          <div className="section-heading">
-            <h2>{t('dispatch.deliveries')}</h2>
-            <p>{t('dispatch.routeHint')}</p>
-          </div>
+          {!orderId && (
+            <div className="section-heading">
+              <h2>{t('dispatch.deliveries')}</h2>
+              <p>{t('dispatch.routeHint')}</p>
+            </div>
+          )}
           <div className="ops-list">
             {orders.length === 0 ? (
               <PageState compact type="empty" title={t('dispatch.noDeliveries')} />
@@ -507,13 +524,13 @@ export default function DispatchPage() {
                 const external = order.externalDelivery;
                 const createReconciliationRequired = Boolean(
                   external?.apiFamily === 'business_v2' &&
-                    (external.createReconciliationExhausted ||
-                      external.status === 'creating_exhausted'),
+                  (external.createReconciliationExhausted ||
+                    external.status === 'creating_exhausted'),
                 );
                 const hasReservedYandex = Boolean(
                   external &&
-                    !external.terminal &&
-                    (external.active || createReconciliationRequired),
+                  !external.terminal &&
+                  (external.active || createReconciliationRequired),
                 );
                 const hasActiveYandex = Boolean(
                   hasReservedYandex && !['draft', 'quoted'].includes(external?.status || ''),
@@ -548,14 +565,14 @@ export default function DispatchPage() {
                     ? t('dispatch.yandex.restaurantApprovalRequired')
                     : businessMode && yandexConfig?.dispatchReady === false
                       ? t('dispatch.yandex.operationalAlertsRequired')
-                    : businessMode && !businessQuoteReady
-                      ? external?.apiFamily === 'business_v2' &&
-                        external.fixedPrice === true &&
-                        Number(external.quotedPrice) > 0 &&
-                        quoteRemainingSeconds <= 0
-                        ? t('dispatch.yandex.quoteExpired')
-                        : t('dispatch.yandex.fixedQuoteRequired')
-                      : '';
+                      : businessMode && !businessQuoteReady
+                        ? external?.apiFamily === 'business_v2' &&
+                          external.fixedPrice === true &&
+                          Number(external.quotedPrice) > 0 &&
+                          quoteRemainingSeconds <= 0
+                          ? t('dispatch.yandex.quoteExpired')
+                          : t('dispatch.yandex.fixedQuoteRequired')
+                        : '';
                 const requestDisabledReasonId = `yandex-request-disabled-${order.id}`;
                 const itemsResolutionRequired = Boolean(
                   external?.apiFamily === 'business_v2' &&
@@ -660,6 +677,14 @@ export default function DispatchPage() {
                       )}
                     </div>
                     <div className="row-actions">
+                      {orderId && external?.courier?.phone && (
+                        <a
+                          href={`tel:${external.courier.phone}`}
+                          className="btn-outline compact-button"
+                        >
+                          {external.courier.phone}
+                        </a>
+                      )}
                       {routeUrl && (
                         <a
                           href={routeUrl}
@@ -860,7 +885,7 @@ export default function DispatchPage() {
                           )}
                         </>
                       ) : null}
-                      {!order.courierId && !hasReservedYandex && (
+                      {!orderId && !order.courierId && !hasReservedYandex && (
                         <button
                           type="button"
                           className="btn-outline compact-button"

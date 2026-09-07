@@ -38,9 +38,7 @@ const LoyaltyTiersPage = lazy(() => import('./pages/LoyaltyTiersPage'));
 const MenuPage = lazy(() => import('./pages/MenuPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const InventoryPage = lazy(() => import('./pages/InventoryPage'));
-const CouriersPage = lazy(() => import('./pages/CouriersPage'));
 const SecurityPage = lazy(() => import('./pages/SecurityPage'));
-const DispatchPage = lazy(() => import('./pages/DispatchPage'));
 const KitchenPage = lazy(() => import('./pages/KitchenPage'));
 const MarketingPage = lazy(() => import('./pages/MarketingPage'));
 const ReviewsPage = lazy(() => import('./pages/ReviewsPage'));
@@ -510,6 +508,7 @@ export default function App() {
   const canOpen = (path: string) =>
     !ADMIN_ALLOWED_PATHS[role] || ADMIN_ALLOWED_PATHS[role].includes(path);
   const firstPath = ADMIN_ALLOWED_PATHS[role]?.[0] || '/operations';
+  const deliveryWorkspacePath = canOpen('/orders') ? '/orders' : firstPath;
   const guard = (path: string, element: React.ReactNode) =>
     canOpen(path) ? element : <Navigate to={firstPath} replace />;
 
@@ -521,7 +520,7 @@ export default function App() {
   const menuSelectedBranchId = primaryBranchIdForAdminScope(selectedBranchId);
 
   return (
-    <AdminRealtimeProvider branchId={selectedBranchId} role={role}>
+    <AdminRealtimeProvider branchId={selectedBranchId} role={role} identity={adminUser}>
       <div
         className={`sagi-shell ${sidebarCollapsed || isWhatsAppOperator ? 'sidebar-is-collapsed' : ''} ${isWhatsAppOperator ? 'whatsapp-operator-shell' : ''}`}
         onInputCapture={normalizeNumberInput}
@@ -608,8 +607,18 @@ export default function App() {
                   path="/inventory"
                   element={guard('/inventory', <InventoryPage role={role} />)}
                 />
-                <Route path="/couriers" element={guard('/couriers', <CouriersPage />)} />
-                <Route path="/dispatch" element={guard('/dispatch', <DispatchPage />)} />
+                <Route path="/couriers" element={<Navigate to={deliveryWorkspacePath} replace />} />
+                <Route path="/dispatch" element={<Navigate to={deliveryWorkspacePath} replace />} />
+                <Route
+                  path="/unavailable"
+                  element={
+                    <PageState
+                      type="empty"
+                      title={t('page.unavailable.title')}
+                      description={t('page.unavailable.subtitle')}
+                    />
+                  }
+                />
                 <Route path="/kitchen" element={guard('/kitchen', <KitchenPage />)} />
                 <Route path="/marketing" element={guard('/marketing', <MarketingPage />)} />
                 <Route path="/reviews" element={guard('/reviews', <ReviewsPage />)} />

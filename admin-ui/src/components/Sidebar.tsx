@@ -2,7 +2,6 @@ import {
   BarChart3,
   BellRing,
   Building2,
-  Bike,
   ChevronRight,
   CircleDollarSign,
   Gift,
@@ -19,7 +18,6 @@ import {
   ClipboardList,
   KeyRound,
   ContactRound,
-  MapPinned,
   MessageSquareText,
   MessageCircle,
   PanelLeftClose,
@@ -51,8 +49,6 @@ const sections = [
     items: [
       { to: '/orders', label: 'nav.orders', icon: ShoppingBag },
       { to: '/kitchen', label: 'nav.kitchen', icon: ClipboardList },
-      { to: '/dispatch', label: 'nav.dispatch', icon: MapPinned },
-      { to: '/couriers', label: 'nav.couriers', icon: Bike },
       { to: '/inventory', label: 'nav.inventory', icon: Warehouse },
     ],
   },
@@ -61,7 +57,6 @@ const sections = [
     items: [
       { to: '/customers', label: 'nav.customers', icon: Users },
       { to: '/whatsapp', label: 'nav.whatsapp', icon: MessageCircle },
-      { to: '/contacts', label: 'nav.contacts', icon: ContactRound },
       { to: '/reviews', label: 'nav.reviews', icon: MessageSquareText },
       { to: '/support', label: 'nav.support', icon: Headphones },
     ],
@@ -70,6 +65,7 @@ const sections = [
     title: 'nav.content',
     items: [
       { to: '/menu', label: 'nav.menu', icon: UtensilsCrossed },
+      { to: '/contacts', label: 'nav.contacts', icon: ContactRound },
       { to: '/stories', label: 'nav.stories', icon: Images },
       { to: '/news', label: 'nav.news', icon: Newspaper },
       { to: '/taplink', label: 'nav.taplink', icon: Link2 },

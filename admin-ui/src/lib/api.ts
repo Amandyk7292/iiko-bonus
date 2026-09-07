@@ -1,5 +1,7 @@
 import type { PaymentDiagnostics } from './payment-diagnostics';
 import { parseAdminScopeSelection } from './admin-city-scope';
+import { composeRequestAbortSignal } from './api-request-abort';
+export { composeRequestAbortSignal } from './api-request-abort';
 const BASE_URL = '/admin/api';
 const BRANCH_SCOPE_STORAGE_KEY = 'adminSelectedBranchId';
 
@@ -102,38 +104,6 @@ const responseRequestId = (response: Response) =>
   String(
     response.headers.get('x-request-id') || response.headers.get('x-correlation-id') || '',
   ).trim();
-
-const REQUEST_TIMEOUT_MS = 30000;
-
-export function composeRequestAbortSignal(
-  callerSignal?: AbortSignal | null,
-  timeoutMs = REQUEST_TIMEOUT_MS,
-) {
-  const controller = new AbortController();
-  let timedOut = false;
-  let cleanedUp = false;
-  const abortFromCaller = () => controller.abort();
-
-  if (callerSignal?.aborted) controller.abort();
-  else callerSignal?.addEventListener('abort', abortFromCaller, { once: true });
-
-  const timeout = window.setTimeout(() => {
-    if (controller.signal.aborted) return;
-    timedOut = true;
-    controller.abort();
-  }, timeoutMs);
-
-  return {
-    signal: controller.signal,
-    didTimeout: () => timedOut,
-    cleanup: () => {
-      if (cleanedUp) return;
-      cleanedUp = true;
-      window.clearTimeout(timeout);
-      callerSignal?.removeEventListener('abort', abortFromCaller);
-    },
-  };
-}
 
 import type {
   LocalizedText,
@@ -279,7 +249,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   headers.set('Accept', 'application/json');
   applyAdminScopeHeaders(headers, endpoint);
 
-  let response: Response;
+  let response: Response | undefined;
   const requestAbort = composeRequestAbortSignal(options.signal);
   try {
     response = await fetch(`${BASE_URL}${endpoint}`, {
@@ -288,7 +258,32 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
       credentials: 'same-origin',
       signal: requestAbort.signal,
     });
+
+    if (!response.ok) {
+      const errorData = await parseResponse<ApiErrorPayload>(response).catch(
+        (error): ApiErrorPayload => {
+          if (requestAbort.signal.aborted) throw error;
+          return {};
+        },
+      );
+      const requestId = errorData.requestId || responseRequestId(response) || undefined;
+      const payload = { ...errorData, requestId };
+      if (response.status === 401) {
+        window.dispatchEvent(new Event('unauthorized'));
+      }
+      throw new ApiError(
+        adminApiErrorMessage(payload, response.status),
+        response.status,
+        errorData.code,
+        errorData.details ?? errorData.fields,
+        requestId,
+      );
+    }
+
+    // Fetch resolves after headers; keep the deadline until the response body is consumed.
+    return await parseResponse<T>(response);
   } catch (error) {
+    if (error instanceof ApiError || (response && !requestAbort.signal.aborted)) throw error;
     throw new ApiError(
       requestAbort.didTimeout() || (error instanceof Error && error.name === 'AbortError')
         ? 'Сервер не ответил вовремя. Повторите попытку.'
@@ -299,26 +294,6 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   } finally {
     requestAbort.cleanup();
   }
-
-  if (!response.ok) {
-    const errorData = await parseResponse<ApiErrorPayload>(response).catch(
-      (): ApiErrorPayload => ({}),
-    );
-    const requestId = errorData.requestId || responseRequestId(response) || undefined;
-    const payload = { ...errorData, requestId };
-    if (response.status === 401) {
-      window.dispatchEvent(new Event('unauthorized'));
-    }
-    throw new ApiError(
-      adminApiErrorMessage(payload, response.status),
-      response.status,
-      errorData.code,
-      errorData.details ?? errorData.fields,
-      requestId,
-    );
-  }
-
-  return parseResponse<T>(response);
 }
 
 function json(method: string, data?: unknown): RequestInit {
@@ -906,10 +881,7 @@ export const api = {
       `/dispatch/${encodeURIComponent(orderId)}/yandex/resolve-items`,
       json('POST', input),
     ),
-  resolveYandexCreateReconciliation: (
-    orderId: string,
-    input: YandexCreateReconciliationInput,
-  ) =>
+  resolveYandexCreateReconciliation: (orderId: string, input: YandexCreateReconciliationInput) =>
     request<{ success: boolean; delivery: ExternalDelivery }>(
       `/dispatch/${encodeURIComponent(orderId)}/yandex/resolve-create`,
       json('POST', input),

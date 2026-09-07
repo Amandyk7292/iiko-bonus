@@ -70,16 +70,6 @@ export default function BonusPage() {
 
   return (
     <div className="page-stack page-narrow">
-      <div className="card feature-callout">
-        <div>
-          <h2>{t('page.tiers.title')}</h2>
-          <p>{t('page.tiers.subtitle')}</p>
-        </div>
-        <Link to="/tiers" className="btn-classic px-5 inline-flex items-center gap-2">
-          {t('bonus.tiersCta')} <ArrowRight aria-hidden="true" size={17} />
-        </Link>
-      </div>
-
       <form className="card settings-form" onSubmit={save}>
         {JSON.stringify(settings) !== savedSettings && (
           <p className="inline-alert" role="status">
@@ -91,6 +81,9 @@ export default function BonusPage() {
             <h2>{t('bonus.heading')}</h2>
             <p>{t('page.bonus.subtitle')}</p>
           </div>
+          <Link to="/tiers" className="btn-outline px-4 inline-flex items-center gap-2">
+            {t('page.tiers.title')} <ArrowRight aria-hidden="true" size={17} />
+          </Link>
         </div>
         {error && (
           <div className="inline-alert inline-alert-error" role="alert">

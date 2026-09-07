@@ -181,16 +181,18 @@ export default function NewsPage() {
 
   return (
     <div className="page-stack">
-      <div className="page-actions-row justify-end">
-        <button
-          type="button"
-          className="btn-classic px-5 inline-flex items-center gap-2"
-          onClick={() => openModal()}
-        >
-          <Plus aria-hidden="true" size={18} />
-          {t('news.add')}
-        </button>
-      </div>
+      {news.length > 0 && (
+        <div className="page-actions-row justify-end">
+          <button
+            type="button"
+            className="btn-classic px-5 inline-flex items-center gap-2"
+            onClick={() => openModal()}
+          >
+            <Plus aria-hidden="true" size={18} />
+            {t('news.add')}
+          </button>
+        </div>
+      )}
       {error && (
         <div className="inline-alert inline-alert-error" role="alert">
           {error}

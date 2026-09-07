@@ -36,4 +36,13 @@ describe('admin permissions shown by the frontend', () => {
     expect(canRefundOrders('cashier')).toBe(false);
     expect(canMutateInventory('cashier')).toBe(false);
   });
+
+  it('removes manual courier workspaces without expanding retired courier permissions', () => {
+    for (const paths of Object.values(ADMIN_ALLOWED_PATHS)) {
+      expect(paths).not.toContain('/dispatch');
+      expect(paths).not.toContain('/couriers');
+    }
+    expect(ADMIN_ALLOWED_PATHS.courier).toEqual(['/unavailable']);
+    expect(ADMIN_ALLOWED_PATHS.courier).not.toContain('/orders');
+  });
 });
