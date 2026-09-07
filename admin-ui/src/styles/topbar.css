@@ -1,0 +1,167 @@
+/* Keep workspace actions separate from location filters at every viewport size. */
+.sagi-topbar.topbar-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 20px 32px;
+  padding: 20px 28px;
+  background: #fff;
+}
+
+.topbar-workspace .topbar-title-wrap,
+.topbar-workspace .topbar-title-wrap > div {
+  min-width: 0;
+}
+
+.topbar-workspace .sagi-page-title {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.topbar-workspace .sagi-page-subtitle {
+  max-width: 48ch;
+  margin-top: 6px;
+  line-height: 1.5;
+}
+
+.topbar-workspace .topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 0;
+}
+
+.topbar-workspace .global-search-trigger {
+  width: clamp(220px, 21vw, 320px);
+  min-width: 0;
+  height: 46px;
+  background: #fdfaf6;
+}
+
+.topbar-workspace .topbar-notifications,
+.topbar-workspace .topbar-logout,
+.topbar-workspace .global-search-trigger > svg {
+  flex-shrink: 0;
+}
+
+.topbar-workspace .topbar-notification-button {
+  width: 46px;
+  height: 46px;
+}
+
+.topbar-workspace .topbar-logout {
+  width: auto;
+  min-height: 46px;
+  padding: 0 16px;
+}
+
+.topbar-workspace .topbar-logout span {
+  display: inline;
+}
+
+.topbar-workspace > .topbar-scope-selectors {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(160px, 200px) minmax(0, 480px);
+  align-items: end;
+  gap: 16px;
+  width: 100%;
+  padding-top: 16px;
+  border-top: 1px solid #f0e8df;
+}
+
+.topbar-workspace .topbar-branch-select {
+  width: 100%;
+  min-width: 0;
+  gap: 8px;
+}
+
+.topbar-workspace .topbar-branch-select > span {
+  font-size: 11px;
+  line-height: 1.2;
+  letter-spacing: 0.06em;
+}
+
+.topbar-workspace .topbar-branch-select select {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  height: 46px;
+  padding: 0 36px 0 14px;
+  background: #fdfaf6;
+}
+
+.topbar-workspace .topbar-branch-select select:focus-visible,
+.topbar-workspace .global-search-trigger:focus-visible {
+  outline: 3px solid #e9c28f;
+  outline-offset: 3px;
+}
+
+@media (max-width: 1250px) {
+  .sagi-topbar.topbar-workspace {
+    gap: 18px 20px;
+  }
+
+  .topbar-workspace .topbar-actions {
+    gap: 12px;
+  }
+
+  .topbar-workspace .global-search-trigger {
+    width: 230px;
+  }
+
+  .topbar-workspace .global-search-trigger kbd {
+    display: none;
+  }
+
+  .topbar-workspace .topbar-logout {
+    width: 46px;
+    padding: 0;
+  }
+
+  .topbar-workspace .topbar-logout span {
+    display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .sagi-topbar.topbar-workspace {
+    position: relative;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    padding: 16px;
+  }
+
+  .topbar-workspace .topbar-actions {
+    width: 100%;
+  }
+
+  .topbar-workspace .global-search-trigger {
+    flex: 1;
+    width: auto;
+    padding: 0 12px;
+  }
+
+  .topbar-workspace .global-search-trigger > span {
+    display: block;
+  }
+
+  .topbar-workspace > .topbar-scope-selectors {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    gap: 12px;
+  }
+
+  .sagi-topbar.topbar-workspace .notification-popover {
+    position: absolute;
+    top: calc(100% + 12px);
+    right: -58px;
+    width: min(380px, calc(100vw - 32px));
+    max-width: calc(100vw - 32px);
+  }
+}
+
+@media (max-width: 480px) {
+  .topbar-workspace > .topbar-scope-selectors {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

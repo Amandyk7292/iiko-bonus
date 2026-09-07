@@ -167,7 +167,7 @@ export default function Topbar({
     : [];
 
   return (
-    <header className="sagi-topbar">
+    <header className={`sagi-topbar${!operatorMode && !cashierMode ? ' topbar-workspace' : ''}`}>
       <div className="topbar-title-wrap">
         {onMenuClick && (
           <button
@@ -229,61 +229,6 @@ export default function Topbar({
               active={location.pathname === '/kitchen'}
               embedded={embeddedStaffMode}
             />
-          </div>
-        )}
-        {!operatorMode && !cashierMode && usesBranchScope && scopeLocations.length > 0 && (
-          <div className="topbar-scope-selectors">
-            <label className="topbar-branch-select topbar-city-select">
-              <span>{t('adminScope.city')}</span>
-              <select
-                value={selectedCity?.key || ''}
-                onChange={(event) => {
-                  const cityKey = event.target.value;
-                  if (!cityKey && !usesCityScope) {
-                    onBranchChange?.('');
-                    return;
-                  }
-                  const city = cityScopes.find((item) => item.key === cityKey);
-                  if (!city) return;
-                  onBranchChange?.(adminCityScopeValue(city));
-                }}
-                aria-label={
-                  usesCityScope ? t('adminScope.menuCityAria') : t('adminScope.operationsCityAria')
-                }
-              >
-                <option value="" disabled={usesCityScope}>
-                  {usesCityScope ? t('adminScope.selectCity') : t('adminScope.allCities')}
-                </option>
-                {cityScopes.map((city) => (
-                  <option key={city.key} value={city.key}>
-                    {city.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {!usesCityScope && selectedCity && (
-              <label className="topbar-branch-select topbar-city-branch-select">
-                <span>{t('adminScope.branch')}</span>
-                <select
-                  value={
-                    selectedScope.kind === 'city'
-                      ? adminCityScopeValue(selectedCity)
-                      : selectedBranchId
-                  }
-                  onChange={(event) => onBranchChange?.(event.target.value)}
-                  aria-label={t('adminScope.branchAria', { city: selectedCity.name })}
-                >
-                  <option value={adminCityScopeValue(selectedCity)}>
-                    {t('adminScope.allCityBranches')}
-                  </option>
-                  {selectedCity.branches.map((branch) => (
-                    <option key={branch.id} value={branch.id}>
-                      {branch.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
           </div>
         )}
         {!operatorMode && !cashierMode && (
@@ -396,6 +341,61 @@ export default function Topbar({
           <span>{t(loggingOut ? 'auth.loggingOut' : 'auth.logout')}</span>
         </button>
       </div>
+      {!operatorMode && !cashierMode && usesBranchScope && scopeLocations.length > 0 && (
+        <div className="topbar-scope-selectors">
+          <label className="topbar-branch-select topbar-city-select">
+            <span>{t('adminScope.city')}</span>
+            <select
+              value={selectedCity?.key || ''}
+              onChange={(event) => {
+                const cityKey = event.target.value;
+                if (!cityKey && !usesCityScope) {
+                  onBranchChange?.('');
+                  return;
+                }
+                const city = cityScopes.find((item) => item.key === cityKey);
+                if (!city) return;
+                onBranchChange?.(adminCityScopeValue(city));
+              }}
+              aria-label={
+                usesCityScope ? t('adminScope.menuCityAria') : t('adminScope.operationsCityAria')
+              }
+            >
+              <option value="" disabled={usesCityScope}>
+                {usesCityScope ? t('adminScope.selectCity') : t('adminScope.allCities')}
+              </option>
+              {cityScopes.map((city) => (
+                <option key={city.key} value={city.key}>
+                  {city.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          {!usesCityScope && selectedCity && (
+            <label className="topbar-branch-select topbar-city-branch-select">
+              <span>{t('adminScope.branch')}</span>
+              <select
+                value={
+                  selectedScope.kind === 'city'
+                    ? adminCityScopeValue(selectedCity)
+                    : selectedBranchId
+                }
+                onChange={(event) => onBranchChange?.(event.target.value)}
+                aria-label={t('adminScope.branchAria', { city: selectedCity.name })}
+              >
+                <option value={adminCityScopeValue(selectedCity)}>
+                  {t('adminScope.allCityBranches')}
+                </option>
+                {selectedCity.branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
+      )}
     </header>
   );
 }
