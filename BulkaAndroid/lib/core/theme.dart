@@ -13,10 +13,9 @@ const _almond = Color(0xFFF2DAA9);
 const _sage = Color(0xFF6E7F57);
 const _errorRed = Color(0xFFD14343);
 const _successGreen = Color(0xFF2F8A55);
-// Keep the customer interface on exactly two locally bundled typefaces.
-// Golos Text is the display/control face with native Kazakh Cyrillic support;
-// Montserrat is for readable descriptions, supporting copy and secondary labels.
-const _headingFont = 'GolosText';
+// Both semantic roles use locally bundled Montserrat with Kazakh Cyrillic.
+// The heading family binds every heading/action to the actual Bold font file.
+const _headingFont = 'MontserratBold';
 const _descriptionFont = 'Montserrat';
 
 /// The single type style for every screen title.
@@ -86,8 +85,8 @@ const List<BoxShadow> _softShadow = BulkaShadows.card;
 /// Shared type scale for the whole client application.
 ///
 /// Keep one optical scale instead of introducing one-off half-pixel values in
-/// individual screens. Golos Text is used for headings/actions and Montserrat
-/// for descriptions; the size tokens are shared by both families.
+/// individual screens. Montserrat Bold is used for headings/actions and
+/// Montserrat for descriptions; both roles share the size tokens.
 abstract final class BulkaTypeScale {
   static const badge = 10.0;
   static const caption = 12.0;

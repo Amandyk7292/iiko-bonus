@@ -74,9 +74,10 @@ class _ProductPhotoHeader extends StatelessWidget {
               Padding(
                 padding: EdgeInsets.fromLTRB(24, extent - 78, 24, 20),
                 child: Align(
-                  alignment: Alignment.centerLeft,
+                  alignment: Alignment.center,
                   child: Text(
                     product.title,
+                    textAlign: TextAlign.center,
                     style: TextStyle(
                       fontFamily: _headingFont,
                       fontSize: 28,

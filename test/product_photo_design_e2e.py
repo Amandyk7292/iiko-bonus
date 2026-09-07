@@ -14,9 +14,10 @@ with sync_playwright() as p:
     browser = p.chromium.launch()
     for width, photo in [(390, PHOTO), (320, PHOTO), (390, '')]:
         page = browser.new_page(viewport={'width': width, 'height': 844}, locale='ru-RU')
-        errors, loaded_images = [], []
+        errors, loaded_images, loaded_fonts = [], [], []
         page.on('pageerror', lambda e: errors.append(str(e)))
         page.on('response', lambda r: loaded_images.append(r.url) if r.ok and 'menu_1784011936602' in r.url else None)
+        page.on('response', lambda r: loaded_fonts.append(r.url) if r.ok and '.ttf' in r.url else None)
 
         def api(route):
             body = {'success': True, 'categories': [], 'products': [], 'locations': [], 'cities': []}
@@ -34,6 +35,8 @@ with sync_playwright() as p:
         page.wait_for_timeout(1800)
         if photo:
             assert loaded_images, 'Product photo did not load'
+        assert any('Montserrat-Bold-subset.ttf' in url for url in loaded_fonts), loaded_fonts
+        assert not any('GolosText' in url for url in loaded_fonts), loaded_fonts
         assert not errors, errors
         output = ROOT / 'scratch' / ('product-photo-' + str(width) + ('-empty' if not photo else '') + '.png')
         output.parent.mkdir(exist_ok=True)

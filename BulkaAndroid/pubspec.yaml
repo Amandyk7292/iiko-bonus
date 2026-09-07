@@ -88,15 +88,9 @@ flutter:
     - shorebird.yaml
 
   fonts:
-    - family: GolosText
+    - family: MontserratBold
       fonts:
-        - asset: assets/fonts/GolosText-Regular.ttf
-          weight: 400
-        - asset: assets/fonts/GolosText-Medium.ttf
-          weight: 500
-        - asset: assets/fonts/GolosText-SemiBold.ttf
-          weight: 600
-        - asset: assets/fonts/GolosText-Bold.ttf
+        - asset: assets/fonts/Montserrat-Bold-subset.ttf
           weight: 700
     - family: Montserrat
       fonts:

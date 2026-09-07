@@ -226,16 +226,8 @@ void main() {
     }
   });
 
-  test('only Golos Text and Montserrat typography assets are bundled', () {
+  test('only Montserrat typography is registered for customer UI', () {
     const familyWeights = {
-      'GolosText': [
-        'Regular',
-        'Medium',
-        'SemiBold',
-        'Bold',
-        'ExtraBold',
-        'Black',
-      ],
       'Montserrat': [
         'Light',
         'Regular',
@@ -258,7 +250,7 @@ void main() {
       r'^\s*-\s+family:\s*([^\s]+)',
       multiLine: true,
     ).allMatches(pubspec).map((match) => match.group(1)).toSet();
-    expect(declaredFamilies, {'GolosText', 'Montserrat'});
+    expect(declaredFamilies, {'MontserratBold', 'Montserrat'});
   });
 
   test('customer UI uses only the two semantic font roles', () {
@@ -277,7 +269,7 @@ void main() {
     expect(violations, isEmpty);
 
     final theme = buildBulkaTheme();
-    expect(theme.textTheme.headlineMedium?.fontFamily, 'GolosText');
+    expect(theme.textTheme.headlineMedium?.fontFamily, 'MontserratBold');
     expect(theme.textTheme.bodyMedium?.fontFamily, 'Montserrat');
     for (final style in [
       theme.filledButtonTheme.style,
@@ -285,7 +277,7 @@ void main() {
       theme.outlinedButtonTheme.style,
       theme.textButtonTheme.style,
     ]) {
-      expect(style?.textStyle?.resolve({})?.fontFamily, 'GolosText');
+      expect(style?.textStyle?.resolve({})?.fontFamily, 'MontserratBold');
     }
   });
 
@@ -2181,7 +2173,7 @@ void main() {
     expect(find.text('НОВИНКА'), findsWidgets);
     expect(find.text('Выберите тип заказа'), findsOneWidget);
     expect(find.text('Накопительная'), findsOneWidget);
-    expect(find.text('Статус: Бронза (5%)'), findsWidgets);
+    expect(find.text('Статус: Бронза (5%)'), findsNothing);
     expect(find.byType(Hero), findsAtLeastNWidgets(2));
     expect(find.byKey(const ValueKey('add-wallet-button')), findsNothing);
     expect(find.text('Добавить в Apple Wallet'), findsNothing);
