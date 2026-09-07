@@ -443,6 +443,54 @@ const Map<String, Map<String, String>> _orderAndPaymentTranslations = {
     'kk': 'Курьер картада',
     'en': 'Courier on the map',
   },
+  'order_tracking_waiting': {
+    'ru':
+        'Данные курьера появятся после назначения. Статус обновляется автоматически.',
+    'kk':
+        'Курьер тағайындалғаннан кейін оның деректері пайда болады. Күй автоматты түрде жаңарады.',
+    'en':
+        'Courier details appear after assignment. Status updates automatically.',
+  },
+  'order_tracking_no_gps': {
+    'ru':
+        'Курьер назначен. Ожидаем координаты для карты. Контакты появятся ниже, когда служба доставки их передаст.',
+    'kk':
+        'Курьер тағайындалды. Карта үшін координаттарды күтеміз. Жеткізу қызметі жібергенде байланыс деректері төменде пайда болады.',
+    'en':
+        'Courier assigned. Waiting for map coordinates. Contact details appear below when supplied by the delivery service.',
+  },
+  'order_tracking_interrupted': {
+    'ru':
+        'Отслеживание этой доставки остановлено. Уточните дальнейшую доставку через «Помощь по заказу».',
+    'kk':
+        'Осы жеткізуді бақылау тоқтатылды. «Тапсырыс бойынша көмек» арқылы әрі қарайғы жеткізуді нақтылаңыз.',
+    'en':
+        'Tracking for this delivery has stopped. Use “Get help with this order” to check delivery arrangements.',
+  },
+  'order_tracking_stale': {
+    'ru':
+        'Показано последнее известное положение. Координаты задерживаются — курьер может быть уже в другом месте.',
+    'kk':
+        'Соңғы белгілі орын көрсетілген. Координаттар кешігіп жатыр — курьер басқа жерде болуы мүмкін.',
+    'en':
+        'Last known position. Location updates are delayed; the courier may have moved.',
+  },
+  'order_tracking_current': {
+    'ru':
+        'Положение курьера обновляется автоматически. Это последняя полученная точка, не история маршрута.',
+    'kk':
+        'Курьердің орны автоматты түрде жаңарады. Бұл маршрут тарихы емес, соңғы алынған нүкте.',
+    'en':
+        'Courier location updates automatically. This is the latest position, not route history.',
+  },
+  'order_tracking_finished': {
+    'ru':
+        'Заказ закрыт. Отслеживание завершено; сохранённая точка не показывает текущее положение курьера.',
+    'kk':
+        'Тапсырыс жабылды. Бақылау аяқталды; сақталған нүкте курьердің қазіргі орнын көрсетпейді.',
+    'en':
+        'Order closed. Tracking has ended; any saved position is not the courier’s current location.',
+  },
   'order_call_courier': {
     'ru': 'Позвонить',
     'kk': 'Қоңырау шалу',

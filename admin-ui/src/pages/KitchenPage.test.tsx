@@ -62,6 +62,52 @@ const renderPage = () =>
   );
 
 describe('Kitchen optimistic workflow', () => {
+  it('shows a missing GPS explanation without claiming the courier is moving', async () => {
+    apiMocks.getKitchenOrders.mockResolvedValue({
+      orders: [
+        {
+          ...preparingOrder,
+          fulfillmentType: 'delivery',
+          courierDispatchStatus: 'succeeded',
+          acceptedAt: '2026-09-07T08:00:00Z',
+          acceptedBy: 'Айжан',
+          externalDelivery: { courier: { name: 'Тестовый курьер', phone: '+77000000000' } },
+        },
+      ],
+    });
+    renderPage();
+    expect(await screen.findByText('Курьер и отслеживание')).toBeInTheDocument();
+    expect(screen.getByText(/Ожидаем координаты/)).toBeInTheDocument();
+    expect(screen.queryByText('Курьер в пути')).not.toBeInTheDocument();
+    expect(screen.getByText('Принял: Айжан')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '+77000000000' })).toHaveAttribute(
+      'href',
+      'tel:+77000000000',
+    );
+  });
+
+  it('labels an old courier point as outdated', async () => {
+    apiMocks.getKitchenOrders.mockResolvedValue({
+      orders: [
+        {
+          ...preparingOrder,
+          fulfillmentType: 'delivery',
+          courierDispatchStatus: 'succeeded',
+          externalDelivery: {
+            courier: {
+              name: 'Курьер',
+              latitude: 43.65,
+              longitude: 51.15,
+              locationUpdatedAt: '2020-01-01T00:00:00Z',
+            },
+          },
+        },
+      ],
+    });
+    renderPage();
+    expect(await screen.findByText(/Координаты задерживаются/)).toBeInTheDocument();
+  });
+
   beforeEach(() => {
     localStorage.setItem('adminLocale', 'ru');
     vi.clearAllMocks();
@@ -291,9 +337,9 @@ describe('Kitchen optimistic workflow', () => {
     renderPage();
 
     await screen.findByRole('alert');
-    const alarmTimer = intervalSpy.mock.results[
-      intervalSpy.mock.calls.findIndex(([, delay]) => delay === 25_000)
-    ]?.value;
+    const alarmTimer =
+      intervalSpy.mock.results[intervalSpy.mock.calls.findIndex(([, delay]) => delay === 25_000)]
+        ?.value;
     const realtimeSubscription = realtimeMocks.useAdminRealtimeEvents.mock.calls.at(-1);
     expect(realtimeSubscription?.[0]).toContain('connected');
     act(() => {

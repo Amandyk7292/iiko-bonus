@@ -494,6 +494,9 @@ export default function KitchenPage() {
                     const delivery = order.fulfillmentType === 'delivery';
                     const dispatchStatus = dispatchStatusKey(order.courierDispatchStatus);
                     const externalCourier = order.externalDelivery?.courier;
+                    const courierLocationFresh =
+                      externalCourier?.locationUpdatedAt &&
+                      Date.now() - Date.parse(externalCourier.locationUpdatedAt) <= 120_000;
                     const courierMapUrl =
                       externalCourier?.latitude != null && externalCourier?.longitude != null
                         ? `https://yandex.kz/maps/?pt=${encodeURIComponent(
@@ -599,6 +602,7 @@ export default function KitchenPage() {
                             <ShoppingBag aria-hidden="true" size={18} />
                             <span className="grid min-w-0 gap-1 break-words">
                               <strong>{t(`kitchen.dispatch.${dispatchStatus}`)}</strong>
+                              <small>{t('kitchen.dispatchHelp')}</small>
                               {order.courierDispatchProvider && (
                                 <small>
                                   {t('kitchen.dispatch.provider', {
@@ -633,6 +637,15 @@ export default function KitchenPage() {
                                 </small>
                               )}
                               {externalCourier?.vehicle && <small>{externalCourier.vehicle}</small>}
+                              <small>
+                                {t(
+                                  !courierMapUrl
+                                    ? 'kitchen.gpsWaiting'
+                                    : courierLocationFresh
+                                      ? 'kitchen.gpsCurrent'
+                                      : 'kitchen.gpsStale',
+                                )}
+                              </small>
                               {externalCourier?.locationUpdatedAt && (
                                 <small>
                                   {t('kitchen.courierUpdated', {

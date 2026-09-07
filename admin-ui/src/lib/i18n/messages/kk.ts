@@ -1019,7 +1019,14 @@ const kk: Record<string, string> = {
   'kitchen.acceptedBy': 'Қабылдаған: {{name}}',
   'kitchen.acceptedUnknown': 'асүй қызметкері',
   'kitchen.acceptedDevice': '{{device}}',
-  'kitchen.courierTracking': 'Курьер жолда',
+  'kitchen.courierTracking': 'Курьер және бақылау',
+  'kitchen.dispatchHelp':
+    'Жеткізу қызметіне өтінім жіберу курьер тағайындалды дегенді білдірмейді. Курьерді тексеріп, беруді растағаннан кейін ғана тапсырысты беріңіз.',
+  'kitchen.gpsWaiting':
+    'Координаттарды күтеміз. Картада нүктенің болмауы жеткізудің тоқтатылғанын білдірмейді.',
+  'kitchen.gpsCurrent': 'Картада курьердің соңғы алынған орны көрсетілген.',
+  'kitchen.gpsStale':
+    'Координаттар кешігіп жатыр. Картадағы нүкте ескірген болуы мүмкін; орнын курьерден нақтылаңыз.',
   'kitchen.courierUpdated': 'GPS {{time}} жаңартылды',
   'kitchen.courierOpenMap': 'Картадан көрсету',
   'kitchen.courierLiveLink': 'Тікелей бақылау',

@@ -1034,7 +1034,14 @@ const ru: Record<string, string> = {
   'kitchen.acceptedBy': 'Принял: {{name}}',
   'kitchen.acceptedUnknown': 'сотрудник кухни',
   'kitchen.acceptedDevice': '{{device}}',
-  'kitchen.courierTracking': 'Курьер в пути',
+  'kitchen.courierTracking': 'Курьер и отслеживание',
+  'kitchen.dispatchHelp':
+    'Заявка в службу доставки ещё не означает, что курьер назначен. Передавайте заказ только после проверки курьера и подтверждения передачи.',
+  'kitchen.gpsWaiting':
+    'Ожидаем координаты. Отсутствие точки на карте не означает отмену доставки.',
+  'kitchen.gpsCurrent': 'На карте — последнее полученное положение курьера.',
+  'kitchen.gpsStale':
+    'Координаты задерживаются. Точка на карте может быть устаревшей; уточните положение у курьера.',
   'kitchen.courierUpdated': 'GPS обновлён в {{time}}',
   'kitchen.courierOpenMap': 'Показать на карте',
   'kitchen.courierLiveLink': 'Живое отслеживание',

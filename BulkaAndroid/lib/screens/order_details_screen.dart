@@ -362,6 +362,16 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
     final scheme = Theme.of(context).colorScheme;
     final colors = context.bulkaColors;
     final courier = _order.courier;
+    final providerStatus = _order.providerDeliveryStatus ?? '';
+    final trackingInterrupted =
+        providerStatus.startsWith('cancelled') ||
+        const [
+          'failed',
+          'estimating_failed',
+          'performer_not_found',
+          'returned',
+          'returned_finish',
+        ].contains(providerStatus);
     final hasCourierPoint =
         courier?.latitude != null && courier?.longitude != null;
     return Scaffold(
@@ -473,60 +483,92 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
                 ),
               ),
             ],
-            if (hasCourierPoint) ...[
+            if (_order.usesDelivery) ...[
               const SizedBox(height: 16),
               _OrderSection(
                 title: 'order_courier_live'.tr,
                 child: Column(
                   children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(BulkaRadii.control),
-                      child: SizedBox(
-                        height: 220,
-                        child: YandexMapView(
-                          controller: _mapController,
-                          center: LatLng(
-                            courier!.latitude!,
-                            courier.longitude!,
+                    Text(
+                      _order.isClosed
+                          ? 'order_tracking_finished'.tr
+                          : trackingInterrupted
+                          ? 'order_tracking_interrupted'.tr
+                          : courier == null
+                          ? 'order_tracking_waiting'.tr
+                          : !hasCourierPoint
+                          ? 'order_tracking_no_gps'.tr
+                          : courier.locationUpdatedAt == null ||
+                                _now
+                                        .difference(courier.locationUpdatedAt!)
+                                        .inSeconds >
+                                    120
+                          ? 'order_tracking_stale'.tr
+                          : 'order_tracking_current'.tr,
+                    ),
+                    if (courier != null && !trackingInterrupted) ...[
+                      const SizedBox(height: 8),
+                      Text(courier.name),
+                      if (courier.vehicle?.isNotEmpty == true)
+                        Text(courier.vehicle!),
+                    ],
+                    const SizedBox(height: 12),
+                    if (hasCourierPoint && !trackingInterrupted)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(BulkaRadii.control),
+                        child: SizedBox(
+                          height: 220,
+                          child: YandexMapView(
+                            controller: _mapController,
+                            center: LatLng(
+                              courier!.latitude!,
+                              courier.longitude!,
+                            ),
+                            selectedPoint: LatLng(
+                              courier.latitude!,
+                              courier.longitude!,
+                            ),
+                            zoom: 15,
+                            branches: const [],
+                            semanticLabel: 'order_courier_live'.tr,
+                            unavailableLabel: 'map_unavailable'.tr,
+                            interactive: false,
                           ),
-                          selectedPoint: LatLng(
-                            courier.latitude!,
-                            courier.longitude!,
-                          ),
-                          zoom: 15,
-                          branches: const [],
-                          semanticLabel: 'map_delivery_zones_title'.tr,
-                          unavailableLabel: 'map_unavailable'.tr,
-                          interactive: false,
                         ),
                       ),
-                    ),
                     const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: FilledButton.icon(
-                            onPressed: courier.phone.trim().isEmpty
-                                ? null
-                                : _callCourier,
-                            icon: const Icon(Icons.call_rounded),
-                            label: Text('order_call_courier'.tr),
+                    if (courier != null &&
+                        !_order.isClosed &&
+                        !trackingInterrupted)
+                      Row(
+                        children: [
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: courier.phone.trim().isEmpty
+                                  ? null
+                                  : _callCourier,
+                              icon: const Icon(Icons.call_rounded),
+                              label: Text('order_call_courier'.tr),
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        IconButton.outlined(
-                          onPressed: _openExternalMap,
-                          tooltip: 'orders_courier_map'.tr,
-                          icon: const Icon(Icons.open_in_new_rounded),
-                        ),
-                      ],
-                    ),
-                    if (courier.locationUpdatedAt != null)
+                          const SizedBox(width: 10),
+                          IconButton.outlined(
+                            onPressed: hasCourierPoint
+                                ? _openExternalMap
+                                : null,
+                            tooltip: 'orders_courier_map'.tr,
+                            icon: const Icon(Icons.open_in_new_rounded),
+                          ),
+                        ],
+                      ),
+                    if (courier?.locationUpdatedAt != null)
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
                         child: Text(
                           'order_location_updated'.trArgs({
-                            'time': _formatDateTime(courier.locationUpdatedAt!),
+                            'time': _formatDateTime(
+                              courier!.locationUpdatedAt!,
+                            ),
                           }),
                           style: TextStyle(
                             color: colors.mutedText,

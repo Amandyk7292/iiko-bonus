@@ -1020,7 +1020,14 @@ const en: Record<string, string> = {
   'kitchen.acceptedBy': 'Accepted by: {{name}}',
   'kitchen.acceptedUnknown': 'kitchen staff',
   'kitchen.acceptedDevice': '{{device}}',
-  'kitchen.courierTracking': 'Courier en route',
+  'kitchen.courierTracking': 'Courier and tracking',
+  'kitchen.dispatchHelp':
+    'Sending a delivery request does not mean a courier is assigned. Check the courier and confirm handoff before giving them the order.',
+  'kitchen.gpsWaiting':
+    'Waiting for coordinates. A missing map position does not mean delivery was cancelled.',
+  'kitchen.gpsCurrent': 'The map shows the courier’s latest received position.',
+  'kitchen.gpsStale':
+    'Location updates are delayed. The map position may be outdated; check with the courier.',
   'kitchen.courierUpdated': 'GPS updated at {{time}}',
   'kitchen.courierOpenMap': 'Show on map',
   'kitchen.courierLiveLink': 'Live tracking',
