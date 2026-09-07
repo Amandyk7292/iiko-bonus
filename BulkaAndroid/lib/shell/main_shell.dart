@@ -49,7 +49,7 @@ class _MainShellState extends State<MainShell> {
         .toList();
     if (segments.isEmpty) return 0;
     return switch (segments.first) {
-      'catalog' => 1,
+      'catalog' || 'p' => 1,
       'cart' => 2,
       'promos' => 3,
       'profile' => 4,

@@ -111,10 +111,7 @@ class _CatalogScreenState extends State<CatalogScreen>
   }
 
   static Uri _productClientUri(CatalogProduct product) {
-    return Uri(
-      pathSegments: ['', 'catalog', 'product', product.id],
-      queryParameters: {'category': product.category},
-    );
+    return productClientUri(product.id);
   }
 
   static String _formatPrice(BuildContext context, int price) =>
@@ -134,14 +131,14 @@ class _CatalogScreenState extends State<CatalogScreen>
     final segments = uri.pathSegments
         .where((value) => value.isNotEmpty)
         .toList();
-    if (segments.isEmpty || segments.first != 'catalog') {
+    if (segments.isEmpty || !{'catalog', 'p'}.contains(segments.first)) {
       if (_productRouteOpen) unawaited(Navigator.of(context).maybePop());
       if (_openedCategory != null) setState(() => _openedCategory = null);
       return;
     }
 
-    if (segments.length >= 3 && segments[1] == 'product') {
-      final productId = segments[2];
+    final productId = productIdFromClientUri(uri);
+    if (productId != null) {
       CatalogProduct? product;
       for (final candidate in _allProducts) {
         if (candidate.id == productId) {

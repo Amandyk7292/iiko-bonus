@@ -4,6 +4,8 @@ void navigateCurrentWindow(Uri uri) {
 
 void updateDocumentLanguage(String languageCode) {}
 
+void updateDocumentTitle(String title) {}
+
 Uri currentClientUri() => Uri.base;
 
 Stream<Uri> clientPopStateUris() => const Stream<Uri>.empty();

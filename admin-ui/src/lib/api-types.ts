@@ -202,6 +202,9 @@ export interface AdminOrder {
   branch: string;
   branchId?: string | null;
   orderType?: 'pickup' | 'preorder' | 'delivery' | string;
+  fulfillmentType?: 'pickup' | 'preorder' | 'delivery' | string;
+  preorderFulfillmentType?: 'pickup' | 'delivery' | null;
+  effectiveFulfillmentType?: 'pickup' | 'delivery';
   deliveryStatus?: string;
   kitchenStatus?: string;
   courierDispatchStatus?: string | null;

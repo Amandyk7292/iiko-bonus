@@ -169,7 +169,7 @@ void main() {
     expect(uri.scheme, 'https');
     expect(uri.host, 'bulka.com.kz');
     expect(uri.pathSegments, ['catalog', 'product', 'bun / 17']);
-    expect(uri.queryParameters['category'], 'Выпечка');
+    expect(uri.queryParameters, isEmpty);
     expect(catalogProductShareText(product), uri.toString());
     expect(catalogProductShareText(product), isNot(contains(product.title)));
   });

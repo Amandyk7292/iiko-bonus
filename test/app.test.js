@@ -643,6 +643,7 @@ test('client deep links return the Flutter application shell', async (t) => {
     '/catalog',
     '/catalog/category/%D0%91%D1%83%D0%BB%D0%BE%D1%87%D0%BA%D0%B8',
     '/catalog/product/test-product?category=%D0%91%D1%83%D0%BB%D0%BE%D1%87%D0%BA%D0%B8',
+    '/p/kvQ4dbkmQGODEYsOicaiQg',
     '/cart',
     '/promos',
     '/profile',

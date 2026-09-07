@@ -122,12 +122,8 @@ class CatalogProduct {
       dietaryTags.isNotEmpty;
 }
 
-Uri catalogProductShareUri(CatalogProduct product) => Uri(
-  scheme: 'https',
-  host: 'bulka.com.kz',
-  pathSegments: ['catalog', 'product', product.id],
-  queryParameters: {'category': product.category},
-);
+Uri catalogProductShareUri(CatalogProduct product) =>
+    Uri.parse('https://bulka.com.kz').resolveUri(productClientUri(product.id));
 
 String catalogProductShareText(CatalogProduct product) =>
     catalogProductShareUri(product).toString();

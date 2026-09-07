@@ -33,6 +33,13 @@ const isRefundReconciling = (order: AdminOrder) =>
 const paymentBadgeStatus = (order: AdminOrder) =>
   isRefundReconciling(order) ? 'refund-pending' : order.paymentStatus;
 
+const isPreorder = (order: AdminOrder) => (order.orderType ?? order.fulfillmentType) === 'preorder';
+const fulfillmentType = (order: AdminOrder) =>
+  order.effectiveFulfillmentType ??
+  (isPreorder(order)
+    ? (order.preorderFulfillmentType ?? 'pickup')
+    : (order.orderType ?? order.fulfillmentType ?? 'pickup'));
+
 export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
   const { t, formatDate, formatNumber } = useI18n();
   const { toast } = useFeedback();
@@ -346,6 +353,25 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
                       <small className="table-secondary">{order.customer?.phone || '—'}</small>
                     </td>
                     <td data-label={t('orders.details')}>
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        {isPreorder(order) && (
+                          <span className="status-pill status-warning">
+                            {t('locations.preorder')}
+                          </span>
+                        )}
+                        <span className="status-pill status-info">
+                          {t(
+                            fulfillmentType(order) === 'delivery'
+                              ? 'locations.delivery'
+                              : 'locations.pickup',
+                          )}
+                        </span>
+                      </div>
+                      {isPreorder(order) && order.pickupTime && (
+                        <small className="table-secondary">
+                          {formatDate(order.pickupTime, { dateStyle: 'short', timeStyle: 'short' })}
+                        </small>
+                      )}
                       <strong>{order.branch || '—'}</strong>
                       <small className="table-secondary">
                         {order.items
@@ -362,9 +388,8 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
                           </small>
                         </div>
                       )}
-                      {order.orderType === 'delivery' && (
+                      {fulfillmentType(order) === 'delivery' && (
                         <div className="delivery-admin-control">
-                          <span className="status-pill status-warning">{t('orders.delivery')}</span>
                           {order.courier ? (
                             <small>
                               {order.courier.name} ·{' '}
@@ -450,12 +475,14 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
                               isSaving(order.id) ||
                               ['completed', 'cancelled'].includes(order.orderStatus)
                             }
-                            options={availableOrderStatuses(order.orderStatus, refundsAllowed).map(
-                              (value) => ({
-                                value,
-                                label: t(`orderStatus.${value}`),
-                              }),
-                            )}
+                            options={ORDER_STATUSES.map((value) => ({
+                              value,
+                              label: t(`orderStatus.${value}`),
+                              disabled: !availableOrderStatuses(
+                                order.orderStatus,
+                                refundsAllowed,
+                              ).includes(value),
+                            }))}
                           />
                         </div>
                       ) : ['paid', 'refunded'].includes(order.paymentStatus) ? (

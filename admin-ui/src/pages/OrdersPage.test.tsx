@@ -61,6 +61,42 @@ const renderPage = (role = 'branch_manager') => {
 };
 
 describe('Orders workspace permissions and refund flow', () => {
+  it('shows pickup and preorder fulfillment, and past status steps without allowing reversal', async () => {
+    localStorage.setItem('adminLocale', 'ru');
+    const user = userEvent.setup();
+    apiMocks.getOrders.mockResolvedValue({
+      orders: [
+        { ...order, id: 'pickup', number: 10, orderType: 'pickup', orderStatus: 'ready' },
+        {
+          ...order,
+          id: 'preorder',
+          number: 11,
+          orderType: 'preorder',
+          preorderFulfillmentType: 'delivery',
+          pickupTime: '2026-09-10T12:00:00Z',
+        },
+      ],
+      total: 2,
+      page: 1,
+      pageSize: 50,
+    });
+    renderPage();
+    const pickup = (await screen.findByText('№10')).closest('tr')!;
+    const preorder = screen.getByText('№11').closest('tr')!;
+    expect(within(pickup).getByText('Самовывоз')).toBeInTheDocument();
+    expect(within(preorder).getByText('Предзаказ')).toBeInTheDocument();
+    expect(within(preorder).getByText('Доставка')).toBeInTheDocument();
+    expect(within(preorder).getByRole('button', { name: 'Яндекс Go' })).toBeInTheDocument();
+    await user.click(within(pickup).getByRole('combobox', { name: 'Изменить статус' }));
+    expect(screen.getByRole('option', { name: 'Принят' })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('option', { name: 'Готовится' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
+    expect(screen.getByRole('option', { name: 'Завершён' })).not.toHaveAttribute('aria-disabled');
+    await user.click(screen.getByRole('option', { name: 'Принят' }));
+    expect(apiMocks.updateOrderStatus).not.toHaveBeenCalled();
+  });
   beforeEach(() => {
     localStorage.setItem('adminLocale', 'ru');
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {

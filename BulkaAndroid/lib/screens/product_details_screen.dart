@@ -55,6 +55,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
 
   @override
   void dispose() {
+    updateDocumentTitle('Bulka');
     _inscriptionController.dispose();
     super.dispose();
   }
@@ -699,8 +700,14 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   Widget build(BuildContext context) {
     return ValueListenableBuilder<Map<String, CatalogProduct>>(
       valueListenable: widget.liveProducts,
-      builder: (context, products, _) =>
-          _buildContent(context, products[widget.product.id] ?? widget.product),
+      builder: (context, products, _) {
+        final product = products[widget.product.id] ?? widget.product;
+        return Title(
+          title: productPageTitle(product.title),
+          color: Colors.white,
+          child: _buildContent(context, product),
+        );
+      },
     );
   }
 

@@ -8,6 +8,10 @@ void updateDocumentLanguage(String languageCode) {
   web.document.documentElement?.setAttribute('lang', languageCode);
 }
 
+void updateDocumentTitle(String title) {
+  web.document.title = title;
+}
+
 Uri currentClientUri() => Uri.parse(web.window.location.href);
 
 Stream<Uri> clientPopStateUris() {

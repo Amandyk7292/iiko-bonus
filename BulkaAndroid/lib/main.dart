@@ -45,6 +45,7 @@ part 'app/app.dart';
 part 'core/app_release.dart';
 part 'core/admin_portal_wakelock.dart';
 part 'core/helpers.dart';
+part 'core/product_links.dart';
 part 'core/catalog_search.dart';
 part 'core/home_widget_sync.dart';
 part 'core/favorite_store.dart';

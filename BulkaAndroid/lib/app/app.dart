@@ -1033,7 +1033,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
         .toList();
     if (segments.isEmpty) return;
     final tab = switch (segments.first) {
-      'catalog' => 1,
+      'catalog' || 'p' => 1,
       'cart' => 2,
       'promos' => 3,
       'profile' => 4,
@@ -1198,7 +1198,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
         return MaterialApp(
           navigatorKey: _navigatorKey,
           debugShowCheckedModeBanner: false,
-          title: 'app_title'.tr,
+          title: 'Bulka',
           locale: Locale(lang),
           supportedLocales: const [Locale('ru'), Locale('kk'), Locale('en')],
           localizationsDelegates: const [

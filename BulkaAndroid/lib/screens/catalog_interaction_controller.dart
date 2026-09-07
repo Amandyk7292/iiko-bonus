@@ -350,14 +350,14 @@ extension _CatalogInteractionController on _CatalogScreenState {
         branchId: _selectedBakeryId,
         properties: {'category': product.category},
       );
-      if (updateClientRoute) {
-        publishClientRoute(_CatalogScreenState._productClientUri(product));
-      }
       _productRouteOpen = true;
+      publishClientRoute(
+        _CatalogScreenState._productClientUri(product),
+        replace: !updateClientRoute,
+      );
       try {
         await Navigator.of(context).push<void>(
           MaterialPageRoute(
-            settings: RouteSettings(name: '/catalog/product/${product.id}'),
             builder: (_) => ProductDetailsScreen(
               api: _api,
               product: product,
@@ -377,12 +377,7 @@ extension _CatalogInteractionController on _CatalogScreenState {
       } finally {
         _productRouteOpen = false;
         final current = normalizedClientUri(clientRouteNotifier.value);
-        final currentSegments = current.pathSegments
-            .where((value) => value.isNotEmpty)
-            .toList();
-        if (currentSegments.length >= 2 &&
-            currentSegments.first == 'catalog' &&
-            currentSegments[1] == 'product') {
+        if (productIdFromClientUri(current) != null) {
           publishClientRoute(
             _CatalogScreenState._categoryClientUri(product.category),
             replace: true,
