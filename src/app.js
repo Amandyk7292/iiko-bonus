@@ -279,7 +279,7 @@ const adminStaticHeaders = (res, filePath) => {
 
 const appStaticHeaders = (res, filePath) => {
   const mutableReleaseFile =
-    /index\.html$|app_bootstrap\.js$|flutter_bootstrap\.js$|flutter_service_worker\.js$|firebase-messaging-sw\.js$|manifest\.json$|release-version\.json$/.test(
+    /index\.html$|app_bootstrap\.js$|flutter_bootstrap\.js$|flutter_service_worker\.js$|firebase-messaging-sw\.js$|manifest\.json$|FontManifest\.json$|release-version\.json$/.test(
       filePath,
     );
   const mutableEntrypoint = /main\.dart\.(?:js|mjs|wasm)$/.test(filePath);

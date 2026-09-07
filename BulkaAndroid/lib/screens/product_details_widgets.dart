@@ -80,7 +80,7 @@ class _ProductPhotoHeader extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontFamily: _headingFont,
-                      fontSize: 28,
+                      fontSize: BulkaTypeScale.titleLarge,
                       fontWeight: FontWeight.w800,
                       height: 1.14,
                       color: colors.brandBrown,
@@ -122,7 +122,7 @@ class _ProductPurchaseBar extends StatelessWidget {
       '${formatUiInteger(context, price)} ₸',
       style: const TextStyle(
         fontFamily: _descriptionFont,
-        fontSize: 20,
+        fontSize: BulkaTypeScale.titleSmall,
         fontWeight: FontWeight.w700,
         fontFeatures: [FontFeature.tabularFigures()],
       ),
@@ -131,7 +131,7 @@ class _ProductPurchaseBar extends StatelessWidget {
       stopListed ? 'catalog_stop_list'.tr : 'catalog_add_to_cart'.tr,
       style: const TextStyle(
         fontFamily: _headingFont,
-        fontSize: 18,
+        fontSize: BulkaTypeScale.body,
         fontWeight: FontWeight.w800,
       ),
     );

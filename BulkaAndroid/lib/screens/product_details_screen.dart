@@ -837,18 +837,18 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                 ),
                               ],
                               if (product.hasProductDetails) ...[
-                                const SizedBox(height: 28),
+                                const SizedBox(height: 16),
                                 Center(
                                   child: Text(
                                     'catalog_about_product'.tr,
                                     style: const TextStyle(
                                       fontFamily: _headingFont,
-                                      fontSize: BulkaTypeScale.titleLarge,
+                                      fontSize: BulkaTypeScale.bodySmall,
                                       fontWeight: FontWeight.w700,
                                     ),
                                   ),
                                 ),
-                                const SizedBox(height: 14),
+                                const SizedBox(height: 10),
                               ],
                               if (product.description.trim().isNotEmpty)
                                 Container(

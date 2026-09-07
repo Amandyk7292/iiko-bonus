@@ -18,6 +18,13 @@
     ? releaseVersionCandidate
     : 'development';
   let releaseReloadStarted = false;
+  let releaseCheckPending = false;
+
+  const within = (task, milliseconds) => new Promise((resolve) => {
+    const timer = window.setTimeout(resolve, milliseconds);
+    Promise.resolve(task).catch((error) => console.warn('Startup maintenance:', error))
+      .finally(() => { window.clearTimeout(timer); resolve(); });
+  });
 
   const workerScriptUrl = (registration) =>
     registration.active?.scriptURL ||
@@ -69,7 +76,10 @@
   };
 
   const checkForNewRelease = async () => {
-    if (releaseReloadStarted || releaseVersion === 'development') return false;
+    if (releaseReloadStarted || releaseCheckPending || releaseVersion === 'development') return false;
+    releaseCheckPending = true;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 3000);
     const manifestUrl = new URL('release-version.json', document.baseURI);
     manifestUrl.searchParams.set('check', Date.now().toString());
 
@@ -78,6 +88,7 @@
         cache: 'no-store',
         credentials: 'same-origin',
         headers: { Accept: 'application/json' },
+        signal: controller.signal,
       });
       if (!response.ok) return false;
       const manifest = await response.json();
@@ -94,13 +105,16 @@
       }
 
       releaseReloadStarted = true;
-      await removeLegacyFlutterOfflineCache();
+      await within(removeLegacyFlutterOfflineCache(), 500);
       targetUrl.searchParams.set(reloadParameter, nextVersion);
       window.location.replace(targetUrl.toString());
       return true;
     } catch (error) {
       console.warn('Could not check the current Bulka release:', error);
       return false;
+    } finally {
+      releaseCheckPending = false;
+      window.clearTimeout(timeout);
     }
   };
 
@@ -114,6 +128,30 @@
     document.body.append(script);
   };
 
+  const refreshFontManifest = async () => {
+    const key = 'bulka.font-manifest-release';
+    try {
+      if (window.localStorage.getItem(key) === releaseVersion) return;
+    } catch (_) {
+      // Restricted storage must not prevent startup.
+    }
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 1000);
+    try {
+      // Refresh the same URL Flutter reads, including the browser HTTP cache.
+      const response = await fetch(new URL('assets/FontManifest.json', document.baseURI), {
+        cache: 'reload', credentials: 'same-origin', signal: controller.signal,
+      });
+      if (!response.ok) return;
+      await response.arrayBuffer();
+      try { window.localStorage.setItem(key, releaseVersion); } catch (_) {}
+    } catch (error) {
+      console.warn('Could not refresh the font manifest:', error);
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  };
+
   const startReleaseChecks = () => {
     window.setInterval(() => void checkForNewRelease(), releaseCheckIntervalMs);
     window.addEventListener('focus', () => void checkForNewRelease());
@@ -123,13 +161,13 @@
   };
 
   const startApplication = async () => {
-    try {
-      await removeLegacyFlutterOfflineCache();
-    } catch (error) {
-      console.warn('Could not remove the legacy Flutter offline cache:', error);
-    }
-    const reloading = await checkForNewRelease();
-    if (!reloading) loadFlutter();
+    // Maintenance runs together with a strict budget, never as a network waterfall.
+    await Promise.all([
+      within(removeLegacyFlutterOfflineCache(), 500),
+      within(refreshFontManifest(), 1000),
+    ]);
+    loadFlutter();
+    void checkForNewRelease();
     startReleaseChecks();
   };
 

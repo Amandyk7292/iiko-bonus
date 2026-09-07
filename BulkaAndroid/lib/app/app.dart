@@ -81,6 +81,8 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   bool _loginRouteOpen = false;
   bool _notificationPermissionScheduled = false;
   bool _booting = true;
+  bool _publicShellReady = false;
+  final _startupReady = Completer<void>();
   String? _savedPhone;
   String? _accessToken;
   String? _refreshToken;
@@ -117,7 +119,13 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       );
     }
     _appLinkSubscription = _appLinks.uriLinkStream.listen(_handleIncomingLink);
-    _bootstrap();
+    unawaited(
+      _bootstrap().catchError((Object error, StackTrace stack) {
+        _reportUnhandledError(error, stack, source: 'startup');
+        if (mounted) setState(() => _booting = false);
+        if (!_startupReady.isCompleted) _startupReady.complete();
+      }),
+    );
   }
 
   @override
@@ -231,6 +239,16 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
         initialUri.path == '/orders';
     final ordersCompleted = prefs.getBool('ordersCompleted') ?? false;
 
+    // Public browsing does not depend on an authenticated profile. Keep all
+    // cached personal data hidden until the server verifies the session.
+    if (mounted && kIsWeb && paymentReturnNotice == null) {
+      setState(() {
+        _prefs = prefs;
+        _lastMainTab = savedTab;
+        _publicShellReady = true;
+      });
+    }
+
     _api.setSession(
       accessToken: accessToken,
       refreshToken: refreshToken,
@@ -261,29 +279,34 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
         if (phone != null && accessToken != null) {
           await prefs.setString('phone', phone);
           await SessionStore.write(accessToken, null);
-          try {
-            final restoredProfile = await _api.getProfileWithoutRefresh(phone);
-            final restoredCustomer = restoredProfile.customer;
-            if (restoredProfile.exists &&
-                restoredCustomer != null &&
-                _sameSessionPhone(restoredCustomer.phone, phone)) {
-              cachedCustomer = await _withLatestLoyalty(restoredCustomer);
-              cachedTransactions = restoredProfile.transactions;
-              await _saveSession(
+          if (cachedCustomer == null ||
+              !_sameSessionPhone(cachedCustomer.phone, phone)) {
+            try {
+              final restoredProfile = await _api.getProfileWithoutRefresh(
                 phone,
-                cachedCustomer,
-                cachedTransactions,
-                accessToken,
-                null,
               );
-              profileHydratedDuringBootstrap = true;
-            }
-          } catch (_) {
-            // Never restore another account's cached profile. A verified
-            // session can retry hydration on the normal startup refresh.
-            if (identityChanged) {
-              cachedCustomer = null;
-              cachedTransactions = const [];
+              final restoredCustomer = restoredProfile.customer;
+              if (restoredProfile.exists &&
+                  restoredCustomer != null &&
+                  _sameSessionPhone(restoredCustomer.phone, phone)) {
+                cachedCustomer = await _withLatestLoyalty(restoredCustomer);
+                cachedTransactions = restoredProfile.transactions;
+                await _saveSession(
+                  phone,
+                  cachedCustomer,
+                  cachedTransactions,
+                  accessToken,
+                  null,
+                );
+                profileHydratedDuringBootstrap = true;
+              }
+            } catch (_) {
+              // Never restore another account's cached profile. A verified
+              // session can retry hydration on the normal startup refresh.
+              if (identityChanged) {
+                cachedCustomer = null;
+                cachedTransactions = const [];
+              }
             }
           }
         }
@@ -312,12 +335,13 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       _refreshToken = refreshToken;
       _customer = accessToken == null ? null : cachedCustomer;
       _transactions = accessToken == null ? const [] : cachedTransactions;
-      _lastMainTab = savedTab;
+      if (!_publicShellReady) _lastMainTab = savedTab;
       _restoreOrdersScreen = restoreOrdersScreen;
       _ordersCompleted = ordersCompleted;
       _pendingPaymentReturnNotice = paymentReturnNotice;
       _booting = false;
     });
+    if (!_startupReady.isCompleted) _startupReady.complete();
     unawaited(_applyRequiredAppUpdate(requiredUpdateFuture));
     if (paymentReturnNotice != null && kIsWeb) {
       publishClientRoute(Uri(path: '/orders'), replace: true);
@@ -917,6 +941,12 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   }
 
   Future<bool> _requireAuthentication() async {
+    if (_booting) await _startupReady.future;
+    if (!mounted) return false;
+    if (_savedPhone != null && _customer == null && _api.isAuthenticated) {
+      await _refreshProfile(_savedPhone!);
+      if (!mounted) return false;
+    }
     if (_savedPhone != null && _customer != null && _api.isAuthenticated) {
       return true;
     }
@@ -1216,7 +1246,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   }
 
   Widget _buildHome() {
-    if (_booting) {
+    if (_booting && !_publicShellReady) {
       return SplashScreen(
         key: const ValueKey('app-stage-boot'),
         text: 'splash_loading'.tr,
@@ -1230,18 +1260,12 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
         onUpdate: () => unawaited(_openRequiredUpdateStore()),
       );
     }
-    final customer = _customer;
-    if (_savedPhone != null && customer == null) {
-      return SplashScreen(
-        key: const ValueKey('app-stage-profile-loading'),
-        text: 'splash_loading_profile'.tr,
-      );
-    }
+    final customer = _booting ? null : _customer;
     return MainShell(
       key: const ValueKey('app-stage-main'),
       api: _api,
       customer: customer,
-      transactions: _transactions,
+      transactions: _booting ? const [] : _transactions,
       onLogout: _logout,
       onRefreshProfile: _refreshProfileAfterMutation,
       onAvatarSaved: _applySavedAvatar,

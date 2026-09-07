@@ -49,7 +49,9 @@ test('web bootstrap versions every mutable Flutter entrypoint and checks for new
   assert.match(appBootstrap, /visibilitychange/);
   assert.match(appBootstrap, /setInterval/);
   assert.doesNotMatch(appBootstrap, /firebase-messaging-sw\.js/);
-  assert.doesNotMatch(appBootstrap, /localStorage|sessionStorage|indexedDB|document\.cookie/);
+  assert.doesNotMatch(appBootstrap, /sessionStorage|indexedDB|document\.cookie|localStorage\.clear/);
+  assert.match(appBootstrap, /bulka\.font-manifest-release/);
+  assert.match(appBootstrap, /cache:\s*'reload'/);
   assert.match(flutterBootstrap, /^\{\{flutter_js\}\}\r?\n\{\{flutter_build_config\}\}/);
   assert.match(flutterBootstrap, /mutableEntrypointFields/);
   assert.match(flutterBootstrap, /build\[field\]/);
@@ -82,7 +84,7 @@ test('web session restore uses the server cookie without requiring cached identi
   assert.doesNotMatch(app, /accessToken == null && phone != null/);
   assert.match(app, /_api\.restoreSession\(force: true\)/);
   assert.match(app, /phone = restoredPhone/);
-  assert.match(app, /final restoredProfile = await _api\.getProfileWithoutRefresh\(phone\)/);
+  assert.match(app, /final restoredProfile = await _api\.getProfileWithoutRefresh\(\s*phone,?\s*\)/);
 });
 
 test('Flutter finalizer restores the cleanup worker and writes a hashed release manifest', (t) => {
