@@ -118,6 +118,31 @@ function validateTierPayload(payload, { existing = null, partial = false } = {})
   const rawIsActive = payload.isActive ?? payload.is_active ?? base?.isActive;
 
   const result = {};
+  if (payload.backgroundImageUrl !== undefined) {
+    const value = payload.backgroundImageUrl;
+    const url = typeof value === 'string' ? value.trim() : value;
+    const isPreset = /^\/assets\/loyalty\/(bronze|silver|platinum)-v1\.webp$/.test(url || '');
+    let isHttps = false;
+    try {
+      const parsed = new URL(url);
+      isHttps = parsed.protocol === 'https:' && !parsed.username && !parsed.password;
+    } catch {
+      /* Only HTTPS images and bundled artwork are allowed. */
+    }
+    if (
+      url !== null &&
+      url !== '' &&
+      (typeof url !== 'string' ||
+        url.length > 2048 ||
+        [...url].some((character) => character.charCodeAt(0) <= 32) ||
+        (!isPreset && !isHttps))
+    ) {
+      throw createTierError('Invalid background image URL', 400, 'TIER_VALIDATION_ERROR', {
+        field: 'backgroundImageUrl',
+      });
+    }
+    result.backgroundImageUrl = url || null;
+  }
   if (!partial || payload.code !== undefined) result.code = String(rawCode).trim().toLowerCase();
   if (!partial || payload.names !== undefined || Object.keys(names).length > 0)
     result.names = names;
@@ -161,6 +186,9 @@ function toDatabaseTier(tier) {
     cashback_percent: tier.cashbackPercent,
     sort_order: tier.sortOrder,
     is_active: tier.isActive,
+    ...(tier.backgroundImageUrl !== undefined
+      ? { background_image_url: tier.backgroundImageUrl }
+      : {}),
   };
 }
 
@@ -175,6 +203,7 @@ function toApiTier(row) {
     cashbackPercent: tier.cashbackPercent,
     sortOrder: tier.sortOrder,
     isActive: tier.isActive,
+    backgroundImageUrl: tier.backgroundImageUrl,
     createdAt: row?.created_at || row?.createdAt || null,
     updatedAt: row?.updated_at || row?.updatedAt || null,
   };
@@ -340,6 +369,7 @@ async function getTierById(id) {
 async function updateLoyaltyTier(id, payload) {
   const current = await getTierById(id);
   const supportedKeys = new Set([
+    'backgroundImageUrl',
     'code',
     'names',
     'descriptions',
@@ -466,6 +496,7 @@ function toPublicTier(tier, language = 'ru') {
     minSpend: localized.minSpend,
     cashbackPercent: localized.cashbackPercent,
     sortOrder: localized.sortOrder,
+    backgroundImageUrl: localized.backgroundImageUrl,
   };
 }
 

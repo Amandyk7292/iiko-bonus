@@ -327,6 +327,12 @@ const settingsBodySchema = optionalPatch(
 
 const tierBodySchema = z
   .object({
+    backgroundImageUrl: z
+      .union([
+        nullableHttpsUrl,
+        z.string().regex(/^\/assets\/loyalty\/(bronze|silver|platinum)-v1\.webp$/),
+      ])
+      .optional(),
     code: z
       .string()
       .trim()

@@ -1401,6 +1401,14 @@ const kk: Record<string, string> = {
   'globalSearch.priority': 'Басымдық',
   'globalSearch.category': 'Санат',
   'globalSearch.dueAt': 'Жауап мерзімі',
+  'tiers.background': 'Карточка фоны',
+  'tiers.backgroundUpload': 'Өз фоныңызды жүктеу',
+  'tiers.backgroundFileHint': 'JPEG, PNG немесе WebP, 5 МБ дейін.',
+  'tiers.backgroundShade': '45% күңгірттеу — мәтін суреттің үстінде қалады.',
+  'tiers.backgroundReset': 'Әдепкі фон',
+  'tiers.background.bronze': 'Қола',
+  'tiers.background.silver': 'Күміс',
+  'tiers.background.platinum': 'Платина',
 };
 
 export default kk;

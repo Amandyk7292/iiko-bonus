@@ -1,0 +1,71 @@
+.tier-artwork {
+  background-color: #241a15;
+  background-size: cover;
+  background-position: center;
+  color: white;
+  min-height: 168px;
+  border-color: #b99c704d;
+  text-shadow: 0 1px 3px #0009;
+}
+.tier-preview-card.tier-artwork h3,
+.tier-preview-card.tier-artwork p,
+.tier-preview-card.tier-artwork .tier-preview-meta,
+.tier-form-preview.tier-artwork .section-eyebrow {
+  color: white;
+}
+.tier-preview-card.tier-artwork .tier-preview-meta strong {
+  color: #ffdb9f;
+}
+.tier-background-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  padding: 0;
+}
+.tier-background-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.tier-background-option {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  min-height: 88px;
+  padding: 10px;
+  border: 2px solid transparent;
+  border-radius: 14px;
+  background-size: cover;
+  background-position: center;
+  background-color: #241a15;
+  color: white;
+  font-weight: 600;
+  text-shadow: 0 1px 3px #000;
+}
+.tier-background-option[aria-pressed='true'] {
+  border-color: #b86c16;
+  outline: 2px solid #ffd790;
+  outline-offset: -4px;
+}
+.tier-background-upload {
+  position: relative;
+  cursor: pointer;
+  justify-content: center;
+}
+.tier-background-upload:focus-within {
+  outline: 2px solid #b86c16;
+  outline-offset: 3px;
+}
+.tier-background-file {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.tier-background-editor:disabled .tier-background-upload {
+  opacity: 0.6;
+}

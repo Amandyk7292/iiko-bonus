@@ -120,6 +120,7 @@ function normalizeTier(tier, index = 0) {
     sortOrder: Math.max(0, Math.trunc(finiteNumber(tier?.sortOrder ?? tier?.sort_order, index))),
     isActive: tier?.isActive ?? tier?.is_active ?? true,
     source: tier?.source || 'database',
+    backgroundImageUrl: tier?.backgroundImageUrl ?? tier?.background_image_url ?? null,
   };
 }
 

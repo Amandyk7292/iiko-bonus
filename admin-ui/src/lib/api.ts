@@ -1063,6 +1063,14 @@ export const api = {
     );
     return Array.isArray(result) ? result : (result.tiers ?? result.data ?? []);
   },
+  uploadTierBackground: (file: File) => {
+    const body = new FormData();
+    body.append('image', file);
+    return request<{ success: boolean; imageUrl: string }>('/loyalty-tiers/upload-image', {
+      method: 'POST',
+      body,
+    });
+  },
   createLoyaltyTier: async (data: LoyaltyTierInput) => {
     const result = await request<LoyaltyTier | { tier?: LoyaltyTier; data?: LoyaltyTier }>(
       '/loyalty-tiers',

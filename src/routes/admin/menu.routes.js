@@ -242,7 +242,7 @@ function registerMenuAdminRoutes(router) {
   );
 
   router.post(
-    '/admin/api/menu/upload-image',
+    ['/admin/api/menu/upload-image', '/admin/api/loyalty-tiers/upload-image'],
     adminAuthMiddleware,
     upload.single('image'),
     validateUploadedImage,

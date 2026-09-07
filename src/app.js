@@ -469,6 +469,14 @@ app.use(
 );
 
 // Serve the Flutter build at the domain root as the canonical web app.
+app.use(
+  '/assets/loyalty',
+  express.static(path.join(process.cwd(), 'public/assets/loyalty'), {
+    maxAge: '1y',
+    immutable: true,
+    index: false,
+  }),
+);
 // Explicit API, admin, wallet and legacy routes are registered above, so
 // only Flutter assets fall through to this static middleware.
 app.use(express.static(publicAppDirectory, { setHeaders: appStaticHeaders }));

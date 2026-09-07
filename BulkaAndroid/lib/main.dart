@@ -114,6 +114,7 @@ part 'screens/product_details_widgets.dart';
 part 'screens/product_details_screen.dart';
 part 'shell/main_shell.dart';
 part 'widgets/loyalty_panel.dart';
+part 'widgets/loyalty_tier_card.dart';
 part 'widgets/network_image.dart';
 part 'widgets/news.dart';
 part 'widgets/qr_dialog.dart';

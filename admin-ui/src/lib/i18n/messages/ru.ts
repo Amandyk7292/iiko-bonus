@@ -1418,6 +1418,14 @@ const ru: Record<string, string> = {
   'globalSearch.priority': 'Приоритет',
   'globalSearch.category': 'Категория',
   'globalSearch.dueAt': 'Срок ответа',
+  'tiers.background': 'Фон карточки',
+  'tiers.backgroundUpload': 'Загрузить свой фон',
+  'tiers.backgroundFileHint': 'JPEG, PNG или WebP до 5 МБ.',
+  'tiers.backgroundShade': 'Затемнение 45% — текст остаётся поверх картинки.',
+  'tiers.backgroundReset': 'Фон по умолчанию',
+  'tiers.background.bronze': 'Бронза',
+  'tiers.background.silver': 'Серебро',
+  'tiers.background.platinum': 'Платина',
 };
 
 export default ru;

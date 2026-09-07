@@ -231,6 +231,8 @@ class TierItem {
 
 class Tier {
   const Tier({
+    this.code = 'bronze',
+    this.backgroundImageUrl,
     required this.name,
     required this.percent,
     required this.remaining,
@@ -244,6 +246,8 @@ class Tier {
     this.localizedNextTierNames = const {},
   });
 
+  final String code;
+  final String? backgroundImageUrl;
   final String name;
   final int percent;
   final String? nextTier;
@@ -303,6 +307,10 @@ class Tier {
     final progressJson = _asMap(rawProgress);
 
     return Tier(
+      code: _asString(source['code'], fallback: 'bronze'),
+      backgroundImageUrl: _nullableString(
+        source['backgroundImageUrl'] ?? source['background_image_url'],
+      ),
       name: _localizedFallback(source['name'], names),
       percent: _asInt(
         source['percent'] ??
@@ -346,6 +354,8 @@ class Tier {
   }
 
   Map<String, dynamic> toJson() => {
+    'code': code,
+    'backgroundImageUrl': backgroundImageUrl,
     'name': name,
     'percent': percent,
     'nextTier': nextTier,

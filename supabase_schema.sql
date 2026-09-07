@@ -242,6 +242,7 @@ on conflict (key) do nothing;
 -- is the next active tier's min_spend, so ranges can never overlap.
 -- --------------------------------------------------------------------
 create table if not exists public.loyalty_tiers (
+  background_image_url text,
   id uuid primary key default gen_random_uuid(),
   code varchar(32) not null,
   name_ru varchar(80) not null,

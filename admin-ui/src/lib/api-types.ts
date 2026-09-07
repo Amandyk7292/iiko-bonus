@@ -119,6 +119,7 @@ export interface LoyaltyTier {
   cashbackPercent: number;
   sortOrder: number;
   isActive: boolean;
+  backgroundImageUrl?: string | null;
 }
 
 export type LoyaltyTierInput = Omit<LoyaltyTier, 'id'>;

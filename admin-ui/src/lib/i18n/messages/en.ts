@@ -1402,6 +1402,14 @@ const en: Record<string, string> = {
   'globalSearch.priority': 'Priority',
   'globalSearch.category': 'Category',
   'globalSearch.dueAt': 'Response deadline',
+  'tiers.background': 'Card background',
+  'tiers.backgroundUpload': 'Upload a background',
+  'tiers.backgroundFileHint': 'JPEG, PNG or WebP, up to 5 MB.',
+  'tiers.backgroundShade': '45% shade keeps the text above the image.',
+  'tiers.backgroundReset': 'Default background',
+  'tiers.background.bronze': 'Bronze',
+  'tiers.background.silver': 'Silver',
+  'tiers.background.platinum': 'Platinum',
 };
 
 export default en;
