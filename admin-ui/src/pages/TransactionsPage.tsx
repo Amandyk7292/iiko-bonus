@@ -269,8 +269,11 @@ export default function TransactionsPage() {
                   return (
                     <Fragment key={transaction.id}>
                       <tr>
-                        <td data-label={t('common.date')} className="transaction-date">
-                          <time dateTime={transaction.timestamp ?? transaction.created_at}>
+                        <td data-label={t('common.date')}>
+                          <time
+                            dateTime={transaction.timestamp ?? transaction.created_at}
+                            style={{ whiteSpace: 'nowrap' }}
+                          >
                             {formatDate(transaction.timestamp ?? transaction.created_at)}
                           </time>
                         </td>
