@@ -1,4 +1,5 @@
 const express = require('express');
+const { registerIikoDashboardRoutes } = require('./admin/iiko-dashboard.routes');
 const crypto = require('crypto');
 const router = express.Router();
 const multer = require('multer');
@@ -311,6 +312,7 @@ router.use(
 );
 
 registerTaplinkAdminRoutes(router);
+registerIikoDashboardRoutes(router);
 registerAccessAdminRoutes(router);
 registerStaffPushAdminRoutes(router);
 router.get('/admin/api/settings', adminAuthMiddleware, adminController.getSettingsHandler);

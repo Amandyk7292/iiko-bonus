@@ -40,6 +40,7 @@ const sections = [
       { to: '/analytics', label: 'nav.analytics', icon: BarChart3 },
       { to: '/transactions', label: 'nav.transactions', icon: ReceiptText },
       { to: '/iiko', label: 'nav.iiko', icon: Store },
+      { to: '/iiko-dashboard', label: 'nav.iikoDashboard', icon: BarChart3 },
     ],
   },
   {

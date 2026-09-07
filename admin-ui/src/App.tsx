@@ -28,6 +28,7 @@ const CustomersPage = lazy(() => import('./pages/CustomersPage'));
 const OrdersPage = lazy(() => import('./pages/OrdersPage'));
 const TransactionsPage = lazy(() => import('./pages/TransactionsPage'));
 const IikoPage = lazy(() => import('./pages/IikoPage'));
+const IikoDashboardPage = lazy(() => import('./pages/IikoDashboardPage'));
 const BroadcastPage = lazy(() => import('./pages/BroadcastPage'));
 const StoriesPage = lazy(() => import('./pages/StoriesPage'));
 const NewsPage = lazy(() => import('./pages/NewsPage'));
@@ -563,6 +564,7 @@ export default function App() {
                   element={guard('/transactions', <TransactionsPage />)}
                 />
                 <Route path="/iiko" element={guard('/iiko', <IikoPage />)} />
+                <Route path="/iiko-dashboard" element={guard('/iiko-dashboard', <IikoDashboardPage />)} />
                 <Route path="/broadcast" element={guard('/broadcast', <BroadcastPage />)} />
                 <Route path="/contacts" element={guard('/contacts', <ContactCenterPage />)} />
                 <Route

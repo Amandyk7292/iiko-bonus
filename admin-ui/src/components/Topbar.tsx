@@ -34,6 +34,7 @@ const routeKeys: Record<string, string> = {
   '/analytics': 'analytics',
   '/transactions': 'transactions',
   '/iiko': 'iiko',
+  '/iiko-dashboard': 'iikoDashboard',
   '/broadcast': 'broadcast',
   '/customers': 'customers',
   '/orders': 'orders',
@@ -84,7 +85,7 @@ export default function Topbar({
   const staffPushRef = useRef<StaffPushControlHandle>(null);
   const page = routeKeys[location.pathname] ?? 'operations';
   const usesCityScope = location.pathname === '/menu';
-  const usesBranchScope = location.pathname !== '/taplink';
+  const usesBranchScope = !['/taplink', '/iiko-dashboard'].includes(location.pathname);
   const cityScopes = getAdminCityScopes(scopeLocations);
   const selectedScope = parseAdminScopeSelection(selectedBranchId);
   const selectedCity = cityScopeForSelection(cityScopes, selectedBranchId);

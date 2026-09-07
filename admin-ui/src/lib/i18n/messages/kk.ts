@@ -1,4 +1,6 @@
+import dashboard from '../iiko-dashboard';
 const kk: Record<string, string> = {
+  ...dashboard.kk,
   'language.ru': 'Русский',
   'language.kk': 'Қазақша',
   'language.en': 'English',
