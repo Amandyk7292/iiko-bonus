@@ -18,6 +18,8 @@ Admin writes invalidate client data after a successful, authenticated response. 
 
 Flutter coalesces event bursts for 250 ms and queues another refresh when an event arrives during a request. Views preserve search, city, map position and form input. Reconnecting SSE, returning to the foreground and network recovery re-fetch current data, so recovery does not rely on retained event history. A 50-second heartbeat watchdog detects a silent connection; reconnect attempts wait three seconds. Suspended/offline devices catch up when connectivity/application activity resumes.
 
+Live location, contact-center and product-option responses use `Cache-Control: no-store`. A positive HTTP `max-age` or `stale-while-revalidate` defeats event-driven refresh: the event arrives but fetch returns the old body without asking the server. Local offline caches are independent and remain available. The cache regression test exercises actual route handlers; browser QA with HTTP caching enabled reproduced a stale open branch sheet under the old 60-second policy and immediate updates under `no-store`.
+
 The SSE broker is in-process, matching the current single backend process. Scaling to independent backend workers requires a shared event broker before enabling multiple instances; an event in one worker does not reach another worker's subscribers.
 
 Branch editing exposes name and full address independently from the map. The map is unmounted while collapsed and a marker move changes coordinates only. Existing labels support ru/kk/en.

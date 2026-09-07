@@ -913,7 +913,7 @@ router.get('/api/public/loyalty-tiers', tierController.listPublicTiers);
 router.get('/api/public/contact-center', async (_req, res) => {
   try {
     const result = await contactCenter.listPublicContactCards();
-    res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+    res.set('Cache-Control', 'no-store');
     res.json({ success: true, ...result });
   } catch (error) {
     res.status(error.statusCode || 500).json({
@@ -931,11 +931,11 @@ router.get('/api/public/product-options', async (req, res) => {
       .filter(Boolean);
     if (req.query.summary === '1') {
       const flags = await getProductOptionFlags(ids);
-      res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
+      res.set('Cache-Control', 'no-store');
       return res.json({ success: true, products: Object.fromEntries(flags) });
     }
     const options = await getProductOptions(ids);
-    res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=120');
+    res.set('Cache-Control', 'no-store');
     return res.json({ success: true, products: Object.fromEntries(options) });
   } catch (error) {
     return res.status(error.statusCode || 500).json({ success: false, error: error.message });

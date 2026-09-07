@@ -1039,7 +1039,8 @@ router.get('/api/guest/locations', async (req, res) => {
         }
       }
     }
-    res.set('Cache-Control', 'public, max-age=60, must-revalidate');
+    // Live invalidation must reach the origin instead of reusing a fresh browser cache entry.
+    res.set('Cache-Control', 'no-store');
     res.json({ success: true, cityLocations, locations });
   } catch (err) {
     sendApiError(res, err, { success: false });
