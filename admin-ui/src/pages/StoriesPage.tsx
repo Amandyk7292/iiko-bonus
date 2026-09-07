@@ -350,7 +350,6 @@ export default function StoriesPage() {
       <div className="page-actions-row">
         <div>
           <h2 className="content-heading">{t('stories.heading')}</h2>
-          <p className="page-help">{t('stories.intro')}</p>
         </div>
         <button
           type="button"

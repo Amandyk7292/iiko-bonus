@@ -800,7 +800,6 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
       <div className="page-actions-row">
         <div>
           <h2 className="content-heading">{t('locations.heading')}</h2>
-          <p className="page-help">{t('locations.fulfillmentIntro')}</p>
         </div>
         <div className="action-cluster">
           {canManageStructure && (

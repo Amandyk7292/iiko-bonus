@@ -415,7 +415,6 @@ export default function ContactCenterPage() {
     <div className="page-stack contact-admin-page">
       <div className="page-actions-row contact-admin-intro">
         <div>
-          <p className="page-help">{t('contacts.intro')}</p>
           <p className="field-hint">{t('contacts.publicHint')}</p>
         </div>
         <button

@@ -1,23 +1,32 @@
-import { useMemo, useState } from 'react';
-import { ArrowDownUp } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowDownUp, Columns3, Search } from 'lucide-react';
 import { useI18n } from '../../lib/i18n';
 import type { Report } from './model';
 
 export default function DataTable({
   report,
   onSelect,
+  defaultFields,
 }: {
   report: Report;
+  defaultFields?: string[];
   onSelect?: (row: Record<string, unknown>) => void;
 }) {
   const { t, formatNumber } = useI18n();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
   const [sort, setSort] = useState({ field: '', direction: -1 });
-  const fields = Object.keys(report.columns);
+  const [visible, setVisible] = useState<string[]>(
+    () => defaultFields || Object.keys(report.columns),
+  );
+  const schemaKey = Object.keys(report.columns).join('|');
+  useEffect(() => {
+    setVisible(defaultFields || Object.keys(report.columns));
+  }, [schemaKey]);
+  const fields = Object.keys(report.columns).filter((field) => visible.includes(field));
   const rows = useMemo(() => {
     const result = report.rows.filter((row) =>
-      fields.some((field) =>
+      Object.keys(report.columns).some((field) =>
         String(row[field] ?? '')
           .toLocaleLowerCase()
           .includes(search.toLocaleLowerCase()),
@@ -41,9 +50,11 @@ export default function DataTable({
     <section className="id-table-section">
       <div className="id-table-tools">
         <label>
-          <span>{t('id.search')}</span>
+          <span className="sr-only">{t('id.search')}</span>
+          <Search className="id-search-icon" size={16} aria-hidden="true" />
           <input
             type="search"
+            placeholder={t('id.search')}
             value={search}
             onChange={(event) => {
               setSearch(event.target.value);
@@ -51,6 +62,31 @@ export default function DataTable({
             }}
           />
         </label>
+        <details className="id-columns">
+          <summary>
+            <Columns3 size={16} />
+            {t('id.columns')}
+          </summary>
+          <div>
+            {Object.entries(report.columns).map(([field, column]) => (
+              <label key={field}>
+                <input
+                  type="checkbox"
+                  checked={visible.includes(field)}
+                  disabled={visible.length === 1 && visible.includes(field)}
+                  onChange={(event) =>
+                    setVisible(
+                      event.target.checked
+                        ? [...visible, field]
+                        : visible.filter((key) => key !== field),
+                    )
+                  }
+                />
+                {column.name}
+              </label>
+            ))}
+          </div>
+        </details>
         <span>
           {t('id.totalRows')}: {formatNumber(rows.length)}
         </span>

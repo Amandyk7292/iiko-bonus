@@ -7,6 +7,8 @@ import {
   Settings2,
   Table2,
   Warehouse,
+  CalendarRange,
+  ChevronDown,
 } from 'lucide-react';
 import { useI18n } from '../lib/i18n';
 import { dashboardApi, exportReport } from './iiko-dashboard/api';
@@ -29,6 +31,7 @@ import ReportBuilder from './iiko-dashboard/ReportBuilder';
 import Balances from './iiko-dashboard/Balances';
 import Settings, { parsePreferences, type Preferences } from './iiko-dashboard/Settings';
 import './iiko-dashboard/dashboard.css';
+import './iiko-dashboard/workspace.css';
 
 const preferenceKey = 'bulka-iiko-dashboard-v1';
 const tabs = [
@@ -44,7 +47,7 @@ export default function IikoDashboardPage() {
   const [servers, setServers] = useState<Server[]>([]);
   const [serverId, setServerId] = useState('aktau-chain');
   const [tab, setTab] = useState('overview');
-  const [from, setFrom] = useState(today);
+  const [from, setFrom] = useState(() => offsetDate(today(), -6));
   const [to, setTo] = useState(today);
   const [comparison, setComparison] = useState('previous');
   const [department, setDepartment] = useState('');
@@ -219,108 +222,6 @@ export default function IikoDashboardPage() {
   const fetchedAt = overview?.summary.fetchedAt;
   return (
     <div className="id-dashboard page-stack">
-      <section className="card id-toolbar">
-        <div className="id-scope">
-          <label>
-            <span>{t('id.city')}</span>
-            <select
-              aria-label={t('id.city')}
-              value={selectedServer?.city || 'aktau'}
-              onChange={(event) => setServerId(`${event.target.value}-chain`)}
-            >
-              <option value="aktau">{locale === 'en' ? 'Aktau' : 'Актау'}</option>
-              <option value="astana">{locale === 'en' ? 'Astana' : 'Астана'}</option>
-            </select>
-          </label>
-          <label className="id-server-select">
-            <span>{t('id.source')}</span>
-            <select
-              aria-label={t('id.source')}
-              value={serverId}
-              onChange={(event) => setServerId(event.target.value)}
-            >
-              {servers
-                .filter(
-                  (server) => server.active && server.city === (selectedServer?.city || 'aktau'),
-                )
-                .map((server) => (
-                  <option value={server.id} key={server.id}>
-                    {server.kind === 'chain' ? `${t('id.chain')} · ` : ''}
-                    {server.host}
-                    {server.configured ? '' : ` · ${t('id.missing')}`}
-                  </option>
-                ))}
-            </select>
-          </label>
-          <label>
-            <span>{t('id.department')}</span>
-            <select
-              aria-label={t('id.department')}
-              value={department}
-              onChange={(event) => setDepartment(event.target.value)}
-              disabled={tab === 'balances' || tab === 'settings'}
-            >
-              <option value="">{t('id.all')}</option>
-              {departments.map((name) => (
-                <option key={name}>{name}</option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <div className="id-period">
-          <div className="id-presets">
-            {['today', 'yesterday', 'week', 'month'].map((period) => (
-              <button type="button" key={period} onClick={() => setPeriod(period)}>
-                {t(`id.${period}`)}
-              </button>
-            ))}
-          </div>
-          <label>
-            <span>{t('id.from')}</span>
-            <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
-          </label>
-          <label>
-            <span>{t('id.to')}</span>
-            <input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
-          </label>
-          <label>
-            <span>{t('id.compare')}</span>
-            <select
-              aria-label={t('id.compare')}
-              value={comparison}
-              onChange={(event) => setComparison(event.target.value)}
-              disabled={!['overview', 'rankings'].includes(tab)}
-            >
-              {['previous', 'year', 'none'].map((value) => (
-                <option value={value} key={value}>
-                  {t(`id.${value}`)}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-        <div className="id-update-row">
-          <label className="id-check">
-            <input
-              type="checkbox"
-              checked={preferences.auto}
-              onChange={(event) => setPreferences({ ...preferences, auto: event.target.checked })}
-            />
-            {t('id.auto')}
-          </label>
-          <span className="id-muted" role="status">
-            {loading
-              ? t('id.loading')
-              : fetchedAt
-                ? `${t('id.updated')}: ${formatDate(fetchedAt, { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`
-                : ''}
-          </span>
-          <button type="button" disabled={loading} onClick={() => setRefresh((value) => value + 1)}>
-            <RefreshCw size={16} className={loading ? 'spin' : ''} />
-            {t('id.refresh')}
-          </button>
-        </div>
-      </section>
       <nav className="id-tabs" aria-label="iiko Dashboard">
         {tabs.map((item) => (
           <button
@@ -337,6 +238,126 @@ export default function IikoDashboardPage() {
           </button>
         ))}
       </nav>
+
+      <section className="card id-toolbar id-toolbar-compact">
+        <div className="id-primary-filters">
+          <label>
+            <span>{t('id.city')}</span>
+            <select
+              aria-label={t('id.city')}
+              value={selectedServer?.city || 'aktau'}
+              onChange={(event) => setServerId(`${event.target.value}-chain`)}
+            >
+              <option value="aktau">{locale === 'en' ? 'Aktau' : 'Актау'}</option>
+              <option value="astana">{locale === 'en' ? 'Astana' : 'Астана'}</option>
+            </select>
+          </label>
+          <label>
+            <span>{t('id.department')}</span>
+            <select
+              aria-label={t('id.department')}
+              value={department}
+              onChange={(event) => setDepartment(event.target.value)}
+              disabled={tab === 'balances' || tab === 'settings'}
+            >
+              <option value="">{t('id.all')}</option>
+              {departments.map((name) => (
+                <option key={name}>{name}</option>
+              ))}
+            </select>
+          </label>
+          <div className="id-refresh-tools">
+            <label className="id-auto-switch" title={t('id.auto')}>
+              <input
+                type="checkbox"
+                checked={preferences.auto}
+                onChange={(event) => setPreferences({ ...preferences, auto: event.target.checked })}
+              />
+              <span>{t('id.autoShort')}</span>
+            </label>
+            {fetchedAt && (
+              <time className="id-update-time" dateTime={fetchedAt}>
+                {formatDate(fetchedAt, { hour: '2-digit', minute: '2-digit' })}
+              </time>
+            )}
+            <button
+              className="id-refresh-icon"
+              type="button"
+              aria-label={t('id.refresh')}
+              title={t('id.refresh')}
+              disabled={loading}
+              onClick={() => setRefresh((value) => value + 1)}
+            >
+              <RefreshCw size={17} className={loading ? 'spin' : ''} />
+            </button>
+          </div>
+        </div>
+        <details className="id-period-disclosure">
+          <summary>
+            <CalendarRange size={17} />
+            <span>
+              {formatDate(from, { day: 'numeric', month: 'short' })} —{' '}
+              {formatDate(to, { day: 'numeric', month: 'short' })}
+            </span>
+            <ChevronDown size={15} />
+          </summary>
+          <div className="id-expanded-filters">
+            <div className="id-presets">
+              {['today', 'yesterday', 'week', 'month'].map((period) => (
+                <button type="button" key={period} onClick={() => setPeriod(period)}>
+                  {t(`id.${period}`)}
+                </button>
+              ))}
+            </div>
+            <div className="id-period">
+              <label>
+                <span>{t('id.from')}</span>
+                <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
+              </label>
+              <label>
+                <span>{t('id.to')}</span>
+                <input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
+              </label>
+              <label>
+                <span>{t('id.compare')}</span>
+                <select
+                  aria-label={t('id.compare')}
+                  value={comparison}
+                  onChange={(event) => setComparison(event.target.value)}
+                  disabled={!['overview', 'rankings'].includes(tab)}
+                >
+                  {['previous', 'year', 'none'].map((value) => (
+                    <option value={value} key={value}>
+                      {t(`id.${value}`)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="id-server-select">
+                <span>{t('id.source')}</span>
+                <select
+                  aria-label={t('id.source')}
+                  value={serverId}
+                  onChange={(event) => setServerId(event.target.value)}
+                >
+                  {servers
+                    .filter(
+                      (server) =>
+                        server.active && server.city === (selectedServer?.city || 'aktau'),
+                    )
+                    .map((server) => (
+                      <option value={server.id} key={server.id}>
+                        {server.kind === 'chain' ? `${t('id.chain')} · ` : ''}
+                        {server.host}
+                        {server.configured ? '' : ` · ${t('id.missing')}`}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            </div>
+          </div>
+        </details>
+      </section>
       {error && tab === 'overview' && (
         <div className="id-error" role="alert">
           {t(error)}

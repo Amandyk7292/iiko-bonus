@@ -34,7 +34,7 @@
   outline: 3px solid #cc9637;
   outline-offset: 3px;
 }
-.id-dashboard label:not(.id-check):not(.id-file-button) {
+.id-dashboard label:not(.id-check):not(.id-file-button):not(.id-auto-switch) {
   display: flex;
   flex-direction: column;
   gap: 6px;

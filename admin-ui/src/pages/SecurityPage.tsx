@@ -133,7 +133,6 @@ export default function SecurityPage() {
       <div className="page-actions-row">
         <div>
           <h2 className="content-heading">{t('security.heading')}</h2>
-          <p className="page-help">{t('security.intro')}</p>
         </div>
         <button
           type="button"

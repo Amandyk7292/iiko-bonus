@@ -113,9 +113,6 @@ export default function ReviewsPage() {
       <div className="page-actions-row">
         <div>
           <h2 className="content-heading">Отзывы клиентов</h2>
-          <p className="page-help">
-            Проверяйте оценки, жалобы на блюда и скрывайте некорректные отзывы.
-          </p>
         </div>
         <button
           className="btn-outline px-5 inline-flex items-center gap-2"

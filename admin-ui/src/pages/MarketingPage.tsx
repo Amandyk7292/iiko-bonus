@@ -227,7 +227,6 @@ export default function MarketingPage() {
       <div className="page-actions-row">
         <div>
           <h2 className="content-heading">{t('marketing.heading')}</h2>
-          <p className="page-help">{t('marketing.intro')}</p>
         </div>
         <button
           className="btn-outline px-5 inline-flex items-center gap-2"

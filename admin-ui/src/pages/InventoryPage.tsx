@@ -308,7 +308,6 @@ export default function InventoryPage({ role = 'viewer' }: { role?: string }) {
       <div className="page-actions-row">
         <div>
           <h2 className="content-heading">{t('inventory.heading')}</h2>
-          <p className="page-help">{t('inventory.intro')}</p>
         </div>
         {inventoryMutationsAllowed && (
           <button

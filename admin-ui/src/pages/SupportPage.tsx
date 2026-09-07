@@ -373,9 +373,6 @@ export default function SupportPage() {
       <div className="page-actions-row">
         <div>
           <h2 className="content-heading">Очередь обращений</h2>
-          <p className="page-help">
-            Назначайте ответственного, контролируйте срок ответа и ведите переписку с клиентом.
-          </p>
         </div>
         <button
           type="button"

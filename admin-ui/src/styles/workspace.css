@@ -1,0 +1,245 @@
+/* Shared admin surfaces: one typography, spacing and elevation scale. */
+:root {
+  --sagi-bg: #fff;
+  --sagi-sidebar: #fff;
+  --sagi-text: #272725;
+  --sagi-cocoa: #272725;
+  --sagi-muted: #686a68;
+  --sagi-border: #e7e8e4;
+  --sagi-soft: #f7f8f5;
+  --sagi-green: #725024;
+  --sagi-green-dark: #51391c;
+  --font-heading: 'Montserrat', sans-serif;
+  --radius-control: 12px;
+  --radius-card: 20px;
+  --workspace-shadow: 0 2px 3px #29251d03, 0 8px 28px #29251d05;
+  --workspace-accent: #ffdc6e;
+  --workspace-accent-soft: #fff4d0;
+}
+.sagi-shell {
+  background: #fff;
+  color: var(--sagi-text);
+}
+.sagi-sidebar {
+  width: 248px;
+  border-right: 1px solid var(--sagi-border);
+  padding: 16px 12px;
+}
+.sidebar-brand-row {
+  min-height: 64px;
+  padding: 0 8px 14px;
+  margin-bottom: 14px;
+}
+.sidebar-logo {
+  height: 52px;
+  width: 142px;
+  object-fit: contain;
+}
+.sidebar-section {
+  margin-top: 8px;
+}
+.sagi-nav-title {
+  color: #767973;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+}
+.sagi-nav-link {
+  min-height: 44px;
+  gap: 12px;
+  padding: 10px 12px;
+  color: #575a55;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.sagi-nav-link > svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 1.65;
+}
+.sagi-nav-link-active {
+  color: #3c2b15;
+  background: var(--workspace-accent-soft);
+  font-weight: 600;
+}
+.sagi-nav-link-active::before {
+  display: none;
+}
+.sagi-nav-link-active > svg {
+  color: #8c641c;
+}
+.sagi-nav-link:hover {
+  background: #f6f7f3;
+}
+.sagi-nav-link-active:hover {
+  background: #ffefbd;
+}
+.sagi-nav-link .nav-chevron {
+  display: none;
+}
+.sidebar-nav-badge {
+  background: #383a34;
+  font-weight: 600;
+}
+.sagi-topbar.topbar-workspace {
+  min-height: 82px;
+  padding: 18px 32px;
+  border-bottom: 1px solid var(--sagi-border);
+  gap: 14px 24px;
+}
+.sagi-page-title {
+  font-size: 22px;
+  line-height: 1.25;
+  letter-spacing: -0.045em;
+  font-weight: 600;
+}
+.topbar-workspace .global-search-trigger {
+  height: 44px;
+  background: #f6f7f4;
+  border-color: transparent;
+  border-radius: 12px;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  color: #71746e;
+}
+.topbar-workspace .topbar-actions {
+  gap: 8px;
+}
+.topbar-workspace .topbar-logout {
+  color: #666a62;
+  border-color: var(--sagi-border);
+  font-weight: 500;
+  border-radius: 12px;
+}
+.topbar-workspace > .topbar-scope-selectors {
+  padding-top: 14px;
+  border-color: var(--sagi-border);
+  gap: 12px;
+}
+.topbar-workspace .topbar-branch-select select {
+  background: #fff;
+  border-color: var(--sagi-border);
+  border-radius: 10px;
+  font-weight: 500;
+}
+.sagi-page {
+  padding: 26px 32px 40px;
+}
+.page-stack {
+  gap: 24px;
+}
+.content-heading {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+.sagi-shell .card {
+  background: #fff;
+  border-color: var(--sagi-border);
+  border-radius: 20px;
+  box-shadow: var(--workspace-shadow);
+}
+.sagi-shell :is(.btn-outline, .btn-primary, .btn-secondary) {
+  border-radius: 11px;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 13px;
+  box-shadow: none;
+}
+.sagi-shell .btn-outline {
+  background: #fff;
+  border-color: #dedfd9;
+  color: #373a33;
+}
+.sagi-shell .btn-outline:hover {
+  background: #f6f7f3;
+  border-color: #c5c8bd;
+}
+.sagi-shell .btn-primary {
+  background: #3b3b32;
+  color: #fff;
+  border-color: #3b3b32;
+}
+.sagi-shell .btn-primary:hover {
+  background: #555541;
+}
+.sagi-shell :is(.form-input, .form-select, .input, .select) {
+  background: #fff;
+  border-color: #dedfd9;
+  border-radius: 11px;
+  color: var(--sagi-text);
+}
+.sagi-shell .data-table th {
+  background: #f7f8f5;
+  color: #71756c;
+  text-transform: none;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+.sagi-shell .data-table td {
+  border-top-color: #eef0e9;
+  color: #34372f;
+  font-weight: 400;
+}
+.sagi-shell .data-table tbody tr:hover {
+  background: #fafbf8;
+}
+.sagi-shell :is(.metric-card, .stat-card, .operations-metric-card) {
+  border-radius: 18px;
+  border-color: #e5e7df;
+  box-shadow: var(--workspace-shadow);
+}
+.sagi-shell :is(.metric-card, .stat-card) strong {
+  letter-spacing: -0.045em;
+  font-weight: 600;
+}
+.sagi-shell .table-heading {
+  border-bottom-color: #eceee7;
+}
+.sagi-shell .page-help {
+  color: #70746c;
+  font-size: 13px;
+  max-width: 68ch;
+}
+.sagi-shell :is(.modal-card, .modal-content) {
+  background: #fff;
+  border-radius: 24px;
+  box-shadow: 0 24px 100px #22251e26;
+}
+@media (min-width: 1024px) {
+  .sagi-main {
+    margin-left: 248px;
+  }
+  .sidebar-is-collapsed .sagi-main {
+    margin-left: 0;
+  }
+}
+@media (max-width: 1023px) {
+  .sagi-sidebar {
+    width: 278px;
+  }
+}
+@media (max-width: 767px) {
+  .sagi-page {
+    padding: 18px 16px 32px;
+  }
+  .sagi-topbar.topbar-workspace {
+    padding: 12px 16px;
+    gap: 12px;
+  }
+  .sagi-page-title {
+    font-size: 19px;
+  }
+  .sagi-shell .data-table:not(.data-table-compact) > tbody > tr {
+    border-color: #e6e8df;
+    border-radius: 16px;
+    box-shadow: var(--workspace-shadow);
+  }
+  .sagi-shell .data-table:not(.data-table-compact) > tbody > tr > td::before {
+    color: #686f62;
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 500;
+  }
+}

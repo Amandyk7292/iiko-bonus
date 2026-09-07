@@ -15,6 +15,7 @@ import './styles/contacts.css';
 import './styles/whatsapp.css';
 import './styles/global-search.css';
 import './styles/topbar.css';
+import './styles/workspace.css';
 
 installChunkRecovery();
 

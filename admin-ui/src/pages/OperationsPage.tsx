@@ -89,10 +89,7 @@ export default function OperationsPage() {
     <div className="page-stack operations-page">
       <div className="page-actions-row">
         <div>
-          <h2 className="content-heading">Что требует внимания сейчас</h2>
-          <p className="page-help">
-            Заказы, кухня, доставка и обращения собраны в одном рабочем экране.
-          </p>
+          <h2 className="content-heading">Требуют внимания</h2>
         </div>
         <button
           type="button"
@@ -152,7 +149,6 @@ export default function OperationsPage() {
             <header className="operations-panel-header">
               <div>
                 <h3>Заказы в зоне внимания</h3>
-                <p>Сначала просроченные, затем доставки и новые заказы.</p>
               </div>
               <Link className="text-button" to="/orders">
                 Все заказы
@@ -199,7 +195,6 @@ export default function OperationsPage() {
             <header className="operations-panel-header">
               <div>
                 <h3>Очередь поддержки</h3>
-                <p>Новые и просроченные обращения клиентов.</p>
               </div>
               <Link className="text-button" to="/support">
                 Вся очередь

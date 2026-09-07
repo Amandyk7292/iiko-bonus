@@ -185,9 +185,6 @@ export default function Topbar({
           <h1 className="sagi-page-title">
             {operatorMode ? 'Переписки WhatsApp' : t(`page.${page}.title`)}
           </h1>
-          <p className="sagi-page-subtitle">
-            {operatorMode ? 'Ответы клиентам Bulka' : t(`page.${page}.subtitle`)}
-          </p>
         </div>
       </div>
       <div className="topbar-actions">

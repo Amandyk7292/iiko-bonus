@@ -231,9 +231,6 @@ export default function IntegrationsPage() {
       <div className="page-actions-row">
         <div>
           <h2 className="content-heading">Состояние внешних сервисов</h2>
-          <p className="page-help">
-            Здесь видны настройки WhatsApp, ИИ, оплаты, iiko, доставки и push-уведомлений.
-          </p>
         </div>
         <button
           type="button"

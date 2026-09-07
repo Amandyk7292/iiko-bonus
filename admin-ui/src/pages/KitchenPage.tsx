@@ -456,7 +456,6 @@ export default function KitchenPage() {
       )}
       <div className="page-actions-row">
         <div>
-          <p className="page-help">{t('kitchen.intro')}</p>
         </div>
         <div className="action-cluster">
           <span className={`status-pill ${lateCount ? 'status-danger' : 'status-active'}`}>

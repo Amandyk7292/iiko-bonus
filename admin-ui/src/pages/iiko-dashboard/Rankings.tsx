@@ -289,8 +289,18 @@ export default function Rankings({
           </button>
         </div>
       )}
-      <p className="id-muted">{t(writeoffs ? 'id.writeoffNote' : 'id.quantityNote')}</p>
-      {view === 'discounts' && <p className="id-muted">{t('id.discountNote')}</p>}
+      <div className="id-report-meta">
+        <details className="id-report-help">
+          <summary>{t('id.calculation')}</summary>
+          <p>{t(writeoffs ? 'id.writeoffNote' : 'id.quantityNote')}</p>
+          {view === 'discounts' && <p>{t('id.discountNote')}</p>}
+        </details>
+        {display && (
+          <time dateTime={display.fetchedAt}>
+            {formatDate(display.fetchedAt, { hour: '2-digit', minute: '2-digit' })}
+          </time>
+        )}
+      </div>
       {loading && <p role="status">{t('id.loading')}</p>}
       {error && (
         <p className="id-error" role="alert">
@@ -299,14 +309,6 @@ export default function Rankings({
       )}
       {display && (
         <>
-          <p className="id-muted">
-            {t('id.updated')}:{' '}
-            {formatDate(display.fetchedAt, {
-              hour: '2-digit',
-              minute: '2-digit',
-              second: '2-digit',
-            })}
-          </p>
           {!!top.length && (
             <div className="id-ranking-chart" aria-label={t('id.top10')}>
               <h3>
@@ -348,6 +350,19 @@ export default function Rankings({
           <DataTable
             key={`${view}-${currentMetric}`}
             report={display}
+            defaultFields={
+              writeoffs
+                ? undefined
+                : Object.keys(display.columns).filter(
+                    (field) =>
+                      !['MONEY', 'AMOUNT', 'INTEGER', 'NUMBER', 'PERCENT'].includes(
+                        display.columns[field].type,
+                      ) ||
+                      [currentMetric, 'UniqOrderId', 'DishAmountInt', 'ChangePercent'].includes(
+                        field,
+                      ),
+                  )
+            }
             onSelect={canDrill ? drill : undefined}
           />
         </>

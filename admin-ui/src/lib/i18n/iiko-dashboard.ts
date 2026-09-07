@@ -1,4 +1,9 @@
 const ru = {
+  'id.autoShort': 'Авто',
+  'id.calculation': 'Как считаем',
+  'id.dailyData': 'Данные по дням',
+  'id.columns': 'Колонки',
+  'id.showTable': 'Показать таблицу',
   'id.productCheck': 'Выручка товаров на чек, ₸',
   'id.writeoffDate': 'Дата списания',
   'id.writeoffAccount': 'Счёт списания',
@@ -127,6 +132,11 @@ const ru = {
 };
 type Keys = keyof typeof ru;
 const kk: Record<Keys, string> = {
+  'id.autoShort': 'Авто',
+  'id.calculation': 'Есептеу',
+  'id.dailyData': 'Күндік деректер',
+  'id.columns': 'Бағандар',
+  'id.showTable': 'Кестені көрсету',
   'id.productCheck': 'Тауар түсімі / чек, ₸',
   'id.writeoffDate': 'Есептен шығару күні',
   'id.writeoffAccount': 'Есептен шығару шоты',
@@ -254,6 +264,11 @@ const kk: Record<Keys, string> = {
   'id.range': 'Бір жылдан аспайтын кезеңді таңдаңыз',
 };
 const en: Record<Keys, string> = {
+  'id.autoShort': 'Auto',
+  'id.calculation': 'Calculation details',
+  'id.dailyData': 'Daily data',
+  'id.columns': 'Columns',
+  'id.showTable': 'Show table',
   'id.productCheck': 'Product revenue per check, ₸',
   'id.writeoffDate': 'Write-off date',
   'id.writeoffAccount': 'Write-off account',

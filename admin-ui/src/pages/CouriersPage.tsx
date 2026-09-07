@@ -189,7 +189,6 @@ export default function CouriersPage() {
       <div className="page-actions-row">
         <div>
           <h2 className="content-heading">{t('couriers.heading')}</h2>
-          <p className="page-help">{t('couriers.intro')}</p>
         </div>
         <div className="action-cluster">
           <button
