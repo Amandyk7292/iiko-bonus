@@ -10,6 +10,7 @@ class GradientButton extends StatelessWidget {
   final Gradient? gradient;
   final Color foregroundColor;
   final Color? borderColor;
+  final List<BoxShadow>? shadows;
 
   const GradientButton({
     super.key,
@@ -22,6 +23,7 @@ class GradientButton extends StatelessWidget {
     this.gradient,
     this.foregroundColor = Colors.white,
     this.borderColor,
+    this.shadows,
   });
 
   @override
@@ -62,7 +64,7 @@ class GradientButton extends StatelessWidget {
                           Color(0xFFFFA000),
                         ],
                       ),
-            boxShadow: disabled ? null : BulkaShadows.primaryAction,
+            boxShadow: disabled ? null : shadows ?? BulkaShadows.primaryAction,
           ),
           child: FilledButton(
             onPressed: effectiveOnPressed,

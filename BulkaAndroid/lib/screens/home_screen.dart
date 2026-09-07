@@ -646,7 +646,11 @@ class _OrderTypeCard extends StatelessWidget {
         (illustrationWidth * MediaQuery.devicePixelRatioOf(context)).ceil();
     return BulkaPressScale(
       enabled: onTap != null,
-      child: SizedBox(
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(BulkaRadii.card),
+          boxShadow: BulkaShadows.raisedCard,
+        ),
         key: ValueKey('order-card-${illustration.name}'),
         height: tall ? 174 : 82,
         child: Material(
@@ -671,7 +675,6 @@ class _OrderTypeCard extends StatelessWidget {
               child: DecoratedBox(
                 position: DecorationPosition.foreground,
                 decoration: BoxDecoration(
-                  border: Border.all(color: const Color(0xFF6D3317)),
                   borderRadius: BorderRadius.circular(BulkaRadii.card),
                 ),
                 child: Stack(

@@ -61,7 +61,7 @@ router.get('/maps/yandex', (req, res) => {
   <link rel="icon" type="image/png" sizes="48x48" href="/favicon.png?v=20260730-1">
   <title>${copy[0]}</title>
   <style nonce="${nonce}">
-    html,body,#map{width:100%;height:100%;margin:0;overflow:hidden;background:#f7f2e8}
+    html,body,#map{width:100%;height:100%;margin:0;overflow:hidden;background:#fff}
     body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
     #error{display:none;position:absolute;z-index:20;inset:16px auto auto 16px;max-width:calc(100% - 32px);padding:12px 14px;border-radius:14px;background:#fff;color:#6a351d;box-shadow:0 12px 36px rgba(60,34,23,.18);font-size:14px}
     #controls{position:absolute;z-index:40;right:16px;bottom:76px;display:flex;flex-direction:column;gap:9px;pointer-events:none}
@@ -69,6 +69,15 @@ router.get('/maps/yandex', (req, res) => {
     .map-control:active{transform:scale(.96)}
     .map-control svg{width:25px;height:25px;fill:none;stroke:currentColor;stroke-width:2.25;stroke-linecap:round;stroke-linejoin:round}
     #locate{width:58px;height:58px;background:#532814;color:#fff}
+    @font-face{font-family:BulkaMontserrat;src:url("/app/assets/assets/fonts/Montserrat-Medium-subset.ttf") format("truetype");font-weight:500;font-display:swap}
+    #city-picker{display:none;position:absolute;z-index:45;top:12px;left:50%;transform:translateX(-50%);max-width:calc(100% - 100px);min-width:180px;height:44px;padding:0 18px;border:0;box-shadow:0 5px 18px rgba(83,40,20,.16);border-radius:24px;background:#ffd758;color:#532814;font:500 17px BulkaMontserrat,system-ui,-apple-system,"Segoe UI",sans-serif;align-items:center;justify-content:center;gap:10px;cursor:pointer;touch-action:manipulation}
+    #city-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    #city-picker svg{flex:none;width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2}
+    .directory #controls{right:12px;bottom:16px;gap:10px}
+    .directory .map-control{position:relative;width:38px;height:38px;box-shadow:0 4px 14px rgba(60,34,23,.16)}
+    .directory .map-control::after{content:"";position:absolute;inset:-3px;border-radius:50%}
+    .directory .map-control svg{width:20px;height:20px}
+    .directory #locate{width:40px;height:40px}
     #locate.loading svg{animation:pulse .85s ease-in-out infinite alternate}
     #map [class*="-copyright"],
     #map [class*="-map-copyrights-promo"],
@@ -80,6 +89,7 @@ router.get('/maps/yandex', (req, res) => {
 </head>
 <body>
   <div id="map" aria-label="${copy[0]}"></div>
+  <button id="city-picker" type="button" aria-haspopup="dialog"><span id="city-label"></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button>
   <div id="error" role="alert">${copy[5]}</div>
   <div id="controls" aria-label="${copy[1]}">
     <button id="zoom-in" class="map-control" type="button" aria-label="${copy[2]}"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
@@ -101,7 +111,8 @@ router.get('/maps/yandex', (req, res) => {
       const errorBox = document.getElementById('error');
       const controls = document.getElementById('controls');
       const locateButton = document.getElementById('locate');
-      if (requestedMode === 'directory') controls.style.bottom = '16px';
+      if (requestedMode === 'directory') document.body.classList.add('directory');
+      const cityPicker = document.getElementById('city-picker');
 
       const parse = value => {
         if (typeof value === 'string') { try { return JSON.parse(value); } catch { return null; } }
@@ -116,6 +127,7 @@ router.get('/maps/yandex', (req, res) => {
         try { if (window.parent !== window) window.parent.postMessage(payload, location.origin); } catch {}
         try { if (window.BulkaMap && typeof window.BulkaMap.postMessage === 'function') window.BulkaMap.postMessage(payload); } catch {}
       };
+      cityPicker.addEventListener('click', () => emit({type:'city'}));
       const geocodeDetails = geoObject => {
         if (!geoObject) return {};
         const localities = typeof geoObject.getLocalities === 'function' ? geoObject.getLocalities() : [];
@@ -296,6 +308,9 @@ router.get('/maps/yandex', (req, res) => {
       };
       const applyState = next => {
         state = {...state,...next};
+        const cityLabel = typeof state.cityLabel === 'string' ? state.cityLabel : '';
+        document.getElementById('city-label').textContent = cityLabel;
+        cityPicker.style.display = state.mode === 'directory' && cityLabel ? 'flex' : 'none';
         controls.style.display = state.showControls === false ? 'none' : 'flex';
         const center = point(state.center) || point(state.selected) || defaults.center;
         const minimumZoom = state.mode === 'admin' ? 4 : 9;

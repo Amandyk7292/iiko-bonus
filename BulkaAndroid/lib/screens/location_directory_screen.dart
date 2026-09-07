@@ -175,7 +175,7 @@ class _LocationDirectoryScreenState extends State<LocationDirectoryScreen> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      backgroundColor: const Color(0xFFFFFAEF),
+      backgroundColor: Colors.white,
       builder: (context) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
@@ -261,7 +261,7 @@ class _LocationDirectoryScreenState extends State<LocationDirectoryScreen> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      backgroundColor: const Color(0xFFFFFAEF),
+      backgroundColor: Colors.white,
       builder: (context) => _branchSheet(context, branch),
     );
     if (mounted) setState(() => _sheetOpen = false);
@@ -438,29 +438,14 @@ class _LocationDirectoryScreenState extends State<LocationDirectoryScreen> {
     }
     final branches = _visible;
     return ColoredBox(
-      color: const Color(0xFFF7F2E8),
+      color: Colors.white,
       child: SafeArea(
         bottom: true,
         child: LayoutBuilder(
           builder: (context, constraints) => Column(
             children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                child: FilledButton.icon(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFFFFD758),
-                    foregroundColor: _cocoa,
-                    minimumSize: const Size(180, 44),
-                    side: const BorderSide(color: _cocoa),
-                  ),
-                  onPressed: _chooseCity,
-                  iconAlignment: IconAlignment.end,
-                  icon: const Icon(Icons.keyboard_arrow_down_rounded),
-                  label: Text(_city, style: _body(17)),
-                ),
-              ),
               SizedBox(
-                height: max(100.0, constraints.maxHeight * .32),
+                height: max(100.0, constraints.maxHeight * .32) + 64,
                 child: YandexMapView(
                   key: ValueKey('directory-map-${AppLang.current}'),
                   controller: _map,
@@ -468,6 +453,8 @@ class _LocationDirectoryScreenState extends State<LocationDirectoryScreen> {
                   selectedPoint: null,
                   zoom: _zoom,
                   directoryMode: true,
+                  cityLabel: _city,
+                  onCityTap: _chooseCity,
                   language: AppLang.current,
                   interactive: !_sheetOpen,
                   semanticLabel: 'locations_title'.tr,
@@ -563,7 +550,7 @@ class _LocationDirectoryScreenState extends State<LocationDirectoryScreen> {
                                   selected: _filter == filter,
                                   showCheckmark: false,
                                   selectedColor: const Color(0xFFFFDD70),
-                                  backgroundColor: const Color(0xFFF6F3EE),
+                                  backgroundColor: Colors.white,
                                   side: BorderSide.none,
                                   onSelected: (_) =>
                                       setState(() => _filter = filter),

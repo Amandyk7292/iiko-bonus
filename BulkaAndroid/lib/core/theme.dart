@@ -68,6 +68,15 @@ class _BulkaPageTitle extends StatelessWidget {
 }
 
 abstract final class BulkaShadows {
+  static const raisedCard = [
+    BoxShadow(
+      color: Color(0x246D3317),
+      blurRadius: 22,
+      spreadRadius: -5,
+      offset: Offset(0, 9),
+    ),
+    BoxShadow(color: Color(0x106D3317), blurRadius: 6, offset: Offset(0, 2)),
+  ];
   static const card = [
     BoxShadow(color: Color(0x146D3317), blurRadius: 22, offset: Offset(0, 9)),
   ];

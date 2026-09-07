@@ -15,6 +15,8 @@ class YandexMapView extends StatefulWidget {
     required this.branches,
     required this.semanticLabel,
     required this.unavailableLabel,
+    this.cityLabel,
+    this.onCityTap,
     this.onBranchTap,
     this.directoryMode = false,
     this.language = 'ru',
@@ -34,6 +36,8 @@ class YandexMapView extends StatefulWidget {
   final YandexMapTap? onTap;
   final YandexCameraChanged? onCameraChanged;
   final bool interactive;
+  final String? cityLabel;
+  final VoidCallback? onCityTap;
   final bool directoryMode;
   final String language;
   final ValueChanged<String>? onBranchTap;
@@ -52,7 +56,7 @@ class _YandexMapViewState extends State<YandexMapView> {
     try {
       _webController = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
-        ..setBackgroundColor(const Color(0xFFF7F2E8))
+        ..setBackgroundColor(Colors.white)
         ..addJavaScriptChannel(
           'BulkaMap',
           onMessageReceived: (message) => _receive(message.message),
@@ -94,6 +98,7 @@ class _YandexMapViewState extends State<YandexMapView> {
       _ready = true;
       _sendState();
     }
+    if (payload['type'] == 'city') widget.onCityTap?.call();
     if (payload['type'] == 'branch' && payload['id'] is String) {
       widget.onBranchTap?.call(payload['id'] as String);
     }
@@ -116,6 +121,7 @@ class _YandexMapViewState extends State<YandexMapView> {
 
   Map<String, Object?> _statePayload() => {
     'type': 'state',
+    'cityLabel': widget.cityLabel,
     'mode': widget.directoryMode
         ? 'directory'
         : widget.interactive
@@ -169,21 +175,32 @@ class _YandexMapViewState extends State<YandexMapView> {
     }
     return Material(
       key: const ValueKey('yandex-map-fallback'),
-      color: const Color(0xFFF7F2E8),
-      child: InkWell(
-        onTap: widget.interactive
-            ? () => widget.onTap?.call(widget.center)
-            : null,
-        child: Semantics(
-          label: widget.unavailableLabel,
-          child: Center(
-            child: Icon(
-              Icons.map_outlined,
-              size: 42,
-              color: Theme.of(context).colorScheme.primary,
+      color: Colors.white,
+      child: Column(
+        children: [
+          if (widget.cityLabel != null)
+            TextButton(
+              onPressed: widget.onCityTap,
+              child: Text(widget.cityLabel!),
+            ),
+          Expanded(
+            child: InkWell(
+              onTap: widget.interactive
+                  ? () => widget.onTap?.call(widget.center)
+                  : null,
+              child: Semantics(
+                label: widget.unavailableLabel,
+                child: Center(
+                  child: Icon(
+                    Icons.map_outlined,
+                    size: 42,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

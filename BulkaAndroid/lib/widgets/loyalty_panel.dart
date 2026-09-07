@@ -27,14 +27,11 @@ class _LoyaltyPanel extends StatelessWidget {
       children: [
         Container(
           clipBehavior: Clip.antiAlias,
-          foregroundDecoration: BoxDecoration(
-            border: Border.all(color: const Color(0xFF6D3317)),
-            borderRadius: BorderRadius.circular(BulkaRadii.card),
-          ),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(BulkaRadii.card),
             gradient: _bulkaWarmGradient,
+            boxShadow: BulkaShadows.raisedCard,
           ),
           child: Stack(
             children: [
@@ -132,7 +129,8 @@ class _LoyaltyPanel extends StatelessWidget {
                   key: const ValueKey('balance-history-button'),
                   gradient: _bulkaWarmGradient,
                   foregroundColor: _bulkaBrown,
-                  borderColor: _bulkaBrown,
+                  borderColor: Colors.transparent,
+                  shadows: BulkaShadows.raisedCard,
                   onPressed: onHistoryTap,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,

@@ -12,6 +12,8 @@ class YandexMapView extends StatelessWidget {
     required this.branches,
     required this.semanticLabel,
     required this.unavailableLabel,
+    this.cityLabel,
+    this.onCityTap,
     this.onBranchTap,
     this.directoryMode = false,
     this.language = 'ru',
@@ -31,6 +33,8 @@ class YandexMapView extends StatelessWidget {
   final YandexMapTap? onTap;
   final YandexCameraChanged? onCameraChanged;
   final bool interactive;
+  final String? cityLabel;
+  final VoidCallback? onCityTap;
   final bool directoryMode;
   final String language;
   final ValueChanged<String>? onBranchTap;
@@ -39,8 +43,14 @@ class YandexMapView extends StatelessWidget {
   Widget build(BuildContext context) => Semantics(
     label: semanticLabel,
     child: ColoredBox(
-      color: const Color(0xFFF7F2E8),
-      child: Center(child: Text(unavailableLabel)),
+      color: Colors.white,
+      child: Column(
+        children: [
+          if (cityLabel != null)
+            TextButton(onPressed: onCityTap, child: Text(cityLabel!)),
+          Expanded(child: Center(child: Text(unavailableLabel))),
+        ],
+      ),
     ),
   );
 }

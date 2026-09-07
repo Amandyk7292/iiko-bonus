@@ -17,6 +17,8 @@ class YandexMapView extends StatefulWidget {
     required this.branches,
     required this.semanticLabel,
     required this.unavailableLabel,
+    this.cityLabel,
+    this.onCityTap,
     this.onBranchTap,
     this.directoryMode = false,
     this.language = 'ru',
@@ -36,6 +38,8 @@ class YandexMapView extends StatefulWidget {
   final YandexMapTap? onTap;
   final YandexCameraChanged? onCameraChanged;
   final bool interactive;
+  final String? cityLabel;
+  final VoidCallback? onCityTap;
   final bool directoryMode;
   final String language;
   final ValueChanged<String>? onBranchTap;
@@ -79,6 +83,7 @@ class _YandexMapViewState extends State<YandexMapView> {
         _ready = true;
         _sendState();
       }
+      if (payload['type'] == 'city') widget.onCityTap?.call();
       if (payload['type'] == 'branch' && payload['id'] is String) {
         widget.onBranchTap?.call(payload['id'] as String);
       }
@@ -118,6 +123,7 @@ class _YandexMapViewState extends State<YandexMapView> {
 
   Map<String, Object?> _statePayload() => {
     'type': 'state',
+    'cityLabel': widget.cityLabel,
     'mode': widget.directoryMode
         ? 'directory'
         : widget.interactive
