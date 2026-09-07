@@ -1022,6 +1022,9 @@
     align-items: center;
     gap: 5px;
   }
+  .transaction-date time {
+    white-space: nowrap;
+  }
   .receipt-pill {
     display: inline-flex;
     padding: 5px 8px;

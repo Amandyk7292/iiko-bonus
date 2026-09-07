@@ -378,6 +378,8 @@ const ru: Record<string, string> = {
   'transactions.empty': 'Транзакции не найдены',
   'transactions.emptyHint': 'Измените поиск или диапазон дат.',
   'transactions.receipt': 'Чек №{{id}}',
+  'transactions.orderNumber': '#{{id}}',
+  'transactions.orderRefund': 'Возврат #{{id}}',
   'transactions.onlinePurchase': 'Онлайн-покупка · {{id}}',
   'transactions.onlineRefund': 'Возврат онлайн-покупки · {{id}}',
   'transactions.manual': 'Ручная операция',

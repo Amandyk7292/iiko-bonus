@@ -371,6 +371,8 @@ const en: Record<string, string> = {
   'transactions.empty': 'No transactions found',
   'transactions.emptyHint': 'Change the search or date range.',
   'transactions.receipt': 'Receipt #{{id}}',
+  'transactions.orderNumber': '#{{id}}',
+  'transactions.orderRefund': 'Refund #{{id}}',
   'transactions.onlinePurchase': 'Online purchase · {{id}}',
   'transactions.onlineRefund': 'Online purchase refund · {{id}}',
   'transactions.manual': 'Manual operation',

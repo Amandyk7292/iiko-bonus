@@ -325,9 +325,24 @@ async function getTransactions({
       .or(`name.ilike.%${needle}%,phone.ilike.%${needle}%`)
       .limit(200);
     if (customerError) throw new Error(customerError.message);
+    const orderNumber = needle.replace(/^#/, '');
+    let matchedOrderIds = [];
+    if (/^\d{1,10}$/.test(orderNumber)) {
+      let orderQuery = supabase
+        .from('kaspi_orders')
+        .select('operation_id')
+        .eq('order_number', Number(orderNumber));
+      if (scopedBranches.length) orderQuery = orderQuery.in('branch_id', scopedBranches);
+      const { data: orders, error: orderError } = await orderQuery.limit(1);
+      if (orderError) throw new Error(orderError.message);
+      matchedOrderIds = (orders || [])
+        .filter((order) => /^[\w-]+$/.test(order.operation_id))
+        .flatMap((order) => [`kaspi:${order.operation_id}`, `kaspi:${order.operation_id}:refund`]);
+    }
     const predicates = [
       `order_id.ilike.%${needle}%`,
       `description.ilike.%${needle}%`,
+      ...(matchedOrderIds.length ? [`order_id.in.(${matchedOrderIds.join(',')})`] : []),
       ...((matchedCustomers || []).length
         ? [`customer_id.in.(${matchedCustomers.map((customer) => customer.id).join(',')})`]
         : []),
@@ -339,8 +354,30 @@ async function getTransactions({
     .order('timestamp', { ascending: false })
     .range(from, from + safePageSize - 1);
   if (error) throw new Error(error.message);
+  const operationIds = [
+    ...new Set(
+      (data || [])
+        .filter((transaction) => String(transaction.order_id || '').startsWith('kaspi:'))
+        .map((transaction) => transaction.order_id.split(':')[1])
+        .filter(Boolean),
+    ),
+  ];
+  const orderNumbers = new Map();
+  if (operationIds.length) {
+    let orderQuery = supabase
+      .from('kaspi_orders')
+      .select('operation_id,order_number')
+      .in('operation_id', operationIds);
+    if (scopedBranches.length) orderQuery = orderQuery.in('branch_id', scopedBranches);
+    const { data: orders, error: orderError } = await orderQuery;
+    if (orderError) throw new Error(orderError.message);
+    for (const order of orders || []) orderNumbers.set(order.operation_id, order.order_number);
+  }
   return {
-    transactions: data || [],
+    transactions: (data || []).map((transaction) => ({
+      ...transaction,
+      order_number: orderNumbers.get(String(transaction.order_id || '').split(':')[1]) || null,
+    })),
     total: count || 0,
     page: safePage,
     pageSize: safePageSize,

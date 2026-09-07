@@ -371,6 +371,8 @@ const kk: Record<string, string> = {
   'transactions.empty': 'Транзакциялар табылмады',
   'transactions.emptyHint': 'Іздеуді немесе күн аралығын өзгертіңіз.',
   'transactions.receipt': 'Чек №{{id}}',
+  'transactions.orderNumber': '#{{id}}',
+  'transactions.orderRefund': 'Қайтару #{{id}}',
   'transactions.onlinePurchase': 'Онлайн сатып алу · {{id}}',
   'transactions.onlineRefund': 'Онлайн сатып алуды қайтару · {{id}}',
   'transactions.manual': 'Қолмен жасалған операция',

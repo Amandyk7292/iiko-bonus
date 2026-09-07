@@ -6,7 +6,7 @@ import SelectControl from '../components/SelectControl';
 import { api } from '../lib/api';
 import { useAdminRealtimeEvents } from '../lib/admin-realtime';
 import { useI18n } from '../lib/i18n';
-import { transactionLabel } from '../lib/transaction-label';
+import { transactionItem, transactionLabel } from '../lib/transaction-label';
 
 const transactionTypeKeys: Record<string, string> = {
   deposit: 'transaction.deposit',
@@ -260,14 +260,16 @@ export default function TransactionsPage() {
                   const isDeposit = ['deposit', 'manual_deposit'].includes(transactionType);
                   const isWithdrawal =
                     transactionType.includes('withdrawal') || transactionType === 'refund_reversal';
-                  const items = Array.isArray(transaction.items) ? transaction.items : [];
+                  const items = Array.isArray(transaction.items)
+                    ? transaction.items.map(transactionItem)
+                    : [];
                   const expanded = expandedId === transaction.id;
                   const typeLabel = t(transactionTypeKeys[transactionType] ?? 'transaction.other');
                   const orderLabel = transactionLabel(transaction, t);
                   return (
                     <Fragment key={transaction.id}>
                       <tr>
-                        <td data-label={t('common.date')}>
+                        <td data-label={t('common.date')} className="transaction-date">
                           <time dateTime={transaction.timestamp ?? transaction.created_at}>
                             {formatDate(transaction.timestamp ?? transaction.created_at)}
                           </time>
@@ -342,12 +344,10 @@ export default function TransactionsPage() {
                                   </thead>
                                   <tbody>
                                     {items.map((item: any, index: number) => (
-                                      <tr key={`${item.productName ?? 'item'}-${index}`}>
-                                        <td>
-                                          {item.productName || t('transactions.unknownProduct')}
-                                        </td>
+                                      <tr key={`${item.name || 'item'}-${index}`}>
+                                        <td>{item.name || t('transactions.unknownProduct')}</td>
                                         <td className="text-right tabular">
-                                          {formatNumber(item.amount)}
+                                          {formatNumber(item.quantity)}
                                         </td>
                                         <td className="text-right tabular">
                                           {formatNumber(item.price)}
