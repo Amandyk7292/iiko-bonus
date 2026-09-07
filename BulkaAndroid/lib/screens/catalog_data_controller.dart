@@ -68,7 +68,7 @@ extension _CatalogDataController on _CatalogScreenState {
         }
       }
 
-      final cachedAt = await _cacheMenu(json, cacheKey: cacheKey);
+      await _cacheMenu(json, cacheKey: cacheKey);
       if (!_isCurrentMenuRequest(revision, endpoint)) return;
       _syncCartWithMenu(products);
 
@@ -78,7 +78,6 @@ extension _CatalogDataController on _CatalogScreenState {
         _allProducts = products;
         _isLoading = false;
         _usingCachedMenu = false;
-        _menuCachedAt = cachedAt;
         _loadError = null;
       });
       unawaited(_refreshProductOptionFlags(products));
@@ -317,7 +316,6 @@ extension _CatalogDataController on _CatalogScreenState {
       final envelope = _asMap(jsonDecode(raw));
       final nested = _asMap(envelope['payload']);
       final json = nested.isEmpty ? envelope : nested;
-      final cachedAt = DateTime.tryParse(_asString(envelope['cachedAt']));
       final categoriesRaw = json['categories'] as List? ?? [];
       final productsRaw = json['products'] as List? ?? [];
       final categoryNames = <String>[_catalogAllCategoryKey];
@@ -358,7 +356,6 @@ extension _CatalogDataController on _CatalogScreenState {
         _allProducts = products;
         _isLoading = false;
         _usingCachedMenu = true;
-        _menuCachedAt = cachedAt;
         _loadError = null;
       });
       if (!preview) {
@@ -370,22 +367,6 @@ extension _CatalogDataController on _CatalogScreenState {
     } catch (_) {
       return false;
     }
-  }
-
-  String get _cacheAgeText {
-    final cachedAt = _menuCachedAt;
-    if (cachedAt == null) return 'catalog_offline_cache'.tr;
-    final minutes = max(
-      0,
-      DateTime.now().difference(cachedAt.toLocal()).inMinutes,
-    );
-    if (minutes < 1) return 'catalog_offline_cache_now'.tr;
-    if (minutes < 60) {
-      return 'catalog_offline_cache_minutes'.trArgs({'minutes': minutes});
-    }
-    return 'catalog_offline_cache_hours'.trArgs({
-      'hours': max(1, minutes ~/ 60),
-    });
   }
 
   Future<void> _warmProductImages(List<CatalogProduct> products) async {

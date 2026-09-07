@@ -62,7 +62,6 @@ class _CatalogScreenState extends State<CatalogScreen>
   List<CatalogProduct> _allProducts = const [];
   bool _isLoading = true;
   bool _usingCachedMenu = false;
-  DateTime? _menuCachedAt;
   String? _loadError;
   String _trackedCatalogKey = '';
   int _menuLoadRevision = 0;

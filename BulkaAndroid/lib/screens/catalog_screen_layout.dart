@@ -115,62 +115,6 @@ extension _CatalogScreenLayout on _CatalogScreenState {
                     SliverToBoxAdapter(
                       child: Column(
                         children: [
-                          if (_usingCachedMenu)
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                              child: Semantics(
-                                container: true,
-                                liveRegion: true,
-                                child: Container(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    14,
-                                    8,
-                                    8,
-                                    8,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFFFF4D8),
-                                    borderRadius: BorderRadius.circular(
-                                      BulkaRadii.control,
-                                    ),
-                                    border: Border.all(
-                                      color: const Color(0xFFE5BE62),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      const Icon(
-                                        Icons.wifi_off_rounded,
-                                        color: _bulkaBrown,
-                                        size: 21,
-                                      ),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Text(
-                                          _cacheAgeText,
-                                          style: const TextStyle(
-                                            color: _textDark,
-                                            fontSize: BulkaTypeScale.bodySmall,
-                                            height: 1.25,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ),
-                                      IconButton(
-                                        onPressed: _loadMenu,
-                                        tooltip: 'catalog_retry'.tr,
-                                        icon: const Icon(Icons.refresh_rounded),
-                                        style: IconButton.styleFrom(
-                                          minimumSize: const Size(48, 48),
-                                          foregroundColor: _bulkaBrown,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-
                           if (!hasSearchQuery) ...[
                             const SizedBox(height: 14),
 
