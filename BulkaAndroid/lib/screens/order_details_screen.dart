@@ -253,7 +253,6 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final colors = context.bulkaColors;
     final courier = _order.courier;
     final providerStatus = _order.providerDeliveryStatus ?? '';
