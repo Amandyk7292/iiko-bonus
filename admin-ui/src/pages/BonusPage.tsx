@@ -17,6 +17,7 @@ export default function BonusPage() {
   const { t } = useI18n();
   const { toast } = useFeedback();
   const [settings, setSettings] = useState<BonusSettings | null>(null);
+  const [savedSettings, setSavedSettings] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -26,7 +27,7 @@ export default function BonusPage() {
     setError('');
     try {
       const data = await api.getSettings();
-      setSettings({
+      const loaded = {
         base_cashback_percent: Number(data.base_cashback_percent ?? 0),
         max_discount_percent: Number(data.max_discount_percent ?? 0),
         bonus_expiration: {
@@ -34,7 +35,9 @@ export default function BonusPage() {
           expiration_days: Number(data.bonus_expiration?.expiration_days ?? 90),
           notify_before_days: Number(data.bonus_expiration?.notify_before_days ?? 30),
         },
-      });
+      };
+      setSettings(loaded);
+      setSavedSettings(JSON.stringify(loaded));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : t('common.loadError'));
     } finally {
@@ -53,6 +56,7 @@ export default function BonusPage() {
     setError('');
     try {
       await api.updateSettings(settings);
+      setSavedSettings(JSON.stringify(settings));
       toast(t('bonus.saved'));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : t('common.error'));
@@ -77,6 +81,11 @@ export default function BonusPage() {
       </div>
 
       <form className="card settings-form" onSubmit={save}>
+        {JSON.stringify(settings) !== savedSettings && (
+          <p className="inline-alert" role="status">
+            {t('bonus.unsaved')}
+          </p>
+        )}
         <div className="section-heading">
           <div>
             <h2>{t('bonus.heading')}</h2>

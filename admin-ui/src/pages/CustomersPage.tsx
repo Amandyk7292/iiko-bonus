@@ -14,6 +14,8 @@ interface Customer {
   phone?: string;
   balance?: number;
   total_spent?: number;
+  bonus_expires_at?: string | null;
+  bonus_expiration_enabled?: boolean;
 }
 
 interface CustomersPageProps {
@@ -21,7 +23,7 @@ interface CustomersPageProps {
 }
 
 export default function CustomersPage({ user }: CustomersPageProps) {
-  const { t, formatNumber } = useI18n();
+  const { t, formatNumber, formatDate } = useI18n();
   const { toast, confirm } = useFeedback();
   const [params, setParams] = useSearchParams();
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -34,6 +36,7 @@ export default function CustomersPage({ user }: CustomersPageProps) {
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [bonusCustomer, setBonusCustomer] = useState<Customer | null>(null);
   const [bonusAmount, setBonusAmount] = useState('');
+  const [bonusMode, setBonusMode] = useState<'add' | 'subtract'>('add');
   const [bonusReason, setBonusReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
@@ -180,16 +183,22 @@ export default function CustomersPage({ user }: CustomersPageProps) {
   const openBonus = (customer: Customer) => {
     setBonusCustomer(customer);
     setBonusAmount('');
+    setBonusMode('add');
     setBonusReason('');
     setFormError('');
   };
 
   const saveBonus = async (event: FormEvent) => {
     event.preventDefault();
-    const amount = Number(bonusAmount);
+    const enteredAmount = Number(bonusAmount);
+    const amount = bonusMode === 'subtract' ? -enteredAmount : enteredAmount;
     const reason = bonusReason.trim();
-    if (!bonusCustomer || !Number.isFinite(amount) || amount === 0) {
+    if (!bonusCustomer || !Number.isFinite(enteredAmount) || enteredAmount <= 0) {
       setFormError(t('customers.bonusAmountHint'));
+      return;
+    }
+    if (Number(bonusCustomer.balance || 0) + amount < 0) {
+      setFormError(t('customers.insufficientBonus'));
       return;
     }
     if (reason.length < 5) {
@@ -349,6 +358,17 @@ export default function CustomersPage({ user }: CustomersPageProps) {
                       className="text-right tabular value-info"
                     >
                       <strong>{formatNumber(customer.balance ?? 0)}</strong>
+                      {Number(customer.balance) > 0 && (
+                        <div className="field-hint">
+                          {customer.bonus_expiration_enabled === false
+                            ? t('customers.expirationOff')
+                            : customer.bonus_expires_at
+                              ? t('customers.expiresAt', {
+                                  date: formatDate(customer.bonus_expires_at),
+                                })
+                              : t('customers.expirationUnknown')}
+                        </div>
+                      )}
                     </td>
                     <td data-label={t('customers.purchases')} className="text-right tabular">
                       {formatNumber(customer.total_spent ?? 0)}
@@ -359,12 +379,13 @@ export default function CustomersPage({ user }: CustomersPageProps) {
                           {canAdjustBonus && (
                             <button
                               type="button"
-                              className="icon-button"
+                              className="btn-outline px-3 inline-flex items-center gap-2"
                               onClick={() => openBonus(customer)}
                               aria-label={t('customers.bonus')}
                               title={t('customers.bonus')}
                             >
                               <Gift aria-hidden="true" size={17} />
+                              {t('customers.bonus')}
                             </button>
                           )}
                           {canUpdateCustomer && (
@@ -516,6 +537,23 @@ export default function CustomersPage({ user }: CustomersPageProps) {
             </div>
           )}
           <div className="field-group">
+            <label className="field-label" htmlFor="bonus-mode">
+              {t('customers.bonusAction')}
+            </label>
+            <select
+              id="bonus-mode"
+              className="input-classic"
+              value={bonusMode}
+              onChange={(event) => setBonusMode(event.target.value as 'add' | 'subtract')}
+            >
+              <option value="add">{t('customers.bonusAdd')}</option>
+              <option value="subtract">{t('customers.bonusSubtract')}</option>
+            </select>
+            <p className="field-hint">
+              {t('customers.currentBalance', { amount: formatNumber(bonusCustomer?.balance || 0) })}
+            </p>
+          </div>
+          <div className="field-group">
             <label className="field-label" htmlFor="bonus-amount">
               {t('customers.bonusAmount')} *
             </label>
@@ -523,12 +561,20 @@ export default function CustomersPage({ user }: CustomersPageProps) {
               id="bonus-amount"
               type="number"
               step="0.01"
+              min="0.01"
               className="input-classic"
               value={bonusAmount}
               onChange={(event) => setBonusAmount(event.target.value)}
               required
             />
-            <p className="field-hint">{t('customers.bonusAmountHint')}</p>
+            <p className="field-hint">
+              {t('customers.balanceAfter', {
+                amount: formatNumber(
+                  Number(bonusCustomer?.balance || 0) +
+                    (bonusMode === 'subtract' ? -1 : 1) * Number(bonusAmount || 0),
+                ),
+              })}
+            </p>
           </div>
           <div className="field-group">
             <label className="field-label" htmlFor="bonus-reason">

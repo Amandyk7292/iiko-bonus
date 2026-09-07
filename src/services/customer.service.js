@@ -4,6 +4,12 @@ const crypto = require('crypto');
 const { localDateBoundaryIso } = require('../utils/date.util');
 const { getSecretWalletCardNumber } = require('../utils/wallet-card.util');
 const { queueCustomerLoyaltySync } = require('./loyalty-sync.service');
+const { getSettings } = require('./settings.service');
+const {
+  attachBonusExpiration,
+  loadBonusActivity,
+  listPositiveCustomers,
+} = require('./bonus-expiration.service');
 
 const customerError = (message, statusCode = 400) =>
   Object.assign(new Error(message), { statusCode });
@@ -261,7 +267,11 @@ async function getAllCustomers({ page = 1, pageSize = 50, search = '', branchIds
     if (error) throw new Error(error.message);
     const result = Array.isArray(data) ? data[0] : data || {};
     return {
-      customers: Array.isArray(result.customers) ? result.customers : [],
+      customers: await attachBonusExpiration(
+        supabase,
+        Array.isArray(result.customers) ? result.customers : [],
+        await getSettings(),
+      ),
       total: Number(result.total || 0),
       page: safePage,
       pageSize: safePageSize,
@@ -274,7 +284,12 @@ async function getAllCustomers({ page = 1, pageSize = 50, search = '', branchIds
     .order('created_at', { ascending: false })
     .range(from, from + safePageSize - 1);
   if (error) throw new Error(error.message);
-  return { customers: data || [], total: count || 0, page: safePage, pageSize: safePageSize };
+  return {
+    customers: await attachBonusExpiration(supabase, data || [], await getSettings()),
+    total: count || 0,
+    page: safePage,
+    pageSize: safePageSize,
+  };
 }
 
 async function getTransactions({
@@ -755,29 +770,8 @@ async function updateFcmTokenByCustomerId(customerId, fcmToken, language = null)
  * Автоматическое сгорание баллов у неактивных клиентов (> inactivityDays дней, например 90)
  */
 async function checkAndExpireInactiveBonuses(inactivityDays = 90) {
-  // 1. Получаем всех клиентов с положительным балансом
-  const { data: customers, error } = await supabase.from('customers').select('*').gt('balance', 0);
-
-  if (error || !customers) {
-    console.error('Error fetching customers for bonus expiration:', error?.message);
-    return { expiredCount: 0, totalExpiredAmount: 0 };
-  }
-
-  // 2. Получаем последние транзакции для каждого из этих клиентов
-  const { data: txs } = await supabase
-    .from('transactions')
-    .select('customer_id, timestamp')
-    .neq('type', 'churn_reminder')
-    .order('timestamp', { ascending: false });
-
-  const latestTxMap = {};
-  if (txs) {
-    txs.forEach((t) => {
-      if (!latestTxMap[t.customer_id]) {
-        latestTxMap[t.customer_id] = new Date(t.timestamp);
-      }
-    });
-  }
+  const customers = await listPositiveCustomers(supabase);
+  const activity = await loadBonusActivity(supabase, customers);
 
   const now = new Date();
   const cutoffTime = now.getTime() - inactivityDays * 24 * 60 * 60 * 1000;
@@ -785,8 +779,7 @@ async function checkAndExpireInactiveBonuses(inactivityDays = 90) {
   let totalExpiredAmount = 0;
 
   for (const c of customers) {
-    const lastActivityDate =
-      latestTxMap[c.id] || (c.created_at ? new Date(c.created_at) : new Date(0));
+    const lastActivityDate = new Date(activity.get(c.id) || c.created_at);
 
     if (lastActivityDate.getTime() < cutoffTime) {
       const expiredAmt = Number(c.balance);
