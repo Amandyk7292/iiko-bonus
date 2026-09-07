@@ -6,6 +6,7 @@ import SelectControl from '../components/SelectControl';
 import { api } from '../lib/api';
 import { useAdminRealtimeEvents } from '../lib/admin-realtime';
 import { useI18n } from '../lib/i18n';
+import { transactionLabel } from '../lib/transaction-label';
 
 const transactionTypeKeys: Record<string, string> = {
   deposit: 'transaction.deposit',
@@ -108,7 +109,7 @@ export default function TransactionsPage() {
       ['Дата', 'Операция', 'Клиент', 'Телефон', 'Тип', 'Сумма', 'Сумма заказа'],
       ...transactions.map((transaction) => [
         transaction.timestamp ?? transaction.created_at,
-        transaction.order_id,
+        transactionLabel(transaction, t),
         transaction.customers?.name,
         transaction.customers?.phone,
         transaction.type,
@@ -262,13 +263,7 @@ export default function TransactionsPage() {
                   const items = Array.isArray(transaction.items) ? transaction.items : [];
                   const expanded = expandedId === transaction.id;
                   const typeLabel = t(transactionTypeKeys[transactionType] ?? 'transaction.other');
-                  const orderLabel =
-                    transaction.order_id === 'MANUAL' || transactionType.includes('manual')
-                      ? t('transactions.manual')
-                      : transactionType === 'expiration' ||
-                          transaction.order_id === 'EXPIRED_90_DAYS'
-                        ? t('transactions.expiration')
-                        : t('transactions.receipt', { id: transaction.order_id || '—' });
+                  const orderLabel = transactionLabel(transaction, t);
                   return (
                     <Fragment key={transaction.id}>
                       <tr>
