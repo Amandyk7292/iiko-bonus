@@ -29,7 +29,7 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'en': 'Bonus earned',
   },
   'cart_total': {'ru': 'Итоговая цена:', 'kk': 'Жалпы баға:', 'en': 'Total:'},
-  'cart_points': {'ru': 'баллов', 'kk': 'балл', 'en': 'points'},
+  'cart_points': {'ru': 'бонусов', 'kk': 'бонус', 'en': 'bonuses'},
   'cart_contains': {'ru': 'В корзине', 'kk': 'Себетте', 'en': 'In cart'},
   'cart_units': {'ru': 'шт', 'kk': 'дана', 'en': 'pcs'},
   'cart_unavailable': {
@@ -340,9 +340,9 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'en': 'Order accepted.',
   },
   'payment_saved': {
-    'ru': 'Заказ сохранён и появился в разделе «Мои заказы».',
-    'kk': 'Тапсырыс сақталды және «Менің тапсырыстарым» бөлімінде көрінеді.',
-    'en': 'Your order was saved and is now visible in My orders.',
+    'ru': 'Заказ сохранён и появился в разделе «Мои покупки».',
+    'kk': 'Тапсырыс сақталды және «Менің сатып алуларым» бөлімінде көрінеді.',
+    'en': 'Your order was saved and is now visible in My purchases.',
   },
   'payment_waiting_restaurant': {
     'ru': 'Деньги получены. Заказ ожидает подтверждения рестораном.',
@@ -420,11 +420,11 @@ const Map<String, Map<String, String>> _commerceTranslations = {
   },
   'forte_payment_pending_hint': {
     'ru':
-        'Не начинайте новую оплату. Сначала проверьте эту операцию или откройте «Мои заказы».',
+        'Не начинайте новую оплату. Сначала проверьте эту операцию или откройте «Мои покупки».',
     'kk':
-        'Жаңа төлемді бастамаңыз. Алдымен осы операцияны тексеріңіз немесе «Менің тапсырыстарым» бөлімін ашыңыз.',
+        'Жаңа төлемді бастамаңыз. Алдымен осы операцияны тексеріңіз немесе «Менің сатып алуларым» бөлімін ашыңыз.',
     'en':
-        'Do not start another payment. Check this operation first or open My orders.',
+        'Do not start another payment. Check this operation first or open My purchases.',
   },
   'forte_payment_check_status': {
     'ru': 'Проверить статус',
@@ -432,9 +432,9 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'en': 'Check status',
   },
   'forte_payment_my_orders': {
-    'ru': 'Мои заказы',
-    'kk': 'Менің тапсырыстарым',
-    'en': 'My orders',
+    'ru': 'Мои покупки',
+    'kk': 'Менің сатып алуларым',
+    'en': 'My purchases',
   },
   'forte_payment_close_confirm_title': {
     'ru': 'Закрыть страницу оплаты?',
@@ -485,9 +485,9 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'en': 'Payment timed out. Check the order later or try again.',
   },
   'orders_title': {
-    'ru': 'Мои заказы',
-    'kk': 'Менің тапсырыстарым',
-    'en': 'My orders',
+    'ru': 'Мои покупки',
+    'kk': 'Менің сатып алуларым',
+    'en': 'My purchases',
   },
   'orders_empty_title': {
     'ru': 'У вас пока нет заказов',

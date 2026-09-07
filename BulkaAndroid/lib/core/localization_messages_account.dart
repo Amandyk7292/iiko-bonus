@@ -134,11 +134,11 @@ const Map<String, Map<String, String>> _accountTranslations = {
     'en': 'Delete account',
   },
   'delete_account_message': {
-    'ru': 'Вы уверены? Действие необратимо, а накопленные баллы будут удалены.',
+    'ru': 'Вы уверены? Действие необратимо, а накопленные бонусы будут удалены.',
     'kk':
-        'Сенімдісіз бе? Бұл әрекетті қайтаруға болмайды, жиналған ұпайлар жойылады.',
+        'Сенімдісіз бе? Бұл әрекетті қайтаруға болмайды, жиналған бонустар жойылады.',
     'en':
-        'Are you sure? This cannot be undone and all accumulated points will be deleted.',
+        'Are you sure? This cannot be undone and all accumulated bonuses will be deleted.',
   },
   'personal_title': {
     'ru': 'Личные данные',

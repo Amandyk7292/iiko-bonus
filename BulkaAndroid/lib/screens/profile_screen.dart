@@ -407,18 +407,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       color: Color(0xFFF3F3F3),
                     ),
                     _ProfileMenuItem(
-                      icon: Icons.card_giftcard_rounded,
-                      title: 'rewards_title'.tr,
-                      onTap: () =>
-                          _openPage((_) => RewardsScreen(api: widget.api)),
-                    ),
-                    const Divider(
-                      height: 1,
-                      indent: 60,
-                      endIndent: 20,
-                      color: Color(0xFFF3F3F3),
-                    ),
-                    _ProfileMenuItem(
                       icon: Icons.receipt_long_outlined,
                       title: 'balance_history_title'.tr,
                       onTap: () => _openPage(

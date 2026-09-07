@@ -38,9 +38,9 @@ const Map<String, Map<String, String>> _navigationAndProfileTranslations = {
   },
   'apply_btn': {'ru': 'Применить', 'kk': 'Қолдану', 'en': 'Apply'},
   'menu_orders': {
-    'ru': 'Мои заказы',
-    'kk': 'Менің тапсырыстарым',
-    'en': 'My orders',
+    'ru': 'Мои покупки',
+    'kk': 'Менің сатып алуларым',
+    'en': 'My purchases',
   },
   'menu_personal': {
     'ru': 'Личные данные',

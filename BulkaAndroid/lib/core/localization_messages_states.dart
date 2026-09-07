@@ -454,7 +454,7 @@ const Map<String, Map<String, String>> _featureStateTranslations = {
     'en': 'Ask your selected bakery for the full promotion terms.',
   },
   'balance_prefix': {'ru': 'Баланс: ', 'kk': 'Теңгерім: ', 'en': 'Balance: '},
-  'points_suffix': {'ru': ' баллов', 'kk': ' ұпай', 'en': ' points'},
+  'points_suffix': {'ru': ' бонусов', 'kk': ' бонус', 'en': ' bonuses'},
   'cashback_gift_1': {'ru': 'Дарим ', 'kk': 'Әр сатылымнан ', 'en': 'Get '},
   'cashback_gift_2': {
     'ru': '% кешбэк после каждой покупки!',
