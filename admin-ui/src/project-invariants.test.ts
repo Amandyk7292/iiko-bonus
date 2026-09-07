@@ -84,10 +84,10 @@ describe('admin production invariants', () => {
 
   it('ships every locally referenced font and product mark', () => {
     const assets = [
-      'Roboto-Regular-subset.ttf',
-      'Roboto-Medium-subset.ttf',
-      'Roboto-SemiBold-subset.ttf',
-      'Roboto-Bold-subset.ttf',
+      'Montserrat-Regular.ttf',
+      'Montserrat-Medium.ttf',
+      'Montserrat-SemiBold.ttf',
+      'Montserrat-Bold.ttf',
     ];
     for (const file of assets) {
       expect(existsSync(resolve(root, 'public/assets/fonts', file)), file).toBe(true);

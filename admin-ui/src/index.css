@@ -1,29 +1,37 @@
 @import 'tailwindcss';
 
 @font-face {
-  font-family: 'Roboto';
-  src: url('/admin/assets/fonts/Roboto-Regular-subset.ttf') format('truetype');
+  font-family: 'MontserratBold';
+  src: url('/admin/assets/fonts/Montserrat-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Montserrat';
+  src: url('/admin/assets/fonts/Montserrat-Regular.ttf') format('truetype');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
-  font-family: 'Roboto';
-  src: url('/admin/assets/fonts/Roboto-Medium-subset.ttf') format('truetype');
+  font-family: 'Montserrat';
+  src: url('/admin/assets/fonts/Montserrat-Medium.ttf') format('truetype');
   font-weight: 500;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
-  font-family: 'Roboto';
-  src: url('/admin/assets/fonts/Roboto-SemiBold-subset.ttf') format('truetype');
+  font-family: 'Montserrat';
+  src: url('/admin/assets/fonts/Montserrat-SemiBold.ttf') format('truetype');
   font-weight: 600;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
-  font-family: 'Roboto';
-  src: url('/admin/assets/fonts/Roboto-Bold-subset.ttf') format('truetype');
+  font-family: 'Montserrat';
+  src: url('/admin/assets/fonts/Montserrat-Bold.ttf') format('truetype');
   font-weight: 700;
   font-style: normal;
   font-display: swap;
@@ -41,9 +49,9 @@
   --color-beige-800: #7e5d40;
   --color-beige-900: #664d36;
 
-  --font-sans: 'Roboto';
-  --font-heading: 'Roboto';
-  --font-mono: 'Roboto';
+  --font-sans: 'Montserrat';
+  --font-heading: 'MontserratBold';
+  --font-mono: 'Montserrat';
 }
 
 :root {

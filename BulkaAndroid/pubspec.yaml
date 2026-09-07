@@ -85,25 +85,23 @@ flutter:
     - assets/social/
     - assets/product_marks/
     - assets/avatars/
-    - assets/fonts/Roboto-OFL.txt
-    - assets/fonts/Roboto-NOTICE.txt
     - assets/fonts/Montserrat-OFL.txt
     - shorebird.yaml
 
   fonts:
-    - family: RobotoBold
+    - family: MontserratBold
       fonts:
-        - asset: assets/fonts/Roboto-Bold-subset.ttf
+        - asset: assets/fonts/Montserrat-Bold-subset.ttf
           weight: 700
-    - family: Roboto
+    - family: Montserrat
       fonts:
-        - asset: assets/fonts/Roboto-Regular-subset.ttf
+        - asset: assets/fonts/Montserrat-Regular-subset.ttf
           weight: 400
-        - asset: assets/fonts/Roboto-Medium-subset.ttf
+        - asset: assets/fonts/Montserrat-Medium-subset.ttf
           weight: 500
-        - asset: assets/fonts/Roboto-SemiBold-subset.ttf
+        - asset: assets/fonts/Montserrat-SemiBold-subset.ttf
           weight: 600
-        - asset: assets/fonts/Roboto-Bold-subset.ttf
+        - asset: assets/fonts/Montserrat-Bold-subset.ttf
           weight: 700
 
   # To add assets to your application, add an assets section, like this:

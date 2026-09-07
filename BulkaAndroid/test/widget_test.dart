@@ -226,9 +226,9 @@ void main() {
     }
   });
 
-  test('only Roboto typography is registered for customer UI', () {
+  test('only Montserrat typography is registered for customer UI', () {
     const familyWeights = {
-      'Roboto': [
+      'Montserrat': [
         'Regular-subset',
         'Medium-subset',
         'SemiBold-subset',
@@ -247,7 +247,7 @@ void main() {
       r'^\s*-\s+family:\s*([^\s]+)',
       multiLine: true,
     ).allMatches(pubspec).map((match) => match.group(1)).toSet();
-    expect(declaredFamilies, {'RobotoBold', 'Roboto'});
+    expect(declaredFamilies, {'MontserratBold', 'Montserrat'});
   });
 
   test('customer UI uses only the two semantic font roles', () {
@@ -266,15 +266,15 @@ void main() {
     expect(violations, isEmpty);
 
     final theme = buildBulkaTheme();
-    expect(theme.textTheme.headlineMedium?.fontFamily, 'RobotoBold');
-    expect(theme.textTheme.bodyMedium?.fontFamily, 'Roboto');
+    expect(theme.textTheme.headlineMedium?.fontFamily, 'MontserratBold');
+    expect(theme.textTheme.bodyMedium?.fontFamily, 'Montserrat');
     for (final style in [
       theme.filledButtonTheme.style,
       theme.elevatedButtonTheme.style,
       theme.outlinedButtonTheme.style,
       theme.textButtonTheme.style,
     ]) {
-      expect(style?.textStyle?.resolve({})?.fontFamily, 'RobotoBold');
+      expect(style?.textStyle?.resolve({})?.fontFamily, 'MontserratBold');
     }
   });
 

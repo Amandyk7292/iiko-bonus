@@ -13,10 +13,10 @@ const _almond = Color(0xFFF2DAA9);
 const _sage = Color(0xFF6E7F57);
 const _errorRed = Color(0xFFD14343);
 const _successGreen = Color(0xFF2F8A55);
-// Both semantic roles use locally bundled Roboto with Kazakh Cyrillic.
+// Both semantic roles use locally bundled Montserrat with Kazakh Cyrillic.
 // The heading family binds every heading/action to the actual Bold font file.
-const _headingFont = 'RobotoBold';
-const _descriptionFont = 'Roboto';
+const _headingFont = 'MontserratBold';
+const _descriptionFont = 'Montserrat';
 
 /// The single type style for every screen title.
 ///
@@ -85,8 +85,8 @@ const List<BoxShadow> _softShadow = BulkaShadows.card;
 /// Shared type scale for the whole client application.
 ///
 /// Keep one optical scale instead of introducing one-off half-pixel values in
-/// individual screens. Roboto Bold is used for headings/actions and
-/// Roboto for descriptions; both roles share the size tokens.
+/// individual screens. Montserrat Bold is used for headings/actions and
+/// Montserrat for descriptions; both roles share the size tokens.
 abstract final class BulkaTypeScale {
   static const badge = 10.0;
   static const caption = 12.0;
