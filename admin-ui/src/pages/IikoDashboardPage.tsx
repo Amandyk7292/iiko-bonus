@@ -9,6 +9,7 @@ import {
   Warehouse,
   CalendarRange,
   ChevronDown,
+  ClipboardMinus,
 } from 'lucide-react';
 import { useI18n } from '../lib/i18n';
 import { dashboardApi, exportReport } from './iiko-dashboard/api';
@@ -22,10 +23,11 @@ import {
   today,
   validRange,
   type Query,
-  type Report,
   type Server,
 } from './iiko-dashboard/model';
 import Overview, { type OverviewData } from './iiko-dashboard/Overview';
+import { loadOverview } from './iiko-dashboard/load-overview';
+import DateRangePicker from './iiko-dashboard/DateRangePicker';
 import Rankings from './iiko-dashboard/Rankings';
 import ReportBuilder from './iiko-dashboard/ReportBuilder';
 import Balances from './iiko-dashboard/Balances';
@@ -38,6 +40,7 @@ const tabs = [
   { id: 'overview', icon: ChartNoAxesCombined },
   { id: 'rankings', icon: BarChart3 },
   { id: 'reports', icon: Table2 },
+  { id: 'writeoffs', icon: ClipboardMinus },
   { id: 'balances', icon: Warehouse },
   { id: 'settings', icon: Settings2 },
 ];
@@ -174,26 +177,16 @@ export default function IikoDashboardPage() {
     const controller = new AbortController();
     setLoading(true);
     setError('');
-    const run = async () => {
-      const summary = await dashboardApi.report(base, controller.signal);
-      const trendQuery = { ...base, groupBy: ['OpenDate.Typed'] };
-      const trend = await dashboardApi.report(trendQuery, controller.signal);
-      let previous: Report | undefined;
-      let previousTrend: Report | undefined;
-      if (comparison !== 'none') {
-        const previousQuery = { ...base, ...comparisonRange(from, to, comparison) };
-        previous = await dashboardApi.report(previousQuery, controller.signal);
-        previousTrend = await dashboardApi.report(
-          { ...previousQuery, groupBy: ['OpenDate.Typed'] },
-          controller.signal,
-        );
-      }
-      if (!controller.signal.aborted) {
-        setOverview({ summary, trend, previous, previousTrend });
-        setExportQuery(trendQuery);
-      }
-    };
-    void run()
+    void loadOverview(
+      dashboardApi.report,
+      base,
+      comparison === 'none' ? undefined : { ...base, ...comparisonRange(from, to, comparison) },
+      controller.signal,
+      (data) => {
+        setOverview(data);
+        if (data.trend) setExportQuery({ ...base, groupBy: ['OpenDate.Typed'] });
+      },
+    )
       .catch((caught) => {
         if (!controller.signal.aborted) setError(errorKey(caught));
       })
@@ -310,21 +303,21 @@ export default function IikoDashboardPage() {
               ))}
             </div>
             <div className="id-period">
-              <label>
-                <span>{t('id.from')}</span>
-                <input type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
-              </label>
-              <label>
-                <span>{t('id.to')}</span>
-                <input type="date" value={to} onChange={(event) => setTo(event.target.value)} />
-              </label>
+              <DateRangePicker
+                from={from}
+                to={to}
+                onChange={(start, end) => {
+                  setFrom(start);
+                  setTo(end);
+                }}
+              />
               <label>
                 <span>{t('id.compare')}</span>
                 <select
                   aria-label={t('id.compare')}
                   value={comparison}
                   onChange={(event) => setComparison(event.target.value)}
-                  disabled={!['overview', 'rankings'].includes(tab)}
+                  disabled={!['overview', 'rankings', 'writeoffs'].includes(tab)}
                 >
                   {['previous', 'year', 'none'].map((value) => (
                     <option value={value} key={value}>
@@ -370,7 +363,23 @@ export default function IikoDashboardPage() {
       )}
       {tab === 'overview' && overview && <Overview data={overview} cards={preferences.cards} />}
       {tab === 'rankings' && (
-        <Rankings base={base} department={department} comparison={comparison} refresh={refresh} />
+        <Rankings
+          key="sales"
+          base={base}
+          department={department}
+          comparison={comparison}
+          refresh={refresh}
+        />
+      )}
+      {tab === 'writeoffs' && (
+        <Rankings
+          key="writeoffs"
+          mode="writeoffs"
+          base={base}
+          department={department}
+          comparison={comparison}
+          refresh={refresh}
+        />
       )}
       {exportQuery && tab === 'overview' && (
         <div className="id-actions">

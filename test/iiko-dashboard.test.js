@@ -85,7 +85,7 @@ test('contracts reject arbitrary servers, invalid dates and excessive ranges', (
   assert.equal(reportQuery.safeParse(input).success, true);
 });
 
-test('upstream sessions serialize per server and release after a failed report', async () => {
+test('concurrent reports share a login and a failed report does not cancel its siblings', async () => {
   const calls = [];
   const client = new IikoDashboardClient({
     credentials,
@@ -104,7 +104,9 @@ test('upstream sessions serialize per server and release after a failed report',
   assert.equal(results[0].status, 'rejected');
   assert.equal(results[0].reason.message, 'IIKO_REPORT_FAILED');
   assert.equal(results[1].status, 'fulfilled');
-  assert.deepEqual(calls, ['auth', 'bad', 'logout', 'auth', 'good', 'logout']);
+  await new Promise(setImmediate);
+  assert.deepEqual(calls, ['auth', 'bad', 'good', 'logout']);
+  assert.equal(client.queues.size, 0);
 });
 
 test('authentication accepts text responses and secrets never leave server metadata or errors', async () => {

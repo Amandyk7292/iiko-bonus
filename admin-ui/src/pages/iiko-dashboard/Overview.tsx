@@ -29,7 +29,7 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip,
 
 export interface OverviewData {
   summary: Report;
-  trend: Report;
+  trend?: Report;
   previous?: Report;
   previousTrend?: Report;
 }
@@ -39,7 +39,7 @@ export default function Overview({ data, cards }: { data: OverviewData; cards: s
   const [selected, setSelected] = useState('revenue');
   const icons = [Wallet, Receipt, Activity, Tag, Coins, Users, Package];
   const metric = metrics.find((item) => item.id === selected) || metrics[0];
-  const currentRows = datedRows(data.trend);
+  const currentRows = data.trend ? datedRows(data.trend) : [];
   const previousRows = data.previousTrend ? datedRows(data.previousTrend) : [];
   return (
     <>
@@ -136,90 +136,96 @@ export default function Overview({ data, cards }: { data: OverviewData; cards: s
             );
           })}
       </div>
-      <section className="card id-chart-card">
-        <h2>{t(`id.${metric.id}`)}</h2>
-        <div
-          className="id-chart"
-          role="img"
-          aria-label={`${t('id.trend')}: ${t(`id.${metric.id}`)}`}
-        >
-          <Line
-            options={{
-              responsive: true,
-              maintainAspectRatio: false,
-              animation: reduced ? false : { duration: 180 },
-              spanGaps: false,
-              plugins: {
-                legend: {
-                  position: 'bottom',
-                  labels: {
-                    usePointStyle: true,
-                    boxWidth: 7,
-                    padding: 24,
-                    font: { family: 'Montserrat', size: 12 },
-                  },
-                },
-              },
-              scales: {
-                x: {
-                  grid: { display: false },
-                  ticks: { maxTicksLimit: 8, color: '#74796f' },
-                  border: { display: false },
-                },
-                y: {
-                  grid: { color: '#f0f1ed' },
-                  border: { display: false },
-                  title: { display: metric.money, text: '₸' },
-                  ticks: {
-                    callback: (value) =>
-                      formatNumber(Number(value), {
-                        notation: 'compact',
-                        maximumFractionDigits: 1,
-                      }),
-                  },
-                },
-              },
-            }}
-            data={{
-              labels: currentRows.map((row) =>
-                formatDate(String(row['OpenDate.Typed']).slice(0, 10), {
-                  day: 'numeric',
-                  month: 'short',
-                }),
-              ),
-              datasets: [
-                {
-                  label: t('id.current'),
-                  data: currentRows.map((row) => valueFor(row, metric.field)),
-                  borderColor: '#9c7418',
-                  backgroundColor: 'rgba(239, 193, 77, 0.12)',
-                  fill: true,
-                  tension: 0.35,
-                  pointRadius: currentRows.length > 1 ? 0 : 4,
-                  pointHoverRadius: 5,
-                  borderWidth: 2,
-                },
-                ...(data.previousTrend
-                  ? [
-                      {
-                        label: t('id.previousLine'),
-                        data: previousRows.map((row) => valueFor(row, metric.field)),
-                        borderColor: '#adb3a4',
-                        borderDash: [5, 4],
-                        tension: 0.2,
-                        pointRadius: 1,
-                      },
-                    ]
-                  : []),
-              ],
-            }}
-          />
+      {!data.trend ? (
+        <div className="id-skeleton" role="status">
+          {t('id.loading')}
         </div>
-        <details className="id-daily-details">
-          <summary>{t('id.dailyData')}</summary>
-          <DataTable report={data.trend} />
-        </details>
-      </section>
+      ) : (
+        <section className="card id-chart-card">
+          <h2>{t(`id.${metric.id}`)}</h2>
+          <div
+            className="id-chart"
+            role="img"
+            aria-label={`${t('id.trend')}: ${t(`id.${metric.id}`)}`}
+          >
+            <Line
+              options={{
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: reduced ? false : { duration: 180 },
+                spanGaps: false,
+                plugins: {
+                  legend: {
+                    position: 'bottom',
+                    labels: {
+                      usePointStyle: true,
+                      boxWidth: 7,
+                      padding: 24,
+                      font: { family: 'Montserrat', size: 12 },
+                    },
+                  },
+                },
+                scales: {
+                  x: {
+                    grid: { display: false },
+                    ticks: { maxTicksLimit: 8, color: '#74796f' },
+                    border: { display: false },
+                  },
+                  y: {
+                    grid: { color: '#f0f1ed' },
+                    border: { display: false },
+                    title: { display: metric.money, text: '₸' },
+                    ticks: {
+                      callback: (value) =>
+                        formatNumber(Number(value), {
+                          notation: 'compact',
+                          maximumFractionDigits: 1,
+                        }),
+                    },
+                  },
+                },
+              }}
+              data={{
+                labels: currentRows.map((row) =>
+                  formatDate(String(row['OpenDate.Typed']).slice(0, 10), {
+                    day: 'numeric',
+                    month: 'short',
+                  }),
+                ),
+                datasets: [
+                  {
+                    label: t('id.current'),
+                    data: currentRows.map((row) => valueFor(row, metric.field)),
+                    borderColor: '#9c7418',
+                    backgroundColor: 'rgba(239, 193, 77, 0.12)',
+                    fill: true,
+                    tension: 0.35,
+                    pointRadius: currentRows.length > 1 ? 0 : 4,
+                    pointHoverRadius: 5,
+                    borderWidth: 2,
+                  },
+                  ...(data.previousTrend
+                    ? [
+                        {
+                          label: t('id.previousLine'),
+                          data: previousRows.map((row) => valueFor(row, metric.field)),
+                          borderColor: '#adb3a4',
+                          borderDash: [5, 4],
+                          tension: 0.2,
+                          pointRadius: 1,
+                        },
+                      ]
+                    : []),
+                ],
+              }}
+            />
+          </div>
+          <details className="id-daily-details">
+            <summary>{t('id.dailyData')}</summary>
+            <DataTable report={data.trend} />
+          </details>
+        </section>
+      )}
     </>
   );
 }

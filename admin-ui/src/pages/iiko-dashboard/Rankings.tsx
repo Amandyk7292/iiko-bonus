@@ -14,15 +14,8 @@ export interface AnalyticsQuery {
   cashierId?: string;
   productId?: string;
 }
-const views = [
-  'branches',
-  'cashiers',
-  'products',
-  'discounts',
-  'writeoffBranches',
-  'writeoffProducts',
-  'writeoffDocuments',
-];
+const salesViews = ['branches', 'cashiers', 'products', 'discounts'];
+const writeoffViews = ['writeoffBranches', 'writeoffProducts', 'writeoffDocuments'];
 const salesMetrics = [
   'DishDiscountSumInt',
   'UniqOrderId',
@@ -80,14 +73,17 @@ export default function Rankings({
   department,
   comparison,
   refresh,
+  mode = 'sales',
 }: {
   base: Query;
   department: string;
   comparison: string;
   refresh: number;
+  mode?: 'sales' | 'writeoffs';
 }) {
   const { t, formatNumber, formatDate } = useI18n();
-  const [view, setView] = useState('branches');
+  const views = mode === 'writeoffs' ? writeoffViews : salesViews;
+  const [view, setView] = useState(views[0]);
   const [metric, setMetric] = useState('DishDiscountSumInt');
   const [focus, setFocus] = useState<{
     department?: string;
@@ -129,19 +125,36 @@ export default function Rankings({
       return;
     }
     void (async () => {
-      const current = await dashboardApi.analytics(query, controller.signal);
-      const prior =
-        comparison === 'none'
-          ? undefined
-          : await dashboardApi.analytics(
+      let current: Report | undefined;
+      let prior: Report | undefined;
+      const publish = () => {
+        if (current && !controller.signal.aborted) {
+          setReport(current);
+          setPrevious(prior);
+          setLastKey(queryKey);
+        }
+      };
+      const tasks = [
+        dashboardApi.analytics(query, controller.signal).then((data) => {
+          current = data;
+          publish();
+        }),
+      ];
+      if (comparison !== 'none')
+        tasks.push(
+          dashboardApi
+            .analytics(
               { ...query, ...comparisonRange(query.from, query.to, comparison) },
               controller.signal,
-            );
-      if (!controller.signal.aborted) {
-        setReport(current);
-        setPrevious(prior);
-        setLastKey(queryKey);
-      }
+            )
+            .then((data) => {
+              prior = data;
+              publish();
+            }),
+        );
+      const results = await Promise.allSettled(tasks);
+      const failed = results.find((result) => result.status === 'rejected');
+      if (failed?.status === 'rejected') throw failed.reason;
     })()
       .catch((caught) => {
         if (!controller.signal.aborted) setError(errorKey(caught));
@@ -261,6 +274,18 @@ export default function Rankings({
             </select>
           </label>
         )}
+        {focus.label && (
+          <button
+            className="id-secondary-action"
+            type="button"
+            onClick={() => {
+              setFocus({});
+              setView('branches');
+            }}
+          >
+            {t('id.resetDrill')}
+          </button>
+        )}
         <button
           type="button"
           disabled={!display || loading || exporting}
@@ -276,17 +301,8 @@ export default function Rankings({
         </button>
       </div>
       {focus.label && (
-        <div className="id-actions">
+        <div className="id-drill-context">
           <strong>{focus.label}</strong>
-          <button
-            type="button"
-            onClick={() => {
-              setFocus({});
-              setView('branches');
-            }}
-          >
-            {t('id.resetDrill')}
-          </button>
         </div>
       )}
       <div className="id-report-meta">

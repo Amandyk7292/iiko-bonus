@@ -1,0 +1,158 @@
+.id-date-range {
+  position: relative;
+  min-width: 250px;
+}
+.id-date-label {
+  display: block;
+  color: #777e71;
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+.id-dashboard .id-date-trigger {
+  width: 100%;
+  min-height: 40px;
+  justify-content: flex-start;
+  background: #fff;
+  border: 1px solid #e6e9e2;
+  color: #30372b;
+  gap: 10px;
+  font-size: 13px;
+}
+.id-calendar {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 30;
+  width: 320px;
+  max-width: calc(100vw - 60px);
+  padding: 16px;
+  border: 1px solid #e9ebe5;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow:
+    0 18px 50px #28301d26,
+    0 2px 8px #28301d0a;
+}
+.id-calendar-heading {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+.id-dashboard .id-calendar-heading button {
+  width: 30px;
+  min-width: 30px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  background: #fff;
+  color: #333a2c;
+  border: 0;
+}
+.id-dashboard .id-calendar-heading select {
+  padding: 4px;
+  min-height: 32px;
+  height: 32px;
+  border: 0;
+  background: #fff;
+  box-shadow: none;
+  font-size: 13px;
+  font-weight: 500;
+  flex: 1;
+  min-width: 0;
+}
+.id-calendar-weekdays,
+.id-calendar-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+.id-calendar-weekdays span {
+  text-align: center;
+  font-size: 10px;
+  color: #8c9384;
+  padding-bottom: 9px;
+  text-transform: uppercase;
+}
+.id-dashboard .id-calendar-days button {
+  width: 100%;
+  height: 36px;
+  min-height: 36px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  color: #343b2e;
+  background: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  margin: 2px 0;
+}
+.id-dashboard .id-calendar-days button.is-outside {
+  color: #abb0a5;
+}
+.id-dashboard .id-calendar-days button.is-range {
+  background: #fff5ce;
+  border-radius: 0;
+  color: #55481d;
+}
+.id-dashboard .id-calendar-days button.is-edge {
+  background: #f7d467;
+  color: #332b16;
+}
+.id-dashboard .id-calendar-days button[aria-current='date'] {
+  box-shadow: inset 0 0 0 1px #b59e52;
+}
+.id-dashboard .id-calendar-days button:hover {
+  background: #f5efd9;
+  color: #332b16;
+}
+.id-calendar-selection {
+  border-top: 1px solid #edf0e8;
+  margin-top: 12px;
+  padding-top: 12px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  font-size: 11px;
+  color: #767d6e;
+}
+.id-calendar-selection strong {
+  font-size: 12px;
+  font-weight: 500;
+  color: #333a2c;
+}
+.id-calendar-footer {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+.id-dashboard .id-calendar-footer button {
+  flex: 1;
+  min-height: 34px;
+  height: 34px;
+  padding: 0 12px;
+  background: #f4f5f1;
+  color: #525a47;
+  font-size: 12px;
+  border: 0;
+}
+.id-dashboard .id-calendar-footer .id-calendar-apply {
+  background: #333a2c;
+  color: #fff;
+}
+@media (max-width: 600px) {
+  .id-date-range {
+    grid-column: 1/-1;
+    min-width: 0;
+  }
+  .id-calendar {
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 12px;
+  }
+  .id-dashboard .id-calendar-days button {
+    min-height: 38px;
+    height: 38px;
+  }
+}

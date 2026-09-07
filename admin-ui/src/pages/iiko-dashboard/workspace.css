@@ -123,7 +123,7 @@
 }
 .id-expanded-filters .id-period {
   display: grid;
-  grid-template-columns: 1fr 1fr 1.2fr 2fr;
+  grid-template-columns: minmax(250px, 1.4fr) 1fr 1.5fr;
 }
 .id-dashboard .id-metric-grid {
   gap: 16px;
@@ -273,6 +273,33 @@
 }
 .id-panel .id-actions > button:hover:not(:disabled) {
   background: #505c42;
+}
+.id-dashboard .id-panel .id-actions {
+  align-items: end;
+  gap: 12px 16px;
+}
+.id-dashboard .id-panel .id-actions > button {
+  min-height: 36px;
+  height: 36px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 500;
+  flex: 0 0 auto;
+}
+.id-dashboard .id-panel .id-actions > button + button {
+  margin-left: 0;
+}
+.id-dashboard .id-panel .id-actions > .id-secondary-action {
+  background: #fff;
+  color: #566047;
+  border: 1px solid #e4e8dd;
+}
+.id-drill-context {
+  margin: 16px 0 4px;
+  font-size: 13px;
+}
+.id-drill-context strong {
+  font-weight: 500;
 }
 .id-panel .id-actions label {
   min-width: min(240px, 100%);
@@ -438,7 +465,7 @@
   top: 14px;
   color: #7b826f;
 }
-.id-table-tools input[type='search'] {
+.id-dashboard .id-table-tools input[type='search'] {
   padding-left: 38px;
 }
 .id-columns {
@@ -487,7 +514,7 @@
 @media (max-width: 767px) {
   .id-dashboard .id-tabs {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 4px;
   }
   .id-dashboard .id-tabs button {

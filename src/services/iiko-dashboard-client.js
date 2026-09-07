@@ -62,31 +62,53 @@ class IikoDashboardClient {
     if (!server.active) throw failure('IIKO_REPORT_CLOSED', 409);
     const credential = this.credentials(server);
     if (!credential) throw failure('IIKO_REPORT_NOT_CONFIGURED', 409);
-    const previous = this.queues.get(serverId) || Promise.resolve();
-    const current = previous
-      .catch(() => {})
-      .then(async () => {
-        let token;
-        try {
-          token = await this.request(server, 'auth', null, null, {
-            login: credential.login,
-            pass: crypto.createHash('sha1').update(credential.password).digest('hex'),
-          });
-          if (!/^[a-f0-9-]{32,40}$/i.test(token)) {
-            token = null;
-            throw failure('IIKO_REPORT_ACCESS', 409);
-          }
-          return await work((path, body) => this.request(server, path, token, body));
-        } finally {
-          if (token) await this.request(server, 'logout', token).catch(() => {});
-        }
-      });
-    this.queues.set(serverId, current);
-    try {
-      return await current;
-    } finally {
-      if (this.queues.get(serverId) === current) this.queues.delete(serverId);
+    let queue = this.queues.get(serverId);
+    if (!queue) {
+      queue = { jobs: [], running: false };
+      this.queues.set(serverId, queue);
     }
+    const result = new Promise((resolve, reject) => queue.jobs.push({ work, resolve, reject }));
+    if (!queue.running) void this.drain(server, credential, queue);
+    return result;
+  }
+
+  async drain(server, credential, queue) {
+    queue.running = true;
+    while (queue.jobs.length) {
+      let token;
+      try {
+        token = await this.request(server, 'auth', null, null, {
+          login: credential.login,
+          pass: crypto.createHash('sha1').update(credential.password).digest('hex'),
+        });
+        if (!/^[a-f0-9-]{32,40}$/i.test(token)) {
+          token = null;
+          throw failure('IIKO_REPORT_ACCESS', 409);
+        }
+        const started = Date.now();
+        // Share one login for a burst, with at most three reporting jobs at once.
+        // Never log out while another job is still using this session.
+        do {
+          await Promise.all(
+            queue.jobs.splice(0, 3).map(async (job) => {
+              try {
+                job.resolve(
+                  await job.work((path, body) => this.request(server, path, token, body)),
+                );
+              } catch (error) {
+                job.reject(error);
+              }
+            }),
+          );
+        } while (queue.jobs.length && Date.now() - started < 30000);
+      } catch (error) {
+        for (const job of queue.jobs.splice(0)) job.reject(error);
+      } finally {
+        if (token) await this.request(server, 'logout', token).catch(() => {});
+      }
+    }
+    queue.running = false;
+    if (this.queues.get(server.id) === queue) this.queues.delete(server.id);
   }
 }
 

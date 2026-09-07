@@ -1,5 +1,6 @@
 const { IikoDashboardClient, failure } = require('./iiko-dashboard-client');
 const { analyticsQuery, analyticsReport } = require('./iiko-dashboard-analytics');
+const { ReportCache } = require('./iiko-dashboard-cache');
 const dateFields = {
   SALES: 'OpenDate.Typed',
   TRANSACTIONS: 'DateTime.DateTyped',
@@ -53,6 +54,8 @@ class IikoDashboardService {
   constructor(client = new IikoDashboardClient()) {
     this.client = client;
     this.schemas = new Map();
+    this.schemaRequests = new Map();
+    this.reports = new ReportCache();
   }
   listServers() {
     return this.client.listServers();
@@ -61,6 +64,16 @@ class IikoDashboardService {
     const key = `${serverId}:${reportType}`;
     const cached = this.schemas.get(key);
     if (cached && cached.expires > Date.now()) return cached.columns;
+    if (this.schemaRequests.has(key)) return this.schemaRequests.get(key);
+    const pending = this.loadColumns(request, key, reportType);
+    this.schemaRequests.set(key, pending);
+    try {
+      return await pending;
+    } finally {
+      this.schemaRequests.delete(key);
+    }
+  }
+  async loadColumns(request, key, reportType) {
     const columns = await request(`v2/reports/olap/columns?reportType=${reportType}`);
     if (!columns || Array.isArray(columns) || typeof columns !== 'object')
       throw failure('IIKO_REPORT_RESPONSE');
@@ -68,12 +81,18 @@ class IikoDashboardService {
     return columns;
   }
   async getSchema(input) {
+    const cached = this.schemas.get(`${input.serverId}:${input.reportType}`);
+    if (cached && cached.expires > Date.now())
+      return { columns: cached.columns, dateField: dateFields[input.reportType] };
     return this.client.withSession(input.serverId, async (request) => ({
       columns: await this.columns(request, input.serverId, input.reportType),
       dateField: dateFields[input.reportType],
     }));
   }
   async report(input) {
+    return this.reports.get(JSON.stringify(input), () => this.loadReport(input));
+  }
+  async loadReport(input) {
     return this.client.withSession(input.serverId, async (request) => {
       const columns = await this.columns(request, input.serverId, input.reportType);
       const result = await request('v2/reports/olap', buildReport(input, columns));
