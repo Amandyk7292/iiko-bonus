@@ -137,7 +137,6 @@ class _LoyaltyPanel extends StatelessWidget {
                 const SizedBox(height: 20),
               ],
               _BonusExpiryNotice(api: api),
-              const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
                 height: 58,
@@ -224,25 +223,7 @@ class _BonusExpiryNoticeState extends State<_BonusExpiryNotice> {
       );
     }
     if (_error != null) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.errorContainer,
-          borderRadius: BorderRadius.circular(BulkaRadii.control),
-        ),
-        child: Row(
-          children: [
-            Expanded(child: Text('bonus_expiry_load_error'.tr)),
-            IconButton(
-              tooltip: 'retry_btn'.tr,
-              onPressed: _load,
-              icon: const Icon(Icons.refresh_rounded),
-              style: IconButton.styleFrom(minimumSize: const Size(48, 48)),
-            ),
-          ],
-        ),
-      );
+      return const SizedBox.shrink();
     }
     final summary = _summary;
     final nextExpiry = summary?.nextExpiryAt;
@@ -257,6 +238,7 @@ class _BonusExpiryNoticeState extends State<_BonusExpiryNotice> {
       label: message,
       child: Container(
         width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 16),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: const Color(0xFFFFF4D3),
