@@ -11,8 +11,7 @@ const {
 
 const fixedNow = new Date('2026-07-27T12:00:00.000Z');
 
-test('current diagnostics exclude retired payments before limiting recent errors', async (t) => {
-  const { supabase } = require('../src/config/supabase');
+test('current diagnostics exclude retired payments before limiting recent errors', async () => {
   const rows = [
     ...Array.from({ length: 9 }, (_, index) => ({
       id: `legacy-${index}`,
@@ -40,8 +39,9 @@ test('current diagnostics exclude retired payments before limiting recent errors
       return { data: selected.slice(0, count), error: null };
     },
   };
-  t.mock.method(supabase, 'from', () => query);
-  const errors = await new PaymentOperationsService().listPaymentErrors();
+  const errors = await new PaymentOperationsService().listPaymentErrors({
+    client: { from: () => query },
+  });
   assert.deepEqual(
     errors.map((error) => error.id),
     ['active'],

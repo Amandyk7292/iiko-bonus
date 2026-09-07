@@ -80,8 +80,8 @@ const paymentProviderLabel = (order) => {
   return 'Исторический способ оплаты';
 };
 
-const defaultListPaymentErrors = async () => {
-  const { data, error } = await supabase
+const defaultListPaymentErrors = async ({ client = supabase } = {}) => {
+  const { data, error } = await client
     .from('kaspi_orders')
     .select('id,order_number,payment_method,provider_payment_system,status,last_error,updated_at')
     .eq('payment_method', 'forte_card')
