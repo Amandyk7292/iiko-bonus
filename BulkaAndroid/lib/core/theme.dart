@@ -2,6 +2,17 @@ part of '../main.dart';
 
 const _bulkaYellow = Color(0xFFFFB814);
 const _bulkaBrown = Color(0xFF532814);
+const _bulkaWarmGradient = LinearGradient(
+  begin: Alignment.topLeft,
+  end: Alignment.bottomRight,
+  colors: [Color(0xFFFFE389), Color(0xFFFFD65C), Color(0xFFFFC32B)],
+  stops: [0, 0.5, 1],
+);
+const _bulkaSoftHighlight = RadialGradient(
+  center: Alignment(0.7, -0.8),
+  radius: 1.2,
+  colors: [Color(0x38FFFFFF), Color(0x00FFFFFF)],
+);
 const _milkyBackground = Color(0xFFFFFFFF);
 const _lightCard = Color(0xFFFFFFFF);
 const _lightCardHighlight = Color(0xFFFFE8C2);

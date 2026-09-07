@@ -7,6 +7,8 @@ class GradientButton extends StatelessWidget {
   final EdgeInsetsGeometry? padding;
   final double height;
   final double borderRadius;
+  final Gradient? gradient;
+  final Color foregroundColor;
 
   const GradientButton({
     super.key,
@@ -16,6 +18,8 @@ class GradientButton extends StatelessWidget {
     this.padding,
     this.height = 58,
     this.borderRadius = BulkaRadii.card,
+    this.gradient,
+    this.foregroundColor = Colors.white,
   });
 
   @override
@@ -42,17 +46,20 @@ class GradientButton extends StatelessWidget {
                   ? Colors.transparent
                   : Colors.white.withValues(alpha: 0.42),
             ),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: disabled
-                  ? [const Color(0xFFE0E0E0), const Color(0xFFBDBDBD)]
-                  : [
-                      const Color(0xFFFFD54F),
-                      const Color(0xFFFFB300),
-                      const Color(0xFFFFA000),
-                    ],
-            ),
+            gradient: disabled
+                ? const LinearGradient(
+                    colors: [Color(0xFFE0E0E0), Color(0xFFBDBDBD)],
+                  )
+                : gradient ??
+                      const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Color(0xFFFFD54F),
+                          Color(0xFFFFB300),
+                          Color(0xFFFFA000),
+                        ],
+                      ),
             boxShadow: disabled ? null : BulkaShadows.primaryAction,
           ),
           child: FilledButton(
@@ -60,7 +67,7 @@ class GradientButton extends StatelessWidget {
             style: FilledButton.styleFrom(
               backgroundColor: Colors.transparent,
               shadowColor: Colors.transparent,
-              foregroundColor: Colors.white,
+              foregroundColor: foregroundColor,
               padding: padding,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(borderRadius),
@@ -71,20 +78,20 @@ class GradientButton extends StatelessWidget {
               offset: Offset.zero,
               scale: 0.88,
               child: loading
-                  ? const SizedBox(
+                  ? SizedBox(
                       key: ValueKey('gradient-button-loading'),
                       height: 24,
                       width: 24,
                       child: CircularProgressIndicator(
                         strokeWidth: 2.5,
-                        color: Colors.white,
+                        color: foregroundColor,
                       ),
                     )
                   : KeyedSubtree(
                       key: const ValueKey('gradient-button-content'),
                       child: DefaultTextStyle(
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: foregroundColor,
                           fontSize: BulkaTypeScale.titleSmall,
                           fontWeight: FontWeight.w500,
                         ),

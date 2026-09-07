@@ -705,33 +705,16 @@ class _OrderTypeCard extends StatelessWidget {
               key: ValueKey('order-card-background-${illustration.name}'),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(BulkaRadii.control),
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFFFFE082),
-                    Color(0xFFFFD54F),
-                    Color(0xFFFFB300),
-                  ],
-                  stops: [0, 0.52, 1],
-                ),
+                gradient: _bulkaWarmGradient,
               ),
               child: Stack(
                 clipBehavior: Clip.hardEdge,
                 children: [
-                  const Positioned(
-                    right: -34,
-                    top: -28,
+                  const Positioned.fill(
                     child: IgnorePointer(
-                      child: SizedBox.square(
-                        dimension: 118,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: Color(0x33FFFFFF),
-                            borderRadius: BorderRadius.all(
-                              Radius.circular(BulkaRadii.sheet),
-                            ),
-                          ),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: _bulkaSoftHighlight,
                         ),
                       ),
                     ),
