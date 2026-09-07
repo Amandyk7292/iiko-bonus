@@ -39,15 +39,14 @@ if (adminDirectory) {
   assertBudget(
     'Admin total JavaScript gzip',
     javascriptGzip.reduce((sum, size) => sum + size, 0),
-    // Cashier access, staff push, and the Yandex Business fixed-price,
-    // reconciliation, and custody-resolution controls account for the latest
-    // measured growth (340,190 B). Keep about 2% cross-platform build margin
-    // so regressions stay visible.
-    347_000,
+    // iiko reporting adds a lazy dashboard, OLAP/stock tables and RU/KK/EN copy.
+    // The full admin route inventory measures 372,189 B at f031c12; the largest
+    // individual JS chunk limit below is unchanged. Keep about 2% build margin.
+    380_000,
   );
   assertBudget('Admin largest JavaScript gzip', Math.max(0, ...javascriptGzip), 82_000);
-  // Focus rings, 48px staff controls, and contrast-safe states are intentional.
-  assertBudget('Admin largest CSS gzip', Math.max(0, ...styleGzip), 31_000);
+  // Shared workspace styling measures 32,045 B at f031c12 (about 2% margin).
+  assertBudget('Admin largest CSS gzip', Math.max(0, ...styleGzip), 32_800);
 }
 
 const flutterDirectory = option('--flutter');
