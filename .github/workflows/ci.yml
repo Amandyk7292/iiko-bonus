@@ -1,9 +1,8 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
-  pull_request:
+  # Disabled in GitHub at the owner's request. No push/PR automation.
+  workflow_dispatch:
 
 permissions:
   contents: read

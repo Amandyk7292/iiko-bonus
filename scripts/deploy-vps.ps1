@@ -1,4 +1,5 @@
 param(
+    [switch]$UseCiArtifact,
     [switch]$SkipBuild,
     [switch]$ApplyMigrations,
     [switch]$SkipMigrations,
@@ -16,6 +17,9 @@ if ($EmergencyBypassProvenanceGate -and [string]::IsNullOrWhiteSpace($EmergencyB
 }
 if (-not $EmergencyBypassProvenanceGate -and -not [string]::IsNullOrWhiteSpace($EmergencyBypassReason)) {
     throw '-EmergencyBypassReason can only be used with -EmergencyBypassProvenanceGate.'
+}
+if ($SkipBuild -and -not $UseCiArtifact -and -not $EmergencyBypassProvenanceGate) {
+    throw 'Local releases always rebuild from the current commit; -SkipBuild is not supported.'
 }
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
@@ -241,6 +245,24 @@ The origin/main and GitHub Actions success checks were not performed. The clean-
         operator = [Environment]::UserName
         recordedAt = [DateTime]::UtcNow.ToString('o')
     }
+} elseif (-not $UseCiArtifact) {
+    if ($gitBranch -ne 'main') { throw 'Local releases require branch main.' }
+    git -C $projectRoot fetch origin main
+    if ($LASTEXITCODE -ne 0) { throw 'Could not refresh origin/main.' }
+    $remoteCommit = (git -C $projectRoot rev-parse origin/main).Trim()
+    if ($LASTEXITCODE -ne 0 -or $remoteCommit -ne $commitSha) {
+        throw 'Push this exact main commit before deploying.'
+    }
+    $provenance = [ordered]@{
+        verified = $false
+        status = 'local-build'
+        sourceVerified = $true
+        commitSha = $commitSha
+        branch = $gitBranch
+        operator = [Environment]::UserName
+        recordedAt = [DateTime]::UtcNow.ToString('o')
+    }
+    Write-Host "Local release from origin/main: $shortCommit. GitHub CI is not required." -ForegroundColor Cyan
 } else {
     if ((Test-Path -LiteralPath $ciArtifactArchive) -or
         (Test-Path -LiteralPath $ciArtifactExtract)) {
@@ -273,14 +295,21 @@ The origin/main and GitHub Actions success checks were not performed. The clean-
     }
 }
 
-if ($EmergencyBypassProvenanceGate -and -not $SkipBuild) {
+if (($EmergencyBypassProvenanceGate -or -not $UseCiArtifact) -and -not $SkipBuild) {
+    Push-Location $projectRoot
+    try {
+        npm ci --no-audit --no-fund
+        if ($LASTEXITCODE -ne 0) { throw 'Server dependency installation failed.' }
+        npm ci --prefix admin-ui --no-audit --no-fund
+        if ($LASTEXITCODE -ne 0) { throw 'Admin dependency installation failed.' }
+    } finally {
+        Pop-Location
+    }
     & (Join-Path $projectRoot 'build_web.ps1')
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
     Push-Location (Join-Path $projectRoot 'admin-ui')
     try {
-        npm run lint
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         npm run build
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     } finally {
@@ -466,9 +495,11 @@ Write-Host 'Deployment completed: https://bulka.com.kz' -ForegroundColor Green
 Write-Host "Flutter bundle verified: $expectedFlutterHash" -ForegroundColor Green
 if ($EmergencyBypassProvenanceGate) {
     Write-Warning "Deployment used the emergency provenance bypass: $EmergencyBypassReason"
-} else {
+} elseif ($UseCiArtifact) {
     Write-Host "GitHub CI artifact verified: run $($provenance.workflowRunId), artifact $($provenance.artifactId)." `
         -ForegroundColor Green
+} else {
+    Write-Host "Local build published from verified origin/main commit $shortCommit." -ForegroundColor Green
 }
 Write-Host 'Staging is running privately on the VPS at 127.0.0.1:3101.' -ForegroundColor Green
 Write-Host 'The three latest healthy versions are available through scripts/rollback-vps.sh.' `

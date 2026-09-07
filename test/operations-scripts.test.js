@@ -328,7 +328,7 @@ test(
   },
 );
 
-test('deployment requires an attested immutable GitHub CI web artifact', () => {
+test('optional CI artifact releases retain immutable artifact verification', () => {
   const packageRelease = read('scripts/deploy-vps.ps1');
   const provenance = read('scripts/check-release-provenance.js');
   const workflow = read('.github/workflows/ci.yml');
