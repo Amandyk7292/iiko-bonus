@@ -86,6 +86,9 @@ describe('Orders workspace permissions and refund flow', () => {
     expect(within(pickup).getByText('Самовывоз')).toBeInTheDocument();
     expect(within(preorder).getByText('Предзаказ')).toBeInTheDocument();
     expect(within(preorder).getByText('Доставка')).toBeInTheDocument();
+    expect(within(pickup).getByText('Самовывоз')).toHaveClass('fulfillment-pickup');
+    expect(within(preorder).getByText('Предзаказ')).toHaveClass('fulfillment-preorder');
+    expect(within(preorder).getByText('Доставка')).toHaveClass('fulfillment-delivery');
     expect(within(preorder).getByRole('button', { name: 'Яндекс Go' })).toBeInTheDocument();
     await user.click(within(pickup).getByRole('combobox', { name: 'Изменить статус' }));
     expect(screen.getByRole('option', { name: 'Принят' })).toHaveAttribute('aria-disabled', 'true');

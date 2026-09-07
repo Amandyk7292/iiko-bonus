@@ -411,6 +411,9 @@ async function listAdminOrders({
       { count: 'exact' },
     );
 
+  // Expired unpaid attempts are not actionable orders. Apply before range and
+  // count so pagination stays accurate; explicit historical API queries remain available.
+  if (paymentStatus !== 'expired') query = query.neq('status', 'expired');
   if (paymentStatus === 'issues') {
     query = query.or(PAYMENT_ISSUES_FILTER);
   } else if (

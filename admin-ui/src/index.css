@@ -1001,6 +1001,18 @@
     background: #f3f4f6;
     color: #6b7280;
   }
+  .fulfillment-delivery {
+    background: #e0efff;
+    color: #174d94;
+  }
+  .fulfillment-pickup {
+    background: #dcf5e7;
+    color: #17663d;
+  }
+  .fulfillment-preorder {
+    background: #f0e4ff;
+    color: #7136a3;
+  }
   .status-info {
     background: #eff6ff;
     color: #1d4ed8;

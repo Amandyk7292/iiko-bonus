@@ -53,7 +53,9 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
   const loadGeneration = useRef(0);
   const foregroundLoadPending = useRef(false);
   const [search, setSearch] = useState(params.get('search') || '');
-  const [paymentStatus, setPaymentStatus] = useState(params.get('payment') || '');
+  const [paymentStatus, setPaymentStatus] = useState(
+    params.get('payment') === 'expired' ? '' : params.get('payment') || '',
+  );
   const [orderStatus, setOrderStatus] = useState(params.get('status') || '');
   const [page, setPage] = useState(Math.max(1, Number(params.get('page')) || 1));
   const [total, setTotal] = useState(0);
@@ -289,7 +291,7 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
             options={[
               { value: '', label: t('orders.all') },
               { value: 'issues', label: t('payment.issues') },
-              ...['pending', 'paid', 'refunded', 'failed', 'expired'].map((value) => ({
+              ...['pending', 'paid', 'refunded', 'failed'].map((value) => ({
                 value,
                 label: t(`payment.${value}`),
               })),
@@ -355,11 +357,13 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
                     <td data-label={t('orders.details')}>
                       <div className="flex flex-wrap items-center gap-2 mb-2">
                         {isPreorder(order) && (
-                          <span className="status-pill status-warning">
+                          <span className="status-pill fulfillment-preorder">
                             {t('locations.preorder')}
                           </span>
                         )}
-                        <span className="status-pill status-info">
+                        <span
+                          className={`status-pill fulfillment-${fulfillmentType(order) === 'delivery' ? 'delivery' : 'pickup'}`}
+                        >
                           {t(
                             fulfillmentType(order) === 'delivery'
                               ? 'locations.delivery'
@@ -390,7 +394,7 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
                       )}
                       {fulfillmentType(order) === 'delivery' && (
                         <div className="delivery-admin-control">
-                          {order.courier ? (
+                          {order.courier && (
                             <small>
                               {order.courier.name} ·{' '}
                               {order.courier.isAutomobile === true ||
@@ -403,8 +407,6 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
                               {order.courier.vehicle ? ` · ${order.courier.vehicle}` : ''} ·{' '}
                               {order.courier.phone}
                             </small>
-                          ) : (
-                            <small>{t('orders.courierNotAssigned')}</small>
                           )}
                           <small>
                             {t(`deliveryStatus.${order.deliveryStatus || 'unassigned'}`)}

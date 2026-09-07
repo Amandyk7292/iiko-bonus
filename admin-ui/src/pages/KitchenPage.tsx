@@ -527,7 +527,7 @@ export default function KitchenPage() {
                           </span>
                         </div>
                         <div
-                          className={`status-pill mt-2 gap-2 ${delivery ? 'status-warning' : 'status-active'}`}
+                          className={`status-pill mt-2 gap-2 ${delivery ? 'fulfillment-delivery' : 'fulfillment-pickup'}`}
                         >
                           {delivery ? (
                             <ShoppingBag aria-hidden="true" size={17} />
