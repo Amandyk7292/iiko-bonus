@@ -270,7 +270,6 @@ class _PromoGridCard extends StatelessWidget {
     final story = group.stories.first;
     final summary = story.localizedDescription?.trim() ?? '';
     final period = _promoPeriodLabel(context, story);
-    final published = _promoPublishedLabel(context, story);
     final colors = context.bulkaColors;
     return Semantics(
       button: true,
@@ -329,9 +328,7 @@ class _PromoGridCard extends StatelessWidget {
                           ),
                         ),
                       ],
-                      if (story.remaining != null ||
-                          period != null ||
-                          published != null) ...[
+                      if (story.remaining != null || period != null) ...[
                         const SizedBox(height: 14),
                         Wrap(
                           spacing: 8,
@@ -349,17 +346,12 @@ class _PromoGridCard extends StatelessWidget {
                                 icon: Icons.calendar_today_outlined,
                                 label: period,
                               ),
-                            if (published != null)
-                              _PromoMetadataChip(
-                                icon: Icons.schedule_outlined,
-                                label: published,
-                              ),
                           ],
                         ),
                       ],
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 14),
                       Align(
-                        alignment: Alignment.centerRight,
+                        alignment: Alignment.centerLeft,
                         child: TextButton(
                           onPressed: onTap,
                           style: TextButton.styleFrom(
@@ -519,7 +511,6 @@ class _PromoDetailsSheet extends StatelessWidget {
         ? story.localizedLongDescription!.trim()
         : 'promos_details_fallback'.tr;
     final period = _promoPeriodLabel(context, story);
-    final published = _promoPublishedLabel(context, story);
     final qrValue = story.qrValue?.trim() ?? '';
     final maximumHeight = MediaQuery.sizeOf(context).height * 0.92;
 
@@ -607,9 +598,7 @@ class _PromoDetailsSheet extends StatelessWidget {
                               height: 1.55,
                             ),
                           ),
-                          if (story.remaining != null ||
-                              period != null ||
-                              published != null) ...[
+                          if (story.remaining != null || period != null) ...[
                             const SizedBox(height: 22),
                             Wrap(
                               spacing: 8,
@@ -626,11 +615,6 @@ class _PromoDetailsSheet extends StatelessWidget {
                                   _PromoMetadataChip(
                                     icon: Icons.calendar_today_outlined,
                                     label: period,
-                                  ),
-                                if (published != null)
-                                  _PromoMetadataChip(
-                                    icon: Icons.schedule_outlined,
-                                    label: published,
                                   ),
                               ],
                             ),
@@ -884,12 +868,6 @@ String? _promoPeriodLabel(BuildContext context, PromoStory story) {
     return 'promos_until_date'.trArgs({'date': formatUiDate(context, endsAt)});
   }
   return null;
-}
-
-String? _promoPublishedLabel(BuildContext context, PromoStory story) {
-  final createdAt = DateTime.tryParse(story.createdAt ?? '')?.toLocal();
-  if (createdAt == null) return null;
-  return 'promos_published'.trArgs({'date': formatUiDate(context, createdAt)});
 }
 
 class _PromosState extends StatelessWidget {
