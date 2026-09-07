@@ -2194,6 +2194,68 @@ void main() {
     expect(preorderClip.clipBehavior, Clip.antiAlias);
   });
 
+  testWidgets(
+    'balance history groups local dates and preserves transaction direction',
+    (tester) async {
+      const records = [
+        BonusTransaction(
+          id: 'old',
+          customerId: 'c',
+          type: 'deposit',
+          amount: 25,
+          timestamp: '2026-09-01T12:00:00',
+          orderId: '23960000',
+        ),
+        BonusTransaction(
+          id: 'spent',
+          customerId: 'c',
+          type: 'withdrawal',
+          amount: 7,
+          timestamp: '2026-09-02T12:00:00',
+        ),
+        BonusTransaction(
+          id: 'new',
+          customerId: 'c',
+          type: 'deposit',
+          amount: 10,
+          timestamp: '2026-09-02T13:06:00',
+          orderId: '23962450',
+          items: [
+            {'name': 'Плюшка', 'quantity': 1, 'price': 35},
+          ],
+        ),
+      ];
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildBulkaTheme(),
+          home: BalanceHistoryScreen(transactions: records),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('balance-day-2026-9-2')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('balance-day-2026-9-1')),
+        findsOneWidget,
+      );
+      expect(find.text('+10 бонусов'), findsOneWidget);
+      expect(find.text('−7 бонусов'), findsOneWidget);
+      expect(find.text('13:06'), findsOneWidget);
+      expect(find.text('Вам начислено за покупку №23962450'), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text('+10 бонусов')).dy,
+        lessThan(tester.getTopLeft(find.text('−7 бонусов')).dy),
+      );
+      expect(records.first.id, 'old');
+      await tester.tap(find.text('+10 бонусов'));
+      await tester.pumpAndSettle();
+      expect(find.text('Плюшка x1'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('profile back returns to populated home', (tester) async {
     SharedPreferences.setMockInitialValues({});
     await tester.pumpWidget(
@@ -2283,13 +2345,22 @@ void main() {
     await tester.tap(historyButton);
     await tester.pumpAndSettle();
     expect(find.byType(BalanceHistoryScreen), findsOneWidget);
-    await tester.pageBack();
+    await tester.tap(find.byTooltip('Назад'));
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const ValueKey('nav-4')));
     await tester.pumpAndSettle();
     expect(find.text('Профиль'), findsWidgets);
     expect(find.byType(ProfileScreen).hitTestable(), findsOneWidget);
+    for (final removed in ['История баланса', 'Личные данные', 'Мои адреса']) {
+      expect(
+        find.descendant(
+          of: find.byType(ProfileScreen),
+          matching: find.text(removed),
+        ),
+        findsNothing,
+      );
+    }
     expect(
       tester
           .widget<Offstage>(find.byKey(const ValueKey('tab-slot-4')))
@@ -2376,6 +2447,54 @@ void main() {
     );
   });
 
+  testWidgets(
+    'home delivery lists eligible branches and preserves selected branch',
+    (tester) async {
+      String? openedType;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildBulkaTheme(),
+          home: ChangeNotifierProvider(
+            create: (_) => CartProvider(),
+            child: HomeScreen(
+              api: _DeliveryListApiClient(),
+              customer: _testCustomer,
+              transactions: _testTransactions,
+              onHistoryTap: () {},
+              onProfileTap: () {},
+              onRequireAuth: () async => true,
+              onOpenCatalog: (type) async {
+                openedType = type;
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('order-card-delivery')),
+      );
+      await tester.tap(find.byKey(const ValueKey('order-card-delivery')));
+      await tester.pumpAndSettle();
+      expect(find.text('Филиалы с доставкой'), findsOneWidget);
+      expect(find.byType(AddressSelectionScreen), findsNothing);
+      expect(find.byType(SnackBar), findsNothing);
+      expect(find.text('Bulka'), findsOneWidget);
+      expect(find.text('Только самовывоз'), findsNothing);
+      expect(find.text('Закрытый филиал'), findsNothing);
+      expect(find.text('Без зоны доставки'), findsNothing);
+      await tester.tap(find.text('Bulka'));
+      await tester.pumpAndSettle();
+      expect(openedType, 'delivery');
+      final prefs = await SharedPreferences.getInstance();
+      expect(
+        prefs.getString('selected_bakery_location_id_delivery'),
+        'astana-1',
+      );
+      expect(prefs.getString('selected_order_type'), 'delivery');
+    },
+  );
+
   testWidgets('delivery address flow saves selected address', (tester) async {
     SharedPreferences.setMockInitialValues({});
     tester.view.physicalSize = const Size(430, 932);
@@ -2386,21 +2505,9 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: buildBulkaTheme(),
-        home: ChangeNotifierProvider(
-          create: (_) => CartProvider(),
-          child: MainShell(
-            api: _FakeBulkaApiClient(),
-            customer: _testCustomer,
-            transactions: _testTransactions,
-            onLogout: () async {},
-            onRefreshProfile: () async {},
-          ),
-        ),
+        home: AddressSelectionScreen(api: _FakeBulkaApiClient()),
       ),
     );
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Доставка'));
     await tester.pumpAndSettle();
     expect(find.text('Выберите адрес'), findsOneWidget);
     expect(find.text('Адреса пока не добавлены'), findsOneWidget);
@@ -2550,6 +2657,42 @@ void main() {
     expect(paintedCenter, closeTo(tester.view.physicalSize.width / 2, 1));
     expect(tester.takeException(), isNull);
   });
+}
+
+class _DeliveryListApiClient extends _FakeBulkaApiClient {
+  @override
+  Future<List<BakeryLocation>> getFulfillmentLocations() async {
+    final active = (await super.getFulfillmentLocations()).single;
+    return [
+      active,
+      const BakeryLocation(
+        id: 'pickup-only',
+        name: 'Только самовывоз',
+        address: 'Адрес 2',
+        city: 'Астана',
+      ),
+      BakeryLocation(
+        id: 'closed',
+        name: 'Закрытый филиал',
+        address: 'Адрес 3',
+        city: 'Астана',
+        active: false,
+        deliveryEnabled: true,
+        latitude: active.latitude,
+        longitude: active.longitude,
+        deliveryZones: active.deliveryZones,
+      ),
+      const BakeryLocation(
+        id: 'no-zone',
+        name: 'Без зоны доставки',
+        address: 'Адрес 4',
+        city: 'Астана',
+        deliveryEnabled: true,
+        latitude: 51.1282,
+        longitude: 71.4304,
+      ),
+    ];
+  }
 }
 
 class _FakeBulkaApiClient extends BulkaApiClient {

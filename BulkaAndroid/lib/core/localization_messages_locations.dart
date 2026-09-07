@@ -2,6 +2,16 @@ part of '../main.dart';
 
 const Map<String, Map<String, String>> _locationTranslations = {
   // Addresses and locations
+  'delivery_locations_title': {
+    'ru': 'Филиалы с доставкой',
+    'kk': 'Жеткізетін филиалдар',
+    'en': 'Delivery branches',
+  },
+  'delivery_locations_empty': {
+    'ru': 'Сейчас нет филиалов с доставкой',
+    'kk': 'Қазір жеткізетін филиалдар жоқ',
+    'en': 'No delivery branches available now',
+  },
   'locations_title': {'ru': 'Локации', 'kk': 'Орындар', 'en': 'Locations'},
   'locations_tooltip': {
     'ru': 'Открыть локации',

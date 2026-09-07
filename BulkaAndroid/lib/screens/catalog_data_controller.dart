@@ -456,17 +456,29 @@ extension _CatalogDataController on _CatalogScreenState {
     if (requestedOrderType == 'delivery') {
       DeliveryAddress? address;
       BakeryLocation? branch;
+      final preferredId =
+          prefs.getString('selected_bakery_location_id_delivery') ?? '';
       try {
         address = await AddressRepository(api: _api).loadSelectedAddress();
       } catch (_) {
         address = null;
       }
-      if (address != null) {
-        try {
+      try {
+        if (preferredId.isNotEmpty) {
+          final locations = await _api.getFulfillmentLocations();
+          for (final location in locations) {
+            if (location.id == preferredId &&
+                location.active &&
+                location.deliveryEnabled) {
+              branch = location;
+              break;
+            }
+          }
+        } else if (address != null) {
           branch = await _resolveDeliveryBranch(address);
-        } catch (_) {
-          branch = null;
         }
+      } catch (_) {
+        branch = null;
       }
       if (!mounted || requestedOrderType != _orderType) return;
       _updateCatalogState(() {

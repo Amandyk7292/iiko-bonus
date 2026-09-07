@@ -29,6 +29,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
   bool _loadFailed = false;
 
   Map<String, List<BakeryLocation>> _cityLocations = {};
+  bool get _deliveryList => widget.orderType == 'delivery';
 
   @override
   void initState() {
@@ -62,7 +63,13 @@ class _LocationsScreenState extends State<LocationsScreen> {
       final locations = await api.getFulfillmentLocations();
       final locs = <String, List<BakeryLocation>>{};
       for (final location in locations) {
-        if (!location.supports(widget.orderType)) continue;
+        if (!location.active || !location.supports(widget.orderType)) continue;
+        if (_deliveryList &&
+            (location.latitude == null ||
+                location.longitude == null ||
+                location.deliveryZones.isEmpty)) {
+          continue;
+        }
         final city = location.city.trim().isEmpty
             ? 'locations_other_city'.tr
             : location.city.trim();
@@ -72,7 +79,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
       setState(() {
         _cityLocations = locs;
         _selectedCity = _cityLocations.containsKey(savedCity) ? savedCity : '';
-        _showCities = _selectedCity.isEmpty;
+        _showCities = !_deliveryList && _selectedCity.isEmpty;
         _loading = false;
       });
     } catch (e) {
@@ -152,7 +159,9 @@ class _LocationsScreenState extends State<LocationsScreen> {
   Widget build(BuildContext context) {
     final colors = context.bulkaColors;
     final scheme = Theme.of(context).colorScheme;
-    final locations = _cityLocations[_selectedCity] ?? [];
+    final locations = _deliveryList
+        ? _cityLocations.values.expand((locations) => locations).toList()
+        : _cityLocations[_selectedCity] ?? [];
     final filteredLocations = locations
         .where(
           (loc) => loc.displayLabel.toLowerCase().contains(
@@ -162,9 +171,9 @@ class _LocationsScreenState extends State<LocationsScreen> {
         .toList();
 
     return PopScope(
-      canPop: _showCities,
+      canPop: _deliveryList || _showCities,
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop && !_showCities) {
+        if (!didPop && !_deliveryList && !_showCities) {
           setState(() {
             _showCities = true;
             _searchQuery = '';
@@ -180,7 +189,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
           centerTitle: true,
           leading: IconButton(
             onPressed: () {
-              if (!_showCities) {
+              if (!_deliveryList && !_showCities) {
                 setState(() {
                   _showCities = true;
                   _searchQuery = '';
@@ -194,7 +203,10 @@ class _LocationsScreenState extends State<LocationsScreen> {
             color: colors.mutedText,
             tooltip: 'back_tooltip'.tr,
           ),
-          title: _BulkaPageTitle('locations_title'.tr, color: scheme.onSurface),
+          title: _BulkaPageTitle(
+            (_deliveryList ? 'delivery_locations_title' : 'locations_title').tr,
+            color: scheme.onSurface,
+          ),
           actions: const [SizedBox(width: BulkaLayout.appBarSideSlot)],
           elevation: 0,
         ),
@@ -263,21 +275,22 @@ class _LocationsScreenState extends State<LocationsScreen> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              TextButton.icon(
-                onPressed: () => setState(() => _showCities = true),
-                icon: Icon(
-                  Icons.chevron_left_rounded,
-                  color: colors.brandBrown,
-                  size: 20,
-                ),
-                label: Text(
-                  'all_locations'.tr,
-                  style: TextStyle(
-                    fontSize: BulkaTypeScale.body,
-                    color: scheme.onSurface,
+              if (!_deliveryList)
+                TextButton.icon(
+                  onPressed: () => setState(() => _showCities = true),
+                  icon: Icon(
+                    Icons.chevron_left_rounded,
+                    color: colors.brandBrown,
+                    size: 20,
+                  ),
+                  label: Text(
+                    'all_locations'.tr,
+                    style: TextStyle(
+                      fontSize: BulkaTypeScale.body,
+                      color: scheme.onSurface,
+                    ),
                   ),
                 ),
-              ),
               IconButton(
                 onPressed: _loadLocations,
                 tooltip: 'refresh_btn'.tr,
@@ -317,7 +330,10 @@ class _LocationsScreenState extends State<LocationsScreen> {
               ? _LocationsState(
                   icon: Icons.search_off_rounded,
                   title: _searchQuery.isEmpty
-                      ? 'locations_empty'.tr
+                      ? (_deliveryList
+                                ? 'delivery_locations_empty'
+                                : 'locations_empty')
+                            .tr
                       : 'locations_search_empty'.tr,
                   actionLabel: _searchQuery.isEmpty
                       ? 'retry_btn'.tr

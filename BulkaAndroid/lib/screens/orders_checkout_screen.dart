@@ -27,6 +27,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   _OrderType _preorderFulfillment = _OrderType.pickup;
   String _branch = '';
   String? _branchId;
+  String? _explicitDeliveryBranchId;
   DeliveryAddress? _deliveryAddress;
   _PickupSlot? _scheduledSlot;
   List<BakeryLocation> _locations = const [];
@@ -284,6 +285,12 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
               address,
             ).compareTo(_distanceToAddressKm(right, address)),
           );
+    if (!_isPreorder && (_explicitDeliveryBranchId?.isNotEmpty ?? false)) {
+      for (final location in candidates) {
+        if (location.id == _explicitDeliveryBranchId) return location;
+      }
+      return null;
+    }
     return candidates.isEmpty ? null : candidates.first;
   }
 

@@ -7,6 +7,21 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'kk': 'Баланс тарихы',
     'en': 'Balance history',
   },
+  'balance_history_empty': {
+    'ru': 'Пока нет операций',
+    'kk': 'Әзірге операциялар жоқ',
+    'en': 'No transactions yet',
+  },
+  'balance_purchase_credit': {
+    'ru': 'Вам начислено за покупку',
+    'kk': 'Сатып алу үшін бонус есептелді',
+    'en': 'Bonuses credited for your purchase',
+  },
+  'balance_purchase_credit_number': {
+    'ru': 'Вам начислено за покупку №{number}',
+    'kk': '№{number} сатып алу үшін бонус есептелді',
+    'en': 'Bonuses credited for purchase #{number}',
+  },
   'cart_empty_title': {'ru': 'Ой!', 'kk': 'Ой!', 'en': 'Oops!'},
   'cart_empty_sub': {
     'ru': 'Ничего не найдено!',

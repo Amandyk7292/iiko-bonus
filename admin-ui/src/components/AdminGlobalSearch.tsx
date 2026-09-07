@@ -338,7 +338,6 @@ export default function AdminGlobalSearch() {
       >
         <Search aria-hidden="true" size={18} />
         <span>{t('globalSearch.trigger')}</span>
-        <kbd>{t('globalSearch.shortcut')}</kbd>
       </button>
 
       <Modal open={modalOpen} onClose={closeAll} title={title} description={description} size="lg">

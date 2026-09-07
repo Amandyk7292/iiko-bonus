@@ -62,51 +62,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _updateHomeState(VoidCallback update) => setState(update);
 
-  Future<void> _openDeliveryAddresses() async {
-    await _navigationGate.run(() async {
-      if (widget.customer == null && !await widget.onRequireAuth()) return;
-      try {
-        final locations = await widget.api.getFulfillmentLocations();
-        final deliveryAvailable = locations.any(
-          (location) => location.active && location.deliveryEnabled,
-        );
-        if (!deliveryAvailable) {
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('checkout_delivery_unavailable'.tr)),
-          );
-          return;
-        }
-      } catch (error) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
-        return;
-      }
-      if (!mounted) return;
-      final address = await Navigator.of(context).push<DeliveryAddress>(
-        MaterialPageRoute(
-          builder: (_) => AddressSelectionScreen(api: widget.api),
-        ),
-      );
-      if (!mounted || address == null) return;
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('selected_order_type', 'delivery');
-      await Future.wait([
-        prefs.remove('selected_bakery_location'),
-        prefs.remove('selected_bakery_location_id'),
-      ]);
-      if (!mounted) return;
-      await widget.onOpenCatalog('delivery');
-    });
-  }
-
   Future<void> _openBakeryLocations(String orderType) async {
     await _navigationGate.run(() async {
       final location = await Navigator.of(context).push<String>(
         MaterialPageRoute(
-          builder: (_) => LocationsScreen(orderType: orderType),
+          builder: (_) =>
+              LocationsScreen(orderType: orderType, api: widget.api),
         ),
       );
       if (!mounted || location == null || location.trim().isEmpty) return;
@@ -257,7 +218,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: _OrderTypeSection(
-                          onDeliveryTap: _openDeliveryAddresses,
+                          onDeliveryTap: () => _openBakeryLocations('delivery'),
                           onPickupTap: () => _openBakeryLocations('pickup'),
                           onPreorderTap: () => _openBakeryLocations('preorder'),
                         ),
@@ -707,61 +668,70 @@ class _OrderTypeCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(BulkaRadii.control),
                 gradient: _bulkaWarmGradient,
               ),
-              child: Stack(
-                clipBehavior: Clip.hardEdge,
-                children: [
-                  const Positioned.fill(
-                    child: IgnorePointer(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: _bulkaSoftHighlight,
+              child: DecoratedBox(
+                position: DecorationPosition.foreground,
+                decoration: BoxDecoration(
+                  border: Border.all(color: const Color(0xFF6D3317)),
+                  borderRadius: BorderRadius.circular(BulkaRadii.card),
+                ),
+                child: Stack(
+                  clipBehavior: Clip.hardEdge,
+                  children: [
+                    const Positioned.fill(
+                      child: IgnorePointer(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: _bulkaSoftHighlight,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  Positioned(
-                    // Keep the compact-card artwork anchored to the outer
-                    // right corner, away from the title's reading zone.
-                    right: tall ? -46 : -29,
-                    // Short illustrations have transparent space above the
-                    // artwork. Lower the source canvas so the first visible
-                    // pixels start below the title instead of behind it.
-                    bottom: tall ? -18 : -34,
-                    child: SizedBox(
-                      key: ValueKey('order-illustration-${illustration.name}'),
-                      width: illustrationWidth,
-                      height: tall ? 170 : 88,
-                      child: _DeferredOrderIllustration(
-                        assetPath: illustration.assetPath,
-                        fit: BoxFit.contain,
-                        cacheWidth: cacheWidth,
+                    Positioned(
+                      // Keep the compact-card artwork anchored to the outer
+                      // right corner, away from the title's reading zone.
+                      right: tall ? -46 : -29,
+                      // Short illustrations have transparent space above the
+                      // artwork. Lower the source canvas so the first visible
+                      // pixels start below the title instead of behind it.
+                      bottom: tall ? -18 : -34,
+                      child: SizedBox(
+                        key: ValueKey(
+                          'order-illustration-${illustration.name}',
+                        ),
+                        width: illustrationWidth,
+                        height: tall ? 170 : 88,
+                        child: _DeferredOrderIllustration(
+                          assetPath: illustration.assetPath,
+                          fit: BoxFit.contain,
+                          cacheWidth: cacheWidth,
+                        ),
                       ),
                     ),
-                  ),
-                  Positioned(
-                    left: 12,
-                    top: 12,
-                    right: 10,
-                    child: _OrderCardTitle(title: title, tall: tall),
-                  ),
-                  Positioned(
-                    left: 12,
-                    bottom: 10,
-                    child: Container(
-                      width: 30,
-                      height: 30,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.chevron_right_rounded,
-                        color: Color(0xFF6D3317),
-                        size: 22,
+                    Positioned(
+                      left: 12,
+                      top: 12,
+                      right: 10,
+                      child: _OrderCardTitle(title: title, tall: tall),
+                    ),
+                    Positioned(
+                      left: 12,
+                      bottom: 10,
+                      child: Container(
+                        width: 30,
+                        height: 30,
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.chevron_right_rounded,
+                          color: Color(0xFF6D3317),
+                          size: 22,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -837,10 +807,10 @@ class _OrderCardTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     const style = TextStyle(
       color: Color(0xFF6D3317),
-      fontFamily: _headingFont,
+      fontFamily: _descriptionFont,
       fontSize: BulkaTypeScale.titleSmall,
       height: 1.08,
-      fontWeight: FontWeight.w400,
+      fontWeight: FontWeight.w500,
     );
     final words = title.split(' ');
 

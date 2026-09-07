@@ -65,6 +65,9 @@ extension _CheckoutScreenStatePreferences on _CheckoutScreenState {
       }
       _branch = savedBranch;
       _branchId = prefs.getString('selected_bakery_location_id');
+      _explicitDeliveryBranchId = prefs.getString(
+        'selected_bakery_location_id_delivery',
+      );
       _orderType = savedType;
       _preorderFulfillment = savedPreorderFulfillment;
       _deliveryAddress = address;

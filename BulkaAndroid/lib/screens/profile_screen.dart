@@ -407,49 +407,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       color: Color(0xFFF3F3F3),
                     ),
                     _ProfileMenuItem(
-                      icon: Icons.receipt_long_outlined,
-                      title: 'balance_history_title'.tr,
-                      onTap: () => _openPage(
-                        (_) => BalanceHistoryScreen(
-                          transactions: widget.transactions,
-                          onExplore: () {
-                            Navigator.of(context).pop();
-                            widget.onBack();
-                          },
-                        ),
-                      ),
-                    ),
-                    const Divider(
-                      height: 1,
-                      indent: 60,
-                      endIndent: 20,
-                      color: Color(0xFFF3F3F3),
-                    ),
-                    _ProfileMenuItem(
-                      icon: Icons.person_outline_rounded,
-                      title: 'menu_personal'.tr,
-                      onTap: _openPersonalData,
-                    ),
-                    const Divider(
-                      height: 1,
-                      indent: 60,
-                      endIndent: 20,
-                      color: Color(0xFFF3F3F3),
-                    ),
-                    _ProfileMenuItem(
-                      icon: Icons.location_on_outlined,
-                      title: 'menu_addresses'.tr,
-                      onTap: () => _openPage(
-                        (_) => AddressSelectionScreen(api: widget.api),
-                      ),
-                    ),
-                    const Divider(
-                      height: 1,
-                      indent: 60,
-                      endIndent: 20,
-                      color: Color(0xFFF3F3F3),
-                    ),
-                    _ProfileMenuItem(
                       icon: Icons.credit_card_rounded,
                       title: 'payment_methods_title'.tr,
                       onTap: () => _openPage(

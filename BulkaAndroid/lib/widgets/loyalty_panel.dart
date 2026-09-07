@@ -27,6 +27,10 @@ class _LoyaltyPanel extends StatelessWidget {
       children: [
         Container(
           clipBehavior: Clip.antiAlias,
+          foregroundDecoration: BoxDecoration(
+            border: Border.all(color: const Color(0xFF6D3317)),
+            borderRadius: BorderRadius.circular(BulkaRadii.card),
+          ),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(BulkaRadii.card),
@@ -34,13 +38,6 @@ class _LoyaltyPanel extends StatelessWidget {
           ),
           child: Stack(
             children: [
-              const Positioned.fill(
-                child: IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(gradient: _bulkaSoftHighlight),
-                  ),
-                ),
-              ),
               Column(
                 children: [
                   Row(
@@ -54,10 +51,10 @@ class _LoyaltyPanel extends StatelessWidget {
                               'show_qr_cashier'.tr,
                               style: const TextStyle(
                                 color: Color(0xFF6D3317),
-                                fontFamily: _headingFont,
+                                fontFamily: _descriptionFont,
                                 fontSize: BulkaTypeScale.title,
                                 height: 1.08,
-                                fontWeight: FontWeight.w400,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                             const SizedBox(height: 20),
@@ -79,6 +76,7 @@ class _LoyaltyPanel extends StatelessWidget {
                                   'open_qr_btn'.tr,
                                   style: const TextStyle(
                                     color: Color(0xFF6D3317),
+                                    fontFamily: _descriptionFont,
                                     fontSize: BulkaTypeScale.titleSmall,
                                     fontWeight: FontWeight.w500,
                                   ),
@@ -134,6 +132,7 @@ class _LoyaltyPanel extends StatelessWidget {
                   key: const ValueKey('balance-history-button'),
                   gradient: _bulkaWarmGradient,
                   foregroundColor: _bulkaBrown,
+                  borderColor: _bulkaBrown,
                   onPressed: onHistoryTap,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -147,8 +146,9 @@ class _LoyaltyPanel extends StatelessWidget {
                           overflow: TextOverflow.fade,
                           textAlign: TextAlign.center,
                           style: const TextStyle(
+                            fontFamily: _descriptionFont,
                             fontSize: BulkaTypeScale.title,
-                            fontWeight: FontWeight.w400,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ),

@@ -12,74 +12,105 @@ class BalanceHistoryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final items = List<BonusTransaction>.of(transactions)
+      ..sort(
+        (a, b) => (DateTime.tryParse(b.timestamp)?.millisecondsSinceEpoch ?? 0)
+            .compareTo(
+              DateTime.tryParse(a.timestamp)?.millisecondsSinceEpoch ?? 0,
+            ),
+      );
+    final colors = context.bulkaColors;
     return Scaffold(
+      backgroundColor: colors.surfaceCream,
       appBar: AppBar(
+        backgroundColor: colors.surfaceCream,
+        surfaceTintColor: Colors.transparent,
         toolbarHeight: BulkaLayout.appBarHeight(context),
-        title: _BulkaPageTitle('balance_history_title'.tr),
-        actions: const [SizedBox(width: BulkaLayout.appBarSideSlot)],
+        centerTitle: true,
+        leadingWidth: 64,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 16),
+          child: Center(
+            child: IconButton.outlined(
+              onPressed: () => Navigator.of(context).maybePop(),
+              tooltip: 'back_tooltip'.tr,
+              style: IconButton.styleFrom(
+                minimumSize: const Size(44, 44),
+                foregroundColor: colors.brandBrown,
+                side: BorderSide(color: colors.cardBorder),
+                shape: const CircleBorder(),
+              ),
+              icon: const Icon(Icons.chevron_left_rounded, size: 28),
+            ),
+          ),
+        ),
+        title: Text(
+          'balance_history_title'.tr.toUpperCase(),
+          style: TextStyle(
+            color: colors.brandBrown,
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        actions: const [SizedBox(width: 64)],
       ),
-      body: transactions.isEmpty
+      body: items.isEmpty
           ? Center(
-              child: Container(
-                margin: const EdgeInsets.all(24),
+              child: Padding(
                 padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: _cream,
-                  borderRadius: BorderRadius.circular(BulkaRadii.card),
-                  boxShadow: _softShadow,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.receipt_long_rounded,
-                      color: _caramel,
-                      size: 38,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'orders_empty_title'.tr,
-                      style: const TextStyle(
-                        color: _textDark,
-                        fontFamily: _headingFont,
-                        fontSize: BulkaTypeScale.titleSmall,
-                        fontWeight: FontWeight.w400,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'orders_empty_sub'.tr,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: _textDark.withValues(alpha: 0.58),
-                        fontSize: BulkaTypeScale.bodySmall,
-                      ),
-                    ),
-                    if (onExplore != null) ...[
-                      const SizedBox(height: 18),
-                      SizedBox(
-                        width: double.infinity,
-                        child: GradientButton(
-                          onPressed: onExplore,
-                          child: Text('orders_empty_action'.tr),
-                        ),
-                      ),
-                    ],
-                  ],
+                child: Text(
+                  'balance_history_empty'.tr,
+                  style: TextStyle(color: colors.mutedText, fontSize: 16),
                 ),
               ),
             )
-          : ListView.separated(
+          : ListView.builder(
               padding: EdgeInsets.fromLTRB(
-                16,
+                24,
                 8,
-                16,
-                BulkaLayout.bottomNavContentInset(context),
+                24,
+                MediaQuery.paddingOf(context).bottom + 24,
               ),
-              itemBuilder: (_, index) =>
-                  TransactionCard(transaction: transactions[index]),
-              separatorBuilder: (_, _) => const SizedBox(height: 12),
-              itemCount: transactions.length,
+              itemCount: items.length,
+              itemBuilder: (context, index) {
+                final item = items[index];
+                final date = DateTime.tryParse(item.timestamp)?.toLocal();
+                final previous = index > 0
+                    ? DateTime.tryParse(items[index - 1].timestamp)?.toLocal()
+                    : null;
+                final newDay =
+                    date != null && !DateUtils.isSameDay(date, previous);
+                return Column(
+                  children: [
+                    if (newDay)
+                      Padding(
+                        key: ValueKey(
+                          'balance-day-${date.year}-${date.month}-${date.day}',
+                        ),
+                        padding: EdgeInsets.only(
+                          top: index == 0 ? 18 : 28,
+                          bottom: 22,
+                        ),
+                        child: Text(
+                          MaterialLocalizations.of(
+                            context,
+                          ).formatMediumDate(date).toUpperCase(),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: colors.mutedText,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                      ),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 24),
+                      child: TransactionCard(transaction: item),
+                    ),
+                  ],
+                );
+              },
             ),
     );
   }
@@ -197,98 +228,98 @@ class TransactionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final earning = transaction.isEarning;
-    final color = earning ? _successGreen : _errorRed;
-    final prefix = earning ? '+' : '-';
-    final hasItems = transaction.items != null && transaction.items!.isNotEmpty;
-
-    return Card(
-      color: _cream,
-      elevation: 0,
-      shadowColor: Colors.transparent,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(BulkaRadii.control),
-        side: BorderSide(color: _almond.withValues(alpha: 0.45)),
-      ),
+    final colors = context.bulkaColors;
+    final color = earning ? colors.brandBrown : _errorRed;
+    final hasItems = transaction.items?.isNotEmpty ?? false;
+    final date = DateTime.tryParse(transaction.timestamp)?.toLocal();
+    final type = transaction.type.toLowerCase();
+    final purchase = type == 'deposit' || type == 'earning';
+    final orderId = transaction.orderId?.trim() ?? '';
+    // Only customer-facing numbers belong in the description, never internal UUIDs.
+    final orderNumber = RegExp(r'^#?\d+$').hasMatch(orderId)
+        ? orderId.replaceFirst('#', '')
+        : '';
+    final description = purchase
+        ? (orderNumber.isEmpty
+              ? 'balance_purchase_credit'.tr
+              : 'balance_purchase_credit_number'.trArgs({
+                  'number': orderNumber,
+                }))
+        : localizeTransactionType(transaction.type, isEarning: earning);
+    return Material(
+      color: Colors.transparent,
       child: InkWell(
         onTap: hasItems ? () => _showReceiptDetails(context) : null,
-        borderRadius: BorderRadius.circular(BulkaRadii.control),
+        borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(vertical: 4),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: earning
+                      ? const Color(0xFFFFF1CA)
+                      : _errorRed.withValues(alpha: 0.08),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  earning ? Icons.add_rounded : Icons.remove_rounded,
+                  color: color,
+                  size: 23,
+                ),
+              ),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 34,
-                          height: 34,
-                          decoration: BoxDecoration(
-                            color: color.withValues(alpha: 0.12),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            earning
-                                ? Icons.keyboard_arrow_up_rounded
-                                : Icons.keyboard_arrow_down_rounded,
-                            color: color,
-                            size: 22,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            localizeTransactionType(
-                              transaction.type,
-                              isEarning: transaction.isEarning,
-                            ),
-                            style: const TextStyle(
-                              color: _textDark,
-                              fontFamily: _headingFont,
-                              fontSize: BulkaTypeScale.body,
-                              fontWeight: FontWeight.w400,
-                            ),
-                          ),
-                        ),
-                        Text(
-                          '$prefix${formatMoney(transaction.amount)} ₸',
-                          style: TextStyle(
-                            fontFamily: _headingFont,
-                            color: color,
-                            fontSize: BulkaTypeScale.body,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
+                    Text(
+                      '${earning ? '+' : '−'}${formatMoney(transaction.amount.abs())} ${'cart_points'.tr}',
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 18,
+                        height: 1.2,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
-                    if ((transaction.orderTotal ?? 0) > 0) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      description,
+                      style: TextStyle(
+                        color: colors.brandBrown,
+                        fontSize: 15,
+                        height: 1.35,
+                      ),
+                    ),
+                    if (date != null) ...[
                       const SizedBox(height: 8),
                       Text(
-                        '${'check_sum'.tr}: ${formatMoney(transaction.orderTotal!)} ₸',
+                        MaterialLocalizations.of(context).formatTimeOfDay(
+                          TimeOfDay.fromDateTime(date),
+                          alwaysUse24HourFormat: true,
+                        ),
                         style: TextStyle(
-                          color: _textDark.withValues(alpha: 0.7),
-                          fontSize: BulkaTypeScale.bodySmall,
+                          color: colors.mutedText,
+                          fontSize: 12,
+                          height: 1.3,
                         ),
                       ),
                     ],
-                    const SizedBox(height: 4),
-                    Text(
-                      formatDateTime(transaction.timestamp),
-                      style: TextStyle(
-                        color: _textDark.withValues(alpha: 0.5),
-                        fontSize: BulkaTypeScale.caption,
-                      ),
-                    ),
                   ],
                 ),
               ),
               if (hasItems) ...[
                 const SizedBox(width: 8),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: _textDark.withValues(alpha: 0.3),
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Icon(
+                    Icons.chevron_right_rounded,
+                    size: 20,
+                    color: colors.mutedText,
+                  ),
                 ),
               ],
             ],

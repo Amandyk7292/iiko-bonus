@@ -9,6 +9,7 @@ class GradientButton extends StatelessWidget {
   final double borderRadius;
   final Gradient? gradient;
   final Color foregroundColor;
+  final Color? borderColor;
 
   const GradientButton({
     super.key,
@@ -20,6 +21,7 @@ class GradientButton extends StatelessWidget {
     this.borderRadius = BulkaRadii.card,
     this.gradient,
     this.foregroundColor = Colors.white,
+    this.borderColor,
   });
 
   @override
@@ -44,7 +46,7 @@ class GradientButton extends StatelessWidget {
             border: Border.all(
               color: disabled
                   ? Colors.transparent
-                  : Colors.white.withValues(alpha: 0.42),
+                  : borderColor ?? Colors.white.withValues(alpha: 0.42),
             ),
             gradient: disabled
                 ? const LinearGradient(

@@ -21,6 +21,19 @@ extension _CatalogInteractionController on _CatalogScreenState {
     DeliveryAddress address,
   ) async {
     final locations = await _api.getFulfillmentLocations();
+    final prefs = await SharedPreferences.getInstance();
+    final preferredId =
+        prefs.getString('selected_bakery_location_id_delivery') ?? '';
+    if (preferredId.isNotEmpty) {
+      for (final branch in locations) {
+        if (branch.id == preferredId &&
+            branch.active &&
+            branch.deliveryEnabled) {
+          return branch;
+        }
+      }
+      return null;
+    }
     final candidates = <({BakeryLocation branch, double distance})>[];
     for (final branch in locations) {
       if (!branch.active ||
