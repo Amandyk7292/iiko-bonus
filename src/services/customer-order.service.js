@@ -1,4 +1,5 @@
 const crypto = require('node:crypto');
+const { attachOrderImages } = require('./order-images.service');
 const { supabase } = require('../config/supabase');
 const { sendPushToCustomer } = require('./push.service');
 const orderPaymentState = require('./order-payment-state.service');
@@ -328,7 +329,7 @@ async function listCustomerOrders(customerId, { scope = 'active', page = 1, page
     .range(from, from + safePageSize - 1);
   if (error) throw error;
   return {
-    orders: (data || []).map((order) => normalizeOrder(order, { includeDeliveryPin: true })),
+    orders: await attachOrderImages((data || []).map((order) => normalizeOrder(order, { includeDeliveryPin: true }))),
     total: count || 0,
     page: safePage,
     pageSize: safePageSize,

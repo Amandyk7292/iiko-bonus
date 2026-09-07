@@ -90,6 +90,7 @@ part 'screens/orders_checkout_widgets.dart';
 part 'screens/balance_history_screen.dart';
 part 'screens/customer_orders_screen.dart';
 part 'screens/order_details_screen.dart';
+part 'screens/purchase_summary.dart';
 part 'screens/order_support_screen.dart';
 part 'screens/notification_settings_screen.dart';
 part 'screens/forte_payment_screen.dart';

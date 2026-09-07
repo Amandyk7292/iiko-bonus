@@ -5,7 +5,7 @@ class OrderDetailsScreen extends StatefulWidget {
     required this.api,
     required this.initialOrder,
     required this.onRepeat,
-    required this.onReview,
+    this.onReview,
     required this.onOrderChanged,
     super.key,
   });
@@ -13,7 +13,7 @@ class OrderDetailsScreen extends StatefulWidget {
   final BulkaApiClient api;
   final CustomerOrder initialOrder;
   final Future<void> Function(CustomerOrder order) onRepeat;
-  final Future<void> Function(CustomerOrder order) onReview;
+  final Future<void> Function(CustomerOrder order)? onReview;
   final ValueChanged<CustomerOrder> onOrderChanged;
 
   @override
@@ -29,7 +29,6 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
   bool _refreshing = false;
   bool _cancellationLoading = false;
   bool _repeatLoading = false;
-  bool _reviewLoading = false;
   DateTime _now = DateTime.now();
 
   @override
@@ -181,16 +180,6 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
     }
   }
 
-  Future<void> _reviewOrder() async {
-    if (_reviewLoading) return;
-    setState(() => _reviewLoading = true);
-    try {
-      await widget.onReview(_order);
-    } finally {
-      if (mounted) setState(() => _reviewLoading = false);
-    }
-  }
-
   String _formatDateTime(DateTime value) {
     return formatUiDateTime(context, value);
   }
@@ -254,6 +243,19 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
   @override
   Widget build(BuildContext context) {
     final colors = context.bulkaColors;
+    if (_order.isClosed) {
+      return _PurchaseSummary(
+        order: _order,
+        onRepeat: _repeatOrder,
+        repeatLoading: _repeatLoading,
+        onSupport: () => Navigator.of(context).push<void>(
+          MaterialPageRoute(
+            builder: (_) =>
+                OrderSupportScreen(api: widget.api, initialOrder: _order),
+          ),
+        ),
+      );
+    }
     final courier = _order.courier;
     final providerStatus = _order.providerDeliveryStatus ?? '';
     final trackingInterrupted =
@@ -517,6 +519,33 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
               ),
               const SizedBox(height: 10),
             ],
+            if (_order.receiptUrl?.isNotEmpty == true) ...[
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final uri = Uri.tryParse(_order.receiptUrl!);
+                  var opened = false;
+                  try {
+                    opened =
+                        uri != null &&
+                        uri.scheme == 'https' &&
+                        await launchUrl(uri, webOnlyWindowName: '_self');
+                  } catch (_) {
+                    // Keep the order open when the browser cannot open a receipt.
+                  }
+                  if (!opened && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('order_receipt_open_error'.tr)),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.receipt_long_outlined),
+                label: Text('order_receipt'.tr),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(52),
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
             OutlinedButton.icon(
               onPressed: () => Navigator.of(context).push<void>(
                 MaterialPageRoute(
@@ -548,24 +577,6 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
                     ),
                   ),
                 ),
-                if (_order.isClosed) ...[
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: _reviewLoading ? null : _reviewOrder,
-                      icon: _reviewLoading
-                          ? const SizedBox.square(
-                              dimension: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.star_outline_rounded),
-                      label: Text('order_review'.tr),
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size.fromHeight(52),
-                      ),
-                    ),
-                  ),
-                ],
               ],
             ),
           ],

@@ -31,7 +31,6 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
   bool _loading = true;
   bool _refreshInFlight = false;
   final Set<String> _repeatInFlight = {};
-  final Set<String> _reviewInFlight = {};
   String? _error;
   List<CustomerOrder> _orders = const [];
   bool _usingOfflineCache = false;
@@ -260,138 +259,6 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
     }
   }
 
-  Future<void> _reviewOrder(CustomerOrder order) async {
-    if (_reviewInFlight.contains(order.id)) return;
-    var rating = 5;
-    String? complaintProductId;
-    final comment = TextEditingController();
-    final submitted = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: Text('review_order_number'.trArgs({'number': order.number})),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'review_how_was_it'.tr,
-                  style: const TextStyle(
-                    fontFamily: _headingFont,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  children: List.generate(5, (index) {
-                    final value = index + 1;
-                    return IconButton(
-                      onPressed: () => setDialogState(() => rating = value),
-                      icon: Icon(
-                        value <= rating
-                            ? Icons.star_rounded
-                            : Icons.star_border_rounded,
-                        color: value <= rating
-                            ? context.bulkaColors.brandBrown
-                            : context.bulkaColors.mutedText,
-                        size: 34,
-                      ),
-                      tooltip: 'review_rating_value'.trArgs({'value': value}),
-                    );
-                  }),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String?>(
-                  initialValue: complaintProductId,
-                  decoration: InputDecoration(
-                    labelText: 'review_product_optional'.tr,
-                  ),
-                  items: [
-                    DropdownMenuItem<String?>(
-                      value: null,
-                      child: Text('review_no_complaint'.tr),
-                    ),
-                    ...order.items.map(
-                      (item) => DropdownMenuItem<String?>(
-                        value: _asString(item['id']),
-                        child: Text(
-                          _asString(item['name']),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
-                  ],
-                  onChanged: (value) =>
-                      setDialogState(() => complaintProductId = value),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: comment,
-                  minLines: 3,
-                  maxLines: 5,
-                  maxLength: 1000,
-                  decoration: InputDecoration(
-                    labelText: 'review_comment'.tr,
-                    alignLabelWithHint: true,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: Text('review_later'.tr),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: Text('review_send'.tr),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (submitted != true) {
-      comment.dispose();
-      return;
-    }
-    if (mounted) setState(() => _reviewInFlight.add(order.id));
-    try {
-      await widget.api.submitOrderReview(
-        orderId: order.id,
-        rating: rating,
-        comment: comment.text.trim(),
-        items: complaintProductId == null
-            ? const []
-            : [
-                {
-                  'productId': complaintProductId,
-                  'rating': min(rating, 2),
-                  'complaintReason': comment.text.trim().isEmpty
-                      ? 'review_product_complaint'.tr
-                      : comment.text.trim(),
-                },
-              ],
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('review_thanks'.tr)));
-      }
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
-      }
-    } finally {
-      comment.dispose();
-      if (mounted) setState(() => _reviewInFlight.remove(order.id));
-    }
-  }
-
   Future<void> _openDetails(CustomerOrder order) async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
@@ -399,7 +266,6 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
           api: widget.api,
           initialOrder: order,
           onRepeat: _repeatOrder,
-          onReview: _reviewOrder,
           onOrderChanged: (updated) {
             if (!mounted) return;
             setState(() {
@@ -510,10 +376,8 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
         itemBuilder: (_, index) => _CustomerOrderCard(
           order: _orders[index],
           onRepeat: () => _repeatOrder(_orders[index]),
-          onReview: () => _reviewOrder(_orders[index]),
           onOpen: () => _openDetails(_orders[index]),
           repeatLoading: _repeatInFlight.contains(_orders[index].id),
-          reviewLoading: _reviewInFlight.contains(_orders[index].id),
         ),
       ),
     );
@@ -809,443 +673,154 @@ class _CustomerOrderCard extends StatelessWidget {
   const _CustomerOrderCard({
     required this.order,
     required this.onRepeat,
-    required this.onReview,
     required this.onOpen,
     required this.repeatLoading,
-    required this.reviewLoading,
   });
   final CustomerOrder order;
   final VoidCallback onRepeat;
-  final VoidCallback onReview;
   final VoidCallback onOpen;
   final bool repeatLoading;
-  final bool reviewLoading;
-
-  String _date(BuildContext context, DateTime value) =>
-      formatUiDate(context, value);
-
-  String _dateTime(BuildContext context, DateTime value) =>
-      formatUiDateTime(context, value);
-
-  String _etaWindow(BuildContext context) {
-    final minimum = order.etaMinAt?.toLocal();
-    final maximum = order.etaMaxAt?.toLocal();
-    if (minimum == null || maximum == null) {
-      return order.estimatedDeliveryAt == null
-          ? ''
-          : _dateTime(context, order.estimatedDeliveryAt!.toLocal());
-    }
-    final start = formatUiTime(context, minimum);
-    final end = formatUiTime(context, maximum);
-    return '${_date(context, minimum)} · $start–$end';
-  }
-
-  String get _status => 'order_status_${order.orderStatus}'.tr;
-
-  String get _paymentStatus => switch (order.paymentStatus) {
-    'paid' => 'payment_status_paid'.tr,
-    'refunded' => 'payment_status_refunded'.tr,
-    'failed' => 'payment_status_failed'.tr,
-    'expired' => 'payment_status_expired'.tr,
-    _ => 'payment_status_pending'.tr,
-  };
-
-  Color get _statusColor {
-    if (order.orderStatus == 'cancelled') return _errorRed;
-    if (order.orderStatus == 'completed') return _successGreen;
-    return const Color(0xFFB87919);
-  }
-
-  Color get _paymentStatusColor {
-    if (order.paymentStatus == 'paid' || order.paymentStatus == 'refunded') {
-      return _successGreen;
-    }
-    if (order.paymentStatus == 'failed' || order.paymentStatus == 'expired') {
-      return _errorRed;
-    }
-    return const Color(0xFFB87919);
-  }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.bulkaColors;
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: scheme.surface,
-        borderRadius: BorderRadius.circular(BulkaRadii.card),
-        border: Border.all(color: colors.cardBorder),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x0C000000),
-            blurRadius: 18,
-            offset: Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: const BoxDecoration(
-                  color: _lightCardHighlight,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.receipt_long_rounded, color: _textDark),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${'orders_number'.tr} ${order.number}',
-                      style: const TextStyle(
-                        fontFamily: _headingFont,
-                        fontSize: BulkaTypeScale.titleSmall,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      _date(context, order.createdAt),
-                      style: TextStyle(color: colors.mutedText),
-                    ),
-                  ],
-                ),
+    final images = order.items
+        .map((item) => _asString(item['imageUrl'] ?? item['image_url']))
+        .where((url) => url.isNotEmpty)
+        .toSet()
+        .toList();
+    final date = order.createdAt.toLocal();
+    final paymentIssue = order.paymentStatus != 'paid';
+    return Material(
+      key: ValueKey('customer-order-${order.id}'),
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(24),
+      child: InkWell(
+        onTap: onOpen,
+        borderRadius: BorderRadius.circular(24),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x08000000),
+                blurRadius: 24,
+                offset: Offset(0, 8),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Semantics(
-            label:
-                '${'orders_payment_status_format'.trArgs({'status': _paymentStatus})}. '
-                '${'orders_fulfillment_status_format'.trArgs({'status': _status})}',
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _OrderStateChip(
-                  icon: Icons.payments_outlined,
-                  label: 'orders_payment_status_format'.trArgs({
-                    'status': _paymentStatus,
-                  }),
-                  color: _paymentStatusColor,
-                ),
-                _OrderStateChip(
-                  icon: Icons.receipt_long_rounded,
-                  label: 'orders_fulfillment_status_format'.trArgs({
-                    'status': _status,
-                  }),
-                  color: _statusColor,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          _OrderInfoRow(label: 'orders_branch'.tr, value: order.branch),
-          if (order.usesDelivery) ...[
-            _DeliveryProgress(status: order.deliveryStatus),
-            if (order.deliveryPin?.isNotEmpty == true &&
-                order.deliveryStatus != 'delivered')
-              Container(
-                width: double.infinity,
-                margin: const EdgeInsets.only(top: 12, bottom: 4),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: _bulkaYellow.withValues(alpha: .16),
-                  borderRadius: BorderRadius.circular(BulkaRadii.control),
-                  border: Border.all(
-                    color: _bulkaYellow.withValues(alpha: .65),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.password_rounded, color: _textDark),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  if (images.isNotEmpty) ...[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(16),
+                      child: SizedBox.square(
+                        dimension: MediaQuery.sizeOf(context).width < 360
+                            ? 88
+                            : 112,
+                        child: _NetworkImage(
+                          url: images.first,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
                     const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'orders_delivery_pin'.tr,
-                            style: const TextStyle(
-                              fontFamily: _headingFont,
-                              fontWeight: FontWeight.w700,
-                            ),
+                  ],
+                  Expanded(
+                    flex: 5,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${_formatCartMoney(order.amount)} ₸',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'orders_delivery_pin_hint'.tr,
-                            style: TextStyle(
-                              color: colors.mutedText,
-                              fontSize: BulkaTypeScale.caption,
-                            ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}',
+                          style: TextStyle(
+                            color: colors.mutedText,
+                            fontSize: 13,
+                          ),
+                        ),
+                        if (order.branch.isNotEmpty) ...[
+                          const SizedBox(height: 5),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(Icons.location_on_outlined, size: 16),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  order.branch,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: colors.mutedText,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    SelectableText(
-                      order.deliveryPin!,
-                      style: const TextStyle(
-                        fontFamily: _headingFont,
-                        fontSize: BulkaTypeScale.titleLarge,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 4,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            if (order.courier != null)
-              _OrderInfoRow(
-                label: 'orders_courier'.tr,
-                value: [order.courier!.name, order.courier!.vehicle]
-                    .whereType<String>()
-                    .where((value) => value.isNotEmpty)
-                    .join(' · '),
-              ),
-            if (order.courier?.latitude != null &&
-                order.courier?.longitude != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 6, bottom: 4),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () => launchUrl(
-                      Uri.parse(
-                        'https://yandex.kz/maps/?pt=${order.courier!.longitude},${order.courier!.latitude}&z=16&l=map',
-                      ),
-                      mode: LaunchMode.externalApplication,
-                    ),
-                    icon: const Icon(Icons.delivery_dining_rounded),
-                    label: Text('orders_courier_map'.tr),
-                  ),
-                ),
-              ),
-            if (order.trackingUrl?.isNotEmpty == true)
-              Padding(
-                padding: const EdgeInsets.only(top: 6, bottom: 4),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    onPressed: () => launchUrl(
-                      Uri.parse(order.trackingUrl!),
-                      mode: LaunchMode.externalApplication,
-                    ),
-                    icon: const Icon(Icons.delivery_dining_rounded),
-                    label: Text('orders_track_yandex'.tr),
-                  ),
-                ),
-              ),
-            if (order.etaMinAt != null || order.estimatedDeliveryAt != null)
-              _OrderInfoRow(label: 'orders_eta'.tr, value: _etaWindow(context)),
-            if (order.trackingCode?.isNotEmpty == true)
-              _OrderInfoRow(
-                label: 'orders_tracking'.tr,
-                value: order.trackingCode!,
-              ),
-          ],
-          if (order.pickupTime != null)
-            _OrderInfoRow(
-              label: 'orders_pickup'.tr,
-              value: _date(context, order.pickupTime!),
-            ),
-          const Divider(height: 24),
-          ...order.items.take(3).map((item) {
-            final name = _asString(item['name']);
-            final quantity = _asInt(item['quantity'], fallback: 1);
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 7),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                      ],
                     ),
                   ),
-                  Text(
-                    '× $quantity',
-                    style: const TextStyle(
-                      fontFamily: _headingFont,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  const SizedBox(width: 4),
+                  IconButton(
+                    onPressed: repeatLoading ? null : onRepeat,
+                    tooltip: 'order_repeat'.tr,
+                    icon: repeatLoading
+                        ? const SizedBox.square(
+                            dimension: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.replay_rounded, size: 26),
                   ),
                 ],
               ),
-            );
-          }),
-          if (order.items.length > 3)
-            Text(
-              '+ ${order.items.length - 3}',
-              style: TextStyle(color: colors.mutedText),
-            ),
-          const Divider(height: 24),
-          _OrderInfoRow(
-            label: 'orders_bonus'.tr,
-            value: '+${order.earnedBonus}',
-            valueColor: _successGreen,
-          ),
-          _OrderInfoRow(
-            label: 'orders_total'.tr,
-            value: '${_formatCartMoney(order.amount)} ₸',
-            strong: true,
-          ),
-          if (order.paymentStatus == 'refunded')
-            _OrderInfoRow(
-              label: 'orders_refund'.tr,
-              value:
-                  '${_formatCartMoney(order.refundAmount ?? order.amount)} ₸',
-              valueColor: _successGreen,
-              strong: true,
-            ),
-          if (order.cancellationReason?.isNotEmpty == true) ...[
-            const SizedBox(height: 10),
-            Text(
-              '${'orders_cancel_reason'.tr}: ${order.cancellationReason}',
-              style: const TextStyle(
-                color: _errorRed,
-                fontSize: BulkaTypeScale.bodySmall,
-              ),
-            ),
-          ],
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: TextButton.icon(
-              onPressed: onOpen,
-              icon: const Icon(Icons.route_rounded),
-              label: Text('order_open_details'.tr),
-              style: TextButton.styleFrom(
-                minimumSize: const Size.fromHeight(48),
-              ),
-            ),
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: repeatLoading ? null : onRepeat,
-                  icon: repeatLoading
-                      ? const SizedBox.square(
-                          dimension: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.replay_rounded),
-                  label: Text('order_repeat'.tr),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(48),
-                    foregroundColor: colors.brandBrown,
-                    side: BorderSide(color: colors.cardBorder),
-                  ),
-                ),
-              ),
-              if (order.orderStatus == 'completed' ||
-                  order.deliveryStatus == 'delivered') ...[
-                const SizedBox(width: 10),
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: reviewLoading ? null : onReview,
-                    icon: reviewLoading
-                        ? const SizedBox.square(
-                            dimension: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.star_outline_rounded),
-                    label: Text('order_review'.tr),
-                    style: FilledButton.styleFrom(
-                      minimumSize: const Size.fromHeight(48),
-                      backgroundColor: _bulkaYellow,
-                      foregroundColor: _textDark,
+              if (!order.isClosed ||
+                  paymentIssue ||
+                  order.orderStatus == 'cancelled') ...[
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    _OrderStateChip(
+                      icon: Icons.shopping_bag_outlined,
+                      label: 'order_status_${order.orderStatus}'.tr,
+                      color: order.orderStatus == 'cancelled'
+                          ? _errorRed
+                          : colors.brandBrown,
                     ),
-                  ),
+                    if (order.usesDelivery && !order.isClosed)
+                      _OrderStateChip(
+                        icon: Icons.delivery_dining_outlined,
+                        label: 'delivery_status_${order.deliveryStatus}'.tr,
+                        color: colors.brandBrown,
+                      ),
+                    if (paymentIssue)
+                      _OrderStateChip(
+                        icon: Icons.payments_outlined,
+                        label: 'payment_status_${order.paymentStatus}'.tr,
+                        color: order.paymentStatus == 'refunded'
+                            ? _successGreen
+                            : _errorRed,
+                      ),
+                  ],
                 ),
               ],
             ],
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DeliveryProgress extends StatelessWidget {
-  const _DeliveryProgress({required this.status});
-
-  final String status;
-
-  static const _steps = ['assigned', 'picked_up', 'en_route', 'delivered'];
-
-  @override
-  Widget build(BuildContext context) {
-    final normalized = _steps.contains(status) ? status : 'unassigned';
-    final activeIndex = _steps.indexOf(normalized);
-    return Semantics(
-      label:
-          '${'orders_delivery_status'.tr}: ${'delivery_status_$normalized'.tr}',
-      child: Container(
-        margin: const EdgeInsets.only(top: 12, bottom: 8),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: _lightCardHighlight.withValues(alpha: .68),
-          borderRadius: BorderRadius.circular(BulkaRadii.control),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'delivery_status_$normalized'.tr,
-              style: const TextStyle(
-                fontFamily: _headingFont,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: List.generate(_steps.length * 2 - 1, (index) {
-                if (index.isOdd) {
-                  final step = index ~/ 2;
-                  return Expanded(
-                    child: Container(
-                      height: 3,
-                      color: step < activeIndex ? _successGreen : _almond,
-                    ),
-                  );
-                }
-                final step = index ~/ 2;
-                final completed = step <= activeIndex;
-                return AnimatedContainer(
-                  duration: BulkaMotion.duration(context, BulkaMotion.fast),
-                  width: 22,
-                  height: 22,
-                  decoration: BoxDecoration(
-                    color: completed ? _successGreen : Colors.white,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: completed ? _successGreen : _almond,
-                      width: 2,
-                    ),
-                  ),
-                  child: completed
-                      ? const Icon(
-                          Icons.check_rounded,
-                          size: 14,
-                          color: Colors.white,
-                        )
-                      : null,
-                );
-              }),
-            ),
-          ],
         ),
       ),
     );
@@ -1299,12 +874,10 @@ class _OrderInfoRow extends StatelessWidget {
     required this.label,
     required this.value,
     this.strong = false,
-    this.valueColor,
   });
   final String label;
   final String value;
   final bool strong;
-  final Color? valueColor;
 
   @override
   Widget build(BuildContext context) {
@@ -1327,7 +900,6 @@ class _OrderInfoRow extends StatelessWidget {
               value,
               textAlign: TextAlign.right,
               style: TextStyle(
-                color: valueColor,
                 fontWeight: strong ? FontWeight.w700 : FontWeight.w600,
               ),
             ),

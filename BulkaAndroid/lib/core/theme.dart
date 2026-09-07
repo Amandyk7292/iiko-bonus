@@ -20,8 +20,7 @@ const _descriptionFont = 'Montserrat';
 
 /// The single type style for every screen title.
 ///
-/// These values intentionally match the catalog title, which is the visual
-/// reference for the rest of the application.
+/// Compact navigation headings stay readable without overpowering the content.
 const _bulkaPageTitleTextStyle = TextStyle(
   color: _textDark,
   fontFamily: _headingFont,
@@ -95,7 +94,7 @@ abstract final class BulkaTypeScale {
   static const titleSmall = 18.0;
   static const title = 20.0;
   static const titleLarge = 24.0;
-  static const pageTitle = 28.0;
+  static const pageTitle = 20.0;
   static const display = 34.0;
 }
 

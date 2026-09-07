@@ -1,6 +1,21 @@
 part of '../main.dart';
 
 const Map<String, Map<String, String>> _homeAndLoyaltyTranslations = {
+  'home_good_morning': {
+    'ru': 'Доброе утро',
+    'kk': 'Қайырлы таң',
+    'en': 'Good morning',
+  },
+  'home_good_afternoon': {
+    'ru': 'Добрый день',
+    'kk': 'Қайырлы күн',
+    'en': 'Good afternoon',
+  },
+  'home_good_evening': {
+    'ru': 'Добрый вечер',
+    'kk': 'Қайырлы кеш',
+    'en': 'Good evening',
+  },
   // Home headers
   'home_select_order_type': {
     'ru': 'Выберите тип заказа',

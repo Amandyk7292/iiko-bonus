@@ -254,7 +254,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         if (snapshot.hasError) {
           return _NotificationErrorState(onRetry: _reloadNotifications);
         }
-        final items = snapshot.data ?? const <AppNotification>[];
+        final items = [...?snapshot.data]
+          ..sort(
+            (a, b) =>
+                (DateTime.tryParse(b.createdAt)?.millisecondsSinceEpoch ?? 0)
+                    .compareTo(
+                      DateTime.tryParse(a.createdAt)?.millisecondsSinceEpoch ??
+                          0,
+                    ),
+          );
         if (items.isEmpty) {
           return RefreshIndicator(
             color: _bulkaYellow,
@@ -287,10 +295,42 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   ),
                 );
               }
-              final item = items[index - (hasUnread ? 1 : 0)];
-              return _NotificationCard(
-                notification: item,
-                onTap: () => _openNotification(item),
+              final itemIndex = index - (hasUnread ? 1 : 0);
+              final item = items[itemIndex];
+              final date = DateTime.tryParse(item.createdAt)?.toLocal();
+              final previous = itemIndex > 0
+                  ? DateTime.tryParse(items[itemIndex - 1].createdAt)?.toLocal()
+                  : null;
+              final newDay =
+                  date != null &&
+                  (previous == null ||
+                      date.year != previous.year ||
+                      date.month != previous.month ||
+                      date.day != previous.day);
+              return Column(
+                children: [
+                  if (newDay)
+                    Padding(
+                      padding: EdgeInsets.only(
+                        top: itemIndex == 0 ? 8 : 24,
+                        bottom: 18,
+                      ),
+                      child: Text(
+                        MaterialLocalizations.of(
+                          context,
+                        ).formatMediumDate(date).toUpperCase(),
+                        style: TextStyle(
+                          color: context.bulkaColors.mutedText,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  _NotificationCard(
+                    notification: item,
+                    onTap: () => _openNotification(item),
+                  ),
+                ],
               );
             },
           ),
@@ -382,19 +422,7 @@ class _NotificationCenterHeader extends StatelessWidget {
       key: const ValueKey('notification-center-header'),
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(
-          bottom: Radius.circular(BulkaRadii.sheet),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Color(0x146D3317),
-            blurRadius: 26,
-            offset: Offset(0, 12),
-          ),
-        ],
-      ),
+      color: Colors.white,
       child: Column(
         children: [
           SizedBox(
@@ -408,7 +436,7 @@ class _NotificationCenterHeader extends StatelessWidget {
                 ),
                 Expanded(
                   child: _BulkaPageTitle(
-                    'notification_center_title'.tr,
+                    (selectedTab == 0 ? 'notification_tab' : 'contacts_tab').tr,
                     key: const ValueKey('notification-center-title'),
                     color: _bulkaBrown,
                   ),
@@ -717,34 +745,26 @@ class _NotificationCard extends StatelessWidget {
       label: '$localizedTitle. $localizedBody',
       hint: 'notification_open_hint'.tr,
       child: Material(
-        color: notification.isRead ? Colors.white : const Color(0xFFFFF5D8),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(BulkaRadii.card),
-        elevation: notification.isRead ? 0 : 1,
+        elevation: 0,
         shadowColor: const Color(0x20532814),
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(BulkaRadii.card),
           child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(BulkaRadii.card),
-              border: Border.all(
-                color: notification.isRead
-                    ? const Color(0xFFEEDFC7)
-                    : const Color(0xFFFFD56A),
-              ),
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 10),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  width: 44,
-                  height: 44,
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
                     color: notification.isRead
                         ? const Color(0xFFFFF2D1)
-                        : _bulkaYellow,
-                    borderRadius: BorderRadius.circular(BulkaRadii.control),
+                        : Color(0xFFFFE7B0),
+                    shape: BoxShape.circle,
                   ),
                   child: Icon(_icon, color: _bulkaBrown, size: 23),
                 ),
@@ -773,7 +793,7 @@ class _NotificationCard extends StatelessWidget {
                               height: 9,
                               margin: const EdgeInsets.only(top: 5, left: 8),
                               decoration: const BoxDecoration(
-                                color: _bulkaYellow,
+                                color: Color(0xFFFFE7B0),
                                 shape: BoxShape.circle,
                               ),
                             ),
@@ -783,14 +803,21 @@ class _NotificationCard extends StatelessWidget {
                       Text(
                         localizedBody,
                         style: TextStyle(
-                          color: context.bulkaColors.mutedText,
-                          height: 1.35,
+                          color: context.bulkaColors.brandBrown,
+                          height: 1.45,
                         ),
                       ),
                       if (notification.createdAt.isNotEmpty) ...[
                         const SizedBox(height: 9),
                         Text(
-                          formatDateTime(notification.createdAt),
+                          DateTime.tryParse(notification.createdAt) == null
+                              ? ''
+                              : formatUiTime(
+                                  context,
+                                  DateTime.parse(
+                                    notification.createdAt,
+                                  ).toLocal(),
+                                ),
                           style: TextStyle(
                             color: context.bulkaColors.mutedText,
                             fontSize: BulkaTypeScale.caption,

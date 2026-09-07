@@ -1,6 +1,11 @@
 part of '../main.dart';
 
 const Map<String, Map<String, String>> _orderAndPaymentTranslations = {
+  'purchase_add_to_cart': {
+    'ru': 'Добавить в корзину',
+    'kk': 'Себетке қосу',
+    'en': 'Add to cart',
+  },
   // Orders, stories and QR
   'orders_empty_action': {
     'ru': 'Перейти на главную',
@@ -517,9 +522,9 @@ const Map<String, Map<String, String>> _orderAndPaymentTranslations = {
     'en': 'Get help with this order',
   },
   'order_receipt': {
-    'ru': 'Открыть торговый чек',
+    'ru': 'Чек об оплате',
     'kk': 'Сауда чегін ашу',
-    'en': 'Open merchant receipt',
+    'en': 'Payment receipt',
   },
   'order_receipt_open_error': {
     'ru': 'Не удалось открыть торговый чек',

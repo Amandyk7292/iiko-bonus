@@ -218,7 +218,7 @@ async function getPaymentReceipt(receiptId, { db = supabase } = {}) {
   if (!RECEIPT_ID_PATTERN.test(String(receiptId || ''))) return null;
   const { data, error } = await db
     .from('payment_receipts')
-    .select('*')
+    .select('*,order:kaspi_orders(discount_amount,delivery_fee)')
     .eq('id', receiptId)
     .maybeSingle();
   if (error) throw error;
@@ -254,7 +254,7 @@ async function ensurePaymentReceipt(order, overrides = {}, { db = supabase } = {
 
 const RECEIPT_COPY = {
   ru: {
-    title: 'Торговый чек',
+    title: 'Чек об оплате',
     generated: 'Сформирован после подтверждения оплаты',
     detailsAria: 'Данные операции',
     operation: 'Операция',
@@ -295,7 +295,7 @@ const RECEIPT_COPY = {
     languageAria: 'Язык чека',
   },
   kk: {
-    title: 'Сауда чегі',
+    title: 'Төлем чегі',
     generated: 'Төлем расталғаннан кейін жасалды',
     detailsAria: 'Операция деректері',
     operation: 'Операция',
@@ -336,7 +336,7 @@ const RECEIPT_COPY = {
     languageAria: 'Чек тілі',
   },
   en: {
-    title: 'Merchant receipt',
+    title: 'Payment receipt',
     generated: 'Created after payment confirmation',
     detailsAria: 'Transaction details',
     operation: 'Operation',
@@ -416,79 +416,79 @@ function renderPaymentReceipt(receipt, requestedLanguage, access = {}) {
         }>${code.toUpperCase()}</a>`,
     )
     .join('');
+  const ui = {
+    ru: { share: 'Поделиться', close: 'Закрыть', discount: 'Скидка', delivery: 'Доставка', payment: 'Оплата', document: 'Чек №', extra: 'Данные платежа и продавца' },
+    kk: { share: 'Бөлісу', close: 'Жабу', discount: 'Жеңілдік', delivery: 'Жеткізу', payment: 'Төлем', document: 'Чек №', extra: 'Төлем және сатушы деректері' },
+    en: { share: 'Share', close: 'Close', discount: 'Discount', delivery: 'Delivery', payment: 'Payment', document: 'Receipt no.', extra: 'Payment and merchant details' },
+  }[language];
+  const order = Array.isArray(receipt.order) ? receipt.order[0] : receipt.order;
+  const discount = Number(order?.discount_amount || 0);
+  const delivery = Number(order?.delivery_fee || 0);
+  const money = (value) => `${escapeHtml(localizedMoney(value, language))} ₸`;
   return `<!doctype html>
 <html lang="${language}">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="robots" content="noindex,nofollow,noarchive" />
-    <meta name="referrer" content="no-referrer" />
-    <meta name="theme-color" content="#fffaf2" />
-    <link rel="icon" type="image/png" sizes="48x48" href="/favicon.png?v=20260730-1" />
-    <title>${copy.title} ${escapeHtml(receipt.document_number)} — Bulka</title>
-    <link rel="stylesheet" href="/assets/legal/payment-receipt.css?v=20260725" />
-    <script src="/assets/legal/payment-receipt.js?v=20260725" defer></script>
-  </head>
-  <body>
-    <main>
-      <nav class="languages" aria-label="${copy.languageAria}">
-        ${languageLinks}
-      </nav>
-      <header>
-        <img src="/assets/wallet/bulka-wallet-wide-logo.png?v=20260715" alt="Bulka" />
-        <div>
-          <p class="eyebrow">${copy.title}</p>
-          <h1>${escapeHtml(receipt.document_number)}</h1>
-          <p>${copy.generated}</p>
-        </div>
-      </header>
-
-      <section class="details" aria-label="${copy.detailsAria}">
-        <dl>
-          <div><dt>${copy.operation}</dt><dd>${operation}</dd></div>
-          <div><dt>${copy.orderNumber}</dt><dd>№${escapeHtml(receipt.order_number)}</dd></div>
-          <div><dt>${copy.dateTime}</dt><dd>${escapeHtml(transactionDate)}</dd></div>
-          <div><dt>${copy.amountCurrency}</dt><dd>${escapeHtml(localizedMoney(receipt.amount, language))} ${escapeHtml(receipt.currency)}</dd></div>
-          <div><dt>${copy.provider}</dt><dd>${escapeHtml(receipt.provider)}</dd></div>
-          <div><dt>${copy.paymentSystem}</dt><dd>${escapeHtml(receipt.payment_system || copy.notSpecified)}</dd></div>
-          <div><dt>${copy.cardMask}</dt><dd>${escapeHtml(cardMask)}</dd></div>
-          <div><dt>${copy.authorizationCode}</dt><dd>${escapeHtml(authorizationCode)}</dd></div>
-          <div><dt>${copy.transactionId}</dt><dd>${escapeHtml(receipt.transaction_reference || copy.notSpecifiedMasculine)}</dd></div>
-        </dl>
-      </section>
-
-      <section>
-        <h2>${copy.orderItems}</h2>
-        <div class="table-scroll">
-          <table>
-            <thead><tr><th>${copy.item}</th><th>${copy.quantity}</th><th>${copy.price}</th><th>${copy.amount}</th></tr></thead>
-            <tbody>${rows || `<tr><td colspan="4">${copy.noItems}</td></tr>`}</tbody>
-            <tfoot><tr><th colspan="3">${copy.total}</th><th class="number">${escapeHtml(localizedMoney(receipt.amount, language))} ₸</th></tr></tfoot>
-          </table>
-        </div>
-      </section>
-
-      <section>
-        <h2>${copy.seller}</h2>
-        <dl>
-          <div><dt>${copy.merchantName}</dt><dd>${escapeHtml(receipt.merchant_name)}</dd></div>
-          <div><dt>${copy.merchantCity}</dt><dd>${escapeHtml(receipt.merchant_city)}</dd></div>
-          <div><dt>${copy.merchantCode}</dt><dd>${escapeHtml(merchantCode)}</dd></div>
-          <div><dt>${copy.website}</dt><dd>${escapeHtml(receipt.resource_name)} — ${escapeHtml(receipt.resource_url)}</dd></div>
-          <div><dt>${copy.contacts}</dt><dd>+7 701 277 22 33, bulka.kazakhstan@mail.ru</dd></div>
-        </dl>
-      </section>
-
-      <p class="notice">
-        ${copy.notice}
-      </p>
-      <nav class="actions" aria-label="${copy.actionsAria}">
-        <button id="print-receipt" type="button">${copy.print}</button>
-        <a href="${copy.termsUrl}">${copy.terms}</a>
-      </nav>
-    </main>
-  </body>
-</html>`;
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow,noarchive" /><meta name="referrer" content="no-referrer" />
+  <meta name="theme-color" content="#ffffff" />
+  <title>${copy.title} ${escapeHtml(receipt.document_number)} — Bulka</title>
+  <link rel="stylesheet" href="/assets/legal/payment-receipt.css?v=20260907" />
+  <script src="/assets/legal/payment-receipt.js?v=20260907" defer></script>
+</head>
+<body>
+<main>
+  <header class="receipt-header">
+    <div><h1>${copy.title}</h1><p>${copy.orderNumber} #${escapeHtml(receipt.order_number)}</p></div>
+    <a class="receipt-close" href="/orders" aria-label="${ui.close}">×</a>
+  </header>
+  <article class="receipt-paper" aria-label="${copy.title}">
+    <dl class="receipt-meta">
+      <div><dt>${ui.document}</dt><dd>${escapeHtml(receipt.document_number)}</dd></div>
+      <div><dt>${copy.dateTime}</dt><dd>${escapeHtml(transactionDate)}</dd></div>
+      ${receipt.operation_type === 'refund' ? `<div><dt>${copy.operation}</dt><dd>${operation}</dd></div>` : ''}
+    </dl>
+    <section aria-label="${copy.orderItems}">
+      <table>
+        <caption class="visually-hidden">${copy.orderItems}</caption>
+        <colgroup><col class="item-column"/><col/><col/><col/></colgroup>
+        <thead><tr><th>${copy.item}</th><th>${copy.quantity}</th><th>${copy.price}</th><th>${copy.amount}</th></tr></thead>
+        <tbody>${rows || `<tr><td colspan="4">${copy.noItems}</td></tr>`}</tbody>
+      </table>
+    </section>
+    <dl class="receipt-totals">
+      ${discount > 0 ? `<div><dt>${ui.discount}</dt><dd>${money(discount)}</dd></div>` : ''}
+      ${delivery > 0 ? `<div><dt>${ui.delivery}</dt><dd>${money(delivery)}</dd></div>` : ''}
+      <div class="grand-total"><dt>${copy.total}</dt><dd>${money(receipt.amount)}</dd></div>
+    </dl>
+    <section class="receipt-payment"><h2>${ui.payment}</h2>
+      <dl><div><dt>${escapeHtml(receipt.payment_system || receipt.provider || ui.payment)}</dt><dd>${money(receipt.amount)}</dd></div></dl>
+    </section>
+  </article>
+  <details class="receipt-extra">
+    <summary>${ui.extra}</summary>
+    <dl aria-label="${copy.detailsAria}">
+      <div><dt>${copy.amountCurrency}</dt><dd>${money(receipt.amount)} ${escapeHtml(receipt.currency)}</dd></div>
+      <div><dt>${copy.provider}</dt><dd>${escapeHtml(receipt.provider)}</dd></div>
+      <div><dt>${copy.paymentSystem}</dt><dd>${escapeHtml(receipt.payment_system || copy.notSpecified)}</dd></div>
+      <div><dt>${copy.cardMask}</dt><dd>${escapeHtml(cardMask)}</dd></div>
+      <div><dt>${copy.authorizationCode}</dt><dd>${escapeHtml(authorizationCode)}</dd></div>
+      <div><dt>${copy.transactionId}</dt><dd>${escapeHtml(receipt.transaction_reference || copy.notSpecifiedMasculine)}</dd></div>
+      <div><dt>${copy.merchantName}</dt><dd>${escapeHtml(receipt.merchant_name)}</dd></div>
+      <div><dt>${copy.merchantCity}</dt><dd>${escapeHtml(receipt.merchant_city)}</dd></div>
+      <div><dt>${copy.merchantCode}</dt><dd>${escapeHtml(merchantCode)}</dd></div>
+      <div><dt>${copy.website}</dt><dd>${escapeHtml(receipt.resource_name)} — ${escapeHtml(receipt.resource_url)}</dd></div>
+    </dl>
+    <p class="notice">${copy.notice}</p>
+    <nav class="languages" aria-label="${copy.languageAria}">${languageLinks}</nav>
+    <button id="print-receipt" type="button">${copy.print}</button>
+    <a href="${copy.termsUrl}">${copy.terms}</a>
+  </details>
+  <nav class="actions" aria-label="${copy.actionsAria}">
+    <button id="share-receipt" type="button">${ui.share}</button>
+    <p id="share-status" role="status"></p>
+  </nav>
+</main>
+</body></html>`;
 }
 
 module.exports = {

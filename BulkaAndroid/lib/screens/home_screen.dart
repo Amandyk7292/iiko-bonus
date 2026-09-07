@@ -49,6 +49,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted &&
           TickerMode.of(context) &&
           WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
+        setState(() {});
         unawaited(_loadFeed());
       }
     });
@@ -195,14 +196,20 @@ class _HomeScreenState extends State<HomeScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                        padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
                         child: SizedBox(
                           key: const ValueKey('home-header'),
-                          height: 56,
+
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const _BulkaHeaderLogo(),
+                              Expanded(
+                                child: _HomeGreeting(
+                                  customer: customer,
+                                  onTap: widget.onProfileTap,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
                               Row(
                                 children: [
                                   _IconCircleButton(
@@ -440,38 +447,67 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
-class _BulkaHeaderLogo extends StatelessWidget {
-  const _BulkaHeaderLogo();
+String homeGreetingKey(int hour) => hour >= 5 && hour < 12
+    ? 'home_good_morning'
+    : hour >= 12 && hour < 18
+    ? 'home_good_afternoon'
+    : 'home_good_evening';
+
+class _HomeGreeting extends StatelessWidget {
+  const _HomeGreeting({required this.customer, required this.onTap});
+  final Customer? customer;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    // The source logo contains large transparent margins. Crop them at layout
-    // time so the visible mark follows the same 16 dp grid as the content.
-    return SizedBox(
-      key: const ValueKey('home-brand-logo'),
-      width: 100,
-      height: 56,
-      child: ClipRect(
-        child: OverflowBox(
-          alignment: Alignment.center,
-          minWidth: 235,
-          maxWidth: 235,
-          minHeight: 82,
-          maxHeight: 82,
-          child: ColorFiltered(
-            colorFilter: ColorFilter.mode(
-              context.bulkaColors.brandBrown,
-              BlendMode.srcIn,
+    final current = customer;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            CustomerAvatar(avatarKey: current?.avatarKey, size: 48),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    homeGreetingKey(DateTime.now().hour).tr,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: context.bulkaColors.mutedText,
+                    ),
+                  ),
+                  if (current != null && current.name.trim().isNotEmpty) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      current.name.trim(),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: _headingFont,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                  if (current != null) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      '${formatMoney(current.balance)} ${'cart_points'.tr}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
-            child: Image.asset(
-              'assets/brand/bulka_logo.png',
-              semanticLabel: 'app_title'.tr,
-              width: 235,
-              height: 82,
-              fit: BoxFit.contain,
-              filterQuality: FilterQuality.high,
-            ),
-          ),
+          ],
         ),
       ),
     );
@@ -671,17 +707,7 @@ class _OrderTypeCard extends StatelessWidget {
               key: ValueKey('order-card-background-${illustration.name}'),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(BulkaRadii.control),
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color(0xFFFFD54F), Color(0xFFFFB300)],
-                ),
-                image: const DecorationImage(
-                  image: AssetImage('assets/order/berliner_oreo_cluster.webp'),
-                  fit: BoxFit.cover,
-                  alignment: Alignment.center,
-                  opacity: 0.34,
-                ),
+                color: _bulkaYellow,
               ),
               child: Stack(
                 clipBehavior: Clip.hardEdge,

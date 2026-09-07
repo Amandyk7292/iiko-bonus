@@ -1206,7 +1206,13 @@ void main() {
     );
 
     expect(
-      find.image(const AssetImage('assets/brand/bulka_logo.png')),
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Image &&
+            widget.image is AssetImage &&
+            (widget.image as AssetImage).assetName ==
+                'assets/brand/bulka_logo.png',
+      ),
       findsOneWidget,
     );
     expect(find.text('Войти'), findsOneWidget);
@@ -1402,7 +1408,13 @@ void main() {
 
     expect(find.byType(SplashScreen), findsOneWidget);
     expect(
-      find.image(const AssetImage('assets/brand/bulka_logo.png')),
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Image &&
+            widget.image is AssetImage &&
+            (widget.image as AssetImage).assetName ==
+                'assets/brand/bulka_logo.png',
+      ),
       findsOneWidget,
     );
 
@@ -1539,7 +1551,17 @@ void main() {
       ),
       findsNothing,
     );
-    await tester.tap(find.text('Следить за заказом'));
+    await tester.tap(
+      find
+          .byWidgetPredicate(
+            (widget) =>
+                widget.key is ValueKey<String> &&
+                (widget.key as ValueKey<String>).value.startsWith(
+                  'customer-order-',
+                ),
+          )
+          .first,
+    );
     await tester.pumpAndSettle();
     expect(api.arrivalCalls, 0);
     expect(api.handoffCalls, 0);
@@ -1574,8 +1596,8 @@ void main() {
       expect(find.text('Курьер назначен'), findsOneWidget);
       expect(find.text('Я приехал'), findsNothing);
 
-      await tester.ensureVisible(find.text('Повторить'));
-      await tester.tap(find.text('Повторить'));
+      await tester.ensureVisible(find.byTooltip('Повторить'));
+      await tester.tap(find.byTooltip('Повторить'));
       await tester.pumpAndSettle();
 
       final prefs = await SharedPreferences.getInstance();
@@ -2096,7 +2118,7 @@ void main() {
     final loyaltyHeadingRect = tester.getRect(find.text('Накопительная'));
 
     expect(find.text('Тут много интересного'), findsNothing);
-    expect(promoRect.top - headerRect.bottom, lessThanOrEqualTo(4));
+    expect(promoRect.top - headerRect.bottom, closeTo(16, 0.01));
     expect(promoRect.left, closeTo(16, 0.01));
     expect(promoRect.width, closeTo(358, 0.01));
     expect(promoRect.width / promoRect.height, closeTo(1080 / 480, 0.001));
@@ -2116,12 +2138,7 @@ void main() {
         find.byKey(ValueKey('order-card-background-$name')),
       );
       final decoration = ink.decoration! as BoxDecoration;
-      final background = decoration.image!;
-      expect(
-        (background.image as AssetImage).assetName,
-        'assets/order/berliner_oreo_cluster.webp',
-      );
-      expect(background.opacity, closeTo(0.34, 0.001));
+      expect(decoration.image, isNull);
     }
     expect(find.byKey(const ValueKey('order-splash-pickup')), findsNothing);
     expect(deliveryArtworkRect.width, closeTo(192, 0.01));
@@ -2162,10 +2179,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(Image), findsWidgets);
-    expect(
-      find.image(const AssetImage('assets/brand/bulka_logo.png')),
-      findsOneWidget,
-    );
+    expect(find.text(homeGreetingKey(DateTime.now().hour).tr), findsOneWidget);
     expect(find.text('Тут много интересного'), findsNothing);
     expect(find.text('НОВИНКА'), findsWidgets);
     expect(find.text('Выберите тип заказа'), findsOneWidget);
@@ -2271,10 +2285,7 @@ void main() {
     );
     expect(find.byType(ProfileScreen).hitTestable(), findsNothing);
     expect(find.byType(HomeScreen).hitTestable(), findsOneWidget);
-    expect(
-      find.image(const AssetImage('assets/brand/bulka_logo.png')),
-      findsOneWidget,
-    );
+    expect(find.text(homeGreetingKey(DateTime.now().hour).tr), findsOneWidget);
     expect(find.text('Накопительная'), findsOneWidget);
   });
 

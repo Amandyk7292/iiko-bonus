@@ -236,17 +236,20 @@ class _CartCheckoutBar extends StatelessWidget {
               Expanded(
                 child: Text(
                   'cart_reward'.tr,
-                  maxLines: 1,
+                  maxLines: 2,
                   style: TextStyle(fontSize: BulkaTypeScale.body),
                 ),
               ),
               const SizedBox(width: 12),
-              Text(
-                '+ ${(total * cashbackPercent / 100).round()} ${'cart_points'.tr}',
-                style: TextStyle(
-                  color: colors.mutedText,
-                  fontSize: BulkaTypeScale.body,
-                  fontWeight: FontWeight.w600,
+              Expanded(
+                child: Text(
+                  '+ ${(total * cashbackPercent / 100).round()} ${'cart_points'.tr}',
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    color: colors.mutedText,
+                    fontSize: BulkaTypeScale.body,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],

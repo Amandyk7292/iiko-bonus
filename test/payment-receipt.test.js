@@ -22,6 +22,22 @@ const env = {
 const nowMs = Date.parse('2026-07-25T10:00:00.000Z');
 const expiresAt = Math.floor(nowMs / 1000) + 3600;
 
+test('receipt totals preserve actual fractional payment, discount and delivery amounts', () => {
+  const record = buildReceiptRecord({
+    id: receiptId, order_number: 100501, amount: 1060.30,
+    cart_items: [{ id: 'drink', name: 'Лимонад', quantity: 1, price: 990 }],
+    created_at: '2026-09-07T10:00:00Z',
+  }, { provider: 'ForteBank', paymentSystem: 'Visa' });
+  const html = renderPaymentReceipt({ ...record, order: { discount_amount: 29.70, delivery_fee: 100 } }, 'ru');
+  assert.match(html, /Скидка<\/dt><dd>29,7/);
+  assert.match(html, /Доставка<\/dt><dd>100/);
+  assert.match(html, /grand-total[\s\S]*?1\s060,3/);
+  assert.match(html, /Visa<\/dt>/);
+  assert.doesNotMatch(html, /Наличными|Написать отзыв/);
+  const withoutOrder = renderPaymentReceipt(record, 'ru');
+  assert.doesNotMatch(withoutOrder, /Скидка<\/dt>|Доставка<\/dt>/);
+});
+
 test('payment receipt links are signed, expiring, and reject tampering', () => {
   const signature = signReceiptId(receiptId, expiresAt, env);
   assert.equal(verifyReceiptSignature(receiptId, signature, expiresAt, env, nowMs), true);
@@ -106,7 +122,7 @@ test('payment receipt contains bank-required fields without full card data', () 
     expiresAt,
   });
   assert.match(kazakh, /<html lang="kk">/);
-  assert.match(kazakh, /Сауда чегі/);
+  assert.match(kazakh, /Төлем чегі/);
   assert.match(kazakh, /Тапсырыс құрамы/);
   assert.match(
     kazakh,
@@ -115,7 +131,7 @@ test('payment receipt contains bank-required fields without full card data', () 
 
   const english = renderPaymentReceipt({ id: receiptId, ...record }, 'en');
   assert.match(english, /<html lang="en">/);
-  assert.match(english, /Merchant receipt/);
+  assert.match(english, /Payment receipt/);
   assert.match(english, /Order items/);
 });
 
