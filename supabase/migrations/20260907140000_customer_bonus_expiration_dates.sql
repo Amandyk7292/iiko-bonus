@@ -1,4 +1,4 @@
--- Read activity in SQL so PostgREST's row limit cannot truncate transaction history.
+-- Read activity in SQL so PostgREST's row limit cannot omit recent transactions.
 create or replace function public.customer_bonus_activity(p_customer_ids uuid[])
 returns table(customer_id uuid, last_activity_at timestamptz)
 language sql stable security definer set search_path = public
