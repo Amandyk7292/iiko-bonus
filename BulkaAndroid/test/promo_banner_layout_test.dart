@@ -1,9 +1,51 @@
 import 'package:bulka_bonus/main.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  for (final width in [320.0, 390.0]) {
+    testWidgets('promotion labels stay complete at $width with enlarged text', (
+      tester,
+    ) async {
+      appLanguageNotifier.value = 'ru';
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = Size(width, 844);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildBulkaTheme(),
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: const TextScaler.linear(1.5)),
+            child: child!,
+          ),
+          home: PromosScreen(api: _PromoGridApiClient()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      for (final label in ['Скидки', 'Акции', 'Абонементы']) {
+        final text = find.text(label).last;
+        final paragraph = tester.renderObject<RenderParagraph>(text);
+        expect(paragraph.didExceedMaxLines, isFalse, reason: label);
+        final rect = tester.getRect(text);
+        expect(rect.left, greaterThanOrEqualTo(0));
+        expect(rect.right, lessThanOrEqualTo(width));
+      }
+      await tester.tap(find.text('Абонементы'));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .renderObject<RenderParagraph>(find.text('Абонементы'))
+            .didExceedMaxLines,
+        isFalse,
+      );
+      expect(tester.takeException(), isNull);
+    });
+  }
   test('promotion model reads optional detail metadata', () {
     final story = PromoStory.fromJson({
       'id': 7,

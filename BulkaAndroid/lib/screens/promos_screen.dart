@@ -444,67 +444,62 @@ class _PromoTypeTabs extends StatelessWidget {
     final colors = context.bulkaColors;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 18),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: colors.surfaceCream,
-          borderRadius: BorderRadius.circular(BulkaRadii.pill),
-        ),
-        child: Row(
-          spacing: 8,
-          children: _types
-              .map((type) {
-                final selected = type == selectedType;
-                return Expanded(
-                  child: Semantics(
-                    button: true,
-                    selected: selected,
-                    child: InkWell(
-                      onTap: () {
-                        unawaited(BulkaMotion.selection());
-                        onSelected(type);
-                      },
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: _types
+            .map((type) {
+              final selected = type == selectedType;
+              return Semantics(
+                button: true,
+                selected: selected,
+                child: InkWell(
+                  onTap: () {
+                    unawaited(BulkaMotion.selection());
+                    onSelected(type);
+                  },
+                  borderRadius: BorderRadius.circular(BulkaRadii.pill),
+                  child: AnimatedContainer(
+                    duration: BulkaMotion.fast,
+                    curve: Curves.easeOutCubic,
+                    constraints: const BoxConstraints(minHeight: 48),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: selected ? colors.brandGold : Colors.transparent,
                       borderRadius: BorderRadius.circular(BulkaRadii.pill),
-                      child: AnimatedContainer(
-                        duration: BulkaMotion.fast,
-                        curve: Curves.easeOutCubic,
-                        constraints: const BoxConstraints(minHeight: 48),
-                        alignment: Alignment.center,
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        decoration: BoxDecoration(
+                      border: Border.all(
+                        color: selected
+                            ? colors.brandGold
+                            : const Color(0xFFD9B892),
+                        width: 1.2,
+                      ),
+                    ),
+                    child: Center(
+                      widthFactor: 1,
+                      heightFactor: 1,
+                      child: Text(
+                        'promos_tab_$type'.tr,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontFamily: _headingFont,
                           color: selected
-                              ? colors.brandGold
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(BulkaRadii.pill),
-                          border: Border.all(
-                            color: selected
-                                ? colors.brandGold
-                                : const Color(0xFFD9B892),
-                            width: 1.2,
-                          ),
-                        ),
-                        child: Text(
-                          'promos_tab_$type'.tr,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontFamily: _headingFont,
-                            color: selected
-                                ? colors.brandBrown
-                                : colors.mutedText,
-                            fontSize: BulkaTypeScale.bodySmall,
-                            fontWeight: selected
-                                ? FontWeight.w700
-                                : FontWeight.w600,
-                          ),
+                              ? colors.brandBrown
+                              : colors.mutedText,
+                          fontSize: BulkaTypeScale.bodySmall,
+                          fontWeight: selected
+                              ? FontWeight.w700
+                              : FontWeight.w600,
                         ),
                       ),
                     ),
                   ),
-                );
-              })
-              .toList(growable: false),
-        ),
+                ),
+              );
+            })
+            .toList(growable: false),
       ),
     );
   }
