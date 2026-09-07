@@ -450,6 +450,7 @@ class _PromoTypeTabs extends StatelessWidget {
           borderRadius: BorderRadius.circular(BulkaRadii.pill),
         ),
         child: Row(
+          spacing: 8,
           children: _types
               .map((type) {
                 final selected = type == selectedType;
@@ -474,6 +475,12 @@ class _PromoTypeTabs extends StatelessWidget {
                               ? colors.brandGold
                               : Colors.transparent,
                           borderRadius: BorderRadius.circular(BulkaRadii.pill),
+                          border: Border.all(
+                            color: selected
+                                ? colors.brandGold
+                                : const Color(0xFFD9B892),
+                            width: 1.2,
+                          ),
                         ),
                         child: Text(
                           'promos_tab_$type'.tr,

@@ -17,7 +17,7 @@ def main() -> None:
             device_scale_factor=1,
             locale="ru-RU",
         )
-        page.route("**/flutter_bootstrap.js", lambda route: route.abort())
+        page.route("**/app_bootstrap.js*", lambda route: route.fulfill(content_type="application/javascript", body=""))
         page.goto(url, wait_until="domcontentloaded")
 
         loading = page.locator("#app-loading")
@@ -46,9 +46,9 @@ def main() -> None:
         assert styles["bodyBackground"] == "rgb(255, 255, 255)", styles
         label = page.locator(".app-loading-label")
         bar = page.locator(".app-loading-bar")
-        assert label.is_visible()
-        assert "Загружаем" in label.inner_text()
-        assert bar.is_visible()
+        assert label.count() == 0
+        assert bar.count() == 0
+        assert loading.inner_text().strip() == ""
 
         logo = page.locator(".app-loading-logo")
         logo_styles = logo.evaluate(
@@ -71,6 +71,9 @@ def main() -> None:
         assert logo_styles["animationDuration"] == "4.5s", logo_styles
 
         page.screenshot(path=str(output), full_page=True)
+        page.evaluate("window.dispatchEvent(new Event('bulka-flutter-bootstrap-error'))")
+        assert page.locator('#app-loading-retry').is_visible()
+        assert 'Не удалось' in page.locator('#app-loading-error-title').inner_text()
         browser.close()
 
     print(f"Clean white preloader passed: {output}")

@@ -196,9 +196,7 @@ class _LoyaltyPanel extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (tier != null)
-                  LoyaltyTierCard(tier: tier)
-                else ...[
+                if (tier == null) ...[
                   _RewardProgress(
                     title: 'reward_6_desc'.tr,
                     remaining: firstReward.remaining,
@@ -212,10 +210,10 @@ class _LoyaltyPanel extends StatelessWidget {
                   ),
                   const SizedBox(height: 24),
                   _StampRow(completed: purchaseCount, total: 12),
+                  const SizedBox(height: 20),
                 ],
-                const SizedBox(height: 20),
                 _BonusExpiryNotice(api: api),
-                const SizedBox(height: 28),
+                const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity,
                   height: 58,

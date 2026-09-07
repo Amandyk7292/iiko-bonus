@@ -29,8 +29,8 @@ test('web bootstrap versions every mutable Flutter entrypoint and checks for new
 
   assert.match(index, /<script src="app_bootstrap\.js\?v=__BULKA_RELEASE_VERSION__"><\/script>/);
   assert.doesNotMatch(index, /<script src="flutter_bootstrap\.js"/);
-  assert.match(index, /class="app-loading-label"/);
-  assert.match(index, /class="app-loading-bar"/);
+  assert.doesNotMatch(index, /class="app-loading-label"/);
+  assert.doesNotMatch(index, /class="app-loading-bar"/);
   assert.match(index, /window\.setTimeout\(showLoadingError,\s*30000\)/);
   assert.doesNotMatch(index, /setTimeout\([^)]*,\s*12000\)/);
   assert.match(index, /src="assets\/assets\/brand\/bulka_logo\.png"/);

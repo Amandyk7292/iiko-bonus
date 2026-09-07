@@ -32,16 +32,10 @@ CustomerAvatarOption? _customerAvatarByKey(String? key) {
 }
 
 class CustomerAvatar extends StatelessWidget {
-  const CustomerAvatar({
-    required this.avatarKey,
-    this.size = 64,
-    this.showBorder = true,
-    super.key,
-  });
+  const CustomerAvatar({required this.avatarKey, this.size = 64, super.key});
 
   final String? avatarKey;
   final double size;
-  final bool showBorder;
 
   @override
   Widget build(BuildContext context) {
@@ -56,9 +50,6 @@ class CustomerAvatar extends StatelessWidget {
         decoration: BoxDecoration(
           color: const Color(0xFFF8F4EC),
           shape: BoxShape.circle,
-          border: showBorder
-              ? Border.all(color: Colors.white, width: max(2, size * 0.045))
-              : null,
           boxShadow: BulkaShadows.avatar,
         ),
         clipBehavior: Clip.antiAlias,

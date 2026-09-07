@@ -19,7 +19,8 @@ with sync_playwright() as p:
         loyalty = {**tier, 'level': index + 1, 'allTiers': TIERS, 'progress': 50 if index < 2 else 100,
                    'nextTier': TIERS[index + 1]['name'] if index < 2 else None, 'remaining': 5000}
         customer = {'id': '11111111-1111-4111-8111-111111111111', 'name': 'Алия', 'phone': '77000000000',
-                    'balance': 1200, 'total_spent': 24000, 'cashbackPercent': tier['percent'], 'tier': loyalty}
+                    'balance': 1200, 'total_spent': 24000, 'cashbackPercent': tier['percent'], 'tier': loyalty,
+                    'avatar_key': 'kz_male_01'}
         context = browser.new_context(viewport={'width': 390, 'height': 844}, locale='ru-RU')
         page = context.new_page()
         errors, artwork_requests = [], []
@@ -32,6 +33,9 @@ with sync_playwright() as p:
                 payload = {'success': True, 'exists': True, 'customer': customer, 'transactions': []}
             elif pathname.endswith('/api/customer/loyalty'):
                 payload = {'success': True, 'loyalty': loyalty}
+            elif pathname.endswith('/api/guest/stories'):
+                payload = {'success': True, 'stories': [{'id': 7, 'title': 'Предложение', 'groupId': 'offer',
+                    'groupTitle': 'Предложение', 'promoType': 'promotion', 'imageUrl': '', 'duration': 5}]}
             route.fulfill(json=payload)
 
         def image(route):
@@ -57,5 +61,14 @@ with sync_playwright() as p:
         output.parent.mkdir(exist_ok=True)
         page.screenshot(path=str(output))
         print(tier['code'], 'profile rendered; artwork loaded;', output)
+        if tier['code'] == 'platinum':
+            page.mouse.click(273, 806)
+            page.wait_for_timeout(800)
+            page.mouse.click(315, 104)
+            page.wait_for_timeout(350)
+            page.screenshot(path=str(ROOT / 'scratch/promos-outlined-tabs.png'))
+            page.mouse.click(40, 806)
+            page.wait_for_timeout(600)
+            page.screenshot(path=str(ROOT / 'scratch/home-clean-loyalty.png'))
         context.close()
     browser.close()

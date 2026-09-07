@@ -1306,7 +1306,6 @@ class _StoryLoadingSurface extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final reduceMotion = BulkaMotion.reduced(context);
     final previewUrl = story.localizedGroupCoverUrl.isNotEmpty
         ? story.localizedGroupCoverUrl
         : story.localizedImageUrl;
@@ -1343,27 +1342,6 @@ class _StoryLoadingSurface extends StatelessWidget {
                       key: const ValueKey('story-loading-logo'),
                       width: 160,
                       fit: BoxFit.contain,
-                    ),
-                    const SizedBox(height: 14),
-                    Text(
-                      'story_loading'.tr,
-                      style: const TextStyle(
-                        fontFamily: _headingFont,
-                        color: _textDark,
-                        fontSize: BulkaTypeScale.bodySmall,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: 138,
-                      child: LinearProgressIndicator(
-                        value: reduceMotion ? 0.68 : null,
-                        minHeight: 4,
-                        color: _bulkaYellow,
-                        backgroundColor: const Color(0xFFEADBC4),
-                        borderRadius: BorderRadius.circular(BulkaRadii.small),
-                      ),
                     ),
                   ],
                 ),

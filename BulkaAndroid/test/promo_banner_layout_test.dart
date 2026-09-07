@@ -279,7 +279,18 @@ void main() {
       find.byKey(const ValueKey('story-loading-logo')),
     );
     expect(loadingLogo.width, 160);
-    expect(find.byType(LinearProgressIndicator), findsAtLeastNWidgets(2));
+    final loadingContent = find.byKey(const ValueKey('story-loading-content'));
+    expect(
+      find.descendant(
+        of: loadingContent,
+        matching: find.byType(LinearProgressIndicator),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: loadingContent, matching: find.byType(Text)),
+      findsNothing,
+    );
   });
 
   testWidgets('portrait story fills the viewport behind its controls', (
