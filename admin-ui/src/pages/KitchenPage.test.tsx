@@ -12,6 +12,7 @@ const toast = vi.hoisted(() => vi.fn());
 const realtimeMocks = vi.hoisted(() => ({
   connectionStatus: 'online' as string,
   playOrderAlarm: vi.fn(() => true),
+  stopOrderAlarm: vi.fn(),
   setSoundEnabled: vi.fn(),
   unlockSound: vi.fn(async () => true),
   soundEnabled: true,
@@ -158,6 +159,7 @@ describe('Kitchen optimistic workflow', () => {
 
     expect(apiMocks.updateKitchenStatus).toHaveBeenCalledWith('queued-1', 'preparing', 12, true);
     expect(screen.getByRole('alert')).toHaveTextContent('Не приняты оплаченные заказы: 1');
+    expect(realtimeMocks.stopOrderAlarm).not.toHaveBeenCalled();
     let queuedColumn = screen.getByText('Новые заказы').closest<HTMLElement>('.kitchen-column');
     expect(within(queuedColumn!).getByText('№100041')).toBeInTheDocument();
 
@@ -198,6 +200,7 @@ describe('Kitchen optimistic workflow', () => {
     });
     queuedColumn = screen.getByText('Новые заказы').closest<HTMLElement>('.kitchen-column');
     expect(within(queuedColumn!).queryByText('№100041')).not.toBeInTheDocument();
+    expect(realtimeMocks.stopOrderAlarm).toHaveBeenCalledTimes(1);
   });
 
   it('rolls an optimistic transition back when the server rejects it', async () => {
@@ -315,13 +318,13 @@ describe('Kitchen optimistic workflow', () => {
     expect(realtimeMocks.unlockSound).toHaveBeenCalledTimes(1);
   });
 
-  it('rings immediately and every 25 seconds while an order remains unaccepted', async () => {
+  it('rings immediately and every 20 seconds while an order remains unaccepted', async () => {
     const intervalSpy = vi.spyOn(window, 'setInterval');
     renderPage();
 
     await screen.findByRole('alert');
     await waitFor(() => expect(realtimeMocks.playOrderAlarm).toHaveBeenCalledTimes(1));
-    const alarmCall = intervalSpy.mock.calls.find(([, delay]) => delay === 25_000);
+    const alarmCall = intervalSpy.mock.calls.find(([, delay]) => delay === 20_000);
     expect(alarmCall).toBeDefined();
     act(() => {
       (alarmCall?.[0] as () => void)();
@@ -339,7 +342,7 @@ describe('Kitchen optimistic workflow', () => {
 
     await screen.findByRole('alert');
     const alarmTimer =
-      intervalSpy.mock.results[intervalSpy.mock.calls.findIndex(([, delay]) => delay === 25_000)]
+      intervalSpy.mock.results[intervalSpy.mock.calls.findIndex(([, delay]) => delay === 20_000)]
         ?.value;
     const realtimeSubscription = realtimeMocks.useAdminRealtimeEvents.mock.calls.at(-1);
     expect(realtimeSubscription?.[0]).toContain('connected');
@@ -349,6 +352,7 @@ describe('Kitchen optimistic workflow', () => {
 
     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
     expect(clearIntervalSpy).toHaveBeenCalledWith(alarmTimer);
+    expect(realtimeMocks.stopOrderAlarm).toHaveBeenCalledTimes(1);
   });
 
   it('coalesces refresh bursts and keeps the latest success when the trailing silent load fails', async () => {

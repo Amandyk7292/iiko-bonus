@@ -22,7 +22,8 @@ class FakeEventSource {
 }
 
 function SoundProbe() {
-  const { playOrderAlarm, soundEnabled, soundReady, unlockSound } = useAdminRealtime();
+  const { playOrderAlarm, stopOrderAlarm, setSoundEnabled, soundEnabled, soundReady, unlockSound } =
+    useAdminRealtime();
   const [alarmResult, setAlarmResult] = useState<boolean | null>(null);
   return (
     <div>
@@ -35,6 +36,9 @@ function SoundProbe() {
       <button type="button" onClick={() => setAlarmResult(playOrderAlarm())}>
         Play alarm
       </button>
+      <button onClick={() => playOrderAlarm(true)}>Kitchen siren</button>
+      <button onClick={stopOrderAlarm}>Stop siren</button>
+      <button onClick={() => setSoundEnabled(false)}>Mute</button>
     </div>
   );
 }
@@ -110,6 +114,54 @@ describe('admin order audio transport', () => {
     );
 
     expect(screen.getByText('disabled')).toBeInTheDocument();
+  });
+
+  it('plays a louder ten-second siren without overlap and stops immediately on acceptance or mute', () => {
+    const stop = vi.fn();
+    const start = vi.fn();
+    const ramp = vi.fn();
+    const disconnect = vi.fn();
+    class RunningAudioContext {
+      state = 'running';
+      currentTime = 100;
+      destination = {};
+      addEventListener() {}
+      createGain() {
+        return {
+          gain: { setValueAtTime: vi.fn(), exponentialRampToValueAtTime: ramp },
+          connect: vi.fn(),
+          disconnect,
+        };
+      }
+      createOscillator() {
+        return {
+          frequency: { setValueAtTime: vi.fn() },
+          connect: vi.fn(),
+          disconnect,
+          start,
+          stop,
+          addEventListener: vi.fn(),
+        };
+      }
+    }
+    vi.stubGlobal('AudioContext', RunningAudioContext);
+    render(
+      <AdminRealtimeProvider branchId="branch-1" role="cashier">
+        <SoundProbe />
+      </AdminRealtimeProvider>,
+    );
+    fireEvent.click(screen.getByText('Kitchen siren'));
+    expect(stop).toHaveBeenCalledWith(110);
+    expect(ramp).toHaveBeenCalledWith(0.5, 100.03);
+    fireEvent.click(screen.getByText('Kitchen siren'));
+    expect(start).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByText('Stop siren'));
+    expect(stop).toHaveBeenLastCalledWith();
+    expect(disconnect).toHaveBeenCalled();
+    fireEvent.click(screen.getByText('Kitchen siren'));
+    expect(start).toHaveBeenCalledTimes(2);
+    fireEvent.click(screen.getByText('Mute'));
+    expect(stop).toHaveBeenLastCalledWith();
   });
 
   it('keeps sound blocked when AudioContext construction throws', async () => {

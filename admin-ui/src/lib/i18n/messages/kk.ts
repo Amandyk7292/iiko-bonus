@@ -1032,7 +1032,8 @@ const kk: Record<string, string> = {
   'kitchen.alarmOldest': '№{{number}} тапсырыс ең ұзақ күтуде — {{duration}}.',
   'kitchen.elapsedDays': '{{days}} күн {{hours}} сағ',
   'kitchen.elapsedHours': '{{hours}} сағ {{minutes}} мин',
-  'kitchen.alarmHint': 'Сервер қабылдауды растағанша дабыл әр 25 секунд сайын қайталанады.',
+  'kitchen.alarmHint':
+    'Дабыл 10 секунд ойнап, барлық тапсырыс қабылданғанша әр 20 секунд сайын қайталанады.',
   'kitchen.alarmSaving': 'Қабылдау серверде сақталуда — әзірше дабыл қосулы қалады.',
   'kitchen.alarmEnableSound': 'Дабылды қосу',
   'kitchen.alarmUnlockSound': 'Дыбысты ашу',

@@ -134,6 +134,7 @@ export default function KitchenPage() {
   const {
     connectionStatus,
     playOrderAlarm,
+    stopOrderAlarm,
     setSoundEnabled,
     soundEnabled,
     soundReady,
@@ -264,19 +265,14 @@ export default function KitchenPage() {
 
   useEffect(() => {
     if (!hasUnacceptedOrders || !soundEnabled) return;
-    const ring = () => {
-      if (document.visibilityState === 'visible') playOrderAlarm();
-    };
+    const ring = () => playOrderAlarm(true);
     ring();
-    const alarmTimer = window.setInterval(ring, 25_000);
-    document.addEventListener('visibilitychange', ring);
-    window.addEventListener('online', ring);
+    const alarmTimer = window.setInterval(ring, 20_000);
     return () => {
       window.clearInterval(alarmTimer);
-      document.removeEventListener('visibilitychange', ring);
-      window.removeEventListener('online', ring);
+      stopOrderAlarm();
     };
-  }, [hasUnacceptedOrders, playOrderAlarm, soundEnabled, soundReady]);
+  }, [hasUnacceptedOrders, playOrderAlarm, stopOrderAlarm, soundEnabled, soundReady]);
 
   const persistUpdate = async (
     order: any,

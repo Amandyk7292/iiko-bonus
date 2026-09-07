@@ -34,7 +34,8 @@ interface AdminRealtimeValue {
   soundReady: boolean;
   setSoundEnabled: (enabled: boolean) => void;
   unlockSound: () => Promise<boolean>;
-  playOrderAlarm: () => boolean;
+  playOrderAlarm: (kitchenAlarm?: boolean) => boolean;
+  stopOrderAlarm: () => void;
 }
 
 const EVENT_TYPES = [
@@ -78,7 +79,21 @@ const AdminRealtimeContext = createContext<AdminRealtimeValue | null>(null);
 
 let orderAudioContext: AudioContext | null = null;
 let lastOrderToneAt = 0;
+let activeKitchenAlarm: { oscillator: OscillatorNode; gain: GainNode } | null = null;
 const orderAudioStateListeners = new Set<() => void>();
+
+function stopOrderAlarm() {
+  const active = activeKitchenAlarm;
+  activeKitchenAlarm = null;
+  if (!active) return;
+  try {
+    active.oscillator.stop();
+    active.oscillator.disconnect();
+    active.gain.disconnect();
+  } catch {
+    // The browser may already have closed the audio context.
+  }
+}
 
 function notifyOrderAudioState() {
   for (const listener of orderAudioStateListeners) {
@@ -91,6 +106,7 @@ function notifyOrderAudioState() {
 }
 
 function discardOrderAudioContext(context: AudioContext | null) {
+  stopOrderAlarm();
   if (orderAudioContext === context) orderAudioContext = null;
   lastOrderToneAt = 0;
   if (context) {
@@ -137,30 +153,34 @@ function isOrderAudioReady() {
   }
 }
 
-function playOrderTone(force = false) {
+function playOrderTone(force = false, kitchenAlarm = false) {
   const context = getOrderAudioContext();
   if (!context) return false;
   try {
     if (context.state !== 'running') return false;
+    if (activeKitchenAlarm) return true;
     const now = Date.now();
-    if (!force && now - lastOrderToneAt < 4_000) return true;
+    if (!force && !kitchenAlarm && now - lastOrderToneAt < 4_000) return true;
+    const duration = kitchenAlarm ? 10 : 0.8;
+    const volume = kitchenAlarm ? 0.5 : 0.16;
     const gain = context.createGain();
     const oscillator = context.createOscillator();
     gain.gain.setValueAtTime(0.0001, context.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.16, context.currentTime + 0.03);
-    gain.gain.setValueAtTime(0.16, context.currentTime + 0.58);
-    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.78);
-    oscillator.frequency.setValueAtTime(720, context.currentTime);
-    oscillator.frequency.setValueAtTime(960, context.currentTime + 0.2);
-    oscillator.frequency.setValueAtTime(720, context.currentTime + 0.4);
-    oscillator.frequency.setValueAtTime(960, context.currentTime + 0.6);
+    gain.gain.exponentialRampToValueAtTime(volume, context.currentTime + 0.03);
+    gain.gain.setValueAtTime(volume, context.currentTime + duration - 0.22);
+    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + duration - 0.02);
+    for (let step = 0; step < duration / 0.2; step++) {
+      oscillator.frequency.setValueAtTime(step % 2 ? 960 : 720, context.currentTime + step * 0.2);
+    }
     oscillator.connect(gain);
     gain.connect(context.destination);
+    if (kitchenAlarm) activeKitchenAlarm = { oscillator, gain };
     oscillator.start();
-    oscillator.stop(context.currentTime + 0.8);
+    oscillator.stop(context.currentTime + duration);
     oscillator.addEventListener(
       'ended',
       () => {
+        if (activeKitchenAlarm?.oscillator === oscillator) activeKitchenAlarm = null;
         try {
           oscillator.disconnect();
         } catch {
@@ -292,8 +312,8 @@ export function AdminRealtimeProvider({
     return () => listenersRef.current.delete(subscription);
   }, []);
 
-  const playOrderAlarm = useCallback(() => {
-    const played = playOrderTone();
+  const playOrderAlarm = useCallback((kitchenAlarm = false) => {
+    const played = playOrderTone(false, kitchenAlarm);
     setSoundReady(isOrderAudioReady());
     return played;
   }, []);
@@ -309,6 +329,7 @@ export function AdminRealtimeProvider({
       setSoundEnabledState(enabled);
       localStorage.setItem('adminOrderSoundEnabled', String(enabled));
       if (enabled) void unlockSound();
+      else stopOrderAlarm();
     },
     [unlockSound],
   );
@@ -422,6 +443,7 @@ export function AdminRealtimeProvider({
       setSoundEnabled,
       unlockSound,
       playOrderAlarm,
+      stopOrderAlarm,
     }),
     [
       connectionStatus,

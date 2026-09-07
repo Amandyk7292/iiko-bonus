@@ -1033,7 +1033,8 @@ const en: Record<string, string> = {
   'kitchen.alarmOldest': 'Order №{{number}} has waited the longest — {{duration}}.',
   'kitchen.elapsedDays': '{{days}} d {{hours}} h',
   'kitchen.elapsedHours': '{{hours}} h {{minutes}} min',
-  'kitchen.alarmHint': 'The siren repeats every 25 seconds until the server confirms acceptance.',
+  'kitchen.alarmHint':
+    'The alarm sounds for 10 seconds and repeats every 20 seconds until all orders are accepted.',
   'kitchen.alarmSaving': 'Saving acceptance on the server — the alarm remains active for now.',
   'kitchen.alarmEnableSound': 'Enable siren',
   'kitchen.alarmUnlockSound': 'Unlock sound',

@@ -1047,7 +1047,8 @@ const ru: Record<string, string> = {
   'kitchen.alarmOldest': 'Первым ждёт заказ №{{number}} — уже {{duration}}.',
   'kitchen.elapsedDays': '{{days}} д {{hours}} ч',
   'kitchen.elapsedHours': '{{hours}} ч {{minutes}} мин',
-  'kitchen.alarmHint': 'Сирена повторяется каждые 25 секунд до подтверждения сервером.',
+  'kitchen.alarmHint':
+    'Сигнал звучит 10 секунд, повторяется каждые 20 секунд до принятия всех заказов.',
   'kitchen.alarmSaving': 'Сохраняем принятие на сервере — тревога пока остаётся включённой.',
   'kitchen.alarmEnableSound': 'Включить сирену',
   'kitchen.alarmUnlockSound': 'Разблокировать звук',
