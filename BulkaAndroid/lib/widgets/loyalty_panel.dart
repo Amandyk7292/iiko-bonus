@@ -5,8 +5,6 @@ class _LoyaltyPanel extends StatelessWidget {
     required this.api,
     required this.customer,
     required this.transactions,
-    required this.expanded,
-    required this.onToggle,
     required this.onHistoryTap,
     required this.onQrTap,
   });
@@ -14,8 +12,6 @@ class _LoyaltyPanel extends StatelessWidget {
   final BulkaApiClient api;
   final Customer customer;
   final List<BonusTransaction> transactions;
-  final bool expanded;
-  final VoidCallback onToggle;
   final VoidCallback onHistoryTap;
   final VoidCallback onQrTap;
 
@@ -25,11 +21,6 @@ class _LoyaltyPanel extends StatelessWidget {
     final firstReward = _RewardState.fromPurchases(purchaseCount, 6);
     final secondReward = _RewardState.fromPurchases(purchaseCount, 12);
     final tier = customer.tier;
-    final standardDuration = BulkaMotion.duration(
-      context,
-      BulkaMotion.standard,
-    );
-    final fastDuration = BulkaMotion.duration(context, BulkaMotion.fast);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -119,134 +110,62 @@ class _LoyaltyPanel extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 18),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            TweenAnimationBuilder<double>(
-                              tween: Tween<double>(end: customer.balance),
-                              duration: standardDuration,
-                              curve: BulkaMotion.standardCurve,
-                              builder: (context, value, _) => Text(
-                                '${'balance_prefix'.tr}${formatMoney(value)}${'points_suffix'.tr}',
-                                style: const TextStyle(
-                                  color: Color(0xFF6D3317),
-                                  fontFamily: _headingFont,
-                                  fontSize: BulkaTypeScale.title,
-                                  fontWeight: FontWeight.w400,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              '${'cashback_gift_1'.tr}${tier?.percent ?? customer.cashbackPercent}${'cashback_gift_2'.tr}',
-                              style: const TextStyle(
-                                color: Color(0xFF6D3317),
-                                fontSize: BulkaTypeScale.body,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Semantics(
-                        button: true,
-                        expanded: expanded,
-                        label: expanded
-                            ? 'collapse_tooltip'.tr
-                            : 'expand_tooltip'.tr,
-                        child: IconButton(
-                          tooltip: expanded
-                              ? 'collapse_tooltip'.tr
-                              : 'expand_tooltip'.tr,
-                          onPressed: () {
-                            BulkaMotion.selection();
-                            onToggle();
-                          },
-                          style: IconButton.styleFrom(
-                            minimumSize: const Size(48, 48),
-                            tapTargetSize: MaterialTapTargetSize.padded,
-                          ),
-                          icon: AnimatedRotation(
-                            turns: expanded ? 0.5 : 0,
-                            duration: fastDuration,
-                            child: const Icon(
-                              Icons.keyboard_arrow_down_rounded,
-                              color: Color(0xFF6D3317),
-                              size: 22,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
                 ],
               ),
             ],
           ),
         ),
-        BulkaExpandable(
-          expanded: expanded,
-          duration: BulkaMotion.standard,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(0, 22, 0, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (tier == null) ...[
-                  _RewardProgress(
-                    title: 'reward_6_desc'.tr,
-                    remaining: firstReward.remaining,
-                    progress: firstReward.progress,
-                  ),
-                  const SizedBox(height: 22),
-                  _RewardProgress(
-                    title: 'reward_12_desc'.tr,
-                    remaining: secondReward.remaining,
-                    progress: secondReward.progress,
-                  ),
-                  const SizedBox(height: 24),
-                  _StampRow(completed: purchaseCount, total: 12),
-                  const SizedBox(height: 20),
-                ],
-                _BonusExpiryNotice(api: api),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  height: 58,
-                  child: GradientButton(
-                    key: const ValueKey('balance-history-button'),
-                    onPressed: onHistoryTap,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.history,
-                          size: 20,
-                          color: Colors.white,
-                        ),
-                        const SizedBox(width: 8),
-                        Flexible(
-                          child: Text(
-                            'balance_history_btn'.tr,
-                            maxLines: 2,
-                            overflow: TextOverflow.fade,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: BulkaTypeScale.title,
-                              fontWeight: FontWeight.w400,
-                            ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(0, 22, 0, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (tier == null) ...[
+                _RewardProgress(
+                  title: 'reward_6_desc'.tr,
+                  remaining: firstReward.remaining,
+                  progress: firstReward.progress,
+                ),
+                const SizedBox(height: 22),
+                _RewardProgress(
+                  title: 'reward_12_desc'.tr,
+                  remaining: secondReward.remaining,
+                  progress: secondReward.progress,
+                ),
+                const SizedBox(height: 24),
+                _StampRow(completed: purchaseCount, total: 12),
+                const SizedBox(height: 20),
+              ],
+              _BonusExpiryNotice(api: api),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 58,
+                child: GradientButton(
+                  key: const ValueKey('balance-history-button'),
+                  onPressed: onHistoryTap,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.history, size: 20, color: Colors.white),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          'balance_history_btn'.tr,
+                          maxLines: 2,
+                          overflow: TextOverflow.fade,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: BulkaTypeScale.title,
+                            fontWeight: FontWeight.w400,
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ],

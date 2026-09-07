@@ -37,7 +37,6 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _initialLoading = true;
   bool _storiesLoadFailed = false;
   bool _newsLoadFailed = false;
-  bool _loyaltyExpanded = true;
   final _navigationGate = _AsyncActionGate();
 
   @override
@@ -277,10 +276,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                 api: widget.api,
                                 customer: customer,
                                 transactions: widget.transactions,
-                                expanded: _loyaltyExpanded,
-                                onToggle: () => setState(
-                                  () => _loyaltyExpanded = !_loyaltyExpanded,
-                                ),
                                 onHistoryTap: widget.onHistoryTap,
                                 onQrTap: _openQr,
                               ),

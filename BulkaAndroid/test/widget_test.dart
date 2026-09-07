@@ -2265,20 +2265,14 @@ void main() {
     await tester.tap(find.byIcon(Icons.close_rounded));
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.byTooltip('Свернуть'));
-    await tester.tap(find.byTooltip('Свернуть'));
-    await tester.pump(const Duration(milliseconds: 300));
-    expect(find.byTooltip('Развернуть'), findsOneWidget);
+    expect(find.byTooltip('Свернуть'), findsNothing);
+    expect(find.textContaining('Баланс:'), findsNothing);
+    expect(find.textContaining('Дарим 5%'), findsNothing);
 
     await tester.tap(find.byKey(const ValueKey('nav-4')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('nav-0')));
     await tester.pumpAndSettle();
-    expect(find.byTooltip('Развернуть'), findsOneWidget);
-
-    await tester.ensureVisible(find.byTooltip('Развернуть'));
-    await tester.tap(find.byTooltip('Развернуть'));
-    await tester.pump(const Duration(milliseconds: 300));
     final historyButton = find.byKey(const ValueKey('balance-history-button'));
     await tester.drag(
       find.byKey(const PageStorageKey('home-scroll')),
