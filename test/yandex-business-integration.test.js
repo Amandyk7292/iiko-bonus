@@ -1056,7 +1056,7 @@ test('Cargo create timeout retries the same UUID and immutable payload through s
   const harness = loadService(t, {
     client: {},
     cargoFetchImpl,
-    environment: { YANDEX_DELIVERY_API_MODE: 'cargo_v2' },
+    environment: { YANDEX_DELIVERY_API_MODE: 'cargo_v2', YANDEX_DELIVERY_MAX_PRICE_KZT: '5000' },
   });
   await harness.service.quoteOrder(ORDER_ID);
   const job = harness.state.jobs[0];

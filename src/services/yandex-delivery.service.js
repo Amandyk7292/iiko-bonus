@@ -6,6 +6,7 @@ const { normalizeKazakhstanPhone } = require('../utils/phone.util');
 const { credentialHash, decryptSecret, encryptSecret } = require('../utils/secret-envelope.util');
 const realtime = require('./realtime.service');
 const businessApi = require('./yandex-business-api');
+const { cargoPriceLimit, assertCargoPrice } = require('./yandex-cargo-price');
 
 const API_PREFIX = '/b2b/cargo/integration/v2';
 const API_FAMILIES = Object.freeze({ CARGO: 'cargo_v2', BUSINESS: 'business_v2' });
@@ -132,6 +133,7 @@ function getConfig(env = process.env) {
       .trim()
       .slice(0, 100),
     taxiClass,
+    cargoMaxPriceKzt: cargoPriceLimit(env.YANDEX_DELIVERY_MAX_PRICE_KZT),
     cargoOptions,
     business: {
       ...business,
@@ -211,7 +213,9 @@ function getConfigurationStatus(env = process.env) {
   if (env.VERCEL) businessDispatchMissing.push('VERCEL_UNSUPPORTED_BACKGROUND_WORKERS');
   const dispatchReady =
     configured &&
-    (config.apiMode !== API_FAMILIES.BUSINESS || businessDispatchMissing.length === 0);
+    (config.apiMode === API_FAMILIES.CARGO
+      ? !!config.cargoMaxPriceKzt
+      : businessDispatchMissing.length === 0);
   return {
     apiMode: config.apiMode,
     providerLabel:
@@ -231,7 +235,8 @@ function getConfigurationStatus(env = process.env) {
       config.apiMode === API_FAMILIES.CARGO
         ? config.cargoOptions.includes('thermobag')
         : config.business.requirements.thermobag === true,
-    maxPriceKzt: config.business.maxPriceKzt,
+    maxPriceKzt:
+      config.apiMode === API_FAMILIES.CARGO ? config.cargoMaxPriceKzt : config.business.maxPriceKzt,
     quoteMaxAgeSeconds: config.business.quoteMaxAgeSeconds,
     restaurantDeliveryConfirmed: config.business.restaurantDeliveryConfirmed,
     alertReceiverConfigured: config.opsAlertReceiver.configured,
@@ -239,7 +244,12 @@ function getConfigurationStatus(env = process.env) {
     alertReceiverReady,
     alertWorkersEnabled: config.opsAlertReceiver.workersEnabled,
     deliverySyncWorkerEnabled: config.opsAlertReceiver.deliverySyncEnabled,
-    dispatchMissing: config.apiMode === API_FAMILIES.BUSINESS ? businessDispatchMissing : [],
+    dispatchMissing:
+      config.apiMode === API_FAMILIES.BUSINESS
+        ? businessDispatchMissing
+        : config.cargoMaxPriceKzt
+          ? []
+          : ['YANDEX_DELIVERY_MAX_PRICE_KZT'],
     familyReadiness: {
       cargo_v2: { configured: cargoMissing.length === 0, missing: cargoMissing },
       business_v2: {
@@ -2371,6 +2381,17 @@ async function syncDeliveryJob(jobOrId) {
       config,
     });
     if (info.status === 'ready_for_approval' && job.auto_accept) {
+      job = await updateJob(job.id, {
+        provider_status: info.status,
+        external_version: info.version,
+        provider_price:
+          Number(info.pricing?.offer?.price_with_vat ?? info.pricing?.offer?.price) || null,
+        raw_response: info,
+      });
+      assertCargoPrice(
+        info,
+        Math.min(config.cargoMaxPriceKzt || 0, Number(job.authorized_max_price) || 0),
+      );
       const accepted = await apiRequest('/claims/accept', {
         query: { claim_id: job.external_claim_id },
         body: { version: Number(info.version) },
@@ -2867,6 +2888,7 @@ async function dispatchOrder(orderId, options = {}) {
   if (apiFamily === API_FAMILIES.BUSINESS) {
     return dispatchBusinessOrder(order, options, config);
   }
+  if (!config.cargoMaxPriceKzt) assertCargoPrice({}, null);
   const currentPayload = buildClaimPayload(order, config);
   let job = await getOrCreateJob(order, currentPayload);
   const cargoCreateRetry =
@@ -2881,10 +2903,13 @@ async function dispatchOrder(orderId, options = {}) {
   }
   if (
     !cargoCreateRetry &&
-    (!job.auto_accept || JSON.stringify(job.request_payload || {}) !== JSON.stringify(payload))
+    (!job.auto_accept ||
+      !job.authorized_max_price ||
+      JSON.stringify(job.request_payload || {}) !== JSON.stringify(payload))
   ) {
     job = await updateJob(job.id, {
       auto_accept: true,
+      authorized_max_price: config.cargoMaxPriceKzt,
       request_payload: payload,
       last_error: null,
     });
