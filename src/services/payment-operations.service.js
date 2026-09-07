@@ -84,6 +84,7 @@ const defaultListPaymentErrors = async () => {
   const { data, error } = await supabase
     .from('kaspi_orders')
     .select('id,order_number,payment_method,provider_payment_system,status,last_error,updated_at')
+    .eq('payment_method', 'forte_card')
     .not('last_error', 'is', null)
     .order('updated_at', { ascending: false })
     .limit(8);

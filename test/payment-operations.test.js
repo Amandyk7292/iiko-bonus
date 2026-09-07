@@ -11,6 +11,45 @@ const {
 
 const fixedNow = new Date('2026-07-27T12:00:00.000Z');
 
+test('current diagnostics exclude retired payments before limiting recent errors', async (t) => {
+  const { supabase } = require('../src/config/supabase');
+  const rows = [
+    ...Array.from({ length: 9 }, (_, index) => ({
+      id: `legacy-${index}`,
+      payment_method: 'kaspi',
+      last_error: 'Historical payment error',
+    })),
+    { id: 'active', payment_method: 'forte_card', last_error: 'Bank unavailable' },
+  ];
+  let selected = rows;
+  const query = {
+    select() {
+      return this;
+    },
+    eq(column, value) {
+      selected = selected.filter((row) => row[column] === value);
+      return this;
+    },
+    not() {
+      return this;
+    },
+    order() {
+      return this;
+    },
+    async limit(count) {
+      return { data: selected.slice(0, count), error: null };
+    },
+  };
+  t.mock.method(supabase, 'from', () => query);
+  const errors = await new PaymentOperationsService().listPaymentErrors();
+  assert.deepEqual(
+    errors.map((error) => error.id),
+    ['active'],
+  );
+  assert.equal(errors[0].message, 'Bank unavailable');
+  assert.equal(rows.length, 10);
+});
+
 const createHarness = () => {
   const settings = new Map();
   let widgetAvailable = true;
