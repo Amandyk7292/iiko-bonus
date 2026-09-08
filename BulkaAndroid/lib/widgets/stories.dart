@@ -168,13 +168,11 @@ class _PromoBannerShimmerState extends State<PromoBannerShimmer>
 class PromoBannerSlider extends StatefulWidget {
   const PromoBannerSlider({
     required this.groups,
-    required this.viewedGroups,
     required this.onGroupTap,
     super.key,
   });
 
   final List<StoryGroup> groups;
-  final Set<String> viewedGroups;
   final ValueChanged<StoryGroup> onGroupTap;
 
   @override
@@ -284,7 +282,6 @@ class _PromoBannerSliderState extends State<PromoBannerSlider> {
             itemCount: widget.groups.length,
             itemBuilder: (context, index) => _PromoBannerCard(
               group: widget.groups[index],
-              viewed: widget.viewedGroups.contains(widget.groups[index].id),
               onTap: () => widget.onGroupTap(widget.groups[index]),
             ),
           );
@@ -314,9 +311,6 @@ class _PromoBannerSliderState extends State<PromoBannerSlider> {
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                         child: _PromoBannerCard(
                           group: widget.groups[idx],
-                          viewed: widget.viewedGroups.contains(
-                            widget.groups[idx].id,
-                          ),
                           onTap: () => widget.onGroupTap(widget.groups[idx]),
                         ),
                       ),
@@ -357,14 +351,9 @@ class _PromoBannerSliderState extends State<PromoBannerSlider> {
 }
 
 class _PromoBannerCard extends StatelessWidget {
-  const _PromoBannerCard({
-    required this.group,
-    required this.viewed,
-    required this.onTap,
-  });
+  const _PromoBannerCard({required this.group, required this.onTap});
 
   final StoryGroup group;
-  final bool viewed;
   final VoidCallback onTap;
 
   @override
@@ -389,10 +378,8 @@ class _PromoBannerCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(BulkaRadii.control),
                   border: Border.all(
-                    color: viewed
-                        ? const Color(0xFFEADBBE).withValues(alpha: 0.62)
-                        : const Color(0xFFE0B858),
-                    width: viewed ? 1.2 : 1.8,
+                    color: const Color(0xFFE0B858),
+                    width: 1.8,
                   ),
                   boxShadow: BulkaShadows.card,
                 ),

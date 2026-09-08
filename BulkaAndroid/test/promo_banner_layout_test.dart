@@ -187,7 +187,6 @@ void main() {
                 stories: [],
               ),
             ],
-            viewedGroups: const {},
             onGroupTap: (_) {},
           ),
         ),
@@ -219,11 +218,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: PromoBannerSlider(
-            groups: groups,
-            viewedGroups: const {},
-            onGroupTap: (_) {},
-          ),
+          body: PromoBannerSlider(groups: groups, onGroupTap: (_) {}),
         ),
       ),
     );
@@ -269,7 +264,6 @@ void main() {
                   stories: [],
                 ),
               ],
-              viewedGroups: const {},
               onGroupTap: (_) {},
             ),
           ),

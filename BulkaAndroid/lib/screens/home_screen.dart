@@ -205,7 +205,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         else if (storyGroups.isNotEmpty)
                           PromoBannerSlider(
                             groups: storyGroups,
-                            viewedGroups: _viewedStoryGroups,
                             onGroupTap: _openStoryGroup,
                           )
                         else
