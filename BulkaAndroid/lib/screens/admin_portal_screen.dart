@@ -155,59 +155,11 @@ class _AdminPortalScreenState extends State<AdminPortalScreen>
     return Scaffold(
       backgroundColor: scheme.surface,
       appBar: AppBar(
-        toolbarHeight: 60,
+        toolbarHeight: 44,
         automaticallyImplyLeading: false,
         backgroundColor: scheme.surface,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        titleSpacing: 16,
-        title: Row(
-          children: [
-            Container(
-              width: 38,
-              height: 38,
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: colors.surfaceCream,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: colors.cardBorder),
-              ),
-              child: Image.asset(
-                'assets/brand/bulka_logo.png',
-                fit: BoxFit.contain,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'admin_portal_title'.tr,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: colors.brandBrown,
-                      fontFamily: _headingFont,
-                      fontSize: BulkaTypeScale.titleSmall,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  Text(
-                    'admin_portal_secure'.tr,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: colors.mutedText,
-                      fontSize: BulkaTypeScale.caption,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
         actions: [
           IconButton(
             key: const ValueKey('admin-portal-close'),
