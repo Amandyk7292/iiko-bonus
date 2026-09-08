@@ -1,10 +1,15 @@
 part of '../main.dart';
 
 class StaffNativePush extends ChangeNotifier with WidgetsBindingObserver {
-  StaffNativePush(this.api) {
+  StaffNativePush(
+    this.api, {
+    @visibleForTesting
+    Future<Map<String, Object?>> Function(StaffPushBridgeAction, bool)? native,
+    @visibleForTesting Stream<Map<String, Object?>>? tokenEvents,
+  }) : _nativeOverride = native {
     WidgetsBinding.instance.addObserver(this);
     PushNotifications.setStaffPushBridgeActivated(true);
-    _tokens = PushNotifications.staffTokenEvents.listen(
+    _tokens = (tokenEvents ?? PushNotifications.staffTokenEvents).listen(
       (_) => unawaited(synchronize()),
     );
     _timer = Timer.periodic(
@@ -14,6 +19,8 @@ class StaffNativePush extends ChangeNotifier with WidgetsBindingObserver {
     unawaited(synchronize());
   }
   final StaffApiClient api;
+  final Future<Map<String, Object?>> Function(StaffPushBridgeAction, bool)?
+  _nativeOverride;
   bool enabled = false,
       busy = false,
       _disposed = false,
@@ -27,13 +34,15 @@ class StaffNativePush extends ChangeNotifier with WidgetsBindingObserver {
   Future<Map<String, Object?>> _native(
     StaffPushBridgeAction action, {
     bool user = false,
-  }) => PushNotifications.handleStaffPushBridgeRequest(
-    StaffPushBridgeRequest(
-      requestId: staffRequestId(),
-      action: action,
-      userInitiated: user,
-    ),
-  );
+  }) =>
+      _nativeOverride?.call(action, user) ??
+      PushNotifications.handleStaffPushBridgeRequest(
+        StaffPushBridgeRequest(
+          requestId: staffRequestId(),
+          action: action,
+          userInitiated: user,
+        ),
+      );
   void _notify() {
     if (!_disposed) notifyListeners();
   }

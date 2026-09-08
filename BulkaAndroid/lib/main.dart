@@ -49,6 +49,9 @@ import 'widgets/forte_checkout_webview.dart';
 import 'widgets/yandex_map/yandex_map.dart';
 part 'api/bulka_api_client.dart';
 part 'api/staff_api_client.dart';
+part 'core/staff_account_session.dart';
+
+part 'staff/cashier_workspace.dart';
 part 'api/admin_portal_login_client.dart';
 part 'widgets/admin_password_login_form.dart';
 part 'widgets/auth_login_widgets.dart';

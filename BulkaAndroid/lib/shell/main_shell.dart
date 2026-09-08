@@ -13,6 +13,9 @@ class MainShell extends StatefulWidget {
     this.onTabChanged,
     this.onOpenOrders,
     this.onOpenOrder,
+    this.staff,
+    this.onOpenStaffPortal,
+    this.onStaffLogout,
     super.key,
   });
 
@@ -27,6 +30,8 @@ class MainShell extends StatefulWidget {
   final ValueChanged<int>? onTabChanged;
   final Future<void> Function()? onOpenOrders;
   final Future<void> Function(String? orderId)? onOpenOrder;
+  final StaffAccountSession? staff;
+  final Future<void> Function()? onOpenStaffPortal, onStaffLogout;
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -231,10 +236,13 @@ class _MainShellState extends State<MainShell> {
         key: const PageStorageKey('locations-tab'),
         api: widget.api,
       ),
-      if (customer == null)
-        _GuestProfileScreen(
+      if (customer == null || widget.staff?.isAuthenticated == true)
+        AccountProfileScreen(
           key: const PageStorageKey('guest-profile-tab'),
           onSignIn: _requireAuth,
+          staff: widget.staff,
+          onOpenStaffPortal: widget.onOpenStaffPortal,
+          onStaffLogout: widget.onStaffLogout,
         )
       else
         ProfileScreen(
@@ -746,10 +754,18 @@ class _NavItem {
   final bool prominent;
 }
 
-class _GuestProfileScreen extends StatelessWidget {
-  const _GuestProfileScreen({required this.onSignIn, super.key});
+class AccountProfileScreen extends StatelessWidget {
+  const AccountProfileScreen({
+    required this.onSignIn,
+    this.staff,
+    this.onOpenStaffPortal,
+    this.onStaffLogout,
+    super.key,
+  });
 
   final Future<bool> Function() onSignIn;
+  final StaffAccountSession? staff;
+  final Future<void> Function()? onOpenStaffPortal, onStaffLogout;
 
   Future<void> _selectLanguage(BuildContext context) async {
     final code = await showLanguageBottomSheet(
@@ -813,7 +829,9 @@ class _GuestProfileScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      'guest_profile_heading'.tr,
+                      staff?.isAuthenticated == true
+                          ? staff!.displayName
+                          : 'guest_profile_heading'.tr,
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontFamily: _headingFont,
@@ -823,7 +841,13 @@ class _GuestProfileScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'guest_profile_body'.tr,
+                      staff?.isAuthenticated == true
+                          ? staffText(
+                              'Вход выполнен',
+                              'Жүйеге кірдіңіз',
+                              'Signed in',
+                            )
+                          : 'guest_profile_body'.tr,
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: colors.mutedText,
@@ -831,15 +855,17 @@ class _GuestProfileScreen extends StatelessWidget {
                         height: 1.4,
                       ),
                     ),
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        onPressed: () => unawaited(onSignIn()),
-                        icon: const Icon(Icons.login_rounded),
-                        label: Text('guest_sign_in'.tr),
+                    if (staff?.isAuthenticated != true) ...[
+                      const SizedBox(height: 20),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: () => unawaited(onSignIn()),
+                          icon: const Icon(Icons.login_rounded),
+                          label: Text('guest_sign_in'.tr),
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -858,6 +884,18 @@ class _GuestProfileScreen extends StatelessWidget {
                     title: 'select_lang_title'.tr,
                     onTap: () => _selectLanguage(context),
                   ),
+                  if (staff?.canOpenPortal == true) ...[
+                    Divider(height: 1, indent: 60, color: colors.cardBorder),
+                    _ProfileMenuItem(
+                      icon: Icons.admin_panel_settings_outlined,
+                      title: staffText(
+                        'Админ панель',
+                        'Әкімші панелі',
+                        'Admin panel',
+                      ),
+                      onTap: onOpenStaffPortal ?? () {},
+                    ),
+                  ],
                   Divider(height: 1, indent: 60, color: colors.cardBorder),
                   _ProfileMenuItem(
                     icon: Icons.location_on_outlined,
@@ -887,6 +925,26 @@ class _GuestProfileScreen extends StatelessWidget {
                 ],
               ),
             ),
+            if (staff?.isAuthenticated == true) ...[
+              const SizedBox(height: 16),
+              TextButton.icon(
+                onPressed: onStaffLogout == null
+                    ? null
+                    : () async {
+                        try {
+                          await onStaffLogout!();
+                        } catch (error) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(
+                              context,
+                            ).showSnackBar(SnackBar(content: Text('$error')));
+                          }
+                        }
+                      },
+                icon: const Icon(Icons.logout_rounded),
+                label: Text(staffText('Выйти', 'Шығу', 'Sign out')),
+              ),
+            ],
           ],
         ),
       ),

@@ -6,6 +6,12 @@ class AdminPortalLoginException implements Exception {
   final bool needsCode;
 }
 
+class AdminPortalLoginResult {
+  const AdminPortalLoginResult(this.user, {this.cookie});
+  final Map<String, dynamic> user;
+  final String? cookie;
+}
+
 /// Authenticates against the existing admin endpoint. Customer sessions are not
 /// involved. Native apps preserve the server's HttpOnly cookie in WebView;
 /// browsers receive that cookie directly and never read or store its value.
@@ -38,7 +44,11 @@ class AdminPortalLoginClient {
     }
   }
 
-  Future<void> login(String username, String password, String code) async {
+  Future<AdminPortalLoginResult> login(
+    String username,
+    String password,
+    String code,
+  ) async {
     final uri = _base.resolve('/admin/api/login');
     if (!_browserTransport && uri.origin != bulkaProductionOrigin) {
       throw const AdminPortalLoginException('auth_admin_session_error');
@@ -80,8 +90,9 @@ class AdminPortalLoginClient {
       if (response.statusCode != 200 || data is! Map || data['user'] is! Map) {
         throw const AdminPortalLoginException('auth_admin_unavailable');
       }
+      String? cookie;
       if (!_browserTransport) {
-        final cookie = response.headers['set-cookie'] ?? '';
+        cookie = response.headers['set-cookie'] ?? '';
         if (!cookie.startsWith('bulka_admin=') ||
             cookie.contains(RegExp(r'[\r\n]')) ||
             !RegExp(
@@ -100,6 +111,10 @@ class AdminPortalLoginClient {
         }
         await _installCookie(uri.resolve('/admin'), cookie);
       }
+      return AdminPortalLoginResult(
+        Map<String, dynamic>.from(data['user'] as Map),
+        cookie: cookie,
+      );
     } on TimeoutException {
       throw const AdminPortalLoginException('auth_admin_network_error');
     } on http.ClientException {

@@ -51,9 +51,18 @@ Future<void> reconcileReturnedForteCheckout({
 Future<void> resumePushNotifications() => PushNotifications.initialize();
 
 class BulkaBonusApp extends StatefulWidget {
-  const BulkaBonusApp({super.key, this.appReleaseChecksEnabled = true});
+  const BulkaBonusApp({
+    super.key,
+    this.appReleaseChecksEnabled = true,
+    this.staffSession,
+    this.nativeCashierPushEnabled = true,
+  });
 
   final bool appReleaseChecksEnabled;
+  @visibleForTesting
+  final StaffAccountSession? staffSession;
+  @visibleForTesting
+  final bool nativeCashierPushEnabled;
 
   @override
   State<BulkaBonusApp> createState() => _BulkaBonusAppState();
@@ -66,6 +75,11 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       : Durations.extralong1;
 
   final _api = BulkaApiClient();
+  late final _staff = widget.staffSession ?? StaffAccountSession();
+  late final Future<void> _staffReady;
+  int _cashierKitchenRequest = 0;
+  bool _staffPortalOpen = false;
+  String _lastStaffIdentity = '';
   final _appLinks = AppLinks();
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   SharedPreferences? _prefs;
@@ -104,6 +118,8 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _staff.addListener(_handleStaffChanged);
+    _staffReady = _staff.restore();
     _api.setSessionListener(_handleSessionChanged);
     OrderLiveStatus.attach(_api);
     _customerEventSubscription = _api.customerEvents.listen(
@@ -157,6 +173,8 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     _customerEventSubscription?.cancel();
     _appLinkSubscription?.cancel();
     _api.dispose();
+    _staff.removeListener(_handleStaffChanged);
+    if (widget.staffSession == null) _staff.dispose();
     super.dispose();
   }
 
@@ -168,6 +186,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       // alive for days. initialize() is silent, coalesced, and in the ready
       // state retries only that durable cleanup; it never prompts permission.
       unawaited(resumePushNotifications());
+      unawaited(_staff.restore());
       unawaited(_refreshRequiredAppUpdate());
     }
     final phone = _savedPhone;
@@ -178,6 +197,71 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     } else if (state != AppLifecycleState.resumed) {
       _refreshTimer?.cancel();
     }
+  }
+
+  void _handleStaffChanged() {
+    if (!mounted) return;
+    final identity = _staff.isAuthenticated
+        ? '${_staff.user?['username']}:${_staff.role}'
+        : '';
+    final changed = identity != _lastStaffIdentity;
+    final hadStaff = _lastStaffIdentity.isNotEmpty;
+    _lastStaffIdentity = identity;
+    setState(() {});
+    if (changed && !_loginRouteOpen) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        // Remove any route left over from a previous identity, including order
+        // details after session revocation or customer pages after cashier login.
+        if (_staff.isCashier || (hadStaff && !_staff.isAuthenticated)) {
+          _navigatorKey.currentState?.popUntil((route) => route.isFirst);
+        }
+      });
+    }
+  }
+
+  Future<void> _openStaffPortal({bool kitchen = false}) async {
+    await _staff.restore();
+    if (!mounted) return;
+    if (_staff.isCashier) {
+      if (kitchen) setState(() => _cashierKitchenRequest++);
+      _navigatorKey.currentState?.popUntil((route) => route.isFirst);
+      return;
+    }
+    if (!_staff.canOpenPortal) {
+      await _requireAuthentication(staffOnly: true);
+      return;
+    }
+    final navigator = _navigatorKey.currentState;
+    if (navigator == null || _staffPortalOpen) return;
+    final uri = kitchen ? bulkaAdminKitchenUri() : bulkaAdminPortalUri();
+    if (kIsWeb) {
+      navigateCurrentWindow(uri);
+      return;
+    }
+    _staffPortalOpen = true;
+    try {
+      await navigator.push<void>(
+        MaterialPageRoute(
+          settings: const RouteSettings(name: 'admin-portal'),
+          fullscreenDialog: true,
+          builder: (_) => AdminPortalScreen(initialUri: uri),
+        ),
+      );
+    } finally {
+      _staffPortalOpen = false;
+      if (mounted) await _staff.restore();
+    }
+  }
+
+  Future<void> _logoutStaff() async {
+    await _staff.logout();
+    if (!mounted) return;
+    setState(() {
+      _cashierKitchenRequest = 0;
+      _lastMainTab = 4;
+    });
+    _navigatorKey.currentState?.popUntil((route) => route.isFirst);
   }
 
   void _handleCustomerEvent(Map<String, dynamic> event) {
@@ -355,6 +439,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     }
 
     await minimumSplashDelay;
+    await _staffReady;
     _startupShellTimer?.cancel();
     if (!mounted) return;
     setState(() {
@@ -448,7 +533,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   }
 
   Future<void> _openCustomerOrders({String? initialOrderId}) async {
-    if (_ordersRouteOpen || _savedPhone == null) return;
+    if (_staff.isCashier || _ordersRouteOpen || _savedPhone == null) return;
     final navigator = _navigatorKey.currentState;
     if (navigator == null) return;
     _ordersRouteOpen = true;
@@ -489,6 +574,13 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   Future<void> _openPendingPushTarget() async {
     final target = _pendingPushTarget;
     if (target == null) return;
+    await _staffReady;
+    if (!mounted) return;
+    if (_staff.isCashier &&
+        target.kind != NotificationTargetKind.staffKitchen) {
+      _pendingPushTarget = null;
+      return;
+    }
     final requiresAuth = notificationTargetRequiresCustomerAuth(target.kind);
     if (requiresAuth && _savedPhone == null) return;
     _pendingPushTarget = null;
@@ -536,17 +628,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
         }
         return;
       case NotificationTargetKind.staffKitchen:
-        final navigator = _navigatorKey.currentState;
-        if (navigator != null) {
-          await navigator.push<void>(
-            MaterialPageRoute(
-              settings: const RouteSettings(name: 'admin-portal'),
-              fullscreenDialog: true,
-              builder: (_) =>
-                  AdminPortalScreen(initialUri: bulkaAdminKitchenUri()),
-            ),
-          );
-        }
+        await _openStaffPortal(kitchen: true);
         return;
       case NotificationTargetKind.external:
         final uri = target.uri;
@@ -966,20 +1048,25 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     await _clearSession();
   }
 
-  Future<bool> _requireAuthentication() async {
+  Future<bool> _requireAuthentication({bool staffOnly = false}) async {
     if (_booting) await _startupReady.future;
     if (!mounted) return false;
     if (_savedPhone != null && _customer == null && _api.isAuthenticated) {
       await _refreshProfile(_savedPhone!);
       if (!mounted) return false;
     }
-    if (_savedPhone != null && _customer != null && _api.isAuthenticated) {
+    if (_staff.isCashier) return false;
+    if (!staffOnly &&
+        _savedPhone != null &&
+        _customer != null &&
+        _api.isAuthenticated) {
       return true;
     }
     if (_loginRouteOpen) return false;
     final navigator = _navigatorKey.currentState;
     if (navigator == null) return false;
     _loginRouteOpen = true;
+    var staffAuthenticated = false;
 
     void finishAuthentication() {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -997,6 +1084,11 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
           fullscreenDialog: true,
           builder: (routeContext) => LoginScreen(
             onClose: () => Navigator.of(routeContext).pop(false),
+            onAdminLogin: _staff.signIn,
+            onOpenAdminPortal: (_) async {
+              staffAuthenticated = _staff.isAuthenticated;
+              if (routeContext.mounted) Navigator.of(routeContext).pop(false);
+            },
             onLogin: (phone, password) async {
               final result = await _loginWithPassword(phone, password);
               if (result == null) finishAuthentication();
@@ -1037,6 +1129,15 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
           ),
         ),
       );
+      if (staffAuthenticated && mounted) {
+        navigator.popUntil((route) => route.isFirst);
+        if (_staff.isCashier) {
+          setState(() => _cashierKitchenRequest++);
+        } else {
+          unawaited(_openStaffPortal());
+        }
+        return false; // A staff login never authorizes customer checkout.
+      }
       final succeeded =
           authenticated == true &&
           _savedPhone != null &&
@@ -1054,6 +1155,12 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   }
 
   void _handleIncomingLink(Uri uri) {
+    if (_staff.isCashier) {
+      if (uri.path == '/admin/kitchen' || uri.host == 'kitchen') {
+        unawaited(_openStaffPortal(kitchen: true));
+      }
+      return;
+    }
     final isBonus = uri.scheme == 'bulka' && uri.host == 'bonus';
     if (isBonus) {
       _restoreOrdersScreen = false;
@@ -1287,6 +1394,18 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
         onUpdate: () => unawaited(_openRequiredUpdateStore()),
       );
     }
+    if (_staff.isCashier) {
+      return CashierWorkspace(
+        key: ValueKey(
+          'cashier:${_staff.user?['id'] ?? _staff.user?['username']}:${_staff.user?['branchIds']}',
+        ),
+        api: _staff.api,
+        user: _staff.user!,
+        onLogout: _logoutStaff,
+        kitchenRequest: _cashierKitchenRequest,
+        nativePushEnabled: widget.nativeCashierPushEnabled,
+      );
+    }
     final customer = _booting ? null : _customer;
     return MainShell(
       key: const ValueKey('app-stage-main'),
@@ -1297,6 +1416,9 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       onRefreshProfile: _refreshProfileAfterMutation,
       onAvatarSaved: _applySavedAvatar,
       onRequireAuth: _requireAuthentication,
+      staff: _staff,
+      onOpenStaffPortal: () => _openStaffPortal(),
+      onStaffLogout: _logoutStaff,
       initialTab: _lastMainTab,
       onTabChanged: (tab) => unawaited(_saveMainTab(tab)),
       onOpenOrders: _openCustomerOrders,

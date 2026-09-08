@@ -38,8 +38,16 @@ struct BulkaOrderActivityAttributes: ActivityAttributes {
         binaryMessenger: controller.binaryMessenger
       )
       sessionChannel.setMethodCallHandler { [weak self] call, result in
-        guard call.method == "installCookie" else { return result(FlutterMethodNotImplemented) }
-        self?.installAdminCookie(call.arguments as? [String: Any] ?? [:], result: result)
+        guard let self else { return result(nil) }
+        switch call.method {
+        case "installCookie":
+          self.installAdminCookie(call.arguments as? [String: Any] ?? [:], result: result)
+        case "readCookie":
+          self.readAdminCookie(result: result)
+        case "clearCookie":
+          self.clearAdminCookie(result: result)
+        default: result(FlutterMethodNotImplemented)
+        }
       }
       adminSessionChannel = sessionChannel
       let channel = FlutterMethodChannel(
@@ -182,6 +190,31 @@ struct BulkaOrderActivityAttributes: ActivityAttributes {
     // Never inject session tokens through document.cookie or a navigation URL.
     WKWebsiteDataStore.default().httpCookieStore.setCookie(cookie) {
       DispatchQueue.main.async { result(true) }
+    }
+  }
+
+  // Accessible only to trusted Dart code, never to JavaScript in the portal.
+  private func readAdminCookie(result: @escaping FlutterResult) {
+    WKWebsiteDataStore.default().httpCookieStore.getAllCookies { cookies in
+      let cookie = cookies.first {
+        $0.name == "bulka_admin" && $0.domain == "bulka.com.kz" &&
+        $0.path == "/admin" && $0.isSecure && $0.isHTTPOnly &&
+        !$0.value.isEmpty && ($0.expiresDate == nil || $0.expiresDate! > Date())
+      }
+      DispatchQueue.main.async { result(cookie.map { "bulka_admin=\($0.value)" }) }
+    }
+  }
+
+  private func clearAdminCookie(result: @escaping FlutterResult) {
+    let store = WKWebsiteDataStore.default().httpCookieStore
+    store.getAllCookies { cookies in
+      let group = DispatchGroup()
+      for cookie in cookies where cookie.name == "bulka_admin" &&
+        cookie.domain == "bulka.com.kz" && cookie.path == "/admin" {
+        group.enter()
+        store.delete(cookie) { group.leave() }
+      }
+      group.notify(queue: .main) { result(nil) }
     }
   }
 

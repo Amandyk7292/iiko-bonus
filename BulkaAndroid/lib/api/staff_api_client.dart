@@ -16,13 +16,16 @@ class StaffApiClient {
     http.Client? client,
     String? baseUrl,
     SessionStorageBackend? storage,
+    @visibleForTesting bool? browserTransport,
   }) : _client = client ?? createBulkaHttpClient(),
        _base = Uri.parse(baseUrl ?? _apiBaseUrl),
-       _storage = storage ?? const SessionStorageBackend();
+       _storage = storage ?? const SessionStorageBackend(),
+       _browserTransport = browserTransport ?? kIsWeb;
   static const sessionKey = 'bulka_staff_session_v1';
   final http.Client _client;
   final Uri _base;
   final SessionStorageBackend _storage;
+  final bool _browserTransport;
   String? _token;
   String branchId = '';
   List<String> branchIds = [];
@@ -31,8 +34,8 @@ class StaffApiClient {
   Future<void> _sessionCleanup = Future<void>.value();
 
   Future<Map<String, dynamic>?> restore() async {
-    _token = await _storage.read(key: sessionKey);
-    if (_token == null) return null;
+    if (!_browserTransport) _token = await _storage.read(key: sessionKey);
+    if (!_browserTransport && _token == null) return null;
     try {
       return Map<String, dynamic>.from(
         (await request('/session'))['user'] as Map,
@@ -41,6 +44,26 @@ class StaffApiClient {
       if (error.status == 401) return null;
       rethrow;
     }
+  }
+
+  /// Imports only a server-issued native session. Web keeps its HttpOnly cookie
+  /// in the browser and never writes an admin token into web storage.
+  Future<void> adoptSessionCookie(String cookie) async {
+    if (_browserTransport) return;
+    final token = RegExp(
+      r'^bulka_admin=([^;,\s]+)(?:;|$)',
+    ).firstMatch(cookie)?.group(1);
+    if (token == null ||
+        cookie.length > 8192 ||
+        cookie.contains(RegExp(r'[\r\n]'))) {
+      throw const AdminPortalLoginException('auth_admin_session_error');
+    }
+    if (token == _token) return;
+    await _sessionCleanup;
+    await _storage.write(key: sessionKey, value: token);
+    _token = token;
+    branchId = '';
+    branchIds = [];
   }
 
   Future<Map<String, dynamic>> login(
@@ -107,7 +130,7 @@ class StaffApiClient {
     _token = null;
     branchId = '';
     branchIds = [];
-    await _storage.delete(key: sessionKey);
+    if (!_browserTransport) await _storage.delete(key: sessionKey);
   }
 
   Future<http.Response> _send(
@@ -185,11 +208,15 @@ class StaffApiClient {
 
   void _invalidate(String? sentToken) {
     // A response from a previous login must not sign out the new session.
-    if (sentToken == null || sentToken != _token) return;
+    if (!_browserTransport && (sentToken == null || sentToken != _token)) {
+      return;
+    }
     _token = null;
     branchId = '';
     branchIds = [];
-    _sessionCleanup = _storage.delete(key: sessionKey);
+    _sessionCleanup = _browserTransport
+        ? Future<void>.value()
+        : _storage.delete(key: sessionKey);
     unawaited(_sessionCleanup.catchError((Object _) {}));
     onUnauthorized?.call();
   }

@@ -68,10 +68,21 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.bulka.bonus/admin_session")
             .setMethodCallHandler { call, result ->
-                if (call.method != "installCookie") {
-                    result.notImplemented()
-                } else {
-                    installAdminCookie(call.arguments as? Map<*, *> ?: emptyMap<String, Any>(), result)
+                when (call.method) {
+                    "installCookie" -> installAdminCookie(call.arguments as? Map<*, *> ?: emptyMap<String, Any>(), result)
+                    "readCookie" -> {
+                        val cookie = CookieManager.getInstance().getCookie("https://bulka.com.kz/admin")
+                            ?.split(';')?.map { it.trim() }?.firstOrNull { it.startsWith("bulka_admin=") }
+                        result.success(cookie)
+                    }
+                    "clearCookie" -> {
+                        val manager = CookieManager.getInstance()
+                        manager.setCookie("https://bulka.com.kz/admin", "bulka_admin=; Max-Age=0; Path=/admin; Secure; HttpOnly; SameSite=Strict") {
+                            manager.flush()
+                            result.success(null)
+                        }
+                    }
+                    else -> result.notImplemented()
                 }
             }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, orderStatusChannel)

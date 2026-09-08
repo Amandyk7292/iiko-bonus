@@ -98,8 +98,8 @@ abstract final class PushNotifications {
     }
   }
 
-  /// Called only by the native WebView after it has revalidated the exact,
-  /// trusted kitchen URL and the per-page bridge nonce.
+  /// Activated by the verified native cashier workspace, or by the WebView
+  /// after it revalidates the trusted kitchen URL and per-page bridge nonce.
   static void setStaffPushBridgeActivated(bool active) {
     _staffBridgeActivated = active;
     if (!active) return;

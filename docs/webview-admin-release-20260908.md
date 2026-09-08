@@ -1,5 +1,37 @@
 # WebView administration restored
 
+## Native cashier and shared employee identity
+
+- Per the latest request, cashiers now enter a native Flutter workspace with
+  exactly Orders and Kitchen tabs. Other roles retain the web administration;
+  its default page remains the Operations Center.
+- Main password login retains the verified employee identity separately from
+  customer bonus credentials. Existing IPA 18 WebView sessions migrate through
+  the native HttpOnly cookie bridge and are verified by `/admin/api/session`.
+  Staff profiles show the signed-in name and an Admin panel entry directly below
+  the language selector. A staff login does not authorize customer checkout.
+- Cashier requests use assigned branch scope. Kitchen mutations retain the
+  existing cashier restrictions; cancellation, refunds and other admin actions
+  are not available. Revocation removes the staff interface; assignment changes
+  rebuild it with the new server-verified scope.
+- Native cashier push enrolls once, rebinds refreshed Firebase tokens and preserves
+  an explicit mute. Notification taps open the native kitchen. Foreground kitchen
+  events and alarm continue while the Orders tab is visible. The existing server
+  only sends new paid order alerts to authorized cashiers for that branch.
+- Verification: 45 focused Flutter checks passed, including customer push
+  regressions and four rendered phone layouts. The root app tests cover password login, session restoration,
+  push routing and revocation. The 33 server cashier/push/contract checks passed
+  with the repository test environment. Android Kotlin compilation passed with a
+  fresh Gradle daemon. Live delivery to a physical cashier phone is not yet observed.
+
+## Current location marker
+
+- The Locations directory now draws a separate blue GPS marker and accuracy circle.
+  Filtering branches, zooming and Flutter state refreshes preserve the GPS position;
+  selecting an address does not move the user marker. Four map tests passed.
+- Published source `354966a2ff52` as release `20260908221346-354966a2ff52`.
+  Backup, staging and production readiness and the public Flutter hash passed.
+
 ## Unified main login
 
 - Source `aaa01b498cab2aeea3cd3166a1009fb6a652420a` adds Phone and Password tabs
