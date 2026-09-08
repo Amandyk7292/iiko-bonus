@@ -1,5 +1,41 @@
 # WebView administration restored
 
+## Barters and story cube update, 18:51 local time
+
+- Website release: `20260908184552-03c26836e5dc`; source `03c26836e5dc`.
+  Database backup verified and `20260908190000_iiko_barter_people.sql` applied.
+  Staging, production readiness and public Flutter/admin asset hashes passed.
+- iiko Dashboard now includes Barters: outgoing invoices, goods, dates, amounts,
+  blogger name annotations, grouping and native-capable Excel export.
+  See [iiko-barters.md](iiko-barters.md) for source semantics and missing-name handling.
+- Post-release live read verified 27 Aktau invoices (01–08 September),
+  321,685.10 KZT, 161 item rows; 4 Astana invoices (01 August–08 September),
+  38,732 KZT, 19 item rows. Both Excel exports generated successfully and the
+  annotation table is readable through the production Supabase client.
+- Story transition uses a convex outside cube with per-face progress/title/close
+  controls. Flutter source `10d1ca51d9fdf60b9611f7feb37cb7653a3d8a6a`;
+  GitHub Actions run `34228804323`, artifact `10057183256` succeeded.
+- IPA version 1.0.1, build **14**, bundle `com.bulka.bonus`, icon `BulkaSolid`.
+  SHA-256: `b84630cea797727666f964bb244f5e1cad924251cacc34055854b1c4163da333`.
+  App/widget signing and device profiles verified. USB installation reached 100%
+  and reported `Installation succeed` at **18:51:14**.
+- The iPhone disconnected before the subsequent installed-app query. Build 14
+  is confirmed in the installed IPA's Info.plist, but an independent post-install
+  device query and physical story gesture remain unverified pending reconnection.
+- Verification: backend 789 passed / 3 skipped / 0 failed; admin 280 passed;
+  targeted Flutter story/banner suite 15 passed. TypeScript, changed-file ESLint,
+  API contracts, migration safety and admin build size checks passed. Browser
+  probes and inspected screenshots cover 320, 390, 768 and 1280 px.
+- The overall `verify` command is not fully green: existing Prettier violations
+  in access/customer-order/order-images/payment-receipt files and existing size
+  budget overruns in catalog_product_card.dart/login_screen.dart remain.
+  Unrelated unfinished workspace edits were excluded from the release.
+
+Evidence: `scratch/barter-release-verify.log`, `scratch/barter-deploy.log`,
+`scratch/iphone-build14-install.log`, `scratch/iphone14-device-after.log`,
+`scratch/barter-clean-backend.log`, `scratch/barter-clean-admin.log`,
+`scratch/barter-browser-test.log`, `scratch/cube-convex.png`.
+
 ## Consolidated update, 17:36 local time
 
 This section supersedes the earlier build 8 release record below.
