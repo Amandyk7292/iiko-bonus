@@ -16,6 +16,7 @@ import { loadControls } from './load-controls';
 import { download } from './api';
 import { errorKey, type Query, type Report } from './model';
 import DataTable from './DataTable';
+import ReceiptDetails from './ReceiptDetails';
 import { controlText } from './control-labels';
 import './controls.css';
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Filler, Tooltip);
@@ -54,6 +55,7 @@ export default function Controls({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [receipt, setReceipt] = useState<{ row: Record<string, unknown>; scope: string }>();
   const query = useMemo(
     () => ({
       serverId: base.serverId,
@@ -66,6 +68,7 @@ export default function Controls({
     [base.serverId, base.from, base.to, department, mode, criteria],
   );
   const queryKey = JSON.stringify(query);
+  useEffect(() => setReceipt(undefined), [queryKey, table]);
   useEffect(() => {
     const controller = new AbortController();
     setLoading(true);
@@ -348,6 +351,11 @@ export default function Controls({
               <DataTable
                 key={table}
                 report={report}
+                onSelect={
+                  mode === 'operations' && table === 'discounts'
+                    ? (row) => setReceipt({ row, scope: `${queryKey}:${table}` })
+                    : undefined
+                }
                 defaultFields={
                   mode === 'assortment'
                     ? [
@@ -376,6 +384,13 @@ export default function Controls({
             )}
           </section>
         </>
+      )}
+      {receipt && mode === 'operations' && receipt.scope === `${queryKey}:${table}` && (
+        <ReceiptDetails
+          serverId={base.serverId}
+          row={receipt.row}
+          onClose={() => setReceipt(undefined)}
+        />
       )}
     </div>
   );

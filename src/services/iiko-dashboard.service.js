@@ -116,6 +116,9 @@ class IikoDashboardService {
   async controls(input) {
     return require('./iiko-dashboard-controls.service').controls(this, input);
   }
+  async receipt(input) {
+    return require('./iiko-dashboard-receipt').receipt(this, input);
+  }
   async balances(input) {
     return this.client.withSession(input.serverId, async (request) => {
       const rows = await request(`v2/reports/balance/stores?timestamp=${input.date}T23:59:59`);

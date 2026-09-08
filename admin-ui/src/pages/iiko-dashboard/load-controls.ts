@@ -15,12 +15,16 @@ function pause(signal: AbortSignal) {
     signal.addEventListener('abort', abort, { once: true });
   });
 }
-export async function loadControls<T>(query: object, signal: AbortSignal): Promise<T> {
-  const finish = trackIikoRequest('/iiko-dashboard/controls', signal);
+export async function loadControls<T>(
+  query: object,
+  signal: AbortSignal,
+  endpoint = '/iiko-dashboard/controls',
+): Promise<T> {
+  const finish = trackIikoRequest(endpoint, signal);
   const started = Date.now();
   try {
     while (!signal.aborted) {
-      const result = await request<T | { pending: true }>('/iiko-dashboard/controls', {
+      const result = await request<T | { pending: true }>(endpoint, {
         method: 'POST',
         body: JSON.stringify(query),
         signal,

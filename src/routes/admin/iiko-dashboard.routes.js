@@ -7,6 +7,7 @@ const {
   balancesExportQuery,
   controlsQuery,
   controlsExportQuery,
+  receiptQuery,
 } = require('../../contracts/iiko-dashboard.contract');
 const { validateRequest } = require('../../middlewares/validation.middleware');
 const { reportWorkbook, balanceReport } = require('../../services/iiko-dashboard-export');
@@ -14,6 +15,7 @@ const { ReportJobs } = require('../../services/iiko-dashboard-jobs');
 
 function registerIikoDashboardRoutes(router, reporting = service) {
   const controlJobs = new ReportJobs();
+  const receiptJobs = new ReportJobs();
   const ownerOnly = (req, res, next) => {
     if (!['owner', 'admin'].includes(req.admin?.role))
       return res.status(403).json({ code: 'FORBIDDEN', error: 'Недостаточно прав' });
@@ -30,6 +32,12 @@ function registerIikoDashboardRoutes(router, reporting = service) {
       });
     }
   };
+  router.post(
+    '/admin/api/iiko-dashboard/receipt',
+    ownerOnly,
+    validateRequest({ body: receiptQuery }),
+    handle((req) => receiptJobs.read(JSON.stringify(req.body), () => reporting.receipt(req.body))),
+  );
   router.post(
     '/admin/api/iiko-dashboard/controls',
     ownerOnly,

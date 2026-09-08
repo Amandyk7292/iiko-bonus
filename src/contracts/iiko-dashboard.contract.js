@@ -103,7 +103,16 @@ const controlsExportQuery = z
     adviceOnly: z.boolean().default(false),
   })
   .strict();
+const receiptQuery = z
+  .object({
+    serverId,
+    date,
+    orderId: z.uuid(),
+    department: z.string().min(1).max(250),
+  })
+  .strict();
 module.exports = {
+  receiptQuery,
   reportQuery,
   schemaQuery,
   balancesQuery,

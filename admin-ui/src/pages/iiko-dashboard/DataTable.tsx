@@ -125,7 +125,11 @@ export default function DataTable({
             </thead>
             <tbody>
               {rows.slice(currentPage * 50, (currentPage + 1) * 50).map((row, index) => (
-                <tr key={`${currentPage}-${index}`}>
+                <tr
+                  key={`${currentPage}-${index}`}
+                  onClick={onSelect ? () => onSelect(row) : undefined}
+                  style={onSelect ? { cursor: 'pointer' } : undefined}
+                >
                   {fields.map((field) => (
                     <td key={field} data-label={report.columns[field].name}>
                       <span className={typeof row[field] === 'number' ? 'id-number' : undefined}>
@@ -137,7 +141,13 @@ export default function DataTable({
                   ))}
                   {onSelect && (
                     <td data-label={t('id.details')}>
-                      <button type="button" onClick={() => onSelect(row)}>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onSelect(row);
+                        }}
+                      >
                         {t('id.details')}
                       </button>
                     </td>
