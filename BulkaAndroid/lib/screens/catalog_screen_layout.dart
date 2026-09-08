@@ -389,7 +389,11 @@ extension _CatalogScreenLayout on _CatalogScreenState {
                           builder: (context, constraints) {
                             const spacing = 14.0;
                             final extent = constraints.crossAxisExtent;
-                            final columnCount = extent >= 980
+                            final largeText =
+                                MediaQuery.textScalerOf(context).scale(1) > 1.3;
+                            final columnCount = largeText && extent < 620
+                                ? 1
+                                : extent >= 980
                                 ? 4
                                 : extent >= 620
                                 ? 3
@@ -400,6 +404,24 @@ extension _CatalogScreenLayout on _CatalogScreenState {
                             final textScale = MediaQuery.textScalerOf(
                               context,
                             ).scale(1);
+                            var titleHeight = 0.0;
+                            for (final group in categoryGroups) {
+                              final painter = TextPainter(
+                                text: TextSpan(
+                                  text: group.key,
+                                  style: const TextStyle(
+                                    fontFamily: _descriptionFont,
+                                    fontSize: BulkaTypeScale.body,
+                                    height: 1.16,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                textDirection: Directionality.of(context),
+                                textScaler: MediaQuery.textScalerOf(context),
+                              )..layout(maxWidth: max(1, cardWidth - 32));
+                              titleHeight = max(titleHeight, painter.height);
+                              painter.dispose();
+                            }
                             return SliverGrid(
                               key: const ValueKey('catalog-category-grid'),
                               gridDelegate:
@@ -407,8 +429,10 @@ extension _CatalogScreenLayout on _CatalogScreenState {
                                     crossAxisCount: columnCount,
                                     mainAxisSpacing: spacing,
                                     crossAxisSpacing: spacing,
-                                    mainAxisExtent:
-                                        cardWidth + (textScale > 1.2 ? 24 : 0),
+                                    mainAxisExtent: max(
+                                      cardWidth + (textScale > 1.2 ? 24 : 0),
+                                      titleHeight + 88,
+                                    ),
                                   ),
                               delegate: SliverChildBuilderDelegate((
                                 context,

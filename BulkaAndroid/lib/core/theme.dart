@@ -157,8 +157,13 @@ abstract final class BulkaLayout {
     return (72 * scale).clamp(72, 144).toDouble();
   }
 
-  static double navigationBarHeight(BuildContext context) =>
-      compactNavigation(context) ? compactNavBarHeight : floatingNavBarHeight;
+  static double navigationBarHeight(BuildContext context) {
+    final base = compactNavigation(context)
+        ? compactNavBarHeight
+        : floatingNavBarHeight;
+    final scale = MediaQuery.textScalerOf(context).scale(1);
+    return base + max(0, scale - 1) * 44;
+  }
 
   static double safeBottomInset(BuildContext context) {
     // Safari already removes its browser toolbar from the visual viewport.

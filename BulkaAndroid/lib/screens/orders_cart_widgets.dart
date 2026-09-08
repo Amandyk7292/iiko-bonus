@@ -37,84 +37,85 @@ class _CartProductCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.bulkaColors;
     final scheme = Theme.of(context).colorScheme;
-    final textScale = MediaQuery.textScalerOf(context).scale(1);
-    final compact = MediaQuery.sizeOf(context).width < 360;
-    final cardHeight =
-        138.0 + ((textScale - 1).clamp(0.0, 1.0) * 40) + (compact ? 4.0 : 0.0);
     return Container(
-      height: cardHeight,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: scheme.surface,
         borderRadius: BorderRadius.circular(BulkaRadii.card),
         border: Border.all(color: colors.cardBorder),
       ),
-      child: Row(
-        children: [
-          if (item.imageUrl.trim().isNotEmpty)
-            SizedBox(
-              width: compact ? 110 : 126,
-              height: double.infinity,
-              child: _NetworkImage(url: item.imageUrl, fit: BoxFit.cover),
-            ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 10, 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontFamily: _headingFont,
-                      color: scheme.onSurface,
-                      fontSize: BulkaTypeScale.body,
-                      height: 1.15,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  if (item.isStopListed) ...[
-                    const SizedBox(height: 5),
-                    Text(
-                      'cart_unavailable'.tr,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: colors.danger,
-                        fontSize: BulkaTypeScale.caption,
-                        fontWeight: FontWeight.w600,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (item.imageUrl.trim().isNotEmpty) ...[
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: SizedBox(
+                      width: 64,
+                      height: 64,
+                      child: _NetworkImage(
+                        url: item.imageUrl,
+                        fit: BoxFit.cover,
                       ),
                     ),
-                  ],
-                  const Spacer(),
-                  Row(
+                  ),
+                  const SizedBox(width: 12),
+                ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Text(
-                          '${_formatCartMoney(item.price)} ₸',
-                          maxLines: 1,
-                          style: TextStyle(
-                            fontFamily: _headingFont,
-                            color: scheme.onSurface,
-                            fontSize: BulkaTypeScale.body,
-                            fontWeight: FontWeight.w700,
-                          ),
+                      Text(
+                        item.name,
+                        style: TextStyle(
+                          color: scheme.onSurface,
+                          fontSize: BulkaTypeScale.body,
+                          height: 1.3,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                      _CartQuantityStepper(
-                        quantity: item.quantity,
-                        onDecrease: onDecrease,
-                        onIncrease: onIncrease,
-                      ),
+                      if (item.isStopListed)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(
+                            'cart_unavailable'.tr,
+                            style: TextStyle(color: colors.danger),
+                          ),
+                        ),
                     ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ),
-        ],
+            const SizedBox(height: 12),
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              runSpacing: 10,
+              children: [
+                Text(
+                  '${_formatCartMoney(item.price)} ₸',
+                  style: TextStyle(
+                    color: scheme.onSurface,
+                    fontSize: BulkaTypeScale.body,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                _CartQuantityStepper(
+                  quantity: item.quantity,
+                  onDecrease: onDecrease,
+                  onIncrease: onIncrease,
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -134,7 +135,7 @@ class _CartQuantityStepper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 46,
+      constraints: const BoxConstraints(minHeight: 48),
       decoration: BoxDecoration(
         color: _bulkaYellow,
         borderRadius: BorderRadius.circular(BulkaRadii.control),
@@ -145,15 +146,15 @@ class _CartQuantityStepper extends StatelessWidget {
           IconButton(
             onPressed: onDecrease,
             tooltip: 'cart_decrease'.tr,
-            constraints: const BoxConstraints.tightFor(width: 44, height: 46),
+            constraints: const BoxConstraints.tightFor(width: 44, height: 48),
             padding: EdgeInsets.zero,
             icon: const Icon(Icons.remove_rounded, size: 20),
           ),
           Semantics(
             label: 'cart_quantity'.tr,
             value: '$quantity',
-            child: SizedBox(
-              width: 28,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               child: Text(
                 '$quantity',
                 textAlign: TextAlign.center,
@@ -169,7 +170,7 @@ class _CartQuantityStepper extends StatelessWidget {
           IconButton(
             onPressed: onIncrease,
             tooltip: 'cart_increase'.tr,
-            constraints: const BoxConstraints.tightFor(width: 44, height: 46),
+            constraints: const BoxConstraints.tightFor(width: 44, height: 48),
             padding: EdgeInsets.zero,
             icon: const Icon(Icons.add_rounded, size: 20),
           ),
@@ -231,53 +232,16 @@ class _CartCheckoutBar extends StatelessWidget {
             ),
             const SizedBox(height: 12),
           ],
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'cart_reward'.tr,
-                  maxLines: 2,
-                  style: TextStyle(fontSize: BulkaTypeScale.body),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  '+ ${(total * cashbackPercent / 100).round()} ${'cart_points'.tr}',
-                  textAlign: TextAlign.right,
-                  style: TextStyle(
-                    color: colors.mutedText,
-                    fontSize: BulkaTypeScale.body,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
+          _CartSummaryLine(
+            label: 'cart_reward'.tr,
+            value:
+                '+ ${(total * cashbackPercent / 100).round()} ${'cart_points'.tr}',
           ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'cart_total'.tr,
-                  maxLines: 1,
-                  style: TextStyle(
-                    fontFamily: _headingFont,
-                    fontSize: BulkaTypeScale.titleSmall,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                '${_formatCartMoney(total)} ₸',
-                style: const TextStyle(
-                  fontFamily: _headingFont,
-                  fontSize: BulkaTypeScale.title,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
+          const SizedBox(height: 12),
+          _CartSummaryLine(
+            label: 'cart_total'.tr,
+            value: '${_formatCartMoney(total)} ₸',
+            emphasized: true,
           ),
           const SizedBox(height: 16),
           SizedBox(
@@ -317,4 +281,45 @@ class _PickupSlot {
   final int timezoneOffsetMinutes;
   final DateTime serverNow;
   final int? remaining;
+}
+
+class _CartSummaryLine extends StatelessWidget {
+  const _CartSummaryLine({
+    required this.label,
+    required this.value,
+    this.emphasized = false,
+  });
+  final String label;
+  final String value;
+  final bool emphasized;
+  @override
+  Widget build(BuildContext context) {
+    final style = TextStyle(
+      fontSize: emphasized ? BulkaTypeScale.titleSmall : BulkaTypeScale.body,
+      fontWeight: emphasized ? FontWeight.w600 : FontWeight.w400,
+    );
+    if (MediaQuery.textScalerOf(context).scale(1) > 1.3) {
+      return SizedBox(
+        width: double.infinity,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: style),
+            const SizedBox(height: 4),
+            Text(value, style: style),
+          ],
+        ),
+      );
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: Text(label, style: style)),
+        const SizedBox(width: 12),
+        Flexible(
+          child: Text(value, textAlign: TextAlign.end, style: style),
+        ),
+      ],
+    );
+  }
 }

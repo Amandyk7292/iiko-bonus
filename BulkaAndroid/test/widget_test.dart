@@ -2160,9 +2160,9 @@ void main() {
     expect(pickupRect.left, closeTo(16, 0.01));
     expect(deliveryRect.right, closeTo(374, 0.01));
     expect(deliveryRect.left - pickupRect.right, closeTo(12, 0.01));
-    expect(pickupRect.height, closeTo(82, 0.01));
-    expect(preorderRect.height, closeTo(82, 0.01));
-    expect(deliveryRect.height, closeTo(174, 0.01));
+    expect(pickupRect.height, greaterThanOrEqualTo(82));
+    expect(preorderRect.height, closeTo(pickupRect.height, 0.01));
+    expect(deliveryRect.height, closeTo(pickupRect.height * 2 + 10, 0.01));
     expect(preorderRect.top - pickupRect.bottom, closeTo(10, 0.01));
     expect(pickupRect.top, closeTo(deliveryRect.top, 0.01));
     expect(preorderRect.bottom, closeTo(deliveryRect.bottom, 0.01));

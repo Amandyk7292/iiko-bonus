@@ -237,7 +237,7 @@ class _PersonalDataScreenState extends State<PersonalDataScreen> {
     if (_isLoading || _isAvatarSaving) return;
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => BulkaActionDialog(
         title: Text(
           'delete_account_title'.tr,
           style: const TextStyle(fontFamily: _headingFont),

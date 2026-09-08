@@ -560,8 +560,8 @@ class _NotificationTab extends StatelessWidget {
     return Semantics(
       button: true,
       selected: selected,
-      child: SizedBox(
-        height: 50,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 50),
         child: Material(
           color: selected
               ? scheme.secondaryContainer
@@ -582,11 +582,10 @@ class _NotificationTab extends StatelessWidget {
               alignment: Alignment.center,
               children: [
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
+                  padding: const EdgeInsets.fromLTRB(8, 12, 8, 16),
                   child: Text(
                     label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
                     style: TextStyle(
                       color: _bulkaBrown,
                       fontSize: BulkaTypeScale.body,

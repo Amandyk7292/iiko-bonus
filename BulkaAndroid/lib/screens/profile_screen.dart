@@ -238,7 +238,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Row(
                 children: [
                   SizedBox(
-                    width: 72,
+                    width: 48 + MediaQuery.textScalerOf(context).scale(24),
                     child: Align(
                       alignment: Alignment.centerLeft,
                       child: InkWell(
@@ -276,18 +276,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                     ),
                   ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 6),
-                      child: _BulkaPageTitle(
-                        'profile_title'.tr,
-                        key: const ValueKey('profile-page-title'),
-                        color: colors.brandBrown,
+                  if (MediaQuery.textScalerOf(context).scale(1) > 1.3)
+                    const Spacer()
+                  else
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        child: _BulkaPageTitle(
+                          'profile_title'.tr,
+                          key: const ValueKey('profile-page-title'),
+                          color: colors.brandBrown,
+                        ),
                       ),
                     ),
-                  ),
                   SizedBox(
-                    width: 72,
+                    width: 48 + MediaQuery.textScalerOf(context).scale(24),
                     child: Align(
                       alignment: Alignment.centerRight,
                       child: _LogoutSplitButton(onLogout: _confirmLogout),
@@ -295,6 +298,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ],
               ),
+
+              if (MediaQuery.textScalerOf(context).scale(1) > 1.3)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: _BulkaPageTitle(
+                      'profile_title'.tr,
+                      key: const ValueKey('profile-page-title'),
+                      color: colors.brandBrown,
+                    ),
+                  ),
+                ),
 
               const SizedBox(height: 20),
 

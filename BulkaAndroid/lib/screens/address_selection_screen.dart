@@ -168,7 +168,7 @@ class _AddressSelectionScreenState extends State<AddressSelectionScreen> {
     await _navigationGate.run(() async {
       final confirmed = await showDialog<bool>(
         context: context,
-        builder: (dialogContext) => AlertDialog(
+        builder: (dialogContext) => BulkaActionDialog(
           title: Text('delete_address_title'.tr),
           content: Text(
             'delete_address_body'.trArgs({'address': address.displayAddress}),

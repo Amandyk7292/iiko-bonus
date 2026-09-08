@@ -823,6 +823,10 @@ class _LoginScreenState extends State<LoginScreen> {
             : 'auth_recovery_subtitle'.tr,
       ),
       const SizedBox(height: 22),
+      if (MediaQuery.textScalerOf(context).scale(1) > 1.3) ...[
+        Text('phone_label'.tr),
+        const SizedBox(height: 8),
+      ],
       TextField(
         key: const ValueKey('auth-phone-field'),
         controller: _phoneController,
@@ -850,13 +854,18 @@ class _LoginScreenState extends State<LoginScreen> {
           }
           setState(() => _error = null);
         },
-        decoration: _inputDecoration(
-          context: context,
-          label: 'phone_label'.tr,
-          prefix: '+7 ',
-          error: _error,
-          icon: Icons.phone_rounded,
-        ),
+        decoration:
+            _inputDecoration(
+              context: context,
+              label: 'phone_label'.tr,
+              prefix: '+7 ',
+              error: _error,
+              icon: Icons.phone_rounded,
+            ).copyWith(
+              labelText: MediaQuery.textScalerOf(context).scale(1) > 1.3
+                  ? ''
+                  : null,
+            ),
       ),
       if (_flow != _CustomerAuthFlow.passwordReset) ...[
         const SizedBox(height: 14),

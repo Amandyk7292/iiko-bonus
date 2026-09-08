@@ -480,9 +480,8 @@ class _NavButton extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(BulkaRadii.sheet),
           child: SizedBox(
-            height: compact
-                ? BulkaLayout.compactNavItemHeight
-                : BulkaLayout.navItemHeight,
+            height:
+                BulkaLayout.navigationBarHeight(context) - (compact ? 6 : 14),
             child: Padding(
               padding: EdgeInsets.only(
                 top: isCenter ? 0 : (compact ? 3 : 4),
@@ -641,8 +640,7 @@ class _NavButton extends StatelessWidget {
                       ),
                       child: Text(
                         item.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                        softWrap: true,
                         textAlign: TextAlign.center,
                       ),
                     ),

@@ -535,7 +535,11 @@ class _LocationDirectoryScreenState extends State<LocationDirectoryScreen> {
                           onChanged: (_) => setState(() {}),
                           style: _body(15),
                           decoration: InputDecoration(
-                            hintText: 'directory_search'.tr,
+                            hintText:
+                                (MediaQuery.textScalerOf(context).scale(1) > 1.3
+                                        ? 'search_hint'
+                                        : 'directory_search')
+                                    .tr,
                             prefixIcon: const Icon(Icons.search),
                             isDense: true,
                             contentPadding: const EdgeInsets.symmetric(

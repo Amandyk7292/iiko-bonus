@@ -250,21 +250,38 @@ extension _CatalogInteractionController on _CatalogScreenState {
     _orderTypeDialogOpen = true;
     final chooseOrderType = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => BulkaActionDialog(
         scrollable: true,
-        title: Text('catalog_select_order_type_ok'.tr),
-        actions: [
-          TextButton(
-            key: const ValueKey('catalog-order-type-required-cancel'),
-            onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: Text('catalog_continue_browsing'.tr),
+        title: Text(
+          'catalog_select_order_type_ok'.tr,
+          textAlign: TextAlign.center,
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextButton(
+                key: const ValueKey('catalog-order-type-required-cancel'),
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: Text(
+                  'catalog_continue_browsing'.tr,
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(height: 12),
+              FilledButton(
+                key: const ValueKey('catalog-order-type-required-ok'),
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: Text(
+                  'catalog_select_order_type_ok'.tr,
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ],
           ),
-          FilledButton(
-            key: const ValueKey('catalog-order-type-required-ok'),
-            onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text('catalog_select_order_type_ok'.tr),
-          ),
-        ],
+        ),
       ),
     );
     _orderTypeDialogOpen = false;

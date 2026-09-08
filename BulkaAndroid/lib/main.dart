@@ -77,6 +77,7 @@ part 'screens/address_map_screen.dart';
 part 'screens/address_selection_screen.dart';
 part 'screens/app_update_screen.dart';
 part 'screens/admin_portal_screen.dart';
+part 'screens/welcome_screen.dart';
 part 'screens/home_screen.dart';
 part 'screens/home_feed_controller.dart';
 part 'screens/login_screen.dart';
@@ -126,6 +127,7 @@ part 'widgets/news.dart';
 part 'widgets/qr_dialog.dart';
 part 'widgets/stories.dart';
 part 'widgets/gradient_button.dart';
+part 'widgets/action_dialog.dart';
 part 'widgets/language_bottom_sheet.dart';
 part 'widgets/bulka_nav_icon.dart';
 part 'widgets/customer_avatar.dart';
@@ -297,7 +299,9 @@ class _BulkaBootstrapState extends State<_BulkaBootstrap> {
       future: _initialization,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.done) {
-          return const BulkaBonusApp();
+          return kIsWeb
+              ? const BulkaBonusApp()
+              : const BulkaWelcomeGate(child: BulkaBonusApp());
         }
         return ValueListenableBuilder<String>(
           valueListenable: appLanguageNotifier,

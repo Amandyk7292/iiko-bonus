@@ -112,7 +112,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
   void _showSuccessDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => BulkaActionDialog(
         title: Text(
           'checkout_success_title'.tr,
           style: const TextStyle(fontFamily: _headingFont),

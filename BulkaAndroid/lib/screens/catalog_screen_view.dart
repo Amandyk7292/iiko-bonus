@@ -84,8 +84,6 @@ extension _CatalogScreenView on _CatalogScreenState {
                         child: Text(
                           key: ValueKey('catalog-category-title-$category'),
                           category,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
                           softWrap: true,
                           style: TextStyle(
                             color: colors.brandBrown,
@@ -280,7 +278,11 @@ extension _CatalogScreenView on _CatalogScreenState {
                         color: scheme.onSurface,
                       ),
                       decoration: InputDecoration(
-                        hintText: 'catalog_search'.tr,
+                        hintText:
+                            (MediaQuery.textScalerOf(context).scale(1) > 1.3
+                                    ? 'search_hint'
+                                    : 'catalog_search')
+                                .tr,
                         hintStyle: TextStyle(
                           color: colors.mutedText,
                           fontWeight: FontWeight.w400,

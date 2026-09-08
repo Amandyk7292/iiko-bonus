@@ -1,6 +1,7 @@
 import 'package:bulka_bonus/core/cart_provider.dart';
 import 'package:bulka_bonus/main.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
@@ -35,7 +36,14 @@ void main() {
     for (var index = 0; index < labels.length; index++) {
       final label = labels[index];
       final text = tester.widget<Text>(find.text(label));
-      expect(text.maxLines, 2);
+      final paragraph = tester.renderObject<RenderParagraph>(find.text(label));
+      expect(paragraph.didExceedMaxLines, isFalse);
+      expect(
+        tester
+            .getRect(find.byKey(ValueKey('nav-$index')))
+            .contains(tester.getRect(find.text(label)).center),
+        isTrue,
+      );
       expect(text.textAlign, TextAlign.center);
       final style = tester.widget<AnimatedDefaultTextStyle>(
         find.descendant(

@@ -257,6 +257,13 @@ class _PromoBannerSliderState extends State<PromoBannerSlider> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
+        final fallbackHeight =
+            widget.groups.any((group) => !group.coverUrl.startsWith('http'))
+            ? 44 +
+                  MediaQuery.textScalerOf(
+                    context,
+                  ).scale(BulkaTypeScale.title + BulkaTypeScale.bodySmall * 2.5)
+            : 0.0;
         if (constraints.maxWidth >= 720) {
           final gridWidth = constraints.maxWidth - 48;
           final cardWidth = (gridWidth - 18) / 2;
@@ -268,7 +275,10 @@ class _PromoBannerSliderState extends State<PromoBannerSlider> {
               crossAxisCount: 2,
               crossAxisSpacing: 18,
               mainAxisSpacing: 18,
-              mainAxisExtent: cardWidth / _promoCoverAspectRatio,
+              mainAxisExtent: max(
+                cardWidth / _promoCoverAspectRatio,
+                fallbackHeight,
+              ),
             ),
             itemCount: widget.groups.length,
             itemBuilder: (context, index) => _PromoBannerCard(
@@ -288,8 +298,12 @@ class _PromoBannerSliderState extends State<PromoBannerSlider> {
                   constraints: const BoxConstraints(
                     maxWidth: _promoMobileMaxWidth,
                   ),
-                  child: AspectRatio(
-                    aspectRatio: _promoCoverAspectRatio,
+                  child: SizedBox(
+                    height: max(
+                      min(constraints.maxWidth - 32, _promoMobileMaxWidth) /
+                          _promoCoverAspectRatio,
+                      fallbackHeight,
+                    ),
                     child: PageView.builder(
                       controller: _pageController,
                       itemCount: widget.groups.length,

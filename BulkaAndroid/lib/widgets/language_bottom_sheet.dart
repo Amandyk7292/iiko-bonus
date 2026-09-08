@@ -25,88 +25,90 @@ Future<String?> showLanguageBottomSheet(
                 ),
               ),
               padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 42,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: colors.cardBorder,
-                      borderRadius: BorderRadius.circular(BulkaRadii.pill),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      const SizedBox(width: 48),
-                      Expanded(
-                        child: Text(
-                          'select_lang_title'.tr,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurface,
-                            fontFamily: _headingFont,
-                            fontSize: BulkaTypeScale.title,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => Navigator.pop(context),
-                        tooltip: 'close_tooltip'.tr,
-                        style: IconButton.styleFrom(
-                          backgroundColor: colors.cardBorder,
-                          foregroundColor: colors.brandBrown,
-                          minimumSize: const Size(48, 48),
-                          tapTargetSize: MaterialTapTargetSize.padded,
-                        ),
-                        icon: const Icon(Icons.close_rounded, size: 20),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  for (final code in AppLang.supportedCodes)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: _LanguageOption(
-                        code: code,
-                        selected: tempCode == code,
-                        onTap: () => setModalState(() => tempCode = code),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: colors.cardBorder,
+                        borderRadius: BorderRadius.circular(BulkaRadii.pill),
                       ),
                     ),
-                  const SizedBox(height: 10),
-                  BulkaPressScale(
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          BulkaMotion.selection();
-                          Navigator.pop(context, tempCode);
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: colors.goldSoft,
-                          foregroundColor: _textDark,
-                          elevation: 0,
-                          minimumSize: const Size.fromHeight(52),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(
-                              BulkaRadii.card,
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        const SizedBox(width: 48),
+                        Expanded(
+                          child: Text(
+                            'select_lang_title'.tr,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurface,
+                              fontFamily: _headingFont,
+                              fontSize: BulkaTypeScale.title,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                         ),
-                        child: Text(
-                          'apply_btn'.tr,
-                          style: const TextStyle(
-                            fontFamily: _headingFont,
-                            fontSize: BulkaTypeScale.body,
-                            fontWeight: FontWeight.w700,
+                        IconButton(
+                          onPressed: () => Navigator.pop(context),
+                          tooltip: 'close_tooltip'.tr,
+                          style: IconButton.styleFrom(
+                            backgroundColor: colors.cardBorder,
+                            foregroundColor: colors.brandBrown,
+                            minimumSize: const Size(48, 48),
+                            tapTargetSize: MaterialTapTargetSize.padded,
+                          ),
+                          icon: const Icon(Icons.close_rounded, size: 20),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    for (final code in AppLang.supportedCodes)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _LanguageOption(
+                          code: code,
+                          selected: tempCode == code,
+                          onTap: () => setModalState(() => tempCode = code),
+                        ),
+                      ),
+                    const SizedBox(height: 10),
+                    BulkaPressScale(
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            BulkaMotion.selection();
+                            Navigator.pop(context, tempCode);
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: colors.goldSoft,
+                            foregroundColor: _textDark,
+                            elevation: 0,
+                            minimumSize: const Size.fromHeight(52),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(
+                                BulkaRadii.card,
+                              ),
+                            ),
+                          ),
+                          child: Text(
+                            'apply_btn'.tr,
+                            style: const TextStyle(
+                              fontFamily: _headingFont,
+                              fontSize: BulkaTypeScale.body,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           );

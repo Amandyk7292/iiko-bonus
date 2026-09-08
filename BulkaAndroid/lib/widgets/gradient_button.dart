@@ -21,7 +21,7 @@ class GradientButton extends StatelessWidget {
     this.height = 58,
     this.borderRadius = BulkaRadii.card,
     this.gradient,
-    this.foregroundColor = Colors.white,
+    this.foregroundColor = const Color(0xFF542A12),
     this.borderColor,
     this.shadows,
   });
@@ -37,9 +37,11 @@ class GradientButton extends StatelessWidget {
           };
     return BulkaPressScale(
       enabled: effectiveOnPressed != null,
-      child: SizedBox(
-        width: double.infinity,
-        height: height,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          minWidth: double.infinity,
+          minHeight: height,
+        ),
         child: AnimatedContainer(
           duration: BulkaMotion.duration(context, BulkaMotion.fast),
           curve: BulkaMotion.standardCurve,
@@ -72,7 +74,10 @@ class GradientButton extends StatelessWidget {
               backgroundColor: Colors.transparent,
               shadowColor: Colors.transparent,
               foregroundColor: foregroundColor,
-              padding: padding,
+              padding:
+                  padding ??
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              minimumSize: Size(0, height),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(borderRadius),
               ),
@@ -94,6 +99,7 @@ class GradientButton extends StatelessWidget {
                   : KeyedSubtree(
                       key: const ValueKey('gradient-button-content'),
                       child: DefaultTextStyle(
+                        textAlign: TextAlign.center,
                         style: TextStyle(
                           color: foregroundColor,
                           fontSize: BulkaTypeScale.titleSmall,

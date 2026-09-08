@@ -600,6 +600,29 @@ class _OrderTypeSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (MediaQuery.textScalerOf(context).scale(1) > 1.3) {
+      return Column(
+        children: [
+          _OrderTypeCard(
+            title: 'order_pickup'.tr,
+            illustration: _OrderIllustrationKind.pickup,
+            onTap: onPickupTap,
+          ),
+          const SizedBox(height: 12),
+          _OrderTypeCard(
+            title: 'order_delivery'.tr,
+            illustration: _OrderIllustrationKind.delivery,
+            onTap: onDeliveryTap,
+          ),
+          const SizedBox(height: 12),
+          _OrderTypeCard(
+            title: 'order_preorder'.tr,
+            illustration: _OrderIllustrationKind.preorder,
+            onTap: onPreorderTap,
+          ),
+        ],
+      );
+    }
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -660,7 +683,9 @@ class _OrderTypeCard extends StatelessWidget {
           boxShadow: BulkaShadows.raisedCard,
         ),
         key: ValueKey('order-card-${illustration.name}'),
-        height: tall ? 174 : 82,
+        height: MediaQuery.textScalerOf(context).scale(1) > 1.3
+            ? 80 + MediaQuery.textScalerOf(context).scale(48)
+            : (tall ? 202 : 96),
         child: Material(
           key: ValueKey('order-card-clip-${illustration.name}'),
           color: Colors.transparent,
@@ -823,38 +848,6 @@ class _OrderCardTitle extends StatelessWidget {
       height: 1.08,
       fontWeight: FontWeight.w500,
     );
-    final words = title.split(' ');
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final painter = TextPainter(
-          text: TextSpan(text: title, style: style),
-          maxLines: 1,
-          textDirection: TextDirection.ltr,
-        )..layout(maxWidth: double.infinity);
-        final split =
-            !tall && words.length > 1 && painter.width > constraints.maxWidth;
-
-        if (!split) {
-          return FittedBox(
-            alignment: Alignment.centerLeft,
-            fit: BoxFit.scaleDown,
-            child: Text(title, maxLines: 1, softWrap: false, style: style),
-          );
-        }
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (final word in words.take(2))
-              FittedBox(
-                alignment: Alignment.centerLeft,
-                fit: BoxFit.scaleDown,
-                child: Text(word, maxLines: 1, softWrap: false, style: style),
-              ),
-          ],
-        );
-      },
-    );
+    return Text(title, style: style);
   }
 }

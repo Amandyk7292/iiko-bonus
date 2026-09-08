@@ -178,7 +178,7 @@ class _RewardsScreenState extends State<RewardsScreen> {
     if (code == null || !mounted) return;
     await showDialog<void>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
+      builder: (dialogContext) => BulkaActionDialog(
         title: Text('gift_code_ready'.tr),
         content: Column(
           mainAxisSize: MainAxisSize.min,
