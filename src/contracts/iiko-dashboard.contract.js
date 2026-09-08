@@ -71,4 +71,44 @@ const analyticsQuery = z
     return days >= 0 && days <= 366;
   }, 'Некорректный период');
 
-module.exports = { reportQuery, schemaQuery, balancesQuery, balancesExportQuery, analyticsQuery };
+const controlsQuery = z
+  .object({
+    serverId,
+    from: date,
+    to: date,
+    mode: z.enum(['writeoffs', 'operations', 'assortment']),
+    department: z.string().max(250).default(''),
+    discountThreshold: z.number().min(1).max(100).default(30),
+    returnThreshold: z.number().min(1).max(10000000).default(50000),
+  })
+  .strict()
+  .refine((input) => {
+    const days = (Date.parse(input.to) - Date.parse(input.from)) / 86400000;
+    return days >= 0 && days <= 366;
+  }, 'Некорректный период');
+const controlsExportQuery = z
+  .object({
+    query: controlsQuery,
+    table: z.enum([
+      'branches',
+      'products',
+      'documents',
+      'reasons',
+      'trend',
+      'discounts',
+      'returns',
+      'assortment',
+    ]),
+    flaggedOnly: z.boolean().default(false),
+    adviceOnly: z.boolean().default(false),
+  })
+  .strict();
+module.exports = {
+  reportQuery,
+  schemaQuery,
+  balancesQuery,
+  balancesExportQuery,
+  analyticsQuery,
+  controlsQuery,
+  controlsExportQuery,
+};

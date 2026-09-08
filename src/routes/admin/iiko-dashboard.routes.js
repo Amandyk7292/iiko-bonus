@@ -5,6 +5,8 @@ const {
   schemaQuery,
   balancesQuery,
   balancesExportQuery,
+  controlsQuery,
+  controlsExportQuery,
 } = require('../../contracts/iiko-dashboard.contract');
 const { validateRequest } = require('../../middlewares/validation.middleware');
 const { reportWorkbook, balanceReport } = require('../../services/iiko-dashboard-export');
@@ -26,6 +28,37 @@ function registerIikoDashboardRoutes(router, reporting = service) {
       });
     }
   };
+  router.post(
+    '/admin/api/iiko-dashboard/controls',
+    ownerOnly,
+    validateRequest({ body: controlsQuery }),
+    handle((req) => reporting.controls(req.body)),
+  );
+  router.post(
+    '/admin/api/iiko-dashboard/controls/export',
+    ownerOnly,
+    validateRequest({ body: controlsExportQuery }),
+    async (req, res) => {
+      try {
+        const result = await reporting.controls(req.body.query);
+        const report = result.tables[req.body.table];
+        if (!report) return res.status(400).json({ code: 'IIKO_REPORT_FIELD' });
+        const selected = require('../../services/iiko-dashboard-controls-export').controlsExport(
+          report,
+          req.body,
+        );
+        res.set(
+          'Content-Disposition',
+          `attachment; filename="iiko-${req.body.table}-${req.body.query.from}.xlsx"`,
+        );
+        res
+          .type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+          .send(reportWorkbook(selected));
+      } catch (error) {
+        res.status(error.statusCode || 502).json({ code: error.code || 'IIKO_REPORT_FAILED' });
+      }
+    },
+  );
   router.post(
     '/admin/api/iiko-dashboard/analytics',
     ownerOnly,

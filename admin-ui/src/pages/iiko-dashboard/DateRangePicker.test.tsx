@@ -3,6 +3,21 @@ import { expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../lib/i18n';
 import DateRangePicker from './DateRangePicker';
 
+it('retains the draft through native-select focus loss and applies a whole month', () => {
+  const change = vi.fn();
+  render(
+    <I18nProvider>
+      <DateRangePicker from="2026-09-01" to="2026-09-07" onChange={change} />
+    </I18nProvider>,
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Выбрать период' }));
+  fireEvent.change(screen.getByLabelText('Месяц'), { target: { value: '08' } });
+  fireEvent.blur(screen.getByLabelText('Месяц'), { relatedTarget: null });
+  fireEvent.click(screen.getByRole('button', { name: 'Выбрать весь месяц' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Применить' }));
+  expect(change).toHaveBeenCalledExactlyOnceWith('2026-08-01', '2026-08-31');
+});
+
 it('applies a reversed cross-month selection once and cancels drafts', () => {
   const change = vi.fn();
   render(

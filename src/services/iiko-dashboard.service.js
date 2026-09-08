@@ -113,6 +113,9 @@ class IikoDashboardService {
     const report = await this.report(analyticsQuery(input));
     return analyticsReport(report, input);
   }
+  async controls(input) {
+    return require('./iiko-dashboard-controls.service').controls(this, input);
+  }
   async balances(input) {
     return this.client.withSession(input.serverId, async (request) => {
       const rows = await request(`v2/reports/balance/stores?timestamp=${input.date}T23:59:59`);

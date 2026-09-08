@@ -122,6 +122,16 @@
   font-weight: 500;
   color: #333a2c;
 }
+.id-dashboard .id-calendar-whole-month {
+  width: 100%;
+  min-height: 30px;
+  margin-top: 10px;
+  padding: 4px 10px;
+  background: #fff8df;
+  color: #655225;
+  border: 0;
+  font-size: 12px;
+}
 .id-calendar-footer {
   display: flex;
   gap: 8px;

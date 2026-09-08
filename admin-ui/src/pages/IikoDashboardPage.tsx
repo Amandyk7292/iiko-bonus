@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   BarChart3,
   ChartNoAxesCombined,
@@ -10,6 +10,8 @@ import {
   CalendarRange,
   ChevronDown,
   ClipboardMinus,
+  ShieldCheck,
+  PackageSearch,
 } from 'lucide-react';
 import { useI18n } from '../lib/i18n';
 import { dashboardApi, exportReport } from './iiko-dashboard/api';
@@ -32,6 +34,7 @@ import Rankings from './iiko-dashboard/Rankings';
 import ReportBuilder from './iiko-dashboard/ReportBuilder';
 import Balances from './iiko-dashboard/Balances';
 import Settings, { parsePreferences, type Preferences } from './iiko-dashboard/Settings';
+import Controls from './iiko-dashboard/Controls';
 import './iiko-dashboard/dashboard.css';
 import './iiko-dashboard/workspace.css';
 
@@ -41,6 +44,8 @@ const tabs = [
   { id: 'rankings', icon: BarChart3 },
   { id: 'reports', icon: Table2 },
   { id: 'writeoffs', icon: ClipboardMinus },
+  { id: 'operations', icon: ShieldCheck },
+  { id: 'assortment', icon: PackageSearch },
   { id: 'balances', icon: Warehouse },
   { id: 'settings', icon: Settings2 },
 ];
@@ -50,8 +55,8 @@ export default function IikoDashboardPage() {
   const [servers, setServers] = useState<Server[]>([]);
   const [serverId, setServerId] = useState('aktau-chain');
   const [tab, setTab] = useState('overview');
-  const [from, setFrom] = useState(() => offsetDate(today(), -6));
-  const [to, setTo] = useState(today);
+  const [{ from, to }, setRange] = useState(() => ({ from: offsetDate(today(), -6), to: today() }));
+  const periodDisclosure = useRef<HTMLDetailsElement>(null);
   const [comparison, setComparison] = useState('previous');
   const [department, setDepartment] = useState('');
   const [departments, setDepartments] = useState<string[]>([]);
@@ -199,17 +204,17 @@ export default function IikoDashboardPage() {
   const setPeriod = (period: string) => {
     const now = today();
     if (period === 'yesterday') {
-      setFrom(offsetDate(now, -1));
-      setTo(offsetDate(now, -1));
+      setRange({ from: offsetDate(now, -1), to: offsetDate(now, -1) });
     } else {
-      setTo(now);
-      setFrom(
-        period === 'week'
-          ? offsetDate(now, -6)
-          : period === 'month'
-            ? `${now.slice(0, 7)}-01`
-            : now,
-      );
+      setRange({
+        to: now,
+        from:
+          period === 'week'
+            ? offsetDate(now, -6)
+            : period === 'month'
+              ? `${now.slice(0, 7)}-01`
+              : now,
+      });
     }
   };
   const fetchedAt = overview?.summary.fetchedAt;
@@ -285,7 +290,7 @@ export default function IikoDashboardPage() {
             </button>
           </div>
         </div>
-        <details className="id-period-disclosure">
+        <details className="id-period-disclosure" ref={periodDisclosure}>
           <summary>
             <CalendarRange size={17} />
             <span>
@@ -307,8 +312,12 @@ export default function IikoDashboardPage() {
                 from={from}
                 to={to}
                 onChange={(start, end) => {
-                  setFrom(start);
-                  setTo(end);
+                  setRange({ from: start, to: end });
+                  setRefresh((value) => value + 1);
+                  if (periodDisclosure.current) periodDisclosure.current.open = false;
+                  requestAnimationFrame(() =>
+                    periodDisclosure.current?.querySelector('summary')?.focus(),
+                  );
                 }}
               />
               <label>
@@ -317,7 +326,7 @@ export default function IikoDashboardPage() {
                   aria-label={t('id.compare')}
                   value={comparison}
                   onChange={(event) => setComparison(event.target.value)}
-                  disabled={!['overview', 'rankings', 'writeoffs'].includes(tab)}
+                  disabled={!['overview', 'rankings'].includes(tab)}
                 >
                   {['previous', 'year', 'none'].map((value) => (
                     <option value={value} key={value}>
@@ -372,12 +381,29 @@ export default function IikoDashboardPage() {
         />
       )}
       {tab === 'writeoffs' && (
-        <Rankings
+        <Controls
           key="writeoffs"
           mode="writeoffs"
           base={base}
           department={department}
-          comparison={comparison}
+          refresh={refresh}
+        />
+      )}
+      {tab === 'operations' && (
+        <Controls
+          key="operations"
+          mode="operations"
+          base={base}
+          department={department}
+          refresh={refresh}
+        />
+      )}
+      {tab === 'assortment' && (
+        <Controls
+          key="assortment"
+          mode="assortment"
+          base={base}
+          department={department}
           refresh={refresh}
         />
       )}

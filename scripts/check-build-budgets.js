@@ -39,10 +39,10 @@ if (adminDirectory) {
   assertBudget(
     'Admin total JavaScript gzip',
     javascriptGzip.reduce((sum, size) => sum + size, 0),
-    // iiko reporting adds a lazy dashboard, OLAP/stock tables and RU/KK/EN copy.
-    // The full admin route inventory measures 372,189 B at f031c12; the largest
-    // individual JS chunk limit below is unchanged. Keep about 2% build margin.
-    380_000,
+    // iiko controls add writeoff, receipt and assortment views with RU/KK/EN copy.
+    // The working admin build measures 381,638 B; allow about 2% build margin.
+    // The individual JS chunk and CSS limits remain unchanged.
+    390_000,
   );
   assertBudget('Admin largest JavaScript gzip', Math.max(0, ...javascriptGzip), 82_000);
   // Shared workspace styling measures 32,045 B at f031c12 (about 2% margin).

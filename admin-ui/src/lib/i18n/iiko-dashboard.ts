@@ -1,4 +1,7 @@
 const ru = {
+  'id.operations': 'Скидки и возвраты',
+  'id.assortment': 'Ассортимент',
+  'id.selectMonth': 'Выбрать весь месяц',
   'id.writeoffs': 'Списания',
   'id.period': 'Период',
   'id.choosePeriod': 'Выбрать период',
@@ -143,6 +146,9 @@ const ru = {
 };
 type Keys = keyof typeof ru;
 const kk: Record<Keys, string> = {
+  'id.operations': 'Жеңілдіктер мен қайтарулар',
+  'id.assortment': 'Ассортимент',
+  'id.selectMonth': 'Толық айды таңдау',
   'id.writeoffs': 'Есептен шығару',
   'id.period': 'Кезең',
   'id.choosePeriod': 'Кезеңді таңдау',
@@ -286,6 +292,9 @@ const kk: Record<Keys, string> = {
   'id.range': 'Бір жылдан аспайтын кезеңді таңдаңыз',
 };
 const en: Record<Keys, string> = {
+  'id.operations': 'Discounts and refunds',
+  'id.assortment': 'Assortment',
+  'id.selectMonth': 'Select entire month',
   'id.writeoffs': 'Write-offs',
   'id.period': 'Period',
   'id.choosePeriod': 'Choose period',

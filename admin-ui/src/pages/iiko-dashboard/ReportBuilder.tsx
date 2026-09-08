@@ -75,10 +75,26 @@ export default function ReportBuilder({
       });
     return () => controller.abort();
   }, [base.serverId, type]);
-  // A change in period invalidates the old result; only a submitted report auto-refreshes.
+  // Applying a period reruns the submitted definition instead of silently clearing it.
   useEffect(() => {
     setReport(undefined);
-    setSubmitted(undefined);
+    setSubmitted((old) =>
+      old
+        ? {
+            ...old,
+            from: base.from,
+            to: base.to,
+            filters: [
+              ...filters,
+              ...base.filters.filter(
+                (filter) =>
+                  filter.field === 'Department' &&
+                  !filters.some((own) => own.field === 'Department'),
+              ),
+            ],
+          }
+        : undefined,
+    );
   }, [base.from, base.to, JSON.stringify(base.filters)]);
   useEffect(() => {
     if (!submitted) return;

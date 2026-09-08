@@ -1,0 +1,131 @@
+.id-controls {
+  display: grid;
+  gap: 20px;
+}
+.id-control-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+}
+.id-control-cards > div {
+  background: #fff;
+  border: 1px solid #e9ece3;
+  border-radius: 18px;
+  padding: 22px;
+  box-shadow: 0 4px 16px #27321d05;
+}
+.id-control-cards span {
+  display: block;
+  color: #717b65;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+.id-control-cards strong {
+  font-size: 25px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: #333b2b;
+}
+.id-control-chart {
+  padding: 24px;
+}
+.id-control-chart h2 {
+  font-size: 15px;
+  font-weight: 500;
+  margin: 0 0 18px;
+}
+.id-control-chart > div {
+  height: 220px;
+}
+.id-control-views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.id-dashboard .id-control-views button {
+  min-height: 34px;
+  padding: 6px 11px;
+  font-size: 12px;
+  background: #f6f7f3;
+  border: 0;
+  color: #666f5b;
+}
+.id-dashboard .id-control-views button[aria-pressed='true'] {
+  background: #fff0ba;
+  color: #473e24;
+}
+.id-control-criteria {
+  padding: 12px 16px;
+  border: 1px solid #e9ece3;
+  border-radius: 14px;
+  background: #fff;
+  font-size: 12px;
+}
+.id-control-criteria summary {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  cursor: pointer;
+  color: #6a755d;
+}
+.id-control-criteria form {
+  display: flex;
+  gap: 14px;
+  align-items: end;
+  flex-wrap: wrap;
+  padding-top: 16px;
+}
+.id-dashboard .id-control-criteria input {
+  max-width: 180px;
+}
+.id-dashboard .id-control-criteria button {
+  min-height: 36px;
+  padding: 6px 16px;
+  font-size: 12px;
+}
+.id-dashboard .id-controls .id-check {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-size: 12px;
+}
+.id-controls .id-check input {
+  width: 15px;
+  height: 15px;
+}
+.id-dashboard .id-tabs {
+  flex-wrap: wrap;
+}
+.id-dashboard .id-tabs button {
+  white-space: nowrap;
+}
+@media (max-width: 600px) {
+  .id-control-cards {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .id-control-cards > div {
+    padding: 15px;
+  }
+  .id-control-cards strong {
+    font-size: 19px;
+  }
+  .id-control-views {
+    width: 100%;
+  }
+  .id-dashboard .id-tabs {
+    display: flex;
+    flex-wrap: wrap;
+  }
+  .id-dashboard .id-tabs button {
+    flex: 1 1 calc(25% - 12px);
+    min-width: 70px;
+    white-space: normal;
+    font-size: 10px;
+  }
+  .id-control-chart {
+    padding: 16px;
+  }
+}

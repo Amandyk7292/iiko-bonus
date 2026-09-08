@@ -63,7 +63,10 @@ export default function DateRangePicker({
         }
       }}
       onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+        // Native month/year menus and touch browsers can temporarily clear focus.
+        // Closing on relatedTarget=null removes Apply before its click is delivered.
+        if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget))
+          setOpen(false);
       }}
     >
       <span className="id-date-label">{t('id.period')}</span>
@@ -217,6 +220,17 @@ export default function DateRangePicker({
               {formatDate(end, { day: 'numeric', month: 'short' })}
             </strong>
           </div>
+          <button
+            type="button"
+            className="id-calendar-whole-month"
+            onClick={() => {
+              setStart(month);
+              setEnd(offsetDate(shiftMonth(month, 1), -1));
+              setAnchor(undefined);
+            }}
+          >
+            {t('id.selectMonth')}
+          </button>
           {!validRange(start, end) && <p role="alert">{t('id.range')}</p>}
           <div className="id-calendar-footer">
             <button type="button" onClick={close}>
