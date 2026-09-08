@@ -590,6 +590,18 @@ void main() {
       ),
     );
     expect(currentFace.transform.entry(2, 0).abs(), greaterThan(0.1));
+    // The joining edge comes toward the viewer, as on the outside of a cube.
+    // Its top stays above the receding outside corner, never a valley/fold.
+    final outer = MatrixUtils.transformPoint(
+      currentFace.transform,
+      const Offset(-195, -422),
+    );
+    final joining = MatrixUtils.transformPoint(
+      currentFace.transform,
+      const Offset(195, -422),
+    );
+    expect(joining.dy, lessThan(outer.dy));
+    expect(joining.dy, closeTo(-422, 0.01));
 
     await gesture.up();
     await tester.pump();

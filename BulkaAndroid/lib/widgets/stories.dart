@@ -1108,6 +1108,89 @@ class _StoryViewerState extends State<StoryViewer>
     _play();
   }
 
+  Widget _storyControls(
+    PromoStory story,
+    int index, {
+    Key? controlsKey,
+  }) => SafeArea(
+    bottom: false,
+    child: Align(
+      alignment: Alignment.topCenter,
+      child: Container(
+        key: controlsKey,
+        padding: const EdgeInsets.fromLTRB(14, 10, 10, 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AnimatedBuilder(
+              animation: _progressController,
+              builder: (_, _) => Row(
+                children: [
+                  for (var i = 0; i < widget.stories.length; i++)
+                    Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                          right: i == widget.stories.length - 1 ? 0 : 4,
+                        ),
+                        child: LinearProgressIndicator(
+                          value: _reduceMotion
+                              ? (i <= index ? 1 : 0)
+                              : i < index
+                              ? 1
+                              : i == index
+                              ? _progressController.value
+                              : 0,
+                          minHeight: 3,
+                          color: _bulkaYellow,
+                          backgroundColor: Colors.white.withValues(alpha: 0.52),
+                          borderRadius: BorderRadius.circular(BulkaRadii.small),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 4),
+                    child: Text(
+                      story.localizedTitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontFamily: _headingFont,
+                        color: Colors.white,
+                        fontSize: BulkaTypeScale.body,
+                        fontWeight: FontWeight.w700,
+                        shadows: [
+                          Shadow(color: Color(0x99000000), blurRadius: 8),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: () => Navigator.of(context).maybePop(),
+                  tooltip: 'close_tooltip'.tr,
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(48, 48),
+                    backgroundColor: Colors.black.withValues(alpha: 0.18),
+                    foregroundColor: Colors.white,
+                  ),
+                  icon: const Icon(Icons.close_rounded, size: 29),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) {
     final story = widget.stories[_index];
@@ -1169,6 +1252,10 @@ class _StoryViewerState extends State<StoryViewer>
                       progress: _transitionController.value,
                       forward: _forward,
                       interactive: _interactiveTransition,
+                      currentOverlay: _storyControls(story, _index),
+                      targetOverlay: targetStory == null
+                          ? null
+                          : _storyControls(targetStory, _targetIndex!),
                     ),
                   ),
                 ),
@@ -1204,95 +1291,12 @@ class _StoryViewerState extends State<StoryViewer>
                     ),
                   ],
                 ),
-                SafeArea(
-                  bottom: false,
-                  child: Align(
-                    alignment: Alignment.topCenter,
-                    child: Container(
-                      key: const ValueKey('story-controls'),
-                      padding: const EdgeInsets.fromLTRB(14, 10, 10, 8),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          AnimatedBuilder(
-                            animation: _progressController,
-                            builder: (_, _) => Row(
-                              children: [
-                                for (var i = 0; i < widget.stories.length; i++)
-                                  Expanded(
-                                    child: Padding(
-                                      padding: EdgeInsets.only(
-                                        right: i == widget.stories.length - 1
-                                            ? 0
-                                            : 4,
-                                      ),
-                                      child: LinearProgressIndicator(
-                                        value: _reduceMotion
-                                            ? (i <= _index ? 1 : 0)
-                                            : i < _index
-                                            ? 1
-                                            : i == _index
-                                            ? _progressController.value
-                                            : 0,
-                                        minHeight: 3,
-                                        color: _bulkaYellow,
-                                        backgroundColor: Colors.white
-                                            .withValues(alpha: 0.52),
-                                        borderRadius: BorderRadius.circular(
-                                          BulkaRadii.small,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Padding(
-                                  padding: const EdgeInsets.only(left: 4),
-                                  child: Text(
-                                    story.localizedTitle,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontFamily: _headingFont,
-                                      color: Colors.white,
-                                      fontSize: BulkaTypeScale.body,
-                                      fontWeight: FontWeight.w700,
-                                      shadows: [
-                                        Shadow(
-                                          color: Color(0x99000000),
-                                          blurRadius: 8,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              IconButton(
-                                onPressed: () =>
-                                    Navigator.of(context).maybePop(),
-                                tooltip: 'close_tooltip'.tr,
-                                style: IconButton.styleFrom(
-                                  minimumSize: const Size(48, 48),
-                                  backgroundColor: Colors.black.withValues(
-                                    alpha: 0.18,
-                                  ),
-                                  foregroundColor: Colors.white,
-                                ),
-                                icon: const Icon(Icons.close_rounded, size: 29),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
+                if (targetStory == null)
+                  _storyControls(
+                    story,
+                    _index,
+                    controlsKey: const ValueKey('story-controls'),
                   ),
-                ),
               ],
             ),
           ),
@@ -1472,6 +1476,8 @@ class _StoryCubeStage extends StatelessWidget {
     required this.progress,
     required this.forward,
     required this.interactive,
+    this.currentOverlay,
+    this.targetOverlay,
   });
 
   final PromoStory current;
@@ -1479,6 +1485,7 @@ class _StoryCubeStage extends StatelessWidget {
   final double progress;
   final bool forward;
   final bool interactive;
+  final Widget? currentOverlay, targetOverlay;
 
   @override
   Widget build(BuildContext context) {
@@ -1502,16 +1509,20 @@ class _StoryCubeStage extends StatelessWidget {
           final halfWidth = width / 2;
           final turn = forward ? -1.0 : 1.0;
           final angle = turn * eased * pi / 2;
+          // Positive z faces the viewer. Keep the leading cube edge in the
+          // screen plane; the outer edges recede instead of folding inward.
+          final depth = halfWidth * (cos(angle) + sin(angle).abs());
+          final perspective = -1 / (width * 2.2);
 
           Matrix4 currentTransform() => Matrix4.identity()
-            ..setEntry(3, 2, 0.00135)
-            ..translateByDouble(0.0, 0.0, -halfWidth, 1.0)
+            ..setEntry(3, 2, perspective)
+            ..translateByDouble(0.0, 0.0, -depth, 1.0)
             ..rotateY(angle)
             ..translateByDouble(0.0, 0.0, halfWidth, 1.0);
 
           Matrix4 targetTransform() => Matrix4.identity()
-            ..setEntry(3, 2, 0.00135)
-            ..translateByDouble(0.0, 0.0, -halfWidth, 1.0)
+            ..setEntry(3, 2, perspective)
+            ..translateByDouble(0.0, 0.0, -depth, 1.0)
             ..rotateY(angle)
             ..translateByDouble(-turn * halfWidth, 0.0, 0.0, 1.0)
             ..rotateY(-turn * pi / 2);
@@ -1520,6 +1531,7 @@ class _StoryCubeStage extends StatelessWidget {
             key: const ValueKey('story-current-face'),
             transform: currentTransform(),
             story: current,
+            overlay: currentOverlay,
             shade: 0.24 * eased,
             shadeFromLeft: forward,
           );
@@ -1527,6 +1539,7 @@ class _StoryCubeStage extends StatelessWidget {
             key: const ValueKey('story-target-face'),
             transform: targetTransform(),
             story: next,
+            overlay: targetOverlay,
             shade: 0.22 * (1 - eased),
             shadeFromLeft: !forward,
           );
@@ -1554,6 +1567,7 @@ class _StoryCubeFace extends StatelessWidget {
     required this.story,
     required this.shade,
     required this.shadeFromLeft,
+    this.overlay,
     super.key,
   });
 
@@ -1561,6 +1575,7 @@ class _StoryCubeFace extends StatelessWidget {
   final PromoStory story;
   final double shade;
   final bool shadeFromLeft;
+  final Widget? overlay;
 
   @override
   Widget build(BuildContext context) {
@@ -1574,6 +1589,8 @@ class _StoryCubeFace extends StatelessWidget {
           fit: StackFit.expand,
           children: [
             _StoryFullImage(story: story),
+            if (overlay != null)
+              IgnorePointer(child: ExcludeSemantics(child: overlay!)),
             if (shadow > 0)
               IgnorePointer(
                 child: DecoratedBox(
