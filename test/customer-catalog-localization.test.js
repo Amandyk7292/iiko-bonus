@@ -10,12 +10,13 @@ const {
 test('catalog has complete translations and the offline client uses the same dictionary', () => {
   const source = fs
     .readFileSync(path.join(__dirname, '../src/data/customer-catalog-translations.txt'), 'utf8')
+    .replace(/\r\n/g, '\n')
     .trim();
   const generated = fs.readFileSync(
     path.join(__dirname, '../BulkaAndroid/lib/core/catalog_copy.g.dart'),
     'utf8',
   );
-  assert.equal(generated.split("r'''\n")[1].split("\n''';")[0], source);
+  assert.equal(generated.replace(/\r\n/g, '\n').split("r'''\n")[1].split("\n''';")[0], source);
   for (const row of source.split(/\r?\n/)) {
     const [ru, kk, en, extra] = row.split('|');
     assert.ok(ru && kk && en && !extra, `Incomplete row: ${row}`);
