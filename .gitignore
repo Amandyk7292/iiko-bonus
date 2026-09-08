@@ -21,6 +21,7 @@ IikoBonusPlugin/obj/
 !vercel.json
 !BulkaAndroid/android/app/google-services.json
 !BulkaAndroid/web/manifest.json
+!BulkaAndroid/ios/Runner/Assets.xcassets/**/Contents.json
 !admin-ui/tsconfig.json
 !test/fixtures/flutter-app/release-version.json
 render_env.txt
