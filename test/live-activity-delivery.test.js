@@ -26,7 +26,8 @@ function fixture(t, { status = 200, reason, noResponse = false } = {}) {
   const sent = [];
   const updates = [];
   let destroyed = false;
-  t.mock.method(http2, 'connect', (host) => {
+  t.mock.method(http2, 'connect', (host, options) => {
+    assert.equal(options.family, 4, 'APNs must work on the IPv4-only production route');
     const client = new EventEmitter();
     client.destroy = () => {
       destroyed = true;

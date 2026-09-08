@@ -140,7 +140,9 @@ function sendApnsRequest({ token, environment, payload, config }) {
       environment === 'sandbox'
         ? 'https://api.sandbox.push.apple.com'
         : 'https://api.push.apple.com';
-    const client = http2.connect(host);
+    // The production host has IPv4 egress but no IPv6 route. Node's automatic
+    // family selection times out before APNs completes its IPv4 connection.
+    const client = http2.connect(host, { family: 4 });
     let responseBody = '';
     let status = 0;
     let settled = false;
@@ -155,7 +157,7 @@ function sendApnsRequest({ token, environment, payload, config }) {
     };
     const deadline = setTimeout(() => finish({ ok: false, error: 'apns_timeout' }), 10000);
     deadline.unref?.();
-    client.once('error', (error) => finish({ ok: false, error: error.message }));
+    client.once('error', (error) => finish({ ok: false, error: error.code || error.message }));
     client.once('close', () => finish({ ok: false, error: 'apns_connection_closed' }));
     request = client.request({
       ':method': 'POST',

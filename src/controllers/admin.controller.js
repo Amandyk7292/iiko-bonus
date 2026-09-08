@@ -12,6 +12,7 @@ const {
   sendPushToCustomer,
 } = require('../services/push.service');
 const { sendMessage } = require('../services/telegram.service');
+const { broadcastCustomerPush } = require('../services/push-broadcast.service');
 const {
   getAllCustomers,
   getTransactions,
@@ -178,69 +179,9 @@ const pushMassHandler = async (req, res) => {
       return res.status(400).json({ error: 'ru, kk and en title/body translations required' });
     }
 
-    const { data: customers } = await supabase
-      .from('customers')
-      .select('id, fcm_token, preferred_language');
-    if (!customers || customers.length === 0) return res.json({ success: true, count: 0 });
-
-    const { data: savedNotifications, error: notificationError } = await supabase
-      .from('customer_notifications')
-      .insert(
-        customers.map((customer) => {
-          const language = ['kk', 'en'].includes(customer.preferred_language)
-            ? customer.preferred_language
-            : 'ru';
-          return {
-            customer_id: customer.id,
-            title: titles[language],
-            body: bodies[language],
-            type: 'broadcast',
-            payload: { i18n: { titles, bodies } },
-          };
-        }),
-      )
-      .select('id, customer_id');
-    if (notificationError) throw notificationError;
-    const notificationByCustomer = new Map(
-      (savedNotifications || []).map((notification) => [notification.customer_id, notification.id]),
-    );
-
-    let count = 0;
-    let queuedCount = 0;
-    let totalTokens = 0;
-    for (let offset = 0; offset < customers.length; offset += 25) {
-      const batch = customers.slice(offset, offset + 25);
-      const results = await Promise.all(
-        batch.map((customer) => {
-          const language = ['kk', 'en'].includes(customer.preferred_language)
-            ? customer.preferred_language
-            : 'ru';
-          return sendPushToCustomer(
-            customer.id,
-            titles[language],
-            bodies[language],
-            {
-              notificationId: String(notificationByCustomer.get(customer.id) || ''),
-              type: 'broadcast',
-            },
-            customer.fcm_token,
-          );
-        }),
-      );
-      totalTokens += results.reduce((sum, result) => sum + result.attempted, 0);
-      count += results.reduce((sum, result) => sum + result.delivered, 0);
-      queuedCount += results.reduce((sum, result) => sum + (result.queued ? 1 : 0), 0);
-    }
-    console.log(
-      `[PUSH MASS] Всего клиентов: ${customers.length}, с fcm_token: ${totalTokens}, успешно отправлено push: ${count}`,
-    );
-    res.json({
-      success: true,
-      count,
-      queuedCount,
-      savedCount: customers.length,
-      totalTokens,
-    });
+    const result = await broadcastCustomerPush(titles, bodies);
+    console.log('[PUSH MASS]', result);
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

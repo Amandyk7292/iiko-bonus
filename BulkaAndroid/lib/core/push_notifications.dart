@@ -598,6 +598,10 @@ abstract final class PushNotifications {
 
   static Future<void> register(BulkaApiClient api) async {
     final generation = _customerPushGeneration;
+    // Startup and resume initialize Firebase asynchronously. Waiting here keeps
+    // a fast restored customer session from losing its only registration try.
+    if (!api.isAuthenticated) return;
+    await initialize();
     if (!api.isAuthenticated ||
         !await _retryPendingInstallationTokenDeletion() ||
         !await retryPendingCustomerUnregister(api) ||
@@ -620,7 +624,8 @@ abstract final class PushNotifications {
           settings.authorizationStatus != AuthorizationStatus.provisional) {
         return;
       }
-      _tokenSubscription ??= FirebaseMessaging.instance.onTokenRefresh.listen((
+      await _tokenSubscription?.cancel();
+      _tokenSubscription = FirebaseMessaging.instance.onTokenRefresh.listen((
         nextToken,
       ) {
         unawaited(
@@ -633,14 +638,7 @@ abstract final class PushNotifications {
         );
       });
       if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
-        String? apnsToken;
-        for (var attempt = 0; attempt < 10 && apnsToken == null; attempt++) {
-          apnsToken = await FirebaseMessaging.instance.getAPNSToken();
-          if (apnsToken == null) {
-            await Future<void>.delayed(const Duration(milliseconds: 300));
-          }
-        }
-        if (apnsToken == null) {
+        if (!await _waitForApnsToken()) {
           debugPrint('Push registration is waiting for an APNs token.');
           return;
         }

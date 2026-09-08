@@ -24,6 +24,7 @@ class StaffAccountSession extends ChangeNotifier {
   final Future<void> Function() _clearCookie;
   Map<String, dynamic>? user;
   Future<void>? _restoring;
+  Future<void>? _loggingOut;
   int _revision = 0;
   bool _disposed = false;
   String? error;
@@ -82,6 +83,7 @@ class StaffAccountSession extends ChangeNotifier {
   }
 
   Future<void> signIn(String username, String password, String code) async {
+    await _loggingOut;
     final revision = ++_revision;
     await _restoring;
     if (_disposed || revision != _revision) return;
@@ -94,7 +96,10 @@ class StaffAccountSession extends ChangeNotifier {
     _notify();
   }
 
-  Future<void> logout() async {
+  Future<void> logout() =>
+      _loggingOut ??= _logout().whenComplete(() => _loggingOut = null);
+
+  Future<void> _logout() async {
     ++_revision;
     await _restoring;
     await api.logout();

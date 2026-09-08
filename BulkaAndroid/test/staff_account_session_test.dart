@@ -125,7 +125,7 @@ void main() {
         reason: 'Username does not confer admin privileges',
       );
       expect(session.canOpenPortal, isFalse);
-      await session.logout();
+      await Future.wait([session.logout(), session.logout()]);
       expect(session.isAuthenticated, isFalse);
       expect(operations, [
         'install-cookie',

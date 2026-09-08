@@ -10,6 +10,41 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUp(() => FlutterSecureStorage.setMockInitialValues({}));
   test(
+    'logout of an expired session clears local credentials without an error',
+    () async {
+      final api = StaffApiClient(
+        client: MockClient(
+          (_) async => http.Response(
+            '{"error":"Admin session is invalid or expired"}',
+            401,
+          ),
+        ),
+      );
+      await api.adoptSessionCookie('bulka_admin=expired-fixture');
+      await api.logout();
+      expect(
+        await const FlutterSecureStorage().read(key: StaffApiClient.sessionKey),
+        isNull,
+      );
+      api.close();
+    },
+  );
+  test(
+    'logout preserves the session if server revocation cannot be confirmed',
+    () async {
+      final api = StaffApiClient(
+        client: MockClient((_) async => http.Response('{}', 503)),
+      );
+      await api.adoptSessionCookie('bulka_admin=active-fixture');
+      await expectLater(api.logout(), throwsA(isA<StaffApiException>()));
+      expect(
+        await const FlutterSecureStorage().read(key: StaffApiClient.sessionKey),
+        'active-fixture',
+      );
+      api.close();
+    },
+  );
+  test(
     '204 mutations succeed and stale 401 does not destroy a new login',
     () async {
       final stale = Completer<http.Response>();

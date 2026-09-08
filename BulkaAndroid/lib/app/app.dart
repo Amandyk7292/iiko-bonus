@@ -824,10 +824,12 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
 
   void _startProfileRefresh(String phone) {
     _refreshTimer?.cancel();
-    _refreshTimer = Timer.periodic(
-      const Duration(seconds: 30),
-      (_) => _refreshProfile(phone),
-    );
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      unawaited(_refreshProfile(phone));
+      // Retry late APNs tokens and temporary registration/network failures
+      // while the authenticated app stays open, without asking permission.
+      if (!kIsWeb) unawaited(PushNotifications.register(_api));
+    });
   }
 
   Future<String?> _acceptAuthenticatedProfile(

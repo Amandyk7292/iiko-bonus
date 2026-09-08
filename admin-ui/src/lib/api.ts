@@ -1055,7 +1055,7 @@ export const api = {
   sendBroadcast: (message: string) =>
     request<{ success: boolean; count?: number }>('/broadcast', json('POST', { message })),
   sendPushMass: (titles: LocalizedText, bodies: LocalizedText) =>
-    request<{ success: boolean; count?: number }>(
+    request<{ success: boolean; count?: number; status?: 'sent' | 'partial' | 'queued' | 'failed' | 'no_recipients'; queuedCount?: number; savedCount?: number; totalTokens?: number }>(
       '/push/mass',
       json('POST', { titleTranslations: titles, bodyTranslations: bodies }),
     ),

@@ -126,7 +126,13 @@ class StaffApiClient {
   }
 
   Future<void> logout() async {
-    await request('/logout', method: 'POST');
+    try {
+      await request('/logout', method: 'POST');
+    } on StaffApiException catch (error) {
+      // Expired/revoked already means signed out. A network or server failure
+      // still propagates so we never claim a live session was revoked.
+      if (error.status != 401) rethrow;
+    }
     _token = null;
     branchId = '';
     branchIds = [];
@@ -232,7 +238,13 @@ class StaffApiClient {
       throw StaffApiException(
         response.statusCode,
         data is Map ? '${data['code'] ?? 'API_ERROR'}' : 'API_ERROR',
-        data is Map
+        response.statusCode == 401
+            ? staffText(
+                'Сессия завершена. Войдите снова.',
+                'Сессия аяқталды. Қайта кіріңіз.',
+                'Your session has ended. Please sign in again.',
+              )
+            : data is Map
             ? '${data['error'] ?? data['message'] ?? 'Не удалось выполнить запрос'}'
             : 'Не удалось выполнить запрос',
       );
