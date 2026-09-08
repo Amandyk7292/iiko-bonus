@@ -5,10 +5,16 @@ const { servers, credentialsFor } = require('../config/iiko-dashboard');
 const failure = (code, statusCode = 502) => Object.assign(new Error(code), { code, statusCode });
 
 class IikoDashboardClient {
-  constructor({ fetchImpl = fetch, credentials = credentialsFor, timeoutMs = 20000 } = {}) {
+  constructor({
+    fetchImpl = fetch,
+    credentials = credentialsFor,
+    timeoutMs = 20000,
+    reportTimeoutMs = 45000,
+  } = {}) {
     this.fetch = fetchImpl;
     this.credentials = credentials;
     this.timeoutMs = timeoutMs;
+    this.reportTimeoutMs = reportTimeoutMs;
     this.queues = new Map();
   }
 
@@ -21,7 +27,10 @@ class IikoDashboardClient {
     if (token) url.searchParams.set('key', token);
     for (const [key, value] of Object.entries(secretQuery || {})) url.searchParams.set(key, value);
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+    const timeout = setTimeout(
+      () => controller.abort(),
+      path === 'v2/reports/olap' ? this.reportTimeoutMs : this.timeoutMs,
+    );
     try {
       const response = await this.fetch(url.toString(), {
         method: body ? 'POST' : 'GET',

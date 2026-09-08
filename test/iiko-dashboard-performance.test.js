@@ -12,6 +12,37 @@ const deferred = () => {
   });
   return { promise, resolve };
 };
+test('monthly OLAP gets a longer bounded deadline while authentication keeps its short deadline', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const signals = [];
+  const client = new IikoDashboardClient({
+    fetchImpl: (_url, { signal }) => {
+      signals.push(signal);
+      return new Promise((_resolve, reject) =>
+        signal.addEventListener(
+          'abort',
+          () => {
+            reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+          },
+          { once: true },
+        ),
+      );
+    },
+  });
+  const server = { host: 'bulka-co.iiko.it' };
+  const report = assert.rejects(client.request(server, 'v2/reports/olap', null, {}), {
+    code: 'IIKO_REPORT_TIMEOUT',
+  });
+  const auth = assert.rejects(client.request(server, 'auth'), { code: 'IIKO_REPORT_TIMEOUT' });
+  t.mock.timers.tick(20000);
+  assert.equal(signals[0].aborted, false);
+  assert.equal(signals[1].aborted, true);
+  await auth;
+  t.mock.timers.tick(24999);
+  assert.equal(signals[0].aborted, false);
+  t.mock.timers.tick(1);
+  await report;
+});
 test('session limits parallel jobs and waits for all readers before logout', async () => {
   const gates = Array.from({ length: 5 }, deferred);
   let active = 0,

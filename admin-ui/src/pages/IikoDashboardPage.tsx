@@ -14,6 +14,7 @@ import {
   PackageSearch,
 } from 'lucide-react';
 import { useI18n } from '../lib/i18n';
+import { isIikoRequestPending } from '../lib/iiko-request-policy';
 import { dashboardApi, exportReport } from './iiko-dashboard/api';
 import {
   comparisonRange,
@@ -118,10 +119,10 @@ export default function IikoDashboardPage() {
   useEffect(() => {
     if (!preferences.auto) return;
     const timer = window.setInterval(() => {
-      if (!document.hidden) setRefresh((value) => value + 1);
+      if (!document.hidden && !isIikoRequestPending()) setRefresh((value) => value + 1);
     }, 60000);
     const foreground = () => {
-      if (!document.hidden) setRefresh((value) => value + 1);
+      if (!document.hidden && !isIikoRequestPending()) setRefresh((value) => value + 1);
     };
     document.addEventListener('visibilitychange', foreground);
     window.addEventListener('online', foreground);

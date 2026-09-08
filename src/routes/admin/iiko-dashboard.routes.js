@@ -10,8 +10,10 @@ const {
 } = require('../../contracts/iiko-dashboard.contract');
 const { validateRequest } = require('../../middlewares/validation.middleware');
 const { reportWorkbook, balanceReport } = require('../../services/iiko-dashboard-export');
+const { ReportJobs } = require('../../services/iiko-dashboard-jobs');
 
 function registerIikoDashboardRoutes(router, reporting = service) {
+  const controlJobs = new ReportJobs();
   const ownerOnly = (req, res, next) => {
     if (!['owner', 'admin'].includes(req.admin?.role))
       return res.status(403).json({ code: 'FORBIDDEN', error: 'Недостаточно прав' });
@@ -32,7 +34,11 @@ function registerIikoDashboardRoutes(router, reporting = service) {
     '/admin/api/iiko-dashboard/controls',
     ownerOnly,
     validateRequest({ body: controlsQuery }),
-    handle((req) => reporting.controls(req.body)),
+    handle((req) =>
+      req.get('X-Iiko-Async') === '1'
+        ? controlJobs.read(JSON.stringify(req.body), () => reporting.controls(req.body))
+        : reporting.controls(req.body),
+    ),
   );
   router.post(
     '/admin/api/iiko-dashboard/controls/export',
@@ -40,7 +46,9 @@ function registerIikoDashboardRoutes(router, reporting = service) {
     validateRequest({ body: controlsExportQuery }),
     async (req, res) => {
       try {
-        const result = await reporting.controls(req.body.query);
+        const result = await controlJobs.result(JSON.stringify(req.body.query), () =>
+          reporting.controls(req.body.query),
+        );
         const report = result.tables[req.body.table];
         if (!report) return res.status(400).json({ code: 'IIKO_REPORT_FIELD' });
         const selected = require('../../services/iiko-dashboard-controls-export').controlsExport(

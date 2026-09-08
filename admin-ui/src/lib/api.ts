@@ -1,6 +1,7 @@
 import type { PaymentDiagnostics } from './payment-diagnostics';
 import { parseAdminScopeSelection } from './admin-city-scope';
 import { composeRequestAbortSignal } from './api-request-abort';
+import { requestTimeoutMs, trackIikoRequest } from './iiko-request-policy';
 export { composeRequestAbortSignal } from './api-request-abort';
 const BASE_URL = '/admin/api';
 const BRANCH_SCOPE_STORAGE_KEY = 'adminSelectedBranchId';
@@ -250,7 +251,8 @@ export async function request<T>(endpoint: string, options: RequestInit = {}): P
   applyAdminScopeHeaders(headers, endpoint);
 
   let response: Response | undefined;
-  const requestAbort = composeRequestAbortSignal(options.signal);
+  const requestAbort = composeRequestAbortSignal(options.signal, requestTimeoutMs(endpoint));
+  const finishRequest = trackIikoRequest(endpoint, requestAbort.signal);
   try {
     response = await fetch(`${BASE_URL}${endpoint}`, {
       ...options,
@@ -293,6 +295,7 @@ export async function request<T>(endpoint: string, options: RequestInit = {}): P
     );
   } finally {
     requestAbort.cleanup();
+    finishRequest();
   }
 }
 

@@ -11,7 +11,8 @@ import {
   Tooltip,
 } from 'chart.js';
 import { useI18n } from '../../lib/i18n';
-import { request, ApiError } from '../../lib/api';
+import { ApiError } from '../../lib/api';
+import { loadControls } from './load-controls';
 import { download } from './api';
 import { errorKey, type Query, type Report } from './model';
 import DataTable from './DataTable';
@@ -69,11 +70,7 @@ export default function Controls({
     const controller = new AbortController();
     setLoading(true);
     setError('');
-    void request<Result>('/iiko-dashboard/controls', {
-      method: 'POST',
-      body: JSON.stringify(query),
-      signal: controller.signal,
-    })
+    void loadControls<Result>(query, controller.signal)
       .then((result) => {
         if (!controller.signal.aborted) {
           setData(result);
