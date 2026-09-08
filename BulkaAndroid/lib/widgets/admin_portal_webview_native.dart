@@ -4,6 +4,9 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
+import '../core/admin_file_share_bridge.dart';
+import '../core/admin_order_audio.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
@@ -44,7 +47,9 @@ class AdminPortalWebView extends StatefulWidget {
   State<AdminPortalWebView> createState() => _AdminPortalWebViewState();
 }
 
-class _AdminPortalWebViewState extends State<AdminPortalWebView> {
+class _AdminPortalWebViewState extends State<AdminPortalWebView>
+    with WidgetsBindingObserver {
+  final _orderAudio = AdminOrderAudio();
   WebViewController? _controller;
   StreamSubscription<Map<String, Object?>>? _staffTokenSubscription;
   bool _unavailableReported = false;
@@ -52,6 +57,8 @@ class _AdminPortalWebViewState extends State<AdminPortalWebView> {
   bool _staffBridgeActivated = false;
   bool _staffNativeChannelInstalled = false;
   bool _mainFrameLoading = false;
+  String? _fileShareNonce;
+  bool _sharingFile = false;
   String? _trustedNavigationBypassUrl;
   Future<void> _staffBridgeSync = Future<void>.value();
 
@@ -64,6 +71,7 @@ class _AdminPortalWebViewState extends State<AdminPortalWebView> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _staffTokenSubscription = widget.staffPushTokenEvents?.listen(
       (payload) => unawaited(_dispatchStaffToken(payload)),
     );
@@ -86,6 +94,16 @@ class _AdminPortalWebViewState extends State<AdminPortalWebView> {
       }
       await controller.setJavaScriptMode(JavaScriptMode.unrestricted);
       await controller.setBackgroundColor(Colors.white);
+      await controller.addJavaScriptChannel(
+        '_BulkaOrderAudioNative',
+        onMessageReceived: (message) =>
+            unawaited(_handleOrderAudio(controller, message.message)),
+      );
+      await controller.addJavaScriptChannel(
+        adminFileShareChannel,
+        onMessageReceived: (message) =>
+            unawaited(_shareFile(controller, message.message)),
+      );
       // Android exposes a JavaScript interface only to documents loaded after
       // it was registered. Install it before the initial kitchen request, not
       // from onPageFinished, while keeping every other route channel-free.
@@ -98,6 +116,8 @@ class _AdminPortalWebViewState extends State<AdminPortalWebView> {
           onProgress: widget.onProgress,
           onPageStarted: (url) {
             _mainFrameLoading = true;
+            _fileShareNonce = null;
+            unawaited(_orderAudio.stop());
             _unavailableReported = false;
             _staffBridgeNonce = null;
             _setStaffBridgeActivated(false);
@@ -110,6 +130,7 @@ class _AdminPortalWebViewState extends State<AdminPortalWebView> {
             _mainFrameLoading = false;
             widget.onReady();
             await _prepareEmbeddedNavigation(controller);
+            await _prepareFileShare(controller);
             await _scheduleStaffPushBridge(controller, url);
           },
           onNavigationRequest: (request) =>
@@ -142,6 +163,146 @@ class _AdminPortalWebViewState extends State<AdminPortalWebView> {
       );
     } catch (_) {
       _reportUnavailable();
+    }
+  }
+
+  Future<void> _prepareFileShare(WebViewController controller) async {
+    final url = await controller.currentUrl();
+    final uri = url == null ? null : Uri.tryParse(url);
+    if (!mounted || uri == null || !_isTrustedAdminUri(uri)) return;
+    final nonce = _newBridgeNonce();
+    _fileShareNonce = nonce;
+    await controller.runJavaScript(buildAdminFileShareBridge(nonce));
+    await controller.runJavaScript('''
+      (() => {
+        const nonce = ${jsonEncode(nonce)};
+        const send = (action, kitchen = false) => new Promise((resolve, reject) => {
+          const requestId = 'audio_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+          const cleanup = () => { clearTimeout(timer); window.removeEventListener('bulka:order-audio-response', response); };
+          const response = e => { if (e.detail?.requestId !== requestId) return; cleanup(); e.detail.ok ? resolve() : reject(new Error('Audio unavailable')); };
+          const timer = setTimeout(() => { cleanup(); reject(new Error('Audio timeout')); }, 10000);
+          window.addEventListener('bulka:order-audio-response', response);
+          window._BulkaOrderAudioNative.postMessage(JSON.stringify({nonce, requestId, action, kitchen}));
+        });
+        window.BulkaOrderAudio = { prepare: () => send('prepare'), play: kitchen => send('play', kitchen), stop: () => send('stop') };
+        window.dispatchEvent(new Event('bulka:order-audio-ready'));
+      })();
+    ''');
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) unawaited(_orderAudio.stop());
+  }
+
+  Future<void> _handleOrderAudio(
+    WebViewController controller,
+    String raw,
+  ) async {
+    if (raw.length > 1024 || !mounted || _fileShareNonce == null) return;
+    try {
+      final data = jsonDecode(raw);
+      if (data is! Map<String, dynamic> ||
+          data['nonce'] != _fileShareNonce ||
+          data['requestId'] is! String ||
+          !RegExp(r'^[a-zA-Z0-9_-]{8,80}$').hasMatch(data['requestId'])) {
+        return;
+      }
+      final uri = Uri.tryParse(await controller.currentUrl() ?? '');
+      if (!mounted ||
+          data['nonce'] != _fileShareNonce ||
+          uri == null ||
+          !_isTrustedAdminUri(uri)) {
+        return;
+      }
+      var ok = true;
+      try {
+        switch (data['action']) {
+          case 'prepare':
+            await _orderAudio.prepare();
+          case 'play':
+            if (WidgetsBinding.instance.lifecycleState !=
+                AppLifecycleState.resumed) {
+              return;
+            }
+            await _orderAudio.play(
+              kitchen: data['kitchen'] == true,
+              onError: () {
+                unawaited(
+                  _dispatchStaffEvent(
+                    controller,
+                    'bulka:order-audio-error',
+                    {},
+                  ),
+                );
+              },
+            );
+          case 'stop':
+            await _orderAudio.stop();
+          default:
+            return;
+        }
+      } catch (_) {
+        ok = false;
+      }
+      if (mounted && data['nonce'] == _fileShareNonce) {
+        await _dispatchStaffEvent(controller, 'bulka:order-audio-response', {
+          'requestId': data['requestId'],
+          'ok': ok,
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _shareFile(WebViewController controller, String raw) async {
+    final nonce = _fileShareNonce;
+    if (!mounted || nonce == null) return;
+    final file = AdminSharedFile.parse(raw, nonce);
+    if (file == null) return;
+    final current = Uri.tryParse(await controller.currentUrl() ?? '');
+    if (!mounted ||
+        nonce != _fileShareNonce ||
+        current == null ||
+        !_isTrustedAdminUri(current)) {
+      return;
+    }
+    if (_sharingFile) {
+      await _dispatchStaffEvent(controller, adminFileShareResponse, {
+        'requestId': file.requestId,
+        'ok': false,
+      });
+      return;
+    }
+    _sharingFile = true;
+    var ok = false;
+    try {
+      final box = context.findRenderObject();
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [
+            XFile.fromData(
+              file.bytes,
+              mimeType: file.mimeType,
+              name: file.name,
+            ),
+          ],
+          fileNameOverrides: [file.name],
+          sharePositionOrigin: box is RenderBox && box.hasSize
+              ? box.localToGlobal(Offset.zero) & box.size
+              : null,
+        ),
+      );
+      ok = true;
+    } catch (_) {
+      // No report data or filesystem paths are exposed through errors.
+    } finally {
+      _sharingFile = false;
+    }
+    if (mounted && nonce == _fileShareNonce) {
+      await _dispatchStaffEvent(controller, adminFileShareResponse, {
+        'requestId': file.requestId,
+        'ok': ok,
+      });
     }
   }
 
@@ -457,7 +618,10 @@ class _AdminPortalWebViewState extends State<AdminPortalWebView> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    unawaited(_orderAudio.dispose());
     _staffTokenSubscription?.cancel();
+    _fileShareNonce = null;
     _staffBridgeNonce = null;
     _setStaffBridgeActivated(false);
     super.dispose();

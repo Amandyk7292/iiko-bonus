@@ -60,6 +60,7 @@ dependencies:
   share_plus: 13.3.0
   record: 6.1.0
   just_audio: 0.10.6
+  audio_session: ^0.2.4
   path_provider: ^2.1.6
   file_selector: ^1.1.0
 

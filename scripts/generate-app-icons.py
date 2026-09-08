@@ -95,6 +95,10 @@ def main() -> None:
         _save_resized(foreground, directory / "ic_launcher_foreground.png", foreground_size)
 
     _generate_ios(master)
+    # The modern iOS icon uses the same wordmark with effects disabled in icon.json.
+    composer_assets = APP / "ios" / "Runner" / "BulkaSolid.icon" / "Assets"
+    composer_assets.mkdir(parents=True, exist_ok=True)
+    foreground.save(composer_assets / "Wordmark.png", "PNG", optimize=True)
     print("Generated Bulka icons for Android, iOS and web")
 
 

@@ -21,7 +21,7 @@ def verify(directory, expected):
         if info.get('CFBundleIdentifier') != expected:
             raise ValueError('Built IPA bundle ID mismatch')
         primary_icon = info.get('CFBundleIcons', {}).get('CFBundlePrimaryIcon', {})
-        if primary_icon.get('CFBundleIconName') != 'BulkaFlatFFB300':
+        if primary_icon.get('CFBundleIconName') != 'BulkaSolid':
             raise ValueError('IPA still references the old app icon catalog')
         if not primary_icon.get('UIPrerenderedIcon'):
             raise ValueError('IPA is missing the prerendered icon setting')
