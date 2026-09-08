@@ -119,6 +119,15 @@ class IikoDashboardService {
   async receipt(input) {
     return require('./iiko-dashboard-receipt').receipt(this, input);
   }
+  async barters(input) {
+    return require('./iiko-dashboard-barters').barters(this, input);
+  }
+  async barterPeople(report) {
+    return require('./iiko-dashboard-barter-people').people(report);
+  }
+  async saveBarterPerson(report, input, actor) {
+    return require('./iiko-dashboard-barter-people').savePerson(report, input, actor);
+  }
   async balances(input) {
     return this.client.withSession(input.serverId, async (request) => {
       const rows = await request(`v2/reports/balance/stores?timestamp=${input.date}T23:59:59`);

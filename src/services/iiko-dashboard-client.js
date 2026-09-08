@@ -22,21 +22,27 @@ class IikoDashboardClient {
     return servers.map((server) => ({ ...server, configured: Boolean(this.credentials(server)) }));
   }
 
-  async request(server, path, token, body, secretQuery) {
+  async request(server, path, token, body, secretQuery, format = 'json') {
     const url = new URL(`https://${server.host}/resto/api/${path}`);
     if (token) url.searchParams.set('key', token);
     for (const [key, value] of Object.entries(secretQuery || {})) url.searchParams.set(key, value);
     const controller = new AbortController();
     const timeout = setTimeout(
       () => controller.abort(),
-      path === 'v2/reports/olap' ? this.reportTimeoutMs : this.timeoutMs,
+      path === 'v2/reports/olap' || path.startsWith('documents/export/')
+        ? this.reportTimeoutMs
+        : this.timeoutMs,
     );
     try {
       const response = await this.fetch(url.toString(), {
         method: body ? 'POST' : 'GET',
         redirect: 'error',
         headers: {
-          Accept: ['auth', 'logout'].includes(path) ? '*/*' : 'application/json',
+          Accept: ['auth', 'logout'].includes(path)
+            ? '*/*'
+            : format === 'xml'
+              ? 'application/xml'
+              : 'application/json',
           ...(body ? { 'Content-Type': 'application/json' } : {}),
         },
         ...(body ? { body: JSON.stringify(body) } : {}),
@@ -51,6 +57,7 @@ class IikoDashboardClient {
       }
       const text = await response.text();
       if (path === 'auth' || path === 'logout') return text.trim();
+      if (format === 'xml') return require('./iiko-dashboard-xml').parseXml(text);
       try {
         return JSON.parse(text);
       } catch {
@@ -102,7 +109,9 @@ class IikoDashboardClient {
             queue.jobs.splice(0, 3).map(async (job) => {
               try {
                 job.resolve(
-                  await job.work((path, body) => this.request(server, path, token, body)),
+                  await job.work((path, body, format) =>
+                    this.request(server, path, token, body, undefined, format),
+                  ),
                 );
               } catch (error) {
                 job.reject(error);

@@ -1,0 +1,145 @@
+.id-barters {
+  min-width: 0;
+}
+.id-barters > *,
+.id-barters .id-table-section {
+  min-width: 0;
+  max-width: 100%;
+}
+.id-barters .responsive-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+.id-barters td[data-field='Products'] > span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+.id-barters .id-control-cards > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.id-barters .id-control-cards strong {
+  white-space: nowrap;
+  font-size: clamp(16px, 2.4vw, 25px);
+}
+.id-barters .id-control-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.id-barters .id-barter-note {
+  margin: 0;
+  color: #72624b;
+}
+.id-barter-name {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.id-barter-name input {
+  min-height: 44px;
+  width: 100%;
+  min-width: 0;
+}
+.id-barter-name p {
+  margin: 0;
+  color: #726b62;
+  font-size: 13px;
+}
+.id-barter-name button {
+  justify-self: start;
+  min-height: 44px;
+}
+.id-barter-detail .id-table-tools {
+  flex-wrap: wrap;
+}
+.id-barter-detail {
+  padding: 20px;
+}
+.id-barter-detail input {
+  border: 1px solid #dedccf;
+  border-radius: 12px;
+  background: #fff;
+  padding: 10px 12px;
+  color: #343228;
+}
+.id-barter-detail input:focus-visible {
+  outline: 2px solid #ad8332;
+  outline-offset: 2px;
+}
+.id-barter-detail button,
+.id-barter-detail .id-columns summary {
+  border: 1px solid #dedccf;
+  border-radius: 12px;
+  background: #fff;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+.id-barter-detail .id-barter-name button {
+  background: #ffb300;
+  border-color: #ffb300;
+  color: #4d2a14;
+}
+.id-barter-detail button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.id-barter-detail .id-table-tools > label {
+  width: 100%;
+  position: relative;
+}
+.id-barter-detail input[type='search'] {
+  width: 100%;
+  min-height: 44px;
+  padding-left: 40px;
+}
+.id-barter-detail .id-search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.id-barters .id-table td {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 767px) {
+  .id-barters .id-table {
+    min-width: 0;
+  }
+  .id-barters .data-table:not(.data-table-compact) > tbody > tr > td {
+    display: grid;
+    grid-template-columns: minmax(90px, 30%) minmax(0, 1fr);
+    gap: 12px;
+    text-align: left !important;
+  }
+  .id-barters .data-table:not(.data-table-compact) > tbody > tr > td::before {
+    width: auto;
+    min-width: 0;
+    text-align: left;
+    text-transform: none;
+    letter-spacing: normal;
+    font-weight: 500;
+    font-size: 12px;
+  }
+  .id-barters .data-table:not(.data-table-compact) > tbody > tr:not(.expanded-row) > td > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .id-barters .id-number {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .id-barter-detail {
+    padding: 14px;
+  }
+  .id-barter-detail .data-table:not(.data-table-compact) > tbody {
+    padding: 0;
+  }
+}

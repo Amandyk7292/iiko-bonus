@@ -12,6 +12,7 @@ import {
   ClipboardMinus,
   ShieldCheck,
   PackageSearch,
+  Handshake,
 } from 'lucide-react';
 import { useI18n } from '../lib/i18n';
 import { isIikoRequestPending } from '../lib/iiko-request-policy';
@@ -36,6 +37,7 @@ import ReportBuilder from './iiko-dashboard/ReportBuilder';
 import Balances from './iiko-dashboard/Balances';
 import Settings, { parsePreferences, type Preferences } from './iiko-dashboard/Settings';
 import Controls from './iiko-dashboard/Controls';
+import Barters from './iiko-dashboard/Barters';
 import './iiko-dashboard/dashboard.css';
 import './iiko-dashboard/workspace.css';
 
@@ -46,6 +48,7 @@ const tabs = [
   { id: 'reports', icon: Table2 },
   { id: 'writeoffs', icon: ClipboardMinus },
   { id: 'operations', icon: ShieldCheck },
+  { id: 'barters', icon: Handshake },
   { id: 'assortment', icon: PackageSearch },
   { id: 'balances', icon: Warehouse },
   { id: 'settings', icon: Settings2 },
@@ -434,6 +437,9 @@ export default function IikoDashboardPage() {
         />
       )}
       {tab === 'balances' && <Balances serverId={serverId} date={to} refresh={refresh} />}
+      {tab === 'barters' && (
+        <Barters key={serverId} base={base} department={department} refresh={refresh} />
+      )}
       {tab === 'settings' && (
         <Settings servers={servers} preferences={preferences} onChange={setPreferences} />
       )}

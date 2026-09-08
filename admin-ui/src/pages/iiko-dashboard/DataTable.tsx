@@ -12,7 +12,7 @@ export default function DataTable({
   defaultFields?: string[];
   onSelect?: (row: Record<string, unknown>) => void;
 }) {
-  const { t, formatNumber } = useI18n();
+  const { t, formatNumber, formatDate } = useI18n();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
   const [sort, setSort] = useState({ field: '', direction: -1 });
@@ -131,11 +131,18 @@ export default function DataTable({
                   style={onSelect ? { cursor: 'pointer' } : undefined}
                 >
                   {fields.map((field) => (
-                    <td key={field} data-label={report.columns[field].name}>
+                    <td key={field} data-label={report.columns[field].name} data-field={field}>
                       <span className={typeof row[field] === 'number' ? 'id-number' : undefined}>
                         {typeof row[field] === 'number'
-                          ? formatNumber(row[field] as number, { maximumFractionDigits: 2 })
-                          : String(row[field] ?? '—')}
+                          ? formatNumber(row[field] as number, {
+                              maximumFractionDigits: field === 'Quantity' ? 3 : 2,
+                            })
+                          : report.columns[field].type === 'DATE_TIME' && row[field]
+                            ? formatDate(String(row[field]), {
+                                dateStyle: 'short',
+                                timeStyle: 'short',
+                              })
+                            : String(row[field] ?? '—')}
                       </span>
                     </td>
                   ))}

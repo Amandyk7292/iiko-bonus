@@ -111,7 +111,30 @@ const receiptQuery = z
     department: z.string().min(1).max(250),
   })
   .strict();
+const barterScope = z.object({
+  serverId,
+  from: date,
+  to: date,
+  department: z.string().max(250).default(''),
+});
+const validBarterRange = (input) =>
+  Date.parse(input.to) >= Date.parse(input.from) &&
+  Date.parse(input.to) - Date.parse(input.from) <= 366 * 86400000;
+const barterQuery = barterScope.strict().refine(validBarterRange, 'Некорректный период');
+const barterPersonMutation = z
+  .object({
+    query: barterQuery,
+    documentKey: z.string().regex(/^[a-f0-9]{64}$/),
+    bloggerName: z
+      .string()
+      .trim()
+      .max(160)
+      .regex(/^[^\p{Cc}]*$/u),
+  })
+  .strict();
 module.exports = {
+  barterQuery,
+  barterPersonMutation,
   receiptQuery,
   reportQuery,
   schemaQuery,

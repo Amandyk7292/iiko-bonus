@@ -1,0 +1,43 @@
+const labels: Record<string, [string, string, string]> = {
+  bloggers: ['Блогеров', 'Блогерлер', 'Bloggers'],
+  checks: ['Выдач по бартеру', 'Бартер бойынша берілімдер', 'Barter issues'],
+  total: ['Сумма бартера', 'Бартер сомасы', 'Barter total'],
+  unnamed: ['Без имени', 'Аты көрсетілмеген', 'Without a name'],
+  unknown: ['Блогер не указан', 'Блогер көрсетілмеген', 'Blogger not specified'],
+  unnamedHint: [
+    'Укажите имя или ник в карточке выдачи, чтобы собрать историю блогера.',
+    'Блогер тарихын жинау үшін берілім карточкасында атын немесе никін көрсетіңіз.',
+    'Add a name or handle to an issue to build the blogger’s history.',
+  ],
+  all: ['Все блогеры', 'Барлық блогерлер', 'All bloggers'],
+  bloggersView: ['По блогерам', 'Блогерлер бойынша', 'By blogger'],
+  receiptsView: ['Все выдачи', 'Барлық берілімдер', 'All issues'],
+  calculation: [
+    'Проведённые расходные накладные на контрагентов «Бартер» и «Блогер». Сумма — стоимость выданных товаров по накладной. Баланс взаиморасчётов, себестоимость и встречные проводки в неё не входят.',
+    '«Бартер» және «Блогер» контрагенттерінің өткізілген шығыс жүкқұжаттары. Сома — жүкқұжат бойынша берілген тауарлар құны. Өзара есеп айырысу қалдығы, өзіндік құн және қарсы өткізбелер кірмейді.',
+    'Posted outgoing invoices for the Barter and Blogger counterparties. Total is the invoiced goods value, excluding the running balance, stock cost and counterpart accounting entries.',
+  ],
+  Blogger: ['Блогер', 'Блогер', 'Blogger'],
+  Counteragent: ['Контрагент iiko', 'iiko контрагенті', 'iiko counterparty'],
+  Department: ['Филиал', 'Филиал', 'Branch'],
+  Document: ['Накладная №', 'Жүкқұжат №', 'Invoice no.'],
+  Date: ['Дата и время', 'Күні мен уақыты', 'Date and time'],
+  LastVisit: ['Последняя выдача', 'Соңғы берілім', 'Latest issue'],
+  Checks: ['Выдач', 'Берілімдер', 'Issues'],
+  Products: ['Товары', 'Тауарлар', 'Products'],
+  Product: ['Товар', 'Тауар', 'Product'],
+  Unit: ['Единица', 'Өлшем бірлігі', 'Unit'],
+  Quantity: ['Количество', 'Саны', 'Quantity'],
+  Total: ['Сумма, ₸', 'Сома, ₸', 'Amount, ₸'],
+  name: ['Имя или ник блогера', 'Блогердің аты немесе никі', 'Blogger name or handle'],
+  nameHint: [
+    'Сохранится для всех сотрудников. Для одного блогера используйте одинаковое имя или ник.',
+    'Барлық қызметкерлер үшін сақталады. Бір блогер үшін бірдей ат немесе ник қолданыңыз.',
+    'Saved for all staff. Use the same name or handle for each blogger.',
+  ],
+  save: ['Сохранить', 'Сақтау', 'Save'],
+  saving: ['Сохраняем…', 'Сақталуда…', 'Saving…'],
+  saved: ['Имя сохранено', 'Аты сақталды', 'Name saved'],
+};
+export const barterText = (locale: string, key: string) =>
+  labels[key]?.[locale === 'kk' ? 1 : locale === 'en' ? 2 : 0] ?? key;

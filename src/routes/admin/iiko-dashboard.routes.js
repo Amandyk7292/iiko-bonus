@@ -8,6 +8,8 @@ const {
   controlsQuery,
   controlsExportQuery,
   receiptQuery,
+  barterQuery,
+  barterPersonMutation,
 } = require('../../contracts/iiko-dashboard.contract');
 const { validateRequest } = require('../../middlewares/validation.middleware');
 const { reportWorkbook, balanceReport } = require('../../services/iiko-dashboard-export');
@@ -16,6 +18,7 @@ const { ReportJobs } = require('../../services/iiko-dashboard-jobs');
 function registerIikoDashboardRoutes(router, reporting = service) {
   const controlJobs = new ReportJobs();
   const receiptJobs = new ReportJobs();
+  const barterJobs = new ReportJobs();
   const ownerOnly = (req, res, next) => {
     if (!['owner', 'admin'].includes(req.admin?.role))
       return res.status(403).json({ code: 'FORBIDDEN', error: 'Недостаточно прав' });
@@ -32,6 +35,44 @@ function registerIikoDashboardRoutes(router, reporting = service) {
       });
     }
   };
+  router.post(
+    '/admin/api/iiko-dashboard/barters',
+    ownerOnly,
+    validateRequest({ body: barterQuery }),
+    handle((req) => {
+      const report = barterJobs.read(JSON.stringify(req.body), () => reporting.barters(req.body));
+      return report.pending ? report : reporting.barterPeople(report);
+    }),
+  );
+  router.post(
+    '/admin/api/iiko-dashboard/barters/person',
+    ownerOnly,
+    validateRequest({ body: barterPersonMutation }),
+    handle(async (req) => {
+      const report = await barterJobs.result(JSON.stringify(req.body.query), () =>
+        reporting.barters(req.body.query),
+      );
+      return reporting.saveBarterPerson(report, req.body, req.admin.sub);
+    }),
+  );
+  router.post(
+    '/admin/api/iiko-dashboard/barters/export',
+    ownerOnly,
+    validateRequest({ body: barterQuery }),
+    async (req, res) => {
+      try {
+        const report = await barterJobs.result(JSON.stringify(req.body), () =>
+          reporting.barters(req.body),
+        );
+        res.set('Content-Disposition', `attachment; filename="iiko-barters-${req.body.from}.xlsx"`);
+        res
+          .type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+          .send(reportWorkbook(await reporting.barterPeople(report)));
+      } catch (error) {
+        res.status(error.statusCode || 502).json({ code: error.code || 'IIKO_REPORT_FAILED' });
+      }
+    },
+  );
   router.post(
     '/admin/api/iiko-dashboard/receipt',
     ownerOnly,
