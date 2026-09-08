@@ -17,15 +17,20 @@
   checksum passed local validation; the widget's compiled Assets.car is packaged.
 - IPA SHA-256: `f0316e8476079ff0c016752803fc590389bcec4a4b96027bcd707af28e9cd32d`.
   Install file: `%LOCALAPPDATA%/Bulka/builds/Bulka-profile-f0316e847607.ipa`.
-- **Installation pending:** no iPhone is currently visible over USB. The user was
-  asked to reconnect the original Amandyk iPhone. Build 15 remains the last
-  independently confirmed installed build. Do not report build 17 as installed
-  until installation succeeds and a subsequent installed-app query confirms it.
-  The white logo/icon layout and native token restoration still need observation
-  on the connected iPhone; APNs acceptance alone does not establish that result.
+- **Installed at 20:59:19 local time:** the original Amandyk iPhone was reconnected
+  and the installation proxy reported success. A separate installed-app query
+  confirmed version **1.0.1, build 17** for `com.bulka.bonus`. The local IPA checksum
+  and build identity were rechecked before installation.
+- Native launch succeeded, and a device screenshot confirmed the app rendering a
+  promotion story. Startup registered a fresh Live Activity for order 100012 in
+  the correct sandbox environment at `2026-09-08T16:00:30.479Z`.
+  The lock-screen white logo/icon layout has not yet been visually observed;
+  APNs acceptance and successful registration alone do not establish that result.
 
 Evidence: `scratch/banner-border-deploy.log`, `scratch/banner-border-tests.log`,
-`scratch/verified-iphone-ipa.json`, `scratch/ios-artifact-10064509734.zip`.
+`scratch/verified-iphone-ipa.json`, `scratch/ios-artifact-10064509734.zip`,
+`scratch/iphone-build17-install.log`, `scratch/iphone-build17-after-app.json`,
+`scratch/iphone-build17-first-launch.png`.
 
 ## Live Activity synchronization and branding, evening update
 
