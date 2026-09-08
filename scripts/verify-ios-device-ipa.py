@@ -20,6 +20,11 @@ def verify(directory, expected):
         info = plistlib.loads(archive.read(roots[0]))
         if info.get('CFBundleIdentifier') != expected:
             raise ValueError('Built IPA bundle ID mismatch')
+        primary_icon = info.get('CFBundleIcons', {}).get('CFBundlePrimaryIcon', {})
+        if primary_icon.get('CFBundleIconName') != 'BulkaFlatFFB300':
+            raise ValueError('IPA still references the old app icon catalog')
+        if not (primary_icon.get('UIPrerenderedIcon') or info.get('UIPrerenderedIcon')):
+            raise ValueError('IPA is missing the prerendered icon setting')
         root = roots[0].rsplit('/', 1)[0]
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / 'embedded.mobileprovision'

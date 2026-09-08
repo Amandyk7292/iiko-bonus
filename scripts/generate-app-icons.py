@@ -48,7 +48,7 @@ def _save_resized(source: Image.Image, target: Path, size: int) -> None:
 
 
 def _generate_ios(master: Image.Image) -> None:
-    icon_dir = APP / "ios" / "Runner" / "Assets.xcassets" / "AppIcon.appiconset"
+    icon_dir = APP / "ios" / "Runner" / "Assets.xcassets" / "BulkaFlatFFB300.appiconset"
     contents = json.loads((icon_dir / "Contents.json").read_text(encoding="utf-8"))
     for entry in contents["images"]:
         filename = entry.get("filename")
