@@ -66,6 +66,53 @@ const Map<String, Map<String, String>> _loginTranslations = {
     'en': 'Loading profile…',
   },
   'auth_login_badge': {'ru': 'Аккаунт', 'kk': 'Аккаунт', 'en': 'Account'},
+  'auth_method_phone': {'ru': 'По номеру', 'kk': 'Нөмірмен', 'en': 'Phone'},
+  'auth_method_password': {
+    'ru': 'По паролю',
+    'kk': 'Құпиясөзбен',
+    'en': 'Password',
+  },
+  'auth_admin_subtitle': {
+    'ru': 'Введите логин и пароль администратора.',
+    'kk': 'Әкімшінің логині мен құпиясөзін енгізіңіз.',
+    'en': 'Enter your administrator username and password.',
+  },
+  'auth_admin_username': {'ru': 'Логин', 'kk': 'Логин', 'en': 'Username'},
+  'auth_admin_code_label': {
+    'ru': 'Код подтверждения',
+    'kk': 'Растау коды',
+    'en': 'Verification code',
+  },
+  'auth_admin_code_required': {
+    'ru': 'Введите шестизначный код из приложения-аутентификатора.',
+    'kk': 'Аутентификатор қолданбасындағы алты таңбалы кодты енгізіңіз.',
+    'en': 'Enter the six-digit code from your authenticator app.',
+  },
+  'auth_admin_invalid': {
+    'ru': 'Неверный логин или пароль.',
+    'kk': 'Логин немесе құпиясөз қате.',
+    'en': 'Incorrect username or password.',
+  },
+  'auth_admin_unavailable': {
+    'ru': 'Не удалось войти. Повторите попытку чуть позже.',
+    'kk': 'Кіру мүмкін болмады. Кейінірек қайталап көріңіз.',
+    'en': 'Could not sign in. Please try again shortly.',
+  },
+  'auth_admin_session_error': {
+    'ru': 'Не удалось открыть защищённую сессию. Повторите вход.',
+    'kk': 'Қорғалған сеанс ашылмады. Қайта кіріп көріңіз.',
+    'en': 'Could not open a secure session. Please sign in again.',
+  },
+  'auth_admin_network_error': {
+    'ru': 'Нет ответа от сервера. Проверьте интернет и повторите вход.',
+    'kk': 'Сервер жауап бермеді. Интернетті тексеріп, қайта кіріңіз.',
+    'en': 'No response from the server. Check your connection and try again.',
+  },
+  'auth_admin_rate_limit': {
+    'ru': 'Слишком много попыток входа. Подождите и попробуйте снова.',
+    'kk': 'Кіру әрекеттері тым көп. Күтіп, қайталап көріңіз.',
+    'en': 'Too many sign-in attempts. Wait and try again.',
+  },
   'auth_registration_badge': {
     'ru': 'Регистрация',
     'kk': 'Тіркелу',

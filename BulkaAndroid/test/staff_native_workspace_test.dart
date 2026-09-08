@@ -140,15 +140,36 @@ void main() {
     }
     await tester.pumpWidget(const SizedBox());
   });
-  testWidgets('staff login entry opens the web administration portal', (
+  testWidgets('successful password login opens the web administration portal', (
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
     FlutterSecureStorage.setMockInitialValues({});
     await tester.pumpWidget(
-      MaterialApp(home: Scaffold(body: AdminPortalLoginButton(enabled: true))),
+      MaterialApp(
+        theme: buildBulkaTheme(),
+        home: LoginScreen(
+          onLogin: (_, _) async => 'Customer login must not be called',
+          onStartRegistration: (_, _, _) async => const OtpRequestResult(),
+          onVerifyRegistration: (_, _) async => null,
+          onStartPasswordReset: (_, _) async => const OtpRequestResult(),
+          onResetPassword: (_, _, _) async => null,
+          onAdminLogin: (_, _, _) async {},
+        ),
+      ),
     );
-    await tester.tap(find.byKey(const ValueKey('admin-portal-login-button')));
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('auth-method-password')),
+    );
+    await tester.tap(find.byKey(const ValueKey('auth-method-password')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('auth-admin-password')),
+      'fixture-password',
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const ValueKey('auth-admin-submit')));
+    await tester.tap(find.byKey(const ValueKey('auth-admin-submit')));
     await tester.pumpAndSettle();
     expect(find.byType(NativeStaffApp), findsNothing);
     expect(find.byType(AdminPortalScreen), findsOneWidget);

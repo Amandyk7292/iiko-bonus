@@ -10,12 +10,14 @@ import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.webkit.CookieManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.net.HttpCookie
 
 class MainActivity : FlutterActivity() {
     private val orderStatusChannel = "com.bulka.bonus/order_status"
@@ -64,6 +66,14 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.bulka.bonus/admin_session")
+            .setMethodCallHandler { call, result ->
+                if (call.method != "installCookie") {
+                    result.notImplemented()
+                } else {
+                    installAdminCookie(call.arguments as? Map<*, *> ?: emptyMap<String, Any>(), result)
+                }
+            }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, orderStatusChannel)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -79,6 +89,27 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    private fun installAdminCookie(payload: Map<*, *>, result: MethodChannel.Result) {
+        val url = payload["url"] as? String
+        val header = payload["cookie"] as? String ?: ""
+        val cookie = try { HttpCookie.parse(header).singleOrNull() } catch (_: Exception) { null }
+        if (url != "https://bulka.com.kz/admin" || header.length > 8192 ||
+            header.contains('\r') || header.contains('\n') ||
+            !header.contains("samesite=strict", ignoreCase = true) ||
+            cookie == null || cookie.name != "bulka_admin" || cookie.value.isNullOrEmpty() ||
+            cookie.path != "/admin" || cookie.domain != null || !cookie.secure || !cookie.isHttpOnly) {
+            result.success(false)
+            return
+        }
+        // Use the server's Set-Cookie header so HttpOnly, Secure, SameSite and
+        // expiry remain intact in the WebView's own cookie store.
+        val manager = CookieManager.getInstance()
+        manager.setCookie(url, header) { installed ->
+            if (installed) manager.flush()
+            result.success(installed)
+        }
     }
 
     private fun showOrderStatus(payload: Map<*, *>) {

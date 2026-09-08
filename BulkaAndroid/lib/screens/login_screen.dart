@@ -11,6 +11,8 @@ class LoginScreen extends StatefulWidget {
     required this.onResetPassword,
     this.onRegister,
     this.onClose,
+    this.onAdminLogin = loginAdminPortal,
+    this.onOpenAdminPortal,
     super.key,
   });
 
@@ -37,6 +39,9 @@ class LoginScreen extends StatefulWidget {
   })?
   onRegister;
   final VoidCallback? onClose;
+  final Future<void> Function(String username, String password, String code)
+  onAdminLogin;
+  final Future<void> Function(BuildContext context)? onOpenAdminPortal;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -55,6 +60,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _otpStep = false;
   bool _registerStep = false;
   bool _loading = false;
+  bool _adminLogin = false;
   bool _passwordVisible = false;
   bool _confirmPasswordVisible = false;
   String? _error;
@@ -339,23 +345,59 @@ class _LoginScreenState extends State<LoginScreen> {
                         const _BrandHeader(),
                         const SizedBox(height: 28),
                         _AuthCard(
-                          child: BulkaMotionSwitcher(
-                            duration: BulkaMotion.standard,
-                            offset: const Offset(0.035, 0),
-                            scale: 0.995,
-                            child: _otpStep
-                                ? Column(
-                                    key: const ValueKey('otp'),
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: _otpCodeStep(context),
-                                  )
-                                : Column(
-                                    key: const ValueKey('phone'),
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: _phoneStep(context),
-                                  ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (_flow == _CustomerAuthFlow.login &&
+                                  !_otpStep) ...[
+                                _AuthLoginMethodSelector(
+                                  admin: _adminLogin,
+                                  enabled: !_loading,
+                                  onChanged: (admin) {
+                                    FocusScope.of(context).unfocus();
+                                    setState(() {
+                                      _adminLogin = admin;
+                                      _error = null;
+                                      _passwordController.clear();
+                                    });
+                                  },
+                                ),
+                                const SizedBox(height: 22),
+                              ],
+                              BulkaMotionSwitcher(
+                                duration: BulkaMotion.standard,
+                                offset: const Offset(0.035, 0),
+                                scale: 0.995,
+                                child:
+                                    _adminLogin &&
+                                        _flow == _CustomerAuthFlow.login
+                                    ? _AdminPasswordLoginForm(
+                                        key: const ValueKey('admin-login'),
+                                        onLogin: widget.onAdminLogin,
+                                        onAuthenticated: () =>
+                                            (widget.onOpenAdminPortal ??
+                                            openAdminPortal)(context),
+                                        onLoadingChanged: (loading) {
+                                          if (mounted) {
+                                            setState(() => _loading = loading);
+                                          }
+                                        },
+                                      )
+                                    : _otpStep
+                                    ? Column(
+                                        key: const ValueKey('otp'),
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: _otpCodeStep(context),
+                                      )
+                                    : Column(
+                                        key: const ValueKey('phone'),
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: _phoneStep(context),
+                                      ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
@@ -818,7 +860,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return [
       _AuthStepHeader(
         step: isLogin
-            ? 'auth_login_badge'.tr
+            ? null
             : isRegistration
             ? 'auth_registration_badge'.tr
             : 'auth_recovery_badge'.tr,
@@ -929,7 +971,9 @@ class _LoginScreenState extends State<LoginScreen> {
       if (isLogin) ...[
         TextButton(
           key: const ValueKey('forgot-password-button'),
-          onPressed: () => _selectFlow(_CustomerAuthFlow.passwordReset),
+          onPressed: _loading
+              ? null
+              : () => _selectFlow(_CustomerAuthFlow.passwordReset),
           child: Text('auth_forgot_password'.tr),
         ),
         Row(
@@ -951,10 +995,11 @@ class _LoginScreenState extends State<LoginScreen> {
         const SizedBox(height: 10),
         OutlinedButton(
           key: const ValueKey('create-account-button'),
-          onPressed: () => _selectFlow(_CustomerAuthFlow.registration),
+          onPressed: _loading
+              ? null
+              : () => _selectFlow(_CustomerAuthFlow.registration),
           child: Text('auth_create_account'.tr),
         ),
-        AdminPortalLoginButton(enabled: !_loading),
       ] else ...[
         TextButton.icon(
           onPressed: () => _selectFlow(_CustomerAuthFlow.login),
@@ -1306,107 +1351,6 @@ class _AuthCard extends StatelessWidget {
   }
 }
 
-class _AuthStepHeader extends StatelessWidget {
-  const _AuthStepHeader({
-    required this.step,
-    required this.title,
-    required this.subtitle,
-  });
-
-  final String step;
-  final String title;
-  final String subtitle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          decoration: BoxDecoration(
-            color: _sage.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(BulkaRadii.pill),
-          ),
-          child: Text(
-            step,
-            style: const TextStyle(
-              fontFamily: _headingFont,
-              color: _sage,
-              fontSize: BulkaTypeScale.caption,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-        const SizedBox(height: 14),
-        Text(
-          title,
-          style: TextStyle(
-            fontFamily: _headingFont,
-            color: Theme.of(context).colorScheme.onSurface,
-            fontSize: BulkaTypeScale.titleLarge,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          subtitle,
-          style: TextStyle(
-            color: context.bulkaColors.mutedText,
-            fontSize: BulkaTypeScale.body,
-            height: 1.45,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-const _authErrorRed = Color(0xFF982A24);
-
-class _InlineAlert extends StatelessWidget {
-  const _InlineAlert({required this.message, required this.icon});
-
-  final String message;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      liveRegion: true,
-      label: message,
-      child: ExcludeSemantics(
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: _authErrorRed.withValues(alpha: 0.09),
-            borderRadius: BorderRadius.circular(BulkaRadii.control),
-            border: Border.all(color: _authErrorRed.withValues(alpha: 0.38)),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon, color: _authErrorRed, size: 20),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  message,
-                  style: const TextStyle(
-                    color: _authErrorRed,
-                    fontSize: BulkaTypeScale.bodySmall,
-                    height: 1.35,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _PrimaryButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final String text;
@@ -1447,7 +1391,12 @@ class _PrimaryButton extends StatelessWidget {
             const SizedBox(width: 8),
           ],
           Flexible(
-            child: Text(text, maxLines: 1, overflow: TextOverflow.ellipsis),
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontFamily: _headingFont),
+            ),
           ),
         ],
       ),

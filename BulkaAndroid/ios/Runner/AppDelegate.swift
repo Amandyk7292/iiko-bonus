@@ -1,6 +1,7 @@
 import ActivityKit
 import Flutter
 import UIKit
+import WebKit
 
 @available(iOS 16.2, *)
 struct BulkaOrderActivityAttributes: ActivityAttributes {
@@ -23,6 +24,7 @@ struct BulkaOrderActivityAttributes: ActivityAttributes {
 @main
 @objc class AppDelegate: FlutterAppDelegate {
   private var orderStatusChannel: FlutterMethodChannel?
+  private var adminSessionChannel: FlutterMethodChannel?
   private var activityTokenTasks: [String: Task<Void, Never>] = [:]
 
   override func application(
@@ -31,6 +33,15 @@ struct BulkaOrderActivityAttributes: ActivityAttributes {
   ) -> Bool {
     GeneratedPluginRegistrant.register(with: self)
     if let controller = window?.rootViewController as? FlutterViewController {
+      let sessionChannel = FlutterMethodChannel(
+        name: "com.bulka.bonus/admin_session",
+        binaryMessenger: controller.binaryMessenger
+      )
+      sessionChannel.setMethodCallHandler { [weak self] call, result in
+        guard call.method == "installCookie" else { return result(FlutterMethodNotImplemented) }
+        self?.installAdminCookie(call.arguments as? [String: Any] ?? [:], result: result)
+      }
+      adminSessionChannel = sessionChannel
       let channel = FlutterMethodChannel(
         name: "com.bulka.bonus/order_status",
         binaryMessenger: controller.binaryMessenger
@@ -150,6 +161,27 @@ struct BulkaOrderActivityAttributes: ActivityAttributes {
         self?.publishActivityToken(tokenData, activity: activity)
         previousToken = tokenData
       }
+    }
+  }
+
+  private func installAdminCookie(_ payload: [String: Any], result: @escaping FlutterResult) {
+    guard payload["url"] as? String == "https://bulka.com.kz/admin",
+          let url = URL(string: "https://bulka.com.kz/admin"),
+          let header = payload["cookie"] as? String,
+          header.utf8.count <= 8192,
+          !header.contains("\r"), !header.contains("\n"),
+          header.lowercased().contains("samesite=strict")
+    else { result(false); return }
+    let cookies = HTTPCookie.cookies(withResponseHeaderFields: ["Set-Cookie": header], for: url)
+    guard cookies.count == 1, let cookie = cookies.first,
+          cookie.name == "bulka_admin", !cookie.value.isEmpty,
+          cookie.domain == "bulka.com.kz", cookie.path == "/admin",
+          cookie.isSecure, cookie.isHTTPOnly
+    else { result(false); return }
+    // Preserve all server-issued cookie attributes, including HttpOnly and expiry.
+    // Never inject session tokens through document.cookie or a navigation URL.
+    WKWebsiteDataStore.default().httpCookieStore.setCookie(cookie) {
+      DispatchQueue.main.async { result(true) }
     }
   }
 

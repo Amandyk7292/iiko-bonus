@@ -36,25 +36,6 @@ Future<void> openAdminPortal(BuildContext context, {Uri? initialUri}) async {
   );
 }
 
-class AdminPortalLoginButton extends StatelessWidget {
-  const AdminPortalLoginButton({required this.enabled, super.key});
-
-  final bool enabled;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 4),
-      child: TextButton.icon(
-        key: const ValueKey('admin-portal-login-button'),
-        onPressed: enabled ? () => unawaited(openAdminPortal(context)) : null,
-        icon: const Icon(Icons.admin_panel_settings_outlined, size: 20),
-        label: Text('admin_portal_staff_login'.tr),
-      ),
-    );
-  }
-}
-
 class AdminPortalScreen extends StatefulWidget {
   const AdminPortalScreen({required this.initialUri, super.key});
 

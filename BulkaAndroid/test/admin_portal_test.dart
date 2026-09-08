@@ -379,32 +379,35 @@ void main() {
     expect(controller.acquired, isFalse);
   });
 
-  testWidgets('customer login exposes a touch-friendly staff entry', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(320, 700);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+  testWidgets(
+    'main login exposes touch-friendly methods without a staff link',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 700);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: buildBulkaTheme(),
-        home: LoginScreen(
-          onLogin: (_, _) async => null,
-          onStartRegistration: (_, _, _) async => const OtpRequestResult(),
-          onVerifyRegistration: (_, _) async => null,
-          onStartPasswordReset: (_, _) async => const OtpRequestResult(),
-          onResetPassword: (_, _, _) async => null,
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildBulkaTheme(),
+          home: LoginScreen(
+            onLogin: (_, _) async => null,
+            onStartRegistration: (_, _, _) async => const OtpRequestResult(),
+            onVerifyRegistration: (_, _) async => null,
+            onStartPasswordReset: (_, _) async => const OtpRequestResult(),
+            onResetPassword: (_, _, _) async => null,
+          ),
         ),
-      ),
-    );
+      );
 
-    final entry = find.byKey(const ValueKey('admin-portal-login-button'));
-    await tester.ensureVisible(entry);
-    expect(entry, findsOneWidget);
-    expect(find.text('Вход для сотрудников'), findsOneWidget);
-    expect(tester.getSize(entry).height, greaterThanOrEqualTo(44));
-    expect(tester.takeException(), isNull);
-  });
+      final entry = find.byKey(const ValueKey('auth-method-password'));
+      await tester.ensureVisible(entry);
+      expect(entry, findsOneWidget);
+      expect(find.text('Вход для сотрудников'), findsNothing);
+      expect(find.text('По номеру'), findsOneWidget);
+      expect(find.text('По паролю'), findsOneWidget);
+      expect(tester.getSize(entry).height, greaterThanOrEqualTo(44));
+      expect(tester.takeException(), isNull);
+    },
+  );
 }
