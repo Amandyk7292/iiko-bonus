@@ -466,13 +466,7 @@ class _CatalogImageQuantityControl extends StatelessWidget {
           ),
           borderRadius: BorderRadius.circular(BulkaRadii.card),
           border: Border.all(color: Colors.white, width: 2),
-          boxShadow: [
-            BoxShadow(
-              color: colors.brandBrown.withValues(alpha: 0.22),
-              blurRadius: 14,
-              offset: const Offset(0, 7),
-            ),
-          ],
+          boxShadow: BulkaShadows.floatingAction,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,

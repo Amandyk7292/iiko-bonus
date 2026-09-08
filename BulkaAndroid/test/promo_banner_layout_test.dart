@@ -244,6 +244,54 @@ void main() {
     expect(controller.page, closeTo(2, 0.01));
   });
 
+  testWidgets(
+    'swiping banners preserves a gap and lets rounded shadows extend',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PromoBannerSlider(
+              groups: const [
+                StoryGroup(
+                  id: 'gap-one',
+                  title: 'One',
+                  coverUrl: '',
+                  stories: [],
+                ),
+                StoryGroup(
+                  id: 'gap-two',
+                  title: 'Two',
+                  coverUrl: '',
+                  stories: [],
+                ),
+              ],
+              viewedGroups: const {},
+              onGroupTap: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      final pageView = tester.widget<PageView>(find.byType(PageView));
+      expect(pageView.clipBehavior, Clip.none);
+      pageView.controller!.jumpTo(180);
+      await tester.pump();
+      final first = tester.getRect(
+        find.byKey(const ValueKey('promo-card-gap-one')),
+      );
+      final second = tester.getRect(
+        find.byKey(const ValueKey('promo-card-gap-two')),
+      );
+      expect(second.left - first.right, closeTo(16, 0.01));
+      expect(first.top, second.top);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('startup keeps one gold surface and a stationary centered logo', (
     tester,
   ) async {

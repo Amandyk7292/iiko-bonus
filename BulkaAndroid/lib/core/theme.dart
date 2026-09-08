@@ -70,32 +70,61 @@ class _BulkaPageTitle extends StatelessWidget {
 abstract final class BulkaShadows {
   static const raisedCard = [
     BoxShadow(
-      color: Color(0x246D3317),
-      blurRadius: 22,
-      spreadRadius: -5,
-      offset: Offset(0, 9),
+      color: Color(0x186D3317),
+      blurRadius: 28,
+      spreadRadius: -4,
+      offset: Offset(0, 7),
     ),
-    BoxShadow(color: Color(0x106D3317), blurRadius: 6, offset: Offset(0, 2)),
   ];
   static const card = [
-    BoxShadow(color: Color(0x146D3317), blurRadius: 22, offset: Offset(0, 9)),
+    BoxShadow(
+      color: Color(0x126D3317),
+      blurRadius: 24,
+      spreadRadius: -3,
+      offset: Offset(0, 6),
+    ),
   ];
 
   static const primaryAction = [
-    BoxShadow(color: Color(0x185A260D), blurRadius: 20, offset: Offset(0, 8)),
-    BoxShadow(color: Color(0x28FFA000), blurRadius: 12, offset: Offset(0, 4)),
+    BoxShadow(
+      color: Color(0x145A260D),
+      blurRadius: 24,
+      spreadRadius: -3,
+      offset: Offset(0, 6),
+    ),
+    BoxShadow(
+      color: Color(0x20FFA000),
+      blurRadius: 20,
+      spreadRadius: -3,
+      offset: Offset(0, 4),
+    ),
   ];
 
   static const floatingAction = [
-    BoxShadow(color: Color(0x265A260D), blurRadius: 16, offset: Offset(0, 6)),
+    BoxShadow(
+      color: Color(0x1A5A260D),
+      blurRadius: 24,
+      spreadRadius: -3,
+      offset: Offset(0, 6),
+    ),
   ];
 
   static const avatar = [
-    BoxShadow(color: Color(0x145A260D), blurRadius: 14, offset: Offset(0, 5)),
+    BoxShadow(
+      color: Color(0x125A260D),
+      blurRadius: 20,
+      spreadRadius: -2,
+      offset: Offset(0, 4),
+    ),
   ];
 
   static const selectedAvatar = [
-    BoxShadow(color: Color(0x34FFB814), blurRadius: 14, offset: Offset(0, 5)),
+    BoxShadow(
+      color: Color(0x28FFB814),
+      blurRadius: 22,
+      spreadRadius: -2,
+      offset: Offset(0, 4),
+    ),
   ];
 }
 

@@ -135,98 +135,126 @@ class _BulkaPermissionGateState extends State<BulkaPermissionGate> {
     required bool notifications,
     required bool? granted,
   }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x12532B16),
-            blurRadius: 24,
-            offset: Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF1CC),
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Icon(icon, color: _textDark, size: 28),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w600,
-              color: _textDark,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(description, style: const TextStyle(fontSize: 16, height: 1.5)),
-          const SizedBox(height: 18),
-          if (granted == true)
-            Text(
-              _copy('Доступ разрешён', 'Рұқсат берілді', 'Access enabled'),
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Color(0xFF26754A),
-                fontWeight: FontWeight.w500,
-              ),
-            )
-          else if (granted == false) ...[
-            Text(
-              _copy(
-                'Можно включить позже в настройках телефона.',
-                'Кейін телефон баптауларында қосуға болады.',
-                'You can enable this later in your phone settings.',
-              ),
-              textAlign: TextAlign.center,
-            ),
-            TextButton(
-              onPressed: _busy || _saving
-                  ? null
-                  : () async {
-                      await Geolocator.openAppSettings();
-                    },
-              child: Text(
-                _copy('Открыть настройки', 'Баптауларды ашу', 'Open settings'),
-              ),
-            ),
-          ] else
-            FilledButton(
-              key: ValueKey(
-                notifications
-                    ? 'permission-notifications'
-                    : 'permission-location',
-              ),
-              onPressed: _busy || _saving
-                  ? null
-                  : () => _request(notifications),
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFFFB300),
-                foregroundColor: _textDark,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 16,
+    return Builder(
+      builder: (context) => AnimatedSwitcher(
+        duration: BulkaMotion.duration(
+          context,
+          const Duration(milliseconds: 300),
+        ),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInOutCubic,
+        layoutBuilder: (current, previous) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [...previous, ?current],
+        ),
+        transitionBuilder: (child, animation) => AnimatedBuilder(
+          animation: animation,
+          child: child,
+          builder: (context, child) => animation.value == 1
+              ? child!
+              : SizeTransition(
+                  sizeFactor: animation,
+                  axisAlignment: -1,
+                  child: FadeTransition(opacity: animation, child: child),
+                ),
+        ),
+        child: granted == true
+            ? const SizedBox.shrink(key: ValueKey('granted'))
+            : Container(
+                key: ValueKey(
+                  notifications ? 'notifications-card' : 'location-card',
+                ),
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(22),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(28),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x12532B16),
+                      blurRadius: 24,
+                      offset: Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF1CC),
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: Icon(icon, color: _textDark, size: 28),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w600,
+                        color: _textDark,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      description,
+                      style: const TextStyle(fontSize: 16, height: 1.5),
+                    ),
+                    const SizedBox(height: 18),
+                    if (granted == false) ...[
+                      Text(
+                        _copy(
+                          'Можно включить позже в настройках телефона.',
+                          'Кейін телефон баптауларында қосуға болады.',
+                          'You can enable this later in your phone settings.',
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      TextButton(
+                        onPressed: _busy || _saving
+                            ? null
+                            : () async {
+                                await Geolocator.openAppSettings();
+                              },
+                        child: Text(
+                          _copy(
+                            'Открыть настройки',
+                            'Баптауларды ашу',
+                            'Open settings',
+                          ),
+                        ),
+                      ),
+                    ] else
+                      FilledButton(
+                        key: ValueKey(
+                          notifications
+                              ? 'permission-notifications'
+                              : 'permission-location',
+                        ),
+                        onPressed: _busy || _saving
+                            ? null
+                            : () => _request(notifications),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFFFFB300),
+                          foregroundColor: _textDark,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 18,
+                            vertical: 16,
+                          ),
+                        ),
+                        child: Text(
+                          _copy('Разрешить', 'Рұқсат беру', 'Allow'),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                  ],
                 ),
               ),
-              child: Text(
-                _copy('Разрешить', 'Рұқсат беру', 'Allow'),
-                textAlign: TextAlign.center,
-              ),
-            ),
-        ],
       ),
     );
   }
@@ -250,7 +278,8 @@ class _BulkaPermissionGateState extends State<BulkaPermissionGate> {
           : Scaffold(
               backgroundColor: Colors.white,
               body: SafeArea(
-                child: Center(
+                child: Align(
+                  alignment: Alignment.topCenter,
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 520),
                     child: SingleChildScrollView(

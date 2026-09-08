@@ -268,6 +268,7 @@ class _PromoBannerSliderState extends State<PromoBannerSlider> {
           final gridWidth = constraints.maxWidth - 48;
           final cardWidth = (gridWidth - 18) / 2;
           return GridView.builder(
+            clipBehavior: Clip.none,
             padding: const EdgeInsets.symmetric(horizontal: 24),
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -292,11 +293,11 @@ class _PromoBannerSliderState extends State<PromoBannerSlider> {
         return Column(
           children: [
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
               child: Center(
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(
-                    maxWidth: _promoMobileMaxWidth,
+                    maxWidth: _promoMobileMaxWidth + 16,
                   ),
                   child: SizedBox(
                     height: max(
@@ -305,15 +306,19 @@ class _PromoBannerSliderState extends State<PromoBannerSlider> {
                       fallbackHeight,
                     ),
                     child: PageView.builder(
+                      clipBehavior: Clip.none,
                       controller: _pageController,
                       itemCount: widget.groups.length,
                       onPageChanged: _handlePageChanged,
-                      itemBuilder: (context, idx) => _PromoBannerCard(
-                        group: widget.groups[idx],
-                        viewed: widget.viewedGroups.contains(
-                          widget.groups[idx].id,
+                      itemBuilder: (context, idx) => Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: _PromoBannerCard(
+                          group: widget.groups[idx],
+                          viewed: widget.viewedGroups.contains(
+                            widget.groups[idx].id,
+                          ),
+                          onTap: () => widget.onGroupTap(widget.groups[idx]),
                         ),
-                        onTap: () => widget.onGroupTap(widget.groups[idx]),
                       ),
                     ),
                   ),
@@ -389,13 +394,7 @@ class _PromoBannerCard extends StatelessWidget {
                         : const Color(0xFFE0B858),
                     width: viewed ? 1.2 : 1.8,
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF6D3317).withValues(alpha: 0.10),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
+                  boxShadow: BulkaShadows.card,
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(BulkaRadii.control),

@@ -98,4 +98,39 @@ void main() {
       },
     );
   }
+
+  testWidgets('grant fades and collapses card while next card moves up', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(390, 1000);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    await tester.pumpWidget(
+      BulkaPermissionGate(
+        requestNotifications: () async => true,
+        requestLocation: () async => false,
+        child: const MaterialApp(home: Text('shop')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final next = find.byKey(const ValueKey('location-card'));
+    final header = find.byKey(const ValueKey('permission-welcome-title'));
+    final startY = tester.getTopLeft(next).dy;
+    final headerY = tester.getTopLeft(header).dy;
+    await tester.tap(find.byKey(const ValueKey('permission-notifications')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 150));
+    final middleY = tester.getTopLeft(next).dy;
+    expect(middleY, lessThan(startY));
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(next).dy, lessThan(middleY));
+    expect(tester.getTopLeft(header).dy, headerY);
+    expect(find.text('Всё о вашем заказе'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('permission-location')));
+    await tester.pumpAndSettle();
+    expect(next, findsOneWidget);
+    expect(find.text('Открыть настройки'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
