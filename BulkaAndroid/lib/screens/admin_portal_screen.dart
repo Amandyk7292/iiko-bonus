@@ -6,16 +6,14 @@ Uri bulkaAdminPortalUri({String? baseUrl}) {
       ? parsed
       : Uri.https('bulka.com.kz', '/');
   return base.replace(
-    // Open the kitchen before the SPA login transition so the trusted native
-    // staff-push bridge is available as soon as the employee authenticates.
-    path: '/admin/kitchen',
+    path: '/admin/operations',
     queryParameters: const {'embedded': 'app'},
     fragment: null,
   );
 }
 
 Uri bulkaAdminKitchenUri({String? baseUrl}) =>
-    bulkaAdminPortalUri(baseUrl: baseUrl);
+    bulkaAdminPortalUri(baseUrl: baseUrl).replace(path: '/admin/kitchen');
 
 bool isTrustedAdminPortalUri(Uri uri, Uri portalUri) {
   if (uri.scheme.toLowerCase() != portalUri.scheme.toLowerCase()) return false;

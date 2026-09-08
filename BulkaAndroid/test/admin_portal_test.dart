@@ -38,14 +38,14 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  test('admin portal stays on the configured trusted origin', () {
+  test('admin portal opens operations on the configured trusted origin', () {
     final portal = bulkaAdminPortalUri(
       baseUrl: 'https://bulka.com.kz/api/customer',
     );
 
     expect(portal.scheme, 'https');
     expect(portal.host, 'bulka.com.kz');
-    expect(portal.path, '/admin/kitchen');
+    expect(portal.path, '/admin/operations');
     expect(portal.queryParameters['embedded'], 'app');
     expect(
       isTrustedAdminPortalUri(
