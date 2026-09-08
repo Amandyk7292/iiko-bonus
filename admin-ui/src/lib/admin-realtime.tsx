@@ -335,10 +335,27 @@ export function AdminRealtimeProvider({
   );
 
   useEffect(() => {
+    if (!soundEnabled) return;
+    const restoreWhenVisible = () => {
+      if (!document.hidden) void unlockSound(false);
+    };
+    // The native administration allows playback without a fresh gesture. Restore
+    // the saved preference silently on every document/foreground transition.
+    // Browsers that still block autoplay retain the gesture fallback.
+    restoreWhenVisible();
+    window.addEventListener('pageshow', restoreWhenVisible);
+    document.addEventListener('visibilitychange', restoreWhenVisible);
+    return () => {
+      window.removeEventListener('pageshow', restoreWhenVisible);
+      document.removeEventListener('visibilitychange', restoreWhenVisible);
+    };
+  }, [soundEnabled, unlockSound]);
+
+  useEffect(() => {
     if (!soundEnabled || soundReady) return;
     const unlockFromGesture = () => void unlockSound(false);
-    window.addEventListener('pointerdown', unlockFromGesture, { capture: true, once: true });
-    window.addEventListener('keydown', unlockFromGesture, { capture: true, once: true });
+    window.addEventListener('pointerdown', unlockFromGesture, { capture: true });
+    window.addEventListener('keydown', unlockFromGesture, { capture: true });
     return () => {
       window.removeEventListener('pointerdown', unlockFromGesture, { capture: true });
       window.removeEventListener('keydown', unlockFromGesture, { capture: true });

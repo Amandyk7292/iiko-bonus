@@ -5,6 +5,8 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
+import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 
 import '../core/staff_push_bridge_contract.dart';
 
@@ -70,7 +72,18 @@ class _AdminPortalWebViewState extends State<AdminPortalWebView> {
 
   Future<void> _initialize() async {
     try {
-      final controller = WebViewController();
+      final PlatformWebViewControllerCreationParams params =
+          WebViewPlatform.instance is WebKitWebViewPlatform
+          ? WebKitWebViewControllerCreationParams(
+              allowsInlineMediaPlayback: true,
+              mediaTypesRequiringUserAction: const <PlaybackMediaTypes>{},
+            )
+          : const PlatformWebViewControllerCreationParams();
+      final controller = WebViewController.fromPlatformCreationParams(params);
+      if (controller.platform is AndroidWebViewController) {
+        await (controller.platform as AndroidWebViewController)
+            .setMediaPlaybackRequiresUserGesture(false);
+      }
       await controller.setJavaScriptMode(JavaScriptMode.unrestricted);
       await controller.setBackgroundColor(Colors.white);
       // Android exposes a JavaScript interface only to documents loaded after

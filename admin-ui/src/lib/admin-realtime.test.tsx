@@ -50,10 +50,13 @@ describe('admin order audio transport', () => {
     vi.stubGlobal('EventSource', FakeEventSource);
   });
 
-  it('defaults to enabled, unlocks silently on a gesture, and only tests sound explicitly', async () => {
+  it('restores enabled audio silently on mount and only tests sound explicitly', async () => {
     const oscillatorStart = vi.fn();
+    const resume = vi.fn();
+    let activeContext: FakeAudioContext;
     const stateListeners = new Set<() => void>();
     class FakeAudioContext {
+      constructor() { activeContext = this; }
       state: AudioContextState = 'suspended';
       currentTime = 0;
       destination = {} as AudioDestinationNode;
@@ -63,6 +66,7 @@ describe('admin order audio transport', () => {
         }
       }
       async resume() {
+        resume();
         this.state = 'running';
         for (const listener of stateListeners) listener();
       }
@@ -89,16 +93,26 @@ describe('admin order audio transport', () => {
     }
     vi.stubGlobal('AudioContext', FakeAudioContext);
     const user = userEvent.setup();
-    render(
+    const view = render(
       <AdminRealtimeProvider branchId="branch-1" role="cashier">
         <SoundProbe />
       </AdminRealtimeProvider>,
     );
 
     expect(screen.getByText('enabled')).toBeInTheDocument();
-    expect(screen.getByText('blocked')).toBeInTheDocument();
-    fireEvent.pointerDown(document.body);
     await waitFor(() => expect(screen.getByText('ready')).toBeInTheDocument());
+    expect(oscillatorStart).not.toHaveBeenCalled();
+    expect(resume).toHaveBeenCalledTimes(1);
+
+    activeContext!.state = 'suspended';
+    fireEvent(window, new Event('pageshow'));
+    await waitFor(() => expect(resume).toHaveBeenCalledTimes(2));
+    expect(oscillatorStart).not.toHaveBeenCalled();
+
+    view.unmount();
+    render(<AdminRealtimeProvider branchId="branch-1" role="cashier"><SoundProbe /></AdminRealtimeProvider>);
+    await waitFor(() => expect(screen.getByText('ready')).toBeInTheDocument());
+    expect(resume).toHaveBeenCalledTimes(3);
     expect(oscillatorStart).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole('button', { name: 'Test sound' }));
