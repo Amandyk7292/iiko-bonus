@@ -51,7 +51,21 @@ report sections, dispatch validation, event coalescing, login/session isolation,
 revocation, refund retry and kitchen transitions. No live financial, courier or
 broadcast mutations are performed by these tests.
 
-Release results and device installation are recorded after the signed build.
+Release verification on 2026-09-08:
+
+- Code revision: `e597037c146d0f5d5966d7cb05b2619b0b7aaf96`.
+- `flutter analyze --no-pub`: no issues; `flutter test --no-pub`: 265 passed.
+- Android ARM64 profile APK compiled successfully (46.3 MB).
+- Signed iOS profile build: GitHub Actions run `34218305202`, successful.
+- IPA SHA-256 starts `3c060a22d352`; checksum, main/widget bundle identities,
+  embedded profiles, signing certificate and connected-device eligibility verified.
+- iPhone USB installation completed successfully at 16:08 local time. Installed-app
+  query confirmed `com.bulka.bonus`, version `1.0.1`, build `5`.
+- Remote launch verification was interrupted by the device diagnostic connection
+  closing. No successful on-device staff-login or frame measurement is claimed
+  for build 5. The native session may require a fresh employee login because the
+  old browser session is separate.
+
 Physical Android performance is not measured because no Android device is connected.
 The previous iPhone build-4 frame sample is documented separately in
 `iphone-performance-20260908.md`; it is not evidence for this native administration.
