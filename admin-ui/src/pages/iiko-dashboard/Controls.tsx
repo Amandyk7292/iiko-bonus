@@ -177,7 +177,7 @@ export default function Controls({
         const body = await response.json().catch(() => ({}));
         throw new ApiError('', response.status, body.code);
       }
-      download(await response.blob(), `iiko-${table}-${base.from}-${base.to}.xlsx`);
+      await download(await response.blob(), `iiko-${table}-${base.from}-${base.to}.xlsx`);
     } catch (caught) {
       setError(errorKey(caught));
     } finally {

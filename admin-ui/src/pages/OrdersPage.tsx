@@ -345,161 +345,184 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
                 {orders.map((order) => (
                   <tr key={order.id}>
                     <td data-label={t('orders.number')}>
-                      <strong>№{order.number}</strong>
+                      <div className="order-cell-content">
+                        <strong>№{order.number}</strong>
+                      </div>
                     </td>
                     <td data-label={t('common.date')} className="tabular">
-                      {formatDate(order.createdAt, { dateStyle: 'short', timeStyle: 'short' })}
-                    </td>
-                    <td data-label={t('orders.customer')}>
-                      <strong>{order.customer?.name || '—'}</strong>
-                      <small className="table-secondary">{order.customer?.phone || '—'}</small>
-                    </td>
-                    <td data-label={t('orders.details')}>
-                      <div className="flex flex-wrap items-center gap-2 mb-2">
-                        {isPreorder(order) && (
-                          <span className="status-pill fulfillment-preorder">
-                            {t('locations.preorder')}
-                          </span>
-                        )}
-                        <span
-                          className={`status-pill fulfillment-${fulfillmentType(order) === 'delivery' ? 'delivery' : 'pickup'}`}
-                        >
-                          {t(
-                            fulfillmentType(order) === 'delivery'
-                              ? 'locations.delivery'
-                              : 'locations.pickup',
-                          )}
-                        </span>
+                      <div className="order-cell-content">
+                        {formatDate(order.createdAt, { dateStyle: 'short', timeStyle: 'short' })}
                       </div>
-                      {isPreorder(order) && order.pickupTime && (
-                        <small className="table-secondary">
-                          {formatDate(order.pickupTime, { dateStyle: 'short', timeStyle: 'short' })}
-                        </small>
-                      )}
-                      <strong>{order.branch || '—'}</strong>
-                      <small className="table-secondary">
-                        {order.items
-                          .slice(0, 2)
-                          .map((item) => `${item.name || t('orders.item')} ×${item.quantity || 1}`)
-                          .join(', ') || '—'}
-                      </small>
-                      {order.customerArrivedAt && (
-                        <div className="customer-arrived-alert">
-                          <MapPin size={15} aria-hidden="true" />
-                          <span>{t('orders.customerArrived')}</span>
-                          <small>
-                            {formatDate(order.customerArrivedAt, { timeStyle: 'short' })}
-                          </small>
+                    </td>
+                    <td data-label={t('orders.customer')} className="order-cell-stacked">
+                      <div className="order-cell-content">
+                        <strong>{order.customer?.name || '—'}</strong>
+                        <small className="table-secondary">{order.customer?.phone || '—'}</small>
+                      </div>
+                    </td>
+                    <td data-label={t('orders.details')} className="order-cell-stacked">
+                      <div className="order-cell-content">
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                          {isPreorder(order) && (
+                            <span className="status-pill fulfillment-preorder">
+                              {t('locations.preorder')}
+                            </span>
+                          )}
+                          <span
+                            className={`status-pill fulfillment-${fulfillmentType(order) === 'delivery' ? 'delivery' : 'pickup'}`}
+                          >
+                            {t(
+                              fulfillmentType(order) === 'delivery'
+                                ? 'locations.delivery'
+                                : 'locations.pickup',
+                            )}
+                          </span>
                         </div>
-                      )}
-                      {fulfillmentType(order) === 'delivery' && (
-                        <div className="delivery-admin-control">
-                          {order.courier && (
-                            <small>
-                              {order.courier.name} ·{' '}
-                              {order.courier.isAutomobile === true ||
-                              order.courier.transportType === 'car'
-                                ? t('couriers.transport.car')
-                                : order.courier.isAutomobile === false ||
-                                    order.courier.transportType
-                                  ? t(`couriers.transport.${order.courier.transportType || 'foot'}`)
-                                  : t('orders.transportPending')}
-                              {order.courier.vehicle ? ` · ${order.courier.vehicle}` : ''} ·{' '}
-                              {order.courier.phone}
-                            </small>
-                          )}
-                          <small>
-                            {t(`deliveryStatus.${order.deliveryStatus || 'unassigned'}`)}
+                        {isPreorder(order) && order.pickupTime && (
+                          <small className="table-secondary">
+                            {formatDate(order.pickupTime, {
+                              dateStyle: 'short',
+                              timeStyle: 'short',
+                            })}
                           </small>
-                          {order.trackingUrl && (
-                            <a
-                              href={order.trackingUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-button-refund"
-                            >
-                              {t('dispatch.yandex.track')}
-                            </a>
-                          )}
-                          {orderMutationsAllowed &&
-                            order.paymentStatus === 'paid' &&
-                            !['completed', 'cancelled'].includes(order.orderStatus) && (
+                        )}
+                        <strong>{order.branch || '—'}</strong>
+                        <small className="table-secondary">
+                          {order.items
+                            .slice(0, 2)
+                            .map(
+                              (item) => `${item.name || t('orders.item')} ×${item.quantity || 1}`,
+                            )
+                            .join(', ') || '—'}
+                        </small>
+                        {order.customerArrivedAt && (
+                          <div className="customer-arrived-alert">
+                            <MapPin size={15} aria-hidden="true" />
+                            <span>{t('orders.customerArrived')}</span>
+                            <small>
+                              {formatDate(order.customerArrivedAt, { timeStyle: 'short' })}
+                            </small>
+                          </div>
+                        )}
+                        {fulfillmentType(order) === 'delivery' && (
+                          <div className="delivery-admin-control">
+                            {order.courier && (
+                              <small>
+                                {order.courier.name} ·{' '}
+                                {order.courier.isAutomobile === true ||
+                                order.courier.transportType === 'car'
+                                  ? t('couriers.transport.car')
+                                  : order.courier.isAutomobile === false ||
+                                      order.courier.transportType
+                                    ? t(
+                                        `couriers.transport.${order.courier.transportType || 'foot'}`,
+                                      )
+                                    : t('orders.transportPending')}
+                                {order.courier.vehicle ? ` · ${order.courier.vehicle}` : ''} ·{' '}
+                                {order.courier.phone}
+                              </small>
+                            )}
+                            <small>
+                              {t(`deliveryStatus.${order.deliveryStatus || 'unassigned'}`)}
+                            </small>
+                            {order.trackingUrl && (
+                              <a
+                                href={order.trackingUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-button-refund"
+                              >
+                                {t('dispatch.yandex.track')}
+                              </a>
+                            )}
+                            {orderMutationsAllowed &&
+                              order.paymentStatus === 'paid' &&
+                              !['completed', 'cancelled'].includes(order.orderStatus) && (
+                                <button
+                                  type="button"
+                                  className="btn-outline compact-button"
+                                  onClick={() => setYandexOrder(order)}
+                                >
+                                  {t('kitchen.dispatch.yandex')}
+                                </button>
+                              )}
+                            {order.deliveryStatus === 'delivered' && (
                               <button
                                 type="button"
-                                className="btn-outline compact-button"
-                                onClick={() => setYandexOrder(order)}
+                                className="text-button-refund"
+                                onClick={() => void openDeliveryProof(order)}
                               >
-                                {t('kitchen.dispatch.yandex')}
+                                <Camera size={14} aria-hidden="true" />
+                                Подтверждение
                               </button>
                             )}
-                          {order.deliveryStatus === 'delivered' && (
-                            <button
-                              type="button"
-                              className="text-button-refund"
-                              onClick={() => void openDeliveryProof(order)}
-                            >
-                              <Camera size={14} aria-hidden="true" />
-                              Подтверждение
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                    <td data-label={t('orders.payment')}>
-                      <span className={`order-badge payment-${paymentBadgeStatus(order)}`}>
-                        {t(
-                          isRefundReconciling(order)
-                            ? 'payment.refundPending'
-                            : `payment.${order.paymentStatus}`,
+                          </div>
                         )}
-                      </span>
-                      {Number(order.refundAmount || 0) > 0 && (
-                        <small className="table-secondary">
-                          Возврат: {formatNumber(Number(order.refundAmount))} ₸
-                        </small>
-                      )}
+                      </div>
+                    </td>
+                    <td data-label={t('orders.payment')} className="order-cell-stacked">
+                      <div className="order-cell-content">
+                        <span className={`order-badge payment-${paymentBadgeStatus(order)}`}>
+                          {t(
+                            isRefundReconciling(order)
+                              ? 'payment.refundPending'
+                              : `payment.${order.paymentStatus}`,
+                          )}
+                        </span>
+                        {Number(order.refundAmount || 0) > 0 && (
+                          <small className="table-secondary">
+                            Возврат: {formatNumber(Number(order.refundAmount))} ₸
+                          </small>
+                        )}
+                      </div>
                     </td>
                     <td data-label={t('common.status')}>
-                      {!isRefundReconciling(order) &&
-                      ['paid', 'refunded'].includes(order.paymentStatus) &&
-                      orderMutationsAllowed ? (
-                        <div className="order-status-control">
-                          {isSaving(order.id) && (
-                            <LoaderCircle className="spin" size={16} aria-hidden="true" />
-                          )}
-                          <SelectControl
-                            compact
-                            ariaLabel={t('orders.changeStatus')}
-                            className="order-status-select"
-                            value={order.orderStatus}
-                            onChange={(value) => void changeStatus(order, value)}
-                            disabled={
-                              isSaving(order.id) ||
-                              ['completed', 'cancelled'].includes(order.orderStatus)
-                            }
-                            options={ORDER_STATUSES.map((value) => ({
-                              value,
-                              label: t(`orderStatus.${value}`),
-                              disabled: !availableOrderStatuses(
-                                order.orderStatus,
-                                refundsAllowed,
-                              ).includes(value),
-                            }))}
-                          />
-                        </div>
-                      ) : ['paid', 'refunded'].includes(order.paymentStatus) ? (
-                        <span className="status-pill status-info">
-                          {t(`orderStatus.${order.orderStatus}`)}
-                        </span>
-                      ) : (
-                        <span className="table-secondary">—</span>
-                      )}
+                      <div className="order-cell-content">
+                        {!isRefundReconciling(order) &&
+                        ['paid', 'refunded'].includes(order.paymentStatus) &&
+                        orderMutationsAllowed ? (
+                          <div className="order-status-control">
+                            {isSaving(order.id) && (
+                              <LoaderCircle className="spin" size={16} aria-hidden="true" />
+                            )}
+                            <SelectControl
+                              compact
+                              ariaLabel={t('orders.changeStatus')}
+                              className="order-status-select"
+                              value={order.orderStatus}
+                              onChange={(value) => void changeStatus(order, value)}
+                              disabled={
+                                isSaving(order.id) ||
+                                ['completed', 'cancelled'].includes(order.orderStatus)
+                              }
+                              options={ORDER_STATUSES.map((value) => ({
+                                value,
+                                label: t(`orderStatus.${value}`),
+                                disabled: !availableOrderStatuses(
+                                  order.orderStatus,
+                                  refundsAllowed,
+                                ).includes(value),
+                              }))}
+                            />
+                          </div>
+                        ) : ['paid', 'refunded'].includes(order.paymentStatus) ? (
+                          <span className="status-pill status-info">
+                            {t(`orderStatus.${order.orderStatus}`)}
+                          </span>
+                        ) : (
+                          <span className="table-secondary">—</span>
+                        )}
+                      </div>
                     </td>
                     <td data-label={t('orders.total')} className="text-right tabular">
-                      <strong>{formatNumber(order.amount)} ₸</strong>
-                      {order.discount > 0 && (
-                        <small className="table-secondary">−{formatNumber(order.discount)} ₸</small>
-                      )}
+                      <div className="order-cell-content">
+                        <strong>{formatNumber(order.amount)} ₸</strong>
+                        {order.discount > 0 && (
+                          <small className="table-secondary">
+                            −{formatNumber(order.discount)} ₸
+                          </small>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

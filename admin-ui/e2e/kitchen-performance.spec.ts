@@ -270,7 +270,6 @@ test('unaccepted paid order keeps the iPad alarm visible until the server confir
       expect(request.postDataJSON()).toEqual({
         status: 'preparing',
         preparationMinutes: 30,
-        iikoManualEntryConfirmed: true,
       });
       await acceptanceGate;
       currentOrder = {
@@ -308,7 +307,7 @@ test('unaccepted paid order keeps the iPad alarm visible until the server confir
   await acceptButton.click();
 
   const dialog = page.getByRole('dialog');
-  await dialog.getByText('Заказ пробит вручную в iikoFront').click();
+  await expect(dialog.getByText('Заказ пробит вручную в iikoFront')).toHaveCount(0);
   await dialog.getByRole('button', { name: 'Принять заказ' }).click();
   await expect(alarm).toContainText('Сохраняем принятие на сервере');
 

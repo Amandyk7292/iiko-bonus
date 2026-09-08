@@ -64,8 +64,11 @@ test('admin payment issues include failed payments, refund failures, and recorde
   ]);
   calls.length = 0;
   await listAdminOrders();
-  assert.deepEqual(calls, [['neq', 'status', 'expired']]);
+  assert.deepEqual(calls, [['neq', 'status', 'expired'], ['neq', 'status', 'failed']]);
   calls.length = 0;
   await listAdminOrders({ paymentStatus: 'expired' });
-  assert.deepEqual(calls, [['eq', 'status', 'expired']]);
+  assert.deepEqual(calls, [['neq', 'status', 'failed'], ['eq', 'status', 'expired']]);
+  calls.length = 0;
+  await listAdminOrders({ paymentStatus: 'failed' });
+  assert.deepEqual(calls, [['neq', 'status', 'expired'], ['eq', 'status', 'failed']]);
 });

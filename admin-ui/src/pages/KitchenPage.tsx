@@ -117,7 +117,16 @@ const shouldApplyKitchenMutation = (current: any, incoming: any, hasNewerLoad: b
 };
 
 export default function KitchenPage() {
-  const { formatDate, t } = useI18n();
+  const { formatDate, t, locale } = useI18n();
+  const columnTitle = (status: string) => {
+    const labels =
+      locale === 'kk'
+        ? ['Жаңа', 'Қабылданған', 'Дайын']
+        : locale === 'en'
+          ? ['New', 'Accepted', 'Ready']
+          : ['Новые', 'Принятые', 'Готовые'];
+    return labels[columns.findIndex((column) => column.status === status)];
+  };
   const elapsedLabel = (value?: string | null) => {
     const minutes = elapsedMinutes(value);
     if (minutes == null) return '—';
@@ -141,6 +150,7 @@ export default function KitchenPage() {
     unlockSound,
   } = useAdminRealtime();
   const [orders, setOrders] = useState<any[]>([]);
+  const [activeColumn, setActiveColumn] = useState('queued');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [, setSavingIds] = useState<Set<string>>(() => new Set());
@@ -465,16 +475,50 @@ export default function KitchenPage() {
           </button>
         </div>
       </div>
-      <section className="kitchen-board">
+      <div className="kitchen-board-tabs" role="tablist" aria-label={t('common.status')}>
+        {columns.map((column) => (
+          <button
+            key={column.status}
+            type="button"
+            role="tab"
+            id={`kitchen-tab-${column.status}`}
+            aria-selected={activeColumn === column.status}
+            aria-controls={`kitchen-column-${column.status}`}
+            tabIndex={activeColumn === column.status ? 0 : -1}
+            onKeyDown={(event) => {
+              const index = columns.findIndex(item => item.status === activeColumn);
+              const next = event.key === 'ArrowRight' ? (index + 1) % 3
+                : event.key === 'ArrowLeft' ? (index + 2) % 3
+                : event.key === 'Home' ? 0 : event.key === 'End' ? 2 : -1;
+              if (next < 0) return;
+              event.preventDefault();
+              setActiveColumn(columns[next].status);
+              document.getElementById(`kitchen-tab-${columns[next].status}`)?.focus();
+            }}
+            onClick={() => setActiveColumn(column.status)}
+          >
+            {columnTitle(column.status)}{' '}
+            <strong>
+              {orders.filter((order) => order.kitchenStatus === column.status).length}
+            </strong>
+          </button>
+        ))}
+      </div>
+      <section className="kitchen-board" data-active-column={activeColumn}>
         {columns.map((column) => {
           const ColumnIcon = column.icon;
           const columnOrders = orders.filter((order) => order.kitchenStatus === column.status);
           return (
-            <div className={`kitchen-column kitchen-${column.status}`} key={column.status}>
+            <div
+              className={`kitchen-column kitchen-${column.status}`}
+              key={column.status}
+              id={`kitchen-column-${column.status}`}
+              aria-labelledby={`kitchen-tab-${column.status}`}
+            >
               <header>
                 <span>
                   <ColumnIcon aria-hidden="true" size={19} />
-                  {t(column.titleKey)}
+                  {columnTitle(column.status)}
                 </span>
                 <strong>{columnOrders.length}</strong>
               </header>

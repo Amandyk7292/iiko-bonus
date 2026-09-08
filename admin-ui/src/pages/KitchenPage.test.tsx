@@ -156,7 +156,7 @@ describe('Kitchen optimistic workflow', () => {
     expect(apiMocks.updateKitchenStatus).toHaveBeenCalledWith('queued-1', 'preparing', 12, false);
     expect(screen.getByRole('alert')).toHaveTextContent('Не приняты оплаченные заказы: 1');
     expect(realtimeMocks.stopOrderAlarm).not.toHaveBeenCalled();
-    let queuedColumn = screen.getByText('Новые заказы').closest<HTMLElement>('.kitchen-column');
+    let queuedColumn = document.querySelector<HTMLElement>('#kitchen-column-queued');
     expect(within(queuedColumn!).getByText('№100041')).toBeInTheDocument();
 
     await user.click(
@@ -191,10 +191,10 @@ describe('Kitchen optimistic workflow', () => {
     });
     await waitFor(() => {
       expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-      const preparingColumn = screen.getByText('Готовится').closest<HTMLElement>('.kitchen-column');
+      const preparingColumn = document.querySelector<HTMLElement>('#kitchen-column-preparing');
       expect(within(preparingColumn!).getByText('№100041')).toBeInTheDocument();
     });
-    queuedColumn = screen.getByText('Новые заказы').closest<HTMLElement>('.kitchen-column');
+    queuedColumn = document.querySelector<HTMLElement>('#kitchen-column-queued');
     expect(within(queuedColumn!).queryByText('№100041')).not.toBeInTheDocument();
     expect(realtimeMocks.stopOrderAlarm).toHaveBeenCalledTimes(1);
   });
@@ -208,7 +208,7 @@ describe('Kitchen optimistic workflow', () => {
     await user.click(within(ticket!).getByRole('button', { name: 'Заказ готов' }));
 
     await waitFor(() => expect(toast).toHaveBeenCalledWith('kitchen conflict', 'error'));
-    const preparingColumn = screen.getByText('Готовится').closest<HTMLElement>('.kitchen-column');
+    const preparingColumn = document.querySelector<HTMLElement>('#kitchen-column-preparing');
     expect(within(preparingColumn!).getByText('№100042')).toBeInTheDocument();
   });
 
@@ -423,7 +423,7 @@ describe('Kitchen optimistic workflow', () => {
     const realtimeSubscription = realtimeMocks.useAdminRealtimeEvents.mock.calls.at(-1);
     act(() => realtimeSubscription?.[1]({ type: 'order.updated' }));
     await waitFor(() => {
-      const readyColumn = screen.getByText('Готово').closest<HTMLElement>('.kitchen-column');
+      const readyColumn = document.querySelector<HTMLElement>('#kitchen-column-ready');
       expect(within(readyColumn!).getByText('№100041')).toBeInTheDocument();
     });
 
@@ -434,7 +434,7 @@ describe('Kitchen optimistic workflow', () => {
       });
       await acceptanceRequest;
     });
-    const readyColumn = screen.getByText('Готово').closest<HTMLElement>('.kitchen-column');
+    const readyColumn = document.querySelector<HTMLElement>('#kitchen-column-ready');
     expect(within(readyColumn!).getByText('№100041')).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });

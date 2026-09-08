@@ -22,7 +22,23 @@ export const dashboardApi = {
       fetchedAt: string;
     }>(`${base}/balances?${new URLSearchParams({ serverId, date })}`, { signal }),
 };
-export function download(blob: Blob, name: string) {
+declare global {
+  interface Window {
+    BulkaFileShare?: { shareFile(file: { name: string; base64: string }): Promise<void> };
+  }
+}
+export async function download(blob: Blob, name: string) {
+  if (window.BulkaFileShare) {
+    if (!blob.size || blob.size > 20 * 1024 * 1024) throw new Error('Invalid export size');
+    const base64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result).split(',')[1]);
+      reader.onerror = () => reject(new Error('Could not read export'));
+      reader.readAsDataURL(blob);
+    });
+    await window.BulkaFileShare.shareFile({ name, base64 });
+    return;
+  }
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
@@ -45,5 +61,5 @@ export async function exportReport(query: Query | AnalyticsQuery) {
     const body = await response.json().catch(() => ({}));
     throw new ApiError('', response.status, body.code);
   }
-  download(await response.blob(), `iiko-${query.from}-${query.to}.xlsx`);
+  await download(await response.blob(), `iiko-${query.from}-${query.to}.xlsx`);
 }

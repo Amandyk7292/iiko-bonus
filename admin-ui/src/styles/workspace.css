@@ -243,3 +243,38 @@
     font-weight: 500;
   }
 }
+
+/* A table cell has one value container, regardless of its number of details. */
+@media (max-width: 767px) {
+  .sagi-shell .orders-table:not(.data-table-compact) > tbody > tr > td {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    gap: 8px 12px;
+  }
+  .sagi-shell .orders-table:not(.data-table-compact) > tbody > tr > td > .order-cell-content {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+  .sagi-shell .orders-table:not(.data-table-compact) > tbody > tr > td.order-cell-stacked {
+    grid-template-columns: minmax(0, 1fr);
+    text-align: left !important;
+  }
+  .orders-table .order-cell-stacked .order-cell-content {
+    display: grid;
+    gap: 8px;
+    justify-items: start;
+  }
+  .orders-table .status-pill,
+  .orders-table .order-badge {
+    flex-shrink: 0;
+    white-space: nowrap;
+    word-break: normal;
+    overflow-wrap: normal;
+  }
+  .orders-table .order-status-control,
+  .orders-table .order-status-select {
+    min-width: 0;
+    max-width: 100%;
+  }
+}

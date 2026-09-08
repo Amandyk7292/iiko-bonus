@@ -103,7 +103,7 @@ export default function Balances({
         { credentials: 'same-origin', signal: AbortSignal.timeout(90000) },
       );
       if (!response.ok) throw new Error();
-      download(await response.blob(), `iiko-stock-${date}.xlsx`);
+      await download(await response.blob(), `iiko-stock-${date}.xlsx`);
     } catch {
       setError('id.error');
     } finally {

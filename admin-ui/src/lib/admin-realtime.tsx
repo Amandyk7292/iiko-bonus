@@ -77,12 +77,28 @@ const SUMMARY_EVENT_TYPES = new Set([
 
 const AdminRealtimeContext = createContext<AdminRealtimeValue | null>(null);
 
+declare global {
+  interface Window {
+    BulkaOrderAudio?: {
+      prepare(): Promise<void>;
+      play(kitchen: boolean): Promise<void>;
+      stop(): Promise<void>;
+    };
+  }
+}
+let nativeOrderAudioReady = false;
+function nativeOrderAudioFailed() {
+  nativeOrderAudioReady = false;
+  notifyOrderAudioState();
+}
+
 let orderAudioContext: AudioContext | null = null;
 let lastOrderToneAt = 0;
 let activeKitchenAlarm: { oscillator: OscillatorNode; gain: GainNode } | null = null;
 const orderAudioStateListeners = new Set<() => void>();
 
 function stopOrderAlarm() {
+  void window.BulkaOrderAudio?.stop().catch(nativeOrderAudioFailed);
   const active = activeKitchenAlarm;
   activeKitchenAlarm = null;
   if (!active) return;
@@ -146,6 +162,7 @@ function getOrderAudioContext() {
 }
 
 function isOrderAudioReady() {
+  if (window.BulkaOrderAudio) return nativeOrderAudioReady;
   try {
     return orderAudioContext?.state === 'running';
   } catch {
@@ -154,6 +171,14 @@ function isOrderAudioReady() {
 }
 
 function playOrderTone(force = false, kitchenAlarm = false) {
+  if (window.BulkaOrderAudio) {
+    if (!nativeOrderAudioReady || document.hidden) return false;
+    const now = Date.now();
+    if (!force && !kitchenAlarm && now - lastOrderToneAt < 4000) return true;
+    lastOrderToneAt = now;
+    void window.BulkaOrderAudio.play(kitchenAlarm).catch(nativeOrderAudioFailed);
+    return true;
+  }
   const context = getOrderAudioContext();
   if (!context) return false;
   try {
@@ -203,6 +228,17 @@ function playOrderTone(force = false, kitchenAlarm = false) {
 }
 
 async function unlockOrderAudio(testTone = true) {
+  if (window.BulkaOrderAudio) {
+    try {
+      await window.BulkaOrderAudio.prepare();
+      nativeOrderAudioReady = true;
+      if (testTone) await window.BulkaOrderAudio.play(false);
+      return true;
+    } catch {
+      nativeOrderAudioFailed();
+      return false;
+    }
+  }
   const context = getOrderAudioContext();
   if (!context) return false;
   try {
@@ -344,9 +380,13 @@ export function AdminRealtimeProvider({
     // Browsers that still block autoplay retain the gesture fallback.
     restoreWhenVisible();
     window.addEventListener('pageshow', restoreWhenVisible);
+    window.addEventListener('bulka:order-audio-ready', restoreWhenVisible);
+    window.addEventListener('bulka:order-audio-error', nativeOrderAudioFailed);
     document.addEventListener('visibilitychange', restoreWhenVisible);
     return () => {
       window.removeEventListener('pageshow', restoreWhenVisible);
+      window.removeEventListener('bulka:order-audio-ready', restoreWhenVisible);
+      window.removeEventListener('bulka:order-audio-error', nativeOrderAudioFailed);
       document.removeEventListener('visibilitychange', restoreWhenVisible);
     };
   }, [soundEnabled, unlockSound]);

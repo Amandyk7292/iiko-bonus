@@ -45,9 +45,58 @@ function SoundProbe() {
 
 describe('admin order audio transport', () => {
   beforeEach(() => {
+    delete window.BulkaOrderAudio;
     localStorage.clear();
     vi.clearAllMocks();
     vi.stubGlobal('EventSource', FakeEventSource);
+  });
+
+  it('uses the native audio player after the WebView bridge arrives and remembers mute', async () => {
+    vi.stubGlobal('AudioContext', undefined);
+    const view = render(
+      <AdminRealtimeProvider branchId="branch-1" role="cashier">
+        <SoundProbe />
+      </AdminRealtimeProvider>,
+    );
+    const native = {
+      prepare: vi.fn().mockResolvedValue(undefined),
+      play: vi.fn().mockResolvedValue(undefined),
+      stop: vi.fn().mockResolvedValue(undefined),
+    };
+    window.BulkaOrderAudio = native;
+    fireEvent(window, new Event('bulka:order-audio-ready'));
+    await waitFor(() => expect(screen.getByText('ready')).toBeInTheDocument());
+    expect(native.play).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText('Kitchen siren'));
+    expect(native.play).toHaveBeenCalledWith(true);
+    fireEvent.click(screen.getByText('Mute'));
+    expect(native.stop).toHaveBeenCalled();
+    expect(localStorage.getItem('adminOrderSoundEnabled')).toBe('false');
+    view.unmount();
+    native.prepare.mockClear();
+    render(
+      <AdminRealtimeProvider branchId="branch-1" role="cashier">
+        <SoundProbe />
+      </AdminRealtimeProvider>,
+    );
+    expect(screen.getByText('disabled')).toBeInTheDocument();
+    expect(native.prepare).not.toHaveBeenCalled();
+  });
+
+  it('shows unavailable audio when the native player reports failure', async () => {
+    window.BulkaOrderAudio = {
+      prepare: vi.fn().mockResolvedValue(undefined),
+      play: vi.fn().mockRejectedValue(new Error('device unavailable')),
+      stop: vi.fn().mockResolvedValue(undefined),
+    };
+    render(
+      <AdminRealtimeProvider branchId="branch-1" role="cashier">
+        <SoundProbe />
+      </AdminRealtimeProvider>,
+    );
+    await waitFor(() => expect(screen.getByText('ready')).toBeInTheDocument());
+    fireEvent.click(screen.getByText('Kitchen siren'));
+    await waitFor(() => expect(screen.getByText('blocked')).toBeInTheDocument());
   });
 
   it('restores enabled audio silently on mount and only tests sound explicitly', async () => {
@@ -56,7 +105,9 @@ describe('admin order audio transport', () => {
     let activeContext: FakeAudioContext;
     const stateListeners = new Set<() => void>();
     class FakeAudioContext {
-      constructor() { activeContext = this; }
+      constructor() {
+        activeContext = this;
+      }
       state: AudioContextState = 'suspended';
       currentTime = 0;
       destination = {} as AudioDestinationNode;
@@ -110,7 +161,11 @@ describe('admin order audio transport', () => {
     expect(oscillatorStart).not.toHaveBeenCalled();
 
     view.unmount();
-    render(<AdminRealtimeProvider branchId="branch-1" role="cashier"><SoundProbe /></AdminRealtimeProvider>);
+    render(
+      <AdminRealtimeProvider branchId="branch-1" role="cashier">
+        <SoundProbe />
+      </AdminRealtimeProvider>,
+    );
     await waitFor(() => expect(screen.getByText('ready')).toBeInTheDocument());
     expect(resume).toHaveBeenCalledTimes(3);
     expect(oscillatorStart).not.toHaveBeenCalled();

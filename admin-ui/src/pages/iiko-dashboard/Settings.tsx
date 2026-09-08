@@ -165,7 +165,7 @@ export default function Settings({
               download(
                 new Blob([JSON.stringify(preferences, null, 2)], { type: 'application/json' }),
                 'bulka-iiko-dashboard.json',
-              )
+              ).catch(() => setError(true))
             }
           >
             {t('id.exportSettings')}
