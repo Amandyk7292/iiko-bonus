@@ -47,7 +47,7 @@ router.get('/maps/yandex', (req, res) => {
       .status(503)
       .type('html')
       .send(
-        `<!doctype html><meta charset="utf-8"><link rel="icon" type="image/png" sizes="48x48" href="/favicon.png?v=20260730-1"><p>${copy[5]}</p>`,
+        `<!doctype html><meta charset="utf-8"><link rel="icon" type="image/png" sizes="48x48" href="/favicon.png?v=20260908-transparent"><p>${copy[5]}</p>`,
       );
   }
 
@@ -58,7 +58,7 @@ router.get('/maps/yandex', (req, res) => {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-  <link rel="icon" type="image/png" sizes="48x48" href="/favicon.png?v=20260730-1">
+  <link rel="icon" type="image/png" sizes="48x48" href="/favicon.png?v=20260908-transparent">
   <title>${copy[0]}</title>
   <style nonce="${nonce}">
     html,body,#map{width:100%;height:100%;margin:0;overflow:hidden;background:#fff}

@@ -105,7 +105,8 @@ def main() -> None:
         "apple-touch-icon.png": 180,
     }.items():
         _save_resized(master, web_icons / filename, size)
-    _save_resized(master, APP / "web" / "favicon.png", 48)
+    # Browser tabs use the transparent wordmark, independently of launcher art.
+    _save_resized(foreground, APP / "web" / "favicon.png", 48)
 
     android_res = APP / "android" / "app" / "src" / "main" / "res"
     densities = {

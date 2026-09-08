@@ -5,7 +5,7 @@ const test = require('node:test');
 
 const root = path.join(__dirname, '..');
 const canonicalLink =
-  '<link rel="icon" type="image/png" sizes="48x48" href="/favicon.png?v=20260730-1"';
+  '<link rel="icon" type="image/png" sizes="48x48" href="/favicon.png?v=20260908-transparent"';
 
 const staticHtmlFiles = [
   'BulkaAndroid/web/index.html',

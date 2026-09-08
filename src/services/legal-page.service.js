@@ -1672,7 +1672,7 @@ function renderLegalPage(slug, language = 'ru') {
     <link rel="canonical" href="${canonical}" />
     ${alternateLinks(slug)}
     <link rel="icon" type="image/png" sizes="48x48"
-      href="/favicon.png?v=20260730-1" />
+      href="/favicon.png?v=20260908-transparent" />
     <link rel="stylesheet" href="/assets/legal/legal.css?v=20260725" />
     <title>${content.title} — Bulka</title>
   </head>
