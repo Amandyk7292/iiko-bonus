@@ -1,5 +1,84 @@
 # WebView administration restored
 
+## Combined IPA 17 and consistent promotion borders
+
+- Banner outlines now use the same gold, width and corner radius for every card,
+  regardless of story view state. The slider no longer receives viewed-state data.
+  Existing card gaps and soft shadows are unchanged. The 15 story/banner tests and
+  analysis of the three affected Dart files passed.
+- Source `36c12ba43b6b3993f710e53d8a61978aa0eb97fb` was published as website release
+  `20260908204323-36c12ba43b6b`. Production/staging readiness and the public Flutter
+  hash passed: `20e9d8719b8679fa776dea3b1da03c7341b31411412cd0daf938926a6d17ae64`.
+  The database backup was verified and no SQL migrations were applied.
+- Combined version 1.0.1 build **17** includes the Operations Center default,
+  Live Activity updates/branding below, and consistent banner outlines.
+  Actions run `34246575257`, artifact `10064509734`, completed successfully.
+  Main app/widget bundle identities, signing profiles, device authorization and
+  checksum passed local validation; the widget's compiled Assets.car is packaged.
+- IPA SHA-256: `f0316e8476079ff0c016752803fc590389bcec4a4b96027bcd707af28e9cd32d`.
+  Install file: `%LOCALAPPDATA%/Bulka/builds/Bulka-profile-f0316e847607.ipa`.
+- **Installation pending:** no iPhone is currently visible over USB. The user was
+  asked to reconnect the original Amandyk iPhone. Build 15 remains the last
+  independently confirmed installed build. Do not report build 17 as installed
+  until installation succeeds and a subsequent installed-app query confirms it.
+  The white logo/icon layout and native token restoration still need observation
+  on the connected iPhone; APNs acceptance alone does not establish that result.
+
+Evidence: `scratch/banner-border-deploy.log`, `scratch/banner-border-tests.log`,
+`scratch/verified-iphone-ipa.json`, `scratch/ios-artifact-10064509734.zip`.
+
+## Live Activity synchronization and branding, evening update
+
+- Source `03383f8d712f` was published as website release
+  `20260908203520-03383f8d712f`. Production/staging readiness and the public Flutter
+  hash passed: `54552d54dca22892c0faf77c041b69bacb338a65fff354dc7978ec6d2b262a08`.
+- The production APNs credentials were missing. The existing Apple Developer
+  push key was verified and configured securely; no private key is stored in Git.
+- Development-signed profile IPAs previously registered Live Activity tokens as
+  production because the app used `DEBUG` to choose the APNs environment. The
+  native bridge now reads `aps-environment` from the embedded signing profile.
+  Existing activity tokens are observed again after relaunch, and Flutter retains
+  pending registrations across authentication/network failures.
+- Order details now synchronize the displayed order to ActivityKit, and customer
+  refreshes queue events received during an in-flight request. Token registration
+  immediately sends the current server state. APNs sends are bounded to 10 seconds
+  and report failures without logging push tokens; transient failures do not retire
+  an otherwise valid registration.
+- Apple accepted an update with the actual `preparing` state of order 100012
+  (`HTTP 200`, sandbox). Only the confirmed registration environment was corrected;
+  the order, payment and kitchen state were not changed. This proves APNs accepted
+  the update, not that its lock-screen presentation was observed on the device.
+- The Live Activity uses the official transparent Bulka asset rendered white,
+  status-specific icons, and a separate ETA row. Native compilation/signing passed
+  in Actions run `34245527505`; build 16 was not installed because the subsequent
+  banner-border correction is included in the combined IPA 17 above.
+- Verification: 25 focused Flutter tests, Flutter analysis, 794 backend tests
+  passed (3 skipped); changed-file ESLint/Prettier passed. The previously documented
+  unrelated formatting/size-budget failures remain outside this release.
+
+Evidence: `scratch/live-status-deploy.log`, `scratch/live-status-flutter-tests.log`,
+`scratch/live-status-flutter-analyze.log`, `scratch/live-status-clean-backend-tests.log`,
+`scratch/live-activity-apns-proof.log`.
+
+## Operations Center entry and verified iPhone build 15
+
+- Default WebView entry now opens `/admin/operations?embedded=app`. Kitchen
+  notification links still open the kitchen explicitly. No native admin migration.
+- Website release `20260908195810-12619b12141a` passed readiness/staging checks and
+  Flutter hash verification; no database migration was needed.
+- Version 1.0.1 build **15**, bundle `com.bulka.bonus`, was installed on the original
+  Amandyk iPhone over USB at **20:07:47**. The installation proxy reported success,
+  and a separate installed-app query confirmed build 15. The same pre-install query
+  also confirmed the earlier build 14, resolving the earlier record's uncertainty.
+- Actions run `34241634940`, artifact `10062491189`, source `12619b12141a`.
+  IPA SHA-256: `ed62a48a315d38e62b62deca786471db3cb1b4fef1b0c495976ba0d9fbb2a72b`.
+  App/widget signing profiles and device authorization were verified.
+- Portal/native targeted tests: 23 passed; Flutter analysis found no issues.
+  Physical navigation inside the installed app was not separately observed.
+
+Evidence: `scratch/iphone-build15-install.log`,
+`scratch/operations-home-after-app.json`.
+
 ## Barters and story cube update, 18:51 local time
 
 - Website release: `20260908184552-03c26836e5dc`; source `03c26836e5dc`.
