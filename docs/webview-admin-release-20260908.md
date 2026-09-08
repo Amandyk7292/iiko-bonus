@@ -1,6 +1,24 @@
-# WebView administration restored
+# Administration and native cashier releases
 
 ## Native cashier and shared employee identity
+
+- **IPA 20 installed at 23:09:18 local time on 2026-09-08** on the original
+  Amandyk iPhone. The installation proxy confirmed success; a separate app query
+  confirmed `com.bulka.bonus`, version **1.0.1, build 20**. Process launch succeeded.
+- Source `44c09b3395e6825f2e8ce316f8ac02d69d00b67e`; successful Actions run
+  `34260108910`, artifact `10069833523`. Main app and widget identities,
+  provisioning profiles, device eligibility and signing certificate passed local
+  validation. IPA SHA-256:
+  `2b3f9943edbf0a4558ac0be4da7622bfe28fe9e04b4399acb6888ec2dcfd33fd`.
+- The final native push retry change produces a byte-identical web entry bundle
+  to the published website below; rebuilding confirmed the hash, so no second
+  website deployment was necessary. The intermediate IPA 19 build was canceled
+  and was never installed.
+- Local evidence: `scratch/iphone-build20-install.log`,
+  `scratch/iphone-build20-after-app.json`, `scratch/iphone-build20-launch.log`,
+  `scratch/cashier-final-tests.log`, `scratch/cashier-push-recovery-tests.log`.
+  The physical screenshot showed Control Center over the app, so it does not
+  establish visual verification of the staff profile or actual cashier push delivery.
 
 - Per the latest request, cashiers now enter a native Flutter workspace with
   exactly Orders and Kitchen tabs. Other roles retain the web administration;
@@ -263,9 +281,9 @@ Local evidence is in `scratch/build13-install.log`, `scratch/iphone-build13-apps
 `scratch/latest-ui-analyze.log`, `scratch/release-final-tests.log`, and
 `scratch/all-fixes-deploy.log`. These local files are intentionally not committed.
 
-The user canceled the native staff migration. The iOS/Android employee entry now
-opens the existing `AdminPortalScreen` and the published web administration.
-Native staff screens remain inactive source, not the employee entry.
+At that earlier release, the user canceled the full native staff migration and
+the employee entry opened `AdminPortalScreen`. The later cashier-only native
+entry is described above; the full administration remains in WebView.
 
 ## Changes
 
