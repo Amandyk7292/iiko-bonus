@@ -10,6 +10,34 @@ void main() {
     appLanguageNotifier.value = 'ru';
   });
 
+  testWidgets('login language selector scrolls with content', (tester) async {
+    tester.view.physicalSize = const Size(320, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildBulkaTheme(),
+        home: LoginScreen(
+          onLogin: (_, _) async => null,
+          onStartRegistration: (_, _, _) async => const OtpRequestResult(),
+          onVerifyRegistration: (_, _) async => null,
+          onStartPasswordReset: (_, _) async => const OtpRequestResult(),
+          onResetPassword: (_, _, _) async => null,
+        ),
+      ),
+    );
+    final selector = find.byIcon(Icons.language_rounded);
+    final before = tester.getTopLeft(selector).dy;
+    final scrollable = tester.state<ScrollableState>(
+      find.byType(Scrollable).first,
+    );
+    scrollable.position.jumpTo(150);
+    await tester.pump();
+    expect(tester.getTopLeft(selector).dy, closeTo(before - 150, .1));
+    expect(tester.takeException(), isNull);
+  });
+
   test('admin portal stays on the configured trusted origin', () {
     final portal = bulkaAdminPortalUri(
       baseUrl: 'https://bulka.com.kz/api/customer',

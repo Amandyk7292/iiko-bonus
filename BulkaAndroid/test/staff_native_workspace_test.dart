@@ -140,7 +140,7 @@ void main() {
     }
     await tester.pumpWidget(const SizedBox());
   });
-  testWidgets('staff login entry opens Flutter without the portal WebView', (
+  testWidgets('staff login entry opens the web administration portal', (
     tester,
   ) async {
     SharedPreferences.setMockInitialValues({});
@@ -150,9 +150,9 @@ void main() {
     );
     await tester.tap(find.byKey(const ValueKey('admin-portal-login-button')));
     await tester.pumpAndSettle();
-    expect(find.byType(NativeStaffApp), findsOneWidget);
-    expect(find.byType(AdminPortalScreen), findsNothing);
-    expect(find.text('Вход для сотрудников'), findsOneWidget);
+    expect(find.byType(NativeStaffApp), findsNothing);
+    expect(find.byType(AdminPortalScreen), findsOneWidget);
+    expect(find.byKey(const ValueKey('admin-portal-close')), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });

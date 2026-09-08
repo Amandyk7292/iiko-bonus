@@ -33,7 +33,7 @@ Future<void> openAdminPortal(BuildContext context, {Uri? initialUri}) async {
     MaterialPageRoute(
       settings: const RouteSettings(name: 'admin-portal'),
       fullscreenDialog: true,
-      builder: (_) => NativeStaffApp(initialUri: uri),
+      builder: (_) => AdminPortalScreen(initialUri: uri),
     ),
   );
 }

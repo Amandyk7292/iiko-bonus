@@ -436,7 +436,10 @@ class _AdminPortalWebViewState extends State<AdminPortalWebView> {
   void _reportUnavailable() {
     if (_unavailableReported) return;
     _unavailableReported = true;
-    widget.onUnavailable();
+    // Initialization can fail while the parent portal is still building.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.onUnavailable();
+    });
   }
 
   @override

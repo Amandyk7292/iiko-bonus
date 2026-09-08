@@ -1,8 +1,15 @@
 # Native staff administration
 
-The iOS/Android employee entry now opens `NativeStaffApp`, not `AdminPortalScreen`.
-The website still opens the browser administration. Payment and Yandex map adapters
-are independent of the removed administration WebView entry.
+## Current shipping behavior
+
+On 2026-09-08 the user chose to keep the existing web administration. The
+iOS/Android employee entry therefore opens `AdminPortalScreen` (WebView), using
+the same published administration as the browser, including its navigation,
+icons, permissions and live data. The customer application remains Flutter.
+Native staff implementation below is retained as inactive source; it is not
+the production employee entry. The proposed follow-up native redesign was canceled.
+
+## Previous native build (5)
 
 ## Native sections
 

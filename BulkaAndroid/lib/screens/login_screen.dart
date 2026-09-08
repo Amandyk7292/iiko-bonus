@@ -320,13 +320,22 @@ class _LoginScreenState extends State<LoginScreen> {
             children: [
               Center(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(20, 48, 20, 32),
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 460),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
+                        Row(
+                          children: [
+                            _buildLanguageBadge(),
+                            const Spacer(),
+                            if (widget.onClose != null)
+                              const SizedBox(width: 48),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
                         const _BrandHeader(),
                         const SizedBox(height: 28),
                         _AuthCard(
@@ -354,7 +363,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
-              Positioned(top: 12, left: 16, child: _buildLanguageBadge()),
               if (widget.onClose != null)
                 Positioned(
                   top: 12,
@@ -378,7 +386,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildRegistrationScreen(BuildContext context) {
-    final sideWidth = widget.onClose == null ? 88.0 : 140.0;
+    const sideWidth = 56.0;
     return Scaffold(
       backgroundColor: Theme.of(context).colorScheme.surface,
       appBar: AppBar(
@@ -413,7 +421,6 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                _buildLanguageBadge(),
                 if (widget.onClose != null)
                   IconButton(
                     onPressed: widget.onClose,
@@ -433,6 +440,10 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: _buildLanguageBadge(),
+                ),
                 const SizedBox(height: 8),
                 Center(
                   child: Container(
