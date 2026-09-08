@@ -71,7 +71,7 @@ class _CartProductCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        item.name,
+                        localizeCatalogName(item.name),
                         style: TextStyle(
                           color: scheme.onSurface,
                           fontSize: BulkaTypeScale.body,

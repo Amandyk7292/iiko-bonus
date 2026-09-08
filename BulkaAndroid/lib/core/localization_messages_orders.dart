@@ -528,12 +528,12 @@ const Map<String, Map<String, String>> _orderAndPaymentTranslations = {
   },
   'order_receipt': {
     'ru': 'Чек об оплате',
-    'kk': 'Сауда чегін ашу',
+    'kk': 'Төлем түбіртегі',
     'en': 'Payment receipt',
   },
   'order_receipt_open_error': {
     'ru': 'Не удалось открыть торговый чек',
-    'kk': 'Сауда чегін ашу мүмкін болмады',
+    'kk': 'Төлем түбіртегін ашу мүмкін болмады',
     'en': 'Could not open the merchant receipt',
   },
   'order_repeat': {'ru': 'Повторить', 'kk': 'Қайталау', 'en': 'Reorder'},

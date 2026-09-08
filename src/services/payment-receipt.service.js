@@ -1,5 +1,7 @@
 const crypto = require('node:crypto');
 const { supabase } = require('../config/supabase');
+const { attachOrderImages } = require('./order-images.service');
+const { catalogNameTranslations } = require('../utils/catalog-localization.util');
 
 const RECEIPT_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -127,12 +129,18 @@ function normalizeReceiptItems(items) {
   return items.slice(0, 100).map((item, index) => {
     const quantity = Math.min(99, Math.max(1, Math.round(Number(item?.quantity) || 1)));
     const unitPrice = Math.max(0, Number(item?.price ?? item?.unitPrice) || 0);
+    const names = Object.fromEntries(
+      ['ru', 'kk', 'en']
+        .map((code) => [code, cleanText(item?.name_translations?.[code], 160)])
+        .filter(([, name]) => name),
+    );
     return {
       id: cleanText(item?.id || item?.productId || `item-${index + 1}`, 100),
       name: cleanText(item?.name || item?.title || `Позиция ${index + 1}`, 160),
       quantity,
       unitPrice,
       lineTotal: Number((unitPrice * quantity).toFixed(2)),
+      ...(item?.name && { name_translations: catalogNameTranslations(item.name, names) }),
     };
   });
 }
@@ -218,11 +226,13 @@ async function getPaymentReceipt(receiptId, { db = supabase } = {}) {
   if (!RECEIPT_ID_PATTERN.test(String(receiptId || ''))) return null;
   const { data, error } = await db
     .from('payment_receipts')
-    .select('*,order:kaspi_orders(discount_amount,delivery_fee)')
+    .select('*,order:kaspi_orders(discount_amount,delivery_fee,provider_card_last_four)')
     .eq('id', receiptId)
     .maybeSingle();
   if (error) throw error;
-  return data || null;
+  if (!data) return null;
+  const [localized] = await attachOrderImages([{ items: data.items }], { db });
+  return { ...data, items: localized.items };
 }
 
 async function ensurePaymentReceipt(order, overrides = {}, { db = supabase } = {}) {
@@ -295,7 +305,7 @@ const RECEIPT_COPY = {
     languageAria: 'Язык чека',
   },
   kk: {
-    title: 'Төлем чегі',
+    title: 'Төлем түбіртегі',
     generated: 'Төлем расталғаннан кейін жасалды',
     detailsAria: 'Операция деректері',
     operation: 'Операция',
@@ -378,6 +388,31 @@ const RECEIPT_COPY = {
   },
 };
 
+function customerPaymentReceipt(receipt) {
+  const order = Array.isArray(receipt.order) ? receipt.order[0] : receipt.order;
+  const lastFour =
+    [receipt.card_last_four, order?.provider_card_last_four]
+      .map((value) => String(value || ''))
+      .find((value) => /^\d{4}$/.test(value)) || null;
+  const paymentSystem = `${receipt.provider || ''} ${receipt.payment_system || ''}`;
+  const paymentMethod =
+    lastFour || /forte|visa|mastercard|maestro|unionpay/i.test(paymentSystem) ? 'card' : 'other';
+  // Only payment-time card metadata belongs here, never the customer's current card.
+  return {
+    documentNumber: cleanText(receipt.document_number, 80),
+    orderNumber: Number(receipt.order_number),
+    transactionAt: receipt.transaction_at,
+    currency: cleanText(receipt.currency, 3) || 'KZT',
+    amount: Number(receipt.amount) || 0,
+    discount: Number(order?.discount_amount) || 0,
+    deliveryFee: Number(order?.delivery_fee) || 0,
+    operation: receipt.operation_type === 'refund' ? 'refund' : 'purchase',
+    cardLastFour: lastFour,
+    paymentMethod,
+    items: normalizeReceiptItems(receipt.items),
+  };
+}
+
 function renderPaymentReceipt(receipt, requestedLanguage, access = {}) {
   const language = normalizeReceiptLanguage(requestedLanguage || receipt.language);
   const copy = RECEIPT_COPY[language];
@@ -385,7 +420,7 @@ function renderPaymentReceipt(receipt, requestedLanguage, access = {}) {
   const rows = items
     .map(
       (item) => `<tr>
-            <td>${escapeHtml(item.name)}</td>
+            <td>${escapeHtml(item.name_translations?.[language] || item.name)}</td>
             <td class="number">${item.quantity}</td>
             <td class="number">${escapeHtml(localizedMoney(item.unitPrice, language))} ₸</td>
             <td class="number">${escapeHtml(localizedMoney(item.lineTotal, language))} ₸</td>
@@ -397,13 +432,8 @@ function renderPaymentReceipt(receipt, requestedLanguage, access = {}) {
     timeStyle: 'medium',
     timeZone: 'Asia/Almaty',
   }).format(new Date(receipt.transaction_at));
-  const cardMask =
-    receipt.card_first_six && receipt.card_last_four
-      ? `${receipt.card_first_six}••••••${receipt.card_last_four}`
-      : copy.notApplicable;
+  const customerReceipt = customerPaymentReceipt(receipt);
   const operation = receipt.operation_type === 'refund' ? copy.refund : copy.purchase;
-  const merchantCode = receipt.merchant_code || copy.merchantCodePending;
-  const authorizationCode = receipt.authorization_code || copy.authorizationUnavailable;
   const token = cleanText(access?.token, 128);
   const expiresAt = normalizeReceiptExpiry(access?.expiresAt);
   const tokenQuery =
@@ -417,9 +447,50 @@ function renderPaymentReceipt(receipt, requestedLanguage, access = {}) {
     )
     .join('');
   const ui = {
-    ru: { share: 'Поделиться', close: 'Закрыть', discount: 'Скидка', delivery: 'Доставка', payment: 'Оплата', document: 'Чек №', extra: 'Данные платежа и продавца' },
-    kk: { share: 'Бөлісу', close: 'Жабу', discount: 'Жеңілдік', delivery: 'Жеткізу', payment: 'Төлем', document: 'Чек №', extra: 'Төлем және сатушы деректері' },
-    en: { share: 'Share', close: 'Close', discount: 'Discount', delivery: 'Delivery', payment: 'Payment', document: 'Receipt no.', extra: 'Payment and merchant details' },
+    ru: {
+      share: 'Поделиться',
+      close: 'Закрыть',
+      discount: 'Скидка',
+      delivery: 'Доставка',
+      payment: 'Оплата',
+      document: 'Чек №',
+      extra: 'Данные платежа и продавца',
+    },
+    kk: {
+      share: 'Бөлісу',
+      close: 'Жабу',
+      discount: 'Жеңілдік',
+      delivery: 'Жеткізу',
+      payment: 'Төлем',
+      document: 'Түбіртек №',
+      extra: 'Төлем және сатушы деректері',
+    },
+    en: {
+      share: 'Share',
+      close: 'Close',
+      discount: 'Discount',
+      delivery: 'Delivery',
+      payment: 'Payment',
+      document: 'Receipt no.',
+      extra: 'Payment and merchant details',
+    },
+  }[language];
+  const paymentLabel = {
+    ru: customerReceipt.cardLastFour
+      ? `Оплачено картой *${customerReceipt.cardLastFour}`
+      : customerReceipt.paymentMethod === 'card'
+        ? 'Оплачено картой'
+        : 'Оплачено',
+    kk: customerReceipt.cardLastFour
+      ? `*${customerReceipt.cardLastFour} картасымен төленді`
+      : customerReceipt.paymentMethod === 'card'
+        ? 'Картамен төленді'
+        : 'Төленді',
+    en: customerReceipt.cardLastFour
+      ? `Paid with card *${customerReceipt.cardLastFour}`
+      : customerReceipt.paymentMethod === 'card'
+        ? 'Paid by card'
+        : 'Paid',
   }[language];
   const order = Array.isArray(receipt.order) ? receipt.order[0] : receipt.order;
   const discount = Number(order?.discount_amount || 0);
@@ -433,11 +504,12 @@ function renderPaymentReceipt(receipt, requestedLanguage, access = {}) {
   <meta name="theme-color" content="#ffffff" />
   <link rel="icon" type="image/png" sizes="48x48" href="/favicon.png?v=20260908-transparent" />
   <title>${copy.title} ${escapeHtml(receipt.document_number)} — Bulka</title>
-  <link rel="stylesheet" href="/assets/legal/payment-receipt.css?v=20260907" />
+  <link rel="stylesheet" href="/assets/legal/payment-receipt.css?v=20260909" />
   <script src="/assets/legal/payment-receipt.js?v=20260907" defer></script>
 </head>
 <body>
 <main>
+  <img class="receipt-logo" src="/taplink/assets/brand/bulka_logo.png" alt="Bulka" width="105" height="62" />
   <header class="receipt-header">
     <div><h1>${copy.title}</h1><p>${copy.orderNumber} #${escapeHtml(receipt.order_number)}</p></div>
     <a class="receipt-close" href="/orders" aria-label="${ui.close}">×</a>
@@ -462,28 +534,10 @@ function renderPaymentReceipt(receipt, requestedLanguage, access = {}) {
       <div class="grand-total"><dt>${copy.total}</dt><dd>${money(receipt.amount)}</dd></div>
     </dl>
     <section class="receipt-payment"><h2>${ui.payment}</h2>
-      <dl><div><dt>${escapeHtml(receipt.payment_system || receipt.provider || ui.payment)}</dt><dd>${money(receipt.amount)}</dd></div></dl>
+      <dl><div><dt>${escapeHtml(paymentLabel)}</dt><dd>${money(receipt.amount)}</dd></div></dl>
     </section>
   </article>
-  <details class="receipt-extra">
-    <summary>${ui.extra}</summary>
-    <dl aria-label="${copy.detailsAria}">
-      <div><dt>${copy.amountCurrency}</dt><dd>${money(receipt.amount)} ${escapeHtml(receipt.currency)}</dd></div>
-      <div><dt>${copy.provider}</dt><dd>${escapeHtml(receipt.provider)}</dd></div>
-      <div><dt>${copy.paymentSystem}</dt><dd>${escapeHtml(receipt.payment_system || copy.notSpecified)}</dd></div>
-      <div><dt>${copy.cardMask}</dt><dd>${escapeHtml(cardMask)}</dd></div>
-      <div><dt>${copy.authorizationCode}</dt><dd>${escapeHtml(authorizationCode)}</dd></div>
-      <div><dt>${copy.transactionId}</dt><dd>${escapeHtml(receipt.transaction_reference || copy.notSpecifiedMasculine)}</dd></div>
-      <div><dt>${copy.merchantName}</dt><dd>${escapeHtml(receipt.merchant_name)}</dd></div>
-      <div><dt>${copy.merchantCity}</dt><dd>${escapeHtml(receipt.merchant_city)}</dd></div>
-      <div><dt>${copy.merchantCode}</dt><dd>${escapeHtml(merchantCode)}</dd></div>
-      <div><dt>${copy.website}</dt><dd>${escapeHtml(receipt.resource_name)} — ${escapeHtml(receipt.resource_url)}</dd></div>
-    </dl>
-    <p class="notice">${copy.notice}</p>
-    <nav class="languages" aria-label="${copy.languageAria}">${languageLinks}</nav>
-    <button id="print-receipt" type="button">${copy.print}</button>
-    <a href="${copy.termsUrl}">${copy.terms}</a>
-  </details>
+  <nav class="languages" aria-label="${copy.languageAria}">${languageLinks}</nav>
   <nav class="actions" aria-label="${copy.actionsAria}">
     <button id="share-receipt" type="button">${ui.share}</button>
     <p id="share-status" role="status"></p>
@@ -495,6 +549,7 @@ function renderPaymentReceipt(receipt, requestedLanguage, access = {}) {
 module.exports = {
   DEFAULT_RECEIPT_LINK_TTL_SECONDS,
   buildReceiptRecord,
+  customerPaymentReceipt,
   ensurePaymentReceipt,
   escapeHtml,
   getPaymentReceipt,

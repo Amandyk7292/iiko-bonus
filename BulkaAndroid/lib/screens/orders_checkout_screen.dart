@@ -453,7 +453,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         selectedDay = await showModalBottomSheet<DateTime>(
           context: context,
           isScrollControlled: true,
-          backgroundColor: Colors.transparent,
+          backgroundColor: Colors.white,
           builder: (sheetContext) => _PreorderCalendarSheet(
             slots: timeSlots,
             selected: _scheduledSlot?.startsAt,
@@ -471,7 +471,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       final selected = await showModalBottomSheet<_PickupSlot>(
         context: context,
         isScrollControlled: true,
-        backgroundColor: Colors.transparent,
+        backgroundColor: Colors.white,
         builder: (sheetContext) => _CheckoutTimeSheet(
           slots: selectableSlots,
           selectedValue: _scheduledSlot?.value,

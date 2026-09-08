@@ -121,7 +121,7 @@ class _PromosScreenState extends State<PromosScreen>
         context: context,
         useRootNavigator: true,
         isScrollControlled: true,
-        backgroundColor: Colors.transparent,
+        backgroundColor: Colors.white,
         barrierColor: Colors.black.withValues(alpha: 0.52),
         builder: (sheetContext) => _PromoDetailsSheet(
           group: group,
@@ -526,6 +526,7 @@ class _PromoDetailsSheet extends StatelessWidget {
       top: false,
       child: Align(
         alignment: Alignment.bottomCenter,
+        heightFactor: 1,
         child: ConstrainedBox(
           constraints: BoxConstraints(maxWidth: 560, maxHeight: maximumHeight),
           child: Material(

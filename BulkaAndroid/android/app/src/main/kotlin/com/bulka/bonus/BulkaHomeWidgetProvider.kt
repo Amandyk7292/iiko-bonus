@@ -3,6 +3,7 @@ package com.bulka.bonus
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.SharedPreferences
+import android.content.res.Configuration
 import android.net.Uri
 import android.view.View
 import android.widget.RemoteViews
@@ -21,6 +22,13 @@ class BulkaHomeWidgetProvider : HomeWidgetProvider() {
         appWidgetIds: IntArray,
         widgetData: SharedPreferences,
     ) {
+        val language = widgetData.getString("widget_language", null)
+        val locale = if (language in listOf("ru", "kk", "en")) {
+            Locale.forLanguageTag(language!!)
+        } else Locale.getDefault()
+        val localizedContext = context.createConfigurationContext(
+            Configuration(context.resources.configuration).apply { setLocale(locale) },
+        )
         appWidgetIds.forEach { widgetId ->
             val signedIn = widgetData.getBoolean("widget_is_signed_in", false)
             val balance = (widgetData.all["widget_balance"] as? Number)?.toDouble() ?: 0.0
@@ -32,6 +40,10 @@ class BulkaHomeWidgetProvider : HomeWidgetProvider() {
             val eta = widgetData.getString("widget_order_eta", null)
 
             val views = RemoteViews(context.packageName, R.layout.bulka_home_widget).apply {
+                setTextViewText(R.id.widget_balance_label, localizedContext.getString(R.string.widget_balance_label))
+                setTextViewText(R.id.widget_no_order, localizedContext.getString(R.string.widget_no_active_order))
+                setTextViewText(R.id.widget_signed_out_title, localizedContext.getString(R.string.widget_signed_out_title))
+                setTextViewText(R.id.widget_signed_out_body, localizedContext.getString(R.string.widget_signed_out_body))
                 setViewVisibility(
                     R.id.widget_signed_in,
                     if (signedIn) View.VISIBLE else View.GONE,
@@ -40,10 +52,10 @@ class BulkaHomeWidgetProvider : HomeWidgetProvider() {
                     R.id.widget_signed_out,
                     if (signedIn) View.GONE else View.VISIBLE,
                 )
-                setTextViewText(R.id.widget_balance, formatBalance(balance))
+                setTextViewText(R.id.widget_balance, formatBalance(balance, locale))
                 setTextViewText(
                     R.id.widget_tier,
-                    tier.ifBlank { context.getString(R.string.widget_loyalty) },
+                    tier.ifBlank { localizedContext.getString(R.string.widget_loyalty) },
                 )
 
                 val hasOrder = signedIn && orderNumber != null
@@ -58,13 +70,13 @@ class BulkaHomeWidgetProvider : HomeWidgetProvider() {
                 if (hasOrder) {
                     setTextViewText(
                         R.id.widget_order_title,
-                        context.getString(R.string.widget_order_number, orderNumber),
+                        localizedContext.getString(R.string.widget_order_number, orderNumber),
                     )
-                    val statusText = localizedStatus(context, status)
+                    val statusText = localizedStatus(localizedContext, status)
                     val etaText = formatEta(eta)
                     setTextViewText(
                         R.id.widget_order_status,
-                        if (etaText == null) statusText else context.getString(
+                        if (etaText == null) statusText else localizedContext.getString(
                             R.string.widget_status_with_eta,
                             statusText,
                             etaText,
@@ -91,16 +103,16 @@ class BulkaHomeWidgetProvider : HomeWidgetProvider() {
                 )
 
                 val accessibilityText = when {
-                    !signedIn -> context.getString(R.string.widget_accessibility_signed_out)
-                    hasOrder -> context.getString(
+                    !signedIn -> localizedContext.getString(R.string.widget_accessibility_signed_out)
+                    hasOrder -> localizedContext.getString(
                         R.string.widget_accessibility_order,
-                        formatBalance(balance),
+                        formatBalance(balance, locale),
                         orderNumber,
-                        localizedStatus(context, status),
+                        localizedStatus(localizedContext, status),
                     )
-                    else -> context.getString(
+                    else -> localizedContext.getString(
                         R.string.widget_accessibility_balance,
-                        formatBalance(balance),
+                        formatBalance(balance, locale),
                     )
                 }
                 setContentDescription(R.id.widget_container, accessibilityText)
@@ -109,8 +121,8 @@ class BulkaHomeWidgetProvider : HomeWidgetProvider() {
         }
     }
 
-    private fun formatBalance(value: Double): String {
-        val formatter = NumberFormat.getNumberInstance(Locale.getDefault()).apply {
+    private fun formatBalance(value: Double, locale: Locale): String {
+        val formatter = NumberFormat.getNumberInstance(locale).apply {
             maximumFractionDigits = if (value % 1.0 == 0.0) 0 else 2
             minimumFractionDigits = 0
         }

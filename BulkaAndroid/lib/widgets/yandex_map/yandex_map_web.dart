@@ -62,7 +62,7 @@ class _YandexMapViewState extends State<YandexMapView> {
       ..src =
           '$yandexMapUrl?lang=${widget.language}&mode=${widget.directoryMode ? 'directory' : 'customer'}'
       ..title = widget.semanticLabel
-      ..allow = 'geolocation'
+      ..allow = widget.directoryMode ? "geolocation 'none'" : 'geolocation'
       ..style.width = '100%'
       ..style.height = '100%'
       ..style.border = '0'
@@ -110,6 +110,15 @@ class _YandexMapViewState extends State<YandexMapView> {
   @override
   void didUpdateWidget(covariant YandexMapView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.language != widget.language ||
+        oldWidget.directoryMode != widget.directoryMode) {
+      _ready = false;
+      _frame.allow = widget.directoryMode
+          ? "geolocation 'none'"
+          : 'geolocation';
+      _frame.src =
+          '$yandexMapUrl?lang=${widget.language}&mode=${widget.directoryMode ? 'directory' : 'customer'}';
+    }
     if (oldWidget.semanticLabel != widget.semanticLabel) {
       _frame.title = widget.semanticLabel;
     }

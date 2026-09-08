@@ -126,6 +126,15 @@ class _LocationsScreenState extends State<LocationsScreen> {
     if (_searchQuery.isNotEmpty) setState(() => _searchQuery = '');
   }
 
+  void _showCityList() {
+    FocusScope.of(context).unfocus();
+    _searchController.clear();
+    setState(() {
+      _showCities = true;
+      _searchQuery = '';
+    });
+  }
+
   @override
   void dispose() {
     _live.dispose();
@@ -185,16 +194,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
         .toList();
 
     return PopScope(
-      canPop: _deliveryList || _showCities,
-      onPopInvokedWithResult: (didPop, result) {
-        if (!didPop && !_deliveryList && !_showCities) {
-          setState(() {
-            _showCities = true;
-            _searchQuery = '';
-          });
-          _searchController.clear();
-        }
-      },
+      canPop: true,
       child: Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
@@ -203,14 +203,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
           centerTitle: true,
           leading: IconButton(
             onPressed: () {
-              if (!_deliveryList && !_showCities) {
-                setState(() {
-                  _showCities = true;
-                  _searchQuery = '';
-                });
-                _searchController.clear();
-                return;
-              }
+              FocusScope.of(context).unfocus();
               Navigator.of(context).maybePop();
             },
             icon: const Icon(Icons.chevron_left_rounded, size: 34),
@@ -266,7 +259,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
         return ListTile(
           contentPadding: EdgeInsets.zero,
           title: Text(
-            city,
+            localizeCityName(city),
             style: TextStyle(
               fontSize: BulkaTypeScale.titleSmall,
               color: scheme.onSurface,
@@ -291,7 +284,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
             children: [
               if (!_deliveryList)
                 TextButton.icon(
-                  onPressed: () => setState(() => _showCities = true),
+                  onPressed: _showCityList,
                   icon: Icon(
                     Icons.chevron_left_rounded,
                     color: colors.brandBrown,

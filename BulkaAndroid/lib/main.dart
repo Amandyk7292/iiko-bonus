@@ -26,6 +26,8 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:pdf/pdf.dart' as pdf;
+import 'package:pdf/widgets.dart' as pw;
 import 'package:app_links/app_links.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:screen_brightness/screen_brightness.dart';
@@ -176,9 +178,19 @@ part 'widgets/language_bottom_sheet.dart';
 part 'widgets/bulka_nav_icon.dart';
 part 'widgets/customer_avatar.dart';
 part 'widgets/desktop_phone_viewport.dart';
+part 'widgets/input_dismissal.dart';
+part 'models/payment_receipt.dart';
+part 'core/catalog_copy.dart';
+part 'core/catalog_copy.g.dart';
+part 'api/payment_receipt_api.dart';
+part 'screens/payment_receipt_screen.dart';
+part 'core/payment_receipt_pdf.dart';
+part 'core/localization_messages_receipts.dart';
 
 Widget _buildBulkaAppViewport(BuildContext _, Widget? child) {
-  return BulkaDesktopPhoneViewport(child: child ?? const SizedBox.shrink());
+  return BulkaDesktopPhoneViewport(
+    child: BulkaInputDismissal(child: child ?? const SizedBox.shrink()),
+  );
 }
 
 @immutable

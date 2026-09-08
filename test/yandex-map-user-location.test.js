@@ -12,7 +12,9 @@ function runMap(html, mode) {
   let receive;
   let locate;
   let failLocation;
+  let view;
   const element = (id) => {
+    if (id === 'locate' && !html.includes('id="locate"')) return null;
     if (!elements.has(id)) {
       elements.set(id, {
         style: {},
@@ -27,11 +29,17 @@ function runMap(html, mode) {
   class GeoObject {
     constructor(coordinates, properties, options) {
       Object.assign(this, { coordinates, properties, options });
-      this.events = { add() {} };
+      this.events = {
+        add: (name, callback) => {
+          this[name] = callback;
+        },
+      };
     }
   }
   class MapView {
-    constructor(_id, options) {
+    constructor(_id, options, mapOptions) {
+      view = this;
+      this.options = mapOptions;
       this.zoom = options.zoom;
       this.geoObjects = {
         removeAll() {
@@ -83,6 +91,7 @@ function runMap(html, mode) {
   return {
     objects,
     messages,
+    view,
     state: (data) => receive({ origin: 'https://bulka.com.kz', data: { type: 'state', ...data } }),
     clickLocate: () => element('locate').click({ preventDefault() {}, stopPropagation() {} }),
     gps: (latitude, longitude, accuracy) => locate({ coords: { latitude, longitude, accuracy } }),
@@ -93,7 +102,7 @@ function runMap(html, mode) {
   };
 }
 
-test('GPS marker stays visible independently of directory and delivery selection', async (t) => {
+test('directory only interacts with Bulka branches; delivery retains its GPS marker', async (t) => {
   const oldKey = process.env.YANDEX_MAPS_API_KEY;
   process.env.YANDEX_MAPS_API_KEY = 'test_yandex_maps_key_1234567890';
   const app = express();
@@ -110,7 +119,18 @@ test('GPS marker stays visible independently of directory and delivery selection
     else process.env.YANDEX_MAPS_API_KEY = oldKey;
   });
   const html = await (await fetch(`http://127.0.0.1:${server.address().port}/maps/yandex`)).text();
-  for (const mode of ['directory', 'customer']) {
+  const directoryHtml = await (
+    await fetch(`http://127.0.0.1:${server.address().port}/maps/yandex?mode=directory`)
+  ).text();
+  const directory = runMap(directoryHtml, 'directory');
+  assert.equal(directory.view.options.yandexMapDisablePoiInteractivity, true);
+  directory.state({ branches: [{ id: 'bulka-1', name: 'Bulka', point: [43.65, 51.19] }] });
+  assert.equal(directory.objects.length, 1);
+  directory.objects[0].click();
+  assert.ok(
+    directory.messages.some((message) => message.type === 'branch' && message.id === 'bulka-1'),
+  );
+  for (const mode of ['customer']) {
     await t.test(mode, () => {
       const map = runMap(html, mode);
       assert.equal(map.userMarkers().length, 0, 'No invented position before GPS access');

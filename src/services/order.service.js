@@ -2,6 +2,7 @@ const { getIikoClientForCity } = require('./iiko-city-profile.service');
 const menuService = require('./menu.service');
 const { supabase } = require('../config/supabase');
 const { getSettings } = require('./settings.service');
+const { catalogNameTranslations } = require('../utils/catalog-localization.util');
 const { getBranchAvailability } = require('./inventory.service');
 const {
   categoryNameKey,
@@ -83,6 +84,7 @@ function calculateOrderTotal(items, catalog) {
       iikoProductId: product.iikoProductId || null,
       productSizeId: product.productSizeId || null,
       name: String(product.name || 'Товар').slice(0, 160),
+      name_translations: catalogNameTranslations(product.name, product.nameTranslations),
       price,
       quantity,
       source: product.source || 'iiko',
@@ -198,6 +200,7 @@ async function loadOrderCatalog({ branchId = null, orderType = 'pickup' } = {}) 
       iikoProductId: String(product.iikoProductId || product.id),
       productSizeId: product.sizePrices?.[0]?.sizeId || null,
       name: override?.custom_name || product.name,
+      nameTranslations: override?.name_translations,
       price,
       isAvailable: globallyAvailable && (inventory?.isAvailable ?? true),
       availableQuantity: inventory?.availableQuantity ?? null,

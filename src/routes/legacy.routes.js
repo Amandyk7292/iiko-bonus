@@ -715,15 +715,9 @@ router.get('/api/guest/menu', async (req, res) => {
     const langHeader = req.headers['accept-language'] || 'ru';
     const lang = langHeader.split(',')[0].split('-')[0].toLowerCase();
 
-    const getLocalized = (override, fieldName, fallbackName) => {
-      if (!override) return fallbackName;
-      const translations = override[`${fieldName}_translations`];
-      if (translations) {
-        if (translations[lang]) return translations[lang];
-        if (translations['ru']) return translations['ru'];
-      }
-      return override[`custom_${fieldName}`] || override[fieldName] || fallbackName;
-    };
+    const { localizeCatalogField } = require('../utils/catalog-localization.util');
+    const getLocalized = (override, fieldName, fallbackName) =>
+      localizeCatalogField(override, fieldName, fallbackName, lang);
 
     const getStorageConditions = (product) =>
       (Array.isArray(product?.storage_conditions) ? product.storage_conditions : [])
@@ -923,7 +917,8 @@ router.get('/api/guest/menu', async (req, res) => {
       // A custom product must not recreate a category that the administrator hid.
       if (hiddenCategoryNames.has(categoryNameKey(cp.category_name))) continue;
       // Ищем или создаём категорию для кастомного товара
-      let cat = categories.find((c) => c.name === cp.category_name);
+      const categoryName = getLocalized(null, 'name', cp.category_name);
+      let cat = categories.find((c) => c.name === categoryName);
       let catId;
       if (cat) {
         catId = cat.id;
@@ -931,7 +926,7 @@ router.get('/api/guest/menu', async (req, res) => {
         catId = 'custom-cat-' + cp.category_name.toLowerCase().replace(/\s+/g, '-');
         categories.push({
           id: catId,
-          name: cp.category_name,
+          name: categoryName,
           order: 999, // в конец
           imageUrl: null,
         });
@@ -940,8 +935,8 @@ router.get('/api/guest/menu', async (req, res) => {
       const inventory = branchAvailability.get(String(cp.id));
       products.push({
         id: cp.id,
-        name: cp.name,
-        description: cp.description || '',
+        name: getLocalized(cp, 'name', cp.name),
+        description: getLocalized(cp, 'description', cp.description || ''),
         price: cp.price,
         categoryId: catId,
         imageUrl: cp.image_url,

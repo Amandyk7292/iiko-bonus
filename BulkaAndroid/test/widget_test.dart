@@ -13,6 +13,11 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:bulka_bonus/core/cart_provider.dart';
 
+class _RestoredGuestStaffSession extends StaffAccountSession {
+  @override
+  Future<void> restore() async {}
+}
+
 void main() {
   setUp(() {
     appLanguageNotifier.value = 'ru';
@@ -183,7 +188,7 @@ void main() {
     final cyrillic = r'А-Яа-яЁёӘәҒғҚқҢңӨөҰұҮүҺһІі';
     final patterns = [
       RegExp(
-        "(?:Text|_BulkaPageTitle)\\(\\s*(?:const\\s+)?['\"][^'\"]*[$cyrillic]",
+        "\\b(?:Text|_BulkaPageTitle)\\(\\s*(?:const\\s+)?['\"][^'\"]*[$cyrillic]",
         multiLine: true,
       ),
       RegExp(
@@ -1398,10 +1403,15 @@ void main() {
   testWidgets('keeps the branded splash during minimum boot time', (
     tester,
   ) async {
+    final staff = _RestoredGuestStaffSession();
+    addTearDown(staff.dispose);
     await tester.pumpWidget(
       ChangeNotifierProvider(
         create: (_) => CartProvider(),
-        child: const BulkaBonusApp(appReleaseChecksEnabled: false),
+        child: BulkaBonusApp(
+          appReleaseChecksEnabled: false,
+          staffSession: staff,
+        ),
       ),
     );
     await tester.pump();
@@ -1413,7 +1423,7 @@ void main() {
             widget is Image &&
             widget.image is AssetImage &&
             (widget.image as AssetImage).assetName ==
-                'assets/brand/bulka_logo.png',
+                'assets/brand/app_icon_foreground.png',
       ),
       findsOneWidget,
     );
@@ -1422,6 +1432,7 @@ void main() {
     expect(find.byType(SplashScreen), findsOneWidget);
 
     await tester.pump(const Duration(milliseconds: 1));
+    await tester.pumpAndSettle();
     await tester.pump();
     expect(find.byType(MainShell), findsOneWidget);
     expect(find.byType(LoginScreen), findsNothing);

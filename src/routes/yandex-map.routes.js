@@ -5,6 +5,7 @@ const router = express.Router();
 const apiKeyPattern = /^[a-zA-Z0-9_-]{20,200}$/;
 
 router.get('/maps/yandex', (req, res) => {
+  const isDirectory = req.query.mode === 'directory';
   const language = ['ru', 'kk', 'en'].includes(req.query.lang) ? req.query.lang : 'ru';
   // JS API 2.1 does not offer Kazakh basemap labels; local controls remain translated.
   const mapLocale = language === 'en' ? 'en_RU' : 'ru_RU';
@@ -18,6 +19,7 @@ router.get('/maps/yandex', (req, res) => {
       'Яндекс Карты временно недоступны.',
       'Разрешите доступ к геопозиции в настройках браузера.',
       'Не удалось определить местоположение. Попробуйте ещё раз.',
+      'Адрес доставки',
     ],
     kk: [
       'Bulka картасы',
@@ -28,6 +30,7 @@ router.get('/maps/yandex', (req, res) => {
       'Яндекс Карталары уақытша қолжетімсіз.',
       'Браузер параметрлерінде геолокацияға рұқсат беріңіз.',
       'Орналасқан жерді анықтау мүмкін болмады. Қайталап көріңіз.',
+      'Жеткізу мекенжайы',
     ],
     en: [
       'Bulka map',
@@ -38,6 +41,7 @@ router.get('/maps/yandex', (req, res) => {
       'Yandex Maps is temporarily unavailable.',
       'Allow location access in your browser settings.',
       'Could not determine your location. Please try again.',
+      'Delivery address',
     ],
   }[language];
   const nonce = res.locals.cspNonce;
@@ -52,7 +56,7 @@ router.get('/maps/yandex', (req, res) => {
   }
 
   res.set('Cache-Control', 'private, no-store');
-  res.set('Permissions-Policy', 'geolocation=(self)');
+  res.set('Permissions-Policy', isDirectory ? 'geolocation=()' : 'geolocation=(self)');
   res.type('html').send(`<!doctype html>
 <html lang="${language}">
 <head>
@@ -77,7 +81,7 @@ router.get('/maps/yandex', (req, res) => {
     .directory .map-control{position:relative;width:38px;height:38px;box-shadow:0 4px 14px rgba(60,34,23,.16)}
     .directory .map-control::after{content:"";position:absolute;inset:-3px;border-radius:50%}
     .directory .map-control svg{width:20px;height:20px}
-    .directory #locate{width:40px;height:40px}
+    .directory #locate{display:none}
     #locate.loading svg{animation:pulse .85s ease-in-out infinite alternate}
     #map [class*="-copyright"],
     #map [class*="-map-copyrights-promo"],
@@ -94,7 +98,7 @@ router.get('/maps/yandex', (req, res) => {
   <div id="controls" aria-label="${copy[1]}">
     <button id="zoom-in" class="map-control" type="button" aria-label="${copy[2]}"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
     <button id="zoom-out" class="map-control" type="button" aria-label="${copy[3]}"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
-    <button id="locate" class="map-control" type="button" aria-label="${copy[4]}"><svg viewBox="0 0 24 24"><path d="m20 4-7.4 16-2.1-6.5L4 11.4 20 4Z"/></svg></button>
+    ${isDirectory ? '' : `<button id="locate" class="map-control" type="button" aria-label="${copy[4]}"><svg viewBox="0 0 24 24"><path d="m20 4-7.4 16-2.1-6.5L4 11.4 20 4Z"/></svg></button>`}
   </div>
   <script nonce="${nonce}">
     (() => {
@@ -304,7 +308,7 @@ router.get('/maps/yandex', (req, res) => {
 
         const selected = point(state.selected);
         if (selected && !['admin','directory'].includes(state.mode)) {
-          map.geoObjects.add(new ymaps.Placemark(selected, {hintContent:'Адрес доставки'}, {
+          map.geoObjects.add(new ymaps.Placemark(selected, {hintContent:${JSON.stringify(copy[8])}}, {
             preset:'islands#blackCircleDotIcon', zIndex:600
           }));
         }
@@ -352,9 +356,10 @@ router.get('/maps/yandex', (req, res) => {
         event.stopPropagation();
         if (map) map.setZoom(Math.max(state.mode === 'admin' ? 4 : 9,map.getZoom() - 1),{duration:180});
       });
-      locateButton.addEventListener('click', event => {
+      locateButton?.addEventListener('click', event => {
         event.preventDefault();
         event.stopPropagation();
+        if (state.mode === 'directory') return;
         if (!navigator.geolocation) {
           showError(${JSON.stringify(copy[7])});
           return;
@@ -380,7 +385,7 @@ router.get('/maps/yandex', (req, res) => {
         }, {enableHighAccuracy:true,maximumAge:0,timeout:20000});
       });
       const init = () => {
-        map = new ymaps.Map('map',{center:defaults.center,zoom:defaults.zoom,controls:[],type:'yandex#map'},{suppressMapOpenBlock:true});
+        map = new ymaps.Map('map',{center:defaults.center,zoom:defaults.zoom,controls:[],type:'yandex#map'},{suppressMapOpenBlock:true,yandexMapDisablePoiInteractivity:true});
         map.behaviors.enable(['drag','dblClickZoom','multiTouch']);
         if (defaults.mode === 'admin') {
           const searchControl = new ymaps.control.SearchControl({

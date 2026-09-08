@@ -1,0 +1,283 @@
+Булочка Ягодянка|Жидекті тоқаш|Berry bun
+Плюшка Московская|Мәскеу тоқашы|Moscow sugar bun
+Рогалик со сгущенкой|Қоюлатылған сүт қосылған мүйізше|Condensed milk roll
+Булочки к чаю без начинки 6 шт|Шайға арналған салмасыз тоқаштар, 6 дана|Plain tea buns, 6 pcs
+Синнабон|Даршын орамасы|Cinnamon roll
+Булочка с грецким орехом|Грек жаңғағы қосылған тоқаш|Walnut bun
+Булочка с яблоком|Алма қосылған тоқаш|Apple bun
+Майская с творогом|Сүзбе қосылған «Майская» тоқашы|Mayskaya cottage cheese bun
+Мини пицца|Шағын пицца|Mini pizza
+Булочка с джемом|Тосап қосылған тоқаш|Jam bun
+Булочка с маком|Көкнәр қосылған тоқаш|Poppy seed bun
+Булочка Улитка|Ұлу пішінді тоқаш|Swirl bun
+Булочка с курагой|Кептірілген өрік қосылған тоқаш|Dried apricot bun
+Плетенка с маком|Көкнәр қосылған өрме тоқаш|Poppy seed braid
+Синнабон шоколадный|Шоколадты даршын орамасы|Chocolate cinnamon roll
+Синнабон фисташковый|Пістелі даршын орамасы|Pistachio cinnamon roll
+Синнабон Орео|Oreo қосылған даршын орамасы|Oreo cinnamon roll
+Булочка Лакомка|«Лакомка» тоқашы|Lakomka bun
+Френч дог|Френч-дог|French hot dog
+Ватрушка с творогом|Сүзбелі ватрушка|Cottage cheese pastry
+Сырные шарики|Ірімшік шарлары|Cheese balls
+Булочка с чесноком|Сарымсақ қосылған тоқаш|Garlic bun
+Булочка для Мини Бургера|Шағын бургерге арналған тоқаш|Mini burger bun
+Бауырсак вес|Өлшенетін бауырсақ|Baursak, by weight
+Смесь для блинов|Құймақ қоспасы|Pancake mix
+Блины - 17|Құймақтар — 17|Pancakes — 17
+Пончик Шоколадный|Шоколадты пончик|Chocolate doughnut
+Пончик ванильный|Ванильді пончик|Vanilla doughnut
+Пончик|Пончик|Doughnut
+Печенье орешки весовой|Өлшенетін «Жаңғақ» печеньесі|Walnut-shaped cookies, by weight
+Рамазан бокс|Рамазан қорабы|Ramadan box
+Пончик Орео|Oreo пончигі|Oreo doughnut
+Пончик с начинкой тары|Тары салмасы бар пончик|Millet-filled doughnut
+Трубочка с кремом шт|Кремді түтікше, дана|Cream roll, per piece
+Рогалик весовой|Өлшенетін мүйізше|Crescent roll, by weight
+Пончик Фисташковый|Пістелі пончик|Pistachio doughnut
+Пончик с вишней|Шие қосылған пончик|Cherry doughnut
+Торт Половинка|Жарты торт|Half cake
+Печенье Сочники ШТ|Сүзбелі сочник, дана|Cottage cheese turnover, per piece
+Хлеб Тартин|Тартин наны|Tartine bread
+Хлеб Корона на закваcке|Ашытпалы «Корона» наны|Korona sourdough bread
+Хлеб Тостовый для сэндвича|Сэндвичке арналған тост наны|Sandwich toast bread
+Хлеб кукурузный на закваске|Ашытпалы жүгері наны|Corn sourdough bread
+Хлеб цельнозерновое|Тұтас дәнді нан|Wholegrain bread
+Хлеб Чиаббата на закваcке|Ашытпалы чиабатта|Sourdough ciabatta
+Багет на закваcке|Ашытпалы багет|Sourdough baguette
+Хлеб Тартин с льном|Зығыр дәні қосылған Тартин наны|Tartine bread with flaxseed
+Таба нан|Таба нан|Taba nan flatbread
+Хлеб Ржаной на закваcке|Ашытпалы қарабидай наны|Rye sourdough bread
+Хлеб Гречневый на закваcке|Ашытпалы қарақұмық наны|Buckwheat sourdough bread
+Хлеб ромашка на закваске|Ашытпалы түймедақ наны|Daisy sourdough bread
+Бездрожжевой Овощной|Ашытқысыз көкөніс наны|Yeast-free vegetable bread
+Сарделка в тесте|Қамырға оралған сарделька|Sausage in dough
+Сухарики|Кептірілген нан|Rusks
+Бездрожжевой Виктория|Ашытқысыз «Виктория» наны|Viktoria yeast-free bread
+Батон Нарезной|Тілімделген батон|Sliced white loaf
+Лепешка Сырная|Ірімшікті шелпек|Cheese flatbread
+Багет с чесноком|Сарымсақ қосылған багет|Garlic baguette
+Бездрожжевой белый|Ашытқысыз ақ нан|Yeast-free white bread
+Хлеб Тостовый|Тост наны|Toast bread
+Хлеб Чиабатта|Чиабатта наны|Ciabatta bread
+Хлеб наливной гречневый|Қалыпта пісірілген қарақұмық наны|Buckwheat tin loaf
+Багет Французский|Француз багеті|French baguette
+Тесто дрожжевое|Ашытқылы қамыр|Yeast dough
+Лепешка домашняя|Үй шелпегі|Homestyle flatbread
+Бездрожжевой Гречневый|Ашытқысыз қарақұмық наны|Yeast-free buckwheat bread
+Хлеб Арбатский|«Арбат» наны|Arbat bread
+Бездрожжевой серый|Ашытқысыз сұр нан|Yeast-free wheat and rye bread
+Багет с луком|Пияз қосылған багет|Onion baguette
+Батон Домашний зерновые|Дәнді үй батоны|Homestyle grain loaf
+Бездрожжевой ржаной|Ашытқысыз қарабидай наны|Yeast-free rye bread
+Булочка для Бургера|Бургерге арналған тоқаш|Burger bun
+Батон Домашний|Үй батоны|Homestyle loaf
+Булочка для хот-дога|Хот-догқа арналған тоқаш|Hot dog bun
+Трубочки вафельные|Вафли түтікшелері|Wafer rolls
+Чай симпа|Simpa шайы|Simpa tea
+Жапырақ шәй|Жапырақ шай|Loose leaf tea
+Вода Шымбулак 1л|Шымбұлақ суы, 1 л|Shymbulak water, 1 L
+Вода Шымбулак 0,5л|Шымбұлақ суы, 0,5 л|Shymbulak water, 0.5 L
+Сок DalaFruit яблоко 3л|DalaFruit алма шырыны, 3 л|DalaFruit apple juice, 3 L
+Яблочный сок дала фрут 0,3|DalaFruit алма шырыны, 0,3 л|DalaFruit apple juice, 0.3 L
+Жевательная резинка Орбит|Orbit сағызы|Orbit chewing gum
+Яблочный сок дала фрут 0,75л|DalaFruit алма шырыны, 0,75 л|DalaFruit apple juice, 0.75 L
+Пахлава|Пахлава|Baklava
+Пакет Булка|Bulka пакеті|Bulka bag
+Пряник|Пряник|Spiced cookie
+Слойка с творогом|Сүзбелі қаттама|Cottage cheese puff pastry
+Слойка с курагой|Кептірілген өрік қосылған қаттама|Dried apricot puff pastry
+Слойка с изюмом|Мейіз қосылған қаттама|Raisin puff pastry
+Датский с орехом|Жаңғақты дат тоқашы|Nut Danish pastry
+Круассан с белым шоколадом|Ақ шоколад қосылған круассан|White chocolate croissant
+Круассан со сгущенкой|Қоюлатылған сүт қосылған круассан|Condensed milk croissant
+Слойка с грецким орехом|Грек жаңғағы қосылған қаттама|Walnut puff pastry
+Круассан с сыром|Ірімшікті круассан|Cheese croissant
+Круассан мини|Шағын круассан|Mini croissant
+Круассан с шоколадом|Шоколадты круассан|Chocolate croissant
+Круассан без начинки|Салмасыз круассан|Plain croissant
+Слойка с маком|Көкнәр қосылған қаттама|Poppy seed puff pastry
+Датский с маком|Көкнәр қосылған дат тоқашы|Poppy seed Danish pastry
+Круассан с темным шоколадом|Қара шоколад қосылған круассан|Dark chocolate croissant
+Круассан с яблоком|Алма қосылған круассан|Apple croissant
+Круассан по 500т**|Круассан, 500 ₸|Croissant, 500 ₸
+Самбуса с брынзой|Брынза қосылған самбуса|Brined cheese sambusa
+Сырные палочки|Ірімшік таяқшалары|Cheese sticks
+Блины с начинками 2шт|Салмасы бар құймақ, 2 дана|Filled pancakes, 2 pcs
+Торт Наполеон Bulka|Bulka «Наполеон» торты|Bulka Napoleon cake
+Пирожки в ассортименте|Салмасы әртүрлі бәліштер|Assorted pirozhki
+Пицца в ассортименте|Пицца түрлері|Assorted pizza
+Десерт Фисташковый|Пістелі десерт|Pistachio dessert
+Хворост Bulka вес|Өлшенетін Bulka қытырлақ тәттісі|Bulka crispy pastry, by weight
+Пирожки с печенью|Бауыр салынған бәліштер|Liver pirozhki
+Пирог слоенный с ягодный начинкой|Жидек салмасы бар қаттама бәліш|Berry puff pastry pie
+Пирог сдобный с ягодный начинкой|Жидек салмасы бар тәтті бәліш|Sweet berry pie
+Коже|Көже|Kozhe drink
+Хлеб солодовый с семечками|Дән қосылған уыт наны|Malt bread with seeds
+Хлеб Отрубной|Кебекті нан|Bran bread
+Хлеб не содержащий глютен|Глютенсіз нан|Gluten-free bread
+Хлеб Королевский|«Корольдік» нан|Royal bread
+Хлеб 8 злаков|8 дәнді нан|Eight-grain bread
+Хлеб Ржаной|Қарабидай наны|Rye bread
+Хлеб Бородинский|Бородино наны|Borodinsky bread
+Багет Бородино|Бородино багеті|Borodino baguette
+Хлеб Гречневый|Қарақұмық наны|Buckwheat bread
+Турецкий Симит|Түрік симиті|Turkish simit
+Хлеб фитнес ржаной|Қарабидай фитнес наны|Fitness rye bread
+Десерт Фисташковый Рулет|Пістелі рулет десерті|Pistachio roll dessert
+Десерт Сникерс|Snickers десерті|Snickers dessert
+Десерт Саржан|«Саржан» десерті|Sarzhan dessert
+Десерт Медовик|Бал торты десерті|Honey cake dessert
+Десерт Орео|Oreo десерті|Oreo dessert
+Десерт Наполеон|«Наполеон» десерті|Napoleon dessert
+Десерт Тирамису|Тирамису десерті|Tiramisu dessert
+Десерт Молочная Девочка|«Молочная девочка» десерті|Milk Girl dessert
+Десерт Тары Чизкейк|Тары чизкейк десерті|Millet cheesecake dessert
+Кулич 180гр|Кулич, 180 г|Easter cake, 180 g
+Кулич с карамельной начинкой|Карамель салмасы бар кулич|Caramel-filled Easter cake
+Кулич 80гр по 450тг|Кулич, 80 г, 450 ₸|Easter cake, 80 g, 450 ₸
+Кулич бездрожевой с творогом 450г|Сүзбелі ашытқысыз кулич, 450 г|Yeast-free cottage cheese Easter cake, 450 g
+Кулич бездрожжевой 450гр|Ашытқысыз кулич, 450 г|Yeast-free Easter cake, 450 g
+Пирожки с капустой|Қырыққабат салынған бәліштер|Cabbage pirozhki
+Самса весовой|Өлшенетін самса|Samsa, by weight
+Сосиски мини вес|Өлшенетін шағын шұжықшалар|Mini sausages, by weight
+Самса с тыквой шт|Асқабақ қосылған самса, дана|Pumpkin samsa, per piece
+Самса с мясом|Етті самса|Meat samsa
+Самса с сыром|Ірімшікті самса|Cheese samsa
+Пирожки с ливером|Ішек-қарын салынған бәліштер|Offal pirozhki
+Кармашек с колбасой|Шұжық салынған қалташық|Sausage pastry pocket
+Пирожки с курицей и грибами|Тауық пен саңырауқұлақ салынған бәліштер|Chicken and mushroom pirozhki
+Сосиска в тесте Жареные|Қамырға оралған қуырылған шұжықша|Fried sausage in dough
+Курник|Тауық бәліші|Chicken pie
+Чебуреки весовой с картошкой|Картопты чебурек, өлшенетін|Potato chebureki, by weight
+Пирожки жаренные с картошкой|Картоп салынған қуырылған бәліштер|Fried potato pirozhki
+Беляши|Беляш|Belyashi meat buns
+Чебуреки шт|Чебурек, дана|Cheburek, per piece
+Лепешка с начинкой|Салмасы бар шелпек|Filled flatbread
+Бургер говяжий|Сиыр еті қосылған бургер|Beef burger
+Кутабы в ассортименте|Салмасы әртүрлі кутабтар|Assorted qutab flatbreads
+Пирожки с картошкой|Картоп салынған бәліштер|Potato pirozhki
+Чебуреки весовой с мясом|Етті чебурек, өлшенетін|Meat chebureki, by weight
+Самса с тыквой весовой|Асқабақты самса, өлшенетін|Pumpkin samsa, by weight
+Хот дог|Хот-дог|Hot dog
+Патир нан|Патыр нан|Patyr flatbread
+Боул с курицей|Тауық еті қосылған боул|Chicken bowl
+Соус шт|Тұздық, дана|Sauce, per portion
+Блины с начинкой 1шт|Салмасы бар құймақ, 1 дана|Filled pancake, 1 pc
+Хачапури с сыром|Ірімшікті хачапури|Cheese khachapuri
+Хачапури с мясом|Етті хачапури|Meat khachapuri
+Кекс Брауни|Брауни кексі|Brownie cake
+Пирог Трилече|Трилече бәліші|Tres leches cake
+Печенье Сочники|Сүзбелі сочниктер|Cottage cheese turnovers
+Мини пончики в стаканчике|Стақандағы шағын пончиктер|Mini doughnuts in a cup
+Пирог Молочный Микс|Сүтті бәліштер миксі|Milk cake assortment
+Пирог Восточный|«Шығыс» бәліші|Eastern-style cake
+Пирог Карамельный|Карамельді бәліш|Caramel cake
+Печенье вупи пай|Вупи-пай печеньесі|Whoopie pie cookies
+Профитроли|Профитрольдер|Profiteroles
+Десерт Милка|Milka десерті|Milka dessert
+Муравейник|«Құмырсқа илеуі» тәттісі|Anthill cake
+Пирог Орео|Oreo бәліші|Oreo cake
+Тары пирог|Тары бәліші|Millet pie
+Рулет Сникерс|Snickers рулеті|Snickers roll
+Пирог сладкий Микс №3|Тәтті бәліштер миксі №3|Sweet pie assortment no. 3
+Пирог Баноффи пай|Баноффи пай|Banoffee pie
+Чак Чак уп|Чәк-чәк, қаптама|Chak-chak, pack
+Пирог творожный|Сүзбелі бәліш|Cottage cheese pie
+Трубочка с кремом уп|Кремді түтікшелер, қаптама|Cream rolls, pack
+Рулет меренговый|Меренга рулеті|Meringue roll
+Пирог сладкий Микс №2|Тәтті бәліштер миксі №2|Sweet pie assortment no. 2
+Онигири с крабом|Краб қосылған онигири|Crab onigiri
+Онигири с лососем|Албырт қосылған онигири|Salmon onigiri
+Онигири с тунцом|Тунец қосылған онигири|Tuna onigiri
+Кимпаб с курицей|Тауық еті қосылған кимпаб|Chicken gimbap
+Онигири с запеченным лососем|Пісірілген албырт қосылған онигири|Baked salmon onigiri
+Онигири с креветкой|Асшаян қосылған онигири|Shrimp onigiri
+Кимпаб с тунцом|Тунец қосылған кимпаб|Tuna gimbap
+Панины с курицей|Тауық еті қосылған панини|Chicken panini
+Кимпаб с семгой|Албырт қосылған кимпаб|Salmon gimbap
+Хлеб наливной Живая Рожь|«Живая рожь» қалып наны|Zhivaya Rozh rye tin loaf
+Хлеб Бриошь|Бриошь наны|Brioche bread
+Пампушка с чесноком вес|Сарымсақты пампушка, өлшенетін|Garlic rolls, by weight
+Хлеб Рисовый|Күріш наны|Rice bread
+Самса с курицей и грибами|Тауық пен саңырауқұлақ қосылған самса|Chicken and mushroom samsa
+Клаб Сэндвич|Клаб-сэндвич|Club sandwich
+Самса со шпинатом|Саумалдық қосылған самса|Spinach samsa
+Сосиски мини весовой|Өлшенетін шағын шұжықшалар|Mini sausages, by weight
+Набор мини самса|Шағын самса жинағы|Mini samsa set
+Кутабы|Кутабтар|Qutab flatbreads
+Бургер|Бургер|Burger
+Сироп Кофе|Кофеге арналған шәрбат|Coffee syrup
+Қатқан шекер 240гр|Қатқан шекер, 240 г|Rock sugar, 240 g
+Құрт 150гр|Құрт, 150 г|Kurt dried cheese, 150 g
+Тары 200гр|Тары, 200 г|Millet, 200 g
+Талқан 200гр|Талқан, 200 г|Talkan roasted grain flour, 200 g
+Рафаэлло уп|Raffaello, қаптама|Raffaello, pack
+Сок DalaFruit яблоко 0.33|DalaFruit алма шырыны, 0,33 л|DalaFruit apple juice, 0.33 L
+Вода 1 л|Су, 1 л|Water, 1 L
+Имбирный шот|Зімбір шоты|Ginger shot
+Сок DalaFruit яблоко 0.75|DalaFruit алма шырыны, 0,75 л|DalaFruit apple juice, 0.75 L
+Вода 0.5|Су, 0,5 л|Water, 0.5 L
+Морс 1,5л|Жидек сусыны, 1,5 л|Berry drink, 1.5 L
+Компот 1,5л|Компот, 1,5 л|Fruit compote drink, 1.5 L
+Морс 0,5л|Жидек сусыны, 0,5 л|Berry drink, 0.5 L
+Компот 0,5|Компот, 0,5 л|Fruit compote drink, 0.5 L
+Дениш с заварным кремом|Қайнатылған крем қосылған дат тоқашы|Custard Danish pastry
+Булочка маковая|Көкнәрлі тоқаш|Poppy seed bun
+Пирог Маковый|Көкнәрлі бәліш|Poppy seed pie
+Булочка Лакомка шоколадная|Шоколадты «Лакомка» тоқашы|Chocolate Lakomka bun
+Чизкейк ватрушка|Чизкейк-ватрушка|Cheesecake pastry
+Сэндвич Круассан|Круассан-сэндвич|Croissant sandwich
+Слойка с корицей|Даршын қосылған қаттама|Cinnamon puff pastry
+Слойка с вишней|Шие қосылған қаттама|Cherry puff pastry
+Мини киш|Шағын киш|Mini quiche
+Мини-пирог Тары|Шағын тары бәліші|Mini millet pie
+Десерт Профитроли|Профитроль десерті|Profiterole dessert
+Торт Сникерс|Snickers торты|Snickers cake
+Торт Рафаэлло|Raffaello торты|Raffaello cake
+Торт Молочная девочка|«Молочная девочка» торты|Milk Girl cake
+Мини Медовик|Шағын бал торты|Mini honey cake
+Торт Пломбир|«Пломбир» торты|Plombir cake
+Микс Медовик-Наполеон|Бал торты мен «Наполеон» миксі|Honey cake and Napoleon assortment
+Мини молочная девочка|Шағын «Молочная девочка» торты|Mini Milk Girl cake
+Торт Нутелла|Nutella торты|Nutella cake
+Торт Наполеон микс|«Наполеон» торттары миксі|Napoleon cake assortment
+Торт Орео|Oreo торты|Oreo cake
+Бенто торт|Бенто торт|Bento cake
+Мини Наполеон|Шағын «Наполеон» торты|Mini Napoleon cake
+Торт Королевский|«Корольдік» торт|Royal cake
+Торт Медовик|Бал торты|Honey cake
+Блины|Құймақтар|Pancakes
+Бауырсак с маком|Көкнәр қосылған бауырсақ|Poppy seed baursak
+Пирог капуста с фаршем|Қырыққабат пен тартылған ет қосылған бәліш|Cabbage and minced meat pie
+Пирог с мясом|Етті бәліш|Meat pie
+Пирог курица с грибами|Тауық пен саңырауқұлақ қосылған бәліш|Chicken and mushroom pie
+Пирог курица с картошкой|Тауық пен картоп қосылған бәліш|Chicken and potato pie
+БУЛОЧКИ|Тоқаштар|Buns
+БЛИНЫ + БАУЫРСАК|Құймақтар мен бауырсақтар|Pancakes and baursak
+ПЕЧЕНЬЕ|Печенье|Cookies
+ТОРТЫ|Торттар|Cakes
+КОНДИТЕРКА|Кондитерлік өнімдер|Confectionery
+Хлеб на закваcке|Ашытпалы нан|Sourdough bread
+ХЛЕБА|Нан түрлері|Bread
+Товары привозные|Әкелінетін тауарлар|Packaged goods
+КРУАССАНЫ|Круассандар|Croissants
+ВЫПЕЧКА ЦЕХ|Пісірілген өнімдер|Bakery products
+НАПИТКИ|Сусындар|Drinks
+ХЛЕБ СЕРЫЙ|Сұр нан|Wheat and rye bread
+Десерты Булка|Bulka десерттері|Bulka desserts
+КУЛИЧ|Куличтер|Easter cakes
+BULKA bakery|BULKA bakery|BULKA bakery
+Онигири|Онигири|Onigiri
+ПИРОГИ МЯСНЫЕ|Етті бәліштер|Meat pies
+Онигири/Кимпаб|Онигири мен кимпаб|Onigiri and gimbap
+Хлеб|Нан|Bread
+Выпечка|Пісірілген өнімдер|Pastries
+Кофе|Кофе|Coffee
+АкДам|АқДәм|AkDam
+Привозной товар|Әкелінетін тауарлар|Packaged goods
+Булочка|Тоқаш|Bun
+Слойка|Қаттама|Puff pastry
+Десерт|Десерт|Dessert
+Блины/Бауырсак|Құймақтар мен бауырсақтар|Pancakes and baursak
+Пироги|Бәліштер|Pies
+Хлеб на закваске|Ашытпалы нан|Sourdough bread

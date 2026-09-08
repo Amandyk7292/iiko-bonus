@@ -540,9 +540,15 @@ ThemeData buildBulkaTheme() {
       ),
     ),
     bottomSheetTheme: const BottomSheetThemeData(
-      backgroundColor: Colors.transparent,
+      backgroundColor: Colors.white,
       surfaceTintColor: Colors.transparent,
-      modalBackgroundColor: Colors.transparent,
+      modalBackgroundColor: Colors.white,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(BulkaRadii.sheet),
+        ),
+      ),
     ),
     checkboxTheme: CheckboxThemeData(
       fillColor: WidgetStateProperty.resolveWith((states) {

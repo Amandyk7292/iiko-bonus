@@ -80,7 +80,7 @@ class _PurchaseSummary extends StatelessWidget {
                         ],
                         Expanded(
                           child: Text(
-                            _asString(item['name']),
+                            localizedOrderItemName(item),
                             style: const TextStyle(fontSize: 14),
                           ),
                         ),
@@ -160,22 +160,12 @@ class _PurchaseSummary extends StatelessWidget {
               leading: const Icon(Icons.receipt_long_outlined),
               title: Text('order_receipt'.tr),
               trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () async {
-                final uri = Uri.tryParse(order.receiptUrl!);
-                try {
-                  if (uri == null ||
-                      uri.scheme != 'https' ||
-                      !await launchUrl(uri, webOnlyWindowName: '_self')) {
-                    throw StateError('receipt');
-                  }
-                } catch (_) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('order_receipt_open_error'.tr)),
-                    );
-                  }
-                }
-              },
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) =>
+                      PaymentReceiptScreen(receiptUrl: order.receiptUrl!),
+                ),
+              ),
             ),
           ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 4),

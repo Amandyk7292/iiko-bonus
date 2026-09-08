@@ -8,7 +8,7 @@ Future<String?> showLanguageBottomSheet(
 
   return showModalBottomSheet<String>(
     context: context,
-    backgroundColor: Colors.transparent,
+    backgroundColor: Colors.white,
     isScrollControlled: true,
     barrierLabel: 'close_tooltip'.tr,
     builder: (context) {

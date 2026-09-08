@@ -216,7 +216,10 @@ class _LocationDirectoryScreenState extends State<LocationDirectoryScreen> {
                       children: [
                         for (final city in _cities)
                           ListTile(
-                            title: Text(city, style: _body(17)),
+                            title: Text(
+                              localizeCityName(city),
+                              style: _body(17),
+                            ),
                             trailing: city == _city
                                 ? const Icon(Icons.check, color: _cocoa)
                                 : null,
@@ -480,7 +483,7 @@ class _LocationDirectoryScreenState extends State<LocationDirectoryScreen> {
                   selectedPoint: null,
                   zoom: _zoom,
                   directoryMode: true,
-                  cityLabel: _city,
+                  cityLabel: localizeCityName(_city),
                   onCityTap: _chooseCity,
                   language: AppLang.current,
                   interactive: !_sheetOpen,

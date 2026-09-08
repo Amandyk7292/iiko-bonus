@@ -110,7 +110,7 @@ void main() {
       expect(find.textContaining('08:00 – 21:00'), findsWidgets);
       await tester.tap(find.byTooltip('close_btn'.tr));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Актау'));
+      await tester.tap(find.text(localizeCityName('Актау')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Алматы'));
       await tester.pumpAndSettle();

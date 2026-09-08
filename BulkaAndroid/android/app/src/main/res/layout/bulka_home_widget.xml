@@ -53,6 +53,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="7dp"
             android:importantForAccessibility="no"
+            android:id="@+id/widget_balance_label"
             android:text="@string/widget_balance_label"
             android:textAllCaps="true"
             android:textColor="@color/bulka_widget_muted"
@@ -144,6 +145,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:importantForAccessibility="no"
+            android:id="@+id/widget_signed_out_title"
             android:text="@string/widget_signed_out_title"
             android:textColor="@color/bulka_widget_text"
             android:textSize="18sp"
@@ -155,6 +157,7 @@
             android:layout_marginTop="4dp"
             android:importantForAccessibility="no"
             android:maxLines="2"
+            android:id="@+id/widget_signed_out_body"
             android:text="@string/widget_signed_out_body"
             android:textColor="@color/bulka_widget_muted"
             android:textSize="13sp" />

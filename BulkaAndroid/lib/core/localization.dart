@@ -20,6 +20,7 @@ class AppLang {
         : 'ru';
     appLanguageNotifier.value = lang;
     updateDocumentLanguage(lang);
+    unawaited(HomeWidgetSync.setLanguage(lang));
   }
 
   static Future<void> setLanguage(String code) async {
@@ -30,6 +31,7 @@ class AppLang {
     updateDocumentLanguage(next);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('app_lang_code', next);
+    unawaited(HomeWidgetSync.setLanguage(next));
   }
 
   static String codeFromName(String name) {
@@ -139,6 +141,7 @@ const Map<String, Map<String, String>> _appTranslations = {
   ..._locationTranslations,
   ..._accountTranslations,
   ..._orderAndPaymentTranslations,
+  ..._receiptTranslations,
 };
 
 String localizeCatalogOptionLabel(String value) {
@@ -285,6 +288,19 @@ String localizeTransactionType(String type, {required bool isEarning}) {
       return 'tx_cancelled_deposit'.tr;
     default:
       return isEarning ? 'tx_earning'.tr : 'tx_withdrawal'.tr;
+  }
+}
+
+String localizeCityName(String name) {
+  switch (name.trim().toLowerCase()) {
+    case 'актау':
+    case 'aktau':
+      return 'city_aktau'.tr;
+    case 'астана':
+    case 'astana':
+      return 'city_astana'.tr;
+    default:
+      return name;
   }
 }
 

@@ -433,4 +433,5 @@ const Map<String, Map<String, String>> _locationTranslations = {
     'en': 'Could not load locations.',
   },
   'city_astana': {'ru': 'Астана', 'kk': 'Астана', 'en': 'Astana'},
+  'city_aktau': {'ru': 'Актау', 'kk': 'Ақтау', 'en': 'Aktau'},
 };

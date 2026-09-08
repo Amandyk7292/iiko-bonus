@@ -83,6 +83,15 @@ class _YandexMapViewState extends State<YandexMapView> {
   @override
   void didUpdateWidget(covariant YandexMapView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.language != widget.language ||
+        oldWidget.directoryMode != widget.directoryMode) {
+      _ready = false;
+      _webController?.loadRequest(
+        Uri.parse(
+          '$yandexMapUrl?lang=${widget.language}&mode=${widget.directoryMode ? 'directory' : 'customer'}',
+        ),
+      );
+    }
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller.removeListener(_sendCommand);
       widget.controller.addListener(_sendCommand);

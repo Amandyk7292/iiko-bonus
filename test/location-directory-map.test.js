@@ -30,6 +30,8 @@ test('directory map localizes controls and retains safe map behavior', async (t)
     );
     const html = await response.text();
     assert.equal(response.status, 200);
+    assert.equal(response.headers.get('permissions-policy'), 'geolocation=()');
+    assert.ok(!html.includes('id="locate"'));
     assert.ok(html.includes(`aria-label="${label}"`));
     assert.ok(html.includes(`&lang=${locale}`));
     const inline = html.match(/<script nonce="test-nonce">([\s\S]*?)<\/script>/)[1];

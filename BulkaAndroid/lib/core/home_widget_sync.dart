@@ -34,11 +34,16 @@ abstract final class HomeWidgetSync {
     try {
       await initialize();
       await Future.wait([
+        HomeWidget.saveWidgetData<String>('widget_language', AppLang.current),
         HomeWidget.saveWidgetData<bool>('widget_is_signed_in', true),
         HomeWidget.saveWidgetData<double>('widget_balance', customer.balance),
         HomeWidget.saveWidgetData<String>(
           'widget_tier',
           customer.tier?.localizedName ?? '',
+        ),
+        HomeWidget.saveWidgetData<String>(
+          'widget_tier_translations',
+          jsonEncode(customer.tier?.localizedNames ?? const <String, String>{}),
         ),
         HomeWidget.saveWidgetData<String>('widget_order_id', activeOrder?.id),
         HomeWidget.saveWidgetData<int>(
@@ -74,9 +79,11 @@ abstract final class HomeWidgetSync {
     try {
       await initialize();
       await Future.wait([
+        HomeWidget.saveWidgetData<String>('widget_language', AppLang.current),
         HomeWidget.saveWidgetData<bool>('widget_is_signed_in', false),
         HomeWidget.saveWidgetData<double>('widget_balance', 0),
         HomeWidget.saveWidgetData<String>('widget_tier', null),
+        HomeWidget.saveWidgetData<String>('widget_tier_translations', null),
         HomeWidget.saveWidgetData<String>('widget_order_id', null),
         HomeWidget.saveWidgetData<int>('widget_order_number', null),
         HomeWidget.saveWidgetData<String>('widget_order_status', null),
@@ -159,4 +166,26 @@ abstract final class HomeWidgetSync {
     androidName: androidProvider,
     iOSName: iOSWidgetKind,
   );
+
+  static Future<void> setLanguage(String language) async {
+    if (!_supported) return;
+    try {
+      await initialize();
+      await HomeWidget.saveWidgetData<String>('widget_language', language);
+      final tier = await HomeWidget.getWidgetData<String>('widget_tier');
+      if (tier != null) {
+        final rawNames = await HomeWidget.getWidgetData<String>(
+          'widget_tier_translations',
+        );
+        final names = rawNames == null
+            ? const <String, dynamic>{}
+            : _asMap(jsonDecode(rawNames));
+        await HomeWidget.saveWidgetData<String>(
+          'widget_tier',
+          names[language]?.toString() ?? localizeTierName(tier),
+        );
+      }
+      await _reload();
+    } catch (_) {}
+  }
 }

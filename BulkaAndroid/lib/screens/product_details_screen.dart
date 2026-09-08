@@ -613,7 +613,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
         context: context,
         isScrollControlled: true,
         useSafeArea: true,
-        backgroundColor: Colors.transparent,
+        backgroundColor: Colors.white,
         barrierColor: Colors.black.withValues(alpha: 0.34),
         builder: (sheetContext) => FractionallySizedBox(
           heightFactor: 0.88,
@@ -811,7 +811,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.only(top: 12),

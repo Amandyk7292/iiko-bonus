@@ -45,7 +45,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       () async {
         final contacts = await _contactsRepository.load();
         if (!mounted) return;
-        setState(() => _contactsFuture = SynchronousFuture(contacts));
+        setState(() {
+          _contactsFuture = SynchronousFuture(contacts);
+        });
         if (_isAuthenticated) {
           final items = await widget.api.getNotifications();
           if (mounted) _showNotifications(items);

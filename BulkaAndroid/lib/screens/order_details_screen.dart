@@ -485,7 +485,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
                       padding: const EdgeInsets.symmetric(vertical: 7),
                       child: Row(
                         children: [
-                          Expanded(child: Text(_asString(item['name']))),
+                          Expanded(child: Text(localizedOrderItemName(item))),
                           Text(
                             '× ${_asInt(item['quantity'], fallback: 1)}',
                             style: const TextStyle(
@@ -526,23 +526,14 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
             ],
             if (_order.receiptUrl?.isNotEmpty == true) ...[
               OutlinedButton.icon(
-                onPressed: () async {
-                  final uri = Uri.tryParse(_order.receiptUrl!);
-                  var opened = false;
-                  try {
-                    opened =
-                        uri != null &&
-                        uri.scheme == 'https' &&
-                        await launchUrl(uri, webOnlyWindowName: '_self');
-                  } catch (_) {
-                    // Keep the order open when the browser cannot open a receipt.
-                  }
-                  if (!opened && context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('order_receipt_open_error'.tr)),
-                    );
-                  }
-                },
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => PaymentReceiptScreen(
+                      receiptUrl: _order.receiptUrl!,
+                      api: widget.api,
+                    ),
+                  ),
+                ),
                 icon: const Icon(Icons.receipt_long_outlined),
                 label: Text('order_receipt'.tr),
                 style: OutlinedButton.styleFrom(

@@ -91,7 +91,7 @@ Future<String?> showCustomerAvatarPicker(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
-    backgroundColor: Colors.transparent,
+    backgroundColor: Colors.white,
     barrierColor: Colors.black.withValues(alpha: 0.48),
     builder: (sheetContext) {
       final height = MediaQuery.sizeOf(sheetContext).height;
@@ -101,12 +101,17 @@ Future<String?> showCustomerAvatarPicker(
       return Container(
         height: min(height * 0.86, desiredHeight.toDouble()),
         decoration: const BoxDecoration(
-          color: Color(0xFFFFFCF7),
+          color: Colors.white,
           borderRadius: BorderRadius.vertical(
             top: Radius.circular(BulkaRadii.sheet),
           ),
         ),
-        padding: const EdgeInsets.fromLTRB(22, 14, 22, 20),
+        padding: EdgeInsets.fromLTRB(
+          22,
+          14,
+          22,
+          20 + MediaQuery.paddingOf(sheetContext).bottom,
+        ),
         child: Column(
           children: [
             Container(

@@ -5,6 +5,7 @@ const test = require('node:test');
 
 const {
   buildReceiptRecord,
+  customerPaymentReceipt,
   normalizeReceiptItems,
   paymentReceiptUrl,
   renderPaymentReceipt,
@@ -23,16 +24,24 @@ const nowMs = Date.parse('2026-07-25T10:00:00.000Z');
 const expiresAt = Math.floor(nowMs / 1000) + 3600;
 
 test('receipt totals preserve actual fractional payment, discount and delivery amounts', () => {
-  const record = buildReceiptRecord({
-    id: receiptId, order_number: 100501, amount: 1060.30,
-    cart_items: [{ id: 'drink', name: 'Лимонад', quantity: 1, price: 990 }],
-    created_at: '2026-09-07T10:00:00Z',
-  }, { provider: 'ForteBank', paymentSystem: 'Visa' });
-  const html = renderPaymentReceipt({ ...record, order: { discount_amount: 29.70, delivery_fee: 100 } }, 'ru');
+  const record = buildReceiptRecord(
+    {
+      id: receiptId,
+      order_number: 100501,
+      amount: 1060.3,
+      cart_items: [{ id: 'drink', name: 'Лимонад', quantity: 1, price: 990 }],
+      created_at: '2026-09-07T10:00:00Z',
+    },
+    { provider: 'ForteBank', paymentSystem: 'Visa' },
+  );
+  const html = renderPaymentReceipt(
+    { ...record, order: { discount_amount: 29.7, delivery_fee: 100 } },
+    'ru',
+  );
   assert.match(html, /Скидка<\/dt><dd>29,7/);
   assert.match(html, /Доставка<\/dt><dd>100/);
   assert.match(html, /grand-total[\s\S]*?1\s060,3/);
-  assert.match(html, /Visa<\/dt>/);
+  assert.match(html, /Оплачено картой<\/dt>/);
   assert.doesNotMatch(html, /Наличными|Написать отзыв/);
   const withoutOrder = renderPaymentReceipt(record, 'ru');
   assert.doesNotMatch(withoutOrder, /Скидка<\/dt>|Доставка<\/dt>/);
@@ -71,7 +80,7 @@ test('payment receipts stay in order details and are not queued to WhatsApp', ()
   assert.match(orderSource, /paymentReceiptUrl\(relation\.id/);
 });
 
-test('payment receipt contains bank-required fields without full card data', () => {
+test('customer receipt shows purchased items and payment card without merchant or provider panels', () => {
   const record = buildReceiptRecord(
     {
       id: '217615f9-b35f-4eb4-9f6d-777f2236bb25',
@@ -100,20 +109,13 @@ test('payment receipt contains bank-required fields without full card data', () 
     quantity: 2,
     unitPrice: 2400,
     lineTotal: 4800,
+    name_translations: { ru: '<Датский с маком>' },
   });
-  for (const label of [
-    'Номер заказа',
-    'Дата и время',
-    'Сумма и валюта',
-    'Платёжная система',
-    'Маска карты',
-    'Код авторизации',
-    'Код торговца',
-    'Состав заказа',
-  ]) {
+  for (const label of ['Номер заказа', 'Дата и время', 'Состав заказа']) {
     assert.match(html, new RegExp(label));
   }
-  assert.match(html, /411111••••••1111/);
+  assert.match(html, /Оплачено картой \*1111/);
+  assert.doesNotMatch(html, /Данные платежа и продавца|receipt-extra|411111|AUTH-1|MERCHANT-1/);
   assert.match(html, /&lt;Датский с маком&gt;/);
   assert.doesNotMatch(html, /4111111111111111/);
 
@@ -122,7 +124,7 @@ test('payment receipt contains bank-required fields without full card data', () 
     expiresAt,
   });
   assert.match(kazakh, /<html lang="kk">/);
-  assert.match(kazakh, /Төлем чегі/);
+  assert.match(kazakh, /Төлем түбіртегі/);
   assert.match(kazakh, /Тапсырыс құрамы/);
   assert.match(
     kazakh,
@@ -133,6 +135,40 @@ test('payment receipt contains bank-required fields without full card data', () 
   assert.match(english, /<html lang="en">/);
   assert.match(english, /Payment receipt/);
   assert.match(english, /Order items/);
+});
+
+test('native receipt data exposes only the paid order and recovers its own card suffix', () => {
+  const receipt = buildReceiptRecord({
+    id: receiptId,
+    order_number: 100039,
+    amount: 1060.3,
+    cart_items: [{ name: 'Плюшка Московская', quantity: 2, price: 495 }],
+    created_at: '2026-09-08T10:00:00Z',
+    payment_method: 'forte_card',
+  });
+  const data = customerPaymentReceipt({
+    ...receipt,
+    payment_system: 'forte_widget',
+    order: {
+      provider_card_last_four: '1328',
+      discount_amount: 29.7,
+      delivery_fee: 100,
+    },
+  });
+  assert.equal(data.cardLastFour, '1328');
+  assert.equal(data.amount, 1060.3);
+  assert.equal(data.items[0].name_translations.en, 'Moscow sugar bun');
+  assert.equal(data.items[0].lineTotal, 990);
+  assert.equal(data.discount, 29.7);
+  assert.doesNotMatch(
+    JSON.stringify(data),
+    /forte_widget|merchant|authorization|customer_id|card_first_six/,
+  );
+  assert.equal(customerPaymentReceipt(receipt).cardLastFour, null);
+  assert.equal(
+    customerPaymentReceipt({ ...receipt, card_last_four: '1234567890123456' }).cardLastFour,
+    null,
+  );
 });
 
 test('canonical Forte payment migration adds reconciliation-safe metadata', () => {

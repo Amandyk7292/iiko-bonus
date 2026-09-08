@@ -10,7 +10,7 @@ class TransactionCard extends StatelessWidget {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.transparent,
+      backgroundColor: Colors.white,
       isScrollControlled: true,
       builder: (context) {
         return Container(
@@ -20,7 +20,12 @@ class TransactionCard extends StatelessWidget {
               top: Radius.circular(BulkaRadii.card),
             ),
           ),
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.fromLTRB(
+            24,
+            24,
+            24,
+            24 + MediaQuery.paddingOf(context).bottom,
+          ),
           constraints: BoxConstraints(
             maxHeight: MediaQuery.of(context).size.height * 0.8,
           ),
@@ -67,10 +72,7 @@ class TransactionCard extends StatelessWidget {
                       Divider(color: _almond.withValues(alpha: 0.3)),
                   itemBuilder: (context, index) {
                     final item = _asMap(transaction.items![index]);
-                    final name = _asString(
-                      item['name'],
-                      fallback: 'product_fallback'.tr,
-                    );
+                    final name = localizedOrderItemName(item);
                     final qty = item['amount'] ?? item['quantity'] ?? 1;
                     final price = item['sum'] ?? item['price'] ?? 0;
                     return Padding(

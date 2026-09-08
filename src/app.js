@@ -30,6 +30,7 @@ const {
   getPaymentReceipt,
   normalizeReceiptLanguage,
   renderPaymentReceipt,
+  customerPaymentReceipt,
   verifyReceiptSignature,
 } = require('./services/payment-receipt.service');
 const {
@@ -391,7 +392,7 @@ app.get('/payment-receipts/:receiptId', async (req, res, next) => {
     const language = normalizeReceiptLanguage(req.query.lang);
     const errors = {
       ru: { invalid: 'Ссылка на чек недействительна', missing: 'Чек не найден' },
-      kk: { invalid: 'Чек сілтемесі жарамсыз', missing: 'Чек табылмады' },
+      kk: { invalid: 'Түбіртек сілтемесі жарамсыз', missing: 'Түбіртек табылмады' },
       en: { invalid: 'The receipt link is invalid', missing: 'Receipt not found' },
     }[language];
     res.set({
@@ -414,6 +415,10 @@ app.get('/payment-receipts/:receiptId', async (req, res, next) => {
     if (!receipt) return res.status(404).type('text/plain').send(errors.missing);
     const receiptLanguage = normalizeReceiptLanguage(lang || receipt.language);
     res.setHeader('Content-Language', receiptLanguage);
+    res.vary('Accept');
+    if (req.accepts(['html', 'json']) === 'json') {
+      return res.json({ success: true, receipt: customerPaymentReceipt(receipt) });
+    }
     res.set({
       'Content-Disposition': `inline; filename="bulka-receipt-${receipt.order_number}.html"`,
     });

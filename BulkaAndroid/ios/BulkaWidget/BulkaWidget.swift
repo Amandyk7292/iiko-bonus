@@ -214,7 +214,7 @@ private struct BulkaWidgetView: View {
         let status = statusText(entry.orderStatus)
         guard let eta = entry.orderEta else { return status }
         let formatter = DateFormatter()
-        formatter.locale = Locale.current
+        formatter.locale = widgetLocale
         formatter.dateFormat = "HH:mm"
         return localized(
             "\(status) · к \(formatter.string(from: eta))",
@@ -272,8 +272,14 @@ private enum BulkaWidgetPalette {
     static let gold = Color(red: 0.96, green: 0.80, blue: 0.38)
 }
 
+private var widgetLocale: Locale {
+    guard let language = UserDefaults(suiteName: appGroupId)?.string(forKey: "widget_language"),
+          ["ru", "kk", "en"].contains(language) else { return Locale.current }
+    return Locale(identifier: language)
+}
+
 private func localized(_ russian: String, _ kazakh: String, _ english: String) -> String {
-    switch Locale.current.languageCode {
+    switch widgetLocale.languageCode {
     case "ru": return russian
     case "kk": return kazakh
     default: return english
@@ -282,7 +288,7 @@ private func localized(_ russian: String, _ kazakh: String, _ english: String) -
 
 private func formattedBalance(_ value: Double) -> String {
     let formatter = NumberFormatter()
-    formatter.locale = Locale.current
+    formatter.locale = widgetLocale
     formatter.numberStyle = .decimal
     formatter.minimumFractionDigits = 0
     formatter.maximumFractionDigits = value.rounded() == value ? 0 : 2
