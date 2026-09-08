@@ -55,6 +55,11 @@ dependencies:
   cached_network_image: ^3.4.1
   screen_brightness: ^2.1.11
   wakelock_plus: ^1.6.1
+  share_plus: 13.3.0
+  record: 6.1.0
+  just_audio: 0.10.6
+  path_provider: ^2.1.6
+  file_selector: ^1.1.0
 
 dev_dependencies:
   flutter_test:
@@ -79,6 +84,7 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/audio/
     - assets/brand/
     - assets/order/
     - assets/categories/
