@@ -24,7 +24,7 @@
   cursor: default;
   opacity: 0.5;
 }
-.id-dashboard button:hover:not(:disabled) {
+.id-dashboard button:hover:not(:disabled):not(.id-metric) {
   background: var(--id-tint);
 }
 .id-dashboard button:focus-visible,
