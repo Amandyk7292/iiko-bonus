@@ -352,7 +352,7 @@ struct BulkaOrderLiveActivity: Widget {
                 DynamicIslandExpandedRegion(.bottom) {
                     VStack(alignment: .leading, spacing: 7) {
                         HStack {
-                            Text(statusText(context.state.status))
+                            Text(statusText(context.state.deliveryStatus == "unassigned" ? context.state.orderStatus : context.state.deliveryStatus))
                                 .font(.system(size: 13, weight: .semibold))
                             Spacer()
                             if !context.state.courierName.isEmpty {
@@ -400,7 +400,7 @@ private struct BulkaLiveOrderView: View {
             }
             HStack(alignment: .center, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(statusText(context.state.status))
+                    Text(statusText(context.state.deliveryStatus == "unassigned" ? context.state.orderStatus : context.state.deliveryStatus))
                         .font(.system(size: 20, weight: .bold, design: .rounded))
                         .foregroundStyle(BulkaWidgetPalette.text)
                     if !context.attributes.branch.isEmpty {
@@ -421,9 +421,9 @@ private struct BulkaLiveOrderView: View {
         .padding(16)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(localized(
-            "Заказ №\(context.attributes.orderNumber). \(statusText(context.state.status))",
-            "№\(context.attributes.orderNumber) тапсырыс. \(statusText(context.state.status))",
-            "Order #\(context.attributes.orderNumber). \(statusText(context.state.status))"
+            "Заказ №\(context.attributes.orderNumber). \(statusText(context.state.deliveryStatus == "unassigned" ? context.state.orderStatus : context.state.deliveryStatus))",
+            "№\(context.attributes.orderNumber) тапсырыс. \(statusText(context.state.deliveryStatus == "unassigned" ? context.state.orderStatus : context.state.deliveryStatus))",
+            "Order #\(context.attributes.orderNumber). \(statusText(context.state.deliveryStatus == "unassigned" ? context.state.orderStatus : context.state.deliveryStatus))"
         ))
     }
 }
@@ -436,7 +436,7 @@ private func liveEta(_ eta: Date?, compact: Bool) -> some View {
             .font(.system(size: compact ? 12 : 17, weight: .bold, design: .rounded))
             .foregroundStyle(BulkaWidgetPalette.gold)
     } else {
-        Text(localized("Скоро", "Жақында", "Soon"))
+        Text(localized("Уточняем", "Нақтылауда", "Updating"))
             .font(.system(size: compact ? 12 : 17, weight: .bold, design: .rounded))
             .foregroundStyle(BulkaWidgetPalette.gold)
     }

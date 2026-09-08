@@ -28,6 +28,15 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getBool(BulkaWelcomeGate.completedKey), isTrue);
       expect(prefs.getString('app_lang_code'), 'kk');
+      expect(
+        find.byKey(const ValueKey('permission-welcome-title')),
+        findsOneWidget,
+      );
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('permissions-continue')),
+      );
+      await tester.tap(find.byKey(const ValueKey('permissions-continue')));
+      await tester.pumpAndSettle();
       expect(find.text('customer-home'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
       await tester.pumpWidget(const BulkaWelcomeGate(child: child));

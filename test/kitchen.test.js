@@ -34,7 +34,8 @@ function loadKitchen(
           select() {
             return this;
           },
-          eq() {
+          eq(column, value) {
+            assert.notEqual(value, null, `Invalid equality filter: ${column}`);
             return this;
           },
           is() {
@@ -318,23 +319,21 @@ test('kitchen cannot hand food to a non-automobile courier', async (t) => {
   assert.equal(getOrder().kitchen_status, 'ready');
 });
 
-test('queued order cannot start until manual iikoFront entry is explicitly confirmed', async (t) => {
-  const { service, events, getOrder } = loadKitchen(t, baseOrder());
-
-  await assert.rejects(
-    () => service.updateKitchenStatus(ORDER_ID, 'preparing', 15),
-    (error) => error.statusCode === 409 && /iikoFront/i.test(error.message),
-  );
-  assert.equal(getOrder().kitchen_status, 'queued');
-  assert.equal(
-    events.some(([name]) => name === 'update-filters'),
-    false,
-  );
-
-  const accepted = await service.updateKitchenStatus(ORDER_ID, 'preparing', 15, {
-    iikoManualEntryConfirmed: true,
-  });
+test('queued order accepts manual processing without a repeated confirmation', async (t) => {
+  const { service, getOrder } = loadKitchen(t, baseOrder());
+  const accepted = await service.updateKitchenStatus(ORDER_ID, 'preparing', 15);
   assert.equal(accepted.kitchenStatus, 'preparing');
+  assert.equal(getOrder().preparation_minutes, 15);
+});
+
+test('legacy order without a branch preserves actor audit without a null UUID device query', async (t) => {
+  const { service, getOrder } = loadKitchen(t, { ...baseOrder(), branch_id: null });
+  await service.updateKitchenStatus(ORDER_ID, 'preparing', 15, {
+    admin: { sub: 'operator', jti: 'session-audit' },
+  });
+  assert.equal(getOrder().staff_accepted_by, 'operator');
+  assert.ok(getOrder().staff_accepted_session_jti_hash);
+  assert.equal(getOrder().staff_accepted_installation_id, null);
 });
 
 test('acceptance audit derives its actor and one current iPad from the authenticated session', async (t) => {

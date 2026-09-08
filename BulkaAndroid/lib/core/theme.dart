@@ -168,11 +168,16 @@ abstract final class BulkaLayout {
   static double safeBottomInset(BuildContext context) {
     // Safari already removes its browser toolbar from the visual viewport.
     // Applying the same inset again inside Flutter creates a blank strip.
-    return kIsWeb ? 0 : MediaQuery.paddingOf(context).bottom;
+    // extendBody adds the navigation height to padding; only viewPadding
+    // represents the physical safe area and avoids reserving the bar twice.
+    return kIsWeb ? 0 : MediaQuery.viewPaddingOf(context).bottom;
   }
 
   static double bottomNavigationExtent(BuildContext context) {
-    return navigationBarHeight(context) + safeBottomInset(context);
+    return max(
+      navigationBarHeight(context) + safeBottomInset(context),
+      MediaQuery.paddingOf(context).bottom,
+    );
   }
 
   static double bottomNavContentInset(BuildContext context) {

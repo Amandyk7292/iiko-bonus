@@ -457,9 +457,7 @@ function validateDeliveryOrder(order, config = getConfig()) {
       'DELIVERY_COORDINATES_REQUIRED',
     );
   }
-  const customerPhone = normalizeKazakhstanPhone(
-    order.customers?.phone || order.phone || order.additional_phone,
-  );
+  const customerPhone = normalizeKazakhstanPhone(order.customers?.phone || order.phone);
   if (!customerPhone)
     throw deliveryError(
       'У клиента не найден зарегистрированный телефон приложения. Курьер не вызван.',
@@ -529,7 +527,13 @@ function buildClaimPayload(order, config = getConfig()) {
     160,
   );
   const comment = boundedString(
-    [destination.comment, order.comment].filter(Boolean).join('. '),
+    [
+      destination.house ? `Дом ${boundedString(destination.house, 30)}` : '',
+      destination.comment,
+      order.comment,
+    ]
+      .filter(Boolean)
+      .join('. '),
     500,
   );
   const itemSummary = orderItemsSummary(order);

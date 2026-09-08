@@ -64,18 +64,10 @@ const kitchenStatusBodySchema = z
     status: z.enum(['queued', 'preparing', 'ready', 'handed_over', 'cancelled']),
     preparationMinutes: z.coerce.number().int().min(1).max(1440).nullable().optional(),
     cancellationReason: z.string().trim().max(500).optional(),
-    iikoManualEntryConfirmed: z.literal(true).optional(),
+    // Accepted for older installed clients; manual entry no longer gates acceptance.
+    iikoManualEntryConfirmed: z.boolean().optional(),
   })
-  .strict()
-  .superRefine((value, context) => {
-    if (value.status === 'preparing' && value.iikoManualEntryConfirmed !== true) {
-      context.addIssue({
-        code: 'custom',
-        path: ['iikoManualEntryConfirmed'],
-        message: 'Подтвердите ручное внесение заказа в iikoFront',
-      });
-    }
-  });
+  .strict();
 
 const auditLogQuerySchema = z
   .object({

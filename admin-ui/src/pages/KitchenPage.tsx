@@ -147,7 +147,6 @@ export default function KitchenPage() {
   const savingIdsRef = useRef(new Set<string>());
   const [preparationOrder, setPreparationOrder] = useState<any | null>(null);
   const [preparationMinutes, setPreparationMinutes] = useState('30');
-  const [iikoManualEntryConfirmed, setIikoManualEntryConfirmed] = useState(false);
   const [, setTick] = useState(0);
   const loadRequestRef = useRef(0);
   const appliedLoadRequestRef = useRef(0);
@@ -350,7 +349,6 @@ export default function KitchenPage() {
     if (next === 'preparing') {
       setPreparationOrder(order);
       setPreparationMinutes(String(order.preparationMinutes || 30));
-      setIikoManualEntryConfirmed(false);
       return;
     }
     void persistUpdate(order, next);
@@ -358,22 +356,19 @@ export default function KitchenPage() {
 
   const submitPreparation = async (event: FormEvent) => {
     event.preventDefault();
-    if (!preparationOrder || modalSaving || !iikoManualEntryConfirmed) return;
+    if (!preparationOrder || modalSaving) return;
     const minutes = Number(preparationMinutes);
     if (!Number.isFinite(minutes) || minutes < 1 || minutes > 240) return;
     const order = preparationOrder;
     setPreparationOrder(null);
-    if (!(await persistUpdate(order, 'preparing', minutes, true))) {
+    if (!(await persistUpdate(order, 'preparing', minutes))) {
       setPreparationOrder(order);
-    } else {
-      setIikoManualEntryConfirmed(false);
     }
   };
 
   const closePreparation = () => {
     if (modalSaving) return;
     setPreparationOrder(null);
-    setIikoManualEntryConfirmed(false);
   };
 
   const lateCount = orders.filter(
@@ -455,8 +450,7 @@ export default function KitchenPage() {
         </section>
       )}
       <div className="page-actions-row">
-        <div>
-        </div>
+        <div></div>
         <div className="action-cluster">
           <span className={`status-pill ${lateCount ? 'status-danger' : 'status-active'}`}>
             {t('kitchen.overdue', { count: lateCount })}
@@ -750,18 +744,6 @@ export default function KitchenPage() {
               </span>
             </div>
           )}
-          <label className="form-section inline-alert kitchen-iiko-confirmation cursor-pointer">
-            <input
-              type="checkbox"
-              checked={iikoManualEntryConfirmed}
-              onChange={(event) => setIikoManualEntryConfirmed(event.target.checked)}
-              required
-            />
-            <span className="grid gap-1">
-              <strong>{t('kitchen.iikoConfirmation')}</strong>
-              <small>{t('kitchen.iikoConfirmationHint')}</small>
-            </span>
-          </label>
           <div className="modal-actions">
             <button
               type="button"
@@ -774,7 +756,7 @@ export default function KitchenPage() {
             <button
               type="submit"
               className="btn-classic px-5 min-h-12 inline-flex items-center gap-2"
-              disabled={modalSaving || !iikoManualEntryConfirmed}
+              disabled={modalSaving}
             >
               {modalSaving && <LoaderCircle aria-hidden="true" className="spin" size={17} />}
               {t('kitchen.actionStart')}

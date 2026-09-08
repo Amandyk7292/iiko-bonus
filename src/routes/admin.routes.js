@@ -1445,7 +1445,7 @@ router.get('/admin/api/kitchen', async (req, res) => {
 router.patch(
   '/admin/api/kitchen/:id/status',
   validateRequest({ params: orderParamsSchema, body: kitchenStatusBodySchema }),
-  async (req, res) => {
+  async (req, res, next) => {
     try {
       const order = await kitchenService.updateKitchenStatus(
         req.params.id,
@@ -1475,7 +1475,7 @@ router.patch(
         order,
       });
     } catch (error) {
-      res.status(error.statusCode || 500).json({ success: false, error: error.message });
+      next(error);
     }
   },
 );

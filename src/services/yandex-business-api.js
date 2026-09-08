@@ -432,7 +432,11 @@ function buildBusinessRoute(order, input = {}) {
       ? order.delivery_address
       : { address: order?.delivery_address };
   const destinationCity = rawDestination.city || branch.city;
-  const courierComment = [rawDestination.comment, order?.comment]
+  const courierComment = [
+    rawDestination.house ? `Дом ${boundedString(rawDestination.house, 30)}` : '',
+    rawDestination.comment,
+    order?.comment,
+  ]
     .map((value) => boundedString(value, 300))
     .filter(Boolean)
     .join('. ')
@@ -457,7 +461,7 @@ function buildBusinessRoute(order, input = {}) {
       porchnumber: rawDestination.entrance || rawDestination.porch,
       premisenumber: rawDestination.premisenumber,
       extra_data: {
-        contact_phone: order?.additional_phone || order?.phone || order?.customers?.phone,
+        contact_phone: order?.customers?.phone || order?.phone,
         floor: rawDestination.floor,
         apartment: rawDestination.apartment || rawDestination.flat,
         comment: courierComment,

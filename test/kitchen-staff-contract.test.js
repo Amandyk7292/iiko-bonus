@@ -5,26 +5,21 @@ const test = require('node:test');
 
 const { kitchenStatusBodySchema } = require('../src/contracts/backend-safety.contract');
 
-test('preparing contract requires an explicit boolean iikoFront confirmation', () => {
-  for (const body of [
-    { status: 'preparing' },
-    { status: 'preparing', iikoManualEntryConfirmed: false },
-    { status: 'preparing', iikoManualEntryConfirmed: 'true' },
-  ]) {
-    const result = kitchenStatusBodySchema.safeParse(body);
-    assert.equal(result.success, false);
-    assert.ok(
-      result.error.issues.some((issue) => issue.path.join('.') === 'iikoManualEntryConfirmed'),
+test('preparing accepts current and older clients without requiring manual confirmation', () => {
+  for (const confirmation of [undefined, false, true]) {
+    assert.equal(
+      kitchenStatusBodySchema.safeParse({
+        status: 'preparing',
+        preparationMinutes: 20,
+        iikoManualEntryConfirmed: confirmation,
+      }).success,
+      true,
     );
   }
-
   assert.equal(
-    kitchenStatusBodySchema.safeParse({
-      status: 'preparing',
-      preparationMinutes: 20,
-      iikoManualEntryConfirmed: true,
-    }).success,
-    true,
+    kitchenStatusBodySchema.safeParse({ status: 'preparing', iikoManualEntryConfirmed: 'true' })
+      .success,
+    false,
   );
   assert.equal(kitchenStatusBodySchema.safeParse({ status: 'ready' }).success, true);
 });

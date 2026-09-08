@@ -60,7 +60,10 @@ abstract final class OrderLiveStatus {
 
   static Future<void> sync(CustomerOrder? order) async {
     if (kIsWeb) return;
-    if (order == null || order.isClosed || !(await _ordersEnabled())) {
+    if (order == null ||
+        order.paymentStatus != 'paid' ||
+        order.isClosed ||
+        !(await _ordersEnabled())) {
       await clear(order: order);
       return;
     }
@@ -70,6 +73,7 @@ abstract final class OrderLiveStatus {
       'orderNumber': order.number,
       'branch': order.branch,
       'status': _status(order),
+      'paymentStatus': order.paymentStatus,
       'orderStatus': order.orderStatus,
       'deliveryStatus': order.deliveryStatus,
       'fulfillmentType': order.effectiveFulfillmentType,
@@ -80,9 +84,9 @@ abstract final class OrderLiveStatus {
     };
     final encoded = jsonEncode(payload);
     if (_lastPayload == encoded) return;
-    _lastPayload = encoded;
     try {
       await _channel.invokeMethod<void>('updateOrderStatus', payload);
+      _lastPayload = encoded;
     } catch (error) {
       debugPrint('Native order status unavailable: $error');
     }
@@ -93,6 +97,7 @@ abstract final class OrderLiveStatus {
     _lastPayload = null;
     try {
       await _channel.invokeMethod<void>('clearOrderStatus', {
+        'dismissImmediately': order == null || order.paymentStatus != 'paid',
         if (order != null) ...{
           'orderId': order.id,
           'orderNumber': order.number,

@@ -60,6 +60,12 @@ struct BulkaOrderActivityAttributes: ActivityAttributes {
       let orderNumber = payload["orderNumber"] as? Int
     else { return }
 
+    guard payload["paymentStatus"] as? String == "paid" else {
+      var dismissal = payload
+      dismissal["dismissImmediately"] = true
+      endOrderActivity(dismissal)
+      return
+    }
     let content = activityContent(payload)
     if let activity = Activity<BulkaOrderActivityAttributes>.activities.first(
       where: { $0.attributes.orderId == orderId }
@@ -95,7 +101,7 @@ struct BulkaOrderActivityAttributes: ActivityAttributes {
     let content = activityContent(payload)
     for activity in activities {
       Task {
-        await activity.end(content, dismissalPolicy: .after(Date().addingTimeInterval(300)))
+        await activity.end(content, dismissalPolicy: payload["dismissImmediately"] as? Bool == true ? .immediate : .after(Date().addingTimeInterval(300)))
       }
     }
   }

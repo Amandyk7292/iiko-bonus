@@ -165,7 +165,7 @@ async function resolveAcceptanceAudit(admin, branchId, now) {
     .trim()
     .slice(0, 160);
   const jti = String(admin?.jti || '').trim();
-  if (!acceptedBy || !jti) {
+  if (!acceptedBy || !jti || !branchId) {
     return {
       acceptedBy: acceptedBy || null,
       acceptedSessionHash: jti ? sessionHash(jti) : null,
@@ -258,7 +258,7 @@ async function updateKitchenStatus(
   orderId,
   nextStatus,
   preparationMinutes = null,
-  { branchIds = [], cancellationReason = '', iikoManualEntryConfirmed = false, admin = null } = {},
+  { branchIds = [], cancellationReason = '', admin = null } = {},
 ) {
   if (!Object.hasOwn(TRANSITIONS, nextStatus)) throw kitchenError('Некорректный статус кухни');
   const { data: current, error: readError } = await supabase
@@ -283,9 +283,6 @@ async function updateKitchenStatus(
   }
   if (!(TRANSITIONS[from] || []).includes(nextStatus)) {
     throw kitchenError(`Нельзя изменить «${from}» на «${nextStatus}»`, 409);
-  }
-  if (from === 'queued' && nextStatus === 'preparing' && iikoManualEntryConfirmed !== true) {
-    throw kitchenError('Подтвердите ручное внесение заказа в iikoFront', 409);
   }
   if (nextStatus === 'handed_over' && isDeliveryFulfillment(current)) {
     await assertAutomobileCourierForHandoff(current);

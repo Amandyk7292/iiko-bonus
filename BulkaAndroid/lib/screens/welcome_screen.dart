@@ -63,7 +63,7 @@ class _BulkaWelcomeGateState extends State<BulkaWelcomeGate> {
 
   @override
   Widget build(BuildContext context) {
-    if (_completed == true) return widget.child;
+    if (_completed == true) return BulkaPermissionGate(child: widget.child);
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       locale: Locale(_language),

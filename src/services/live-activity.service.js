@@ -86,12 +86,15 @@ async function registerLiveActivityToken(customerId, payload = {}) {
     throw liveActivityError('Не хватает данных Live Activity');
   const { data: order, error: orderError } = await supabase
     .from('kaspi_orders')
-    .select('id')
+    .select('id,status,fulfillment_status')
     .eq('id', orderId)
     .eq('customer_id', customerId)
     .maybeSingle();
   if (orderError) throw orderError;
   if (!order) throw liveActivityError('Заказ не найден', 404);
+  if (order.status !== 'paid' || ['completed', 'cancelled'].includes(order.fulfillment_status)) {
+    throw liveActivityError('Нет активного оплаченного заказа', 409);
+  }
   const now = new Date().toISOString();
   const { data, error } = await supabase
     .from('customer_live_activity_tokens')
@@ -165,6 +168,7 @@ function sendApnsRequest({ token, environment, payload, config }) {
 
 async function sendOrderLiveActivity(order, { end = false } = {}) {
   if (!order?.id) return { attempted: 0, delivered: 0, skipped: 'order' };
+  if (order.status !== 'paid') end = true;
   const config = apnsConfiguration();
   if (!config) return { attempted: 0, delivered: 0, skipped: 'configuration' };
   const { data: tokens, error } = await supabase
@@ -184,7 +188,7 @@ async function sendOrderLiveActivity(order, { end = false } = {}) {
       timestamp,
       event: end ? 'end' : 'update',
       'content-state': buildContentState(order),
-      ...(end ? { 'dismissal-date': timestamp + 300 } : {}),
+      ...(end ? { 'dismissal-date': order.status === 'paid' ? timestamp + 300 : timestamp } : {}),
     },
   };
   const results = await Promise.all(

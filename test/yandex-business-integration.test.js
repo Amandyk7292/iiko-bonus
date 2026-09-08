@@ -1112,7 +1112,7 @@ test('route, address, and customer contact changes invalidate a Business quote f
     {
       label: 'customer contact',
       apply(order) {
-        order.additional_phone = '+77005554433';
+        order.customers.phone = '+77005554433';
       },
     },
   ];

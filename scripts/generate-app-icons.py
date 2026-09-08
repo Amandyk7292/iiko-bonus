@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from PIL import Image, ImageFilter
+from PIL import Image
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -15,36 +15,8 @@ BRAND = APP / "assets" / "brand"
 MASTER_SIZE = 1024
 
 
-def _blend(start: tuple[int, int, int], end: tuple[int, int, int], amount: float):
-    return tuple(round(a + (b - a) * amount) for a, b in zip(start, end))
-
-
 def _background() -> Image.Image:
-    top = (255, 220, 112)
-    middle = (255, 184, 20)
-    bottom = (222, 126, 10)
-    stops = []
-    for y in range(MASTER_SIZE):
-        position = y / (MASTER_SIZE - 1)
-        if position < 0.56:
-            color = _blend(top, middle, position / 0.56)
-        else:
-            color = _blend(middle, bottom, (position - 0.56) / 0.44)
-        stops.append(color)
-    base = Image.new("RGB", (1, MASTER_SIZE))
-    base.putdata(stops)
-    base = base.resize((MASTER_SIZE, MASTER_SIZE))
-
-    glow_mask = Image.new("L", base.size)
-    glow_mask.paste(170, (-190, -230, 670, 620))
-    glow_mask = glow_mask.filter(ImageFilter.GaussianBlur(150))
-    glow = Image.new("RGB", base.size, (255, 246, 190))
-    base = Image.composite(glow, base, glow_mask)
-
-    vignette = Image.radial_gradient("L").resize(base.size, Image.Resampling.LANCZOS)
-    vignette = vignette.point(lambda value: round(value * 0.22))
-    cocoa = Image.new("RGB", base.size, (91, 42, 17))
-    return Image.composite(cocoa, base, vignette)
+    return Image.new("RGB", (MASTER_SIZE, MASTER_SIZE), "#FFB300")
 
 
 def _fit_width(mask: Image.Image, width: int) -> Image.Image:

@@ -149,15 +149,11 @@ describe('Kitchen optimistic workflow', () => {
     await user.type(minutes, '12');
     const dialog = screen.getByRole('dialog');
     const acceptButton = within(dialog).getByRole('button', { name: 'Принять заказ' });
-    expect(acceptButton).toBeDisabled();
-    await user.click(
-      within(dialog).getByRole('checkbox', {
-        name: /Заказ пробит вручную в iikoFront/,
-      }),
-    );
+    expect(acceptButton).toBeEnabled();
+    expect(within(dialog).queryByRole('checkbox')).not.toBeInTheDocument();
     await user.click(acceptButton);
 
-    expect(apiMocks.updateKitchenStatus).toHaveBeenCalledWith('queued-1', 'preparing', 12, true);
+    expect(apiMocks.updateKitchenStatus).toHaveBeenCalledWith('queued-1', 'preparing', 12, false);
     expect(screen.getByRole('alert')).toHaveTextContent('Не приняты оплаченные заказы: 1');
     expect(realtimeMocks.stopOrderAlarm).not.toHaveBeenCalled();
     let queuedColumn = screen.getByText('Новые заказы').closest<HTMLElement>('.kitchen-column');
@@ -229,7 +225,7 @@ describe('Kitchen optimistic workflow', () => {
     expect(screen.getAllByText('Заказов нет')).toHaveLength(3);
   });
 
-  it('explains delivery dispatch and requires manual iikoFront entry before acceptance', async () => {
+  it('explains delivery dispatch and accepts without a manual-entry checkbox', async () => {
     const user = userEvent.setup();
     const deliveryOrder = {
       ...queuedOrder,
@@ -259,10 +255,7 @@ describe('Kitchen optimistic workflow', () => {
       within(dialog).getByText('После принятия начнётся поиск автокурьера'),
     ).toBeInTheDocument();
     const submit = within(dialog).getByRole('button', { name: 'Принять заказ' });
-    expect(submit).toBeDisabled();
-    await user.click(
-      within(dialog).getByRole('checkbox', { name: /Заказ пробит вручную в iikoFront/ }),
-    );
+    expect(within(dialog).queryByRole('checkbox')).not.toBeInTheDocument();
     expect(submit).toBeEnabled();
     await user.click(submit);
 
@@ -271,7 +264,7 @@ describe('Kitchen optimistic workflow', () => {
         'delivery-1',
         'preparing',
         15,
-        true,
+        false,
       ),
     );
   });
@@ -399,9 +392,7 @@ describe('Kitchen optimistic workflow', () => {
     const ticket = (await screen.findByText('№100041')).closest('article');
     await user.click(within(ticket!).getByRole('button', { name: 'Принять заказ' }));
     const dialog = screen.getByRole('dialog');
-    await user.click(
-      within(dialog).getByRole('checkbox', { name: /Заказ пробит вручную в iikoFront/ }),
-    );
+    expect(within(dialog).queryByRole('checkbox')).not.toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Принять заказ' }));
 
     await waitFor(() => expect(apiMocks.getKitchenOrders).toHaveBeenCalledTimes(2));
@@ -426,9 +417,7 @@ describe('Kitchen optimistic workflow', () => {
     const ticket = (await screen.findByText('№100041')).closest('article');
     await user.click(within(ticket!).getByRole('button', { name: 'Принять заказ' }));
     const dialog = screen.getByRole('dialog');
-    await user.click(
-      within(dialog).getByRole('checkbox', { name: /Заказ пробит вручную в iikoFront/ }),
-    );
+    expect(within(dialog).queryByRole('checkbox')).not.toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Принять заказ' }));
 
     const realtimeSubscription = realtimeMocks.useAdminRealtimeEvents.mock.calls.at(-1);

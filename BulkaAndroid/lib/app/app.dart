@@ -80,7 +80,6 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   int _profileMutationRevision = 0;
   bool _widgetRefreshInFlight = false;
   bool _loginRouteOpen = false;
-  bool _notificationPermissionScheduled = false;
   bool _booting = true;
   bool _publicShellReady = false;
   final _startupReady = Completer<void>();
@@ -411,24 +410,9 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     final current = _requiredAppUpdate;
     if (current?.targetVersion == requirement?.targetVersion &&
         current?.storeUri == requirement?.storeUri) {
-      if (requirement == null) _scheduleFirstLaunchNotificationPermission();
       return;
     }
     setState(() => _requiredAppUpdate = requirement);
-    if (requirement == null) _scheduleFirstLaunchNotificationPermission();
-  }
-
-  void _scheduleFirstLaunchNotificationPermission() {
-    if (kIsWeb ||
-        !widget.appReleaseChecksEnabled ||
-        _notificationPermissionScheduled) {
-      return;
-    }
-    _notificationPermissionScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _requiredAppUpdate != null) return;
-      unawaited(PushNotifications.requestPermissionOnFirstLaunch(_api));
-    });
   }
 
   Future<void> _openRequiredUpdateStore() async {
@@ -582,7 +566,9 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     _widgetRefreshInFlight = true;
     try {
       final orders = await _api.getCustomerOrders();
-      final activeOrder = orders.isEmpty ? null : orders.first;
+      final activeOrder = orders
+          .where((order) => order.paymentStatus == 'paid' && !order.isClosed)
+          .firstOrNull;
       _widgetOrder = activeOrder;
       await HomeWidgetSync.update(
         customer: _customer ?? customer,

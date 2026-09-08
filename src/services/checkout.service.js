@@ -107,7 +107,7 @@ const normalizeDeliveryAddress = (raw, env = process.env) => {
   }
 
   const address = boundedText(raw.address ?? raw.formattedAddress ?? raw.label, 500);
-  const city = boundedText(raw.city || 'Астана', 100);
+  const city = boundedText(raw.city, 100);
   if (address.length < 3) throw checkoutError('Укажите полный адрес доставки');
   if (!city) throw checkoutError('Укажите город доставки');
 

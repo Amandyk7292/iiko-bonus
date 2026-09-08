@@ -78,6 +78,7 @@ part 'screens/address_selection_screen.dart';
 part 'screens/app_update_screen.dart';
 part 'screens/admin_portal_screen.dart';
 part 'screens/welcome_screen.dart';
+part 'screens/permission_welcome.dart';
 part 'screens/home_screen.dart';
 part 'screens/home_feed_controller.dart';
 part 'screens/login_screen.dart';

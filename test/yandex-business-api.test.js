@@ -243,7 +243,7 @@ test('integration helpers read Business configuration and build an order without
   assert.deepEqual(selected.requirements, { thermobag: true });
 });
 
-test('Business route uses the same additional-phone priority as delivery validation', () => {
+test('Business route uses the registered profile phone instead of the additional phone', () => {
   const route = buildBusinessRoute(
     {
       additional_phone: '+77005554433',
@@ -261,7 +261,8 @@ test('Business route uses the same additional-phone priority as delivery validat
     },
     { senderPhone: '+77001112233' },
   );
-  assert.equal(route[1].extra_data.contact_phone, '+77005554433');
+  assert.equal(route[1].extra_data.contact_phone, '+77009998877');
+  assert.deepEqual(route[1].geopoint, [51.1978, 43.6512]);
 });
 
 test('requirements are kept only when their exact names and types are supported', () => {
