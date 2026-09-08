@@ -159,9 +159,26 @@ void main() {
 
       expect(find.text('Оплата отменена'), findsOneWidget);
       expect(find.textContaining('Деньги не списаны'), findsOneWidget);
-      expect(find.text('Оплата: Оплачено'), findsOneWidget);
-      expect(find.text('Заказ: Новый'), findsOneWidget);
-      expect(find.text('Заказ № 100029'), findsOneWidget);
+      final previousOrder = find.byKey(
+        const ValueKey('customer-order-previous-paid-order'),
+      );
+      expect(previousOrder, findsOneWidget);
+      expect(
+        find.descendant(of: previousOrder, matching: find.text('Новый')),
+        findsOneWidget,
+      );
+      // Cancelling the current payment must not mark an earlier paid order as cancelled.
+      expect(
+        find.descendant(of: previousOrder, matching: find.text('Отменён')),
+        findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: previousOrder,
+          matching: find.byIcon(Icons.payments_outlined),
+        ),
+        findsNothing,
+      );
       expect(tester.takeException(), isNull);
 
       await tester.tap(
@@ -169,6 +186,11 @@ void main() {
       );
       await tester.pump();
       expect(find.text('Оплата отменена'), findsNothing);
+      expect(previousOrder, findsOneWidget);
+      expect(
+        find.descendant(of: previousOrder, matching: find.text('Новый')),
+        findsOneWidget,
+      );
     },
   );
 }

@@ -351,7 +351,7 @@ void main() {
   });
 
   testWidgets(
-    'long notification center title keeps the catalog typography without truncation',
+    'notification tab title keeps the catalog typography with enlarged text',
     (tester) async {
       tester.view.physicalSize = const Size(390, 844);
       tester.view.devicePixelRatio = 1;
@@ -387,7 +387,7 @@ void main() {
       final titleHost = find.byKey(const ValueKey('notification-center-title'));
       final titleFinder = find.descendant(
         of: titleHost,
-        matching: find.text('Хабарламалар орталығы'),
+        matching: find.text('Хабарламалар'),
       );
       final title = tester.widget<Text>(titleFinder);
 

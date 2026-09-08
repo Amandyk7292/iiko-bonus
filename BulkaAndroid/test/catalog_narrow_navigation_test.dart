@@ -31,7 +31,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final labels = ['Басты бет', 'Мәзір', 'Себет', 'Акциялар', 'Профиль'];
+    final labels = ['Басты бет', 'Мәзір', 'Себет', 'Орындар', 'Профиль'];
     for (var index = 0; index < labels.length; index++) {
       final label = labels[index];
       final text = tester.widget<Text>(find.text(label));

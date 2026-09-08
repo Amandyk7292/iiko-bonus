@@ -17,7 +17,12 @@ test('migration runner strips only an outer transaction wrapper', () => {
 
 test('migration runner discovers only canonical timestamped migrations', () => {
   const artifacts = migrationArtifacts();
-  assert.equal(artifacts.at(-1).filename, '20260907140000_customer_bonus_expiration_dates.sql');
+  const filenames = artifacts.map((artifact) => artifact.filename);
+  assert.deepEqual(filenames, [...filenames].sort());
+  assert.equal(new Set(filenames).size, filenames.length);
+  assert.ok(filenames.includes('20260907140000_customer_bonus_expiration_dates.sql'));
+  assert.ok(filenames.includes('20260907150000_loyalty_tier_backgrounds.sql'));
+  assert.ok(filenames.every((filename) => /^\d{14}_[a-z0-9_]+\.sql$/.test(filename)));
   assert.equal(artifacts[0].filename, '20260426000000_production_hardening.sql');
   assert.equal(
     artifacts.some((artifact) => artifact.filename === 'supabase_schema.sql'),
