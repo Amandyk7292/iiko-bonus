@@ -165,9 +165,9 @@ flutter:
   # see https://flutter.dev/to/font-from-package
 
 flutter_native_splash:
-  color: "#FFFFFF"
+  color: "#FFB300"
   image: "assets/brand/app_icon_foreground.png"
   web: false
   android_12:
-    color: "#FFFFFF"
+    color: "#FFB300"
     image: "assets/brand/app_icon_foreground.png"

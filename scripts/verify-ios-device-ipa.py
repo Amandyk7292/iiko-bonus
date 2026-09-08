@@ -23,7 +23,7 @@ def verify(directory, expected):
         primary_icon = info.get('CFBundleIcons', {}).get('CFBundlePrimaryIcon', {})
         if primary_icon.get('CFBundleIconName') != 'BulkaFlatFFB300':
             raise ValueError('IPA still references the old app icon catalog')
-        if not (primary_icon.get('UIPrerenderedIcon') or info.get('UIPrerenderedIcon')):
+        if not primary_icon.get('UIPrerenderedIcon'):
             raise ValueError('IPA is missing the prerendered icon setting')
         root = roots[0].rsplit('/', 1)[0]
         with tempfile.TemporaryDirectory() as temp:

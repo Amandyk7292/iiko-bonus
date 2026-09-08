@@ -245,12 +245,12 @@ class _BulkaPermissionGateState extends State<BulkaPermissionGate> {
         GlobalCupertinoLocalizations.delegate,
       ],
       builder: _buildBulkaAppViewport,
-      home: Scaffold(
-        backgroundColor: Colors.white,
-        body: SafeArea(
-          child: _completed == null
-              ? const Center(child: CircularProgressIndicator())
-              : Center(
+      home: _completed == null
+          ? SplashScreen(text: 'splash_loading'.tr)
+          : Scaffold(
+              backgroundColor: Colors.white,
+              body: SafeArea(
+                child: Center(
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 520),
                     child: SingleChildScrollView(
@@ -353,8 +353,8 @@ class _BulkaPermissionGateState extends State<BulkaPermissionGate> {
                     ),
                   ),
                 ),
-        ),
-      ),
+              ),
+            ),
     );
   }
 }

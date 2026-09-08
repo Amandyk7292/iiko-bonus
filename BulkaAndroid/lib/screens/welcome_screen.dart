@@ -75,11 +75,11 @@ class _BulkaWelcomeGateState extends State<BulkaWelcomeGate> {
       ],
       theme: buildBulkaTheme(),
       builder: _buildBulkaAppViewport,
-      home: Scaffold(
-        backgroundColor: Colors.white,
-        body: _completed == null
-            ? const Center(child: CircularProgressIndicator())
-            : SafeArea(
+      home: _completed == null
+          ? SplashScreen(text: 'splash_loading'.tr)
+          : Scaffold(
+              backgroundColor: Colors.white,
+              body: SafeArea(
                 child: LayoutBuilder(
                   builder: (context, constraints) {
                     return SingleChildScrollView(
@@ -221,7 +221,7 @@ class _BulkaWelcomeGateState extends State<BulkaWelcomeGate> {
                   },
                 ),
               ),
-      ),
+            ),
     );
   }
 }

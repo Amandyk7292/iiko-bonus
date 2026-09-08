@@ -1311,118 +1311,32 @@ class _AppStage extends StatelessWidget {
   }
 }
 
-class SplashScreen extends StatefulWidget {
+/// Matches the native launch surface through preference and session loading.
+class SplashScreen extends StatelessWidget {
   const SplashScreen({required this.text, super.key});
 
   final String text;
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
-}
-
-class _SplashScreenState extends State<SplashScreen>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _scaleAnimation;
-  bool _reduceMotion = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 4500),
-    );
-
-    _scaleAnimation = TweenSequence<double>([
-      TweenSequenceItem(
-        tween: Tween<double>(
-          begin: 0.96,
-          end: 1.05,
-        ).chain(CurveTween(curve: Curves.easeInOutSine)),
-        weight: 50,
-      ),
-      TweenSequenceItem(
-        tween: Tween<double>(
-          begin: 1.05,
-          end: 0.96,
-        ).chain(CurveTween(curve: Curves.easeInOutSine)),
-        weight: 50,
-      ),
-    ]).animate(_controller);
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final reduceMotion = BulkaMotion.reduced(context);
-    if (reduceMotion == _reduceMotion && _controller.isAnimating) return;
-    _reduceMotion = reduceMotion;
-    if (_reduceMotion) {
-      _controller.stop();
-      _controller.value = 0.25;
-    } else if (!kIsWeb && !_controller.isAnimating) {
-      _controller.repeat();
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
-    final panelWidth = min(280.0, max(220.0, size.width - 64));
-    final logoWidth = min(184.0, panelWidth - 52);
-    final logo = Image.asset(
-      'assets/brand/bulka_logo.png',
-      width: logoWidth,
-      fit: BoxFit.contain,
-      filterQuality: FilterQuality.high,
-      excludeFromSemantics: true,
-    );
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFFFB300),
       body: Semantics(
         container: true,
         liveRegion: true,
-        label: widget.text,
-        child: SafeArea(
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: RepaintBoundary(
-                child: _reduceMotion || kIsWeb
-                    ? _SplashLogo(width: panelWidth, child: logo)
-                    : ScaleTransition(
-                        key: const ValueKey('splash-logo-pulse'),
-                        scale: _scaleAnimation,
-                        child: _SplashLogo(width: panelWidth, child: logo),
-                      ),
-              ),
-            ),
+        label: text,
+        child: Center(
+          child: Image.asset(
+            'assets/brand/app_icon_foreground.png',
+            key: const ValueKey('splash-clean-logo'),
+            width: 256,
+            height: 256,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.high,
+            excludeFromSemantics: true,
           ),
         ),
       ),
-    );
-  }
-}
-
-class _SplashLogo extends StatelessWidget {
-  const _SplashLogo({required this.width, required this.child});
-
-  final double width;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      key: const ValueKey('splash-clean-logo'),
-      width: width,
-      child: Center(child: child),
     );
   }
 }

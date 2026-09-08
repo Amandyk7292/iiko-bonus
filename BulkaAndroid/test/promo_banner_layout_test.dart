@@ -244,46 +244,23 @@ void main() {
     expect(controller.page, closeTo(2, 0.01));
   });
 
-  testWidgets('startup surface is solid white and animated', (tester) async {
+  testWidgets('startup keeps one gold surface and a stationary centered logo', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       const MaterialApp(home: SplashScreen(text: 'Loading Bulka')),
     );
-    await tester.pump();
-
     final scaffold = tester.widget<Scaffold>(find.byType(Scaffold));
-    expect(scaffold.backgroundColor, Colors.white);
-    expect(find.byType(BackdropFilter), findsNothing);
-    expect(find.byType(ImageFiltered), findsNothing);
+    expect(scaffold.backgroundColor, const Color(0xFFFFB300));
+    expect(find.byType(Image), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    final logo = find.byKey(const ValueKey('splash-clean-logo'));
+    expect(tester.getSize(logo), const Size(256, 256));
+    final center = tester.getCenter(logo);
+    expect(center, tester.getCenter(find.byType(Scaffold)));
+    await tester.pump(const Duration(seconds: 3));
+    expect(tester.getCenter(logo), center);
     expect(find.text('Loading Bulka'), findsNothing);
-    expect(find.byType(LinearProgressIndicator), findsNothing);
-    expect(find.byKey(const ValueKey('splash-clean-logo')), findsOneWidget);
-    expect(find.byKey(const ValueKey('splash-logo-pulse')), findsOneWidget);
-    final logoSize = tester.getSize(
-      find.byKey(const ValueKey('splash-clean-logo')),
-    );
-    expect(logoSize.width, greaterThanOrEqualTo(250));
-    final logoImage = tester.widget<Image>(
-      find.descendant(
-        of: find.byKey(const ValueKey('splash-clean-logo')),
-        matching: find.byType(Image),
-      ),
-    );
-    expect(logoImage.width, 184);
-
-    final pulse = tester.widget<ScaleTransition>(
-      find.byKey(const ValueKey('splash-logo-pulse')),
-    );
-    final initialScale = pulse.scale.value;
-    await tester.pump(const Duration(milliseconds: 2250));
-    expect(pulse.scale.value, greaterThan(initialScale));
-    expect(pulse.scale.value, closeTo(1.05, 0.01));
-    expect(
-      find.descendant(
-        of: find.byKey(const ValueKey('splash-clean-logo')),
-        matching: find.byType(DecoratedBox),
-      ),
-      findsNothing,
-    );
   });
 
   testWidgets('story viewer uses the global white loading surface', (
