@@ -66,3 +66,4 @@ __pycache__/
 /tmp/
 /.agents/
 /.superdesign/
+!BulkaAndroid/ios/Runner/BulkaSolid.icon/icon.json
