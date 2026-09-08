@@ -23,6 +23,7 @@ struct BulkaOrderActivityAttributes: ActivityAttributes {
 @main
 @objc class AppDelegate: FlutterAppDelegate {
   private var orderStatusChannel: FlutterMethodChannel?
+  private var activityTokenTasks: [String: Task<Void, Never>] = [:]
 
   override func application(
     _ application: UIApplication,
@@ -39,8 +40,7 @@ struct BulkaOrderActivityAttributes: ActivityAttributes {
         let payload = call.arguments as? [String: Any] ?? [:]
         switch call.method {
         case "updateOrderStatus":
-          self.updateOrderActivity(payload)
-          result(nil)
+          self.updateOrderActivity(payload, result: result)
         case "clearOrderStatus":
           self.endOrderActivity(payload)
           result(nil)
@@ -53,24 +53,32 @@ struct BulkaOrderActivityAttributes: ActivityAttributes {
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
-  private func updateOrderActivity(_ payload: [String: Any]) {
-    guard #available(iOS 16.2, *), ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+  private func updateOrderActivity(_ payload: [String: Any], result: @escaping FlutterResult) {
+    guard #available(iOS 16.2, *), ActivityAuthorizationInfo().areActivitiesEnabled else {
+      result(false)
+      return
+    }
     guard
       let orderId = payload["orderId"] as? String,
       let orderNumber = payload["orderNumber"] as? Int
-    else { return }
+    else { result(false); return }
 
     guard payload["paymentStatus"] as? String == "paid" else {
       var dismissal = payload
       dismissal["dismissImmediately"] = true
       endOrderActivity(dismissal)
+      result(false)
       return
     }
     let content = activityContent(payload)
     if let activity = Activity<BulkaOrderActivityAttributes>.activities.first(
       where: { $0.attributes.orderId == orderId }
     ) {
-      Task { await activity.update(content) }
+      observePushToken(activity)
+      Task {
+        await activity.update(content)
+        await MainActor.run { result(true) }
+      }
       return
     }
 
@@ -87,8 +95,10 @@ struct BulkaOrderActivityAttributes: ActivityAttributes {
         pushType: .token
       )
       observePushToken(activity)
+      result(true)
     } catch {
       NSLog("Bulka Live Activity start failed: %@", error.localizedDescription)
+      result(false)
     }
   }
 
@@ -100,6 +110,7 @@ struct BulkaOrderActivityAttributes: ActivityAttributes {
     }
     let content = activityContent(payload)
     for activity in activities {
+      activityTokenTasks.removeValue(forKey: activity.id)?.cancel()
       Task {
         await activity.end(content, dismissalPolicy: payload["dismissImmediately"] as? Bool == true ? .immediate : .after(Date().addingTimeInterval(300)))
       }
@@ -126,26 +137,47 @@ struct BulkaOrderActivityAttributes: ActivityAttributes {
 
   @available(iOS 16.2, *)
   private func observePushToken(_ activity: Activity<BulkaOrderActivityAttributes>) {
-    Task { [weak self] in
+    guard activityTokenTasks[activity.id] == nil else { return }
+    activityTokenTasks[activity.id] = Task { @MainActor [weak self] in
+      var previousToken: Data?
+      if let token = activity.pushToken {
+        self?.publishActivityToken(token, activity: activity)
+        previousToken = token
+      }
       for await tokenData in activity.pushTokenUpdates {
-        let token = tokenData.map { String(format: "%02x", $0) }.joined()
-        #if DEBUG
-        let environment = "sandbox"
-        #else
-        let environment = "production"
-        #endif
-        await MainActor.run {
-          self?.orderStatusChannel?.invokeMethod(
-            "liveActivityToken",
-            arguments: [
-              "pushToken": token,
-              "activityId": activity.id,
-              "orderId": activity.attributes.orderId,
-              "environment": environment,
-            ]
-          )
-        }
+        guard !Task.isCancelled else { break }
+        if tokenData == previousToken { continue }
+        self?.publishActivityToken(tokenData, activity: activity)
+        previousToken = tokenData
       }
     }
+  }
+
+  @available(iOS 16.2, *)
+  private func publishActivityToken(_ data: Data, activity: Activity<BulkaOrderActivityAttributes>) {
+    orderStatusChannel?.invokeMethod("liveActivityToken", arguments: [
+      "pushToken": data.map { String(format: "%02x", $0) }.joined(),
+      "activityId": activity.id,
+      "orderId": activity.attributes.orderId,
+      "environment": activityPushEnvironment(),
+    ])
+  }
+
+  private func activityPushEnvironment() -> String {
+    // Profile builds can be development-signed without DEBUG. The embedded
+    // provisioning profile, not the optimization mode, selects the APNs host.
+    // App Store packages have no embedded profile and use production.
+    guard
+      let url = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision"),
+      let data = try? Data(contentsOf: url),
+      let start = data.range(of: Data("<plist".utf8)),
+      let end = data.range(of: Data("</plist>".utf8)),
+      start.lowerBound < end.upperBound,
+      let profile = try? PropertyListSerialization.propertyList(
+        from: data.subdata(in: start.lowerBound..<end.upperBound), options: [], format: nil
+      ) as? [String: Any],
+      let entitlements = profile["Entitlements"] as? [String: Any]
+    else { return "production" }
+    return entitlements["aps-environment"] as? String == "development" ? "sandbox" : "production"
   }
 }

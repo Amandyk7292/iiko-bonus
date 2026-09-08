@@ -88,6 +88,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
           _now = DateTime.now();
         });
         widget.onOrderChanged(updated);
+        unawaited(OrderLiveStatus.sync(updated));
       }
     } catch (_) {
       // Keep the last realtime snapshot visible while the connection recovers.
@@ -152,6 +153,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
       if (!mounted) return;
       setState(() => _order = updated);
       widget.onOrderChanged(updated);
+      unawaited(OrderLiveStatus.sync(updated));
       await BulkaMotion.confirm();
       if (mounted) {
         ScaffoldMessenger.of(

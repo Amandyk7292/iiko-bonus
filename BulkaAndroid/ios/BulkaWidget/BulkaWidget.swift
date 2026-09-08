@@ -1,6 +1,7 @@
 import SwiftUI
 import WidgetKit
 import ActivityKit
+import UIKit
 
 private let appGroupId = "group.com.bulka.bonus"
 
@@ -302,7 +303,9 @@ private func statusText(_ raw: String?) -> String {
         return localized("Заказ передан", "Тапсырыс берілді", "Handed over")
     case "on_the_way", "in_transit", "en_route":
         return localized("Курьер в пути", "Курьер жолда", "On the way")
-    case "delivered", "completed":
+    case "completed":
+        return localized("Заказ завершён", "Тапсырыс аяқталды", "Order complete")
+    case "delivered":
         return localized("Доставлен", "Жеткізілді", "Delivered")
     case "cancelled", "canceled":
         return localized("Отменён", "Бас тартылды", "Cancelled")
@@ -334,12 +337,10 @@ struct BulkaOrderLiveActivity: Widget {
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Label("Bulka", systemImage: "bag.fill")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(BulkaWidgetPalette.gold)
+                    BulkaWordmark(width: 58)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    liveEta(context.state.etaTimestamp.map(Date.init(timeIntervalSince1970:)), compact: true)
+                    liveEta(context.state.etaTimestamp.map(Date.init(timeIntervalSince1970:)), compact: true, status: liveOrderStatus(context.state))
                 }
                 DynamicIslandExpandedRegion(.center) {
                     Text(localized(
@@ -352,7 +353,7 @@ struct BulkaOrderLiveActivity: Widget {
                 DynamicIslandExpandedRegion(.bottom) {
                     VStack(alignment: .leading, spacing: 7) {
                         HStack {
-                            Text(statusText(context.state.deliveryStatus == "unassigned" ? context.state.orderStatus : context.state.deliveryStatus))
+                            Label(statusText(liveOrderStatus(context.state)), systemImage: liveStatusIcon(liveOrderStatus(context.state)))
                                 .font(.system(size: 13, weight: .semibold))
                             Spacer()
                             if !context.state.courierName.isEmpty {
@@ -366,12 +367,12 @@ struct BulkaOrderLiveActivity: Widget {
                     }
                 }
             } compactLeading: {
-                Image(systemName: "bag.fill")
+                Image(systemName: liveStatusIcon(liveOrderStatus(context.state)))
                     .foregroundStyle(BulkaWidgetPalette.gold)
             } compactTrailing: {
-                liveEta(context.state.etaTimestamp.map(Date.init(timeIntervalSince1970:)), compact: true)
+                liveEta(context.state.etaTimestamp.map(Date.init(timeIntervalSince1970:)), compact: true, status: liveOrderStatus(context.state))
             } minimal: {
-                Image(systemName: "bag.fill")
+                Image(systemName: liveStatusIcon(liveOrderStatus(context.state)))
                     .foregroundStyle(BulkaWidgetPalette.gold)
             }
             .widgetURL(URL(string: "bulka://orders"))
@@ -380,16 +381,58 @@ struct BulkaOrderLiveActivity: Widget {
     }
 }
 
+private struct BulkaWordmark: View {
+    let width: CGFloat
+    // Bounds of the official transparent wordmark in the bundled 1000x350
+    // source. Cropping in the view preserves the original brand asset.
+    private static let wordmark: UIImage? = {
+        guard let source = UIImage(named: "BulkaLogo")?.cgImage,
+              let cropped = source.cropping(to: CGRect(x: 305, y: 73, width: 391, height: 212))
+        else { return nil }
+        return UIImage(cgImage: cropped)
+    }()
+
+    var body: some View {
+        Group {
+            if let image = Self.wordmark {
+                Image(uiImage: image)
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(.white)
+            }
+        }
+        .frame(width: width, height: width * 212 / 391)
+        .accessibilityLabel("Bulka")
+    }
+}
+
+private func liveOrderStatus(_ state: BulkaOrderActivityAttributes.ContentState) -> String {
+    if ["completed", "cancelled"].contains(state.orderStatus) { return state.orderStatus }
+    if ["picked_up", "en_route", "delivered"].contains(state.deliveryStatus) { return state.deliveryStatus }
+    return state.orderStatus
+}
+
+private func liveStatusIcon(_ status: String) -> String {
+    switch status {
+    case "accepted", "confirmed": return "checkmark.seal.fill"
+    case "preparing", "cooking": return "flame.fill"
+    case "ready", "ready_for_pickup": return "shippingbox.fill"
+    case "picked_up", "en_route": return "scooter"
+    case "delivered", "completed": return "checkmark.circle.fill"
+    case "cancelled", "canceled": return "xmark.circle.fill"
+    default: return "bag.fill"
+    }
+}
+
 private struct BulkaLiveOrderView: View {
     let context: ActivityViewContext<BulkaOrderActivityAttributes>
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("Bulka")
-                    .font(.system(size: 21, weight: .bold, design: .serif))
-                    .foregroundStyle(BulkaWidgetPalette.text)
-                Spacer()
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .center) {
+                BulkaWordmark(width: 64)
+                Spacer(minLength: 12)
                 Text(localized(
                     "Заказ №\(context.attributes.orderNumber)",
                     "№\(context.attributes.orderNumber) тапсырыс",
@@ -397,12 +440,21 @@ private struct BulkaLiveOrderView: View {
                 ))
                 .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(BulkaWidgetPalette.gold)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
             }
             HStack(alignment: .center, spacing: 12) {
+                Image(systemName: liveStatusIcon(liveOrderStatus(context.state)))
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(BulkaWidgetPalette.gold)
+                    .frame(width: 36, height: 36)
+                    .background(RoundedRectangle(cornerRadius: 11).fill(Color.white.opacity(0.08)))
+                    .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(statusText(context.state.deliveryStatus == "unassigned" ? context.state.orderStatus : context.state.deliveryStatus))
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                    Text(statusText(liveOrderStatus(context.state)))
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
                         .foregroundStyle(BulkaWidgetPalette.text)
+                        .fixedSize(horizontal: false, vertical: true)
                     if !context.attributes.branch.isEmpty {
                         Text(context.attributes.branch)
                             .font(.system(size: 12))
@@ -410,34 +462,45 @@ private struct BulkaLiveOrderView: View {
                             .lineLimit(1)
                     }
                 }
-                Spacer(minLength: 8)
-                liveEta(context.state.etaTimestamp.map(Date.init(timeIntervalSince1970:)), compact: false)
+                Spacer(minLength: 0)
+            }
+            if ["new", "accepted", "preparing", "picked_up", "en_route"].contains(liveOrderStatus(context.state)) {
+                HStack(spacing: 6) {
+                    Image(systemName: "clock")
+                    liveEta(context.state.etaTimestamp.map(Date.init(timeIntervalSince1970:)), compact: false, status: liveOrderStatus(context.state))
+                }
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(BulkaWidgetPalette.gold)
             }
             ProgressView(value: context.state.progress)
                 .tint(BulkaWidgetPalette.gold)
                 .background(Color.white.opacity(0.14))
                 .clipShape(Capsule())
         }
-        .padding(16)
+        .padding(14)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(localized(
-            "Заказ №\(context.attributes.orderNumber). \(statusText(context.state.deliveryStatus == "unassigned" ? context.state.orderStatus : context.state.deliveryStatus))",
-            "№\(context.attributes.orderNumber) тапсырыс. \(statusText(context.state.deliveryStatus == "unassigned" ? context.state.orderStatus : context.state.deliveryStatus))",
-            "Order #\(context.attributes.orderNumber). \(statusText(context.state.deliveryStatus == "unassigned" ? context.state.orderStatus : context.state.deliveryStatus))"
+            "Заказ №\(context.attributes.orderNumber). \(statusText(liveOrderStatus(context.state)))",
+            "№\(context.attributes.orderNumber) тапсырыс. \(statusText(liveOrderStatus(context.state)))",
+            "Order #\(context.attributes.orderNumber). \(statusText(liveOrderStatus(context.state)))"
         ))
     }
 }
 
 @ViewBuilder
-private func liveEta(_ eta: Date?, compact: Bool) -> some View {
-    if let eta, eta > Date() {
+private func liveEta(_ eta: Date?, compact: Bool, status: String) -> some View {
+    if ["ready", "completed", "delivered", "cancelled"].contains(status) {
+        Text(status == "ready" ? localized("Готов", "Дайын", "Ready") : localized("Завершён", "Аяқталды", "Ended"))
+            .font(.system(size: 12, weight: .bold))
+            .foregroundStyle(BulkaWidgetPalette.gold)
+    } else if let eta, eta > Date() {
         Text(timerInterval: Date()...eta, countsDown: true)
             .monospacedDigit()
-            .font(.system(size: compact ? 12 : 17, weight: .bold, design: .rounded))
+            .font(.system(size: compact ? 12 : 14, weight: .semibold, design: .rounded))
             .foregroundStyle(BulkaWidgetPalette.gold)
     } else {
-        Text(localized("Уточняем", "Нақтылауда", "Updating"))
-            .font(.system(size: compact ? 12 : 17, weight: .bold, design: .rounded))
+        Text(compact ? localized("Уточняем", "Нақтылауда", "Updating") : localized("Уточняем время готовности", "Дайын болу уақытын нақтылауда", "Confirming the time"))
+            .font(.system(size: compact ? 12 : 13, weight: .medium, design: .rounded))
             .foregroundStyle(BulkaWidgetPalette.gold)
     }
 }

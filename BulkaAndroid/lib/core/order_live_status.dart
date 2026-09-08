@@ -6,6 +6,8 @@ abstract final class OrderLiveStatus {
   );
   static BulkaApiClient? _api;
   static String? _lastPayload;
+  static final _pendingTokens = <String, Map<String, dynamic>>{};
+  static final _registeringTokens = <String>{};
 
   static void attach(BulkaApiClient api) {
     _api = api;
@@ -13,8 +15,19 @@ abstract final class OrderLiveStatus {
     _channel.setMethodCallHandler((call) async {
       if (call.method != 'liveActivityToken') return;
       final payload = _asMap(call.arguments);
-      final client = _api;
-      if (client == null || !client.isAuthenticated) return;
+      final activityId = _asString(payload['activityId']);
+      if (activityId.isEmpty) return;
+      _pendingTokens[activityId] = payload;
+      await _registerToken(activityId);
+    });
+  }
+
+  static Future<void> _registerToken(String activityId) async {
+    final client = _api;
+    final payload = _pendingTokens[activityId];
+    if (client == null || !client.isAuthenticated || payload == null) return;
+    if (!_registeringTokens.add(activityId)) return;
+    try {
       await client.registerLiveActivity(
         pushToken: _asString(payload['pushToken']),
         activityId: _asString(payload['activityId']),
@@ -22,7 +35,14 @@ abstract final class OrderLiveStatus {
         orderId: _asString(payload['orderId']),
         environment: _asString(payload['environment'], fallback: 'production'),
       );
-    });
+      if (identical(_pendingTokens[activityId], payload)) {
+        _pendingTokens.remove(activityId);
+      }
+    } catch (_) {
+      // Retain the current token until the next order refresh after recovery.
+    } finally {
+      _registeringTokens.remove(activityId);
+    }
   }
 
   static double _progress(CustomerOrder order) {
@@ -83,10 +103,16 @@ abstract final class OrderLiveStatus {
       'language': AppLang.current,
     };
     final encoded = jsonEncode(payload);
+    for (final activityId in _pendingTokens.keys.toList()) {
+      unawaited(_registerToken(activityId));
+    }
     if (_lastPayload == encoded) return;
     try {
-      await _channel.invokeMethod<void>('updateOrderStatus', payload);
-      _lastPayload = encoded;
+      final applied = await _channel.invokeMethod<bool>(
+        'updateOrderStatus',
+        payload,
+      );
+      if (applied != false) _lastPayload = encoded;
     } catch (error) {
       debugPrint('Native order status unavailable: $error');
     }
@@ -95,6 +121,9 @@ abstract final class OrderLiveStatus {
   static Future<void> clear({CustomerOrder? order}) async {
     if (kIsWeb) return;
     _lastPayload = null;
+    _pendingTokens.removeWhere(
+      (_, payload) => order == null || payload['orderId'] == order.id,
+    );
     try {
       await _channel.invokeMethod<void>('clearOrderStatus', {
         'dismissImmediately': order == null || order.paymentStatus != 'paid',

@@ -86,7 +86,7 @@ async function registerLiveActivityToken(customerId, payload = {}) {
     throw liveActivityError('Не хватает данных Live Activity');
   const { data: order, error: orderError } = await supabase
     .from('kaspi_orders')
-    .select('id,status,fulfillment_status')
+    .select('*')
     .eq('id', orderId)
     .eq('customer_id', customerId)
     .maybeSingle();
@@ -114,6 +114,11 @@ async function registerLiveActivityToken(customerId, payload = {}) {
     .select('id,activity_id,order_id,environment,active')
     .single();
   if (error) throw error;
+  // Registration may finish after the kitchen has already advanced the order.
+  // Catch the activity up instead of waiting for another status transition.
+  await sendOrderLiveActivity(order).catch((error) =>
+    console.error('Live Activity registration update failed:', error.code || error.name),
+  );
   return data;
 }
 
@@ -130,6 +135,7 @@ async function deactivateLiveActivityToken(customerId, payload = {}) {
 
 function sendApnsRequest({ token, environment, payload, config }) {
   return new Promise((resolve) => {
+    const providerToken = createProviderToken(config);
     const host =
       environment === 'sandbox'
         ? 'https://api.sandbox.push.apple.com'
@@ -138,20 +144,27 @@ function sendApnsRequest({ token, environment, payload, config }) {
     let responseBody = '';
     let status = 0;
     let settled = false;
+    let request;
     const finish = (result) => {
       if (settled) return;
       settled = true;
-      client.close();
+      clearTimeout(deadline);
+      request?.close();
+      client.destroy();
       resolve(result);
     };
+    const deadline = setTimeout(() => finish({ ok: false, error: 'apns_timeout' }), 10000);
+    deadline.unref?.();
     client.once('error', (error) => finish({ ok: false, error: error.message }));
-    const request = client.request({
+    client.once('close', () => finish({ ok: false, error: 'apns_connection_closed' }));
+    request = client.request({
       ':method': 'POST',
       ':path': `/3/device/${token}`,
-      authorization: `bearer ${createProviderToken(config)}`,
+      authorization: `bearer ${providerToken}`,
       'apns-push-type': 'liveactivity',
       'apns-priority': '10',
       'apns-topic': `${config.bundleId}.push-type.liveactivity`,
+      'apns-expiration': '0',
     });
     request.setEncoding('utf8');
     request.on('response', (headers) => {
@@ -160,7 +173,15 @@ function sendApnsRequest({ token, environment, payload, config }) {
     request.on('data', (chunk) => {
       responseBody += chunk;
     });
-    request.on('end', () => finish({ ok: status === 200, status, body: responseBody }));
+    request.on('end', () => {
+      let reason;
+      try {
+        reason = JSON.parse(responseBody).reason;
+      } catch (_) {
+        // A successful APNs response has no JSON body.
+      }
+      finish({ ok: status === 200, status, reason });
+    });
     request.on('error', (error) => finish({ ok: false, error: error.message }));
     request.end(JSON.stringify(payload));
   });
@@ -199,7 +220,19 @@ async function sendOrderLiveActivity(order, { end = false } = {}) {
         payload,
         config,
       }).then(async (result) => {
-        if (end || [400, 410].includes(result.status)) {
+        if (!result.ok) {
+          console.warn('Live Activity update failed', {
+            orderId: order.id,
+            environment: row.environment,
+            status: result.status,
+            reason: result.reason || result.error,
+          });
+        }
+        if (
+          (end && result.ok) ||
+          result.status === 410 ||
+          ['BadDeviceToken', 'DeviceTokenNotForTopic', 'Unregistered'].includes(result.reason)
+        ) {
           await supabase
             .from('customer_live_activity_tokens')
             .update({ active: false, updated_at: new Date().toISOString() })
@@ -222,5 +255,6 @@ module.exports = {
   createProviderToken,
   deactivateLiveActivityToken,
   registerLiveActivityToken,
+  sendApnsRequest,
   sendOrderLiveActivity,
 };

@@ -79,6 +79,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   bool _profileRefreshQueued = false;
   int _profileMutationRevision = 0;
   bool _widgetRefreshInFlight = false;
+  bool _widgetRefreshQueued = false;
   bool _loginRouteOpen = false;
   bool _booting = true;
   bool _publicShellReady = false;
@@ -181,10 +182,12 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
 
   void _handleCustomerEvent(Map<String, dynamic> event) {
     final type = _asString(event['type']);
-    if (type == 'order.created' ||
-        type == 'order.updated' ||
-        type == 'delivery.updated' ||
-        type == 'order.customer_arrived') {
+    if (_dataEventMatches(event, {
+      'order.created',
+      'order.updated',
+      'delivery.updated',
+      'order.customer_arrived',
+    })) {
       unawaited(_refreshWidgetOrder());
       return;
     }
@@ -560,12 +563,17 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
 
   Future<void> _refreshWidgetOrder() async {
     final customer = _customer;
-    if (_widgetRefreshInFlight || customer == null || !_api.isAuthenticated) {
+    if (customer == null || !_api.isAuthenticated) {
+      return;
+    }
+    if (_widgetRefreshInFlight) {
+      _widgetRefreshQueued = true;
       return;
     }
     _widgetRefreshInFlight = true;
     try {
       final orders = await _api.getCustomerOrders();
+      if (_customer?.id != customer.id || !_api.isAuthenticated) return;
       final activeOrder = orders
           .where((order) => order.paymentStatus == 'paid' && !order.isClosed)
           .firstOrNull;
@@ -576,6 +584,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       );
       await OrderLiveStatus.sync(activeOrder);
     } catch (_) {
+      if (_customer?.id != customer.id || !_api.isAuthenticated) return;
       await HomeWidgetSync.update(
         customer: _customer ?? customer,
         activeOrder: _widgetOrder,
@@ -583,6 +592,10 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       await OrderLiveStatus.sync(_widgetOrder);
     } finally {
       _widgetRefreshInFlight = false;
+      if (_widgetRefreshQueued && mounted) {
+        _widgetRefreshQueued = false;
+        unawaited(_refreshWidgetOrder());
+      }
     }
   }
 

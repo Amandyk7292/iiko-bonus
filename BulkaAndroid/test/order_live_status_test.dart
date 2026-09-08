@@ -54,4 +54,86 @@ void main() {
       expect(calls.last.arguments['dismissImmediately'], true);
     },
   );
+  test(
+    'retries unchanged content when iOS could not start the activity',
+    () async {
+      var available = false;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            calls.add(call);
+            return available;
+          });
+      await OrderLiveStatus.sync(order('paid'));
+      available = true;
+      await OrderLiveStatus.sync(order('paid'));
+      await OrderLiveStatus.sync(order('paid'));
+      expect(calls, hasLength(2));
+    },
+  );
+
+  test(
+    'retains activity token through login and temporary network failure',
+    () async {
+      final api = _ActivityApi();
+      OrderLiveStatus.attach(api);
+      addTearDown(() async {
+        await OrderLiveStatus.clear();
+        api.dispose();
+        channel.setMethodCallHandler(null);
+      });
+      await TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .handlePlatformMessage(
+            channel.name,
+            const StandardMethodCodec().encodeMethodCall(
+              const MethodCall('liveActivityToken', {
+                'activityId': 'activity',
+                'orderId': 'order-test',
+                'pushToken': 'token',
+                'environment': 'sandbox',
+              }),
+            ),
+            null,
+          );
+      expect(api.attempts, 0);
+      api.authenticated = true;
+      await OrderLiveStatus.sync(order('paid'));
+      await Future<void>.delayed(Duration.zero);
+      expect(api.attempts, 1);
+      api.offline = false;
+      await OrderLiveStatus.sync(order('paid'));
+      await Future<void>.delayed(Duration.zero);
+      expect(api.attempts, 2);
+      expect(api.environment, 'sandbox');
+      await OrderLiveStatus.sync(order('paid'));
+      await Future<void>.delayed(Duration.zero);
+      expect(api.attempts, 2);
+    },
+  );
+}
+
+class _ActivityApi extends BulkaApiClient {
+  bool authenticated = false;
+  bool offline = true;
+  int attempts = 0;
+  String? environment;
+  @override
+  bool get isAuthenticated => authenticated;
+  @override
+  Future<void> registerLiveActivity({
+    required String pushToken,
+    required String activityId,
+    required String installationId,
+    required String orderId,
+    required String environment,
+  }) async {
+    attempts++;
+    if (offline) throw ApiException('offline');
+    this.environment = environment;
+  }
+
+  @override
+  Future<void> deactivateLiveActivity({
+    String? activityId,
+    String? orderId,
+  }) async {}
 }
