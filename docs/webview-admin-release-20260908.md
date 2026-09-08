@@ -1,5 +1,44 @@
 # WebView administration restored
 
+## Unified main login
+
+- Source `aaa01b498cab2aeea3cd3166a1009fb6a652420a` adds Phone and Password tabs
+  to the main login form. Phone retains customer sign-in, registration and
+  password recovery. Password accepts the administrator username and password;
+  the username initially contains `admin` and can be edited.
+- The separate employee entry and the Account/Administrator badges were removed.
+  The selected tab has a warm highlight, and the form uses the existing brand
+  typography, rounded controls and reduced-motion settings.
+- Admin sign-in uses the existing `/admin/api/login` endpoint. A six-digit MFA
+  field appears only after the server requests verification. Valid credentials
+  open the Operations Center in the existing WebView without a second login.
+- Native iOS/Android bridges install the server-issued admin cookie into the
+  WebView cookie store, retaining HttpOnly, Secure, SameSite and expiry. The bridge
+  accepts only Bulka's production origin and `/admin` path. Browser sign-in uses
+  the browser's HttpOnly cookie handling. Customer credentials/tokens are separate;
+  no admin session token is placed in JavaScript, a URL or local storage.
+- Verification: 34 focused Flutter tests passed, plus a rendered form preview.
+  Analysis of the seven affected entry/API/widget/test files found no issues.
+  Android `:app:compileDebugKotlin` passed. Tests cover both login methods, MFA,
+  duplicate submissions, small-screen layout, cookie attributes and bad origins.
+  Production account sign-in has not been manually exercised with real credentials.
+- Published website release: `20260908213848-aaa01b498cab`. Database backup,
+  staging/production readiness and public Flutter hash verification passed;
+  no SQL migrations were applied. Flutter SHA-256:
+  `d223ec08f4434325038e6f4f72c5cae2bc1b99e687a2d1beee8ffd8ca487608f`.
+- Actions run `34252322636`, artifact `10066683424`, produced version 1.0.1 build
+  **18**. App/widget identities, signing profiles, device authorization and artifact
+  checksum were verified. IPA SHA-256:
+  `e99bcfe74937196650c7193e054fab0b161b9fa4aec96e4b4e73f123e963b971`.
+- USB installation succeeded on the original Amandyk iPhone at **22:02:14**.
+  A separate installed-app query confirmed `com.bulka.bonus`, version 1.0.1,
+  build **18**. Live browser inspection confirmed both tabs and absent badges.
+
+Evidence: `scratch/unified-login-final-tests.log`,
+`scratch/unified-login-analyze.log`, `scratch/unified-login-android-compile.log`,
+`scratch/unified-login-phone.png`, `scratch/unified-login-password.png`,
+`scratch/iphone-build18-install.log`, `scratch/iphone-build18-after-app.json`.
+
 ## Combined IPA 17 and consistent promotion borders
 
 - Banner outlines now use the same gold, width and corner radius for every card,

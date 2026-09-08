@@ -108,6 +108,9 @@ router.get('/maps/yandex', (req, res) => {
       let markerRenderTimer = 0;
       let renderedMarkerBand = -1;
       let geocodeSequence = 0;
+      // GPS belongs to the viewer, not to the selected delivery address. Keep it
+      // across Flutter state refreshes, city filters and marker redraws.
+      let userLocation = null;
       const errorBox = document.getElementById('error');
       const controls = document.getElementById('controls');
       const locateButton = document.getElementById('locate');
@@ -305,6 +308,17 @@ router.get('/maps/yandex', (req, res) => {
             preset:'islands#blackCircleDotIcon', zIndex:600
           }));
         }
+        if (userLocation) {
+          if (userLocation.accuracy > 0) {
+            map.geoObjects.add(new ymaps.Circle([userLocation.coordinates,userLocation.accuracy], {}, {
+              fillColor:'#2F80ED20', strokeColor:'#2F80ED60', strokeWidth:1,
+              interactivityModel:'default#transparent', zIndex:200
+            }));
+          }
+          map.geoObjects.add(new ymaps.Placemark(userLocation.coordinates, {
+            hintContent:${JSON.stringify(copy[4])}, balloonContent:${JSON.stringify(copy[4])}
+          }, {preset:'islands#blueCircleDotIcon', zIndex:900}));
+        }
       };
       const applyState = next => {
         state = {...state,...next};
@@ -349,6 +363,7 @@ router.get('/maps/yandex', (req, res) => {
         locateButton.disabled = true;
         navigator.geolocation.getCurrentPosition(position => {
           const coordinates = [position.coords.latitude,position.coords.longitude];
+          userLocation = {coordinates,accuracy:Math.max(0,number(position.coords.accuracy) || 0)};
           state.selected = coordinates;
           state.center = coordinates;
           if (map) map.setCenter(coordinates,16,{duration:250});
