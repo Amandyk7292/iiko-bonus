@@ -49,6 +49,9 @@ class _CashierWorkspaceState extends State<CashierWorkspace> {
     if (!mounted || prefs.getBool('staffPushSetupCompleted') == true) return;
     // One-time enrollment on entering the cashier account. OS permission is
     // requested only if undecided; a later explicit mute remains respected.
+    // Persist the intended enrollment before contacting Firebase/server, so a
+    // first-login outage can recover silently. Explicit disable clears it.
+    await StaffPushEnrollmentStore.write(true);
     await prefs.setBool('staffPushSetupCompleted', true);
     if (mounted) await _push?.synchronize(user: true);
   }

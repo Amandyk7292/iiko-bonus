@@ -15,6 +15,52 @@ void main() {
     FlutterSecureStorage.setMockInitialValues({});
     SharedPreferences.setMockInitialValues({});
   });
+  testWidgets(
+    'failed enrollment recovers on foreground timer without another permission prompt',
+    (tester) async {
+      var offline = true, enabled = false;
+      var registrationAttempts = 0;
+      var permissionPrompts = 0;
+      final api = StaffApiClient(
+        client: MockClient((request) async {
+          if (offline) throw http.ClientException('fixture offline');
+          if (request.method == 'POST' &&
+              request.url.path.endsWith('/push-token')) {
+            registrationAttempts++;
+            enabled = true;
+          }
+          return http.Response(
+            jsonEncode({'enabled': enabled, 'active': enabled}),
+            200,
+          );
+        }),
+      );
+      final push = StaffNativePush(
+        api,
+        native: (action, user) async {
+          if (user) permissionPrompts++;
+          return {
+            'ok': true,
+            'installationId': 'fixture-retry',
+            'platform': 'ios',
+            'staffEnrollmentIntent': true,
+            'fcmToken': 'fixture-recovered-token',
+          };
+        },
+      );
+      await tester.pump();
+      await push.synchronize();
+      expect(push.enabled, isFalse);
+      offline = false;
+      await tester.pump(const Duration(seconds: 45));
+      await tester.pump();
+      expect(push.enabled, isTrue, reason: push.error);
+      expect(registrationAttempts, 1);
+      expect(permissionPrompts, 0);
+      push.dispose();
+      api.close();
+    },
+  );
   test(
     'cashier enrolls, rebinds refreshed FCM token, heartbeats and preserves mute',
     () async {

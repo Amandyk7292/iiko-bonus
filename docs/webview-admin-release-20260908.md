@@ -18,11 +18,22 @@
   an explicit mute. Notification taps open the native kitchen. Foreground kitchen
   events and alarm continue while the Orders tab is visible. The existing server
   only sends new paid order alerts to authorized cashiers for that branch.
+- Enrollment intent is persisted before network registration. Failed enrollment
+  retries while the app is active and after returning to the foreground, without
+  repeating an OS permission prompt. Its additional recovery test passed together
+  with the 19 relevant push/routing checks; analysis found no issues.
 - Verification: 45 focused Flutter checks passed, including customer push
   regressions and four rendered phone layouts. The root app tests cover password login, session restoration,
   push routing and revocation. The 33 server cashier/push/contract checks passed
   with the repository test environment. Android Kotlin compilation passed with a
   fresh Gradle daemon. Live delivery to a physical cashier phone is not yet observed.
+- Website source `4df993eb758c` was published as release
+  `20260908224944-4df993eb758c`; backup and both readiness checks passed.
+  Public Flutter SHA-256:
+  `e20e7cb54a1d50812d1ef08df9519e9e9f61f10737c9d0fb5f12dfcaee59fd7f`.
+- The source-size check reports the existing `catalog_product_card.dart` at 389
+  lines against a 300-line budget. That file is identical to the preceding release
+  and was not changed here. The clean-checkout secret scan passed.
 
 ## Current location marker
 

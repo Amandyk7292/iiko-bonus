@@ -12,10 +12,10 @@ class StaffNativePush extends ChangeNotifier with WidgetsBindingObserver {
     _tokens = (tokenEvents ?? PushNotifications.staffTokenEvents).listen(
       (_) => unawaited(synchronize()),
     );
-    _timer = Timer.periodic(
-      const Duration(seconds: 45),
-      (_) => unawaited(_heartbeat()),
-    );
+    _timer = Timer.periodic(const Duration(seconds: 45), (_) {
+      if (!_active || busy || _disposed) return;
+      unawaited(enabled ? _heartbeat() : synchronize());
+    });
     unawaited(synchronize());
   }
   final StaffApiClient api;
