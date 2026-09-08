@@ -1,0 +1,77 @@
+name: iPhone device build
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Build mode
+        type: choice
+        options: [profile, release]
+        default: profile
+
+permissions:
+  contents: read
+
+concurrency:
+  group: iphone-device-build
+  cancel-in-progress: false
+
+jobs:
+  ipa:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: BulkaAndroid
+    env:
+      IOS_CERTIFICATE_P12: ${{ secrets.IOS_CERTIFICATE_P12 }}
+      IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+      IOS_APP_PROFILE: ${{ secrets.IOS_APP_PROFILE }}
+      IOS_WIDGET_PROFILE: ${{ secrets.IOS_WIDGET_PROFILE }}
+      IOS_FIREBASE_PLIST: ${{ secrets.IOS_FIREBASE_PLIST }}
+      BUILD_MODE: ${{ inputs.mode }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Check signing inputs
+        run: |
+          for name in IOS_CERTIFICATE_P12 IOS_CERTIFICATE_PASSWORD IOS_APP_PROFILE IOS_WIDGET_PROFILE IOS_FIREBASE_PLIST; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing signing secret: $name"
+              exit 1
+            fi
+          done
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: '3.38.5'
+          cache: true
+      - run: flutter pub get
+      - name: Prepare temporary signing keychain
+        run: python3 ../scripts/prepare-ios-device-signing.py
+      - name: Install CocoaPods dependencies
+        run: cd ios && pod install
+      - name: Apply profiles to app and widget targets
+        run: ruby ../scripts/apply-ios-device-profiles.rb
+      - name: Build signed IPA
+        run: |
+          flutter build ipa "--$BUILD_MODE" \
+            --build-number="$GITHUB_RUN_NUMBER" \
+            --export-options-plist="$RUNNER_TEMP/bulka-signing/ExportOptions.plist" \
+            --dart-define=BULKA_API_BASE_URL=https://bulka.com.kz
+      - name: Verify built application
+        run: |
+          python3 ../scripts/verify-ios-device-ipa.py build/ios/ipa \
+            --expected-bundle-id com.bulka.bonus
+          shasum -a 256 build/ios/ipa/*.ipa > build/ios/ipa/SHA256SUMS
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: bulka-iphone-${{ inputs.mode }}-${{ github.sha }}
+          path: |
+            BulkaAndroid/build/ios/ipa/*.ipa
+            BulkaAndroid/build/ios/ipa/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 7
+      - name: Remove temporary signing materials
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/bulka-signing/build.keychain-db" || true
+          rm -rf "$RUNNER_TEMP/bulka-signing"
