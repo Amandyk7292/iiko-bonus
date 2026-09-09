@@ -200,13 +200,11 @@ const registerAccessAdminRoutes = (router) => {
         selfOwner &&
         (role !== 'owner' || req.body?.active === false || req.body?.branchIds?.length)
       ) {
-        return res
-          .status(409)
-          .json({
-            success: false,
-            error: 'Нельзя понизить права или отключить собственную учётную запись владельца',
-            code: 'OWNER_SELF_ACCESS_PROTECTED',
-          });
+        return res.status(409).json({
+          success: false,
+          error: 'Нельзя понизить права или отключить собственную учётную запись владельца',
+          code: 'OWNER_SELF_ACCESS_PROTECTED',
+        });
       }
 
       const branchIds = normalizeAccessBranchIds(req.body?.branchIds);
