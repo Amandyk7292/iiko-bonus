@@ -29,6 +29,23 @@ void main() {
     expect(translationValidationErrors(), isEmpty);
   });
 
+  test('delivery minimum errors retain the amount in every app language', () {
+    final expected = {
+      'ru': 'Минимальная сумма заказа для доставки — 2 000 ₸.',
+      'kk': 'Жеткізуге арналған тапсырыстың ең төменгі сомасы — 2 000 ₸.',
+      'en': 'The minimum order for delivery is 2 000 ₸.',
+    };
+    for (final entry in expected.entries) {
+      appLanguageNotifier.value = entry.key;
+      expect(
+        localizeErrorMessage(
+          ApiException('Минимальная сумма доставки — 2\u00a0000 ₸'),
+        ),
+        entry.value,
+      );
+    }
+  });
+
   test('fulfillment slots use branch time instead of the device timezone', () {
     final slot = FulfillmentSlot.fromJson(
       {
@@ -824,83 +841,116 @@ void main() {
     },
   );
 
-  testWidgets('saved card checkout routes only through Forte', (tester) async {
-    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
-    addTearDown(() => debugDefaultTargetPlatformOverride = null);
-    SharedPreferences.setMockInitialValues({
-      'selected_order_type': 'pickup',
-      'selected_bakery_location': 'Bulka, Астана',
-      'selected_bakery_location_id': 'astana-1',
-    });
-    final cart = CartProvider()
-      ..addItem(
-        productId: 'saved-card-product',
-        name: 'Плюшка',
-        price: 500,
-        imageUrl: '',
-      );
-    final api = _CheckoutPaymentRoutingApiClient()
-      ..setSession(accessToken: 'test-access', refreshToken: 'test-refresh');
+  for (final rejectInitialQuote in [false, true]) {
+    testWidgets(
+      rejectInitialQuote
+          ? 'checkout prevents payment after a failed quote and recovers on retry'
+          : 'saved card checkout routes only through Forte',
+      (tester) async {
+        debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+        addTearDown(() => debugDefaultTargetPlatformOverride = null);
+        SharedPreferences.setMockInitialValues({
+          'selected_order_type': 'pickup',
+          'selected_bakery_location': 'Bulka, Астана',
+          'selected_bakery_location_id': 'astana-1',
+        });
+        final cart = CartProvider()
+          ..addItem(
+            productId: 'saved-card-product',
+            name: 'Плюшка',
+            price: 500,
+            imageUrl: '',
+          );
+        final api = _CheckoutPaymentRoutingApiClient()
+          ..rejectQuote = rejectInitialQuote
+          ..setSession(
+            accessToken: 'test-access',
+            refreshToken: 'test-refresh',
+          );
 
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: buildBulkaTheme(),
-        home: ChangeNotifierProvider.value(
-          value: cart,
-          child: MainShell(
-            api: api,
-            customer: _testCustomer,
-            transactions: _testTransactions,
-            initialTab: 2,
-            onLogout: () async {},
-            onRefreshProfile: () async {},
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: buildBulkaTheme(),
+            home: ChangeNotifierProvider.value(
+              value: cart,
+              child: MainShell(
+                api: api,
+                customer: _testCustomer,
+                transactions: _testTransactions,
+                initialTab: 2,
+                onLogout: () async {},
+                onRefreshProfile: () async {},
+              ),
+            ),
           ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Оформить заказ'));
-    await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Оформить заказ'));
+        await tester.pumpAndSettle();
 
-    final selectTime = find.text('Выберите время');
-    await tester.scrollUntilVisible(
-      selectTime,
-      420,
-      scrollable: find.byType(Scrollable).last,
-    );
-    await tester.tap(selectTime);
-    await tester.pump(const Duration(milliseconds: 500));
-    expect(find.byType(BottomSheet), findsOneWidget);
-    final continueButton = tester.widget<GradientButton>(
-      find.ancestor(
-        of: find.text('Продолжить'),
-        matching: find.byType(GradientButton),
-      ),
-    );
-    continueButton.onPressed!();
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
+        final selectTime = find.text('Выберите время');
+        await tester.scrollUntilVisible(
+          selectTime,
+          420,
+          scrollable: find.byType(Scrollable).last,
+        );
+        await tester.tap(selectTime);
+        await tester.pump(const Duration(milliseconds: 500));
+        expect(find.byType(BottomSheet), findsOneWidget);
+        final continueButton = tester.widget<GradientButton>(
+          find.ancestor(
+            of: find.text('Продолжить'),
+            matching: find.byType(GradientButton),
+          ),
+        );
+        continueButton.onPressed!();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
 
-    final submitButton = tester.widget<GradientButton>(
-      find.ancestor(
-        of: find.text('Оформить заказ'),
-        matching: find.byType(GradientButton),
-      ),
+        if (rejectInitialQuote) {
+          expect(
+            find.text('Минимальная сумма заказа для доставки — 2 000 ₸.'),
+            findsOneWidget,
+          );
+          final blockedButton = tester.widget<GradientButton>(
+            find.byKey(const ValueKey('checkout-submit')),
+          );
+          expect(blockedButton.onPressed, isNull);
+          expect(api.forteCreateCalls, 0);
+          api.rejectQuote = false;
+          await tester.tap(find.text('Повторить расчёт'));
+          await tester.pumpAndSettle();
+          expect(
+            find.byKey(const ValueKey('checkout-quote-error')),
+            findsNothing,
+          );
+        }
+
+        final submitButton = tester.widget<GradientButton>(
+          find.ancestor(
+            of: find.text('Оформить заказ'),
+            matching: find.byType(GradientButton),
+          ),
+        );
+        expect(submitButton.onPressed, isNotNull);
+        submitButton.onPressed!();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
+
+        expect(api.forteQuoteCalls, rejectInitialQuote ? 2 : 1);
+        expect(api.forteCreateCalls, 1);
+        expect(
+          api.savedPaymentMethodId,
+          '31f0d793-0102-4d2f-a5a1-744d12cffe7c',
+        );
+        expect(find.text('Оплата картой'), findsOneWidget);
+
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump();
+        debugDefaultTargetPlatformOverride = null;
+      },
     );
-    expect(submitButton.onPressed, isNotNull);
-    submitButton.onPressed!();
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 100));
-
-    expect(api.forteQuoteCalls, 1);
-    expect(api.forteCreateCalls, 1);
-    expect(api.savedPaymentMethodId, '31f0d793-0102-4d2f-a5a1-744d12cffe7c');
-    expect(find.text('Оплата картой'), findsOneWidget);
-
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
-    debugDefaultTargetPlatformOverride = null;
-  });
+  }
 
   testWidgets('rapid time taps request slots and open the picker only once', (
     tester,
@@ -2862,6 +2912,7 @@ class _CheckoutPaymentRoutingApiClient extends _FakeBulkaApiClient {
   );
   int forteQuoteCalls = 0;
   int forteCreateCalls = 0;
+  bool rejectQuote = false;
   String? savedPaymentMethodId;
 
   @override
@@ -2890,6 +2941,9 @@ class _CheckoutPaymentRoutingApiClient extends _FakeBulkaApiClient {
     String? promoCode,
   }) async {
     forteQuoteCalls++;
+    if (rejectQuote) {
+      throw ApiException('Минимальная сумма доставки — 2\u00a0000 ₸');
+    }
     return const {
       'subtotal': 500,
       'discount': 0,

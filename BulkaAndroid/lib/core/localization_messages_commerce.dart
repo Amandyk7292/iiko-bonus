@@ -289,6 +289,16 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'kk': 'Баға тексерілді',
     'en': 'Price checked',
   },
+  'checkout_delivery_minimum': {
+    'ru': 'Минимальная сумма заказа для доставки — {amount} ₸.',
+    'kk': 'Жеткізуге арналған тапсырыстың ең төменгі сомасы — {amount} ₸.',
+    'en': 'The minimum order for delivery is {amount} ₸.',
+  },
+  'checkout_retry_quote': {
+    'ru': 'Повторить расчёт',
+    'kk': 'Қайта есептеу',
+    'en': 'Recalculate',
+  },
   'checkout_forte_unavailable': {
     'ru': 'Оплата картой ForteBank временно недоступна.',
     'kk': 'ForteBank картасымен төлем уақытша қолжетімсіз.',

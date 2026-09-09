@@ -48,6 +48,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   int _discount = 0;
   int _deliveryFee = 0;
   int? _quotedTotal;
+  String? _quoteError;
   Map<String, dynamic>? _etaQuote;
   int _branchTimezoneOffsetMinutes = 300;
   int _quoteRevision = 0;
@@ -79,7 +80,9 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
     _commentController.addListener(_saveDraft);
     _onlineOrderingDisabled = widget.api.onlineOrderingDisabled;
     unawaited(
-      _loadCheckoutPreferences().whenComplete(() => _preferencesReady = true),
+      _loadCheckoutPreferences().whenComplete(() {
+        if (mounted) setState(() => _preferencesReady = true);
+      }),
     );
     _live = _LiveRefresh(
       widget.api,
@@ -132,6 +135,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         _discount = 0;
         _isQuoting = false;
         _quotedTotal = null;
+        _quoteError = null;
         _etaQuote = null;
       });
     }
@@ -238,6 +242,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   String _clockLabel(DateTime value) => formatUiTime(context, value);
 
   void _saveDraft() {
+    if (!_preferencesReady) return;
     unawaited(_persistDraft());
   }
 
@@ -331,6 +336,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       _discount = 0;
       _deliveryFee = 0;
       _quotedTotal = null;
+      _quoteError = null;
       _etaQuote = null;
       _isQuoting = false;
     });
@@ -371,6 +377,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         _deliveryFee = 0;
         _isQuoting = false;
         _quotedTotal = null;
+        _quoteError = null;
         _etaQuote = null;
       });
       await _persistDraft();
@@ -396,6 +403,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         _deliveryFee = 0;
         _isQuoting = false;
         _quotedTotal = null;
+        _quoteError = null;
         _etaQuote = null;
       });
       await _persistDraft();
@@ -547,7 +555,11 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       return;
     }
     final revision = ++_quoteRevision;
-    setState(() => _isQuoting = true);
+    setState(() {
+      _isQuoting = true;
+      _quoteError = null;
+      _quotedTotal = null;
+    });
     try {
       final quote = await widget.api.quoteForteOrder(
         cartItems: widget.cartItems,
@@ -582,9 +594,11 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       }
     } catch (error) {
       if (mounted && revision == _quoteRevision) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
+        setState(() {
+          _quoteError = localizeErrorMessage(error);
+          _quotedTotal = null;
+          _etaQuote = null;
+        });
       }
     } finally {
       if (mounted && revision == _quoteRevision) {
@@ -635,6 +649,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       setState(() {
         _scheduledSlot = null;
         _quotedTotal = null;
+        _quoteError = null;
         _etaQuote = null;
       });
       ScaffoldMessenger.of(
@@ -696,6 +711,10 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       return;
     }
     if (_isSubmitting) return;
+    if (_quotedTotal == null || _isQuoting || _quoteError != null) {
+      await _refreshQuote();
+      return;
+    }
     setState(() => _isSubmitting = true);
     try {
       if (!await _revalidateScheduledSlot()) {

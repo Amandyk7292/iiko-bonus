@@ -29,6 +29,18 @@ String localizeErrorMessage(
       return 'error_invalid_code'.tr;
   }
   final raw = error is ApiException ? error.message : (error?.toString() ?? '');
+  final deliveryMinimum = RegExp(
+    r'Минимальная сумма доставки\s*[—–:-]?\s*(\d[\d\s\u00a0\u202f]*)\s*₸',
+    caseSensitive: false,
+  ).firstMatch(raw);
+  if (deliveryMinimum != null) {
+    return 'checkout_delivery_minimum'.trArgs({
+      'amount': deliveryMinimum
+          .group(1)!
+          .trim()
+          .replaceAll(RegExp(r'[\s\u00a0\u202f]+'), ' '),
+    });
+  }
   final value = raw.toLowerCase();
   if (value.contains('city') || value.contains('город')) {
     return 'error_load_cities'.tr;
