@@ -297,6 +297,7 @@ async function updateKitchenStatus(
       allowedFulfillmentStatuses: [String(current.fulfillment_status || 'new')],
       cancelBeforeRefund: true,
       reuseRefundRequestId: true,
+      cancelExternalDelivery: true,
     });
     const { data: cancelled, error: cancelledError } = await supabase
       .from('kaspi_orders')

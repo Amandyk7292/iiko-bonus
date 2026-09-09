@@ -10,6 +10,7 @@ test.before(async () => {
     create table bulka_locations(id uuid primary key, active boolean default true);
     create table kaspi_orders(id uuid primary key, status text, kitchen_status text, fulfillment_status text);
     create table order_partial_refunds(id uuid primary key, order_id uuid, status text);
+    create table custom_products(id uuid primary key);
     create table order_partial_refund_items(refund_id uuid, product_id text, quantity integer);
     create table branch_product_inventory(id uuid default gen_random_uuid(), branch_id uuid, product_id text, product_name text,
       source_quantity integer, manual_stop boolean default false, source text default 'iiko', last_synced_at timestamptz,
@@ -28,6 +29,9 @@ test.before(async () => {
   await db.exec(readFileSync('supabase/migrations/20260909230000_cashier_inventory.sql', 'utf8'));
   await db.exec(
     readFileSync('supabase/migrations/20260909232000_front_inventory_sync.sql', 'utf8'),
+  );
+  await db.exec(
+    readFileSync('supabase/migrations/20260910003000_cashier_inventory_guardrails.sql', 'utf8'),
   );
 });
 function frontSender(branchId) {
@@ -109,6 +113,74 @@ test('Front stop, removal, duplicates and out-of-order snapshots preserve correc
       ])
     ).rows[0].source_quantity,
     null,
+  );
+});
+test('manual stop leaves register counts live instead of silently freezing the quantity', async () => {
+  const id = await branch(),
+    send = frontSender(id);
+  await send(10);
+  await db.query('select update_cashier_inventory($1,$2,$3,0,$4)', [
+    id,
+    'bun',
+    'Хот-дог',
+    { manualStop: true },
+  ]);
+  await send(5);
+  let row = (await db.query('select * from branch_product_inventory where branch_id=$1', [id]))
+    .rows[0];
+  assert.equal(row.source_quantity, 5);
+  assert.equal(row.source, 'iiko');
+  assert.equal(row.manual_stop, true);
+  await db.query('select update_cashier_inventory($1,$2,$3,$4,$5)', [
+    id,
+    'bun',
+    'Хот-дог',
+    Number(row.stock_revision),
+    { manualStop: false },
+  ]);
+  await send(3);
+  row = (await db.query('select * from branch_product_inventory where branch_id=$1', [id])).rows[0];
+  assert.equal(row.source_quantity, 3);
+  assert.equal(row.manual_stop, false);
+});
+test('an independent custom product stays manual when only its stop switch is changed', async () => {
+  const id = await branch(),
+    product = randomUUID();
+  await db.query('insert into custom_products values($1)', [product]);
+  const result = await db.query('select update_cashier_inventory($1,$2,$3,0,$4) as data', [
+    id,
+    product,
+    'Свой товар',
+    { manualStop: true },
+  ]);
+  assert.equal(result.rows[0].data.source, 'admin');
+});
+test('retrying an old checkout cannot renew its reservation while Front is disconnected', async () => {
+  const id = await branch(),
+    send = frontSender(id);
+  await send(10);
+  const request = await reserve(id);
+  const row = (
+    await db.query('select customer_id from inventory_reservations where client_request_id=$1', [
+      request,
+    ])
+  ).rows[0];
+  await db.query("update inventory_reservations set status='expired' where client_request_id=$1", [
+    request,
+  ]);
+  await db.query(
+    "update branch_front_inventory_sync set last_seen_at=now()-interval '1 minute' where branch_id=$1",
+    [id],
+  );
+  await assert.rejects(
+    () =>
+      db.query('select reserve_order_inventory($1,$2,$3,$4,35,null)', [
+        row.customer_id,
+        request,
+        id,
+        [{ id: 'bun', quantity: 1 }],
+      ]),
+    /требует подтверждения/,
   );
 });
 test('full Front snapshots clear old cloud counts but preserve independent custom stock', async () => {

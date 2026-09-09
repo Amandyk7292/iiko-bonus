@@ -74,6 +74,20 @@ test('cashier may mutate only own staff push token and test endpoints', () => {
     assert.equal(result.responseBody.code, 'CASHIER_ACTION_FORBIDDEN');
   }
 });
+test('cashier can edit city-prefixed stock IDs without admitting encoded path separators', () => {
+  for (const id of [ORDER_ID, `astana:${ORDER_ID}`, `astana%3A${ORDER_ID}`]) {
+    assert.equal(
+      runMutationGuard({ method: 'PATCH', path: `/staff/catalog/${id}` }).nextCalled,
+      true,
+    );
+  }
+  for (const id of ['%2Fcredentials', 'astana%2Fproduct', '../credentials']) {
+    assert.equal(
+      runMutationGuard({ method: 'PATCH', path: `/staff/catalog/${id}` }).nextCalled,
+      false,
+    );
+  }
+});
 
 test('cashier can use kitchen and cancel orders but cannot change other order fields', () => {
   assert.equal(

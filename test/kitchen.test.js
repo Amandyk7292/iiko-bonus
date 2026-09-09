@@ -193,6 +193,7 @@ test('kitchen cancellation uses the paid-order refund workflow before closing', 
   assert.equal(events[0][0], 'cancel');
   assert.equal(events[0][1], 'Нет товара');
   assert.equal(events[0][2].cancelBeforeRefund, true);
+  assert.equal(events[0][2].cancelExternalDelivery, true);
   assert.deepEqual(events[0][2].allowedFulfillmentStatuses, ['new']);
   assert.ok(
     events
