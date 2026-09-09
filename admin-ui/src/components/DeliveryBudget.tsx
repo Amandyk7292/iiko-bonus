@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import { request } from '../lib/api';
 import Modal from './Modal';
 import { useFeedback } from './Feedback';
@@ -20,6 +20,7 @@ type Adjustment = {
 const money = (value: number) => `${Number(value).toLocaleString('ru-RU')} ₸`;
 
 export default function DeliveryBudget() {
+  const formId = useId();
   const [budget, setBudget] = useState<Budget | null>(null);
   const [form, setForm] = useState<Adjustment | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -107,7 +108,7 @@ export default function DeliveryBudget() {
           )}
         </div>
         <div className="flex flex-wrap gap-2">
-          <button type="button" className="btn-primary" onClick={() => open('top_up')}>
+          <button type="button" className="btn-classic" onClick={() => open('top_up')}>
             Учесть пополнение
           </button>
           <button type="button" className="btn-outline" onClick={() => open('balance')}>
@@ -120,28 +121,51 @@ export default function DeliveryBudget() {
         onClose={() => {
           if (!saving) setForm(null);
         }}
-        title={form?.mode === 'top_up' ? 'Учесть пополнение Яндекса' : 'Сверить остаток Яндекса'}
+        title={form?.mode === 'top_up' ? 'Учесть пополнение' : 'Сверить остаток'}
         size="sm"
-        description="Укажите сумму, проверенную в кабинете Яндекса. Эта форма обновляет учёт Bulka и не переводит деньги."
+        description="Обновляет учёт доставки в Bulka. Деньги не переводятся."
+        footer={
+          <div className="modal-actions">
+            <button
+              type="button"
+              className="btn-outline"
+              disabled={saving}
+              onClick={() => setForm(null)}
+            >
+              Отмена
+            </button>
+            <button
+              type="submit"
+              form={formId}
+              className="btn-classic"
+              disabled={!confirmed || saving || !form?.amount.trim()}
+            >
+              {saving ? 'Сохраняем…' : 'Сохранить'}
+            </button>
+          </div>
+        }
       >
         <form
+          id={formId}
           onSubmit={(event) => {
             event.preventDefault();
             void save();
           }}
-          className="space-y-4"
+          className="modal-body form-stack"
         >
-          <label className="block">
-            {form?.mode === 'top_up'
-              ? 'Зачислено на счёт, ₸'
-              : 'Остаток после расходов, до резервов Bulka, ₸'}
+          <label className="field-group">
+            <span className="field-label">
+              {form?.mode === 'top_up' ? 'Сумма пополнения, ₸' : 'Остаток в Яндексе, ₸'}
+            </span>
             <input
-              className="input mt-2 w-full"
+              className="input-classic"
               type="number"
+              inputMode="decimal"
               min="0"
               max="100000000"
               step="0.01"
               required
+              aria-describedby={`${formId}-amount-hint`}
               value={form?.amount || ''}
               disabled={saving}
               onChange={(event) =>
@@ -150,26 +174,24 @@ export default function DeliveryBudget() {
                 )
               }
             />
+            <span className="field-hint" id={`${formId}-amount-hint`}>
+              {form?.mode === 'top_up'
+                ? 'Сумма, уже зачисленная на счёт Яндекса.'
+                : 'Текущий остаток после расходов, до вычета резервов Bulka.'}
+            </span>
           </label>
-          <p className="text-sm">
+          <p className="delivery-budget-hint">
             Действующие резервы сохранятся. Запас на каждую доставку: {budget.bufferPercent}%.
           </p>
-          <label className="flex gap-2 text-sm">
+          <label className="delivery-budget-confirm">
             <input
               type="checkbox"
               checked={confirmed}
               disabled={saving}
               onChange={(event) => setConfirmed(event.target.checked)}
             />
-            Сумма подтверждена в Яндексе
+            <span>Сумма подтверждена в Яндексе</span>
           </label>
-          <button
-            type="submit"
-            className="btn-primary"
-            disabled={!confirmed || saving || !form?.amount.trim()}
-          >
-            {saving ? 'Сохраняем…' : 'Сохранить'}
-          </button>
         </form>
       </Modal>
     </section>

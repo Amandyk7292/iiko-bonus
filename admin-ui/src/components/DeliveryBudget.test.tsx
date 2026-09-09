@@ -2,26 +2,17 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, expect, it, vi } from 'vitest';
 import DeliveryBudget from './DeliveryBudget';
+import { I18nProvider } from '../lib/i18n';
 
 const mocks = vi.hoisted(() => ({ request: vi.fn(), toast: vi.fn() }));
 vi.mock('../lib/api', () => ({ request: mocks.request }));
 vi.mock('./Feedback', () => ({ useFeedback: () => mocks }));
-vi.mock('./Modal', () => ({
-  default: ({
-    open,
-    title,
-    children,
-  }: {
-    open: boolean;
-    title: string;
-    children: React.ReactNode;
-  }) =>
-    open ? (
-      <div role="dialog" aria-label={title}>
-        {children}
-      </div>
-    ) : null,
-}));
+const renderBudget = () =>
+  render(
+    <I18nProvider>
+      <DeliveryBudget />
+    </I18nProvider>,
+  );
 const balance = {
   balance: 5000,
   reserved: 1500,
@@ -36,7 +27,7 @@ beforeEach(() => {
 });
 
 it('shows only the available budget after existing commitments', async () => {
-  render(<DeliveryBudget />);
+  renderBudget();
   const card = await screen.findByRole('region', { name: 'Бюджет доставки' });
   expect(card).toHaveTextContent(/Остаток: 5\s000 ₸/);
   expect(card).toHaveTextContent(/В резерве: 1\s500 ₸/);
@@ -44,7 +35,7 @@ it('shows only the available budget after existing commitments', async () => {
 });
 
 it('requires credited-funds confirmation and sends the displayed revision', async () => {
-  render(<DeliveryBudget />);
+  renderBudget();
   await userEvent.click(await screen.findByRole('button', { name: 'Учесть пополнение' }));
   const dialog = within(screen.getByRole('dialog'));
   await userEvent.type(dialog.getByRole('spinbutton'), '2000');
@@ -58,7 +49,7 @@ it('requires credited-funds confirmation and sends the displayed revision', asyn
 });
 
 it('a failed top-up keeps the same idempotency key for a deliberate retry', async () => {
-  render(<DeliveryBudget />);
+  renderBudget();
   await userEvent.click(await screen.findByRole('button', { name: 'Учесть пополнение' }));
   await userEvent.type(screen.getByRole('spinbutton'), '2000');
   await userEvent.click(screen.getByRole('checkbox'));
@@ -74,7 +65,7 @@ it('a failed top-up keeps the same idempotency key for a deliberate retry', asyn
 
 it('hides financial controls when access is denied', async () => {
   mocks.request.mockRejectedValue(new Error('Forbidden'));
-  render(<DeliveryBudget />);
+  renderBudget();
   await waitFor(() => expect(mocks.request).toHaveBeenCalled());
   expect(screen.queryByRole('region')).not.toBeInTheDocument();
 });

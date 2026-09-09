@@ -287,7 +287,7 @@ export default function ReportBuilder({
       </details>
       <div className="id-actions">
         <button
-          className="btn-primary"
+          className="btn-classic"
           type="button"
           disabled={loading || !aggregate.length}
           onClick={() => setSubmitted(query())}

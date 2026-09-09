@@ -80,7 +80,7 @@ describe('Feedback transitions', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
-  it('gives destructive confirmation actions their own padded footer', () => {
+  it('associates the confirmation description and renders both actions', () => {
     render(
       <I18nProvider>
         <FeedbackProvider>
@@ -92,7 +92,9 @@ describe('Feedback transitions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Удалить' }));
 
     const dialog = screen.getByRole('alertdialog', { name: 'Удалить блок?' });
-    expect(dialog.querySelector('.modal-actions')).toHaveClass('modal-confirm-actions');
+    expect(dialog).toHaveAccessibleDescription('Блок будет удалён из черновика.');
+    expect(within(dialog).getByRole('button', { name: 'Отмена' })).toBeEnabled();
+    expect(within(dialog).getByRole('button', { name: 'Подтвердить' })).toBeEnabled();
     expect(within(dialog).getByRole('button', { name: 'Закрыть' })).toHaveAttribute(
       'title',
       'Закрыть',

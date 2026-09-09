@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import {
-  Building2,
   Eye,
   EyeOff,
   KeyRound,
@@ -15,6 +14,7 @@ import {
   UserCog,
 } from 'lucide-react';
 import Modal from '../components/Modal';
+import BranchAccessPicker, { type AccessBranch } from '../components/BranchAccessPicker';
 import PageState from '../components/PageState';
 import SelectControl from '../components/SelectControl';
 import { useFeedback } from '../components/Feedback';
@@ -29,12 +29,6 @@ interface AccessProfile {
   active: boolean;
   authMethod?: 'password' | 'whatsapp' | 'environment';
   passwordConfigured?: boolean;
-}
-
-interface Location {
-  id: string;
-  name?: string;
-  address?: string;
 }
 
 interface StaffDraft {
@@ -83,7 +77,7 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
   );
   const [profiles, setProfiles] = useState<AccessProfile[]>([]);
   const [configured, setConfigured] = useState<string[]>([]);
-  const [locations, setLocations] = useState<Location[]>([]);
+  const [locations, setLocations] = useState<AccessBranch[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState('');
@@ -143,20 +137,6 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
     setProfiles((current) =>
       current.map((item) => (item.username === username ? { ...item, ...data } : item)),
     );
-  };
-
-  const patchDraftBranch = (branchId: string, selected: boolean) => {
-    setDraft((current) => ({
-      ...current,
-      branchIds:
-        current.mode === 'cashier'
-          ? selected
-            ? [branchId]
-            : []
-          : selected
-            ? [...current.branchIds, branchId]
-            : current.branchIds.filter((id) => id !== branchId),
-    }));
   };
 
   const toggleOnlineOrdering = (disabled: boolean) => {
@@ -383,7 +363,8 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
           <PageState type="empty" title={t('access.noAccounts')} />
         ) : (
           profiles.map((profile) => {
-            const selfOwner = user?.username === profile.username && ['owner', 'admin'].includes(user.role);
+            const selfOwner =
+              user?.username === profile.username && ['owner', 'admin'].includes(user.role);
             const phoneLogin = isPhoneProfile(profile.username);
             const cashierProfile = profile.role === 'cashier' || profile.authMethod === 'password';
             const availableRoles = cashierProfile
@@ -456,38 +437,14 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
                 </div>
 
                 {profile.role !== 'owner' && (
-                  <fieldset className="branch-access">
-                    <legend>
-                      <Building2 aria-hidden="true" size={16} /> {t('access.availableBranches')}
-                    </legend>
-                    {locations.length ? (
-                      locations.map((location) => (
-                        <label key={location.id}>
-                          <input
-                            type={cashierProfile ? 'radio' : 'checkbox'}
-                            name={cashierProfile ? `cashier-branch-${profile.username}` : undefined}
-                            checked={(profile.branch_ids || []).includes(location.id)}
-                            onChange={(event) =>
-                              patchProfile(profile.username, {
-                                branch_ids: cashierProfile
-                                  ? event.target.checked
-                                    ? [location.id]
-                                    : profile.branch_ids
-                                  : event.target.checked
-                                    ? [...(profile.branch_ids || []), location.id]
-                                    : (profile.branch_ids || []).filter((id) => id !== location.id),
-                              })
-                            }
-                          />
-                          <span>
-                            {location.name} · {location.address}
-                          </span>
-                        </label>
-                      ))
-                    ) : (
-                      <p className="page-help">{t('access.noBranches')}</p>
-                    )}
-                  </fieldset>
+                  <BranchAccessPicker
+                    locations={locations}
+                    selectedIds={profile.branch_ids || []}
+                    single={cashierProfile}
+                    onChange={(branchIds) =>
+                      patchProfile(profile.username, { branch_ids: branchIds })
+                    }
+                  />
                 )}
 
                 <div className="action-cluster">
@@ -554,8 +511,32 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
         description={t('access.newStaffHint')}
         onClose={closeCreate}
         size="lg"
+        footer={
+          <div className="modal-actions">
+            <button className="btn-outline" type="button" disabled={creating} onClick={closeCreate}>
+              {t('common.cancel')}
+            </button>
+            <button
+              className="btn-classic inline-flex items-center gap-2"
+              type="submit"
+              form="staff-create-form"
+              disabled={
+                creating ||
+                !draft.displayName.trim() ||
+                (draft.mode === 'cashier'
+                  ? !draft.username.trim() ||
+                    draft.password.length < 10 ||
+                    draft.branchIds.length !== 1
+                  : !draft.phone.trim())
+              }
+            >
+              <Plus aria-hidden="true" size={16} />
+              {creating ? t('access.adding') : t('access.addStaff')}
+            </button>
+          </div>
+        }
       >
-        <form className="modal-body form-stack" onSubmit={createStaff}>
+        <form id="staff-create-form" className="modal-body form-stack" onSubmit={createStaff}>
           <div className="segmented-control" role="group" aria-label={t('access.accountType')}>
             <button
               type="button"
@@ -705,28 +686,12 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
             </label>
           )}
 
-          <fieldset className="branch-access">
-            <legend>
-              <Building2 aria-hidden="true" size={16} /> {t('access.availableBranches')}
-            </legend>
-            {locations.length ? (
-              locations.map((location) => (
-                <label key={location.id}>
-                  <input
-                    type={draft.mode === 'cashier' ? 'radio' : 'checkbox'}
-                    name={draft.mode === 'cashier' ? 'new-cashier-branch' : undefined}
-                    checked={draft.branchIds.includes(location.id)}
-                    onChange={(event) => patchDraftBranch(location.id, event.target.checked)}
-                  />
-                  <span>
-                    {location.name} · {location.address}
-                  </span>
-                </label>
-              ))
-            ) : (
-              <p className="page-help">{t('access.noBranches')}</p>
-            )}
-          </fieldset>
+          <BranchAccessPicker
+            locations={locations}
+            selectedIds={draft.branchIds}
+            single={draft.role === 'cashier'}
+            onChange={(branchIds) => setDraft((current) => ({ ...current, branchIds }))}
+          />
 
           <div className="inline-alert inline-alert-info">
             {draft.mode === 'cashier' ? (
@@ -735,28 +700,6 @@ export default function AccessPage({ user }: { user?: AdminUser | null }) {
               <Phone aria-hidden="true" size={17} />
             )}
             {draft.mode === 'cashier' ? t('access.cashierLoginHint') : t('access.loginHint')}
-          </div>
-
-          <div className="modal-actions">
-            <button className="btn-outline" type="button" disabled={creating} onClick={closeCreate}>
-              {t('common.cancel')}
-            </button>
-            <button
-              className="btn-classic inline-flex items-center gap-2"
-              type="submit"
-              disabled={
-                creating ||
-                !draft.displayName.trim() ||
-                (draft.mode === 'cashier'
-                  ? !draft.username.trim() ||
-                    draft.password.length < 10 ||
-                    draft.branchIds.length !== 1
-                  : !draft.phone.trim())
-              }
-            >
-              <Plus aria-hidden="true" size={16} />
-              {creating ? t('access.adding') : t('access.addStaff')}
-            </button>
           </div>
         </form>
       </Modal>

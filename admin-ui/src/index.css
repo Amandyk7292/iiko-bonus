@@ -202,12 +202,12 @@
   .btn-outline,
   .btn-danger {
     min-height: 44px;
-    padding-top: 8px;
-    padding-bottom: 8px;
+    padding: 8px 18px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     font-weight: 650;
+    gap: 8px;
     text-decoration: none;
     white-space: nowrap;
   }
@@ -500,15 +500,20 @@
     text-align: left;
   }
   .password-field {
+    display: block;
+    width: 100%;
+    min-width: 0;
     position: relative;
   }
   .password-field input {
+    display: block;
     padding-right: 54px;
   }
   .password-toggle {
     position: absolute;
-    top: 1px;
-    right: 2px;
+    inset-block: 0;
+    right: 4px;
+    margin-block: auto;
   }
   .login-submit {
     width: 100%;
@@ -638,6 +643,7 @@
   }
 
   .field-group {
+    display: block;
     min-width: 0;
     position: relative;
   }
@@ -650,6 +656,8 @@
     text-align: left;
   }
   .field-hint {
+    display: block;
+    line-height: 1.5;
     margin: 6px 0 0;
     color: var(--sagi-muted);
     font-size: var(--type-caption);
@@ -669,6 +677,9 @@
     min-height: 96px;
   }
   .input-with-icon {
+    display: block;
+    width: 100%;
+    min-width: 0;
     position: relative;
   }
   .input-with-icon > svg {
@@ -678,8 +689,10 @@
     top: 50%;
     transform: translateY(-50%);
     color: #9a8c82;
+    pointer-events: none;
   }
   .input-with-icon input {
+    display: block;
     padding-left: 42px;
   }
   .form-stack {
@@ -1147,15 +1160,19 @@
     align-items: center;
     justify-items: center;
     padding: 16px;
-    overflow-y: auto;
+    overflow: hidden;
     background: rgba(45, 26, 18, 0.52);
     backdrop-filter: blur(5px);
     animation: backdrop-in var(--motion-duration-base) var(--motion-ease-out);
   }
   .modal-panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
     width: 100%;
     max-height: calc(100dvh - 32px);
-    overflow-y: auto;
+    overflow: hidden;
     overscroll-behavior: contain;
     border: 1px solid var(--sagi-border);
     border-radius: var(--radius-card);
@@ -1183,8 +1200,8 @@
     max-width: 1040px;
   }
   .modal-header {
-    position: sticky;
-    top: 0;
+    position: relative;
+    flex-shrink: 0;
     z-index: 2;
     display: flex;
     align-items: flex-start;
@@ -1192,8 +1209,7 @@
     gap: 12px;
     padding: 19px 20px;
     border-bottom: 1px solid var(--sagi-border);
-    background: rgba(255, 255, 255, 0.96);
-    backdrop-filter: blur(8px);
+    background: #fff;
   }
   .modal-header > div {
     min-width: 0;
@@ -1214,6 +1230,22 @@
   .modal-body {
     padding: 20px;
   }
+  .modal-scroll-region {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scroll-padding-block: 20px;
+  }
+  .modal-footer {
+    flex-shrink: 0;
+    padding: 16px 20px;
+    border-top: 1px solid var(--sagi-border);
+    background: #fff;
+  }
+  .modal-footer .modal-actions {
+    padding-top: 0;
+    border-top: 0;
+  }
   .modal-actions {
     display: flex;
     flex-wrap: wrap;
@@ -1224,6 +1256,12 @@
   }
   .modal-confirm-actions {
     padding: 16px 20px 20px;
+  }
+  .confirm-description {
+    margin: 0;
+    color: var(--sagi-muted);
+    font-size: var(--type-body-small);
+    line-height: 1.6;
   }
   .modal-context {
     display: flex;

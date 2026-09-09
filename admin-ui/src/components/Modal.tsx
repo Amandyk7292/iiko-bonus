@@ -10,6 +10,7 @@ interface ModalProps {
   description?: string;
   onClose: () => void;
   children: ReactNode;
+  footer?: ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl';
 }
 export default function Modal({
@@ -18,6 +19,7 @@ export default function Modal({
   description,
   onClose,
   children,
+  footer,
   size = 'md',
 }: ModalProps) {
   const { t } = useI18n();
@@ -62,6 +64,7 @@ export default function Modal({
       (firstAutofocus ?? firstFocusable ?? closeRef.current)?.focus();
     }, 0);
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
       if (event.key === 'Escape') {
         onCloseRef.current();
         return;
@@ -132,7 +135,8 @@ export default function Modal({
             <X aria-hidden="true" size={20} />
           </button>
         </div>
-        {children}
+        <div className="modal-scroll-region">{children}</div>
+        {footer && <div className="modal-footer">{footer}</div>}
       </section>
     </div>,
     document.body,

@@ -289,9 +289,6 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
                 <h2 id={confirmTitleId} className="modal-title">
                   {dialog.title}
                 </h2>
-                <p id={confirmBodyId} className="modal-description">
-                  {dialog.body}
-                </p>
               </div>
               <button
                 type="button"
@@ -303,23 +300,30 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
                 <X aria-hidden="true" size={20} />
               </button>
             </div>
-            <div className="modal-actions modal-confirm-actions">
-              <button
-                ref={cancelButtonRef}
-                type="button"
-                className="btn-outline px-5"
-                onClick={() => settle(false)}
-              >
-                {t('common.cancel')}
-              </button>
-              <button
-                ref={confirmButtonRef}
-                type="button"
-                className={dialog.destructive ? 'btn-danger px-5' : 'btn-classic px-5'}
-                onClick={() => settle(true)}
-              >
-                {dialog.confirmLabel ?? t('common.confirm')}
-              </button>
+            <div className="modal-scroll-region">
+              <p id={confirmBodyId} className="modal-body confirm-description">
+                {dialog.body}
+              </p>
+            </div>
+            <div className="modal-footer">
+              <div className="modal-actions">
+                <button
+                  ref={cancelButtonRef}
+                  type="button"
+                  className="btn-outline px-5"
+                  onClick={() => settle(false)}
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  ref={confirmButtonRef}
+                  type="button"
+                  className={dialog.destructive ? 'btn-danger px-5' : 'btn-classic px-5'}
+                  onClick={() => settle(true)}
+                >
+                  {dialog.confirmLabel ?? t('common.confirm')}
+                </button>
+              </div>
             </div>
           </section>
         </div>
