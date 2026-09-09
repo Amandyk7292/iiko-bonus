@@ -6,6 +6,7 @@ abstract final class OrderLiveStatus {
   );
   static BulkaApiClient? _api;
   static String? _lastPayload;
+  static Timer? _expiryTimer;
   static final _pendingTokens = <String, Map<String, dynamic>>{};
   static final _registeringTokens = <String>{};
 
@@ -80,12 +81,25 @@ abstract final class OrderLiveStatus {
 
   static Future<void> sync(CustomerOrder? order) async {
     if (kIsWeb) return;
+    _expiryTimer?.cancel();
+    _expiryTimer = null;
+    final expiresAt =
+        order != null && !order.usesDelivery && order.orderStatus == 'ready'
+        ? order.liveActivityExpiresAt
+        : null;
+    final expired = expiresAt != null && !expiresAt.isAfter(DateTime.now());
     if (order == null ||
         order.paymentStatus != 'paid' ||
         order.isClosed ||
+        expired ||
         !(await _ordersEnabled())) {
-      await clear(order: order);
+      await clear(order: order, dismissImmediately: expired);
       return;
+    }
+    if (expiresAt != null) {
+      _expiryTimer = Timer(expiresAt.difference(DateTime.now()), () {
+        unawaited(clear(order: order, dismissImmediately: true));
+      });
     }
     final eta = order.eta?.toUtc();
     final payload = <String, dynamic>{
@@ -101,6 +115,7 @@ abstract final class OrderLiveStatus {
       'progress': _progress(order),
       'courierName': order.courier?.name ?? '',
       'language': AppLang.current,
+      'liveActivityExpiresAtMillis': expiresAt?.millisecondsSinceEpoch,
     };
     final encoded = jsonEncode(payload);
     for (final activityId in _pendingTokens.keys.toList()) {
@@ -118,15 +133,23 @@ abstract final class OrderLiveStatus {
     }
   }
 
-  static Future<void> clear({CustomerOrder? order}) async {
+  static Future<void> clear({
+    CustomerOrder? order,
+    bool dismissImmediately = false,
+  }) async {
     if (kIsWeb) return;
+    _expiryTimer?.cancel();
+    _expiryTimer = null;
     _lastPayload = null;
     _pendingTokens.removeWhere(
       (_, payload) => order == null || payload['orderId'] == order.id,
     );
     try {
       await _channel.invokeMethod<void>('clearOrderStatus', {
-        'dismissImmediately': order == null || order.paymentStatus != 'paid',
+        'dismissImmediately':
+            dismissImmediately ||
+            order == null ||
+            order.paymentStatus != 'paid',
         if (order != null) ...{
           'orderId': order.id,
           'orderNumber': order.number,

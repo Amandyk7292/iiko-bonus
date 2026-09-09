@@ -252,18 +252,17 @@ extension _CatalogInteractionController on _CatalogScreenState {
       context: context,
       builder: (dialogContext) => BulkaActionDialog(
         scrollable: true,
-        title: Text(
-          'catalog_select_order_type_ok'.tr,
-          textAlign: TextAlign.center,
-        ),
         content: SizedBox(
           width: double.maxFinite,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              TextButton(
+              OutlinedButton(
                 key: const ValueKey('catalog-order-type-required-cancel'),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: _bulkaBrown, width: 1.5),
+                ),
                 onPressed: () => Navigator.of(dialogContext).pop(false),
                 child: Text(
                   'catalog_continue_browsing'.tr,

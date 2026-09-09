@@ -54,6 +54,10 @@ class _BulkaPermissionGateState extends State<BulkaPermissionGate> {
       badge: true,
       sound: true,
     );
+    await (await SharedPreferences.getInstance()).setBool(
+      PushNotifications._permissionPromptedKey,
+      true,
+    );
     return settings.authorizationStatus == AuthorizationStatus.authorized ||
         settings.authorizationStatus == AuthorizationStatus.provisional;
   }

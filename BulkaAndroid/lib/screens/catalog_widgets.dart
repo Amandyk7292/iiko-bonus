@@ -137,6 +137,20 @@ class _CatalogProductImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final placeholder = DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: borderRadius,
+        border: Border.all(color: context.bulkaColors.cardBorder),
+      ),
+      child: Center(
+        child: Icon(
+          Icons.bakery_dining_outlined,
+          size: 48,
+          color: context.bulkaColors.cardBorder,
+        ),
+      ),
+    );
     Widget image = ClipRRect(
       borderRadius: borderRadius,
       child: ColoredBox(
@@ -150,6 +164,7 @@ class _CatalogProductImage extends StatelessWidget {
                 url: url,
                 fit: BoxFit.cover,
                 semanticLabel: semanticLabel,
+                errorPlaceholder: placeholder,
               ),
             ),
           ),
@@ -185,9 +200,6 @@ class _CatalogProductImage extends StatelessWidget {
         ]),
         child: image,
       );
-    }
-    if (url.trim().isEmpty) {
-      return const SizedBox(height: 64, width: double.infinity);
     }
     return AspectRatio(aspectRatio: 1, child: image);
   }

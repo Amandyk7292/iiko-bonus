@@ -343,7 +343,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(AlertDialog), findsOneWidget);
-    expect(find.text('Выбрать тип заказа'), findsNWidgets(2));
+    expect(find.text('Выбрать тип заказа'), findsOneWidget);
     expect(find.text('Продолжить просмотр'), findsOneWidget);
     expect(
       Provider.of<CartProvider>(

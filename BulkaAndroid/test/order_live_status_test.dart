@@ -41,6 +41,47 @@ void main() {
     });
   }
   test(
+    'expired pickup cannot restart an activity after app restoration',
+    () async {
+      final json = order('paid').toJson()
+        ..['orderStatus'] = 'ready'
+        ..['liveActivityExpiresAt'] = DateTime.now()
+            .subtract(const Duration(seconds: 1))
+            .toIso8601String();
+      final restored = CustomerOrder.fromJson(
+        CustomerOrder.fromJson(json).toJson(),
+      );
+      await OrderLiveStatus.sync(restored);
+      expect(calls.single.method, 'clearOrderStatus');
+      expect(calls.single.arguments['dismissImmediately'], true);
+      calls.clear();
+      await OrderLiveStatus.sync(
+        CustomerOrder.fromJson({
+          ...json,
+          'fulfillmentType': 'delivery',
+          'effectiveFulfillmentType': 'delivery',
+        }),
+      );
+      expect(calls.single.method, 'updateOrderStatus');
+    },
+  );
+  testWidgets('open app dismisses ready activity when its deadline arrives', (
+    tester,
+  ) async {
+    final ready = CustomerOrder.fromJson(
+      order('paid').toJson()
+        ..['orderStatus'] = 'ready'
+        ..['liveActivityExpiresAt'] = DateTime.now()
+            .add(const Duration(seconds: 2))
+            .toIso8601String(),
+    );
+    await OrderLiveStatus.sync(ready);
+    expect(calls.single.method, 'updateOrderStatus');
+    await tester.pump(const Duration(seconds: 3));
+    expect(calls.last.method, 'clearOrderStatus');
+    expect(calls.last.arguments['dismissImmediately'], true);
+  });
+  test(
     'paid order starts once and payment reversal immediately clears it',
     () async {
       await OrderLiveStatus.sync(order('paid'));

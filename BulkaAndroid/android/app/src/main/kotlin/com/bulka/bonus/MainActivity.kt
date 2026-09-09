@@ -186,6 +186,12 @@ class MainActivity : FlutterActivity() {
             .setOngoing(true)
             .setAutoCancel(false)
             .setProgress(100, (progress * 100).toInt(), false)
+            .also {
+                val expiresAt = (payload["liveActivityExpiresAtMillis"] as? Number)?.toLong()
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && expiresAt != null) {
+                    it.setTimeoutAfter((expiresAt - System.currentTimeMillis()).coerceAtLeast(1L))
+                }
+            }
             .also { if (branch.isNotEmpty()) it.setSubText(branch) }
             .build()
         getSystemService(NotificationManager::class.java)

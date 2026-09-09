@@ -6,6 +6,7 @@ const orderPaymentState = require('./order-payment-state.service');
 const { releaseOrderReservations } = require('./inventory.service');
 const realtime = require('./realtime.service');
 const { sendOrderLiveActivity } = require('./live-activity.service');
+const { pickupLiveActivityExpiresAt } = require('../utils/live-activity-expiry.util');
 const { paymentReceiptUrl } = require('./payment-receipt.service');
 const { paymentProviderName, refundPaymentForOrder } = require('./payment-gateway.service');
 const { assertExternalDeliveryCancelled } = require('./external-delivery-lifecycle.service');
@@ -49,6 +50,7 @@ const ORDER_FIELDS = [
   'delivery_status',
   'estimated_delivery_at',
   'promised_ready_at',
+  'kitchen_ready_at',
   'eta_min_at',
   'eta_max_at',
   'eta_confidence',
@@ -184,7 +186,9 @@ const normalizedOrderStatus = (order) => {
 };
 
 const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
-  const branchLocation = Array.isArray(order.branch_location) ? order.branch_location[0] : order.branch_location;
+  const branchLocation = Array.isArray(order.branch_location)
+    ? order.branch_location[0]
+    : order.branch_location;
   const external = latestExternalDelivery(order);
   const ownCourier = order.couriers
     ? {
@@ -268,6 +272,7 @@ const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
     ...(includeDeliveryPin && order.delivery_pin ? { deliveryPin: order.delivery_pin } : {}),
     estimatedDeliveryAt: order.estimated_delivery_at || null,
     promisedReadyAt: order.promised_ready_at || null,
+    liveActivityExpiresAt: pickupLiveActivityExpiresAt(order),
     etaMinAt: order.eta_min_at || null,
     etaMaxAt: order.eta_max_at || null,
     etaConfidence: order.eta_confidence || null,
@@ -331,7 +336,9 @@ async function listCustomerOrders(customerId, { scope = 'active', page = 1, page
     .range(from, from + safePageSize - 1);
   if (error) throw error;
   return {
-    orders: await attachOrderImages((data || []).map((order) => normalizeOrder(order, { includeDeliveryPin: true }))),
+    orders: await attachOrderImages(
+      (data || []).map((order) => normalizeOrder(order, { includeDeliveryPin: true })),
+    ),
     total: count || 0,
     page: safePage,
     pageSize: safePageSize,
@@ -985,6 +992,7 @@ async function updateAdminOrderStatus(
     .slice(0, 500);
   const updates = {
     fulfillment_status: nextStatus,
+    ...(nextStatus === 'ready' && { kitchen_ready_at: new Date().toISOString() }),
     cancellation_reason: nextStatus === 'cancelled' ? reason || null : null,
     fulfilled_at: nextStatus === 'completed' ? new Date().toISOString() : null,
     last_error: null,

@@ -486,7 +486,13 @@ abstract final class PushNotifications {
     }
     try {
       var settings = await FirebaseMessaging.instance.getNotificationSettings();
-      if (settings.authorizationStatus == AuthorizationStatus.notDetermined) {
+      final prefs = await SharedPreferences.getInstance();
+      final shouldRequest =
+          settings.authorizationStatus == AuthorizationStatus.notDetermined ||
+          (defaultTargetPlatform == TargetPlatform.android &&
+              prefs.getBool(_permissionPromptedKey) != true &&
+              !_permissionAllowsPush(settings.authorizationStatus));
+      if (shouldRequest) {
         if (!request.userInitiated) {
           return {
             ...identity,
@@ -500,6 +506,7 @@ abstract final class PushNotifications {
           badge: true,
           sound: true,
         );
+        await prefs.setBool(_permissionPromptedKey, true);
       }
       final permission = _permissionName(settings.authorizationStatus);
       if (!_permissionAllowsPush(settings.authorizationStatus)) {

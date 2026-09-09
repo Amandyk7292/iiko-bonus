@@ -104,6 +104,7 @@ class CustomerOrder {
     this.refundedAt,
     this.estimatedDeliveryAt,
     this.promisedReadyAt,
+    this.liveActivityExpiresAt,
     this.etaMinAt,
     this.etaMaxAt,
     this.etaConfidence,
@@ -148,6 +149,7 @@ class CustomerOrder {
   final DateTime? refundedAt;
   final DateTime? estimatedDeliveryAt;
   final DateTime? promisedReadyAt;
+  final DateTime? liveActivityExpiresAt;
   final DateTime? etaMinAt;
   final DateTime? etaMaxAt;
   final String? etaConfidence;
@@ -210,6 +212,9 @@ class CustomerOrder {
         _asString(json['estimatedDeliveryAt']),
       ),
       promisedReadyAt: DateTime.tryParse(_asString(json['promisedReadyAt'])),
+      liveActivityExpiresAt: DateTime.tryParse(
+        _asString(json['liveActivityExpiresAt']),
+      ),
       etaMinAt: DateTime.tryParse(_asString(json['etaMinAt'])),
       etaMaxAt: DateTime.tryParse(_asString(json['etaMaxAt'])),
       etaConfidence: _nullableString(json['etaConfidence']),
@@ -287,6 +292,7 @@ class CustomerOrder {
     'refundedAt': refundedAt?.toUtc().toIso8601String(),
     'estimatedDeliveryAt': estimatedDeliveryAt?.toUtc().toIso8601String(),
     'promisedReadyAt': promisedReadyAt?.toUtc().toIso8601String(),
+    'liveActivityExpiresAt': liveActivityExpiresAt?.toUtc().toIso8601String(),
     'etaMinAt': etaMinAt?.toUtc().toIso8601String(),
     'etaMaxAt': etaMaxAt?.toUtc().toIso8601String(),
     'etaConfidence': etaConfidence,

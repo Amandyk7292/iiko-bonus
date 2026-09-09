@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const http2 = require('http2');
 const { supabase } = require('../config/supabase');
+const { isPickupLiveActivityExpired } = require('../utils/live-activity-expiry.util');
 
 const liveActivityError = (message, statusCode = 400) =>
   Object.assign(new Error(message), { statusCode });
@@ -166,7 +167,8 @@ function sendApnsRequest({ token, environment, payload, config }) {
       'apns-push-type': 'liveactivity',
       'apns-priority': '10',
       'apns-topic': `${config.bundleId}.push-type.liveactivity`,
-      'apns-expiration': '0',
+      'apns-expiration':
+        payload.aps?.event === 'end' ? String(Math.floor(Date.now() / 1000) + 24 * 60 * 60) : '0',
     });
     request.setEncoding('utf8');
     request.on('response', (headers) => {
@@ -189,8 +191,10 @@ function sendApnsRequest({ token, environment, payload, config }) {
   });
 }
 
-async function sendOrderLiveActivity(order, { end = false } = {}) {
+async function sendOrderLiveActivity(order, { end = false, now = Date.now() } = {}) {
   if (!order?.id) return { attempted: 0, delivered: 0, skipped: 'order' };
+  const expired = isPickupLiveActivityExpired(order, now);
+  if (expired) end = true;
   if (order.status !== 'paid') end = true;
   const config = apnsConfiguration();
   if (!config) return { attempted: 0, delivered: 0, skipped: 'configuration' };
@@ -205,13 +209,17 @@ async function sendOrderLiveActivity(order, { end = false } = {}) {
     }
     throw error;
   }
-  const timestamp = Math.floor(Date.now() / 1000);
+  const timestamp = Math.floor(Number(now) / 1000);
   const payload = {
     aps: {
       timestamp,
       event: end ? 'end' : 'update',
       'content-state': buildContentState(order),
-      ...(end ? { 'dismissal-date': order.status === 'paid' ? timestamp + 300 : timestamp } : {}),
+      ...(end
+        ? {
+            'dismissal-date': expired || order.status !== 'paid' ? timestamp - 1 : timestamp + 300,
+          }
+        : {}),
     },
   };
   const results = await Promise.all(

@@ -137,6 +137,44 @@ test('a failed terminal push stays retryable', async (t) => {
   assert.equal(updates.length, 0);
 });
 
+test('ready pickup ends at one hour with immediate dismissal; delivery keeps updating', async (t) => {
+  const { service, order, sent, updates } = fixture(t);
+  Object.assign(order, {
+    fulfillment_status: 'ready',
+    fulfillment_type: 'pickup',
+    kitchen_ready_at: '2026-09-09T05:00:00Z',
+  });
+  await service.sendOrderLiveActivity(order, { now: Date.parse('2026-09-09T05:59:59Z') });
+  assert.equal(sent.at(-1).payload.aps.event, 'update');
+  assert.equal(updates.length, 0);
+  await service.sendOrderLiveActivity(order, { now: Date.parse('2026-09-09T06:00:00Z') });
+  const expiry = sent.at(-1);
+  assert.equal(expiry.payload.aps.event, 'end');
+  assert.ok(expiry.payload.aps['dismissal-date'] < expiry.payload.aps.timestamp);
+  assert.equal(expiry.payload.aps['content-state'].orderStatus, 'ready');
+  assert.ok(Number(expiry.headers['apns-expiration']) > Date.now() / 1000);
+  assert.equal(updates.at(-1).active, false);
+  order.fulfillment_type = 'delivery';
+  await service.sendOrderLiveActivity(order, { now: Date.parse('2026-09-09T06:01:00Z') });
+  assert.equal(sent.at(-1).payload.aps.event, 'update');
+});
+
+test('late registration of an expired ready pickup is ended immediately', async (t) => {
+  const { service, order, sent } = fixture(t);
+  Object.assign(order, {
+    fulfillment_status: 'ready',
+    fulfillment_type: 'pickup',
+    kitchen_ready_at: new Date(Date.now() - 3600001).toISOString(),
+  });
+  await service.registerLiveActivityToken('customer', {
+    activityId: 'activity',
+    installationId: 'phone',
+    orderId: 'order',
+    pushToken: 'a'.repeat(64),
+  });
+  assert.equal(sent.at(-1).payload.aps.event, 'end');
+});
+
 test('APNs transport timeout closes the connection without hanging status changes', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const { service, destroyed } = fixture(t, { noResponse: true });

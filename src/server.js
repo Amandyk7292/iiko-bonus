@@ -31,6 +31,7 @@ const { reconcileUnknownPartialRefunds } = require('./services/partial-refund.se
 const { flushPushOutbox } = require('./services/push.service');
 const { flushStaffPushOutbox, flushStaffPushReminders } = require('./services/staff-push.service');
 const { flushStaffOrderAlerts } = require('./services/staff-order-alert.service');
+const { expireReadyPickupActivities } = require('./services/live-activity-expiry.service');
 const { cleanupExpiredWhatsAppSessions } = require('./services/whatsapp-session-cleanup.service');
 
 const PORT = process.env.PORT || 3000;
@@ -43,6 +44,7 @@ if (!process.env.VERCEL) {
   const runWorkers = process.env.RUN_BACKGROUND_WORKERS === 'true';
   const runBots = shouldRunBots();
   registerWorker('pending-bonus-activation', { enabled: runWorkers, intervalMs: 60 * 60 * 1000 });
+  registerWorker('live-activity-expiry', { enabled: runWorkers, intervalMs: 60 * 1000 });
   const activatePendingBonuses = () =>
     runMonitoredWorker('pending-bonus-activation', activatePendingBonusesSafe);
   if (runWorkers) setInterval(activatePendingBonuses, 60 * 60 * 1000);
@@ -61,6 +63,12 @@ if (!process.env.VERCEL) {
     });
 
   if (runWorkers) {
+    const expireLiveActivities = () =>
+      runMonitoredWorker('live-activity-expiry', expireReadyPickupActivities);
+    setTimeout(expireLiveActivities, 8000);
+    const liveActivityExpiryTimer = setInterval(expireLiveActivities, 60 * 1000);
+    liveActivityExpiryTimer.unref?.();
+
     const deliverQueuedPush = () =>
       runMonitoredWorker('push-outbox', () =>
         Promise.all([

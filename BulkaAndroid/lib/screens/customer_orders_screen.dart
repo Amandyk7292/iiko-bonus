@@ -657,21 +657,44 @@ class _CustomerOrderCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${_formatCartMoney(order.amount)} ₸',
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          height: 1.15,
+                        ),
+                      ),
+                    ),
+                    if (order.number > 0) ...[
+                      const SizedBox(width: 12),
+                      Text(
+                        '№${order.number}',
+                        key: ValueKey('customer-order-number-${order.id}'),
+                        semanticsLabel: 'order_details_title'.trArgs({
+                          'number': order.number,
+                        }),
+                        style: TextStyle(
+                          color: colors.brandBrown,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 5),
+                Row(
                   children: [
                     Expanded(
                       flex: 5,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            '${_formatCartMoney(order.amount)} ₸',
-                            style: const TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w700,
-                              height: 1.15,
-                            ),
-                          ),
-                          const SizedBox(height: 5),
                           Text(
                             '${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}',
                             style: TextStyle(

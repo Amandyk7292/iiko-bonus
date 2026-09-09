@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:bulka_bonus/main.dart';
+import 'package:bulka_bonus/core/staff_push_bridge_contract.dart';
 // Exercise Firebase's real platform-channel adapter.
 // ignore: depend_on_referenced_packages
 import 'package:firebase_core_platform_interface/test.dart';
@@ -26,6 +27,51 @@ class _Api extends BulkaApiClient {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  test(
+    'Android cashier asks on first opt-in and preserves a later denial',
+    () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      FlutterSecureStorage.setMockInitialValues({});
+      SharedPreferences.setMockInitialValues({});
+      TestFirebaseCoreHostApi.setUp(MockFirebaseApp());
+      var authorization = 0, requests = 0;
+      const channel = MethodChannel('plugins.flutter.io/firebase_messaging');
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            if (call.method == 'Messaging#getNotificationSettings') {
+              return {'authorizationStatus': authorization};
+            }
+            if (call.method == 'Messaging#requestPermission') {
+              requests++;
+              authorization = 1;
+              return {'authorizationStatus': authorization};
+            }
+            if (call.method == 'Messaging#getToken') {
+              return {'token': 'cashier-fixture-token'};
+            }
+            return null;
+          });
+      Future<Map<String, Object?>> register(bool user) =>
+          PushNotifications.handleStaffPushBridgeRequest(
+            StaffPushBridgeRequest(
+              requestId: 'android-cashier-fixture',
+              action: StaffPushBridgeAction.register,
+              userInitiated: user,
+            ),
+          );
+      expect((await register(false))['error'], 'permission_required');
+      expect(requests, 0);
+      final granted = await register(true);
+      expect(granted['ok'], true);
+      expect(granted['platform'], 'android');
+      expect(granted['fcmToken'], 'cashier-fixture-token');
+      expect(requests, 1);
+      authorization = 0;
+      expect((await register(true))['error'], 'permission_denied');
+      expect(requests, 1);
+    },
+  );
   test(
     'skipped onboarding requests once after sign-in, respects denial and logout',
     () async {
