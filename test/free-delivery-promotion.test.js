@@ -1,6 +1,18 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { supabase } = require('../src/config/supabase');
+// Keep this suite independent of a local .env or a configured database client.
+const supabase = {
+  from() {
+    throw new Error('Install the promotion fixture before querying');
+  },
+};
+const databaseModule = require.resolve('../src/config/supabase');
+require.cache[databaseModule] = {
+  id: databaseModule,
+  filename: databaseModule,
+  loaded: true,
+  exports: { supabase },
+};
 const {
   resolveTargetedPromotion,
   savePromotion,
