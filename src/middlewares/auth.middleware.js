@@ -531,7 +531,10 @@ const adminAuthMiddleware = async (req, res, next) => {
     const requestedBranch = req.headers['x-bulka-branch-id'] || req.query?.scopeBranchId || '';
     const requestedBranches = req.headers['x-bulka-branch-ids'] || req.query?.scopeBranchIds || '';
     req.admin = applyAdminBranchSelection(activeSession, requestedBranch, requestedBranches);
-    if (activeSession.sessionExpiresAt === null && req.path === '/session') {
+    if (
+      activeSession.sessionExpiresAt === null &&
+      ['/session', '/admin/api/session'].includes(req.path)
+    ) {
       res.cookie('bulka_admin', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production' || Boolean(process.env.RENDER),

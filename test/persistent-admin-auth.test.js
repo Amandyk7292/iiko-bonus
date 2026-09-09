@@ -1,6 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { randomUUID } = require('node:crypto');
+const { once } = require('node:events');
+const express = require('express');
 const sessions = require('../src/services/admin-session.service');
 const { signAdminToken, verifyToken } = require('../src/services/auth.service');
 const sessionPath = require.resolve('../src/services/admin-session.service');
@@ -97,4 +99,30 @@ test('temporary admin session database failure is retryable and never reports lo
   }
   assert.equal((await request(token)).next, true);
   assert.equal((await request(`${token}corrupt`)).statusCode, 401);
+});
+
+test('the real admin session URL renews a persistent browser cookie', async (t) => {
+  const jti = randomUUID();
+  const token = signAdminToken(
+    { username: 'browser-admin', role: 'admin' },
+    { jti, expiresIn: -1 },
+  );
+  await sessions.createAdminSession({
+    jti,
+    subject: 'browser-admin',
+    role: 'admin',
+    expiresAt: null,
+  });
+  const app = express();
+  app.get('/admin/api/session', adminAuthMiddleware, (_req, res) => res.json({ success: true }));
+  const server = app.listen(0, '127.0.0.1');
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  await once(server, 'listening');
+  const response = await fetch(`http://127.0.0.1:${server.address().port}/admin/api/session`, {
+    headers: { Cookie: `bulka_admin=${token}` },
+  });
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('set-cookie'), /Max-Age=34560000/);
+  assert.match(response.headers.get('set-cookie'), /HttpOnly/);
+  assert.match(response.headers.get('set-cookie'), /Path=\/admin/);
 });
