@@ -108,10 +108,10 @@ const updateAdminStatus = async (req, res) => {
     const requestedStatus = String(req.body?.status || '');
     if (
       requestedStatus === 'cancelled' &&
-      !['admin', 'owner', 'branch_manager'].includes(req.admin?.role)
+      !['admin', 'owner', 'branch_manager', 'cashier'].includes(req.admin?.role)
     ) {
       return res.status(403).json({
-        error: 'Отмена с возвратом доступна владельцу или управляющему филиалом',
+        error: 'Недостаточно прав для отмены заказа с возвратом',
       });
     }
     const order = await updateAdminOrderStatus(

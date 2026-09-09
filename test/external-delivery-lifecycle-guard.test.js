@@ -3,10 +3,60 @@ const test = require('node:test');
 
 const {
   assertExternalDeliveryCancelled,
+  cancelExternalDeliveryForOrder,
   isActiveExternalDeliveryJob,
 } = require('../src/services/external-delivery-lifecycle.service');
 
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
+
+test('order cancellation cancels its courier and verifies the saved terminal state', async () => {
+  const result = {
+    data: [{ api_family: 'cargo_v2', provider_status: 'performer_found' }],
+    error: null,
+  };
+  let cancelled = 0;
+  const db = queryDb(result);
+  await cancelExternalDeliveryForOrder(ORDER_ID, {
+    db,
+    cancel: async (id, options) => {
+      assert.equal(id, ORDER_ID);
+      assert.equal(options.allowPaid, true);
+      cancelled++;
+      result.data[0].provider_status = 'cancelled';
+    },
+  });
+  assert.equal(cancelled, 1);
+  await cancelExternalDeliveryForOrder(ORDER_ID, {
+    db,
+    cancel: async () => {
+      throw new Error('Already cancelled');
+    },
+  });
+});
+
+test('an unconfirmed courier cancellation never passes the order cancellation barrier', async () => {
+  const result = {
+    data: [{ api_family: 'cargo_v2', provider_status: 'performer_found' }],
+    error: null,
+  };
+  await assert.rejects(
+    cancelExternalDeliveryForOrder(ORDER_ID, { db: queryDb(result), cancel: async () => ({}) }),
+    {
+      code: 'EXTERNAL_DELIVERY_CANCEL_UNCONFIRMED',
+    },
+  );
+  await assert.rejects(
+    cancelExternalDeliveryForOrder(ORDER_ID, {
+      db: queryDb(result),
+      cancel: async () => {
+        throw new Error('network unavailable');
+      },
+    }),
+    {
+      code: 'EXTERNAL_DELIVERY_CANCEL_FAILED',
+    },
+  );
+});
 
 const queryDb = (result, calls = []) => ({
   from(table) {

@@ -9,7 +9,10 @@ const { sendOrderLiveActivity } = require('./live-activity.service');
 const { pickupLiveActivityExpiresAt } = require('../utils/live-activity-expiry.util');
 const { paymentReceiptUrl } = require('./payment-receipt.service');
 const { paymentProviderName, refundPaymentForOrder } = require('./payment-gateway.service');
-const { assertExternalDeliveryCancelled } = require('./external-delivery-lifecycle.service');
+const {
+  assertExternalDeliveryCancelled,
+  cancelExternalDeliveryForOrder,
+} = require('./external-delivery-lifecycle.service');
 const { effectiveFulfillmentType, isDeliveryFulfillment } = require('../utils/fulfillment.util');
 const { runBackgroundTask } = require('../utils/background-task.util');
 
@@ -724,6 +727,7 @@ async function cancelPaidOrder(
     cancelBeforeRefund = false,
     reuseRefundRequestId = false,
     acceptPendingRefund = false,
+    cancelExternalDelivery = false,
   } = {},
 ) {
   const currentStatus =
@@ -788,7 +792,10 @@ async function cancelPaidOrder(
     );
   }
 
-  await assertExternalDeliveryCancelled(current.id);
+  // The database refuses refund claims while an external job is active and
+  // blocks new courier reservations once the refund claim is saved.
+  if (cancelExternalDelivery) await cancelExternalDeliveryForOrder(current.id);
+  else await assertExternalDeliveryCancelled(current.id);
 
   const requestedAt = new Date().toISOString();
   const refundRequestId = retryRequestId || crypto.randomUUID();
@@ -799,7 +806,10 @@ async function cancelPaidOrder(
       refund_requested_at: retryRequestId ? current.refund_requested_at : requestedAt,
       refund_error: null,
       cancellation_reason: reason || null,
-      ...(cancelBeforeRefund && { fulfillment_status: 'cancelled', fulfilled_at: null }),
+      ...((cancelBeforeRefund || cancelExternalDelivery) && {
+        fulfillment_status: 'cancelled',
+        fulfilled_at: null,
+      }),
       last_error: null,
       refund_request_id: refundRequestId,
     })
@@ -810,7 +820,16 @@ async function cancelPaidOrder(
     ? claim.eq('refund_status', current.refund_status)
     : claim.is('refund_status', null);
   const { data: claimed, error: claimError } = await claim.select('*').maybeSingle();
-  if (claimError) throw claimError;
+  if (claimError) {
+    if (claimError.message?.includes('DELIVERY_ACTIVE_JOB_CONFLICT')) {
+      throw refundError(
+        409,
+        'Заявка курьера изменилась во время отмены. Повторите отмену заказа.',
+        'EXTERNAL_DELIVERY_CANCEL_UNCONFIRMED',
+      );
+    }
+    throw claimError;
+  }
   if (!claimed) {
     throw refundError(
       409,
@@ -819,7 +838,7 @@ async function cancelPaidOrder(
     );
   }
 
-  if (cancelBeforeRefund) {
+  if (cancelBeforeRefund || cancelExternalDelivery) {
     await releaseOrderReservations(claimed.id).catch((error) =>
       console.error('Не удалось освободить резерв отменённого заказа:', error.message),
     );
@@ -951,6 +970,7 @@ async function updateAdminOrderStatus(
     if (current.status === 'paid') {
       return cancelPaidOrder(current, cancellationReason || current.cancellation_reason, {
         acceptPendingRefund: true,
+        cancelExternalDelivery: true,
       });
     }
     return normalizeOrder(current);
@@ -959,7 +979,10 @@ async function updateAdminOrderStatus(
     if (!(STATUS_TRANSITIONS[currentStatus] || []).includes(nextStatus)) {
       throw httpError(409, `Нельзя изменить статус «${currentStatus}» на «${nextStatus}»`);
     }
-    return cancelPaidOrder(current, cancellationReason, { acceptPendingRefund: true });
+    return cancelPaidOrder(current, cancellationReason, {
+      acceptPendingRefund: true,
+      cancelExternalDelivery: true,
+    });
   }
   if (current.status !== 'paid') throw httpError(409, 'Статус неоплаченного заказа менять нельзя');
   if (['processing', 'unknown'].includes(current.refund_status)) {

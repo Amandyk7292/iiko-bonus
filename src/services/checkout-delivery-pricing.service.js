@@ -49,6 +49,8 @@ function quoteFingerprint({ checkout, pricing, customerId }) {
         subtotal: pricing.subtotal,
         discount: pricing.discount,
         promoCode: pricing.promoCode,
+        promotionId: pricing.promotionId,
+        freeDelivery: pricing.freeDelivery === true,
       }),
     )
     .digest('hex');
@@ -85,7 +87,8 @@ async function priceCheckoutDelivery(
   const { checkout, pricing } = context;
   if (checkout.effectiveFulfillmentType !== 'delivery')
     return { pricing: withDeliveryFee(pricing, 0) };
-  const free = pricing.total - pricing.deliveryFee >= FREE_DELIVERY_THRESHOLD;
+  const free =
+    pricing.freeDelivery === true || pricing.total - pricing.deliveryFee >= FREE_DELIVERY_THRESHOLD;
 
   // Delivery payments require the estimate the customer actually confirmed.
   // Older apps must update instead of charging an unconfirmed or zero fee.

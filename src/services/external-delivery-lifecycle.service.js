@@ -53,7 +53,48 @@ async function assertExternalDeliveryCancelled(orderId, { db = supabase } = {}) 
   }
 }
 
+async function cancelExternalDeliveryForOrder(
+  orderId,
+  {
+    db = supabase,
+    cancel = (id, options) => require('./yandex-delivery.service').cancelDelivery(id, options),
+  } = {},
+) {
+  try {
+    await assertExternalDeliveryCancelled(orderId, { db });
+    return;
+  } catch (error) {
+    if (error.code !== 'EXTERNAL_DELIVERY_CANCELLATION_REQUIRED') throw error;
+  }
+  try {
+    await cancel(orderId, { allowPaid: true });
+  } catch (error) {
+    // Another operator or a provider callback may have confirmed cancellation meanwhile.
+    try {
+      await assertExternalDeliveryCancelled(orderId, { db });
+      return;
+    } catch {
+      throw lifecycleError(
+        error.statusCode || 502,
+        `Не удалось подтвердить отмену курьера. Заказ не отменён, возврат не отправлен. ${error.statusCode && error.statusCode < 500 ? error.message : 'Повторите отмену заказа.'}`,
+        error.code || 'EXTERNAL_DELIVERY_CANCEL_FAILED',
+      );
+    }
+  }
+  try {
+    await assertExternalDeliveryCancelled(orderId, { db });
+  } catch (error) {
+    if (error.code !== 'EXTERNAL_DELIVERY_CANCELLATION_REQUIRED') throw error;
+    throw lifecycleError(
+      409,
+      'Яндекс ещё не подтвердил завершение доставки. Заказ не отменён, возврат не отправлен. Повторите отмену после обновления статуса курьера.',
+      'EXTERNAL_DELIVERY_CANCEL_UNCONFIRMED',
+    );
+  }
+}
+
 module.exports = {
   assertExternalDeliveryCancelled,
+  cancelExternalDeliveryForOrder,
   isActiveExternalDeliveryJob,
 };

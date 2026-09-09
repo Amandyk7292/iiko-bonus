@@ -12,6 +12,50 @@ bool staffCanEditOrders(String role) =>
     ['owner', 'admin', 'branch_manager', 'operator', 'editor'].contains(role);
 bool staffCanRefundOrders(String role) =>
     ['owner', 'admin', 'branch_manager'].contains(role);
+bool staffCanCancelOrders(String role) =>
+    role == 'cashier' || staffCanRefundOrders(role);
+
+class StaffOrderAmounts extends StatelessWidget {
+  const StaffOrderAmounts({required this.order, super.key});
+  final Map<String, dynamic> order;
+
+  @override
+  Widget build(BuildContext context) {
+    final amount = _asDouble(order['amount']);
+    final discount = _asDouble(order['discount']);
+    final deliveryFee = _asDouble(order['deliveryFee']);
+    final type = order['orderType'] ?? order['fulfillmentType'];
+    final hasDelivery =
+        deliveryFee > 0 ||
+        order['effectiveFulfillmentType'] == 'delivery' ||
+        type == 'delivery' ||
+        (type == 'preorder' && order['preorderFulfillmentType'] == 'delivery');
+    return Column(
+      children: [
+        _OrderInfoRow(
+          label: 'receipt_goods'.tr,
+          value: staffMoney(max(0, amount - deliveryFee + discount)),
+        ),
+        if (discount > 0)
+          _OrderInfoRow(
+            label: 'receipt_discount'.tr,
+            value: '−${staffMoney(discount)}',
+          ),
+        if (hasDelivery)
+          _OrderInfoRow(
+            label: 'checkout_delivery_fee'.tr,
+            value: staffMoney(deliveryFee),
+          ),
+        const Divider(),
+        _OrderInfoRow(
+          label: 'receipt_total'.tr,
+          value: staffMoney(amount),
+          strong: true,
+        ),
+      ],
+    );
+  }
+}
 
 class StaffOrders extends StatefulWidget {
   const StaffOrders({
@@ -187,10 +231,6 @@ class _StaffOrdersState extends State<StaffOrders> {
                           '№${order['number']}',
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
-                        Text(
-                          staffMoney(order['amount']),
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
                       ],
                     ),
                     const SizedBox(height: 10),
@@ -198,6 +238,8 @@ class _StaffOrdersState extends State<StaffOrders> {
                     Text(
                       '${(order['customer'] as Map?)?['name'] ?? ''} · ${(order['customer'] as Map?)?['phone'] ?? ''}',
                     ),
+                    const SizedBox(height: 10),
+                    StaffOrderAmounts(order: order),
                     const SizedBox(height: 10),
                     Wrap(
                       spacing: 8,
@@ -287,6 +329,7 @@ class _StaffOrderDetailState extends State<StaffOrderDetail> {
   String get _path => '/orders/${Uri.encodeComponent('${_order['id']}')}';
   bool get _canEdit => staffCanEditOrders(widget.role);
   bool get _canRefund => staffCanRefundOrders(widget.role);
+  bool get _canCancel => staffCanCancelOrders(widget.role);
   @override
   void initState() {
     super.initState();
@@ -326,15 +369,15 @@ class _StaffOrderDetailState extends State<StaffOrderDetail> {
   }
 
   Future<void> _status(String status) async {
-    if (!_canEdit || (status == 'cancelled' && !_canRefund)) return;
+    if (status == 'cancelled' ? !_canCancel : !_canEdit) return;
     final saved = await staffEdit(
       context,
       title: staffStatus(status),
       description: status == 'cancelled'
           ? staffText(
-              'Отмена может запустить возврат оплаченной суммы.',
-              'Бас тарту төленген соманы қайтаруды бастауы мүмкін.',
-              'Cancellation may initiate a payment refund.',
+              'Вызванный курьер отменится автоматически, затем отменится заказ и начнётся возврат оплаченной суммы.',
+              'Шақырылған курьер автоматты түрде тоқтатылады, содан кейін тапсырыс тоқтатылып, төлемді қайтару басталады.',
+              'The dispatched courier will be cancelled automatically, then the order will be cancelled and its payment refunded.',
             )
           : '№${_order['number']}',
       fields: status == 'cancelled'
@@ -667,10 +710,7 @@ class _StaffOrderDetailState extends State<StaffOrderDetail> {
             if (_loading) const LinearProgressIndicator(),
             if (_error != null)
               _StaffError(message: _error!, onRetry: _refresh),
-            Text(
-              staffMoney(_order['amount']),
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
+            StaffOrderAmounts(order: _order),
             const SizedBox(height: 12),
             StaffFacts({
               staffText('Оплата', 'Төлем', 'Payment'): staffStatus(
@@ -694,9 +734,6 @@ class _StaffOrderDetailState extends State<StaffOrderDetail> {
               if (_order['pickupTime'] != null)
                 staffText('Время получения', 'Алу уақыты', 'Pickup time'):
                     staffDate(_order['pickupTime']),
-              staffText('Скидка', 'Жеңілдік', 'Discount'): staffMoney(
-                _order['discount'],
-              ),
               staffText('Бонусы', 'Бонустар', 'Bonus'): staffNumber(
                 _order['earnedBonus'],
               ),
@@ -737,7 +774,7 @@ class _StaffOrderDetailState extends State<StaffOrderDetail> {
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 child: Text('${_order['comment']}'),
               ),
-            if (_canEdit)
+            if (_canEdit || _canCancel)
               Wrap(
                 spacing: 10,
                 runSpacing: 10,
@@ -745,12 +782,12 @@ class _StaffOrderDetailState extends State<StaffOrderDetail> {
                   for (final status
                       in staffOrderTransitions['${_order['orderStatus']}'] ??
                           <String>[])
-                    if (status != 'cancelled' || _canRefund)
+                    if (status == 'cancelled' ? _canCancel : _canEdit)
                       OutlinedButton(
                         onPressed: () => _status(status),
                         child: Text(staffStatus(status)),
                       ),
-                  if (_order['paymentStatus'] == 'paid')
+                  if (_canEdit && _order['paymentStatus'] == 'paid')
                     OutlinedButton(
                       onPressed: _substitute,
                       child: Text(
@@ -761,7 +798,7 @@ class _StaffOrderDetailState extends State<StaffOrderDetail> {
                         ),
                       ),
                     ),
-                  if (delivery)
+                  if (_canEdit && delivery)
                     OutlinedButton(
                       onPressed: _courier,
                       child: Text(

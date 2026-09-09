@@ -236,7 +236,6 @@ class _StaffMarketingState extends State<StaffMarketing> {
                 },
                 facts: {
                   'title': staffText('Название', 'Атауы', 'Title'),
-                  'discount_value': staffText('Скидка', 'Жеңілдік', 'Discount'),
                   'usage_count': staffText(
                     'Использован',
                     'Қолданылған',
@@ -255,11 +254,20 @@ class _StaffMarketingState extends State<StaffMarketing> {
                     'title',
                     staffText('Название', 'Атауы', 'Title'),
                     maxLength: 160,
+                    advanced: true,
                   ),
                   StaffField(
                     'discountType',
                     staffText('Тип скидки', 'Жеңілдік түрі', 'Discount type'),
-                    options: {'percent': '%', 'fixed': '₸'},
+                    options: {
+                      'percent': '%',
+                      'fixed': '₸',
+                      'free_delivery': staffText(
+                        'Бесплатная доставка',
+                        'Тегін жеткізу',
+                        'Free delivery',
+                      ),
+                    },
                   ),
                   StaffField(
                     'discountValue',
@@ -268,6 +276,8 @@ class _StaffMarketingState extends State<StaffMarketing> {
                     required: true,
                     minimum: 0.01,
                     maximum: 100000000,
+                    visibleWhen: (values) =>
+                        values['discountType'] != 'free_delivery',
                   ),
                   StaffField(
                     'minOrder',
@@ -289,6 +299,9 @@ class _StaffMarketingState extends State<StaffMarketing> {
                     ),
                     type: 'number',
                     minimum: 0,
+                    advanced: true,
+                    visibleWhen: (values) =>
+                        values['discountType'] != 'free_delivery',
                   ),
                   StaffField(
                     'customerIds',
@@ -298,6 +311,7 @@ class _StaffMarketingState extends State<StaffMarketing> {
                       'Customer IDs, comma separated',
                     ),
                     type: 'multiline',
+                    advanced: true,
                   ),
                   StaffField(
                     'customerTags',
@@ -307,6 +321,7 @@ class _StaffMarketingState extends State<StaffMarketing> {
                       'Customer tags',
                     ),
                     type: 'multiline',
+                    advanced: true,
                   ),
                   StaffField(
                     'usageLimit',
@@ -318,6 +333,7 @@ class _StaffMarketingState extends State<StaffMarketing> {
                     type: 'number',
                     minimum: 0,
                     maximum: 1000000,
+                    advanced: true,
                   ),
                   StaffField(
                     'perCustomerLimit',
@@ -330,21 +346,35 @@ class _StaffMarketingState extends State<StaffMarketing> {
                     required: true,
                     minimum: 1,
                     maximum: 1000,
+                    advanced: true,
                   ),
                   StaffField(
                     'startsAt',
                     staffText('Начало', 'Басталуы', 'Starts at'),
                     pick: () => staffPickDateTime(context),
+                    advanced: true,
                   ),
                   StaffField(
                     'endsAt',
                     staffText('Окончание', 'Аяқталуы', 'Ends at'),
                     pick: () => staffPickDateTime(context),
+                    advanced: true,
                   ),
                   StaffField(
                     'active',
                     staffText('Активен', 'Белсенді', 'Active'),
                     type: 'bool',
+                  ),
+                ],
+                onExtra: (context, row, refresh) => [
+                  Text(
+                    row['discount_type'] == 'free_delivery'
+                        ? staffText(
+                            'Бесплатная доставка',
+                            'Тегін жеткізу',
+                            'Free delivery',
+                          )
+                        : '${staffText('Скидка', 'Жеңілдік', 'Discount')}: ${staffNumber(row['discount_value'])}${row['discount_type'] == 'percent' ? '%' : ' ₸'}',
                   ),
                 ],
                 prepare: (v, row) {
@@ -363,9 +393,14 @@ class _StaffMarketingState extends State<StaffMarketing> {
                     if (row?['branch_ids'] is List)
                       'branchIds': row!['branch_ids'],
                     'code': '${v['code']}'.toUpperCase(),
+                    'discountValue': v['discountType'] == 'free_delivery'
+                        ? 0
+                        : v['discountValue'],
                     'customerIds': staffSplit(v['customerIds']),
                     'customerTags': staffSplit(v['customerTags']),
-                    'maxDiscount': v['maxDiscount'] == 0
+                    'maxDiscount':
+                        v['discountType'] == 'free_delivery' ||
+                            v['maxDiscount'] == 0
                         ? null
                         : v['maxDiscount'],
                     'usageLimit': v['usageLimit'] == 0 ? null : v['usageLimit'],

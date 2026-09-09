@@ -66,6 +66,10 @@ void main() {
           findsOneWidget,
         );
         expect(find.text('1060.30 ₸'), findsOneWidget);
+        expect(find.text('receipt_goods'.tr), findsOneWidget);
+        expect(find.text('checkout_delivery_fee'.tr), findsOneWidget);
+        expect(find.text('100 ₸'), findsOneWidget);
+        expect(find.text('−29.70 ₸'), findsOneWidget);
         await tester.scrollUntilVisible(find.text('receipt_share'.tr), 200);
         expect(
           find.text('receipt_paid_card_last_four'.trArgs({'lastFour': '1328'})),
@@ -109,6 +113,63 @@ void main() {
         throwsA(isA<ApiException>()),
       );
       expect(requests, 0);
+    },
+  );
+
+  testWidgets(
+    'free delivery is shown separately from goods in native receipt and staff orders',
+    (tester) async {
+      final data = {
+        ...receiptData,
+        'amount': 10000,
+        'discount': 0,
+        'deliveryFee': 0,
+        'hasDelivery': true,
+      };
+      final receipt = PaymentReceipt.fromJson(data);
+      expect(receipt.goodsSubtotal, 10000);
+      expect(receipt.hasDelivery, isTrue);
+      final api = BulkaApiClient(
+        client: MockClient(
+          (_) async => http.Response(
+            jsonEncode({'success': true, 'receipt': data}),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          ),
+        ),
+      );
+      addTearDown(api.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PaymentReceiptScreen(receiptUrl: receiptUrl, api: api),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('checkout_delivery_fee'.tr),
+        150,
+      );
+      expect(find.text('0 ₸'), findsOneWidget);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: StaffOrderAmounts(
+              order: {
+                'amount': 2506,
+                'discount': 0,
+                'deliveryFee': 2471,
+                'orderType': 'delivery',
+                'providerDeliveryPrice': 3000,
+              },
+            ),
+          ),
+        ),
+      );
+      expect(find.text('35 ₸'), findsOneWidget);
+      expect(find.text('2 471 ₸'), findsOneWidget);
+      expect(find.text('2 506 ₸'), findsOneWidget);
+      expect(find.text('3000 ₸'), findsNothing);
+      expect(tester.takeException(), isNull);
     },
   );
 

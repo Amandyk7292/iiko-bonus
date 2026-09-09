@@ -158,12 +158,16 @@ class _PaymentReceiptScreenState extends State<PaymentReceiptScreen> {
                   ),
                 ),
               const Divider(height: 24),
+              _OrderInfoRow(
+                label: 'receipt_goods'.tr,
+                value: receipt.money(receipt.goodsSubtotal),
+              ),
               if (receipt.discount > 0)
                 _OrderInfoRow(
                   label: 'receipt_discount'.tr,
-                  value: receipt.money(receipt.discount),
+                  value: '−${receipt.money(receipt.discount)}',
                 ),
-              if (receipt.deliveryFee > 0)
+              if (receipt.hasDelivery)
                 _OrderInfoRow(
                   label: 'checkout_delivery_fee'.tr,
                   value: receipt.money(receipt.deliveryFee),

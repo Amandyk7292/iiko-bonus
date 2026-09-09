@@ -4,12 +4,13 @@ import { useSearchParams } from '../lib/router';
 import PageState from '../components/PageState';
 import Modal from '../components/Modal';
 import SelectControl from '../components/SelectControl';
+import OrderAmounts from '../components/OrderAmounts';
 import { useFeedback } from '../components/Feedback';
 import { api, type AdminOrder, type DeliveryProof } from '../lib/api';
 import {
   availableOrderStatuses,
   canMutateOrders,
-  canRefundOrders,
+  canCancelOrders,
   ORDER_STATUSES,
 } from '../lib/admin-permissions';
 import { useAdminRealtimeEvents } from '../lib/admin-realtime';
@@ -44,7 +45,7 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
   const { t, formatDate, formatNumber } = useI18n();
   const { toast } = useFeedback();
   const orderMutationsAllowed = canMutateOrders(role);
-  const refundsAllowed = canRefundOrders(role);
+  const refundsAllowed = canCancelOrders(role);
   const [params, setParams] = useSearchParams();
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -158,7 +159,7 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
   }, [load]);
 
   const persistStatus = async (order: AdminOrder, status: string, reason = '') => {
-    if (!orderMutationsAllowed || (status === 'cancelled' && !refundsAllowed)) {
+    if (status === 'cancelled' ? !refundsAllowed : !orderMutationsAllowed) {
       return false;
     }
     if (isSaving(order.id)) return false;
@@ -195,7 +196,12 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
   };
 
   const changeStatus = (order: AdminOrder, status: string) => {
-    if (!orderMutationsAllowed || status === order.orderStatus || isSaving(order.id)) return;
+    if (
+      (!orderMutationsAllowed && !(status === 'cancelled' && refundsAllowed)) ||
+      status === order.orderStatus ||
+      isSaving(order.id)
+    )
+      return;
     if (status === 'cancelled') {
       if (!refundsAllowed) return;
       setCancellationOrder(order);
@@ -484,7 +490,7 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
                       <div className="order-cell-content">
                         {!isRefundReconciling(order) &&
                         ['paid', 'refunded'].includes(order.paymentStatus) &&
-                        orderMutationsAllowed ? (
+                        (orderMutationsAllowed || refundsAllowed) ? (
                           <div className="order-status-control">
                             {isSaving(order.id) && (
                               <LoaderCircle className="spin" size={16} aria-hidden="true" />
@@ -502,10 +508,14 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
                               options={ORDER_STATUSES.map((value) => ({
                                 value,
                                 label: t(`orderStatus.${value}`),
-                                disabled: !availableOrderStatuses(
-                                  order.orderStatus,
-                                  refundsAllowed,
-                                ).includes(value),
+                                disabled:
+                                  (!orderMutationsAllowed &&
+                                    value !== order.orderStatus &&
+                                    value !== 'cancelled') ||
+                                  !availableOrderStatuses(
+                                    order.orderStatus,
+                                    refundsAllowed,
+                                  ).includes(value),
                               }))}
                             />
                           </div>
@@ -519,14 +529,7 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
                       </div>
                     </td>
                     <td data-label={t('orders.total')} className="text-right tabular">
-                      <div className="order-cell-content">
-                        <strong>{formatNumber(order.amount)} ₸</strong>
-                        {order.discount > 0 && (
-                          <small className="table-secondary">
-                            −{formatNumber(order.discount)} ₸
-                          </small>
-                        )}
-                      </div>
+                      <OrderAmounts order={order} />
                     </td>
                   </tr>
                 ))}
@@ -564,7 +567,7 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
         title={t('orderStatus.cancelled')}
         description={
           cancellationOrder
-            ? t('orders.refundConfirm', { amount: formatNumber(cancellationOrder.amount) })
+            ? `${t('orders.refundConfirm', { amount: formatNumber(cancellationOrder.amount) })}${fulfillmentType(cancellationOrder) === 'delivery' ? ` ${t('orders.cancelCourierAutomatically')}` : ''}`
             : undefined
         }
         size="sm"

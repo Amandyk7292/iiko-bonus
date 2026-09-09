@@ -87,9 +87,10 @@ Future<Uint8List> buildPaymentReceiptPdf(PaymentReceipt receipt) async {
           },
         ),
         pw.SizedBox(height: 18),
+        row('receipt_goods'.tr, receipt.money(receipt.goodsSubtotal)),
         if (receipt.discount > 0)
-          row('receipt_discount'.tr, receipt.money(receipt.discount)),
-        if (receipt.deliveryFee > 0)
+          row('receipt_discount'.tr, '-${receipt.money(receipt.discount)}'),
+        if (receipt.hasDelivery)
           row('checkout_delivery_fee'.tr, receipt.money(receipt.deliveryFee)),
         row('receipt_total'.tr, receipt.money(receipt.amount)),
         pw.Divider(),

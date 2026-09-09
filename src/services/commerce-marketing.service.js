@@ -77,7 +77,11 @@ const promotionDate = (value, label) => {
   return date;
 };
 
-async function resolveTargetedPromotion(subtotal, code, { customerId, branchId } = {}) {
+async function resolveTargetedPromotion(
+  subtotal,
+  code,
+  { customerId, branchId, fulfillmentType = 'pickup' } = {},
+) {
   const normalized = normalizeCode(code);
   if (!normalized) return null;
   const now = new Date().toISOString();
@@ -122,6 +126,20 @@ async function resolveTargetedPromotion(subtotal, code, { customerId, branchId }
   }
   const minOrder = Number(promotion.min_order || 0);
   if (subtotal < minOrder) throw commerceError(`Промокод действует от ${Math.ceil(minOrder)} ₸`);
+  if (promotion.discount_type === 'free_delivery') {
+    if (fulfillmentType !== 'delivery') {
+      throw Object.assign(commerceError('Этот промокод действует только для доставки'), {
+        code: 'PROMO_DELIVERY_ONLY',
+      });
+    }
+    return {
+      promoCode: normalized,
+      discount: 0,
+      total: subtotal,
+      promotionId: promotion.id,
+      freeDelivery: true,
+    };
+  }
   const raw =
     promotion.discount_type === 'percent'
       ? (subtotal * Math.min(100, Number(promotion.discount_value))) / 100
@@ -394,15 +412,22 @@ async function listPromotions() {
 async function savePromotion(payload = {}, id = null) {
   const code = normalizeCode(payload.code);
   if (code.length < 3) throw commerceError('Введите промокод');
-  const discountType = payload.discountType === 'fixed' ? 'fixed' : 'percent';
-  const discountValue = promotionNumber(payload.discountValue, 'Размер скидки', {
-    min: 0.01,
-    max: discountType === 'percent' ? 100 : MAX_PROMOTION_AMOUNT,
-  });
+  const discountType = payload.discountType || 'percent';
+  if (!['percent', 'fixed', 'free_delivery'].includes(discountType)) {
+    throw commerceError('Неизвестный тип промокода');
+  }
+  const discountValue =
+    discountType === 'free_delivery'
+      ? 0
+      : promotionNumber(payload.discountValue, 'Размер скидки', {
+          min: 0.01,
+          max: discountType === 'percent' ? 100 : MAX_PROMOTION_AMOUNT,
+        });
   const minOrder = promotionNumber(payload.minOrder || 0, 'Минимальная сумма заказа');
-  const maxDiscount = payload.maxDiscount
-    ? promotionNumber(payload.maxDiscount, 'Максимальная скидка', { min: 0.01 })
-    : null;
+  const maxDiscount =
+    discountType !== 'free_delivery' && payload.maxDiscount
+      ? promotionNumber(payload.maxDiscount, 'Максимальная скидка', { min: 0.01 })
+      : null;
   const usageLimit = payload.usageLimit
     ? promotionInteger(payload.usageLimit, 'Общий лимит', { min: 1, max: 1000000 })
     : null;

@@ -585,7 +585,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              _discount > 0
+              _discount > 0 || _asString(quote['promoCode']).isNotEmpty
                   ? 'checkout_promo_applied'.tr
                   : 'checkout_price_checked'.tr,
             ),

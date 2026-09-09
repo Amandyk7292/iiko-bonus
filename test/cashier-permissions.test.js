@@ -75,12 +75,20 @@ test('cashier may mutate only own staff push token and test endpoints', () => {
   }
 });
 
-test('cashier can use kitchen workflow but cannot bypass it through generic orders', () => {
+test('cashier can use kitchen and cancel orders but cannot change other order fields', () => {
   assert.equal(
     runMutationGuard({
       method: 'PATCH',
       path: `/kitchen/${ORDER_ID}/status`,
       body: { status: 'ready' },
+    }).nextCalled,
+    true,
+  );
+  assert.equal(
+    runMutationGuard({
+      method: 'PATCH',
+      path: `/orders/${ORDER_ID}/status`,
+      body: { status: 'cancelled' },
     }).nextCalled,
     true,
   );
@@ -90,7 +98,7 @@ test('cashier can use kitchen workflow but cannot bypass it through generic orde
     { method: 'PATCH', path: `/orders/${ORDER_ID}/status`, body: { status: 'preparing' } },
     { method: 'PATCH', path: `/orders/${ORDER_ID}/status`, body: { status: 'ready' } },
     { method: 'PATCH', path: `/orders/${ORDER_ID}/status`, body: { status: 'completed' } },
-    { method: 'PATCH', path: `/orders/${ORDER_ID}/status`, body: { status: 'cancelled' } },
+    { method: 'POST', path: `/orders/${ORDER_ID}/partial-refund`, body: { amount: 100 } },
     { method: 'PATCH', path: `/kitchen/${ORDER_ID}/status`, body: { status: 'cancelled' } },
     { method: 'PATCH', path: `/orders/${ORDER_ID}/courier`, body: { courierId: ORDER_ID } },
     { method: 'PATCH', path: `/orders/${ORDER_ID}/delivery-status`, body: { status: 'assigned' } },

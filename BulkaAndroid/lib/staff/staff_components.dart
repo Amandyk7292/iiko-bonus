@@ -185,6 +185,8 @@ class StaffField {
     this.pick,
     this.translateFrom,
     this.translate,
+    this.advanced = false,
+    this.visibleWhen,
   });
   final String key, label, type;
   final bool required;
@@ -195,6 +197,8 @@ class StaffField {
   final Future<String?> Function()? pick;
   final String? translateFrom;
   final Future<String> Function(String)? translate;
+  final bool advanced;
+  final bool Function(Map<String, dynamic>)? visibleWhen;
 }
 
 Future<bool?> staffEdit(
@@ -322,6 +326,107 @@ class _StaffEditorState extends State<_StaffEditor> {
     }
   }
 
+  bool _fieldVisible(StaffField field) =>
+      field.visibleWhen?.call(_values) ?? true;
+
+  Widget _fieldWidget(StaffField field) => Padding(
+    padding: const EdgeInsets.only(bottom: 18),
+    child: field.type == 'bool'
+        ? SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            title: Text(field.label),
+            value: _values[field.key] == true,
+            onChanged: _busy
+                ? null
+                : (value) => setState(() => _values[field.key] = value),
+          )
+        : field.options != null
+        ? AbsorbPointer(
+            absorbing: _busy,
+            child: field.type == 'multi'
+                ? StaffMultiPicker(
+                    label: field.label,
+                    values: List<String>.from(_values[field.key] as List),
+                    options: field.options!,
+                    onChanged: (values) =>
+                        setState(() => _values[field.key] = values),
+                  )
+                : StaffPicker(
+                    label: field.label,
+                    value: '${_values[field.key]}',
+                    options: field.options!,
+                    onChanged: (value) =>
+                        setState(() => _values[field.key] = value),
+                  ),
+          )
+        : TextFormField(
+            controller: _controllers[field.key],
+            enabled: !_busy,
+            obscureText: field.type == 'password',
+            autocorrect: field.type != 'password',
+            minLines: field.type == 'multiline' ? 2 : 1,
+            maxLines: field.type == 'multiline' ? 5 : 1,
+            maxLength: field.maxLength,
+            keyboardType: field.type == 'number'
+                ? const TextInputType.numberWithOptions(
+                    decimal: true,
+                    signed: true,
+                  )
+                : field.type == 'phone'
+                ? TextInputType.phone
+                : null,
+            decoration: InputDecoration(
+              labelText: field.label,
+              helperText: field.hint,
+              suffixIcon: field.translate != null
+                  ? IconButton(
+                      tooltip: staffText(
+                        'Перевести с русского',
+                        'Орыс тілінен аудару',
+                        'Translate from Russian',
+                      ),
+                      onPressed: _busy ? null : () => _translate(field),
+                      icon: const Icon(Icons.translate),
+                    )
+                  : field.pick == null
+                  ? null
+                  : IconButton(
+                      tooltip: staffText('Выбрать', 'Таңдау', 'Choose'),
+                      onPressed: _busy ? null : () => _pick(field),
+                      icon: Icon(
+                        field.key.endsWith('At')
+                            ? Icons.calendar_month_outlined
+                            : Icons.photo_library_outlined,
+                      ),
+                    ),
+            ),
+            validator: (value) {
+              final text = (value ?? '').trim();
+              if (field.required && text.isEmpty) {
+                return staffText(
+                  'Обязательное поле',
+                  'Міндетті өріс',
+                  'Required',
+                );
+              }
+              if (field.type == 'number' && text.isNotEmpty) {
+                final n = num.tryParse(text.replaceAll(',', '.'));
+                if (n == null ||
+                    !n.isFinite ||
+                    (field.minimum != null && n < field.minimum!) ||
+                    (field.maximum != null && n > field.maximum!)) {
+                  return staffText(
+                    'Проверьте значение',
+                    'Мәнді тексеріңіз',
+                    'Check the value',
+                  );
+                }
+              }
+              return null;
+            },
+          ),
+  );
+
   @override
   Widget build(BuildContext context) => PopScope(
     canPop: !_busy,
@@ -339,118 +444,27 @@ class _StaffEditorState extends State<_StaffEditor> {
                   padding: const EdgeInsets.only(bottom: 16),
                   child: Text(widget.description!),
                 ),
-              for (final field in widget.fields)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 18),
-                  child: field.type == 'bool'
-                      ? SwitchListTile.adaptive(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(field.label),
-                          value: _values[field.key] == true,
-                          onChanged: _busy
-                              ? null
-                              : (value) =>
-                                    setState(() => _values[field.key] = value),
-                        )
-                      : field.options != null
-                      ? AbsorbPointer(
-                          absorbing: _busy,
-                          child: field.type == 'multi'
-                              ? StaffMultiPicker(
-                                  label: field.label,
-                                  values: List<String>.from(
-                                    _values[field.key] as List,
-                                  ),
-                                  options: field.options!,
-                                  onChanged: (values) => setState(
-                                    () => _values[field.key] = values,
-                                  ),
-                                )
-                              : StaffPicker(
-                                  label: field.label,
-                                  value: '${_values[field.key]}',
-                                  options: field.options!,
-                                  onChanged: (value) => setState(
-                                    () => _values[field.key] = value,
-                                  ),
-                                ),
-                        )
-                      : TextFormField(
-                          controller: _controllers[field.key],
-                          enabled: !_busy,
-                          obscureText: field.type == 'password',
-                          autocorrect: field.type != 'password',
-                          minLines: field.type == 'multiline' ? 2 : 1,
-                          maxLines: field.type == 'multiline' ? 5 : 1,
-                          maxLength: field.maxLength,
-                          keyboardType: field.type == 'number'
-                              ? const TextInputType.numberWithOptions(
-                                  decimal: true,
-                                  signed: true,
-                                )
-                              : field.type == 'phone'
-                              ? TextInputType.phone
-                              : null,
-                          decoration: InputDecoration(
-                            labelText: field.label,
-                            helperText: field.hint,
-                            suffixIcon: field.translate != null
-                                ? IconButton(
-                                    tooltip: staffText(
-                                      'Перевести с русского',
-                                      'Орыс тілінен аудару',
-                                      'Translate from Russian',
-                                    ),
-                                    onPressed: _busy
-                                        ? null
-                                        : () => _translate(field),
-                                    icon: const Icon(Icons.translate),
-                                  )
-                                : field.pick == null
-                                ? null
-                                : IconButton(
-                                    tooltip: staffText(
-                                      'Выбрать',
-                                      'Таңдау',
-                                      'Choose',
-                                    ),
-                                    onPressed: _busy
-                                        ? null
-                                        : () => _pick(field),
-                                    icon: Icon(
-                                      field.key.endsWith('At')
-                                          ? Icons.calendar_month_outlined
-                                          : Icons.photo_library_outlined,
-                                    ),
-                                  ),
-                          ),
-                          validator: (value) {
-                            final text = (value ?? '').trim();
-                            if (field.required && text.isEmpty) {
-                              return staffText(
-                                'Обязательное поле',
-                                'Міндетті өріс',
-                                'Required',
-                              );
-                            }
-                            if (field.type == 'number' && text.isNotEmpty) {
-                              final n = num.tryParse(text.replaceAll(',', '.'));
-                              if (n == null ||
-                                  !n.isFinite ||
-                                  (field.minimum != null &&
-                                      n < field.minimum!) ||
-                                  (field.maximum != null &&
-                                      n > field.maximum!)) {
-                                return staffText(
-                                  'Проверьте значение',
-                                  'Мәнді тексеріңіз',
-                                  'Check the value',
-                                );
-                              }
-                            }
-                            return null;
-                          },
-                        ),
+              for (final field in widget.fields.where(
+                (field) => !field.advanced && _fieldVisible(field),
+              ))
+                _fieldWidget(field),
+              if (widget.fields.any((field) => field.advanced))
+                ExpansionTile(
+                  title: Text(
+                    staffText(
+                      'Дополнительные условия',
+                      'Қосымша шарттар',
+                      'Additional conditions',
+                    ),
+                  ),
+                  tilePadding: EdgeInsets.zero,
+                  maintainState: true,
+                  children: [
+                    for (final field in widget.fields.where(
+                      (field) => field.advanced && _fieldVisible(field),
+                    ))
+                      _fieldWidget(field),
+                  ],
                 ),
               if (_error != null)
                 Text(

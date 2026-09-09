@@ -2,6 +2,7 @@ const crypto = require('node:crypto');
 const { supabase } = require('../config/supabase');
 const { attachOrderImages } = require('./order-images.service');
 const { catalogNameTranslations } = require('../utils/catalog-localization.util');
+const { isDeliveryFulfillment } = require('../utils/fulfillment.util');
 
 const RECEIPT_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -226,7 +227,9 @@ async function getPaymentReceipt(receiptId, { db = supabase } = {}) {
   if (!RECEIPT_ID_PATTERN.test(String(receiptId || ''))) return null;
   const { data, error } = await db
     .from('payment_receipts')
-    .select('*,order:kaspi_orders(discount_amount,delivery_fee,provider_card_last_four)')
+    .select(
+      '*,order:kaspi_orders(discount_amount,delivery_fee,fulfillment_type,preorder_fulfillment_type,provider_card_last_four)',
+    )
     .eq('id', receiptId)
     .maybeSingle();
   if (error) throw error;
@@ -406,6 +409,7 @@ function customerPaymentReceipt(receipt) {
     amount: Number(receipt.amount) || 0,
     discount: Number(order?.discount_amount) || 0,
     deliveryFee: Number(order?.delivery_fee) || 0,
+    hasDelivery: isDeliveryFulfillment(order) || Number(order?.delivery_fee) > 0,
     operation: receipt.operation_type === 'refund' ? 'refund' : 'purchase',
     cardLastFour: lastFour,
     paymentMethod,
@@ -451,6 +455,7 @@ function renderPaymentReceipt(receipt, requestedLanguage, access = {}) {
       share: 'Поделиться',
       close: 'Закрыть',
       discount: 'Скидка',
+      goods: 'Товары',
       delivery: 'Доставка',
       payment: 'Оплата',
       document: 'Чек №',
@@ -460,6 +465,7 @@ function renderPaymentReceipt(receipt, requestedLanguage, access = {}) {
       share: 'Бөлісу',
       close: 'Жабу',
       discount: 'Жеңілдік',
+      goods: 'Тауарлар',
       delivery: 'Жеткізу',
       payment: 'Төлем',
       document: 'Түбіртек №',
@@ -469,6 +475,7 @@ function renderPaymentReceipt(receipt, requestedLanguage, access = {}) {
       share: 'Share',
       close: 'Close',
       discount: 'Discount',
+      goods: 'Items',
       delivery: 'Delivery',
       payment: 'Payment',
       document: 'Receipt no.',
@@ -492,9 +499,8 @@ function renderPaymentReceipt(receipt, requestedLanguage, access = {}) {
         ? 'Paid by card'
         : 'Paid',
   }[language];
-  const order = Array.isArray(receipt.order) ? receipt.order[0] : receipt.order;
-  const discount = Number(order?.discount_amount || 0);
-  const delivery = Number(order?.delivery_fee || 0);
+  const { discount, deliveryFee: delivery, hasDelivery, amount } = customerReceipt;
+  const goodsSubtotal = Math.max(0, Number((amount - delivery + discount).toFixed(2)));
   const money = (value) => `${escapeHtml(localizedMoney(value, language))} ₸`;
   return `<!doctype html>
 <html lang="${language}">
@@ -529,8 +535,9 @@ function renderPaymentReceipt(receipt, requestedLanguage, access = {}) {
       </table>
     </section>
     <dl class="receipt-totals">
-      ${discount > 0 ? `<div><dt>${ui.discount}</dt><dd>${money(discount)}</dd></div>` : ''}
-      ${delivery > 0 ? `<div><dt>${ui.delivery}</dt><dd>${money(delivery)}</dd></div>` : ''}
+      <div><dt>${ui.goods}</dt><dd>${money(goodsSubtotal)}</dd></div>
+      ${discount > 0 ? `<div><dt>${ui.discount}</dt><dd>−${money(discount)}</dd></div>` : ''}
+      ${hasDelivery ? `<div><dt>${ui.delivery}</dt><dd>${money(delivery)}</dd></div>` : ''}
       <div class="grand-total"><dt>${copy.total}</dt><dd>${money(receipt.amount)}</dd></div>
     </dl>
     <section class="receipt-payment"><h2>${ui.payment}</h2>

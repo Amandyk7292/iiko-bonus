@@ -61,6 +61,58 @@ const renderPage = (role = 'branch_manager') => {
 };
 
 describe('Orders workspace permissions and refund flow', () => {
+  it('cashier can cancel an order but cannot dispatch or move it to other statuses', async () => {
+    const user = userEvent.setup();
+    apiMocks.updateOrderStatus.mockResolvedValue({ success: true, order: { ...order, orderStatus: 'cancelled', paymentStatus: 'refunded' } });
+    renderPage('cashier');
+    await screen.findByText('№100039');
+    expect(screen.queryByRole('button', { name: 'Яндекс Go' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('combobox', { name: 'Изменить статус' }));
+    expect(screen.getByRole('option', { name: 'Готовится' })).toHaveAttribute('aria-disabled', 'true');
+    await user.click(screen.getByRole('option', { name: 'Отменён' }));
+    await user.type(await screen.findByLabelText('Причина отмены (увидит клиент)'), 'Нет товара');
+    await user.click(screen.getByRole('button', { name: 'Подтвердить' }));
+    await waitFor(() => expect(apiMocks.updateOrderStatus).toHaveBeenCalledWith(order.id, 'cancelled', 'Нет товара'));
+  });
+  it('separates merchandise, discounts and the customer delivery fee from courier costs', async () => {
+    apiMocks.getOrders.mockResolvedValue({
+      orders: [
+        { ...order, amount: 2506, subtotal: 35, deliveryFee: 2471, providerDeliveryPrice: 3000 },
+        {
+          ...order,
+          id: 'free',
+          number: 100044,
+          amount: 10000,
+          subtotal: 10000,
+          deliveryFee: 0,
+          orderType: 'preorder',
+          preorderFulfillmentType: 'delivery',
+        },
+        {
+          ...order,
+          id: 'discount',
+          number: 100045,
+          amount: 1060.3,
+          subtotal: 990,
+          discount: 29.7,
+          deliveryFee: 100,
+        },
+      ],
+      total: 3,
+    });
+    renderPage();
+    const row = (await screen.findByText('№100039')).closest('tr')!;
+    const amounts = within(row).getByLabelText('Расчёт заказа');
+    expect(amounts).toHaveTextContent(/Товары35 ₸Доставка2\s?471 ₸Итого2\s?506 ₸/);
+    expect(amounts).not.toHaveTextContent(/3\s?000 ₸/);
+    const free = within(screen.getByText('№100044').closest('tr')!).getByLabelText('Расчёт заказа');
+    expect(free).toHaveTextContent('Доставка0 ₸');
+    const discount = within(screen.getByText('№100045').closest('tr')!).getByLabelText(
+      'Расчёт заказа',
+    );
+    expect(discount).toHaveTextContent(/Товары990 ₸Скидка−29,7 ₸Доставка100 ₸Итого1\s?060,3 ₸/);
+  });
+
   it('shows pickup and preorder fulfillment, and past status steps without allowing reversal', async () => {
     localStorage.setItem('adminLocale', 'ru');
     const user = userEvent.setup();
@@ -85,10 +137,10 @@ describe('Orders workspace permissions and refund flow', () => {
     const preorder = screen.getByText('№11').closest('tr')!;
     expect(within(pickup).getByText('Самовывоз')).toBeInTheDocument();
     expect(within(preorder).getByText('Предзаказ')).toBeInTheDocument();
-    expect(within(preorder).getByText('Доставка')).toBeInTheDocument();
+    expect(within(preorder).getAllByText('Доставка')).toHaveLength(2);
     expect(within(pickup).getByText('Самовывоз')).toHaveClass('fulfillment-pickup');
     expect(within(preorder).getByText('Предзаказ')).toHaveClass('fulfillment-preorder');
-    expect(within(preorder).getByText('Доставка')).toHaveClass('fulfillment-delivery');
+    expect(within(preorder).getAllByText('Доставка')[0]).toHaveClass('fulfillment-delivery');
     expect(within(preorder).getByRole('button', { name: 'Яндекс Go' })).toBeInTheDocument();
     await user.click(within(pickup).getByRole('combobox', { name: 'Изменить статус' }));
     expect(screen.getByRole('option', { name: 'Принят' })).toHaveAttribute('aria-disabled', 'true');

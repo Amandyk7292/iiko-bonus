@@ -38,7 +38,8 @@ test('receipt totals preserve actual fractional payment, discount and delivery a
     { ...record, order: { discount_amount: 29.7, delivery_fee: 100 } },
     'ru',
   );
-  assert.match(html, /Скидка<\/dt><dd>29,7/);
+  assert.match(html, /Товары<\/dt><dd>990/);
+  assert.match(html, /Скидка<\/dt><dd>−29,7/);
   assert.match(html, /Доставка<\/dt><dd>100/);
   assert.match(html, /grand-total[\s\S]*?1\s060,3/);
   assert.match(html, /Оплачено картой<\/dt>/);
@@ -160,6 +161,8 @@ test('native receipt data exposes only the paid order and recovers its own card 
   assert.equal(data.items[0].name_translations.en, 'Moscow sugar bun');
   assert.equal(data.items[0].lineTotal, 990);
   assert.equal(data.discount, 29.7);
+  assert.equal(data.deliveryFee, 100);
+  assert.equal(data.hasDelivery, true);
   assert.doesNotMatch(
     JSON.stringify(data),
     /forte_widget|merchant|authorization|customer_id|card_first_six/,
@@ -169,6 +172,44 @@ test('native receipt data exposes only the paid order and recovers its own card 
     customerPaymentReceipt({ ...receipt, card_last_four: '1234567890123456' }).cardLastFour,
     null,
   );
+});
+
+test('receipt separates the paid delivery fee and shows free delivery including preorders', () => {
+  const record = buildReceiptRecord({
+    id: receiptId,
+    order_number: 100043,
+    amount: 2506,
+    cart_items: [{ name: 'Плюшка Московская', quantity: 1, price: 35 }],
+    created_at: '2026-09-09T08:00:00Z',
+  });
+  const paid = {
+    ...record,
+    order: { fulfillment_type: 'delivery', delivery_fee: 2471, provider_delivery_price: 3000 },
+  };
+  const html = renderPaymentReceipt(paid, 'ru');
+  assert.match(html, /Товары<\/dt><dd>35 ₸/);
+  assert.match(html, /Доставка<\/dt><dd>2\s471 ₸/);
+  assert.match(html, /Итого<\/dt><dd>2\s506 ₸/);
+  assert.equal(customerPaymentReceipt(paid).deliveryFee, 2471);
+
+  for (const type of ['delivery', 'preorder']) {
+    const free = {
+      ...record,
+      amount: 10000,
+      order: { fulfillment_type: type, preorder_fulfillment_type: 'delivery', delivery_fee: 0 },
+    };
+    assert.equal(customerPaymentReceipt(free).hasDelivery, true);
+    for (const [language, label] of [
+      ['ru', 'Доставка'],
+      ['kk', 'Жеткізу'],
+      ['en', 'Delivery'],
+    ]) {
+      assert.match(renderPaymentReceipt(free, language), new RegExp(`${label}</dt><dd>0 ₸`));
+    }
+  }
+  const pickup = { ...record, order: { fulfillment_type: 'pickup', delivery_fee: 0 } };
+  assert.equal(customerPaymentReceipt(pickup).hasDelivery, false);
+  assert.doesNotMatch(renderPaymentReceipt(pickup, 'ru'), /Доставка<\/dt>/);
 });
 
 test('canonical Forte payment migration adds reconciliation-safe metadata', () => {

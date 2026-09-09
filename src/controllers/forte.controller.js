@@ -103,6 +103,7 @@ const quotePayment = async (req, res) => {
       branchId: checkout.branchId,
       customerId: req.customerAuth.id,
       orderType: checkout.orderType,
+      fulfillmentType: checkout.effectiveFulfillmentType,
     });
     const deliveryQuote = await priceCheckoutDelivery(
       { checkout, pricing, customerId: req.customerAuth.id },
@@ -170,6 +171,7 @@ const createPayment = async (req, res) => {
         branchId: checkout.branchId,
         customerId,
         orderType: checkout.orderType,
+        fulfillmentType: checkout.effectiveFulfillmentType,
       });
       ({ pricing } = await priceCheckoutDelivery(
         { checkout, pricing, customerId },

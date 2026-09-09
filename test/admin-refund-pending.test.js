@@ -26,10 +26,21 @@ function installModule(t, path, exports) {
   });
 }
 
-function harness(t, { state = {}, declined = false, saveFails = false } = {}) {
+function harness(
+  t,
+  {
+    state = {},
+    declined = false,
+    saveFails = false,
+    deliveryFails = false,
+    deliveryRaces = false,
+  } = {},
+) {
   let current = { ...order, ...state };
   let bankRequests = 0;
   const updates = [];
+  const sequence = [];
+  let deliveryCleared = false;
   installModule(t, '../src/config/supabase', {
     supabase: {
       from(table) {
@@ -53,6 +64,9 @@ function harness(t, { state = {}, declined = false, saveFails = false } = {}) {
             return this;
           },
           async maybeSingle() {
+            if (patch?.refund_status === 'processing' && (!deliveryCleared || deliveryRaces)) {
+              return { data: null, error: new Error('DELIVERY_ACTIVE_JOB_CONFLICT') };
+            }
             if (patch?.refund_status === 'unknown' && saveFails) {
               return { data: null, error: new Error('storage unavailable') };
             }
@@ -65,17 +79,35 @@ function harness(t, { state = {}, declined = false, saveFails = false } = {}) {
             }
             return { data: { ...current }, error: null };
           },
+          then(resolve, reject) {
+            return this.maybeSingle().then(resolve, reject);
+          },
         };
       },
     },
   });
   installModule(t, '../src/services/external-delivery-lifecycle.service', {
-    assertExternalDeliveryCancelled: async () => {},
+    assertExternalDeliveryCancelled: async () => {
+      deliveryCleared = true;
+    },
+    cancelExternalDeliveryForOrder: async () => {
+      sequence.push('courier');
+      assert.equal(current.refund_status, null);
+      assert.equal(current.fulfillment_status, 'preparing');
+      if (deliveryFails)
+        throw Object.assign(new Error('Курьер не подтвердил отмену'), {
+          statusCode: 502,
+          code: 'EXTERNAL_DELIVERY_CANCEL_UNCONFIRMED',
+        });
+      deliveryCleared = true;
+    },
   });
   installModule(t, '../src/services/payment-gateway.service', {
     paymentProviderName: () => 'ForteBank',
     refundPaymentForOrder: async (claimed, amount, options) => {
       bankRequests += 1;
+      sequence.push('bank');
+      if (sequence.includes('courier')) assert.equal(claimed.fulfillment_status, 'cancelled');
       assert.equal(amount, 2506);
       assert.equal(options.idempotencyKey, claimed.refund_request_id);
       throw Object.assign(new Error(declined ? 'Bank declined' : 'Awaiting bank confirmation'), {
@@ -104,6 +136,7 @@ function harness(t, { state = {}, declined = false, saveFails = false } = {}) {
     current: () => current,
     bankRequests: () => bankRequests,
     updates,
+    sequence,
   };
 }
 
@@ -134,10 +167,33 @@ test('admin receives 202 while a saved refund awaits bank confirmation, and retr
   assert.equal(h.current().refund_reference, reference);
   assert.equal(h.current().refund_amount, undefined);
   assert.equal(h.bankRequests(), 1);
+  assert.deepEqual(h.sequence, ['courier', 'bank']);
   assert.ok(h.updates[1].filters.some(([key, value]) => key === 'refund_request_id' && value));
   await h.controller.updateAdminStatus(request, response);
   assert.equal(response.statusCode, 202);
   assert.equal(h.bankRequests(), 1);
+});
+
+test('failed courier cancellation keeps the order open and never requests a bank refund', async (t) => {
+  const h = harness(t, { deliveryFails: true });
+  await assert.rejects(h.service.updateAdminOrderStatus(order.id, 'cancelled', 'Нет товара'), {
+    code: 'EXTERNAL_DELIVERY_CANCEL_UNCONFIRMED',
+  });
+  assert.equal(h.current().fulfillment_status, 'preparing');
+  assert.equal(h.current().refund_status, null);
+  assert.equal(h.bankRequests(), 0);
+  assert.deepEqual(h.sequence, ['courier']);
+});
+
+test('a courier reservation racing cancellation prevents the order closure and bank refund', async (t) => {
+  const h = harness(t, { deliveryRaces: true });
+  await assert.rejects(h.service.updateAdminOrderStatus(order.id, 'cancelled', 'Нет товара'), {
+    statusCode: 409,
+    code: 'EXTERNAL_DELIVERY_CANCEL_UNCONFIRMED',
+  });
+  assert.equal(h.current().fulfillment_status, 'preparing');
+  assert.equal(h.current().refund_status, null);
+  assert.equal(h.bankRequests(), 0);
 });
 
 test('processing admin refunds are returned as pending without a bank request', async (t) => {

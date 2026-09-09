@@ -7,6 +7,9 @@ import 'package:http/testing.dart';
 
 void main() {
   test('order mutation and refund roles preserve the web permissions', () {
+    expect(staffCanCancelOrders('cashier'), isTrue);
+    expect(staffCanRefundOrders('cashier'), isFalse);
+    expect(staffCanCancelOrders('viewer'), isFalse);
     for (final role in ['owner', 'admin', 'branch_manager']) {
       expect(staffCanEditOrders(role), isTrue);
       expect(staffCanRefundOrders(role), isTrue);

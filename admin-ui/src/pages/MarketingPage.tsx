@@ -3,6 +3,7 @@ import { Gift, LoaderCircle, Plus, RefreshCw, Save, Sparkles, Zap } from 'lucide
 import Modal from '../components/Modal';
 import PageState from '../components/PageState';
 import SelectControl from '../components/SelectControl';
+import PromotionFields from '../components/PromotionFields';
 import { useFeedback } from '../components/Feedback';
 import { api } from '../lib/api';
 import { contentLanguage, useI18n } from '../lib/i18n';
@@ -112,6 +113,8 @@ export default function MarketingPage() {
             startsAt: astanaDateTimeLocal(promotion.starts_at),
             endsAt: astanaDateTimeLocal(promotion.ends_at),
             active: promotion.active !== false,
+            branchIds: promotion.branch_ids || [],
+            description: promotion.description || '',
           }
         : emptyPromotion,
     );
@@ -129,7 +132,12 @@ export default function MarketingPage() {
         .split(',')
         .map((value: string) => value.trim())
         .filter(Boolean),
-      maxDiscount: Number(promotionDraft.maxDiscount) || null,
+      discountValue:
+        promotionDraft.discountType === 'free_delivery' ? 0 : Number(promotionDraft.discountValue),
+      maxDiscount:
+        promotionDraft.discountType === 'free_delivery'
+          ? null
+          : Number(promotionDraft.maxDiscount) || null,
       usageLimit: Number(promotionDraft.usageLimit) || null,
       startsAt: promotionDraft.startsAt || null,
       endsAt: promotionDraft.endsAt || null,
@@ -303,8 +311,14 @@ export default function MarketingPage() {
                         <small className="table-secondary">{item.title}</small>
                       </td>
                       <td data-label={t('marketing.discount')}>
-                        {formatNumber(item.discount_value)}
-                        {item.discount_type === 'percent' ? '%' : ' ₸'}
+                        {item.discount_type === 'free_delivery' ? (
+                          t('marketing.freeDelivery')
+                        ) : (
+                          <>
+                            {formatNumber(item.discount_value)}
+                            {item.discount_type === 'percent' ? '%' : ' ₸'}
+                          </>
+                        )}
                       </td>
                       <td data-label={t('marketing.audience')}>
                         {item.customer_ids?.length
@@ -528,199 +542,7 @@ export default function MarketingPage() {
         size="lg"
       >
         <form className="modal-body form-stack" onSubmit={savePromotion}>
-          <div className="form-grid form-grid-3">
-            <label className="field-group">
-              <span className="field-label">{t('marketing.code')}</span>
-              <input
-                name="promotionCode"
-                autoComplete="off"
-                className="input-classic"
-                value={promotionDraft.code}
-                onChange={(event) =>
-                  setPromotionDraft((value: any) => ({
-                    ...value,
-                    code: event.target.value.toUpperCase(),
-                  }))
-                }
-                required
-              />
-            </label>
-            <label className="field-group">
-              <span className="field-label">{t('common.name')}</span>
-              <input
-                name="promotionTitle"
-                autoComplete="off"
-                className="input-classic"
-                value={promotionDraft.title}
-                onChange={(event) =>
-                  setPromotionDraft((value: any) => ({ ...value, title: event.target.value }))
-                }
-                required
-              />
-            </label>
-            <label className="field-group">
-              <span className="field-label">{t('marketing.discountType')}</span>
-              <SelectControl
-                name="discountType"
-                value={promotionDraft.discountType}
-                onChange={(discountType) =>
-                  setPromotionDraft((value: any) => ({ ...value, discountType }))
-                }
-                options={[
-                  { value: 'percent', label: t('marketing.percent') },
-                  { value: 'fixed', label: t('marketing.fixedAmount') },
-                ]}
-              />
-            </label>
-            <label className="field-group">
-              <span className="field-label">{t('marketing.discount')}</span>
-              <input
-                name="discountValue"
-                type="number"
-                min="1"
-                max={promotionDraft.discountType === 'percent' ? 100 : 10000000}
-                className="input-classic"
-                value={promotionDraft.discountValue}
-                onChange={(event) =>
-                  setPromotionDraft((value: any) => ({
-                    ...value,
-                    discountValue: Number(event.target.value),
-                  }))
-                }
-                required
-              />
-            </label>
-            <label className="field-group">
-              <span className="field-label">{t('marketing.minOrder')}</span>
-              <input
-                name="minOrder"
-                type="number"
-                min="0"
-                className="input-classic"
-                value={promotionDraft.minOrder}
-                onChange={(event) =>
-                  setPromotionDraft((value: any) => ({
-                    ...value,
-                    minOrder: Number(event.target.value),
-                  }))
-                }
-              />
-            </label>
-            <label className="field-group">
-              <span className="field-label">{t('marketing.maxDiscount')}</span>
-              <input
-                name="maxDiscount"
-                type="number"
-                min="0"
-                className="input-classic"
-                value={promotionDraft.maxDiscount}
-                onChange={(event) =>
-                  setPromotionDraft((value: any) => ({
-                    ...value,
-                    maxDiscount: Number(event.target.value),
-                  }))
-                }
-              />
-            </label>
-            <label className="field-group">
-              <span className="field-label">{t('marketing.customerIds')}</span>
-              <input
-                name="customerIds"
-                autoComplete="off"
-                className="input-classic"
-                value={promotionDraft.customerIds}
-                onChange={(event) =>
-                  setPromotionDraft((value: any) => ({ ...value, customerIds: event.target.value }))
-                }
-              />
-            </label>
-            <label className="field-group">
-              <span className="field-label">{t('marketing.customerTags')}</span>
-              <input
-                name="customerTags"
-                autoComplete="off"
-                className="input-classic"
-                value={promotionDraft.customerTags}
-                onChange={(event) =>
-                  setPromotionDraft((value: any) => ({
-                    ...value,
-                    customerTags: event.target.value,
-                  }))
-                }
-              />
-            </label>
-            <label className="field-group">
-              <span className="field-label">{t('marketing.perCustomerLimit')}</span>
-              <input
-                name="perCustomerLimit"
-                type="number"
-                min="1"
-                max="1000"
-                step="1"
-                className="input-classic"
-                value={promotionDraft.perCustomerLimit}
-                onChange={(event) =>
-                  setPromotionDraft((value: any) => ({
-                    ...value,
-                    perCustomerLimit: Number(event.target.value),
-                  }))
-                }
-              />
-            </label>
-            <label className="field-group">
-              <span className="field-label">{t('marketing.totalLimit')}</span>
-              <input
-                name="usageLimit"
-                type="number"
-                min="0"
-                max="1000000"
-                step="1"
-                className="input-classic"
-                value={promotionDraft.usageLimit}
-                onChange={(event) =>
-                  setPromotionDraft((value: any) => ({
-                    ...value,
-                    usageLimit: Number(event.target.value),
-                  }))
-                }
-              />
-            </label>
-            <label className="field-group">
-              <span className="field-label">{t('marketing.startsAt')}</span>
-              <input
-                name="startsAt"
-                type="datetime-local"
-                className="input-classic"
-                value={promotionDraft.startsAt}
-                onChange={(event) =>
-                  setPromotionDraft((value: any) => ({ ...value, startsAt: event.target.value }))
-                }
-              />
-            </label>
-            <label className="field-group">
-              <span className="field-label">{t('marketing.endsAt')}</span>
-              <input
-                name="endsAt"
-                type="datetime-local"
-                className="input-classic"
-                value={promotionDraft.endsAt}
-                onChange={(event) =>
-                  setPromotionDraft((value: any) => ({ ...value, endsAt: event.target.value }))
-                }
-              />
-            </label>
-          </div>
-          <label className="switch-row">
-            <input
-              type="checkbox"
-              checked={promotionDraft.active}
-              onChange={(event) =>
-                setPromotionDraft((value: any) => ({ ...value, active: event.target.checked }))
-              }
-            />
-            <span className="switch-control" />
-            <span>{t('common.active')}</span>
-          </label>
+          <PromotionFields draft={promotionDraft} onChange={setPromotionDraft} />
           <div className="modal-actions">
             <button
               className="btn-outline px-5"

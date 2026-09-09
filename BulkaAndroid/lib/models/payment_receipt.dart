@@ -8,6 +8,8 @@ class PaymentReceipt {
       amount = _asDouble(json['amount']),
       discount = _asDouble(json['discount']),
       deliveryFee = _asDouble(json['deliveryFee']),
+      hasDelivery =
+          json['hasDelivery'] == true || _asDouble(json['deliveryFee']) > 0,
       currency = _asString(json['currency'], fallback: 'KZT'),
       paymentMethod = _asString(json['paymentMethod']),
       isRefund = json['operation'] == 'refund',
@@ -21,8 +23,11 @@ class PaymentReceipt {
   final int orderNumber;
   final double amount, discount, deliveryFee;
   final bool isRefund;
+  final bool hasDelivery;
   final String? cardLastFour;
   final List<Map<String, dynamic>> items;
+
+  double get goodsSubtotal => max(0, amount - deliveryFee + discount);
 
   String get paymentLabel => cardLastFour == null
       ? (paymentMethod == 'card' ? 'receipt_paid_card'.tr : 'receipt_paid'.tr)

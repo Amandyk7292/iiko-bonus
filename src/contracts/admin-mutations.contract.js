@@ -928,8 +928,8 @@ const promotionBodySchema = z
       .regex(/^[A-Z0-9_-]{3,64}$/),
     title: shortText(160).optional(),
     description: shortText(1_000).optional(),
-    discountType: z.enum(['percent', 'fixed']),
-    discountValue: z.coerce.number().positive().max(100_000_000),
+    discountType: z.enum(['percent', 'fixed', 'free_delivery']),
+    discountValue: z.coerce.number().nonnegative().max(100_000_000),
     minOrder: moneySchema,
     maxDiscount: z.coerce.number().positive().max(100_000_000).nullable(),
     customerIds: z.array(uuidSchema).max(10_000),
@@ -946,6 +946,14 @@ const promotionBodySchema = z
     path: ['discountValue'],
     message: 'Процент скидки не может быть больше 100',
   })
+  .refine(
+    (value) =>
+      value.discountType === 'free_delivery' ? value.discountValue === 0 : value.discountValue > 0,
+    {
+      path: ['discountValue'],
+      message: 'Укажите размер скидки; для бесплатной доставки значение равно 0',
+    },
+  )
   .refine(
     (value) =>
       !value.startsAt ||

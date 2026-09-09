@@ -235,7 +235,13 @@ async function loadOrderCatalog({ branchId = null, orderType = 'pickup' } = {}) 
 async function priceOrder(
   items,
   promoCode,
-  { deliveryFee = 0, branchId = null, customerId = null, orderType = 'pickup' } = {},
+  {
+    deliveryFee = 0,
+    branchId = null,
+    customerId = null,
+    orderType = 'pickup',
+    fulfillmentType = orderType,
+  } = {},
 ) {
   const [catalog, settings] = await Promise.all([
     loadOrderCatalog({ branchId, orderType }),
@@ -246,6 +252,7 @@ async function priceOrder(
   const targetedPromotion = await resolveTargetedPromotion(priced.subtotal, promoCode, {
     customerId,
     branchId,
+    fulfillmentType,
   });
   const promotion =
     targetedPromotion || applyPromoCode(priced.subtotal, promoCode, settings.bonus_promocodes);

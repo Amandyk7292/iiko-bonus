@@ -530,6 +530,9 @@ const adminCsrfMiddleware = (req, res, next) => {
 
 const cashierMutationAllowed = (req, area) => {
   const path = String(req.path || '').replace(/^\/+/, '');
+  if (area === 'orders' && req.method === 'PATCH' && /^orders\/[0-9a-f-]+\/status$/i.test(path)) {
+    return req.body?.status === 'cancelled';
+  }
   if (area === 'staff' && ['POST', 'DELETE'].includes(req.method) && path === 'staff/push-token') {
     return true;
   }

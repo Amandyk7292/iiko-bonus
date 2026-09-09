@@ -1,6 +1,11 @@
 part of '../main.dart';
 
 const _receiptTranslations = <String, Map<String, String>>{
+  'checkout_promo_delivery_only': {
+    'ru': 'Этот промокод действует только для доставки',
+    'kk': 'Бұл промокод тек жеткізуге қолданылады',
+    'en': 'This promo code applies to delivery orders only',
+  },
   'receipt_title': {
     'ru': 'Чек об оплате',
     'kk': 'Төлем түбіртегі',
@@ -17,6 +22,7 @@ const _receiptTranslations = <String, Map<String, String>>{
   'receipt_price': {'ru': 'Цена', 'kk': 'Бағасы', 'en': 'Price'},
   'receipt_amount': {'ru': 'Сумма', 'kk': 'Сома', 'en': 'Amount'},
   'receipt_total': {'ru': 'Итого', 'kk': 'Барлығы', 'en': 'Total'},
+  'receipt_goods': {'ru': 'Товары', 'kk': 'Тауарлар', 'en': 'Items'},
   'receipt_discount': {'ru': 'Скидка', 'kk': 'Жеңілдік', 'en': 'Discount'},
   'receipt_payment': {'ru': 'Оплата', 'kk': 'Төлем', 'en': 'Payment'},
   'receipt_paid': {'ru': 'Оплачено', 'kk': 'Төленді', 'en': 'Paid'},
