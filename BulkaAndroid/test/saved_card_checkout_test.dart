@@ -9,8 +9,10 @@ import 'package:http/testing.dart';
 void main() {
   test('checkout quote uses the Forte endpoint', () async {
     Uri? requestUri;
+    Map<String, dynamic>? quoteBody;
     final client = MockClient((request) async {
       requestUri = request.url;
+      quoteBody = jsonDecode(request.body) as Map<String, dynamic>;
       return http.Response(
         jsonEncode({
           'success': true,
@@ -36,6 +38,7 @@ void main() {
     );
 
     expect(requestUri?.path, '/api/customer/forte-pay/quote');
+    expect(quoteBody?['deliveryQuoteVersion'], 1);
   });
 
   test('Forte checkout sends the selected saved card id', () async {
@@ -66,12 +69,16 @@ void main() {
       scheduledAt: '2026-07-28T16:00:00.000Z',
       checkoutId: '31f0d793-0102-4d2f-a5a1-744d12cffe7c',
       savedPaymentMethodId: '86d95454-7866-414d-a3f1-8f85cef12391',
+      deliveryQuoteToken: 'server-locked-delivery-quote',
     );
 
     expect(
       requestBody?['savedPaymentMethodId'],
       '86d95454-7866-414d-a3f1-8f85cef12391',
     );
+    expect(requestBody?['deliveryQuoteVersion'], 1);
+    expect(requestBody?['deliveryQuoteToken'], 'server-locked-delivery-quote');
+    expect(requestBody?.containsKey('deliveryFee'), false);
   });
 
   testWidgets('checkout renders every saved card and selects the tapped card', (

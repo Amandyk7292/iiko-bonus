@@ -285,8 +285,6 @@ const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
     trackingUrl: external?.tracking_url || null,
     deliveryProvider: ownCourier ? 'bulka' : external?.provider || null,
     providerDeliveryStatus: external?.provider_status || null,
-    providerDeliveryPrice:
-      external?.provider_price == null ? null : Number(external.provider_price),
     customerArrivedAt: order.customer_arrived_at || null,
     courier: ownCourier || externalCourier(external),
     cancellationReason: order.cancellation_reason || null,

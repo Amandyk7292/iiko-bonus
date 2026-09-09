@@ -468,6 +468,14 @@ function validateCheckout(payload, cities, options = {}) {
     pickupTime: scheduledAt,
     deliveryAddress,
     deliveryFee,
+    deliveryOrigin: isDelivery
+      ? {
+          city: branch.cityName,
+          address: branch.address,
+          latitude: branch.latitude,
+          longitude: branch.longitude,
+        }
+      : null,
     deliveryMinimumOrder: Number(Number(minimumOrder).toFixed(2)),
     deliveryZone: branch.resolvedDeliveryZone || null,
     additionalPhone: normalizeAdditionalPhone(payload?.additionalPhone),

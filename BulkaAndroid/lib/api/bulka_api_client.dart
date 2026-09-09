@@ -483,6 +483,7 @@ class BulkaApiClient {
     String? promoCode,
   }) async {
     final json = await _post('/api/customer/forte-pay/quote', {
+      'deliveryQuoteVersion': 1,
       'items': cartItems,
       'orderType': orderType,
       'preorderFulfillmentType': preorderFulfillmentType,
@@ -508,6 +509,7 @@ class BulkaApiClient {
     required String scheduledAt,
     required String checkoutId,
     String? savedPaymentMethodId,
+    String? deliveryQuoteToken,
     String? preorderFulfillmentType,
     String? branch,
     String? branchId,
@@ -518,6 +520,8 @@ class BulkaApiClient {
     String substitutionPreference = 'call_customer',
   }) async {
     final json = await _post('/api/customer/forte-pay/create', {
+      'deliveryQuoteVersion': 1,
+      'deliveryQuoteToken': deliveryQuoteToken,
       'items': cartItems,
       'orderType': orderType,
       'preorderFulfillmentType': preorderFulfillmentType,

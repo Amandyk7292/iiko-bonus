@@ -6,6 +6,10 @@ String localizeErrorMessage(
 }) {
   final code = error is ApiException ? error.code : null;
   switch (code) {
+    case 'CHECKOUT_QUOTE_CHANGED':
+      return 'checkout_quote_changed'.tr;
+    case 'CHECKOUT_DELIVERY_UNAVAILABLE':
+      return 'checkout_delivery_estimate_unavailable'.tr;
     case 'INVALID_CREDENTIALS':
       return 'error_login'.tr;
     case 'ACCOUNT_NOT_FOUND':

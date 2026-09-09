@@ -4,6 +4,10 @@ const orderPaymentState = require('../services/order-payment-state.service');
 const paymentOperations = require('../services/payment-operations.service');
 const { isSafeWidgetFallbackError } = paymentOperations;
 const { priceOrder } = require('../services/order.service');
+const {
+  priceCheckoutDelivery,
+  FREE_DELIVERY_THRESHOLD,
+} = require('../services/checkout-delivery-pricing.service');
 const { getCitiesWithPoints } = require('../services/location.service');
 const { normalizeOrderType, validateCheckout } = require('../services/checkout.service');
 const { forecastOrderEta } = require('../services/eta.service');
@@ -94,7 +98,7 @@ const quotePayment = async (req, res) => {
     normalizeOrderType(req.body?.orderType ?? req.body?.fulfillmentType ?? 'pickup');
     const cities = await getCitiesWithPoints({ throwOnError: true });
     const checkout = validateCheckout(req.body, cities);
-    const pricing = await priceOrder(req.body?.items, req.body?.promoCode, {
+    let pricing = await priceOrder(req.body?.items, req.body?.promoCode, {
       deliveryFee: checkout.deliveryFee,
       branchId: checkout.branchId,
       customerId: req.customerAuth.id,
@@ -107,6 +111,14 @@ const quotePayment = async (req, res) => {
         )} ₸`,
       });
     }
+    const deliveryQuote = await priceCheckoutDelivery(
+      { checkout, pricing, customerId: req.customerAuth.id },
+      {
+        phase: 'quote',
+        version: req.body?.deliveryQuoteVersion,
+      },
+    );
+    pricing = deliveryQuote.pricing;
     const eta = await forecastOrderEta({
       branchId: checkout.branchId,
       orderType: checkout.effectiveFulfillmentType,
@@ -125,11 +137,14 @@ const quotePayment = async (req, res) => {
       branchId: checkout.branchId,
       deliveryZone: checkout.deliveryZone,
       eta,
+      freeDeliveryThreshold: FREE_DELIVERY_THRESHOLD,
+      deliveryQuoteToken: deliveryQuote.deliveryQuoteToken,
+      deliveryQuoteExpiresAt: deliveryQuote.deliveryQuoteExpiresAt,
     });
   } catch (error) {
     return res
       .status(error.statusCode || 500)
-      .json({ error: publicError(error, 'Не удалось рассчитать заказ') });
+      .json({ error: publicError(error, 'Не удалось рассчитать заказ'), code: error.code });
   }
 };
 
@@ -141,11 +156,23 @@ const createPayment = async (req, res) => {
       return res.status(400).json({ error: 'Некорректный идентификатор оформления' });
     }
 
-    const cities = await getCitiesWithPoints({ throwOnError: true });
-    const checkout = validateCheckout(req.body, cities);
     const requestKey = `${customerId}:${checkoutId}`;
     const result = await checkoutRequests.run(requestKey, async () => {
-      const pricing = await priceOrder(items, promoCode, {
+      // An existing payment keeps its amount even after the quote or slot expires.
+      const existing = await forteWidgetService.existingRequest(customerId, checkoutId);
+      if (existing) {
+        if (existing.payment_method !== 'forte_card') {
+          throw Object.assign(new Error('Это оформление уже связано с другим способом оплаты'), {
+            statusCode: 409,
+          });
+        }
+        const service =
+          existing.provider_payment_system === 'forte_widget' ? forteWidgetService : forteService;
+        return service.paymentResponse(existing, req.body?.language || 'ru');
+      }
+      const cities = await getCitiesWithPoints({ throwOnError: true });
+      const checkout = validateCheckout(req.body, cities);
+      let pricing = await priceOrder(items, promoCode, {
         deliveryFee: checkout.deliveryFee,
         branchId: checkout.branchId,
         customerId,
@@ -162,6 +189,14 @@ const createPayment = async (req, res) => {
         );
       }
 
+      ({ pricing } = await priceCheckoutDelivery(
+        { checkout, pricing, customerId },
+        {
+          phase: 'payment',
+          version: req.body?.deliveryQuoteVersion,
+          token: req.body?.deliveryQuoteToken,
+        },
+      ));
       await reservePromotionForCheckout(pricing, {
         customerId,
         requestId: checkoutId,

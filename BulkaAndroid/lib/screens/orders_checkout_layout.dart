@@ -280,12 +280,18 @@ extension _CheckoutScreenLayout on _CheckoutScreenState {
                       value: '− ${_formatCartMoney(_discount)} ₸',
                     ),
                   ],
-                  if (_deliveryFee > 0) ...[
+                  if (_usesDelivery) ...[
                     const SizedBox(height: 8),
                     _CheckoutTotalRow(
                       label: 'checkout_delivery_fee'.tr,
-                      value: '${_formatCartMoney(_deliveryFee)} ₸',
+                      value: _quotedTotal == null || _isQuoting
+                          ? '—'
+                          : _deliveryFee == 0
+                          ? 'checkout_delivery_free'.tr
+                          : '${_formatCartMoney(_deliveryFee)} ₸',
                     ),
+                    const SizedBox(height: 6),
+                    Text('checkout_free_delivery_threshold'.tr),
                   ],
                   const SizedBox(height: 8),
                   _CheckoutTotalRow(

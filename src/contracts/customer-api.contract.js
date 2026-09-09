@@ -70,12 +70,14 @@ const checkoutQuoteBodySchema = z
     pickupTime: z.iso.datetime({ offset: true }).nullish(),
     deliveryAddress: checkoutAddressSchema.nullish(),
     promoCode: nullableText(80),
+    deliveryQuoteVersion: z.literal(1).optional(),
   })
   .strict();
 const checkoutPaymentBodySchema = checkoutQuoteBodySchema
   .extend({
     checkoutId: z.string().trim().uuid(),
     savedPaymentMethodId: nullableText(200),
+    deliveryQuoteToken: nullableText(2048),
     additionalPhone: nullableText(32),
     comment: nullableText(500),
     substitutionPreference: z

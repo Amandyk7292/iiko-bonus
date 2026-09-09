@@ -2959,6 +2959,7 @@ class _CheckoutPaymentRoutingApiClient extends _FakeBulkaApiClient {
     required String scheduledAt,
     required String checkoutId,
     String? savedPaymentMethodId,
+    String? deliveryQuoteToken,
     String? preorderFulfillmentType,
     String? branch,
     String? branchId,

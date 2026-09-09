@@ -484,6 +484,10 @@ function validateDeliveryOrder(order, config = getConfig()) {
 
 function buildQuotePayload(order, config = getConfig()) {
   const { branch, destination } = validateDeliveryOrder(order, config);
+  return cargoQuotePayload(branch, destination, order, config);
+}
+
+function cargoQuotePayload(branch, destination, order, config) {
   return {
     items: cargoItems(order, config, { quote: true }),
     route_points: [
@@ -506,6 +510,48 @@ function buildQuotePayload(order, config = getConfig()) {
     },
     skip_door_to_door: false,
   };
+}
+
+// Checkout estimation creates neither a provider claim nor a delivery job.
+async function estimateCheckoutDelivery(checkout, pricing) {
+  const config = getConfig();
+  assertConfigured(config, API_FAMILIES.CARGO);
+  const branch = checkout.deliveryOrigin || {};
+  const destination = deliveryDestination(checkout.deliveryAddress);
+  if (
+    !normalizeCity(branch.city) ||
+    normalizeCity(branch.city) !== normalizeCity(destination.city)
+  ) {
+    throw deliveryError('Выберите адрес в городе филиала', 422, 'DELIVERY_CITY_MISMATCH');
+  }
+  const payload = cargoQuotePayload(
+    branch,
+    destination,
+    {
+      cart_items: pricing.canonicalItems,
+      delivery_latitude: checkout.deliveryAddress.latitude,
+      delivery_longitude: checkout.deliveryAddress.longitude,
+    },
+    config,
+  );
+  try {
+    const result = await apiRequest('/check-price', { body: payload, config });
+    const price = Number(result.price);
+    if (result.currency_rules?.code !== 'KZT' || !Number.isFinite(price) || price <= 0) {
+      throw new Error('Invalid courier estimate');
+    }
+    if (!config.cargoMaxPriceKzt || price > config.cargoMaxPriceKzt) {
+      throw new Error('Courier estimate exceeds the configured dispatch limit');
+    }
+    return Math.ceil(price);
+  } catch (error) {
+    console.warn('Checkout delivery estimate failed:', error.code || error.message);
+    throw deliveryError(
+      'Не удалось рассчитать доставку. Попробуйте ещё раз.',
+      503,
+      'CHECKOUT_DELIVERY_UNAVAILABLE',
+    );
+  }
 }
 
 function buildClaimPayload(order, config = getConfig()) {
@@ -3442,6 +3488,7 @@ module.exports = {
   buildQuotePayload,
   cancelDelivery,
   dispatchOrder,
+  estimateCheckoutDelivery,
   getCancellationInfo,
   getConfigurationStatus,
   isTerminalStatus,

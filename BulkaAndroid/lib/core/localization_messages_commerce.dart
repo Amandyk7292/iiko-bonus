@@ -252,6 +252,22 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'kk': 'Жеткізу құны',
     'en': 'Delivery fee',
   },
+  'checkout_delivery_free': {'ru': 'Бесплатно', 'kk': 'Тегін', 'en': 'Free'},
+  'checkout_free_delivery_threshold': {
+    'ru': 'Бесплатная доставка от 10 000 ₸',
+    'kk': '10 000 ₸ бастап жеткізу тегін',
+    'en': 'Free delivery on orders of 10,000 ₸ or more',
+  },
+  'checkout_quote_changed': {
+    'ru': 'Расчёт обновляется. Проверьте сумму и подтвердите оплату ещё раз.',
+    'kk': 'Сома қайта есептелуде. Соманы тексеріп, төлемді қайта растаңыз.',
+    'en': 'Refreshing your total. Check the amount and confirm payment again.',
+  },
+  'checkout_delivery_estimate_unavailable': {
+    'ru': 'Не удалось рассчитать доставку. Попробуйте ещё раз.',
+    'kk': 'Жеткізу құнын есептеу мүмкін болмады. Қайталап көріңіз.',
+    'en': 'Unable to calculate delivery. Please try again.',
+  },
   'checkout_total': {'ru': 'Итоговая цена', 'kk': 'Жалпы баға', 'en': 'Total'},
   'checkout_time_required': {
     'ru': 'Выберите время получения заказа.',

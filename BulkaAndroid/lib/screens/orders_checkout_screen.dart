@@ -48,6 +48,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   int _discount = 0;
   int _deliveryFee = 0;
   int? _quotedTotal;
+  String? _deliveryQuoteToken;
   String? _quoteError;
   Map<String, dynamic>? _etaQuote;
   int _branchTimezoneOffsetMinutes = 300;
@@ -578,6 +579,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         _discount = (quote['discount'] as num?)?.round() ?? 0;
         _deliveryFee = (quote['deliveryFee'] as num?)?.round() ?? 0;
         _quotedTotal = (quote['total'] as num?)?.round();
+        _deliveryQuoteToken = quote['deliveryQuoteToken'] as String?;
         final eta = _asMap(quote['eta']);
         _etaQuote = eta.isEmpty ? null : eta;
       });
@@ -737,6 +739,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
           checkoutId: _checkoutId,
           orderType: _orderType,
           savedPaymentMethodId: _selectedPaymentMethodId,
+          deliveryQuoteToken: _deliveryQuoteToken,
           preorderFulfillmentType: _isPreorder
               ? _preorderFulfillment.wireValue
               : null,
@@ -785,6 +788,9 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         context,
       ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
       setState(() => _isSubmitting = false);
+      if (error is ApiException && error.code == 'CHECKOUT_QUOTE_CHANGED') {
+        await _refreshQuote();
+      }
     }
   }
 

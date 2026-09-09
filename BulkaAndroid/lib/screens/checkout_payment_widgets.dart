@@ -33,6 +33,7 @@ class _CheckoutDetails {
     required this.orderType,
     required this.scheduledAt,
     this.savedPaymentMethodId,
+    this.deliveryQuoteToken,
     this.preorderFulfillmentType,
     this.branch,
     this.branchId,
@@ -46,6 +47,7 @@ class _CheckoutDetails {
   final _OrderType orderType;
   final String scheduledAt;
   final String? savedPaymentMethodId;
+  final String? deliveryQuoteToken;
   final String? preorderFulfillmentType;
   final String? branch;
   final String? branchId;
