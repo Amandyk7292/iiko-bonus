@@ -54,9 +54,9 @@ class _CheckoutBonusSwitch extends StatelessWidget {
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 6),
           child: Text(
-            available == null
-                ? 'checkout_bonus_after_quote'.tr
-                : '${'checkout_bonus_balance'.trArgs({'amount': _formatCartMoney(available!)})}\n${'checkout_bonus_limit'.tr}',
+            'checkout_bonus_balance'.trArgs({
+              'amount': available == null ? '—' : _formatCartMoney(available!),
+            }),
             style: TextStyle(
               fontSize: 12,
               height: 1.4,
