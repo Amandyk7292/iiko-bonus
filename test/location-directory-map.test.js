@@ -43,4 +43,14 @@ test('directory map localizes controls and retains safe map behavior', async (t)
     `http://127.0.0.1:${server.address().port}/maps/yandex?lang=%3Cscript%3E`,
   );
   assert.ok((await response.text()).includes('<html lang="ru">'));
+  for (const kind of ['courier', 'pickup', 'recipient']) {
+    const marker = await fetch(`http://127.0.0.1:${server.address().port}/assets/map-${kind}.svg`);
+    assert.equal(marker.status, 200);
+    assert.match(marker.headers.get('content-type'), /image\/svg\+xml/);
+    assert.match(await marker.text(), /<svg/);
+  }
+  assert.equal(
+    (await fetch(`http://127.0.0.1:${server.address().port}/assets/map-unknown.svg`)).status,
+    404,
+  );
 });

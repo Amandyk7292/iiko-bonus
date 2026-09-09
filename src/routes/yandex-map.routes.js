@@ -1,8 +1,16 @@
 const express = require('express');
+const path = require('node:path');
 
 const router = express.Router();
 
 const apiKeyPattern = /^[a-zA-Z0-9_-]{20,200}$/;
+
+router.get('/assets/map-:kind.svg', (req, res) => {
+  if (!['courier', 'pickup', 'recipient'].includes(req.params.kind)) return res.sendStatus(404);
+  return res.sendFile(path.join(__dirname, '../../public/assets', `map-${req.params.kind}.svg`), {
+    maxAge: '1h',
+  });
+});
 
 router.get('/maps/yandex', (req, res) => {
   const isDirectory = req.query.mode === 'directory';
