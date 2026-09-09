@@ -1,5 +1,6 @@
 const fetch = require('node-fetch');
 const { normalizeKazakhstanPhone } = require('../utils/phone.util');
+const { deliveryDestination, deliveryCourierComment } = require('../utils/delivery-address.util');
 
 const DEFAULT_BUSINESS_API_BASE_URL = 'https://b2b-api.go.yandex.ru/integration/2.0';
 const DEFAULT_DELIVERY_CLASSES = Object.freeze(['express', 'courier']);
@@ -431,16 +432,8 @@ function buildBusinessRoute(order, input = {}) {
     order?.delivery_address && typeof order.delivery_address === 'object'
       ? order.delivery_address
       : { address: order?.delivery_address };
-  const destinationCity = rawDestination.city || branch.city;
-  const courierComment = [
-    rawDestination.house ? `Дом ${boundedString(rawDestination.house, 30)}` : '',
-    rawDestination.comment,
-    order?.comment,
-  ]
-    .map((value) => boundedString(value, 300))
-    .filter(Boolean)
-    .join('. ')
-    .slice(0, 500);
+  const destination = deliveryDestination(rawDestination, order?.delivery_city || branch.city);
+  const courierComment = deliveryCourierComment(destination, order?.comment);
   return [
     buildOrderRoutePoint({
       longitude: branch.longitude,
@@ -451,19 +444,13 @@ function buildBusinessRoute(order, input = {}) {
     buildOrderRoutePoint({
       longitude: order?.delivery_longitude,
       latitude: order?.delivery_latitude,
-      fullname: addressText(
-        destinationCity,
-        rawDestination.address ||
-          rawDestination.fullname ||
-          rawDestination.fullAddress ||
-          rawDestination.label,
-      ),
-      porchnumber: rawDestination.entrance || rawDestination.porch,
+      fullname: destination.fullname,
+      porchnumber: destination.entrance,
       premisenumber: rawDestination.premisenumber,
       extra_data: {
         contact_phone: order?.customers?.phone || order?.phone,
-        floor: rawDestination.floor,
-        apartment: rawDestination.apartment || rawDestination.flat,
+        floor: destination.floor,
+        apartment: destination.apartment,
         comment: courierComment,
       },
     }),

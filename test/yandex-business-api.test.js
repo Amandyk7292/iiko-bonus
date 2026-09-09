@@ -216,7 +216,7 @@ test('integration helpers read Business configuration and build an order without
         contact_phone: '+77009998877',
         floor: '4',
         apartment: '18',
-        comment: 'Позвонить заранее. Домофон не работает',
+        comment: 'Подъезд 2. Этаж 4. Квартира 18. Позвонить заранее. Домофон не работает',
       },
     },
   ]);
@@ -263,6 +263,41 @@ test('Business route uses the registered profile phone instead of the additional
   );
   assert.equal(route[1].extra_data.contact_phone, '+77009998877');
   assert.deepEqual(route[1].geopoint, [51.1978, 43.6512]);
+});
+
+test('Business delivery carries the separate house and readable arrival details with the original pin', () => {
+  const route = buildBusinessRoute(
+    {
+      customers: { phone: '+77009998877' },
+      delivery_address: {
+        label: 'ЖК Пример',
+        city: 'Актау',
+        address: '17-й микрорайон',
+        house: '34',
+        entrance: '2',
+        floor: '4',
+        apartment: '18',
+      },
+      delivery_latitude: 43.6512,
+      delivery_longitude: 51.1978,
+      bulka_locations: {
+        city: 'Актау',
+        address: '17-й микрорайон, 1',
+        latitude: 43.6499,
+        longitude: 51.2011,
+      },
+    },
+    { senderPhone: '+77001112233' },
+  );
+  assert.equal(route[1].fullname, 'Актау, 17-й микрорайон, дом 34');
+  assert.deepEqual(route[1].geopoint, [51.1978, 43.6512]);
+  assert.equal(route[1].porchnumber, '2');
+  assert.deepEqual(route[1].extra_data, {
+    contact_phone: '+77009998877',
+    floor: '4',
+    apartment: '18',
+    comment: 'ЖК Пример. Дом 34. Подъезд 2. Этаж 4. Квартира 18',
+  });
 });
 
 test('requirements are kept only when their exact names and types are supported', () => {

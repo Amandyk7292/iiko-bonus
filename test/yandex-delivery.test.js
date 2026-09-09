@@ -92,6 +92,34 @@ test('Yandex claim payload contains contacts, address details and API-compatible
   assert.equal(payload.client_requirements.assign_robot, false);
 });
 
+test('quote and claim carry the saved house and visible arrival details without moving the selected pin', () => {
+  const candidate = {
+    ...order,
+    delivery_address: {
+      ...order.delivery_address,
+      label: 'ЖК Пример',
+      address: '17-й микрорайон',
+      house: '34',
+    },
+  };
+  const quote = buildQuotePayload(candidate, config);
+  const claim = buildClaimPayload(candidate, config);
+  const destination = claim.route_points[1].address;
+  assert.equal(destination.fullname, 'Актау, 17-й микрорайон, дом 34');
+  assert.equal(quote.route_points[1].fullname, destination.fullname);
+  assert.deepEqual(destination.coordinates, [order.delivery_longitude, order.delivery_latitude]);
+  assert.deepEqual(quote.route_points[1].coordinates, destination.coordinates);
+  assert.equal(destination.building, '34');
+  assert.equal(destination.porch, '2');
+  assert.equal(destination.sfloor, '4');
+  assert.equal(destination.sflat, '18');
+  assert.equal(
+    destination.comment,
+    'ЖК Пример. Дом 34. Подъезд 2. Этаж 4. Квартира 18. Позвонить заранее',
+  );
+  assert.equal(claim.route_points[1].contact.phone, order.customers.phone);
+});
+
 test('delivery validation matches the saved address city to the branch and prefers the registered app phone', () => {
   assert.equal(normalizeCity('г. Актау'), 'актау');
   assert.equal(normalizeCity('Актау'), 'актау');

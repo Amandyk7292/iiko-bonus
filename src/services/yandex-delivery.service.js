@@ -3,6 +3,7 @@ const fetch = require('node-fetch');
 const { supabase } = require('../config/supabase');
 const { isDeliveryFulfillment } = require('../utils/fulfillment.util');
 const { normalizeKazakhstanPhone } = require('../utils/phone.util');
+const { deliveryDestination, deliveryCourierComment } = require('../utils/delivery-address.util');
 const { credentialHash, decryptSecret, encryptSecret } = require('../utils/secret-envelope.util');
 const realtime = require('./realtime.service');
 const businessApi = require('./yandex-business-api');
@@ -359,16 +360,7 @@ function destinationAddress(order) {
     order.delivery_address && typeof order.delivery_address === 'object'
       ? order.delivery_address
       : {};
-  const address = boundedString(raw.address || raw.fullname || raw.fullAddress || raw.label, 300);
-  const city = boundedString(raw.city || raw.town || raw.locality || order.delivery_city, 100);
-  return {
-    ...raw,
-    city,
-    fullname:
-      address && address.toLocaleLowerCase('ru-RU').includes(city.toLocaleLowerCase('ru-RU'))
-        ? address
-        : [city, address].filter(Boolean).join(', '),
-  };
+  return deliveryDestination(raw, order.delivery_city);
 }
 
 function cargoItems(order, config, { quote = false } = {}) {
@@ -526,16 +518,7 @@ function buildClaimPayload(order, config = getConfig()) {
     order.customers?.name || `Клиент заказа №${order.order_number}`,
     160,
   );
-  const comment = boundedString(
-    [
-      destination.house ? `Дом ${boundedString(destination.house, 30)}` : '',
-      destination.comment,
-      order.comment,
-    ]
-      .filter(Boolean)
-      .join('. '),
-    500,
-  );
+  const comment = deliveryCourierComment(destination, order.comment);
   const itemSummary = orderItemsSummary(order);
   const pickupComment = boundedString(
     [
@@ -575,6 +558,7 @@ function buildClaimPayload(order, config = getConfig()) {
           coordinates: [Number(order.delivery_longitude), Number(order.delivery_latitude)],
           country: config.country,
           city: destination.city,
+          ...(destination.house && { building: destination.house }),
           ...(destination.entrance && { porch: boundedString(destination.entrance, 30) }),
           ...(destination.floor && { sfloor: boundedString(destination.floor, 20) }),
           ...(destination.apartment && { sflat: boundedString(destination.apartment, 30) }),

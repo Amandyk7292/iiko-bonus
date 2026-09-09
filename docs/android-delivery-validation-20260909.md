@@ -109,3 +109,32 @@ Ignored evidence directory: `scratch/android-delivery-check-20260909/`.
 - `checkout-regression-final.log`, `checkout-analyze-final.log`,
   `dispatch-full-regression.log`, `delivery-fix-deploy.log` and
   `android25-final-build.log`: checks/build/release evidence.
+
+## Address follow-up
+
+The recipient tracking screenshot exposed an incomplete visible address: the
+separately saved house was omitted from Cargo `address.fullname`; only the house
+was included in `comment`. Entrance, floor and apartment were sent as structured
+fields but were not displayed by that recipient page.
+
+Cargo quotes/claims and Business routes now share full-address formatting. The
+house is included in the address (without repeating it in legacy precomposed
+addresses) and in Cargo's `building` field. The readable courier comment includes
+the saved label, house, entrance, floor and apartment before optional notes.
+Structured fields, destination coordinates and registered phone are preserved.
+Validation: 96 focused address, Cargo, Business and dispatch tests passed, along
+with targeted ESLint and source-size checks.
+
+The exact submitted pin was independently opened in Yandex Maps, together with
+the building result and its numbered entrances. It is in the correct building's
+courtyard, between entrances 3 and 4, rather than precisely on entrance 3. This
+is map-based verification, not an inspection of the driver's own application.
+The saved pin was not moved. The original paid test remains cancelled/refunded;
+the address correction applies to future requests, not that historical claim.
+
+Private local evidence: `98-destination-house-entrances.png`,
+`address-regression.log`, and the scoped `delivery-address-audit.cjs` probe.
+The probe reads the original request and previews formatting only; it does not
+submit a claim or change the order.
+
+API reference: [Yandex Cargo address fields](https://yandex.ru/support/delivery-profile/ru/api/express/openapi/IntegrationV2ClaimsCreate#cargopointaddress).
