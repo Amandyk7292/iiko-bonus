@@ -2,6 +2,7 @@ const crypto = require('node:crypto');
 const jwt = require('jsonwebtoken');
 const { getJwtSecret } = require('./auth.service');
 const { deliveryAvailability } = require('./delivery-availability.service');
+const { deliveryBudget } = require('./delivery-budget.service');
 
 const FREE_DELIVERY_THRESHOLD = 10_000;
 const QUOTE_LIFETIME_SECONDS = 15 * 60;
@@ -86,6 +87,7 @@ async function priceCheckoutDelivery(
     assertAvailable = (checkout) => deliveryAvailability.assertAvailable(checkout),
     probe = (context) =>
       require('./checkout-delivery-probe.service').checkoutDeliveryProbe.ensure(context),
+    budget = deliveryBudget,
   } = {},
 ) {
   const { checkout, pricing } = context;
@@ -115,15 +117,36 @@ async function priceCheckoutDelivery(
     } catch {
       throw quoteError();
     }
-    if (quote.fingerprint !== quoteFingerprint(context) || (free && quote.fee !== 0)) {
+    if (
+      quote.fingerprint !== quoteFingerprint(context) ||
+      (free && quote.fee !== 0) ||
+      !(quote.courierEstimate > 0)
+    ) {
       throw quoteError();
     }
-    await probe(context);
-    await assertAvailable(checkout);
-    return { pricing: withDeliveryFee(pricing, quote.fee) };
+    const reservation = await budget.reserve(
+      context.customerId,
+      context.requestId,
+      quote.courierEstimate,
+    );
+    try {
+      await probe(context);
+      await assertAvailable(checkout);
+      return {
+        pricing: {
+          ...withDeliveryFee(pricing, quote.fee),
+          deliveryBudgetReservationId: reservation.id,
+        },
+      };
+    } catch (error) {
+      await budget.releaseUnstarted(context.customerId, context.requestId).catch(() => {});
+      throw error;
+    }
   }
 
-  const fee = free ? 0 : await estimate(checkout, pricing);
+  const courierEstimate = await estimate(checkout, pricing);
+  await budget.check(courierEstimate);
+  const fee = free ? 0 : courierEstimate;
   const result = withDeliveryFee(pricing, fee);
   await probe(context);
   await assertAvailable(checkout);
@@ -131,6 +154,7 @@ async function priceCheckoutDelivery(
     {
       fingerprint: quoteFingerprint(context),
       fee,
+      courierEstimate,
       iat: now,
     },
     signingKey(),

@@ -1,9 +1,11 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const jwt = require('jsonwebtoken');
-const { priceCheckoutDelivery: realPriceCheckoutDelivery } = require('../src/services/checkout-delivery-pricing.service');
-const priceCheckoutDelivery = (context, options) => realPriceCheckoutDelivery(context,
-  { probe: async () => {}, ...options });
+const {
+  priceCheckoutDelivery: realPriceCheckoutDelivery,
+} = require('../src/services/checkout-delivery-pricing.service');
+const priceCheckoutDelivery = (context, options) =>
+  realPriceCheckoutDelivery(context, { probe: async () => {}, ...options });
 const { getJwtSecret } = require('../src/services/auth.service');
 
 test('checkout contracts accept signed quotes and reject a client-supplied fee', () => {
@@ -72,7 +74,8 @@ for (const [subtotal, discount, expectedFee] of [
     });
     assert.equal(result.pricing.deliveryFee, expectedFee);
     assert.equal(result.pricing.total, subtotal - discount + expectedFee);
-    assert.equal(calls, expectedFee ? 1 : 0);
+    // Free customer delivery still needs a priced courier budget.
+    assert.equal(calls, 1);
     assert.ok(result.deliveryQuoteToken);
   });
 }

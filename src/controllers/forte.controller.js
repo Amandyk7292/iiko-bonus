@@ -5,6 +5,7 @@ const paymentOperations = require('../services/payment-operations.service');
 const { isSafeWidgetFallbackError } = paymentOperations;
 const { priceOrder } = require('../services/order.service');
 const { priceCheckoutBonus, releaseCheckoutBonus } = require('../services/checkout-bonus.service');
+const { deliveryBudget } = require('../services/delivery-budget.service');
 const {
   priceCheckoutDelivery,
   FREE_DELIVERY_THRESHOLD,
@@ -188,7 +189,7 @@ const createPayment = async (req, res) => {
         fulfillmentType: checkout.effectiveFulfillmentType,
       });
       ({ pricing } = await priceCheckoutDelivery(
-        { checkout, pricing, customerId, customerPhone: phone },
+        { checkout, pricing, customerId, customerPhone: phone, requestId: checkoutId },
         {
           phase: 'payment',
           version: req.body?.deliveryQuoteVersion,
@@ -240,6 +241,7 @@ const createPayment = async (req, res) => {
           paymentMethodId: req.body?.savedPaymentMethodId,
         };
         let payment;
+        await deliveryBudget.markPayment(pricing.deliveryBudgetReservationId);
         try {
           payment = await service.createCheckout(
             phone,
@@ -301,6 +303,11 @@ const createPayment = async (req, res) => {
     });
     return res.json(result);
   } catch (error) {
+    if (CHECKOUT_ID_PATTERN.test(String(req.body?.checkoutId || ''))) {
+      await deliveryBudget
+        .releaseUnstarted(req.customerAuth.id, req.body.checkoutId)
+        .catch(() => {});
+    }
     console.error('Ошибка ForteBank createPayment:', error.code || 'UNKNOWN', error.message);
     return res.status(error.statusCode || 500).json({
       error: publicError(error, 'Не удалось создать оплату ForteBank'),

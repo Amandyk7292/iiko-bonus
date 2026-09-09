@@ -95,7 +95,7 @@ class CheckoutDeliveryProbeService {
     const status = info?.status || 'unknown';
     // A cancelled claim alone is not proof that a new courier was accepted.
     const success = accepted && status === 'cancelled';
-    return this.store.patch(probe, {
+    const finished = await this.store.patch(probe, {
       state: success ? 'complete' : 'rejected',
       provider_status: status,
       accepted_at: accepted ? probe.accepted_at || probe.accept_attempted_at : null,
@@ -105,6 +105,10 @@ class CheckoutDeliveryProbeService {
       lease_token: null,
       last_error: success ? null : status,
     });
+    await require('./delivery-budget.service')
+      .deliveryBudget.observeProbe(finished)
+      .catch(() => {});
+    return finished;
   }
 
   async defer(probe, error) {
@@ -214,8 +218,15 @@ class CheckoutDeliveryProbeService {
     }
     // Cancellation already authorized: stop even if a courier arrived early.
     // A paid probe is charged to Bulka and disables additional probes.
-    if (conditions.cancel_state === 'paid')
+    if (conditions.cancel_state === 'paid') {
       await this.availability.suspend('probe_paid_cancellation');
+      const { verifiedMoney } = require('./delivery-budget-cost');
+      const cost =
+        conditions.currency === 'KZT'
+          ? verifiedMoney(conditions.price_with_vat ?? conditions.price)
+          : null;
+      if (cost != null) probe = await this.store.patch(probe, { budget_final_cost: cost });
+    }
     const response = await transport.cancel(
       probe.external_claim_id,
       info.version,

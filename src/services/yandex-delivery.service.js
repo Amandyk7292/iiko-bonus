@@ -912,6 +912,11 @@ async function updateJob(jobId, updates) {
     .select('*')
     .single();
   if (error) throw error;
+  await require('./delivery-budget.service')
+    .deliveryBudget.observeJob(data)
+    .catch((budgetError) => {
+      console.error('Стоимость курьера ожидает сверки бюджета:', data.id, budgetError.code);
+    });
   return data;
 }
 
@@ -2429,10 +2434,11 @@ async function syncDeliveryJob(jobOrId) {
           Number(info.pricing?.offer?.price_with_vat ?? info.pricing?.offer?.price) || null,
         raw_response: info,
       });
-      assertCargoPrice(
+      const dispatchCost = assertCargoPrice(
         info,
         Math.min(config.cargoMaxPriceKzt || 0, Number(job.authorized_max_price) || 0),
       );
+      await require('./delivery-budget.service').deliveryBudget.ensureDispatch(job, dispatchCost);
       const accepted = await apiRequest('/claims/accept', {
         query: { claim_id: job.external_claim_id },
         body: { version: Number(info.version) },
@@ -2700,6 +2706,7 @@ async function dispatchBusinessOrder(order, options, config) {
     }
   }
   if (!uncertainRetry) {
+    await require('./delivery-budget.service').deliveryBudget.ensureDispatch(job, quotedPrice);
     job = await beginBusinessCreate(job.id, authorizedMaximum, approvedFingerprint);
   }
   const client = businessApi.createBusinessApiClient(persistedBusinessConfig);
@@ -3100,7 +3107,7 @@ async function getCancellationInfo(orderId) {
   });
   return {
     cancelState: result.cancel_state,
-    price: Number(result.price || 0),
+    price: Number(result.price_with_vat ?? result.price ?? 0),
     currency: result.currency || job.currency || 'KZT',
   };
 }
@@ -3326,6 +3333,13 @@ async function cancelDelivery(orderId, { allowPaid = false } = {}) {
       terms,
     );
   }
+  // Persist the cancellation bill before the provider call; a lost response
+  // must not discard the cost that the recovery worker will reconcile.
+  if (terms.currency === 'KZT' && Number.isFinite(terms.price)) {
+    job = await updateJob(job.id, {
+      budget_cancellation_cost: terms.cancelState === 'paid' ? terms.price : null,
+    });
+  }
   const result = await apiRequest('/claims/cancel', {
     query: { claim_id: job.external_claim_id },
     body: { version: Number(job.external_version), cancel_state: terms.cancelState },
@@ -3347,6 +3361,35 @@ async function cancelDelivery(orderId, { allowPaid = false } = {}) {
   await updateOrderFromJob({ ...job, ...cancellationUpdates }, result);
   job = await updateJob(job.id, cancellationUpdates);
   return normalizeDeliveryJob(job);
+}
+
+async function refreshBudgetCost(job) {
+  const { finalJobCost, verifiedMoney, TERMINAL } = require('./delivery-budget-cost');
+  if (!TERMINAL.has(job.provider_status) || !job.external_claim_id) return job;
+  let cost;
+  if ((job.api_family || API_FAMILIES.CARGO) === API_FAMILIES.CARGO) {
+    const info = await apiRequest('/claims/info', { query: { claim_id: job.external_claim_id } });
+    if (info.id !== job.external_claim_id || !TERMINAL.has(info.status)) return job;
+    cost = finalJobCost({ ...job, provider_status: info.status, raw_response: info });
+  } else {
+    const config = getConfig();
+    const client = businessApi.createBusinessApiClient({
+      ...config.business,
+      clientId: job.external_client_id || config.business.clientId,
+      userId: job.external_user_id || config.business.userId,
+    });
+    const info = businessApi.normalizeBusinessInfo(
+      await client.getOrderInfo(job.external_claim_id),
+    );
+    if (
+      info?.externalOrderId !== job.external_claim_id ||
+      !TERMINAL.has(info.providerStatus) ||
+      info.userId !== String(job.external_user_id || config.business.userId)
+    )
+      return job;
+    cost = verifiedMoney(info.priceWithVat ?? info.price);
+  }
+  return cost == null ? job : updateJob(job.id, { budget_final_cost: cost });
 }
 
 async function listJobsForOrders(orderIds) {
@@ -3511,6 +3554,7 @@ module.exports = {
   cancelDelivery,
   dispatchOrder,
   estimateCheckoutDelivery,
+  refreshBudgetCost,
   createCheckoutProbeTransport,
   getCancellationInfo,
   getConfigurationStatus,

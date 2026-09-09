@@ -248,6 +248,20 @@ if (!process.env.VERCEL) {
     setInterval(cleanup, 1000).unref?.();
   }
 
+  registerWorker('delivery-budget-reconciliation', {
+    enabled: runWorkers,
+    intervalMs: 60_000,
+    critical: true,
+  });
+  if (runWorkers) {
+    const reconcileBudget = () =>
+      runMonitoredWorker('delivery-budget-reconciliation', () =>
+        require('./services/delivery-budget.service').deliveryBudget.reconcile(),
+      );
+    setTimeout(reconcileBudget, 15_000).unref?.();
+    setInterval(reconcileBudget, 60_000).unref?.();
+  }
+
   const server = app.listen(PORT, HOST, () => {
     logger.info({ event: 'server_started', host: HOST, port: Number(PORT) }, 'Server started');
 

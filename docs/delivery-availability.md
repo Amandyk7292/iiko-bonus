@@ -43,9 +43,12 @@ cancellation remains queued, triggers the existing worker health alert path,
 and also disables new delivery checkouts. No probe cost is charged to a client.
 
 This mechanism does **not** read or reserve the corporate balance. Successful
+checks are additionally gated by the [internal delivery budget](delivery-budget.md),
+which reserves the estimated courier cost plus 50% before payment. This is
+Bulka's accounting control and does not lock funds inside Yandex. Successful
 acceptance only checks what the provider allows at that moment; it cannot
 guarantee funds remain available when the real order later dispatches. The
-customer's confirmed delivery price remains fixed even if the provider price
+customer’s confirmed delivery price remains fixed even if the provider price
 subsequently changes. Confirmed customer deliveries already in progress are
 not cancelled by a global availability stop.
 

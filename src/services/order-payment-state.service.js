@@ -73,6 +73,7 @@ class OrderPaymentStateService {
       bonus_spent: pricing.bonusSpent || 0,
       bonus_reservation_id: pricing.bonusReservationId || null,
       delivery_fee: pricing.deliveryFee || 0,
+      delivery_budget_required: effectiveType === 'delivery',
       promo_code: pricing.promoCode,
       fulfillment_type: checkout.orderType,
       preorder_fulfillment_type:
@@ -353,6 +354,12 @@ class OrderPaymentStateService {
     }
 
     if (mustValidateCapacity) {
+      const { deliveryBudget } = require('./delivery-budget.service');
+      if (!(await deliveryBudget.ensurePaid(order))) {
+        return refundUnavailableOrder(
+          'Не удалось подтвердить бюджет доставки после поступления оплаты',
+        );
+      }
       const reservation = await commitOrReacquireOrderReservations(order.id, {
         allowReacquire: true,
       });

@@ -119,7 +119,10 @@ async function getBulkaLocations({
   const locations = (data || []).map(normalizeLocation);
   if (includeInactive || !applyDeliveryAvailability) return locations;
   const availability = await deliveryAvailability.get().catch(() => ({ disabled: true }));
-  return availability.disabled
+  const budget = await require('./delivery-budget.service')
+    .deliveryBudget.snapshot()
+    .catch(() => ({ available: 0 }));
+  return availability.disabled || Number(budget.available) <= 0
     ? locations.map((location) => ({ ...location, deliveryEnabled: false }))
     : locations;
 }

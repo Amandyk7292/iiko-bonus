@@ -55,10 +55,12 @@ function controllerHarness(t) {
     if (state.fundsBlocked) throw unavailableError();
   });
   install(t, '../src/services/checkout-delivery-probe.service', {
-    checkoutDeliveryProbe: { ensure: async (context) => {
-      assert.equal(context.customerPhone, '+77001112233');
-      if (state.probeBlocked) throw unavailableError();
-    } },
+    checkoutDeliveryProbe: {
+      ensure: async (context) => {
+        assert.equal(context.customerPhone, '+77001112233');
+        if (state.probeBlocked) throw unavailableError();
+      },
+    },
   });
   const bonusService = require('../src/services/checkout-bonus.service');
   install(t, '../src/services/checkout-bonus.service', {
@@ -130,7 +132,10 @@ function controllerHarness(t) {
     reservePromotionForCheckout: async () => {},
     releasePromotionReservation: async () => {},
   });
-  install(t, '../src/services/inventory.service', { reserveCheckout: async () => {} });
+  install(t, '../src/services/inventory.service', {
+    reserveCheckout: async () => {},
+    releaseCheckoutRequest: async () => {},
+  });
   install(t, '../src/services/yandex-delivery.service', {
     estimateCheckoutDelivery: async () => {
       state.quoteCalls++;
@@ -165,6 +170,37 @@ test('quote and payment charge exactly the displayed delivery fee, not the later
   assert.equal(payment.body.amount, 1035);
   assert.equal(state.charges[0].deliveryFee, 1000);
   assert.equal(state.quoteCalls, 1);
+});
+
+test('a valid quoted payment cannot charge a saved card after other orders reserve the remaining budget', async (t) => {
+  const { state, controller, request } = controllerHarness(t);
+  const quote = response();
+  await controller.quotePayment(request, quote);
+  request.body.deliveryQuoteToken = quote.body.deliveryQuoteToken;
+  const { deliveryBudget, budgetError } = require('../src/services/delivery-budget.service');
+  t.mock.method(deliveryBudget, 'reserve', async () => {
+    throw budgetError();
+  });
+  const payment = response();
+  await controller.createPayment(request, payment);
+  assert.equal(payment.statusCode, 503);
+  assert.equal(payment.body.code, 'DELIVERY_TEMPORARILY_UNAVAILABLE');
+  assert.equal(state.charges.length, 0);
+});
+
+test('the payment attempt must be durably marked before calling the bank', async (t) => {
+  const { state, controller, request } = controllerHarness(t);
+  const quote = response();
+  await controller.quotePayment(request, quote);
+  request.body.deliveryQuoteToken = quote.body.deliveryQuoteToken;
+  const { deliveryBudget, budgetError } = require('../src/services/delivery-budget.service');
+  t.mock.method(deliveryBudget, 'markPayment', async () => {
+    throw budgetError();
+  });
+  const payment = response();
+  await controller.createPayment(request, payment);
+  assert.equal(payment.statusCode, 503);
+  assert.equal(state.charges.length, 0);
 });
 
 test('missing quote is rejected before reserving goods or charging a saved card', async (t) => {

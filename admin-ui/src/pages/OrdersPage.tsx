@@ -6,6 +6,7 @@ import Modal from '../components/Modal';
 import SelectControl from '../components/SelectControl';
 import OrderAmounts from '../components/OrderAmounts';
 import DeliveryAvailabilityNotice from '../components/DeliveryAvailabilityNotice';
+import DeliveryBudget from '../components/DeliveryBudget';
 import { useFeedback } from '../components/Feedback';
 import { api, type AdminOrder, type DeliveryProof } from '../lib/api';
 import {
@@ -245,6 +246,7 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
   return (
     <div className="page-stack">
       <DeliveryAvailabilityNotice />
+      <DeliveryBudget />
       <div className="page-actions-row">
         <p className="orders-summary">{t('orders.found', { count: total })}</p>
         <button
