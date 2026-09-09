@@ -215,7 +215,7 @@ async function forecastOrderEta({
   scheduledAt = null,
   preparationMinutes = 15,
   deliveryAddress = null,
-  deliveryZone = null,
+  deliveryDistanceKm = null,
   order = null,
   now = new Date(),
 } = {}) {
@@ -316,7 +316,7 @@ async function forecastOrderEta({
       })
       .filter((speed) => speed !== null && speed >= 5 && speed <= 80);
     const directDistance =
-      finite(deliveryZone?.distanceKm) ??
+      finite(deliveryDistanceKm) ??
       distanceKm(
         branch?.latitude,
         branch?.longitude,
@@ -374,7 +374,7 @@ async function forecastOrderEta({
       orderType,
       scheduledAt,
       preparationMinutes,
-      directDistanceKm: deliveryZone?.distanceKm,
+      directDistanceKm: deliveryDistanceKm,
       kitchenStatus: order?.kitchen_status,
       kitchenStartedAt: order?.kitchen_started_at,
       deliveryStatus: order?.delivery_status,

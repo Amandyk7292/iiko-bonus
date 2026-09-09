@@ -634,8 +634,6 @@ const ru: Record<string, string> = {
     'Карта открыта на городе {{city}}. Найдите адрес или нажмите на нужное здание.',
   'locations.mapPointSelected': 'Точка выбрана',
   'locations.mapPointRequired': 'Поставьте метку на карте',
-  'locations.defaultZoneHint':
-    'Для новой точки будет создана стартовая зона доставки 5 км. Её можно изменить после сохранения.',
   'locations.editPoint': 'Редактировать филиал',
   'locations.pointName': 'Название филиала',
   'locations.exactAddress': 'Точный адрес',
@@ -668,39 +666,11 @@ const ru: Record<string, string> = {
   'locations.delivery': 'Доставка',
   'locations.opensAt': 'Открытие',
   'locations.closesAt': 'Закрытие',
-  'locations.deliveryRules': 'Правила доставки',
-  'locations.deliveryRulesHint':
-    'Доставка включается только после заполнения радиуса, стоимости и минимальной суммы.',
-  'locations.deliveryRadius': 'Радиус, км',
-  'locations.deliveryFee': 'Стоимость, ₸',
-  'locations.deliveryMinimum': 'Минимальный заказ, ₸',
-  'locations.deliveryValuesInvalid': 'Проверьте числовые параметры доставки.',
-  'locations.deliveryRulesRequired':
-    'Для включения доставки заполните радиус, стоимость и минимальную сумму.',
   'locations.hoursInvalid': 'Введите время в формате ЧЧ:ММ.',
   'locations.coordinatesInvalid': 'Выберите корректную точку филиала на карте.',
   'locations.mapManagement': 'Точка на карте',
   'locations.mapManagementHint':
-    'Перетащите метку филиала или нажмите на карту. Цветные кольца показывают реальные тарифные зоны.',
-  'locations.deliveryZones': 'Тарифные зоны доставки',
-  'locations.deliveryZonesHint':
-    'Зоны применяются от меньшего радиуса к большему. Сервер сам выберет тариф по адресу клиента.',
-  'locations.addZone': 'Добавить зону',
-  'locations.removeZone': 'Удалить зону',
-  'locations.zone': 'Зона',
-  'locations.zoneColor': 'Цвет',
-  'locations.commonZones': 'Общие зоны доставки',
-  'locations.activeBranchesCount': 'Активных филиалов: {{count}}',
-  'locations.bulkOverwriteHint':
-    'Настройте тарифы один раз. Они заменят зоны у всех активных филиалов; индивидуальные исключения останутся доступны в настройках точки.',
-  'locations.bulkEnableDelivery': 'Также включить доставку во всех активных филиалах',
-  'locations.bulkEnableDeliveryHint':
-    'Если выключено, текущий статус доставки каждой точки сохранится.',
-  'locations.bulkApply': 'Применить к {{count}} филиалам',
-  'locations.bulkConfirmTitle': 'Применить общие зоны доставки?',
-  'locations.bulkConfirmBody':
-    'У {{count}} активных филиалов текущие тарифные зоны будут заменены. Действие применяется сразу ко всем точкам.',
-  'locations.bulkSaved': 'Общие зоны применены. Обновлено филиалов: {{count}}.',
+    'Перетащите метку филиала или нажмите на нужное здание на карте.',
   'locations.posTitle': 'Ключ кассового плагина',
   'locations.posHint':
     'Ключ связывает плагин iiko с этим филиалом. Секрет показывается только один раз.',

@@ -163,18 +163,11 @@ test('the delivery fee never counts toward the free delivery threshold', async (
   assert.equal(result.pricing.total, 10500);
 });
 
-test('older clients retain server zone estimates, including free delivery from 10000', async () => {
-  for (const [subtotal, fee] of [
-    [9500, 600],
-    [10000, 0],
-  ]) {
-    for (const phase of ['quote', 'payment']) {
-      const result = await priceCheckoutDelivery(context(subtotal), {
-        phase,
-        estimate: () => assert.fail('legacy quote must not change'),
-      });
-      assert.equal(result.pricing.deliveryFee, fee);
-    }
+test('clients without quote support cannot charge an unconfirmed delivery fee', async () => {
+  for (const phase of ['quote', 'payment']) {
+    await assert.rejects(priceCheckoutDelivery(context(), { phase }), {
+      code: 'CHECKOUT_APP_UPDATE_REQUIRED',
+    });
   }
 });
 

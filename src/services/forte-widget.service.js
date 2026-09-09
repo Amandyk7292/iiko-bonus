@@ -1166,7 +1166,7 @@ class ForteWidgetService {
       scheduledAt: checkout.scheduledAt,
       preparationMinutes: pricing.preparationMinutes,
       deliveryAddress: checkout.deliveryAddress,
-      deliveryZone: checkout.deliveryZone,
+      deliveryDistanceKm: checkout.deliveryDistanceKm,
     });
     const providerCheckout = await this.createProviderCheckout({
       amountMinor: toMinorUnits(pricing.total),

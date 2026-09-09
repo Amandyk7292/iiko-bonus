@@ -488,7 +488,7 @@ class ForteService {
       scheduledAt: checkout.scheduledAt,
       preparationMinutes: pricing.preparationMinutes,
       deliveryAddress: checkout.deliveryAddress,
-      deliveryZone: checkout.deliveryZone,
+      deliveryDistanceKm: checkout.deliveryDistanceKm,
     });
     const providerOrder = await this.createProviderOrder({
       amount: pricing.total,

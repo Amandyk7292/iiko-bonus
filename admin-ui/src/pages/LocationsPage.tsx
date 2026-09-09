@@ -1,29 +1,9 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type CSSProperties,
-  type FormEvent,
-} from 'react';
-import {
-  Building2,
-  Clock3,
-  Layers3,
-  LoaderCircle,
-  MapPin,
-  Pencil,
-  Plus,
-  RefreshCw,
-  Trash2,
-} from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { Building2, Clock3, LoaderCircle, MapPin, Pencil, Plus, RefreshCw } from 'lucide-react';
 import Modal from '../components/Modal';
 import PageState from '../components/PageState';
 import BranchPosCredentialPanel from '../components/BranchPosCredentialPanel';
-import YandexLocationMap, {
-  type DeliveryMapZone,
-  type MapPointDetails,
-} from '../components/YandexLocationMap';
+import YandexLocationMap, { type MapPointDetails } from '../components/YandexLocationMap';
 import { useFeedback } from '../components/Feedback';
 import { api, type AdminLocationCity, type AdminUser } from '../lib/api';
 import { useAdminRealtimeEvents } from '../lib/admin-realtime';
@@ -52,10 +32,6 @@ type FulfillmentLocation = {
   pickupEnabled: boolean;
   preorderEnabled: boolean;
   deliveryEnabled: boolean;
-  deliveryRadiusKm: number | null;
-  deliveryFee: number | null;
-  deliveryMinOrder: number | null;
-  deliveryZones?: DeliveryMapZone[];
   slotMinutes: number;
   pickupSlotCapacity: number;
   preorderSlotCapacity: number;
@@ -84,8 +60,6 @@ type PointDraft = {
   close: string;
 };
 
-type ZoneDraft = { id: string; radiusKm: string; fee: string; minOrder: string; color: string };
-type ZoneValue = { id: string; radiusKm: number; fee: number; minOrder: number; color: string };
 type Draft = {
   name: string;
   address: string;
@@ -95,7 +69,6 @@ type Draft = {
   deliveryEnabled: boolean;
   latitude: string;
   longitude: string;
-  deliveryZones: ZoneDraft[];
   open: string;
   close: string;
   slotMinutes: string;
@@ -104,14 +77,6 @@ type Draft = {
   deliverySlotCapacity: string;
 };
 
-const zoneColors = ['#66BB6A', '#29B6F6', '#FFD54F', '#EC407A', '#7E57C2', '#FF8A65'];
-const defaultZone = (): ZoneDraft => ({
-  id: `zone-${Date.now()}`,
-  radiusKm: '5',
-  fee: '700',
-  minOrder: '3000',
-  color: zoneColors[0],
-});
 const emptyDraft: Draft = {
   name: '',
   address: '',
@@ -121,7 +86,6 @@ const emptyDraft: Draft = {
   deliveryEnabled: false,
   latitude: '',
   longitude: '',
-  deliveryZones: [defaultZone()],
   open: '08:00',
   close: '21:00',
   slotMinutes: '60',
@@ -157,203 +121,9 @@ const clockMinutes = (value: string) => {
 };
 const numeric = (value: string) => (value.trim() === '' ? Number.NaN : Number(value));
 
-const parsedZones = (drafts: ZoneDraft[]): ZoneValue[] | null => {
-  const zones = drafts
-    .map((zone) => ({
-      id: zone.id,
-      radiusKm: numeric(zone.radiusKm),
-      fee: numeric(zone.fee),
-      minOrder: numeric(zone.minOrder),
-      color: zone.color,
-    }))
-    .sort((first, second) => first.radiusKm - second.radiusKm);
-  const invalid = zones.some(
-    (zone) =>
-      !Number.isFinite(zone.radiusKm) ||
-      zone.radiusKm <= 0 ||
-      zone.radiusKm > 100 ||
-      !Number.isSafeInteger(zone.fee) ||
-      zone.fee < 0 ||
-      !Number.isSafeInteger(zone.minOrder) ||
-      zone.minOrder < 0 ||
-      !/^#[0-9a-f]{6}$/i.test(zone.color),
-  );
-  const duplicateRadius =
-    new Set(zones.map((zone) => zone.radiusKm.toFixed(3))).size !== zones.length;
-  return invalid || duplicateRadius || zones.length === 0 || zones.length > 8 ? null : zones;
-};
-
-const appendZone = (zones: ZoneDraft[]) => {
-  const last = zones[zones.length - 1];
-  const nextRadius = Number.isFinite(numeric(last?.radiusKm || ''))
-    ? numeric(last.radiusKm) + 2
-    : 5;
-  const nextFee = Number.isFinite(numeric(last?.fee || '')) ? numeric(last.fee) + 300 : 700;
-  return [
-    ...zones,
-    {
-      id: `zone-${Date.now()}`,
-      radiusKm: String(nextRadius),
-      fee: String(nextFee),
-      minOrder: last?.minOrder || '3000',
-      color: zoneColors[zones.length % zoneColors.length],
-    },
-  ];
-};
-
-const zonesForLocation = (location: FulfillmentLocation): ZoneDraft[] => {
-  const zones = Array.isArray(location.deliveryZones) ? location.deliveryZones : [];
-  if (zones.length > 0)
-    return zones.map((zone, index) => ({
-      id: zone.id || `zone-${index + 1}`,
-      radiusKm: String(zone.radiusKm),
-      fee: String(zone.fee),
-      minOrder: String(zone.minOrder),
-      color: zone.color || zoneColors[index % zoneColors.length],
-    }));
-  if (
-    location.deliveryRadiusKm != null &&
-    location.deliveryFee != null &&
-    location.deliveryMinOrder != null
-  ) {
-    return [
-      {
-        id: 'zone-1',
-        radiusKm: String(location.deliveryRadiusKm),
-        fee: String(location.deliveryFee),
-        minOrder: String(location.deliveryMinOrder),
-        color: zoneColors[0],
-      },
-    ];
-  }
-  return [defaultZone()];
-};
-
-function DeliveryZonesEditor({
-  zones,
-  idPrefix,
-  t,
-  onUpdate,
-  onAdd,
-  onRemove,
-}: {
-  zones: ZoneDraft[];
-  idPrefix: string;
-  t: (key: string) => string;
-  onUpdate: (id: string, patch: Partial<ZoneDraft>) => void;
-  onAdd: () => void;
-  onRemove: (id: string) => void;
-}) {
-  return (
-    <>
-      <div className="zone-editor-heading">
-        <p className="page-help">{t('locations.deliveryZonesHint')}</p>
-        <button
-          type="button"
-          className="btn-outline compact-button"
-          onClick={onAdd}
-          disabled={zones.length >= 8}
-        >
-          <Plus aria-hidden="true" size={16} />
-          {t('locations.addZone')}
-        </button>
-      </div>
-      <div className="delivery-zone-list">
-        {zones.map((zone, index) => (
-          <div
-            className="delivery-zone-card"
-            key={zone.id}
-            style={{ '--zone-color': zone.color } as CSSProperties}
-          >
-            <div className="delivery-zone-number">
-              <span>{index + 1}</span>
-              <strong>
-                {t('locations.zone')} {index + 1}
-              </strong>
-            </div>
-            <div className="delivery-zone-fields">
-              <div className="field-group">
-                <label className="field-label" htmlFor={`${idPrefix}-radius-${zone.id}`}>
-                  {t('locations.deliveryRadius')}
-                </label>
-                <input
-                  id={`${idPrefix}-radius-${zone.id}`}
-                  type="number"
-                  min="0.1"
-                  max="100"
-                  step="0.1"
-                  className="input-classic"
-                  value={zone.radiusKm}
-                  onChange={(event) => onUpdate(zone.id, { radiusKm: event.target.value })}
-                  required
-                />
-              </div>
-              <div className="field-group">
-                <label className="field-label" htmlFor={`${idPrefix}-fee-${zone.id}`}>
-                  {t('locations.deliveryFee')}
-                </label>
-                <input
-                  id={`${idPrefix}-fee-${zone.id}`}
-                  type="number"
-                  min="0"
-                  max="100000"
-                  step="1"
-                  className="input-classic"
-                  value={zone.fee}
-                  onChange={(event) => onUpdate(zone.id, { fee: event.target.value })}
-                  required
-                />
-              </div>
-              <div className="field-group">
-                <label className="field-label" htmlFor={`${idPrefix}-min-${zone.id}`}>
-                  {t('locations.deliveryMinimum')}
-                </label>
-                <input
-                  id={`${idPrefix}-min-${zone.id}`}
-                  type="number"
-                  min="0"
-                  max="10000000"
-                  step="1"
-                  className="input-classic"
-                  value={zone.minOrder}
-                  onChange={(event) => onUpdate(zone.id, { minOrder: event.target.value })}
-                  required
-                />
-              </div>
-              <div className="field-group zone-color-field">
-                <label className="field-label" htmlFor={`${idPrefix}-color-${zone.id}`}>
-                  {t('locations.zoneColor')}
-                </label>
-                <input
-                  id={`${idPrefix}-color-${zone.id}`}
-                  type="color"
-                  value={zone.color}
-                  onChange={(event) =>
-                    onUpdate(zone.id, { color: event.target.value.toUpperCase() })
-                  }
-                />
-              </div>
-            </div>
-            <button
-              type="button"
-              className="icon-button icon-button-danger"
-              onClick={() => onRemove(zone.id)}
-              disabled={zones.length === 1}
-              aria-label={t('locations.removeZone')}
-              title={t('locations.removeZone')}
-            >
-              <Trash2 aria-hidden="true" size={18} />
-            </button>
-          </div>
-        ))}
-      </div>
-    </>
-  );
-}
-
 export default function LocationsPage({ user }: { user: AdminUser | null }) {
   const { t } = useI18n();
-  const { toast, confirm } = useFeedback();
+  const { toast } = useFeedback();
   const [searchParams, setSearchParams] = useSearchParams();
   const [locations, setLocations] = useState<FulfillmentLocation[]>([]);
   const [cities, setCities] = useState<AdminLocationCity[]>([]);
@@ -372,11 +142,6 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
-  const [bulkOpen, setBulkOpen] = useState(false);
-  const [bulkZones, setBulkZones] = useState<ZoneDraft[]>([defaultZone()]);
-  const [bulkEnableDelivery, setBulkEnableDelivery] = useState(false);
-  const [bulkSubmitting, setBulkSubmitting] = useState(false);
-  const [bulkError, setBulkError] = useState('');
 
   const load = useCallback(
     async (silent = false) => {
@@ -425,7 +190,6 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
       deliveryEnabled: location.deliveryEnabled,
       latitude: location.latitude == null ? '' : String(location.latitude),
       longitude: location.longitude == null ? '' : String(location.longitude),
-      deliveryZones: zonesForLocation(location),
       open: daily?.open || '08:00',
       close: daily?.close || '21:00',
       slotMinutes: String(location.slotMinutes || 60),
@@ -437,10 +201,6 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
   };
 
   const canManageStructure = ['owner', 'admin'].includes(String(user?.role || ''));
-  const activeLocations = useMemo(
-    () => locations.filter((location) => location.active),
-    [locations],
-  );
   const cityCounts = useMemo(
     () =>
       getLocationCityCounts(
@@ -590,15 +350,6 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
         pickupEnabled: pointDraft.pickupEnabled,
         preorderEnabled: pointDraft.preorderEnabled,
         deliveryEnabled: pointDraft.deliveryEnabled,
-        deliveryZones: [
-          {
-            id: 'zone-1',
-            radiusKm: 5,
-            fee: 700,
-            minOrder: 3000,
-            color: zoneColors[0],
-          },
-        ],
         hours: { daily: { open: pointDraft.open, close: pointDraft.close } },
         slotMinutes: 60,
         pickupSlotCapacity: 20,
@@ -624,59 +375,6 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
     }
   };
 
-  const openBulkEditor = () => {
-    const source =
-      activeLocations.find((location) => (location.deliveryZones?.length || 0) > 0) ??
-      activeLocations[0];
-    setBulkZones(source ? zonesForLocation(source) : [defaultZone()]);
-    setBulkEnableDelivery(false);
-    setBulkError('');
-    setBulkOpen(true);
-  };
-
-  const previewZones = useMemo<DeliveryMapZone[]>(
-    () =>
-      draft.deliveryZones
-        .map((zone) => ({
-          id: zone.id,
-          radiusKm: numeric(zone.radiusKm),
-          fee: numeric(zone.fee),
-          minOrder: numeric(zone.minOrder),
-          color: zone.color,
-        }))
-        .filter((zone) => Number.isFinite(zone.radiusKm) && zone.radiusKm > 0),
-    [draft.deliveryZones],
-  );
-
-  const updateZone = (id: string, patch: Partial<ZoneDraft>) =>
-    setDraft((current) => ({
-      ...current,
-      deliveryZones: current.deliveryZones.map((zone) =>
-        zone.id === id ? { ...zone, ...patch } : zone,
-      ),
-    }));
-
-  const addZone = () =>
-    setDraft((current) => ({ ...current, deliveryZones: appendZone(current.deliveryZones) }));
-
-  const removeZone = (id: string) =>
-    setDraft((current) => ({
-      ...current,
-      deliveryZones:
-        current.deliveryZones.length > 1
-          ? current.deliveryZones.filter((zone) => zone.id !== id)
-          : current.deliveryZones,
-    }));
-
-  const updateBulkZone = (id: string, patch: Partial<ZoneDraft>) =>
-    setBulkZones((current) =>
-      current.map((zone) => (zone.id === id ? { ...zone, ...patch } : zone)),
-    );
-  const removeBulkZone = (id: string) =>
-    setBulkZones((current) =>
-      current.length > 1 ? current.filter((zone) => zone.id !== id) : current,
-    );
-
   const save = async (event: FormEvent) => {
     event.preventDefault();
     if (!editing || submitting) return;
@@ -691,11 +389,6 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
       longitude > 180
     ) {
       setFormError(t('locations.coordinatesInvalid'));
-      return;
-    }
-    const zones = parsedZones(draft.deliveryZones);
-    if (!zones) {
-      setFormError(t('locations.deliveryValuesInvalid'));
       return;
     }
     if (
@@ -724,7 +417,6 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
     setSubmitting(true);
     setFormError('');
     try {
-      const outer = zones[zones.length - 1];
       const result = await api.updateFulfillmentLocation(editing.id, {
         name: draft.name.trim(),
         address: draft.address.trim(),
@@ -734,10 +426,6 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
         deliveryEnabled: draft.deliveryEnabled,
         latitude,
         longitude,
-        deliveryZones: zones,
-        deliveryRadiusKm: outer.radiusKm,
-        deliveryFee: outer.fee,
-        deliveryMinOrder: outer.minOrder,
         hours: { ...(editing.hours ?? {}), daily: { open: draft.open, close: draft.close } },
         slotMinutes,
         pickupSlotCapacity,
@@ -753,41 +441,6 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
       setFormError(caught instanceof Error ? caught.message : t('common.error'));
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const saveBulk = async (event: FormEvent) => {
-    event.preventDefault();
-    if (bulkSubmitting || activeLocations.length === 0) return;
-    const zones = parsedZones(bulkZones);
-    if (!zones) {
-      setBulkError(t('locations.deliveryValuesInvalid'));
-      return;
-    }
-    const accepted = await confirm({
-      title: t('locations.bulkConfirmTitle'),
-      body: t('locations.bulkConfirmBody', { count: activeLocations.length }),
-      confirmLabel: t('locations.bulkApply', { count: activeLocations.length }),
-      destructive: true,
-    });
-    if (!accepted) return;
-    setBulkSubmitting(true);
-    setBulkError('');
-    try {
-      const result = await api.updateAllFulfillmentDeliveryZones({
-        deliveryZones: zones,
-        enableDelivery: bulkEnableDelivery,
-      });
-      const updated = new Map<string, FulfillmentLocation>(
-        result.locations.map((location) => [location.id, location]),
-      );
-      setLocations((current) => current.map((location) => updated.get(location.id) ?? location));
-      setBulkOpen(false);
-      toast(t('locations.bulkSaved', { count: result.updatedCount }));
-    } catch (caught) {
-      setBulkError(caught instanceof Error ? caught.message : t('common.error'));
-    } finally {
-      setBulkSubmitting(false);
     }
   };
 
@@ -823,15 +476,7 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
               </button>
             </>
           )}
-          <button
-            type="button"
-            className="btn-outline px-5 inline-flex items-center gap-2"
-            onClick={openBulkEditor}
-            disabled={activeLocations.length === 0}
-          >
-            <Layers3 aria-hidden="true" size={17} />
-            {t('locations.commonZones')}
-          </button>
+
           <button
             type="button"
             className="btn-outline px-5 inline-flex items-center gap-2"
@@ -940,7 +585,6 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
                       <th>{t('locations.cityBranch')}</th>
                       <th>{t('locations.address')}</th>
                       <th>{t('locations.services')}</th>
-                      <th>{t('locations.deliveryRules')}</th>
                       <th>{t('locations.hours')}</th>
                       <th className="text-right">{t('common.actions')}</th>
                     </tr>
@@ -989,14 +633,7 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
                             )}
                           </div>
                         </td>
-                        <td data-label={t('locations.deliveryRules')}>
-                          <span className="inline-flex items-center gap-2">
-                            <Layers3 aria-hidden="true" size={16} />
-                            {location.deliveryZones?.length ||
-                              (location.deliveryRadiusKm ? 1 : 0)}{' '}
-                            · {location.deliveryRadiusKm ?? '—'} км
-                          </span>
-                        </td>
+
                         <td data-label={t('locations.hours')}>
                           <span className="inline-flex items-center gap-2">
                             <Clock3 aria-hidden="true" size={16} />
@@ -1077,7 +714,7 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
               latitude={cityDraft.pointSelected ? numeric(cityDraft.latitude) : null}
               longitude={cityDraft.pointSelected ? numeric(cityDraft.longitude) : null}
               zoom={5}
-              zones={[]}
+
               title={t('locations.cityMapTitle')}
               onPointChange={selectCityPoint}
             />
@@ -1246,7 +883,7 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
               centerLatitude={pointCity?.latitude}
               centerLongitude={pointCity?.longitude}
               zoom={12}
-              zones={[]}
+
               title={t('locations.mapManagement')}
               onPointChange={selectBranchPoint}
             />
@@ -1328,11 +965,6 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
                 </label>
               ))}
             </div>
-            {pointDraft.deliveryEnabled && (
-              <p className="page-help location-default-zone-hint">
-                {t('locations.defaultZoneHint')}
-              </p>
-            )}
           </fieldset>
           <fieldset className="form-section">
             <legend>{t('locations.hours')}</legend>
@@ -1387,73 +1019,6 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
             >
               {pointSubmitting && <LoaderCircle aria-hidden="true" className="spin" size={17} />}
               {pointSubmitting ? t('common.saving') : t('locations.createPoint')}
-            </button>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal
-        open={bulkOpen}
-        onClose={() => !bulkSubmitting && setBulkOpen(false)}
-        title={t('locations.commonZones')}
-        size="lg"
-      >
-        <form className="modal-body form-stack" onSubmit={saveBulk}>
-          {bulkError && (
-            <div className="inline-alert inline-alert-error" role="alert">
-              {bulkError}
-            </div>
-          )}
-          <div className="bulk-zone-scope">
-            <Layers3 aria-hidden="true" size={22} />
-            <div>
-              <strong>
-                {t('locations.activeBranchesCount', { count: activeLocations.length })}
-              </strong>
-              <p>{t('locations.bulkOverwriteHint')}</p>
-            </div>
-          </div>
-          <fieldset className="form-section">
-            <legend>{t('locations.deliveryZones')}</legend>
-            <DeliveryZonesEditor
-              zones={bulkZones}
-              idPrefix="bulk-zone"
-              t={t}
-              onUpdate={updateBulkZone}
-              onAdd={() => setBulkZones((current) => appendZone(current))}
-              onRemove={removeBulkZone}
-            />
-          </fieldset>
-          <label className="switch-row bulk-delivery-switch">
-            <input
-              type="checkbox"
-              checked={bulkEnableDelivery}
-              onChange={(event) => setBulkEnableDelivery(event.target.checked)}
-            />
-            <span className="switch-control" aria-hidden="true" />
-            <span>
-              <strong>{t('locations.bulkEnableDelivery')}</strong>
-              <small>{t('locations.bulkEnableDeliveryHint')}</small>
-            </span>
-          </label>
-          <div className="modal-actions">
-            <button
-              type="button"
-              className="btn-outline px-5"
-              onClick={() => setBulkOpen(false)}
-              disabled={bulkSubmitting}
-            >
-              {t('common.cancel')}
-            </button>
-            <button
-              type="submit"
-              className="btn-classic px-5 inline-flex items-center gap-2"
-              disabled={bulkSubmitting || activeLocations.length === 0}
-            >
-              {bulkSubmitting && <LoaderCircle aria-hidden="true" className="spin" size={17} />}
-              {bulkSubmitting
-                ? t('common.saving')
-                : t('locations.bulkApply', { count: activeLocations.length })}
             </button>
           </div>
         </form>
@@ -1535,7 +1100,7 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
                     address={draft.address}
                     latitude={numeric(draft.latitude)}
                     longitude={numeric(draft.longitude)}
-                    zones={previewZones}
+
                     onPointChange={(latitude, longitude) =>
                       setDraft((current) => ({
                         ...current,
@@ -1693,17 +1258,6 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
                 </div>
               ))}
             </div>
-          </fieldset>
-          <fieldset className="form-section">
-            <legend>{t('locations.deliveryZones')}</legend>
-            <DeliveryZonesEditor
-              zones={draft.deliveryZones}
-              idPrefix="branch-zone"
-              t={t}
-              onUpdate={updateZone}
-              onAdd={addZone}
-              onRemove={removeZone}
-            />
           </fieldset>
           {editing && (
             <BranchPosCredentialPanel locationId={editing.id} canRotate={canManageStructure} />

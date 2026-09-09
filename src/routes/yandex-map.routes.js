@@ -6,6 +6,7 @@ const apiKeyPattern = /^[a-zA-Z0-9_-]{20,200}$/;
 
 router.get('/maps/yandex', (req, res) => {
   const isDirectory = req.query.mode === 'directory';
+  const hideLocate = isDirectory || req.query.mode === 'tracking';
   const language = ['ru', 'kk', 'en'].includes(req.query.lang) ? req.query.lang : 'ru';
   // JS API 2.1 does not offer Kazakh basemap labels; local controls remain translated.
   const mapLocale = language === 'en' ? 'en_RU' : 'ru_RU';
@@ -98,13 +99,13 @@ router.get('/maps/yandex', (req, res) => {
   <div id="controls" aria-label="${copy[1]}">
     <button id="zoom-in" class="map-control" type="button" aria-label="${copy[2]}"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
     <button id="zoom-out" class="map-control" type="button" aria-label="${copy[3]}"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
-    ${isDirectory ? '' : `<button id="locate" class="map-control" type="button" aria-label="${copy[4]}"><svg viewBox="0 0 24 24"><path d="m20 4-7.4 16-2.1-6.5L4 11.4 20 4Z"/></svg></button>`}
+    ${hideLocate ? '' : `<button id="locate" class="map-control" type="button" aria-label="${copy[4]}"><svg viewBox="0 0 24 24"><path d="m20 4-7.4 16-2.1-6.5L4 11.4 20 4Z"/></svg></button>`}
   </div>
   <script nonce="${nonce}">
     (() => {
       'use strict';
       const requestedMode = new URLSearchParams(location.search).get('mode');
-      const defaults = { center:[43.6532,51.1975], selected:[43.6532,51.1975], zoom:13, mode:['admin','dispatch','directory'].includes(requestedMode) ? requestedMode : 'customer', branches:[], couriers:[], deliveryOrders:[] };
+      const defaults = { center:[43.6532,51.1975], selected:[43.6532,51.1975], zoom:13, mode:['admin','dispatch','directory','tracking'].includes(requestedMode) ? requestedMode : 'customer', branches:[], couriers:[], deliveryOrders:[] };
       let state = {...defaults};
       let map = null;
       let activeBranchId = null;
@@ -115,6 +116,7 @@ router.get('/maps/yandex', (req, res) => {
       // GPS belongs to the viewer, not to the selected delivery address. Keep it
       // across Flutter state refreshes, city filters and marker redraws.
       let userLocation = null;
+      let fittedTrackingKey = '';
       const errorBox = document.getElementById('error');
       const controls = document.getElementById('controls');
       const locateButton = document.getElementById('locate');
@@ -125,7 +127,7 @@ router.get('/maps/yandex', (req, res) => {
         if (typeof value === 'string') { try { return JSON.parse(value); } catch { return null; } }
         return value && typeof value === 'object' ? value : null;
       };
-      const number = value => Number.isFinite(Number(value)) ? Number(value) : null;
+      const number = value => value !== null && value !== undefined && value !== '' && Number.isFinite(Number(value)) ? Number(value) : null;
       const point = value => Array.isArray(value) && number(value[0]) !== null && number(value[1]) !== null
         ? [number(value[0]), number(value[1])] : null;
       const escapeHtml = value => String(value || '').replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
@@ -179,16 +181,25 @@ router.get('/maps/yandex', (req, res) => {
         point:point(branch.point),
         active:branch.active !== false,
         deliveryEnabled:branch.deliveryEnabled !== false,
-        zones:(Array.isArray(branch.zones) ? branch.zones : []).map((zone, zoneIndex) => ({
-          id:String(zone.id || zoneIndex), radiusKm:number(zone.radiusKm), fee:number(zone.fee), minOrder:number(zone.minOrder),
-          color:/^#[0-9a-f]{6}$/i.test(String(zone.color || '')) ? String(zone.color).toUpperCase() : ['#66BB6A','#29B6F6','#FFD54F','#EC407A','#7E57C2'][zoneIndex % 5]
-        })).filter(zone => zone.radiusKm > 0).sort((a,b) => a.radiusKm - b.radiusKm)
+
       })).filter(branch => branch.point && branch.active);
       const normalizedCouriers = () => (Array.isArray(state.couriers) ? state.couriers : []).map((courier, index) => ({
         id:String(courier.id || index), name:String(courier.name || 'Курьер'), phone:String(courier.phone || ''),
         point:point([courier.latitude,courier.longitude]), status:String(courier.availabilityStatus || 'offline'),
         activeOrders:Number(courier.activeOrders) || 0
       })).filter(courier => courier.point);
+      const trackingPoints = () => (Array.isArray(state.trackingPoints) ? state.trackingPoints : [])
+        .map(item => ({kind:String(item?.kind), point:point(item?.point), label:String(item?.label || ''), address:String(item?.address || '')}))
+        .filter(item => ['courier','pickup','recipient'].includes(item.kind) && item.point && Math.abs(item.point[0]) <= 90 && Math.abs(item.point[1]) <= 180 && (item.point[0] !== 0 || item.point[1] !== 0));
+      const fitTrackingPoints = () => {
+        const points = trackingPoints().map(item => item.point);
+        if (!map || !points.length) return;
+        if (points.length === 1) { map.setCenter(points[0],15,{duration:220}); return; }
+        map.setBounds([
+          [Math.min(...points.map(p => p[0])),Math.min(...points.map(p => p[1]))],
+          [Math.max(...points.map(p => p[0])),Math.max(...points.map(p => p[1]))]
+        ], {checkZoomRange:true,zoomMargin:[52,48,32,48],duration:220});
+      };
       const normalizedDeliveryOrders = () => (Array.isArray(state.deliveryOrders) ? state.deliveryOrders : []).map((order, index) => ({
         id:String(order.id || index), number:Number(order.number) || 0, address:String(order.deliveryAddress || ''),
         courierId:order.courierId ? String(order.courierId) : null,
@@ -206,13 +217,9 @@ router.get('/maps/yandex', (req, res) => {
         const selected = point(state.selected) || point(state.center) || defaults.center;
         const explicit = branches.find(branch => branch.id === activeBranchId);
         if (explicit) return explicit;
-        return branches.filter(branch => branch.deliveryEnabled && branch.zones.length)
+        return branches.filter(branch => branch.deliveryEnabled)
           .map(branch => ({branch,distance:haversine(selected,branch.point)}))
           .sort((a,b) => a.distance - b.distance)[0]?.branch || branches[0] || null;
-      };
-      const zoneLabel = zone => {
-        const fee = zone.fee === null ? '—' : new Intl.NumberFormat('ru-RU').format(zone.fee) + ' ₸';
-        return 'До ' + zone.radiusKm + ' км · ' + fee;
       };
       const markerBand = zoom => {
         const value = number(zoom) || defaults.zoom;
@@ -235,19 +242,6 @@ router.get('/maps/yandex', (req, res) => {
         const branches = normalizedBranches();
         const active = selectedBranch(branches);
         if (active) activeBranchId = active.id;
-
-        if (active) {
-          [...active.zones].sort((a,b) => b.radiusKm - a.radiusKm).forEach(zone => {
-            const circle = new ymaps.Circle([active.point, zone.radiusKm * 1000], {
-              hintContent:zoneLabel(zone),
-              balloonContent:'<strong>' + escapeHtml(zoneLabel(zone)) + '</strong><br>Минимальный заказ: ' + new Intl.NumberFormat('ru-RU').format(zone.minOrder || 0) + ' ₸'
-            }, {
-              fillColor:zone.color + '2E', strokeColor:zone.color, strokeOpacity:.9, strokeWidth:2,
-              interactivityModel:'default#transparent', zIndex:100
-            });
-            map.geoObjects.add(circle);
-          });
-        }
 
         branches.forEach(branch => {
           const isAdmin = state.mode === 'admin';
@@ -275,6 +269,16 @@ router.get('/maps/yandex', (req, res) => {
             emitSelectedPoint(coordinates,'drag');
           });
           map.geoObjects.add(placemark);
+        });
+
+        if (state.mode === 'tracking') trackingPoints().forEach(item => {
+          const courier = item.kind === 'courier';
+          const marker = new ymaps.Placemark(item.point, {
+            hintContent:item.label,
+            balloonContent:'<strong>' + escapeHtml(item.label) + '</strong><br>' + escapeHtml(item.address)
+          }, {iconLayout:'default#image',iconImageHref:'/assets/map-' + item.kind + '.svg',
+            iconImageSize:courier ? [44,44] : [40,47],iconImageOffset:courier ? [-22,-22] : [-20,-47],zIndex:courier ? 800 : 650});
+          map.geoObjects.add(marker);
         });
 
         if (state.mode === 'dispatch') {
@@ -307,7 +311,7 @@ router.get('/maps/yandex', (req, res) => {
         }
 
         const selected = point(state.selected);
-        if (selected && !['admin','directory'].includes(state.mode)) {
+        if (selected && !['admin','directory','tracking'].includes(state.mode)) {
           map.geoObjects.add(new ymaps.Placemark(selected, {hintContent:${JSON.stringify(copy[8])}}, {
             preset:'islands#blackCircleDotIcon', zIndex:600
           }));
@@ -330,12 +334,17 @@ router.get('/maps/yandex', (req, res) => {
         document.getElementById('city-label').textContent = cityLabel;
         cityPicker.style.display = state.mode === 'directory' && cityLabel ? 'flex' : 'none';
         controls.style.display = state.showControls === false ? 'none' : 'flex';
+        if (locateButton) locateButton.style.display = ['directory','tracking'].includes(state.mode) ? 'none' : '';
         const center = point(state.center) || point(state.selected) || defaults.center;
         const minimumZoom = state.mode === 'admin' ? 4 : 9;
         const zoom = Math.max(minimumZoom,Math.min(19,number(state.zoom) || 13));
         if (map) {
-          map.setCenter(center,zoom,{duration:220});
+          if (state.mode !== 'tracking') map.setCenter(center,zoom,{duration:220});
           render();
+          if (state.mode === 'tracking') {
+            const key = trackingPoints().map(item => item.kind === 'courier' ? item.kind : [item.kind,...item.point].join(':')).join('|');
+            if (key !== fittedTrackingKey) { fittedTrackingKey = key; fitTrackingPoints(); }
+          }
         }
       };
       window.addEventListener('message', event => {
@@ -343,6 +352,7 @@ router.get('/maps/yandex', (req, res) => {
         const message = parse(event.data);
         if (!message) return;
         if (message.type === 'state') applyState(message);
+        if (message.type === 'fit-tracking') fitTrackingPoints();
         if (message.type === 'move') applyState({center:message.center,selected:message.selected || state.selected,zoom:message.zoom || state.zoom});
         if (message.type === 'zoom' && map) map.setZoom(Math.max(state.mode === 'admin' ? 4 : 9,Math.min(19,map.getZoom() + Number(message.delta || 0))),{duration:180});
       });
@@ -411,7 +421,7 @@ router.get('/maps/yandex', (req, res) => {
           });
         }
         map.events.add('click', event => {
-          if (state.mode === 'directory') return;
+          if (['directory','tracking'].includes(state.mode)) return;
           const coordinates = event.get('coords');
           if (state.mode === 'admin') {
             const branches = normalizedBranches();

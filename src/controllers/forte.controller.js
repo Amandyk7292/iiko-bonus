@@ -104,13 +104,6 @@ const quotePayment = async (req, res) => {
       customerId: req.customerAuth.id,
       orderType: checkout.orderType,
     });
-    if (pricing.subtotal < checkout.deliveryMinimumOrder) {
-      return res.status(400).json({
-        error: `Минимальная сумма доставки — ${checkout.deliveryMinimumOrder.toLocaleString(
-          'ru-RU',
-        )} ₸`,
-      });
-    }
     const deliveryQuote = await priceCheckoutDelivery(
       { checkout, pricing, customerId: req.customerAuth.id },
       {
@@ -125,7 +118,7 @@ const quotePayment = async (req, res) => {
       scheduledAt: checkout.scheduledAt,
       preparationMinutes: pricing.preparationMinutes,
       deliveryAddress: checkout.deliveryAddress,
-      deliveryZone: checkout.deliveryZone,
+      deliveryDistanceKm: checkout.deliveryDistanceKm,
     });
     return res.json({
       success: true,
@@ -135,7 +128,7 @@ const quotePayment = async (req, res) => {
       total: pricing.total,
       promoCode: pricing.promoCode,
       branchId: checkout.branchId,
-      deliveryZone: checkout.deliveryZone,
+      deliveryDistanceKm: checkout.deliveryDistanceKm,
       eta,
       freeDeliveryThreshold: FREE_DELIVERY_THRESHOLD,
       deliveryQuoteToken: deliveryQuote.deliveryQuoteToken,
@@ -178,17 +171,6 @@ const createPayment = async (req, res) => {
         customerId,
         orderType: checkout.orderType,
       });
-      if (pricing.subtotal < checkout.deliveryMinimumOrder) {
-        throw Object.assign(
-          new Error(
-            `Минимальная сумма доставки — ${checkout.deliveryMinimumOrder.toLocaleString(
-              'ru-RU',
-            )} ₸`,
-          ),
-          { statusCode: 400 },
-        );
-      }
-
       ({ pricing } = await priceCheckoutDelivery(
         { checkout, pricing, customerId },
         {

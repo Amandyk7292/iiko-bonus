@@ -770,15 +770,6 @@ export const api = {
       `/locations/${encodeURIComponent(id)}/pos-credential/rotate`,
       json('POST'),
     ),
-  updateAllFulfillmentDeliveryZones: (data: {
-    deliveryZones: Array<Record<string, unknown>>;
-    enableDelivery: boolean;
-  }) =>
-    request<{ success: boolean; locations: any[]; updatedCount: number }>(
-      '/locations/delivery-zones/bulk',
-      json('PATCH', data),
-    ),
-
   getInventory: (branchId = '') => {
     const params = new URLSearchParams();
     if (branchId) params.set('branchId', branchId);

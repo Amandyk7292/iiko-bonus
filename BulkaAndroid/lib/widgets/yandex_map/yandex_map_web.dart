@@ -21,6 +21,7 @@ class YandexMapView extends StatefulWidget {
     this.onCityTap,
     this.onBranchTap,
     this.directoryMode = false,
+    this.trackingPoints = const [],
     this.language = 'ru',
     this.onTap,
     this.onCameraChanged,
@@ -41,6 +42,7 @@ class YandexMapView extends StatefulWidget {
   final String? cityLabel;
   final VoidCallback? onCityTap;
   final bool directoryMode;
+  final List<YandexTrackingPoint> trackingPoints;
   final String language;
   final ValueChanged<String>? onBranchTap;
 
@@ -60,7 +62,11 @@ class _YandexMapViewState extends State<YandexMapView> {
     _viewType = 'bulka-yandex-map-${identityHashCode(this)}';
     _frame = web.HTMLIFrameElement()
       ..src =
-          '$yandexMapUrl?lang=${widget.language}&mode=${widget.directoryMode ? 'directory' : 'customer'}'
+          '$yandexMapUrl?lang=${widget.language}&mode=${widget.trackingPoints.isNotEmpty
+              ? 'tracking'
+              : widget.directoryMode
+              ? 'directory'
+              : 'customer'}'
       ..title = widget.semanticLabel
       ..allow = widget.directoryMode ? "geolocation 'none'" : 'geolocation'
       ..style.width = '100%'
@@ -117,7 +123,11 @@ class _YandexMapViewState extends State<YandexMapView> {
           ? "geolocation 'none'"
           : 'geolocation';
       _frame.src =
-          '$yandexMapUrl?lang=${widget.language}&mode=${widget.directoryMode ? 'directory' : 'customer'}';
+          '$yandexMapUrl?lang=${widget.language}&mode=${widget.trackingPoints.isNotEmpty
+              ? 'tracking'
+              : widget.directoryMode
+              ? 'directory'
+              : 'customer'}';
     }
     if (oldWidget.semanticLabel != widget.semanticLabel) {
       _frame.title = widget.semanticLabel;
@@ -133,7 +143,9 @@ class _YandexMapViewState extends State<YandexMapView> {
   Map<String, Object?> _statePayload() => {
     'type': 'state',
     'cityLabel': widget.cityLabel,
-    'mode': widget.directoryMode
+    'mode': widget.trackingPoints.isNotEmpty
+        ? 'tracking'
+        : widget.directoryMode
         ? 'directory'
         : widget.interactive
         ? 'customer'
@@ -141,6 +153,9 @@ class _YandexMapViewState extends State<YandexMapView> {
     // Web cannot overlay Flutter controls reliably above an iframe, so the
     // map document owns the controls in this implementation.
     'showControls': true,
+    'trackingPoints': widget.trackingPoints
+        .map((point) => point.toPayload())
+        .toList(),
     'center': [widget.center.latitude, widget.center.longitude],
     'selected': widget.selectedPoint == null
         ? null

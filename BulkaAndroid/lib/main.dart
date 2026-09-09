@@ -139,6 +139,7 @@ part 'screens/balance_history_screen.dart';
 part 'screens/balance_history_item.dart';
 part 'screens/customer_orders_screen.dart';
 part 'screens/order_details_screen.dart';
+part 'screens/order_tracking_points.dart';
 part 'screens/purchase_summary.dart';
 part 'screens/order_support_screen.dart';
 part 'screens/notification_settings_screen.dart';

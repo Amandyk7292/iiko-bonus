@@ -16,6 +16,7 @@ class YandexMapView extends StatelessWidget {
     this.onCityTap,
     this.onBranchTap,
     this.directoryMode = false,
+    this.trackingPoints = const [],
     this.language = 'ru',
     this.onTap,
     this.onCameraChanged,
@@ -36,6 +37,7 @@ class YandexMapView extends StatelessWidget {
   final String? cityLabel;
   final VoidCallback? onCityTap;
   final bool directoryMode;
+  final List<YandexTrackingPoint> trackingPoints;
   final String language;
   final ValueChanged<String>? onBranchTap;
 

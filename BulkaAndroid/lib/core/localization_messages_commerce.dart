@@ -285,11 +285,6 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'kk': 'Бұл уақыт енді қолжетімсіз. Жаңа аралықты таңдаңыз.',
     'en': 'This time is no longer available. Select a new time slot.',
   },
-  'checkout_delivery_outside_zone': {
-    'ru': 'Этот адрес находится вне зоны доставки доступных точек.',
-    'kk': 'Бұл мекенжай қолжетімді орындардың жеткізу аймағынан тыс.',
-    'en': 'This address is outside the delivery area of available locations.',
-  },
   'checkout_phone_invalid': {
     'ru': 'Проверьте дополнительный номер телефона.',
     'kk': 'Қосымша телефон нөмірін тексеріңіз.',

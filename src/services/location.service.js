@@ -1,13 +1,7 @@
 const { supabase } = require('../config/supabase');
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const ZONE_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
-const DEFAULT_ZONE_COLORS = ['#66BB6A', '#29B6F6', '#FFD54F', '#EC407A', '#7E57C2', '#FF8A65'];
 const MAX_CITY_POINT_DISTANCE_KM = 150;
-const DEFAULT_DELIVERY_ZONES = [
-  { id: 'zone-1', radiusKm: 5, fee: 700, minOrder: 3000, color: DEFAULT_ZONE_COLORS[0] },
-];
-
 const locationError = (message, statusCode = 400) =>
   Object.assign(new Error(message), { statusCode });
 
@@ -83,78 +77,6 @@ const validateHours = (hours) => {
   }
 };
 
-const normalizeDeliveryZones = (value, row = {}) => {
-  const source = Array.isArray(value) ? value : [];
-  const zones = source
-    .map((zone, index) => ({
-      id: String(zone?.id || `zone-${index + 1}`).slice(0, 64),
-      radiusKm: Number(zone?.radiusKm ?? zone?.radius_km),
-      fee: Number(zone?.fee),
-      minOrder: Number(zone?.minOrder ?? zone?.min_order),
-      color: ZONE_COLOR_PATTERN.test(String(zone?.color || ''))
-        ? String(zone.color).toUpperCase()
-        : DEFAULT_ZONE_COLORS[index % DEFAULT_ZONE_COLORS.length],
-    }))
-    .filter(
-      (zone) =>
-        Number.isFinite(zone.radiusKm) &&
-        zone.radiusKm > 0 &&
-        Number.isFinite(zone.fee) &&
-        zone.fee >= 0 &&
-        Number.isFinite(zone.minOrder) &&
-        zone.minOrder >= 0,
-    )
-    .sort((first, second) => first.radiusKm - second.radiusKm);
-  if (zones.length > 0) return zones;
-
-  const radius = Number(row.delivery_radius_km);
-  const fee = Number(row.delivery_fee);
-  const minOrder = Number(row.delivery_min_order);
-  if (radius > 0 && fee >= 0 && minOrder >= 0) {
-    return [{ id: 'zone-1', radiusKm: radius, fee, minOrder, color: DEFAULT_ZONE_COLORS[0] }];
-  }
-  return [];
-};
-
-const validateDeliveryZones = (value) => {
-  if (!Array.isArray(value) || value.length === 0 || value.length > 8) {
-    throw locationError('Добавьте от 1 до 8 зон доставки');
-  }
-  const seenRadii = new Set();
-  const zones = value.map((zone, index) => {
-    if (!zone || typeof zone !== 'object' || Array.isArray(zone)) {
-      throw locationError('Некорректная зона доставки');
-    }
-    const radiusKm = Number(zone.radiusKm ?? zone.radius_km);
-    const fee = Number(zone.fee);
-    const minOrder = Number(zone.minOrder ?? zone.min_order);
-    const color = String(zone.color || DEFAULT_ZONE_COLORS[index % DEFAULT_ZONE_COLORS.length]);
-    const radiusKey = radiusKm.toFixed(3);
-    if (!Number.isFinite(radiusKm) || radiusKm <= 0 || radiusKm > 100) {
-      throw locationError('Радиус зоны должен быть от 0.1 до 100 км');
-    }
-    if (!Number.isSafeInteger(fee) || fee < 0 || fee > 100000) {
-      throw locationError('Стоимость доставки должна быть целым числом от 0 до 100000');
-    }
-    if (!Number.isSafeInteger(minOrder) || minOrder < 0 || minOrder > 10000000) {
-      throw locationError('Минимальная сумма должна быть целым числом от 0 до 10000000');
-    }
-    if (!ZONE_COLOR_PATTERN.test(color)) throw locationError('Некорректный цвет зоны доставки');
-    if (seenRadii.has(radiusKey)) throw locationError('Радиусы зон доставки не должны повторяться');
-    seenRadii.add(radiusKey);
-    return {
-      id: String(zone.id || `zone-${index + 1}`)
-        .replace(/[^a-zA-Z0-9_-]/g, '')
-        .slice(0, 64),
-      radiusKm: Number(radiusKm.toFixed(2)),
-      fee,
-      minOrder,
-      color: color.toUpperCase(),
-    };
-  });
-  return zones.sort((first, second) => first.radiusKm - second.radiusKm);
-};
-
 const normalizeLocation = (row) => ({
   id: String(row.id),
   cityId: row.city_id ? String(row.city_id) : null,
@@ -169,10 +91,6 @@ const normalizeLocation = (row) => ({
   pickupEnabled: row.pickup_enabled !== false,
   preorderEnabled: row.preorder_enabled !== false,
   deliveryEnabled: row.delivery_enabled === true,
-  deliveryRadiusKm: row.delivery_radius_km == null ? null : Number(row.delivery_radius_km),
-  deliveryFee: row.delivery_fee == null ? null : Number(row.delivery_fee),
-  deliveryMinOrder: row.delivery_min_order == null ? null : Number(row.delivery_min_order),
-  deliveryZones: normalizeDeliveryZones(row.delivery_zones, row),
   slotMinutes: Number(row.slot_minutes || 60),
   pickupSlotCapacity: Number(row.pickup_slot_capacity || 20),
   preorderSlotCapacity: Number(row.preorder_slot_capacity || 10),
@@ -184,7 +102,7 @@ async function getBulkaLocations({ includeInactive = false } = {}) {
   let query = supabase
     .from('bulka_locations')
     .select(
-      'id,city_id,two_gis_id,name,city,address,latitude,longitude,hours,active,pickup_enabled,preorder_enabled,delivery_enabled,delivery_radius_km,delivery_fee,delivery_min_order,delivery_zones,slot_minutes,pickup_slot_capacity,preorder_slot_capacity,delivery_slot_capacity,sort_order',
+      'id,city_id,two_gis_id,name,city,address,latitude,longitude,hours,active,pickup_enabled,preorder_enabled,delivery_enabled,slot_minutes,pickup_slot_capacity,preorder_slot_capacity,delivery_slot_capacity,sort_order',
     );
   if (!includeInactive) query = query.eq('active', true);
   const { data, error } = await query.order('sort_order', { ascending: true }).order('name');
@@ -276,10 +194,6 @@ async function createBulkaLocation(payload = {}) {
   }
   validateHours(hours);
 
-  const deliveryZones = validateDeliveryZones(
-    payload.deliveryZones === undefined ? DEFAULT_DELIVERY_ZONES : payload.deliveryZones,
-  );
-  const outerZone = deliveryZones[deliveryZones.length - 1];
   const row = {
     city_id: city.id,
     city: city.name,
@@ -292,10 +206,6 @@ async function createBulkaLocation(payload = {}) {
     pickup_enabled: booleanValue(payload.pickupEnabled, true, 'pickupEnabled'),
     preorder_enabled: booleanValue(payload.preorderEnabled, true, 'preorderEnabled'),
     delivery_enabled: booleanValue(payload.deliveryEnabled, false, 'deliveryEnabled'),
-    delivery_zones: deliveryZones,
-    delivery_radius_km: outerZone.radiusKm,
-    delivery_fee: outerZone.fee,
-    delivery_min_order: outerZone.minOrder,
     slot_minutes: integerValue(payload.slotMinutes, 60, 15, 240, 'slotMinutes'),
     pickup_slot_capacity: integerValue(
       payload.pickupSlotCapacity,
@@ -371,9 +281,6 @@ async function updateBulkaLocation(id, payload = {}) {
     }
   }
   for (const [apiKey, databaseKey, maximum, integerOnly] of [
-    ['deliveryRadiusKm', 'delivery_radius_km', 100, false],
-    ['deliveryFee', 'delivery_fee', 100000, true],
-    ['deliveryMinOrder', 'delivery_min_order', 10000000, true],
     ['slotMinutes', 'slot_minutes', 240, true],
     ['pickupSlotCapacity', 'pickup_slot_capacity', 500, true],
     ['preorderSlotCapacity', 'preorder_slot_capacity', 500, true],
@@ -409,15 +316,6 @@ async function updateBulkaLocation(id, payload = {}) {
     }
     updates[databaseKey] = Number(number.toFixed(7));
   }
-  if (payload.deliveryZones !== undefined) {
-    const zones = validateDeliveryZones(payload.deliveryZones);
-    const outer = zones[zones.length - 1];
-    updates.delivery_zones = zones;
-    // Keep old clients compatible while the server uses the full zone list.
-    updates.delivery_radius_km = outer.radiusKm;
-    updates.delivery_fee = outer.fee;
-    updates.delivery_min_order = outer.minOrder;
-  }
   if (payload.hours !== undefined) {
     if (!payload.hours || typeof payload.hours !== 'object' || Array.isArray(payload.hours)) {
       throw locationError('Некорректное расписание филиала');
@@ -431,22 +329,20 @@ async function updateBulkaLocation(id, payload = {}) {
 
   const { data: current, error: currentError } = await supabase
     .from('bulka_locations')
-    .select(
-      'delivery_enabled,delivery_radius_km,delivery_fee,delivery_min_order,delivery_zones,latitude,longitude',
-    )
+    .select('delivery_enabled,latitude,longitude')
     .eq('id', id)
     .maybeSingle();
   if (currentError) throw currentError;
   if (!current) throw locationError('Филиал не найден', 404);
   const effective = { ...current, ...updates };
-  const effectiveZones = normalizeDeliveryZones(effective.delivery_zones, effective);
   if (
     effective.delivery_enabled === true &&
-    (!Number.isFinite(Number(effective.latitude)) ||
-      !Number.isFinite(Number(effective.longitude)) ||
-      effectiveZones.length === 0)
+    (effective.latitude == null ||
+      effective.longitude == null ||
+      !Number.isFinite(Number(effective.latitude)) ||
+      !Number.isFinite(Number(effective.longitude)))
   ) {
-    throw locationError('Для доставки задайте радиус больше 0, стоимость и минимальную сумму');
+    throw locationError('Для доставки укажите координаты филиала');
   }
   updates.updated_at = new Date().toISOString();
   const { data, error } = await supabase
@@ -458,69 +354,6 @@ async function updateBulkaLocation(id, payload = {}) {
   if (error) throw error;
   if (!data) throw locationError('Филиал не найден', 404);
   return normalizeLocation(data);
-}
-
-async function updateActiveLocationDeliveryZones(payload = {}, { locationIds = [] } = {}) {
-  const zones = validateDeliveryZones(payload.deliveryZones);
-  if (payload.enableDelivery !== undefined && typeof payload.enableDelivery !== 'boolean') {
-    throw locationError('Поле enableDelivery должно быть логическим');
-  }
-
-  let activeLocationsQuery = supabase
-    .from('bulka_locations')
-    .select('id,name,latitude,longitude')
-    .eq('active', true);
-  const scopedLocationIds = Array.isArray(locationIds)
-    ? [...new Set(locationIds.map(String).filter(Boolean))]
-    : [];
-  if (scopedLocationIds.length)
-    activeLocationsQuery = activeLocationsQuery.in('id', scopedLocationIds);
-  const { data: activeLocations, error: activeLocationsError } = await activeLocationsQuery;
-  if (activeLocationsError) throw activeLocationsError;
-  if (!activeLocations || activeLocations.length === 0) {
-    throw locationError('Нет активных филиалов для обновления', 404);
-  }
-
-  if (payload.enableDelivery === true) {
-    const missingCoordinates = activeLocations.filter(
-      (location) =>
-        location.latitude == null ||
-        location.longitude == null ||
-        !Number.isFinite(Number(location.latitude)) ||
-        !Number.isFinite(Number(location.longitude)),
-    );
-    if (missingCoordinates.length > 0) {
-      const names = missingCoordinates
-        .slice(0, 3)
-        .map((location) => location.name)
-        .join(', ');
-      throw locationError(
-        `Сначала укажите координаты филиалов: ${names}${missingCoordinates.length > 3 ? '…' : ''}`,
-      );
-    }
-  }
-
-  const outer = zones[zones.length - 1];
-  const updates = {
-    delivery_zones: zones,
-    delivery_radius_km: outer.radiusKm,
-    delivery_fee: outer.fee,
-    delivery_min_order: outer.minOrder,
-    updated_at: new Date().toISOString(),
-  };
-  if (payload.enableDelivery === true) updates.delivery_enabled = true;
-
-  // One SQL UPDATE keeps the bulk overwrite atomic: either every active branch is
-  // updated, or PostgreSQL rejects the entire statement.
-  let updateQuery = supabase.from('bulka_locations').update(updates).eq('active', true);
-  if (scopedLocationIds.length) updateQuery = updateQuery.in('id', scopedLocationIds);
-  const { data, error } = await updateQuery.select();
-  if (error) throw error;
-
-  return {
-    locations: (data || []).map(normalizeLocation),
-    updatedCount: data?.length || 0,
-  };
 }
 
 async function createCity(name, i18n) {
@@ -583,14 +416,12 @@ async function deletePoint(id) {
 }
 
 module.exports = {
-  normalizeDeliveryZones,
   getBulkaCities,
   getBulkaLocations,
   getCitiesWithPoints,
   createBulkaCity,
   createBulkaLocation,
   updateBulkaLocation,
-  updateActiveLocationDeliveryZones,
   createCity,
   updateCity,
   deleteCity,

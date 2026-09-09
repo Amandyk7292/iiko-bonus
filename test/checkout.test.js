@@ -2,7 +2,6 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const {
-  isPointInPolygon,
   normalizeSubstitutionPreference,
   normalizeSchedule,
   validateCheckout,
@@ -62,6 +61,53 @@ const env = {
   ORDER_MIN_LEAD_MINUTES: '10',
   PREORDER_MIN_LEAD_MINUTES: '120',
 };
+
+test('customer tracking uses the dispatched pickup snapshot and complete recipient address', () => {
+  const address = {
+    city: 'Актау',
+    address: '34 микрорайон',
+    house: '14',
+    entrance: '3',
+    floor: '4',
+    apartment: '37',
+    latitude: 43.6881759,
+    longitude: 51.1614135,
+  };
+  const order = normalizeOrder({
+    id: 'order',
+    branch_location: {
+      name: 'Premium Plaza',
+      city: 'Актау',
+      address: 'Changed branch address',
+      latitude: 1,
+      longitude: 2,
+    },
+    delivery_address: address,
+    delivery_jobs: [
+      {
+        provider: 'yandex',
+        created_at: '2026-09-09T09:00:00Z',
+        request_payload: {
+          route_points: [
+            {
+              type: 'source',
+              address: { fullname: 'Актау, 18A микрорайон, 1', coordinates: [51.13768, 43.677412] },
+            },
+          ],
+        },
+      },
+    ],
+  });
+  assert.deepEqual(order.deliveryOrigin, {
+    city: 'Актау',
+    address: 'Актау, 18A микрорайон, 1',
+    latitude: 43.677412,
+    longitude: 51.13768,
+  });
+  assert.deepEqual(order.deliveryAddress, address);
+  assert.equal('request_payload' in order, false);
+  assert.equal(normalizeOrder({ id: 'missing' }).deliveryOrigin.latitude, null);
+});
 
 test('checkout validates and stores the missing-item substitution preference', () => {
   assert.equal(normalizeSubstitutionPreference(), 'call_customer');
@@ -133,7 +179,7 @@ test('pickup checkout validates a real branch and normalizes Aktau local time to
   assert.equal(checkout.deliveryFee, 0);
 });
 
-test('delivery uses only an enabled branch with explicit radius and tariffs', () => {
+test('delivery uses an enabled branch without applying historical tariffs', () => {
   const checkout = validateCheckout(
     {
       orderType: 'delivery',
@@ -154,12 +200,12 @@ test('delivery uses only an enabled branch with explicit radius and tariffs', ()
   assert.equal(checkout.orderType, 'delivery');
   assert.equal(checkout.branchId, primaryBranchId);
   assert.equal(checkout.scheduledAt, '2026-07-13T13:00:00.000Z');
-  assert.equal(checkout.deliveryFee, 700);
-  assert.equal(checkout.deliveryMinimumOrder, 3000);
+  assert.equal(checkout.deliveryFee, 0);
+  assert.equal('deliveryMinimumOrder' in checkout, false);
   assert.equal(checkout.deliveryAddress.apartment, '41');
 });
 
-test('delivery selects the first matching tariff zone by real distance', () => {
+test('legacy tariff rings do not change the fee or minimum order', () => {
   const zonedCities = structuredClone(cities);
   zonedCities[0].points[0].deliveryZones = [
     { id: 'near', radiusKm: 1, fee: 300, minOrder: 2000, color: '#66BB6A' },
@@ -195,41 +241,51 @@ test('delivery selects the first matching tariff zone by real distance', () => {
     { now: new Date('2026-07-13T12:00:00.000Z'), env },
   );
 
-  assert.equal(near.deliveryFee, 300);
-  assert.equal(near.deliveryMinimumOrder, 2000);
-  assert.equal(near.deliveryZone.id, 'near');
-  assert.equal(far.deliveryFee, 700);
-  assert.equal(far.deliveryMinimumOrder, 3000);
-  assert.equal(far.deliveryZone.id, 'far');
+  assert.equal(near.deliveryFee, 0);
+  assert.equal(far.deliveryFee, 0);
+  assert.equal('deliveryZone' in near, false);
+  assert.equal('deliveryMinimumOrder' in far, false);
+  assert.ok(near.deliveryDistanceKm < far.deliveryDistanceKm);
 });
 
-test('delivery rejects coordinates outside every configured branch radius', () => {
-  const polygon = [
-    [43.62, 51.12],
-    [43.69, 51.118],
-    [43.721, 51.197],
-    [43.686, 51.285],
-    [43.612, 51.279],
-    [43.59, 51.19],
-  ];
-  assert.equal(isPointInPolygon(43.6532, 51.1975, polygon), true);
-  assert.equal(isPointInPolygon(43.8, 51.5, polygon), false);
+test('retired polygon and radius settings never block a valid delivery address', () => {
+  const checkout = validateCheckout(
+    {
+      orderType: 'delivery',
+      scheduledAt: '2026-07-13T18:00:00+05:00',
+      deliveryAddress: {
+        city: 'Актау',
+        address: 'Адрес за прежним радиусом',
+        latitude: 43.8,
+        longitude: 51.5,
+      },
+    },
+    cities,
+    {
+      now: new Date('2026-07-13T12:00:00Z'),
+      env: { ...env, DELIVERY_ZONE_POLYGON_JSON: 'invalid retired setting' },
+    },
+  );
+  assert.equal(checkout.branchId, primaryBranchId);
+  assert.ok(checkout.deliveryDistanceKm > 10);
+  assert.equal(checkout.deliveryFee, 0);
   assert.throws(
     () =>
       validateCheckout(
         {
           orderType: 'delivery',
+          branchId: cities[0].points[1].id,
           deliveryAddress: {
             city: 'Актау',
-            address: 'Адрес вне зоны',
-            latitude: 44.8,
-            longitude: 52.5,
+            address: 'Дом клиента',
+            latitude: 43.8,
+            longitude: 51.5,
           },
         },
         cities,
-        { now: new Date('2026-07-13T12:00:00.000Z'), env },
+        { now: new Date('2026-07-13T12:00:00Z'), env },
       ),
-    /вне зоны доставки/,
+    /выбранного филиала.*недоступна/,
   );
 });
 
@@ -277,8 +333,8 @@ test('preorder supports delivery with future slots and delivery tariff', () => {
   assert.equal(checkout.orderType, 'preorder');
   assert.equal(checkout.preorderFulfillmentType, 'delivery');
   assert.equal(checkout.branchId, primaryBranchId);
-  assert.equal(checkout.deliveryFee, 700);
-  assert.equal(checkout.deliveryMinimumOrder, 3000);
+  assert.equal(checkout.deliveryFee, 0);
+  assert.equal('deliveryMinimumOrder' in checkout, false);
   assert.equal(checkout.deliveryAddress.address, '11-й микрорайон, дом 25');
   assert.equal(checkout.scheduledAt, '2026-07-14T04:00:00.000Z');
 });

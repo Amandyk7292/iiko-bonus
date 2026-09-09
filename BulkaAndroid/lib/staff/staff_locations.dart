@@ -171,48 +171,6 @@ class _StaffLocationsState extends State<StaffLocations> {
     if (mounted) unawaited(_load());
   }
 
-  Future<void> _bulkZones() async {
-    if (!_owner) return;
-    await Navigator.push(
-      context,
-      StaffPageRoute<void>(
-        builder: (_) => StaffZones(
-          zones: const [],
-          save: (zones) async {
-            final confirmed = await staffEdit(
-              context,
-              title: staffText(
-                'Применить зоны ко всем филиалам?',
-                'Аймақтарды барлық филиалдарға қолдану керек пе?',
-                'Apply zones to all branches?',
-              ),
-              fields: [
-                StaffField(
-                  'enableDelivery',
-                  staffText(
-                    'Включить доставку',
-                    'Жеткізуді қосу',
-                    'Enable delivery',
-                  ),
-                  type: 'bool',
-                ),
-              ],
-              save: (values) async {
-                await widget.api.request(
-                  '/locations/delivery-zones/bulk',
-                  method: 'PATCH',
-                  body: {...values, 'deliveryZones': zones},
-                );
-              },
-            );
-            if (confirmed != true) throw StaffDraftCancelled();
-          },
-        ),
-      ),
-    );
-    if (mounted) unawaited(_load());
-  }
-
   @override
   Widget build(BuildContext context) => RefreshIndicator(
     onRefresh: _load,
@@ -232,16 +190,6 @@ class _StaffLocationsState extends State<StaffLocations> {
               OutlinedButton(
                 onPressed: _cityCreate,
                 child: Text(staffText('Новый город', 'Жаңа қала', 'New city')),
-              ),
-              OutlinedButton(
-                onPressed: _bulkZones,
-                child: Text(
-                  staffText(
-                    'Общие зоны доставки',
-                    'Ортақ жеткізу аймақтары',
-                    'Shared delivery zones',
-                  ),
-                ),
               ),
             ],
           ),
@@ -569,18 +517,6 @@ class _StaffLocationDetailState extends State<StaffLocationDetail> {
                       name: '${_location['name']}',
                       address: '${_location['address'] ?? ''}',
                       point: _point!,
-                      zones: [
-                        for (final zone in staffRows(
-                          _location['deliveryZones'],
-                        ))
-                          YandexDeliveryZone(
-                            id: '${zone['id']}',
-                            radiusKm: (zone['radiusKm'] as num).toDouble(),
-                            fee: (zone['fee'] as num).toInt(),
-                            minOrder: (zone['minOrder'] as num).toInt(),
-                            color: '${zone['color']}',
-                          ),
-                      ],
                     ),
                   ],
                   semanticLabel: staffText(
@@ -760,20 +696,6 @@ class _StaffLocationDetailState extends State<StaffLocationDetail> {
               ),
             ),
           ),
-          OutlinedButton(
-            onPressed: () => Navigator.push(
-              context,
-              StaffPageRoute<void>(
-                builder: (_) => StaffZones(
-                  zones: staffRows(_location['deliveryZones']),
-                  save: (zones) => _save({'deliveryZones': zones}),
-                ),
-              ),
-            ),
-            child: Text(
-              staffText('Зоны доставки', 'Жеткізу аймақтары', 'Delivery zones'),
-            ),
-          ),
         ],
         OutlinedButton(
           onPressed: _credential,
@@ -793,207 +715,4 @@ class _StaffLocationDetailState extends State<StaffLocationDetail> {
     _map.dispose();
     super.dispose();
   }
-}
-
-class StaffZones extends StatefulWidget {
-  const StaffZones({required this.zones, required this.save, super.key});
-  final List<Map<String, dynamic>> zones;
-  final Future<void> Function(List<Map<String, dynamic>>) save;
-  @override
-  State<StaffZones> createState() => _StaffZonesState();
-}
-
-class _StaffZonesState extends State<StaffZones> {
-  late List<Map<String, dynamic>> _zones;
-  bool _busy = false;
-  String? _error;
-  @override
-  void initState() {
-    super.initState();
-    _zones = widget.zones.map((row) => Map<String, dynamic>.from(row)).toList();
-  }
-
-  Future<void> _edit([int? index]) async {
-    if (_busy) return;
-    if (index == null && _zones.length >= 8) return;
-    await staffEdit(
-      context,
-      title: staffText('Зона доставки', 'Жеткізу аймағы', 'Delivery zone'),
-      fields: [
-        StaffField(
-          'radiusKm',
-          staffText('Радиус, км', 'Радиус, км', 'Radius, km'),
-          type: 'number',
-          required: true,
-          minimum: 0.001,
-          maximum: 100,
-        ),
-        StaffField(
-          'fee',
-          staffText('Стоимость, ₸', 'Бағасы, ₸', 'Fee, ₸'),
-          type: 'number',
-          required: true,
-          minimum: 0,
-          maximum: 100000,
-        ),
-        StaffField(
-          'minOrder',
-          staffText(
-            'Минимальный заказ, ₸',
-            'Ең аз тапсырыс, ₸',
-            'Minimum order, ₸',
-          ),
-          type: 'number',
-          required: true,
-          minimum: 0,
-          maximum: 10000000,
-        ),
-        StaffField(
-          'color',
-          staffText('Цвет #RRGGBB', 'Түс #RRGGBB', 'Color #RRGGBB'),
-          required: true,
-          maxLength: 7,
-        ),
-      ],
-      initial: index == null
-          ? {'radiusKm': 5, 'fee': 700, 'minOrder': 3000, 'color': '#66BB6A'}
-          : _zones[index],
-      save: (values) async {
-        if (!RegExp(r'^#[0-9A-Fa-f]{6}$').hasMatch('${values['color']}')) {
-          throw Exception(
-            staffText('Неверный цвет', 'Түс қате', 'Invalid color'),
-          );
-        }
-        for (final key in ['fee', 'minOrder']) {
-          final n = values[key] as num;
-          if (n != n.roundToDouble()) {
-            throw Exception(
-              staffText(
-                'Введите целую сумму',
-                'Бүтін соманы енгізіңіз',
-                'Enter a whole amount',
-              ),
-            );
-          }
-        }
-        setState(() {
-          final zone = {
-            'id': index == null ? staffRequestId() : _zones[index]['id'],
-            ...values,
-          };
-          if (index == null) {
-            _zones.add(zone);
-          } else {
-            _zones[index] = zone;
-          }
-          _zones.sort(
-            (a, b) => (a['radiusKm'] as num).compareTo(b['radiusKm'] as num),
-          );
-        });
-      },
-    );
-  }
-
-  Future<void> _save() async {
-    if (_busy) return;
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      if (_zones.isEmpty ||
-          _zones.length > 8 ||
-          _zones.map((z) => z['radiusKm']).toSet().length != _zones.length) {
-        throw Exception(
-          staffText(
-            'Нужны от 1 до 8 зон с разными радиусами',
-            'Радиустары әртүрлі 1–8 аймақ қажет',
-            'Use 1–8 zones with distinct radii',
-          ),
-        );
-      }
-      await widget.save(_zones);
-      if (mounted) Navigator.pop(context, true);
-    } catch (e) {
-      if (mounted && e is! StaffDraftCancelled) setState(() => _error = '$e');
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => PopScope(
-    canPop: !_busy,
-    child: Scaffold(
-      appBar: AppBar(
-        title: Text(
-          staffText('Зоны доставки', 'Жеткізу аймақтары', 'Delivery zones'),
-        ),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(18),
-        children: [
-          for (var i = 0; i < _zones.length; i++)
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      '${_zones[i]['radiusKm']} км · ${staffMoney(_zones[i]['fee'])}',
-                    ),
-                    Text(
-                      '${staffText('Заказ от', 'Тапсырыс', 'Order from')} ${staffMoney(_zones[i]['minOrder'])}',
-                    ),
-                    Wrap(
-                      spacing: 12,
-                      children: [
-                        OutlinedButton(
-                          onPressed: _busy ? null : () => _edit(i),
-                          child: Text(staffText('Изменить', 'Өзгерту', 'Edit')),
-                        ),
-                        TextButton(
-                          onPressed: _busy
-                              ? null
-                              : () => setState(() => _zones.removeAt(i)),
-                          child: Text(staffText('Удалить', 'Жою', 'Delete')),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          if (_zones.length < 8)
-            OutlinedButton.icon(
-              onPressed: _busy ? null : () => _edit(),
-              icon: const Icon(Icons.add),
-              label: Text(staffText('Добавить зону', 'Аймақ қосу', 'Add zone')),
-            ),
-          if (_error != null)
-            Text(
-              _error!,
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-          const SizedBox(height: 16),
-          FilledButton(
-            onPressed: _busy ? null : _save,
-            child: _busy
-                ? const SizedBox.square(
-                    dimension: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Text(
-                    staffText(
-                      'Сохранить зоны',
-                      'Аймақтарды сақтау',
-                      'Save zones',
-                    ),
-                  ),
-          ),
-        ],
-      ),
-    ),
-  );
 }

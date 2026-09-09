@@ -75,8 +75,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
         if (!location.active || !location.supports(widget.orderType)) continue;
         if (_deliveryList &&
             (location.latitude == null ||
-                location.longitude == null ||
-                location.deliveryZones.isEmpty)) {
+                location.longitude == null)) {
           continue;
         }
         final city = location.city.trim().isEmpty

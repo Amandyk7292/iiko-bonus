@@ -507,7 +507,7 @@ class _LocationDirectoryScreenState extends State<LocationDirectoryScreen> {
                           name: branch.name,
                           address: branch.address,
                           point: LatLng(branch.latitude!, branch.longitude!),
-                          zones: const [],
+
                         ),
                   ],
                 ),

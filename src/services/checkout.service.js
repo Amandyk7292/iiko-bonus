@@ -23,69 +23,7 @@ const normalizeOrderType = (value) => {
   return normalized;
 };
 
-const parseDeliveryZone = (env = process.env) => {
-  const source = String(env.DELIVERY_ZONE_POLYGON_JSON || '').trim();
-  if (!source) return null;
-  let parsed;
-  try {
-    parsed = JSON.parse(source);
-  } catch {
-    throw checkoutError('Зона доставки настроена некорректно', 503);
-  }
-  if (!Array.isArray(parsed) || parsed.length < 3) {
-    throw checkoutError('Зона доставки настроена некорректно', 503);
-  }
-  const points = parsed.map((point) => {
-    const latitude = finiteNumber(
-      Array.isArray(point) ? point[0] : (point?.latitude ?? point?.lat),
-    );
-    const longitude = finiteNumber(
-      Array.isArray(point) ? point[1] : (point?.longitude ?? point?.lng ?? point?.lon),
-    );
-    if (
-      latitude === null ||
-      longitude === null ||
-      latitude < -90 ||
-      latitude > 90 ||
-      longitude < -180 ||
-      longitude > 180
-    ) {
-      throw checkoutError('Зона доставки настроена некорректно', 503);
-    }
-    return [latitude, longitude];
-  });
-  return points;
-};
-
-const isPointOnSegment = (latitude, longitude, first, second) => {
-  const cross =
-    (longitude - first[1]) * (second[0] - first[0]) -
-    (latitude - first[0]) * (second[1] - first[1]);
-  if (Math.abs(cross) > 1e-10) return false;
-  return (
-    latitude >= Math.min(first[0], second[0]) - 1e-10 &&
-    latitude <= Math.max(first[0], second[0]) + 1e-10 &&
-    longitude >= Math.min(first[1], second[1]) - 1e-10 &&
-    longitude <= Math.max(first[1], second[1]) + 1e-10
-  );
-};
-
-function isPointInPolygon(latitude, longitude, polygon) {
-  let inside = false;
-  for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index++) {
-    const first = polygon[index];
-    const second = polygon[previous];
-    if (isPointOnSegment(latitude, longitude, first, second)) return true;
-    const intersects =
-      first[1] > longitude !== second[1] > longitude &&
-      latitude <
-        ((second[0] - first[0]) * (longitude - first[1])) / (second[1] - first[1]) + first[0];
-    if (intersects) inside = !inside;
-  }
-  return inside;
-}
-
-const normalizeDeliveryAddress = (raw, env = process.env) => {
+const normalizeDeliveryAddress = (raw) => {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     throw checkoutError('Укажите адрес доставки');
   }
@@ -101,11 +39,6 @@ const normalizeDeliveryAddress = (raw, env = process.env) => {
   ) {
     throw checkoutError('У адреса доставки некорректные координаты');
   }
-  const configuredPolygon = parseDeliveryZone(env);
-  if (configuredPolygon && !isPointInPolygon(latitude, longitude, configuredPolygon)) {
-    throw checkoutError('Адрес находится вне зоны доставки');
-  }
-
   const address = boundedText(raw.address ?? raw.formattedAddress ?? raw.label, 500);
   const city = boundedText(raw.city, 100);
   if (address.length < 3) throw checkoutError('Укажите полный адрес доставки');
@@ -127,44 +60,6 @@ const normalizeDeliveryAddress = (raw, env = process.env) => {
 
 const branchLabel = (point) => [point?.name, point?.address].filter(Boolean).join(', ');
 
-const normalizeBranchZones = (point) => {
-  const raw = Array.isArray(point?.deliveryZones)
-    ? point.deliveryZones
-    : Array.isArray(point?.delivery_zones)
-      ? point.delivery_zones
-      : [];
-  const zones = raw
-    .map((zone, index) => ({
-      id: boundedText(zone?.id || `zone-${index + 1}`, 64),
-      radiusKm: finiteNumber(zone?.radiusKm ?? zone?.radius_km),
-      fee: finiteNumber(zone?.fee),
-      minOrder: finiteNumber(zone?.minOrder ?? zone?.min_order),
-      color: boundedText(zone?.color, 16) || null,
-    }))
-    .filter(
-      (zone) =>
-        zone.radiusKm !== null &&
-        zone.radiusKm > 0 &&
-        zone.fee !== null &&
-        zone.fee >= 0 &&
-        zone.minOrder !== null &&
-        zone.minOrder >= 0,
-    )
-    .sort((first, second) => first.radiusKm - second.radiusKm);
-  if (zones.length > 0) return zones;
-  const radiusKm = finiteNumber(point?.deliveryRadiusKm ?? point?.delivery_radius_km);
-  const fee = finiteNumber(point?.deliveryFee ?? point?.delivery_fee);
-  const minOrder = finiteNumber(point?.deliveryMinOrder ?? point?.delivery_min_order);
-  return radiusKm !== null &&
-    radiusKm > 0 &&
-    fee !== null &&
-    fee >= 0 &&
-    minOrder !== null &&
-    minOrder >= 0
-    ? [{ id: 'zone-1', radiusKm, fee, minOrder, color: null }]
-    : [];
-};
-
 const flattenBranches = (cities) =>
   (Array.isArray(cities) ? cities : []).flatMap((city) =>
     (Array.isArray(city?.points) ? city.points : []).map((point) => ({
@@ -177,10 +72,6 @@ const flattenBranches = (cities) =>
       pickupEnabled: point.pickupEnabled ?? point.pickup_enabled ?? true,
       preorderEnabled: point.preorderEnabled ?? point.preorder_enabled ?? true,
       deliveryEnabled: point.deliveryEnabled ?? point.delivery_enabled ?? false,
-      deliveryRadiusKm: finiteNumber(point.deliveryRadiusKm ?? point.delivery_radius_km),
-      deliveryFee: finiteNumber(point.deliveryFee ?? point.delivery_fee),
-      deliveryMinOrder: finiteNumber(point.deliveryMinOrder ?? point.delivery_min_order),
-      deliveryZones: normalizeBranchZones(point),
       slotMinutes: finiteNumber(point.slotMinutes ?? point.slot_minutes) || 60,
       hours: point.hours && typeof point.hours === 'object' ? point.hours : {},
     })),
@@ -197,16 +88,6 @@ const haversineDistance = (first, second) => {
       Math.sin(longitudeDelta / 2) ** 2;
   return 6371 * 2 * Math.atan2(Math.sqrt(value), Math.sqrt(1 - value));
 };
-
-const deliveryZoneForDistance = (point, distance) =>
-  point.deliveryZones.find((zone) => distance <= zone.radiusKm) || null;
-
-const withResolvedDeliveryZone = (point, zone, distance) => ({
-  ...point,
-  deliveryFee: zone.fee,
-  deliveryMinOrder: zone.minOrder,
-  resolvedDeliveryZone: { ...zone, distanceKm: Number(distance.toFixed(3)) },
-});
 
 const resolveBranch = (
   { branchId, branch, orderType, deliveryAddress, requiresPreorder = false },
@@ -242,8 +123,7 @@ const resolveBranch = (
         point.deliveryEnabled &&
         (!requiresPreorder || point.preorderEnabled) &&
         point.latitude !== null &&
-        point.longitude !== null &&
-        point.deliveryZones.length > 0,
+        point.longitude !== null,
     );
     if (configured.length === 0) {
       throw checkoutError('Доставка пока не настроена ни для одного филиала', 503);
@@ -252,28 +132,15 @@ const resolveBranch = (
       if (!configured.includes(selected)) {
         throw checkoutError('Доставка из выбранного филиала сейчас недоступна');
       }
-      const distance = haversineDistance(deliveryAddress, selected);
-      const zone = deliveryZoneForDistance(selected, distance);
-      if (!zone) {
-        throw checkoutError('Адрес находится вне зоны доставки выбранного филиала');
-      }
-      selected = withResolvedDeliveryZone(selected, zone, distance);
     } else {
       selected = configured
-        .map((point) => {
-          const distance = haversineDistance(deliveryAddress, point);
-          return { point, distance, zone: deliveryZoneForDistance(point, distance) };
-        })
-        .filter(({ zone }) => zone !== null)
-        .sort((left, right) => left.distance - right.distance)[0]?.point;
-      if (!selected) throw checkoutError('Адрес находится вне зоны доставки');
-      const distance = haversineDistance(deliveryAddress, selected);
-      selected = withResolvedDeliveryZone(
-        selected,
-        deliveryZoneForDistance(selected, distance),
-        distance,
-      );
+        .map((point) => ({ point, distance: haversineDistance(deliveryAddress, point) }))
+        .sort((left, right) => left.distance - right.distance)[0].point;
     }
+    selected = {
+      ...selected,
+      deliveryDistanceKm: Number(haversineDistance(deliveryAddress, selected).toFixed(3)),
+    };
   } else if (selected) {
     const enabled =
       orderType === 'preorder' || requiresPreorder
@@ -434,9 +301,7 @@ function validateCheckout(payload, cities, options = {}) {
     orderType === 'delivery' ||
     (orderType === 'preorder' && preorderFulfillmentType === 'delivery');
   const effectiveFulfillmentType = isDelivery ? 'delivery' : 'pickup';
-  const deliveryAddress = isDelivery
-    ? normalizeDeliveryAddress(payload?.deliveryAddress, env)
-    : null;
+  const deliveryAddress = isDelivery ? normalizeDeliveryAddress(payload?.deliveryAddress) : null;
   const branch = resolveBranch(
     {
       branchId: payload?.branchId,
@@ -455,8 +320,6 @@ function validateCheckout(payload, cities, options = {}) {
     branch.hours,
     branch.slotMinutes,
   );
-  const deliveryFee = isDelivery ? branch.deliveryFee : 0;
-  const minimumOrder = isDelivery ? branch.deliveryMinOrder : 0;
 
   return {
     orderType,
@@ -467,7 +330,7 @@ function validateCheckout(payload, cities, options = {}) {
     scheduledAt,
     pickupTime: scheduledAt,
     deliveryAddress,
-    deliveryFee,
+    deliveryFee: 0,
     deliveryOrigin: isDelivery
       ? {
           city: branch.cityName,
@@ -476,8 +339,7 @@ function validateCheckout(payload, cities, options = {}) {
           longitude: branch.longitude,
         }
       : null,
-    deliveryMinimumOrder: Number(Number(minimumOrder).toFixed(2)),
-    deliveryZone: branch.resolvedDeliveryZone || null,
+    deliveryDistanceKm: branch.deliveryDistanceKm ?? null,
     additionalPhone: normalizeAdditionalPhone(payload?.additionalPhone),
     comment: boundedText(payload?.comment, 500) || null,
     substitutionPreference: normalizeSubstitutionPreference(payload?.substitutionPreference),
@@ -485,7 +347,6 @@ function validateCheckout(payload, cities, options = {}) {
 }
 
 module.exports = {
-  isPointInPolygon,
   normalizeDeliveryAddress,
   normalizeOrderType,
   normalizeSchedule,

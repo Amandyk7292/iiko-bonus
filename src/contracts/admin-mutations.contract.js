@@ -574,31 +574,6 @@ const hoursSchema = z
   })
   .strict()
   .refine((value) => Object.keys(value).length > 0, 'Укажите расписание');
-const deliveryZoneSchema = z
-  .object({
-    id: z
-      .string()
-      .trim()
-      .min(1)
-      .max(64)
-      .regex(/^[0-9A-Za-z._:-]+$/),
-    radiusKm: z.coerce.number().positive().max(100),
-    fee: z.coerce.number().int().min(0).max(100_000),
-    minOrder: z.coerce.number().int().min(0).max(10_000_000),
-    color: z
-      .string()
-      .trim()
-      .regex(/^#[0-9A-F]{6}$/i),
-  })
-  .strict();
-const deliveryZonesSchema = z
-  .array(deliveryZoneSchema)
-  .min(1)
-  .max(8)
-  .refine((zones) => {
-    const radii = zones.map((zone) => zone.radiusKm);
-    return radii.every((radius, index) => index === 0 || radius > radii[index - 1]);
-  }, 'Радиусы зон должны возрастать');
 const locationCityBodySchema = z
   .object({
     name: shortText(100, 2),
@@ -617,7 +592,7 @@ const locationBodySchema = z
     pickupEnabled: z.boolean().optional(),
     preorderEnabled: z.boolean().optional(),
     deliveryEnabled: z.boolean().optional(),
-    deliveryZones: deliveryZonesSchema.optional(),
+
     hours: hoursSchema.optional(),
     slotMinutes: z.coerce.number().int().min(15).max(240).optional(),
     pickupSlotCapacity: z.coerce.number().int().min(1).max(500).optional(),
@@ -634,28 +609,19 @@ const locationUpdateBodySchema = optionalPatch(
       pickupEnabled: z.boolean().optional(),
       preorderEnabled: z.boolean().optional(),
       deliveryEnabled: z.boolean().optional(),
-      deliveryRadiusKm: z.coerce.number().min(0).max(100).nullable().optional(),
-      deliveryFee: z.coerce.number().int().min(0).max(100_000).nullable().optional(),
-      deliveryMinOrder: z.coerce.number().int().min(0).max(10_000_000).nullable().optional(),
+
       slotMinutes: z.coerce.number().int().min(15).max(240).optional(),
       pickupSlotCapacity: z.coerce.number().int().min(1).max(500).optional(),
       preorderSlotCapacity: z.coerce.number().int().min(1).max(500).optional(),
       deliverySlotCapacity: z.coerce.number().int().min(1).max(500).optional(),
       latitude: z.coerce.number().min(-90).max(90).optional(),
       longitude: z.coerce.number().min(-180).max(180).optional(),
-      deliveryZones: deliveryZonesSchema.optional(),
+
       hours: hoursSchema.optional(),
     })
     .strict(),
 );
 const locationParamsSchema = routeParams({ id: uuidSchema });
-const deliveryZonesBulkBodySchema = z
-  .object({
-    deliveryZones: deliveryZonesSchema,
-    enableDelivery: z.boolean().optional(),
-  })
-  .strict();
-
 const pushTestBodySchema = z
   .object({
     title: shortText(160, 1),
@@ -1193,7 +1159,6 @@ const adminMutationSchemas = {
   orderStatus: { params: orderParamsSchema, body: orderStatusBodySchema },
   locationCity: withBody(locationCityBodySchema),
   locationCreate: withBody(locationBodySchema),
-  locationBulk: withBody(deliveryZonesBulkBodySchema),
   locationUpdate: { params: locationParamsSchema, body: locationUpdateBodySchema },
   pushTest: withBody(pushTestBodySchema),
   pushMass: withBody(pushMassBodySchema),

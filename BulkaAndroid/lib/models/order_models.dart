@@ -86,6 +86,8 @@ class CustomerOrder {
     required this.discount,
     required this.branch,
     this.branchAddress,
+    this.deliveryOrigin,
+    this.deliveryAddress,
     required this.items,
     required this.earnedBonus,
     required this.createdAt,
@@ -132,6 +134,8 @@ class CustomerOrder {
   final int discount;
   final String branch;
   final String? branchAddress;
+  final DeliveryLocation? deliveryOrigin;
+  final DeliveryAddress? deliveryAddress;
   final List<Map<String, dynamic>> items;
   final int earnedBonus;
   final DateTime createdAt;
@@ -179,6 +183,19 @@ class CustomerOrder {
       discount: _asDouble(json['discount']).round(),
       branch: _asString(json['branch']),
       branchAddress: _nullableString(json['branchAddress']),
+      deliveryOrigin:
+          _asMap(json['deliveryOrigin'])['latitude'] == null ||
+              _asMap(json['deliveryOrigin'])['longitude'] == null
+          ? null
+          : DeliveryLocation(
+              city: _asString(_asMap(json['deliveryOrigin'])['city']),
+              address: _asString(_asMap(json['deliveryOrigin'])['address']),
+              latitude: _asDouble(_asMap(json['deliveryOrigin'])['latitude']),
+              longitude: _asDouble(_asMap(json['deliveryOrigin'])['longitude']),
+            ),
+      deliveryAddress: _asMap(json['deliveryAddress']).isEmpty
+          ? null
+          : DeliveryAddress.fromJson(_asMap(json['deliveryAddress'])),
       items: rawItems is List
           ? rawItems.map((item) => _asMap(item)).toList()
           : const [],
@@ -275,6 +292,15 @@ class CustomerOrder {
     'discount': discount,
     'branch': branch,
     'branchAddress': branchAddress,
+    'deliveryOrigin': deliveryOrigin == null
+        ? null
+        : {
+            'city': deliveryOrigin!.city,
+            'address': deliveryOrigin!.address,
+            'latitude': deliveryOrigin!.latitude,
+            'longitude': deliveryOrigin!.longitude,
+          },
+    'deliveryAddress': deliveryAddress?.toOrderPayload(),
     'items': items,
     'earnedBonus': earnedBonus,
     'createdAt': createdAt.toUtc().toIso8601String(),

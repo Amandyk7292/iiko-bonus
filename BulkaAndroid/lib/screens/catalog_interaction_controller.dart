@@ -48,7 +48,7 @@ extension _CatalogInteractionController on _CatalogScreenState {
         secondLatitude: address.location.latitude,
         secondLongitude: address.location.longitude,
       );
-      if (branch.deliveryZoneForDistance(distance) != null) {
+      if (distance.isFinite) {
         candidates.add((branch: branch, distance: distance));
       }
     }

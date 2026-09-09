@@ -453,6 +453,26 @@ const Map<String, Map<String, String>> _orderAndPaymentTranslations = {
     'kk': 'Курьер картада',
     'en': 'Courier on the map',
   },
+  'order_map_sender': {
+    'ru': 'Пекарня · отправитель',
+    'kk': 'Наубайхана · жіберуші',
+    'en': 'Bakery · sender',
+  },
+  'order_map_recipient': {
+    'ru': 'Адрес получателя',
+    'kk': 'Алушының мекенжайы',
+    'en': 'Recipient address',
+  },
+  'order_map_courier': {
+    'ru': 'Машина курьера',
+    'kk': 'Курьердің көлігі',
+    'en': 'Courier vehicle',
+  },
+  'order_map_show_all': {
+    'ru': 'Показать все точки',
+    'kk': 'Барлық нүктені көрсету',
+    'en': 'Show all locations',
+  },
   'order_tracking_waiting': {
     'ru':
         'Данные курьера появятся после назначения. Статус обновляется автоматически.',
@@ -1291,10 +1311,10 @@ const Map<String, Map<String, String>> _orderAndPaymentTranslations = {
     'kk': 'Карта уақытша қолжетімсіз',
     'en': 'Map is temporarily unavailable',
   },
-  'map_delivery_zones_title': {
-    'ru': 'Карта зон доставки Bulka',
-    'kk': 'Bulka жеткізу аймақтарының картасы',
-    'en': 'Bulka delivery zones map',
+  'map_delivery_branches_title': {
+    'ru': 'Карта филиалов Bulka',
+    'kk': 'Bulka филиалдарының картасы',
+    'en': 'Bulka branches map',
   },
   'checkout_success_title': {'ru': 'Успешно', 'kk': 'Сәтті', 'en': 'Success'},
   'checkout_success_message': {

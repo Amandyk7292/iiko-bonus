@@ -623,8 +623,6 @@ const en: Record<string, string> = {
     'The map is centred on {{city}}. Search for the address or click the building.',
   'locations.mapPointSelected': 'Location selected',
   'locations.mapPointRequired': 'Place a marker on the map',
-  'locations.defaultZoneHint':
-    'A starter 5 km delivery zone will be created. You can adjust it after saving.',
   'locations.editPoint': 'Edit branch',
   'locations.pointName': 'Branch name',
   'locations.exactAddress': 'Exact address',
@@ -657,37 +655,11 @@ const en: Record<string, string> = {
   'locations.delivery': 'Delivery',
   'locations.opensAt': 'Opens',
   'locations.closesAt': 'Closes',
-  'locations.deliveryRules': 'Delivery rules',
-  'locations.deliveryRulesHint':
-    'Delivery can be enabled only after radius, fee, and minimum order are configured.',
-  'locations.deliveryRadius': 'Radius, km',
-  'locations.deliveryFee': 'Fee, ₸',
-  'locations.deliveryMinimum': 'Minimum order, ₸',
-  'locations.deliveryValuesInvalid': 'Check the numeric delivery settings.',
-  'locations.deliveryRulesRequired': 'Set radius, fee, and minimum order before enabling delivery.',
   'locations.hoursInvalid': 'Enter time in HH:MM format.',
   'locations.coordinatesInvalid': 'Select a valid branch point on the map.',
   'locations.mapManagement': 'Map location',
   'locations.mapManagementHint':
-    'Drag the branch marker or click the map. Colored rings show the actual delivery tariff zones.',
-  'locations.deliveryZones': 'Delivery tariff zones',
-  'locations.deliveryZonesHint':
-    'Zones apply from the smallest radius outward. The server selects the tariff from the customer address.',
-  'locations.addZone': 'Add zone',
-  'locations.removeZone': 'Remove zone',
-  'locations.zone': 'Zone',
-  'locations.zoneColor': 'Color',
-  'locations.commonZones': 'Shared delivery zones',
-  'locations.activeBranchesCount': 'Active branches: {{count}}',
-  'locations.bulkOverwriteHint':
-    'Configure tariffs once. They replace the zones for every active branch; individual exceptions remain available in branch settings.',
-  'locations.bulkEnableDelivery': 'Also enable delivery for every active branch',
-  'locations.bulkEnableDeliveryHint': 'When off, each branch keeps its current delivery status.',
-  'locations.bulkApply': 'Apply to {{count}} branches',
-  'locations.bulkConfirmTitle': 'Apply shared delivery zones?',
-  'locations.bulkConfirmBody':
-    'The current tariff zones for {{count}} active branches will be replaced. The change is applied to every branch immediately.',
-  'locations.bulkSaved': 'Shared zones applied. Branches updated: {{count}}.',
+    'Drag the branch marker or click the correct building on the map.',
   'locations.posTitle': 'POS plugin key',
   'locations.posHint':
     'This key links the iiko plugin to this branch. The secret is shown only once.',

@@ -621,8 +621,6 @@ const kk: Record<string, string> = {
     'Карта {{city}} қаласында ашылды. Мекенжайды іздеңіз немесе қажетті ғимаратты басыңыз.',
   'locations.mapPointSelected': 'Нүкте таңдалды',
   'locations.mapPointRequired': 'Картаға белгі қойыңыз',
-  'locations.defaultZoneHint':
-    'Жаңа нүкте үшін 5 км бастапқы жеткізу аймағы құрылады. Оны сақтағаннан кейін өзгертуге болады.',
   'locations.editPoint': 'Филиалды өңдеу',
   'locations.pointName': 'Филиал атауы',
   'locations.exactAddress': 'Нақты мекенжай',
@@ -655,38 +653,11 @@ const kk: Record<string, string> = {
   'locations.delivery': 'Жеткізу',
   'locations.opensAt': 'Ашылу',
   'locations.closesAt': 'Жабылу',
-  'locations.deliveryRules': 'Жеткізу ережелері',
-  'locations.deliveryRulesHint':
-    'Жеткізу радиус, құны және ең төменгі сома толтырылғаннан кейін ғана қосылады.',
-  'locations.deliveryRadius': 'Радиус, км',
-  'locations.deliveryFee': 'Құны, ₸',
-  'locations.deliveryMinimum': 'Ең төменгі тапсырыс, ₸',
-  'locations.deliveryValuesInvalid': 'Жеткізудің сандық параметрлерін тексеріңіз.',
-  'locations.deliveryRulesRequired':
-    'Жеткізуді қосу үшін радиус, құны және ең төменгі соманы толтырыңыз.',
   'locations.hoursInvalid': 'Уақытты СС:ММ форматында енгізіңіз.',
   'locations.coordinatesInvalid': 'Картадан филиалдың дұрыс нүктесін таңдаңыз.',
   'locations.mapManagement': 'Картадағы нүкте',
   'locations.mapManagementHint':
-    'Филиал белгісін жылжытыңыз немесе картаны басыңыз. Түрлі түсті шеңберлер нақты тарифтік аймақтарды көрсетеді.',
-  'locations.deliveryZones': 'Жеткізу тарифтік аймақтары',
-  'locations.deliveryZonesHint':
-    'Аймақтар кіші радиустан үлкен радиусқа қарай қолданылады. Сервер тарифті клиент мекенжайы бойынша таңдайды.',
-  'locations.addZone': 'Аймақ қосу',
-  'locations.removeZone': 'Аймақты жою',
-  'locations.zone': 'Аймақ',
-  'locations.zoneColor': 'Түс',
-  'locations.commonZones': 'Ортақ жеткізу аймақтары',
-  'locations.activeBranchesCount': 'Белсенді филиалдар: {{count}}',
-  'locations.bulkOverwriteHint':
-    'Тарифтерді бір рет баптаңыз. Олар барлық белсенді филиалдың аймақтарын ауыстырады; жеке ерекшеліктерді филиал баптауында өзгертуге болады.',
-  'locations.bulkEnableDelivery': 'Барлық белсенді филиалда жеткізуді де қосу',
-  'locations.bulkEnableDeliveryHint': 'Өшірілсе, әр филиалдың қазіргі жеткізу күйі сақталады.',
-  'locations.bulkApply': '{{count}} филиалға қолдану',
-  'locations.bulkConfirmTitle': 'Ортақ жеткізу аймақтарын қолдану керек пе?',
-  'locations.bulkConfirmBody':
-    '{{count}} белсенді филиалдың қазіргі тарифтік аймақтары ауыстырылады. Өзгеріс барлық нүктеге бірден қолданылады.',
-  'locations.bulkSaved': 'Ортақ аймақтар қолданылды. Жаңартылған филиалдар: {{count}}.',
+    'Филиал белгісін жылжытыңыз немесе картадағы қажетті ғимаратты басыңыз.',
   'locations.posTitle': 'Касса плагинінің кілті',
   'locations.posHint':
     'Кілт iiko плагинін осы филиалмен байланыстырады. Құпия кілт тек бір рет көрсетіледі.',

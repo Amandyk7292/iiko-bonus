@@ -5,27 +5,24 @@ import '../../core/api_origin.dart';
 
 String get yandexMapUrl => '$bulkaApiBaseUrl/maps/yandex';
 
-class YandexDeliveryZone {
-  const YandexDeliveryZone({
-    required this.id,
-    required this.radiusKm,
-    required this.fee,
-    required this.minOrder,
-    required this.color,
+class YandexTrackingPoint {
+  const YandexTrackingPoint({
+    required this.kind,
+    required this.point,
+    required this.label,
+    required this.address,
   });
 
-  final String id;
-  final double radiusKm;
-  final int fee;
-  final int minOrder;
-  final String color;
+  final String kind;
+  final LatLng point;
+  final String label;
+  final String address;
 
   Map<String, Object?> toPayload() => {
-    'id': id,
-    'radiusKm': radiusKm,
-    'fee': fee,
-    'minOrder': minOrder,
-    'color': color,
+    'kind': kind,
+    'point': [point.latitude, point.longitude],
+    'label': label,
+    'address': address,
   };
 }
 
@@ -35,7 +32,6 @@ class YandexMapBranch {
     required this.name,
     required this.address,
     required this.point,
-    required this.zones,
     this.active = true,
     this.deliveryEnabled = true,
   });
@@ -44,7 +40,6 @@ class YandexMapBranch {
   final String name;
   final String address;
   final LatLng point;
-  final List<YandexDeliveryZone> zones;
   final bool active;
   final bool deliveryEnabled;
 
@@ -53,7 +48,6 @@ class YandexMapBranch {
     'name': name,
     'address': address,
     'point': [point.latitude, point.longitude],
-    'zones': zones.map((zone) => zone.toPayload()).toList(),
     'active': active,
     'deliveryEnabled': deliveryEnabled,
   };
@@ -99,6 +93,11 @@ class YandexMapController extends ChangeNotifier {
       type: 'zoom',
       payload: {'delta': delta},
     );
+    notifyListeners();
+  }
+
+  void fitTrackingPoints() {
+    _command = YandexMapCommand(serial: ++_serial, type: 'fit-tracking');
     notifyListeners();
   }
 }

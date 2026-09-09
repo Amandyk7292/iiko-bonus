@@ -286,17 +286,6 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
           point: LatLng(location.latitude!, location.longitude!),
           active: location.active,
           deliveryEnabled: location.deliveryEnabled,
-          zones: location.deliveryZones
-              .map(
-                (zone) => YandexDeliveryZone(
-                  id: zone.id,
-                  radiusKm: zone.radiusKm,
-                  fee: zone.fee,
-                  minOrder: zone.minOrder,
-                  color: zone.color,
-                ),
-              )
-              .toList(),
         ),
       )
       .toList();
@@ -328,7 +317,7 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
           ? 'map_delivery_checking'.tr
           : _locationsFailed
           ? 'map_delivery_check_failed'.tr
-          : 'map_delivery_outside_zone'.tr;
+          : 'map_delivery_unavailable'.tr;
       _showLocationError(message);
       return;
     }
@@ -350,11 +339,9 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
     );
   }
 
-  ({BakeryLocation branch, DeliveryZone zone, double distanceKm})?
-  get _deliveryMatch {
+  ({BakeryLocation branch, double distanceKm})? get _deliveryMatch {
     if (!_pointSelected || !_locationsLoaded || _locationsFailed) return null;
-    final matches =
-        <({BakeryLocation branch, DeliveryZone zone, double distanceKm})>[];
+    final matches = <({BakeryLocation branch, double distanceKm})>[];
     for (final location in _locations) {
       final latitude = location.latitude;
       final longitude = location.longitude;
@@ -370,10 +357,7 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
         secondLatitude: _point.latitude,
         secondLongitude: _point.longitude,
       );
-      final zone = location.deliveryZoneForDistance(distance);
-      if (zone != null) {
-        matches.add((branch: location, zone: zone, distanceKm: distance));
-      }
+      matches.add((branch: location, distanceKm: distance));
     }
     matches.sort(
       (first, second) => first.distanceKm.compareTo(second.distanceKm),
@@ -449,7 +433,7 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
                         selectedPoint: _pointSelected ? _point : null,
                         zoom: _zoom,
                         branches: _mapBranches,
-                        semanticLabel: 'map_delivery_zones_title'.tr,
+                        semanticLabel: 'map_delivery_branches_title'.tr,
                         unavailableLabel: 'map_unavailable'.tr,
                         onCameraChanged: (_, zoom) => _zoom = zoom,
                         onTap: _setPoint,

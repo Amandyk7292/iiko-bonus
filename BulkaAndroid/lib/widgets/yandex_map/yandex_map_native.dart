@@ -19,6 +19,7 @@ class YandexMapView extends StatefulWidget {
     this.onCityTap,
     this.onBranchTap,
     this.directoryMode = false,
+    this.trackingPoints = const [],
     this.language = 'ru',
     this.onTap,
     this.onCameraChanged,
@@ -39,6 +40,7 @@ class YandexMapView extends StatefulWidget {
   final String? cityLabel;
   final VoidCallback? onCityTap;
   final bool directoryMode;
+  final List<YandexTrackingPoint> trackingPoints;
   final String language;
   final ValueChanged<String>? onBranchTap;
 
@@ -71,7 +73,11 @@ class _YandexMapViewState extends State<YandexMapView> {
         )
         ..loadRequest(
           Uri.parse(
-            '$yandexMapUrl?lang=${widget.language}&mode=${widget.directoryMode ? 'directory' : 'customer'}',
+            '$yandexMapUrl?lang=${widget.language}&mode=${widget.trackingPoints.isNotEmpty
+                ? 'tracking'
+                : widget.directoryMode
+                ? 'directory'
+                : 'customer'}',
           ),
         );
     } catch (_) {
@@ -88,7 +94,11 @@ class _YandexMapViewState extends State<YandexMapView> {
       _ready = false;
       _webController?.loadRequest(
         Uri.parse(
-          '$yandexMapUrl?lang=${widget.language}&mode=${widget.directoryMode ? 'directory' : 'customer'}',
+          '$yandexMapUrl?lang=${widget.language}&mode=${widget.trackingPoints.isNotEmpty
+              ? 'tracking'
+              : widget.directoryMode
+              ? 'directory'
+              : 'customer'}',
         ),
       );
     }
@@ -131,14 +141,19 @@ class _YandexMapViewState extends State<YandexMapView> {
   Map<String, Object?> _statePayload() => {
     'type': 'state',
     'cityLabel': widget.cityLabel,
-    'mode': widget.directoryMode
+    'mode': widget.trackingPoints.isNotEmpty
+        ? 'tracking'
+        : widget.directoryMode
         ? 'directory'
         : widget.interactive
         ? 'customer'
         : 'preview',
     // Native Flutter draws accessible map controls above the WebView. Hide
     // the HTML controls to prevent duplicated zoom/location buttons.
-    'showControls': widget.directoryMode,
+    'showControls': widget.directoryMode || widget.trackingPoints.isNotEmpty,
+    'trackingPoints': widget.trackingPoints
+        .map((point) => point.toPayload())
+        .toList(),
     'center': [widget.center.latitude, widget.center.longitude],
     'selected': widget.selectedPoint == null
         ? null

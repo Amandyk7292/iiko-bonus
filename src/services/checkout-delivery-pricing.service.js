@@ -87,10 +87,13 @@ async function priceCheckoutDelivery(
     return { pricing: withDeliveryFee(pricing, 0) };
   const free = pricing.total - pricing.deliveryFee >= FREE_DELIVERY_THRESHOLD;
 
-  // Installed older clients use the configured zone estimate. They cannot
-  // submit a fee of their own; their paid order is equally immutable.
+  // Delivery payments require the estimate the customer actually confirmed.
+  // Older apps must update instead of charging an unconfirmed or zero fee.
   if (version !== 1 && !token) {
-    return { pricing: withDeliveryFee(pricing, free ? 0 : checkout.deliveryFee) };
+    throw Object.assign(new Error('Обновите приложение Bulka для расчёта доставки.'), {
+      statusCode: 409,
+      code: 'CHECKOUT_APP_UPDATE_REQUIRED',
+    });
   }
 
   if (phase === 'payment') {

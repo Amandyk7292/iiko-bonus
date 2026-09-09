@@ -273,10 +273,6 @@ function normalizeLocations(rows = []) {
     pickupEnabled: row.pickupEnabled !== false,
     preorderEnabled: row.preorderEnabled !== false,
     deliveryEnabled: row.deliveryEnabled === true,
-    deliveryFee: Number.isFinite(Number(row.deliveryFee)) ? Number(row.deliveryFee) : null,
-    deliveryMinOrder: Number.isFinite(Number(row.deliveryMinOrder))
-      ? Number(row.deliveryMinOrder)
-      : null,
   }));
 }
 
@@ -297,8 +293,6 @@ function astanaLocations(rows = []) {
         pickupEnabled: null,
         preorderEnabled: null,
         deliveryEnabled: null,
-        deliveryFee: null,
-        deliveryMinOrder: null,
       }));
 }
 
@@ -478,10 +472,6 @@ function buildKnowledgeText(snapshot, queryText, env = process.env) {
         location.address,
         formatHours(location.hours),
         services.length ? `доступно: ${services.join(', ')}` : '',
-        location.deliveryFee !== null ? `доставка от ${location.deliveryFee} ₸` : '',
-        location.deliveryMinOrder !== null
-          ? `минимальный заказ ${location.deliveryMinOrder} ₸`
-          : '',
         location.mapUrl ? `2GIS: ${location.mapUrl}` : '',
       ].filter(Boolean);
       // Branch nicknames often duplicate nearby stops, residential complexes, or

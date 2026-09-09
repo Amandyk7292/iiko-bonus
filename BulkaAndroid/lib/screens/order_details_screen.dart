@@ -274,6 +274,10 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
         ].contains(providerStatus);
     final hasCourierPoint =
         courier?.latitude != null && courier?.longitude != null;
+    final trackingPoints = orderTrackingPoints(
+      _order,
+      includeCourier: !trackingInterrupted,
+    );
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
@@ -408,28 +412,10 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
                         Text(courier.vehicle!),
                     ],
                     const SizedBox(height: 12),
-                    if (hasCourierPoint && !trackingInterrupted)
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(BulkaRadii.control),
-                        child: SizedBox(
-                          height: 220,
-                          child: YandexMapView(
-                            controller: _mapController,
-                            center: LatLng(
-                              courier!.latitude!,
-                              courier.longitude!,
-                            ),
-                            selectedPoint: LatLng(
-                              courier.latitude!,
-                              courier.longitude!,
-                            ),
-                            zoom: 15,
-                            branches: const [],
-                            semanticLabel: 'order_courier_live'.tr,
-                            unavailableLabel: 'map_unavailable'.tr,
-                            interactive: false,
-                          ),
-                        ),
+                    if (trackingPoints.isNotEmpty)
+                      OrderTrackingMap(
+                        points: trackingPoints,
+                        controller: _mapController,
                       ),
                     const SizedBox(height: 12),
                     if (courier != null &&

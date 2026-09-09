@@ -435,60 +435,26 @@ void main() {
     appLanguageNotifier.value = 'ru';
   });
 
-  test('fulfillment location reads delivery rules from the API', () {
-    final location = BakeryLocation.fromJson({
-      'id': '48f71218-aa08-51bf-a6d9-2497c4a1e55b',
-      'name': 'ЖК Дукат',
-      'address': '17-й микрорайон, 1',
-      'city': 'Актау',
-      'latitude': 43.66944,
-      'longitude': 51.136929,
-      'hours': {
-        'daily': {'open': '08:00', 'close': '24:00'},
-      },
-      'deliveryEnabled': true,
-      'deliveryRadiusKm': 5.5,
-      'deliveryFee': 800,
-      'deliveryMinOrder': 5000,
-    });
-
-    expect(location.supports('delivery'), isTrue);
-    expect(location.deliveryRadiusKm, 5.5);
-    expect(location.deliveryFee, 800);
-    expect(location.deliveryMinOrder, 5000);
-  });
-
   test(
-    'delivery location resolves tariff rings and rejects outside points',
+    'fulfillment location ignores historical tariffs and keeps delivery availability',
     () {
-      const location = BakeryLocation(
-        id: 'aktau-1',
-        name: 'Bulka',
-        address: 'Актау',
-        city: 'Актау',
-        deliveryEnabled: true,
-        deliveryZones: [
-          DeliveryZone(
-            id: 'far',
-            radiusKm: 10,
-            fee: 1000,
-            minOrder: 3000,
-            color: '#EC407A',
-          ),
-          DeliveryZone(
-            id: 'near',
-            radiusKm: 2.5,
-            fee: 400,
-            minOrder: 3000,
-            color: '#66BB6A',
-          ),
-        ],
-      );
+      final location = BakeryLocation.fromJson({
+        'id': '48f71218-aa08-51bf-a6d9-2497c4a1e55b',
+        'name': 'ЖК Дукат',
+        'address': '17-й микрорайон, 1',
+        'city': 'Актау',
+        'latitude': 43.66944,
+        'longitude': 51.136929,
+        'hours': {
+          'daily': {'open': '08:00', 'close': '24:00'},
+        },
+        'deliveryEnabled': true,
+        'deliveryRadiusKm': 5.5,
+        'deliveryFee': 800,
+        'deliveryMinOrder': 5000,
+      });
 
-      expect(location.deliveryOuterRadiusKm, 10);
-      expect(location.deliveryZoneForDistance(2)?.id, 'near');
-      expect(location.deliveryZoneForDistance(7)?.id, 'far');
-      expect(location.deliveryZoneForDistance(10.01), isNull);
+      expect(location.supports('delivery'), isTrue);
     },
   );
 
@@ -2543,7 +2509,7 @@ void main() {
       expect(find.text('Bulka'), findsOneWidget);
       expect(find.text('Только самовывоз'), findsNothing);
       expect(find.text('Закрытый филиал'), findsNothing);
-      expect(find.text('Без зоны доставки'), findsNothing);
+      expect(find.text('Без зоны доставки'), findsOneWidget);
       await tester.tap(find.text('Bulka'));
       await tester.pumpAndSettle();
       expect(openedType, 'delivery');
@@ -2623,31 +2589,33 @@ void main() {
     );
   });
 
-  testWidgets('delivery map blocks a selected point outside every zone', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(430, 932);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+  testWidgets(
+    'delivery address outside historical radii reaches normal address validation',
+    (tester) async {
+      tester.view.physicalSize = const Size(430, 932);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: buildBulkaTheme(),
-        home: AddressMapScreen(api: _OutsideDeliveryApiClient()),
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('Название адреса'), findsOneWidget);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildBulkaTheme(),
+          home: AddressMapScreen(api: _OutsideDeliveryApiClient()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Название адреса'), findsOneWidget);
 
-    await tester.tap(find.byKey(const ValueKey('yandex-map-fallback')));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('yandex-map-fallback')));
+      await tester.pumpAndSettle();
 
-    expect(find.text('Сюда пока не доставляем'), findsNothing);
-    await tester.tap(find.text('Сохранить адрес'));
-    await tester.pumpAndSettle();
-    expect(find.text('Сюда пока не доставляем'), findsOneWidget);
-  });
+      expect(find.text('Сюда пока не доставляем'), findsNothing);
+      await tester.tap(find.text('Сохранить адрес'));
+      await tester.pumpAndSettle();
+      expect(find.text('Нет доступных филиалов для доставки'), findsNothing);
+      expect(find.text('Заполните поле'), findsWidgets);
+    },
+  );
 
   testWidgets('delivery map hides the internal branch and tariff', (
     tester,
@@ -2741,7 +2709,6 @@ class _DeliveryListApiClient extends _FakeBulkaApiClient {
         deliveryEnabled: true,
         latitude: active.latitude,
         longitude: active.longitude,
-        deliveryZones: active.deliveryZones,
       ),
       const BakeryLocation(
         id: 'no-zone',
@@ -2812,15 +2779,6 @@ class _FakeBulkaApiClient extends BulkaApiClient {
       latitude: 51.1282,
       longitude: 71.4304,
       deliveryEnabled: true,
-      deliveryZones: [
-        DeliveryZone(
-          id: 'test-zone',
-          radiusKm: 100,
-          fee: 0,
-          minOrder: 0,
-          color: '#66BB6A',
-        ),
-      ],
     ),
   ];
 
@@ -2995,15 +2953,6 @@ class _OutsideDeliveryApiClient extends _FakeBulkaApiClient {
       latitude: 50.0,
       longitude: 70.0,
       deliveryEnabled: true,
-      deliveryZones: [
-        DeliveryZone(
-          id: 'small-zone',
-          radiusKm: 1,
-          fee: 1000,
-          minOrder: 3000,
-          color: '#EC407A',
-        ),
-      ],
     ),
   ];
 }

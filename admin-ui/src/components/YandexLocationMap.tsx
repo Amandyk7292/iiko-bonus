@@ -1,13 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
 
-export type DeliveryMapZone = {
-  id: string;
-  radiusKm: number;
-  fee: number;
-  minOrder: number;
-  color: string;
-};
-
 export type MapPointDetails = {
   address?: string;
   city?: string;
@@ -23,12 +15,7 @@ type Props = {
   centerLongitude?: number | null;
   zoom?: number;
   title?: string;
-  zones: DeliveryMapZone[];
-  onPointChange: (
-    latitude: number,
-    longitude: number,
-    details?: MapPointDetails,
-  ) => void;
+  onPointChange: (latitude: number, longitude: number, details?: MapPointDetails) => void;
 };
 
 export default function YandexLocationMap({
@@ -39,8 +26,7 @@ export default function YandexLocationMap({
   centerLatitude,
   centerLongitude,
   zoom = 13,
-  title = 'Карта филиала и зон доставки',
-  zones,
+  title = 'Карта филиала',
   onPointChange,
 }: Props) {
   const frameRef = useRef<HTMLIFrameElement>(null);
@@ -63,39 +49,44 @@ export default function YandexLocationMap({
       : hasCenter
         ? [Number(centerLatitude), Number(centerLongitude)]
         : [48.0196, 66.9237];
-    frame.contentWindow.postMessage(JSON.stringify({
-      type: 'state',
-      mode: 'admin',
-      center,
-      selected: hasPoint ? [Number(latitude), Number(longitude)] : null,
-      zoom,
-      branches: hasPoint ? [{
-        id: 'editing',
-        name,
-        address,
-        point: [Number(latitude), Number(longitude)],
-        active: true,
-        deliveryEnabled: true,
-        zones,
-      }] : [],
-    }), window.location.origin);
-  }, [
-    address,
-    centerLatitude,
-    centerLongitude,
-    latitude,
-    longitude,
-    name,
-    zones,
-    zoom,
-  ]);
+    frame.contentWindow.postMessage(
+      JSON.stringify({
+        type: 'state',
+        mode: 'admin',
+        center,
+        selected: hasPoint ? [Number(latitude), Number(longitude)] : null,
+        zoom,
+        branches: hasPoint
+          ? [
+              {
+                id: 'editing',
+                name,
+                address,
+                point: [Number(latitude), Number(longitude)],
+                active: true,
+                deliveryEnabled: true,
+              },
+            ]
+          : [],
+      }),
+      window.location.origin,
+    );
+  }, [address, centerLatitude, centerLongitude, latitude, longitude, name, zoom]);
 
   useEffect(() => {
     const receive = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin || event.source !== frameRef.current?.contentWindow) return;
+      if (
+        event.origin !== window.location.origin ||
+        event.source !== frameRef.current?.contentWindow
+      )
+        return;
       let message: unknown = event.data;
       if (typeof message === 'string') {
-        try { message = JSON.parse(message); } catch { return; }
+        try {
+          message = JSON.parse(message);
+        } catch {
+          return;
+        }
       }
       if (!message || typeof message !== 'object') return;
       const payload = message as Record<string, unknown>;
@@ -116,14 +107,18 @@ export default function YandexLocationMap({
     return () => window.removeEventListener('message', receive);
   }, [onPointChange, sendState]);
 
-  useEffect(() => { sendState(); }, [sendState]);
+  useEffect(() => {
+    sendState();
+  }, [sendState]);
 
-  return <iframe
-    ref={frameRef}
-    className="yandex-location-map"
-    src="/maps/yandex?mode=admin"
-    title={title}
-    loading="eager"
-    onLoad={sendState}
-  />;
+  return (
+    <iframe
+      ref={frameRef}
+      className="yandex-location-map"
+      src="/maps/yandex?mode=admin"
+      title={title}
+      loading="eager"
+      onLoad={sendState}
+    />
+  );
 }

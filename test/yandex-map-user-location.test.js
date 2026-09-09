@@ -57,6 +57,12 @@ function runMap(html, mode) {
     }
     setCenter(_coordinates, zoom) {
       this.zoom = zoom;
+      this.centers = [...(this.centers || []), _coordinates];
+    }
+    setBounds(bounds, options) {
+      this.bounds = bounds;
+      this.boundsOptions = options;
+      this.fitCount = (this.fitCount || 0) + 1;
     }
     setZoom(zoom) {
       this.zoom = zoom;
@@ -93,6 +99,7 @@ function runMap(html, mode) {
     messages,
     view,
     state: (data) => receive({ origin: 'https://bulka.com.kz', data: { type: 'state', ...data } }),
+    command: (data) => receive({ origin: 'https://bulka.com.kz', data }),
     clickLocate: () => element('locate').click({ preventDefault() {}, stopPropagation() {} }),
     gps: (latitude, longitude, accuracy) => locate({ coords: { latitude, longitude, accuracy } }),
     deny: () => failLocation({ code: 1 }),
@@ -119,6 +126,72 @@ test('directory only interacts with Bulka branches; delivery retains its GPS mar
     else process.env.YANDEX_MAPS_API_KEY = oldKey;
   });
   const html = await (await fetch(`http://127.0.0.1:${server.address().port}/maps/yandex`)).text();
+  await t.test(
+    'tracking distinguishes sender, recipient and courier and preserves manual panning',
+    () => {
+      const map = runMap(html, 'tracking');
+      const points = [
+        {
+          kind: 'pickup',
+          point: [43.677412, 51.13768],
+          label: 'Пекарня',
+          address: 'Premium Plaza',
+        },
+        {
+          kind: 'recipient',
+          point: [43.6881759, 51.1614135],
+          label: 'Получатель',
+          address: '<Дом 14> · подъезд 3 · этаж 4 · квартира 37',
+        },
+        { kind: 'courier', point: [43.67918, 51.140454], label: 'Курьер', address: 'Машина' },
+      ];
+      map.state({ mode: 'tracking', trackingPoints: points, selected: [43.7, 51.2] });
+      assert.equal(map.objects.length, 3);
+      for (const [index, kind] of ['pickup', 'recipient', 'courier'].entries()) {
+        assert.equal(map.objects[index].options.iconImageHref, `/assets/map-${kind}.svg`);
+        assert.equal(
+          JSON.stringify(map.objects[index].coordinates),
+          JSON.stringify(points[index].point),
+        );
+      }
+      assert.match(map.objects[1].properties.balloonContent, /&lt;Дом 14&gt;/);
+      assert.equal(
+        JSON.stringify(map.view.bounds),
+        '[[43.677412,51.13768],[43.6881759,51.1614135]]',
+      );
+      assert.equal(map.view.fitCount, 1);
+      points[2].point = [43.682, 51.145];
+      map.state({ trackingPoints: points, center: points[2].point });
+      assert.equal(map.view.fitCount, 1, 'GPS updates must not reset the user viewport');
+      map.command({ type: 'fit-tracking' });
+      assert.equal(map.view.fitCount, 2);
+      map.state({
+        trackingPoints: [
+          null,
+          { kind: 'courier', point: [null, null] },
+          { kind: 'recipient', point: [0, 0] },
+          { kind: 'pickup', point: [91, 181] },
+        ],
+      });
+      assert.equal(map.objects.length, 0, 'Missing coordinates must never invent markers');
+    },
+  );
+  await t.test('legacy branch zone payloads cannot draw tariff circles', () => {
+    const map = runMap(html, 'customer');
+    map.state({
+      mode: 'customer',
+      selected: null,
+      branches: [
+        {
+          id: 'b',
+          point: [43.65, 51.19],
+          zones: [{ radiusKm: 5, fee: 700, minOrder: 3000, color: '#66BB6A' }],
+        },
+      ],
+    });
+    assert.equal(map.objects.length, 1);
+    assert.equal(map.objects[0].options.iconImageHref, '/assets/bulka-map-marker.png');
+  });
   const directoryHtml = await (
     await fetch(`http://127.0.0.1:${server.address().port}/maps/yandex?mode=directory`)
   ).text();

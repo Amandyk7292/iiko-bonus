@@ -72,107 +72,57 @@ test('branch name and full address can be edited independently of map coordinate
   });
 });
 
-test('bulk delivery zones are written to every active branch in one update', async () => {
-  const calls = [];
-  let fromCall = 0;
-  const supabase = {
-    from(table) {
-      assert.equal(table, 'bulka_locations');
-      fromCall += 1;
-      if (fromCall === 1) {
-        return {
-          select() {
-            return this;
-          },
-          eq(column, value) {
-            calls.push(['select-active', column, value]);
-            return Promise.resolve({ data: [activeRow], error: null });
-          },
-        };
-      }
-      return {
-        update(values) {
-          calls.push(['update', values]);
-          return this;
-        },
-        eq(column, value) {
-          calls.push(['update-active', column, value]);
-          return this;
-        },
-        select() {
-          return Promise.resolve({
-            data: [
-              {
-                ...activeRow,
-                delivery_enabled: true,
-                delivery_radius_km: 5,
-                delivery_fee: 700,
-                delivery_min_order: 3000,
-                delivery_zones: [
-                  { id: 'zone-1', radiusKm: 5, fee: 700, minOrder: 3000, color: '#66BB6A' },
-                ],
-              },
-            ],
-            error: null,
-          });
-        },
-      };
-    },
-  };
-
-  await withLocationService(supabase, async ({ updateActiveLocationDeliveryZones }) => {
-    const result = await updateActiveLocationDeliveryZones({
-      enableDelivery: true,
-      deliveryZones: [{ id: 'zone-1', radiusKm: 5, fee: 700, minOrder: 3000, color: '#66BB6A' }],
-    });
-    assert.equal(result.updatedCount, 1);
-    assert.equal(result.locations[0].deliveryEnabled, true);
-  });
-
-  const update = calls.find(([name]) => name === 'update')[1];
-  assert.equal(update.delivery_enabled, true);
-  assert.equal(update.delivery_radius_km, 5);
-  assert.deepEqual(update.delivery_zones, [
-    { id: 'zone-1', radiusKm: 5, fee: 700, minOrder: 3000, color: '#66BB6A' },
-  ]);
-  assert.deepEqual(
-    calls.filter(([name]) => name === 'update-active'),
-    [['update-active', 'active', true]],
-  );
-});
-
-test('bulk enable is rejected before update when an active branch has no coordinates', async () => {
-  let updateCalled = false;
-  const supabase = {
+test('delivery can be enabled with coordinates and no zones or tariff settings', async () => {
+  let updates;
+  const database = {
     from() {
       return {
         select() {
           return this;
         },
         eq() {
-          return Promise.resolve({
-            data: [{ ...activeRow, latitude: null, longitude: null }],
-            error: null,
-          });
-        },
-        update() {
-          updateCalled = true;
           return this;
         },
+        update(value) {
+          updates = value;
+          return this;
+        },
+        maybeSingle: async () => ({ data: { ...activeRow, ...updates }, error: null }),
       };
     },
   };
+  await withLocationService(database, async (service) => {
+    const result = await service.updateBulkaLocation(activeRow.id, { deliveryEnabled: true });
+    assert.equal(result.deliveryEnabled, true);
+    assert.equal('deliveryZones' in result, false);
+    assert.equal('delivery_fee' in updates, false);
+    assert.equal(service.updateActiveLocationDeliveryZones, undefined);
+  });
+});
 
-  await withLocationService(supabase, async ({ updateActiveLocationDeliveryZones }) => {
+test('delivery still needs real branch coordinates', async () => {
+  const database = {
+    from() {
+      return {
+        select() {
+          return this;
+        },
+        eq() {
+          return this;
+        },
+        maybeSingle: async () => ({
+          data: { ...activeRow, latitude: null, longitude: null },
+          error: null,
+        }),
+      };
+    },
+  };
+  await withLocationService(database, async (service) => {
     await assert.rejects(
-      updateActiveLocationDeliveryZones({
-        enableDelivery: true,
-        deliveryZones: [{ id: 'zone-1', radiusKm: 5, fee: 700, minOrder: 3000, color: '#66BB6A' }],
-      }),
-      /Сначала укажите координаты филиалов/,
+      service.updateBulkaLocation(activeRow.id, { deliveryEnabled: true }),
+      /координаты/,
     );
   });
-  assert.equal(updateCalled, false);
 });
 
 test('a city is created with a normalized name and map center', async () => {
@@ -287,9 +237,7 @@ test('a new branch is stored in the canonical location table and linked to its c
   assert.equal(inserted.city, 'Алматы');
   assert.equal(inserted.name, 'Bulka — Достык');
   assert.equal(inserted.address, 'проспект Достык, 52');
-  assert.deepEqual(inserted.delivery_zones, [
-    { id: 'zone-1', radiusKm: 5, fee: 700, minOrder: 3000, color: '#66BB6A' },
-  ]);
+  assert.equal('delivery_zones' in inserted, false);
 });
 
 test('a branch cannot be created far outside the selected city', async () => {

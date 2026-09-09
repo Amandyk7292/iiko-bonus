@@ -25,7 +25,6 @@ const {
   createBulkaLocation,
   getBulkaCities,
   getBulkaLocations,
-  updateActiveLocationDeliveryZones,
   updateBulkaLocation,
 } = require('../services/location.service');
 const { supabase } = require('../config/supabase');
@@ -1025,26 +1024,6 @@ router.post(
         success: false,
         error: error.statusCode ? error.message : 'Не удалось создать филиал',
       });
-    }
-  },
-);
-router.patch(
-  '/admin/api/locations/delivery-zones/bulk',
-  adminAuthMiddleware,
-  validateRequest(adminMutationSchemas.locationBulk),
-  async (req, res) => {
-    try {
-      const result = await updateActiveLocationDeliveryZones(req.body, {
-        locationIds: scopedBranchIds(req),
-      });
-      realtime.publish(
-        'locations.updated',
-        { bulk: true, updatedCount: result.updatedCount },
-        { adminOnly: true },
-      );
-      res.json({ success: true, ...result });
-    } catch (error) {
-      res.status(error.statusCode || 500).json({ success: false, error: error.message });
     }
   },
 );

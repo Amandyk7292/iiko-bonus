@@ -190,6 +190,11 @@ const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
     ? order.branch_location[0]
     : order.branch_location;
   const external = latestExternalDelivery(order);
+  const routePoints = external?.request_payload?.route_points;
+  const pickup = Array.isArray(routePoints)
+    ? routePoints.find((point) => point?.type === 'source')?.address
+    : null;
+  const pickupCoordinates = pickup?.coordinates;
   const ownCourier = order.couriers
     ? {
         id: String(order.couriers.id || order.courier_id || ''),
@@ -250,6 +255,12 @@ const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
     branchId: order.branch_id == null ? null : String(order.branch_id),
     branch: order.branch_name || branchLocation?.name || '',
     branchAddress: branchLocation?.address || null,
+    deliveryOrigin: {
+      city: pickup?.city || branchLocation?.city || '',
+      address: pickup?.fullname || branchLocation?.address || order.branch_name || '',
+      latitude: pickupCoordinates?.[1] ?? branchLocation?.latitude ?? null,
+      longitude: pickupCoordinates?.[0] ?? branchLocation?.longitude ?? null,
+    },
     scheduledAt: order.scheduled_at || order.pickup_time || null,
     pickupTime: order.scheduled_at || order.pickup_time || null,
     deliveryAddress:
@@ -306,7 +317,7 @@ const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
 };
 
 const DELIVERY_JOB_FIELDS =
-  'delivery_jobs(id,provider,provider_status,internal_status,provider_price,currency,tracking_url,courier_name,courier_phone,courier_transport_type,courier_car_model,courier_car_number,courier_car_color,courier_latitude,courier_longitude,courier_location_updated_at,courier_location_accuracy,courier_speed,courier_direction,eta_minutes,created_at,updated_at)';
+  'delivery_jobs(id,provider,provider_status,internal_status,provider_price,currency,tracking_url,request_payload,courier_name,courier_phone,courier_transport_type,courier_car_model,courier_car_number,courier_car_color,courier_latitude,courier_longitude,courier_location_updated_at,courier_location_accuracy,courier_speed,courier_direction,eta_minutes,created_at,updated_at)';
 const SUBSTITUTION_FIELDS =
   'order_substitution_requests(id,line_key,product_id,product_name,quantity,action,status,replacement_product_id,replacement_product_name,note,error,refund_id,created_at,updated_at,responded_at,completed_at)';
 
@@ -316,7 +327,7 @@ async function listCustomerOrders(customerId, { scope = 'active', page = 1, page
   let query = supabase
     .from('kaspi_orders')
     .select(
-      `${ORDER_FIELDS},branch_location:bulka_locations(name,address),payment_receipts(id,language),couriers(id,name,phone,vehicle,transport_type,current_latitude,current_longitude,location_updated_at),${DELIVERY_JOB_FIELDS},${SUBSTITUTION_FIELDS}`,
+      `${ORDER_FIELDS},branch_location:bulka_locations(name,address,city,latitude,longitude),payment_receipts(id,language),couriers(id,name,phone,vehicle,transport_type,current_latitude,current_longitude,location_updated_at),${DELIVERY_JOB_FIELDS},${SUBSTITUTION_FIELDS}`,
       { count: 'exact' },
     )
     .eq('customer_id', customerId)

@@ -484,15 +484,6 @@ test('admin mutation contracts accept the payloads emitted by current admin form
       pickupEnabled: true,
       preorderEnabled: true,
       deliveryEnabled: true,
-      deliveryZones: [
-        {
-          id: 'zone-1',
-          radiusKm: 5,
-          fee: 700,
-          minOrder: 3_000,
-          color: '#C97532',
-        },
-      ],
       hours: { daily: { open: '08:00', close: '21:00' } },
       slotMinutes: 60,
       pickupSlotCapacity: 20,
@@ -500,6 +491,11 @@ test('admin mutation contracts accept the payloads emitted by current admin form
       deliverySlotCapacity: 15,
     }).success,
     true,
+  );
+  assert.equal(
+    adminMutationSchemas.locationUpdate.body.safeParse({ deliveryZones: [] }).success,
+    false,
+    'Retired delivery zone configuration must not be accepted',
   );
   assert.equal(
     adminMutationSchemas.promotionCreate.body.safeParse({

@@ -321,39 +321,24 @@ const Map<String, Map<String, String>> _locationTranslations = {
     'en': 'Choose an address to check delivery',
   },
   'map_delivery_checking': {
-    'ru': 'Проверяем зону доставки…',
-    'kk': 'Жеткізу аймағын тексеріп жатырмыз…',
-    'en': 'Checking the delivery area…',
+    'ru': 'Загружаем филиалы…',
+    'kk': 'Филиалдарды жүктеп жатырмыз…',
+    'en': 'Loading branches…',
   },
   'map_delivery_check_failed': {
-    'ru': 'Не удалось проверить зону доставки',
-    'kk': 'Жеткізу аймағын тексеру мүмкін болмады',
-    'en': 'Could not check the delivery area',
+    'ru': 'Не удалось загрузить филиалы',
+    'kk': 'Филиалдарды жүктеу мүмкін болмады',
+    'en': 'Could not load branches',
   },
-  'map_delivery_outside_zone': {
-    'ru': 'Сюда пока не доставляем',
-    'kk': 'Бұл мекенжайға әзірге жеткізбейміз',
-    'en': 'Delivery is not available here yet',
-  },
-  'map_delivery_outside_hint': {
-    'ru': 'Выберите адрес внутри цветной зоны на карте.',
-    'kk': 'Картадағы түсті аймақтың ішінен мекенжай таңдаңыз.',
-    'en': 'Choose an address inside a colored area on the map.',
+  'map_delivery_unavailable': {
+    'ru': 'Нет доступных филиалов для доставки',
+    'kk': 'Жеткізуге қолжетімді филиалдар жоқ',
+    'en': 'No branches available for delivery',
   },
   'map_delivery_available': {
     'ru': 'Доставка из «{branch}» доступна',
     'kk': '«{branch}» нүктесінен жеткізу қолжетімді',
     'en': 'Delivery from “{branch}” is available',
-  },
-  'map_delivery_tariff': {
-    'ru': 'Стоимость {fee} ₸ · расстояние {distance} км',
-    'kk': 'Құны {fee} ₸ · қашықтық {distance} км',
-    'en': 'Fee {fee} ₸ · distance {distance} km',
-  },
-  'map_delivery_unavailable_short': {
-    'ru': 'Вне зоны доставки',
-    'kk': 'Жеткізу аймағынан тыс',
-    'en': 'Outside delivery area',
   },
   'map_you_are_here': {
     'ru': 'Вы здесь',

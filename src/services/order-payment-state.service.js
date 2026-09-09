@@ -54,7 +54,7 @@ class OrderPaymentStateService {
         orderType: effectiveType,
         scheduledAt: checkout.scheduledAt,
         preparationMinutes,
-        directDistanceKm: checkout.deliveryZone?.distanceKm,
+        directDistanceKm: checkout.deliveryDistanceKm,
       });
     return {
       customer_id: customerId,

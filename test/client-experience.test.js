@@ -62,7 +62,7 @@ test('order record stores branch preparation and a delivery ETA', () => {
       branchId: 'branch-1',
       branch: 'Bulka',
       scheduledAt,
-      deliveryZone: { distanceKm: 4 },
+      deliveryDistanceKm: 4,
       requestId: 'request-1',
     },
     paymentMethod: 'invoice',

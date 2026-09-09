@@ -1,0 +1,9 @@
+# Delivery map and retired zones
+
+Delivery uses the nearest active branch with delivery enabled and valid coordinates, or the explicitly selected eligible branch. Preorder availability, hours, capacity and stock checks remain. Historical polygon, radius, minimum-order and branch tariff settings no longer limit addresses or determine payment amounts. The public locations API and both staff interfaces omit these settings; the bulk zone endpoint is removed. Historical database columns are retained, and the delivery constraint now only requires coordinates.
+
+The customer confirms the courier estimate in checkout. Delivery is free for merchandise after discounts from 10,000 KZT. A signed quote freezes the fee at payment; subsequent courier charges never change the customer's order. Apps without quote-token support receive `CHECKOUT_APP_UPDATE_REQUIRED` for delivery, instead of a guessed or zero fee. Pickup is unaffected. Native clients must be updated with this release because older location selectors still require zone data.
+
+The order map shows a brown bakery pin, a gold home pin and a blue car. Pickup coordinates come from the dispatched request snapshot, with branch coordinates as a fallback before dispatch. The recipient uses the saved order address, including house, entrance, floor and apartment. Missing coordinates never generate a marker. Incoming courier positions update the car without resetting the user's map view; “Show all points” restores the full view. The map and legend work in Russian, Kazakh and English.
+
+Map bounds use the documented [Yandex JS API 2.1 setBounds options](https://yandex.com/dev/jsapi-v2-1/doc/en/v2-1/ref/reference/Map), including margins for the pins. `BulkaAndroid/test/fixtures/tracking_preview.dart` renders the actual tracking component for visual checks without creating an order, charging a card or dispatching a courier.

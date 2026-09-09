@@ -304,10 +304,8 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
                   location.active &&
                   location.deliveryEnabled &&
                   (!_isPreorder || location.preorderEnabled) &&
-                  location.deliveryZoneForDistance(
-                        _distanceToAddressKm(location, address),
-                      ) !=
-                      null,
+                  location.latitude != null &&
+                  location.longitude != null,
             )
             .toList()
           ..sort(
@@ -429,7 +427,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
     }
     if (_usesDelivery && _deliveryBranchLocation == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('checkout_delivery_outside_zone'.tr)),
+        SnackBar(content: Text('checkout_delivery_unavailable'.tr)),
       );
       return;
     }
