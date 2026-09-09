@@ -31,3 +31,23 @@ Tests cover threshold boundaries, discounts, pickup/preorder, quote integrity,
 expiry, idempotent retries, the 1000-to-1500 KZT overage example, provider payloads,
 and the customer-visible fee. Flutter API tests verify the quote token is carried
 into saved-card checkout without accepting a client-supplied fee.
+
+## Verification on 9 September 2026
+
+Commit `63a46f2cf852` was published as production release
+`20260909135706-63a46f2cf852`. Production and private staging health checks passed;
+no SQL migrations were needed. Validation passed: 106 backend tests, 77 Flutter
+tests, Flutter analysis, backend ESLint and source-size budgets.
+
+Android 1.0.1 (26), debug x86_64, was installed in the Android 16 emulator.
+APK SHA-256: `7b5553a3689fed9c8a744f9d79c093eed034bafbc893c97c8277348d061fe879`.
+The existing customer session, saved address and cart survived the update.
+The live checkout showed goods 35 KZT, estimated delivery 2471 KZT and total
+2506 KZT. Screenshot: ignored local evidence
+`scratch/android-delivery-check-20260909/repeat-16-live-quote.png`.
+
+Only Premium Plaza's nearest-zone minimum was temporarily lowered from 2000 to
+35 KZT at 09:03:02 UTC to inspect the previously authorized test basket. It was
+restored at 09:04:10 UTC; the zone fee and other zones were unchanged. No payment,
+order or courier was created. The larger real payment remains pending owner
+confirmation because the original test was authorized for 35 KZT.
