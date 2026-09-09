@@ -29,12 +29,15 @@ export default function DeliveryAvailabilityNotice() {
   }, [load]);
   if (!state?.config.disabled) return null;
 
+  const fundsFailure = state.config.reason === 'insufficient_funds';
   const resume = async () => {
     if (saving || !state.config.revision) return;
     const approved = await confirm({
       title: 'Включить доставку для всех клиентов?',
-      body: 'Сначала проверьте в кабинете Яндекса, что пополнение зачислено и средств хватает на доставки. Эта кнопка снимает блокировку, но не проверяет баланс Яндекса.',
-      confirmLabel: 'Баланс проверен — включить',
+      body: fundsFailure
+        ? 'Сначала проверьте в кабинете Яндекса, что пополнение зачислено и средств хватает на доставки. Эта кнопка снимает блокировку, но не проверяет баланс Яндекса.'
+        : 'Проверьте в Яндексе отмену проверочного вызова и причину платной или недоступной отмены. Затем можно возобновить оформление доставки.',
+      confirmLabel: 'Проверено — включить',
     });
     if (!approved) return;
     setSaving(true);
@@ -55,8 +58,10 @@ export default function DeliveryAvailabilityNotice() {
       <div>
         <strong>Доставка временно отключена для всех клиентов</strong>
         <p>
-          Яндекс сообщил о нехватке средств. Оплата новых заказов с доставкой заблокирована.
-          Самовывоз доступен.
+          {fundsFailure
+            ? 'Яндекс сообщил о нехватке средств.'
+            : 'Проверочный вызов потребовал платной отмены или проверки в Яндексе.'}{' '}
+          Оплата новых заказов с доставкой заблокирована. Самовывоз доступен.
         </p>
         {state.canResume && (
           <button
@@ -65,7 +70,11 @@ export default function DeliveryAvailabilityNotice() {
             disabled={saving}
             onClick={() => void resume()}
           >
-            {saving ? 'Включаем…' : 'Включить после пополнения'}
+            {saving
+              ? 'Включаем…'
+              : fundsFailure
+                ? 'Включить после пополнения'
+                : 'Включить после проверки'}
           </button>
         )}
       </div>

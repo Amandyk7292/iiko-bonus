@@ -17,7 +17,9 @@ const {
   resolveTargetedPromotion,
   savePromotion,
 } = require('../src/services/commerce-marketing.service');
-const { priceCheckoutDelivery } = require('../src/services/checkout-delivery-pricing.service');
+const { priceCheckoutDelivery: realPriceCheckoutDelivery } = require('../src/services/checkout-delivery-pricing.service');
+const priceCheckoutDelivery = (context, options) => realPriceCheckoutDelivery(context,
+  { probe: async () => {}, ...options });
 const { adminMutationSchemas } = require('../src/contracts/admin-mutations.contract');
 const promotionBodySchema = adminMutationSchemas.promotionCreate.body;
 

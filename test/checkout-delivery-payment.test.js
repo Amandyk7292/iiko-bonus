@@ -37,7 +37,45 @@ function response() {
 }
 
 function controllerHarness(t) {
-  const state = { courierFee: 1000, charges: [], existing: null, quoteCalls: 0, validations: 0 };
+  const state = {
+    courierFee: 1000,
+    charges: [],
+    existing: null,
+    quoteCalls: 0,
+    validations: 0,
+    bonusAvailable: 0,
+    fundsBlocked: false,
+    probeBlocked: false,
+  };
+  const {
+    deliveryAvailability,
+    unavailableError,
+  } = require('../src/services/delivery-availability.service');
+  t.mock.method(deliveryAvailability, 'assertAvailable', async () => {
+    if (state.fundsBlocked) throw unavailableError();
+  });
+  install(t, '../src/services/checkout-delivery-probe.service', {
+    checkoutDeliveryProbe: { ensure: async (context) => {
+      assert.equal(context.customerPhone, '+77001112233');
+      if (state.probeBlocked) throw unavailableError();
+    } },
+  });
+  const bonusService = require('../src/services/checkout-bonus.service');
+  install(t, '../src/services/checkout-bonus.service', {
+    ...bonusService,
+    priceCheckoutBonus: (context, options) =>
+      bonusService.priceCheckoutBonus(context, {
+        ...options,
+        db: {
+          rpc: async (name, body) => ({
+            data:
+              name === 'quote_checkout_bonus'
+                ? { available: state.bonusAvailable }
+                : { amount: body.p_expected_amount, reservationId: 'bonus-hold' },
+          }),
+        },
+      }),
+  });
   const checkout = {
     effectiveFulfillmentType: 'delivery',
     orderType: 'delivery',
@@ -135,6 +173,51 @@ test('missing quote is rejected before reserving goods or charging a saved card'
   await controller.createPayment(request, payment);
   assert.equal(payment.statusCode, 409);
   assert.equal(payment.body.code, 'CHECKOUT_QUOTE_CHANGED');
+  assert.equal(state.charges.length, 0);
+});
+
+test('an unconfirmed probe cancellation cannot charge a previously quoted saved card', async (t) => {
+  const { state, controller, request } = controllerHarness(t);
+  const quote = response();
+  await controller.quotePayment(request, quote);
+  assert.equal(quote.statusCode, 200);
+  request.body.deliveryQuoteToken = quote.body.deliveryQuoteToken;
+  state.probeBlocked = true;
+  const payment = response();
+  await controller.createPayment(request, payment);
+  assert.equal(payment.statusCode, 503);
+  assert.equal(state.charges.length, 0);
+});
+
+test('confirmed bonuses reduce the goods charge while the delivery stays payable by card', async (t) => {
+  const { state, controller, request } = controllerHarness(t);
+  state.bonusAvailable = 100;
+  request.body.useBonuses = true;
+  const quote = response();
+  await controller.quotePayment(request, quote);
+  assert.equal(quote.statusCode, 200);
+  assert.equal(quote.body.bonusSpent, 17);
+  request.body.expectedBonusSpent = quote.body.bonusSpent;
+  request.body.deliveryQuoteToken = quote.body.deliveryQuoteToken;
+  const payment = response();
+  await controller.createPayment(request, payment);
+  assert.equal(payment.statusCode, 200);
+  assert.equal(state.charges[0].total, 1018);
+  assert.equal(state.charges[0].deliveryFee, 1000);
+  assert.equal(state.charges[0].bonusSpent, 17);
+});
+
+test('global funds stop rejects a previously quoted delivery without charging the saved card', async (t) => {
+  const { state, controller, request } = controllerHarness(t);
+  const quote = response();
+  await controller.quotePayment(request, quote);
+  assert.equal(quote.statusCode, 200);
+  request.body.deliveryQuoteToken = quote.body.deliveryQuoteToken;
+  state.fundsBlocked = true;
+  const payment = response();
+  await controller.createPayment(request, payment);
+  assert.equal(payment.statusCode, 503);
+  assert.equal(payment.body.code, 'DELIVERY_TEMPORARILY_UNAVAILABLE');
   assert.equal(state.charges.length, 0);
 });
 

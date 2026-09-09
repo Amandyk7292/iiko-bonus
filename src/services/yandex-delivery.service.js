@@ -3488,6 +3488,22 @@ async function syncActiveDeliveries({ limit = 25 } = {}) {
   return { skipped: false, synced, failed: 0 };
 }
 
+function createCheckoutProbeTransport() {
+  const config = getConfig();
+  assertConfigured(config, API_FAMILIES.CARGO);
+  return require('./yandex-checkout-probe').createProbeTransport({
+    config,
+    request: (path, options) =>
+      apiRequest(path, {
+        ...options,
+        config: { ...config, timeoutMs: Math.min(config.timeoutMs, 3500) },
+      }),
+    cargoItems,
+    normalizeCity,
+    cargoOptions: requiredCargoOptions,
+  });
+}
+
 module.exports = {
   STATUS_LABELS,
   buildClaimPayload,
@@ -3495,6 +3511,7 @@ module.exports = {
   cancelDelivery,
   dispatchOrder,
   estimateCheckoutDelivery,
+  createCheckoutProbeTransport,
   getCancellationInfo,
   getConfigurationStatus,
   isTerminalStatus,

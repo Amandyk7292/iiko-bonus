@@ -1,7 +1,9 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const jwt = require('jsonwebtoken');
-const { priceCheckoutDelivery } = require('../src/services/checkout-delivery-pricing.service');
+const { priceCheckoutDelivery: realPriceCheckoutDelivery } = require('../src/services/checkout-delivery-pricing.service');
+const priceCheckoutDelivery = (context, options) => realPriceCheckoutDelivery(context,
+  { probe: async () => {}, ...options });
 const { getJwtSecret } = require('../src/services/auth.service');
 
 test('checkout contracts accept signed quotes and reject a client-supplied fee', () => {

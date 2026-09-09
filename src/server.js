@@ -231,6 +231,23 @@ if (!process.env.VERCEL) {
     critical: true,
   });
 
+  const probeCleanupEnabled =
+    runWorkers &&
+    process.env.YANDEX_DELIVERY_ENABLED === 'true' &&
+    process.env.RUN_YANDEX_DELIVERY_WORKER !== 'false';
+  registerWorker('checkout-delivery-probe-cleanup', {
+    enabled: probeCleanupEnabled,
+    intervalMs: 1000,
+    critical: true,
+  });
+  if (probeCleanupEnabled) {
+    const { checkoutDeliveryProbe } = require('./services/checkout-delivery-probe.service');
+    const cleanup = () =>
+      runMonitoredWorker('checkout-delivery-probe-cleanup', () => checkoutDeliveryProbe.cleanup());
+    setTimeout(cleanup, 1000).unref?.();
+    setInterval(cleanup, 1000).unref?.();
+  }
+
   const server = app.listen(PORT, HOST, () => {
     logger.info({ event: 'server_started', host: HOST, port: Number(PORT) }, 'Server started');
 

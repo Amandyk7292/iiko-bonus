@@ -84,6 +84,8 @@ async function priceCheckoutDelivery(
       require('./yandex-delivery.service').estimateCheckoutDelivery(checkout, pricing),
     now = Math.floor(Date.now() / 1000),
     assertAvailable = (checkout) => deliveryAvailability.assertAvailable(checkout),
+    probe = (context) =>
+      require('./checkout-delivery-probe.service').checkoutDeliveryProbe.ensure(context),
   } = {},
 ) {
   const { checkout, pricing } = context;
@@ -116,11 +118,15 @@ async function priceCheckoutDelivery(
     if (quote.fingerprint !== quoteFingerprint(context) || (free && quote.fee !== 0)) {
       throw quoteError();
     }
+    await probe(context);
+    await assertAvailable(checkout);
     return { pricing: withDeliveryFee(pricing, quote.fee) };
   }
 
   const fee = free ? 0 : await estimate(checkout, pricing);
   const result = withDeliveryFee(pricing, fee);
+  await probe(context);
+  await assertAvailable(checkout);
   const deliveryQuoteToken = jwt.sign(
     {
       fingerprint: quoteFingerprint(context),

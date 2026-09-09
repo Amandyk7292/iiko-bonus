@@ -86,9 +86,14 @@ class DeliveryAvailabilityService {
 
   async recordProviderFailure(payload) {
     if (!isInsufficientFunds(payload)) return false;
+    await this.suspend('insufficient_funds');
+    return true;
+  }
+
+  async suspend(reason) {
     this.pendingBlock = {
       disabled: true,
-      reason: 'insufficient_funds',
+      reason,
       revision: crypto.randomUUID(),
       detectedAt: new Date().toISOString(),
     };
@@ -101,7 +106,6 @@ class DeliveryAvailabilityService {
         'Could not persist delivery stop',
       );
     }
-    return true;
   }
 
   async resume(revision, updatedBy) {

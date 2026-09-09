@@ -110,7 +110,7 @@ const quotePayment = async (req, res) => {
       fulfillmentType: checkout.effectiveFulfillmentType,
     });
     const deliveryQuote = await priceCheckoutDelivery(
-      { checkout, pricing, customerId: req.customerAuth.id },
+      { checkout, pricing, customerId: req.customerAuth.id, customerPhone: req.customerAuth.phone },
       {
         phase: 'quote',
         version: req.body?.deliveryQuoteVersion,
@@ -188,7 +188,7 @@ const createPayment = async (req, res) => {
         fulfillmentType: checkout.effectiveFulfillmentType,
       });
       ({ pricing } = await priceCheckoutDelivery(
-        { checkout, pricing, customerId },
+        { checkout, pricing, customerId, customerPhone: phone },
         {
           phase: 'payment',
           version: req.body?.deliveryQuoteVersion,
