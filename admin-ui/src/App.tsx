@@ -346,6 +346,8 @@ function WhatsAppAccessScreen({ error = '' }: { error?: string }) {
 export default function App() {
   const { t } = useI18n();
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [sessionLoadError, setSessionLoadError] = useState(false);
+  const [sessionRetry, setSessionRetry] = useState(0);
   const [adminUser, setAdminUser] = useState<AdminUser | null>(null);
   const [scopeLocations, setScopeLocations] = useState<AdminScopeLocation[]>([]);
   const [selectedBranchId, setSelectedBranchIdState] = useState(getAdminBranchScope);
@@ -372,6 +374,8 @@ export default function App() {
 
   useEffect(() => {
     let active = true;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    const retrySession = () => setSessionRetry((value) => value + 1);
     if (isOperatorAccessRoute) {
       let token = '';
       try {
@@ -406,6 +410,8 @@ export default function App() {
         },
       );
     } else {
+      setSessionLoadError(false);
+      window.addEventListener('online', retrySession);
       api.session().then(
         (response) => {
           if (active) {
@@ -413,15 +419,23 @@ export default function App() {
             setIsAuthenticated(true);
           }
         },
-        () => {
-          if (active) setIsAuthenticated(false);
+        (error: unknown) => {
+          if (!active) return;
+          if (error instanceof ApiError && error.status === 401) {
+            setIsAuthenticated(false);
+          } else {
+            setSessionLoadError(true);
+            retryTimer = setTimeout(retrySession, 5000);
+          }
         },
       );
     }
     return () => {
       active = false;
+      clearTimeout(retryTimer);
+      window.removeEventListener('online', retrySession);
     };
-  }, []);
+  }, [sessionRetry]);
 
   useEffect(() => {
     setSidebarOpen(false);
@@ -490,7 +504,10 @@ export default function App() {
   if (isAuthenticated === null)
     return (
       <main className="login-screen">
-        <PageState type="loading" />
+        <PageState
+          type={sessionLoadError ? 'error' : 'loading'}
+          onRetry={sessionLoadError ? () => setSessionRetry((value) => value + 1) : undefined}
+        />
       </main>
     );
   if (!isAuthenticated)
@@ -564,7 +581,10 @@ export default function App() {
                   element={guard('/transactions', <TransactionsPage />)}
                 />
                 <Route path="/iiko" element={guard('/iiko', <IikoPage />)} />
-                <Route path="/iiko-dashboard" element={guard('/iiko-dashboard', <IikoDashboardPage />)} />
+                <Route
+                  path="/iiko-dashboard"
+                  element={guard('/iiko-dashboard', <IikoDashboardPage />)}
+                />
                 <Route path="/broadcast" element={guard('/broadcast', <BroadcastPage />)} />
                 <Route path="/contacts" element={guard('/contacts', <ContactCenterPage />)} />
                 <Route

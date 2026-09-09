@@ -10,6 +10,7 @@ test('customer middleware enforces credential versions while preserving legacy s
   process.env.CUSTOMER_JWT_SECRET = 'c'.repeat(64);
 
   let credential = { auth_version: 2 };
+  let unavailableTable = null;
   const customer = { id: 'customer-1', phone: '+77001234567', deleted_at: null };
   const supabase = {
     from(table) {
@@ -22,6 +23,9 @@ test('customer middleware enforces credential versions while preserving legacy s
           return this;
         },
         async maybeSingle() {
+          if (table === unavailableTable) {
+            return { data: null, error: new Error('Temporary database connection failure') };
+          }
           return { data: row, error: null };
         },
       };
@@ -70,6 +74,15 @@ test('customer middleware enforces credential versions while preserving legacy s
 
     const prePassword = signCustomerToken(customer);
     assert.equal((await authorize(prePassword)).responseStatus, 401);
+
+    for (const table of ['customers', 'customer_credentials']) {
+      unavailableTable = table;
+      const unavailable = await authorize(matching);
+      assert.equal(unavailable.responseStatus, 503);
+      assert.equal(unavailable.nextCalled, false);
+    }
+    unavailableTable = null;
+    assert.equal((await authorize(matching)).nextCalled, true);
 
     credential = null;
     assert.equal((await authorize(prePassword)).nextCalled, true);

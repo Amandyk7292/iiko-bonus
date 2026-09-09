@@ -7,6 +7,39 @@ describe('admin API request abort composition', () => {
     vi.unstubAllGlobals();
   });
 
+  it('does not sign out a new login when an older request returns 401', async () => {
+    let finishOldRequest!: (response: Response) => void;
+    const oldResponse = new Promise<Response>((resolve) => {
+      finishOldRequest = resolve;
+    });
+    const jsonResponse = (body: unknown, status = 200) =>
+      new Response(JSON.stringify(body), {
+        status,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockReturnValueOnce(oldResponse)
+        .mockResolvedValueOnce(jsonResponse({ user: { username: 'new-admin', role: 'admin' } }))
+        .mockResolvedValueOnce(jsonResponse({ error: 'revoked' }, 401)),
+    );
+    const unauthorized = vi.fn();
+    window.addEventListener('unauthorized', unauthorized);
+    try {
+      const oldRequest = api.session().catch((error: unknown) => error);
+      await api.login('new-admin', 'test-password', '');
+      finishOldRequest(jsonResponse({ error: 'old session' }, 401));
+      await oldRequest;
+      expect(unauthorized).not.toHaveBeenCalled();
+      await expect(api.session()).rejects.toMatchObject({ status: 401 });
+      expect(unauthorized).toHaveBeenCalledTimes(1);
+    } finally {
+      window.removeEventListener('unauthorized', unauthorized);
+    }
+  });
+
   it('only sends the literal iikoFront confirmation for kitchen acceptance', async () => {
     const fetchMock = vi.fn().mockImplementation(() =>
       Promise.resolve(

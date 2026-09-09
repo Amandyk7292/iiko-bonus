@@ -81,6 +81,22 @@ test('native-compatible auth responses still issue a durable browser cookie', ()
   assert.equal(response.cookies[0].options.httpOnly, true);
 });
 
+test('a persistent customer cookie is renewed for 400 days without exposing refresh credentials', () => {
+  let cookie;
+  const body = sendCustomerSession(
+    { headers: { 'x-bulka-session-transport': 'cookie' } },
+    {
+      cookie: (_name, _value, options) => {
+        cookie = options;
+      },
+    },
+    { accessToken: 'access', refreshToken: 'refresh', refreshExpiresAt: null },
+  );
+  assert.equal(cookie.maxAge, 400 * 86400000);
+  assert.equal(cookie.httpOnly, true);
+  assert.equal(body.refreshToken, undefined);
+});
+
 test('refresh cookie parser handles encoded values without accepting unrelated cookies', () => {
   const request = {
     headers: {

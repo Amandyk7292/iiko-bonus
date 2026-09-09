@@ -101,6 +101,21 @@ const createHarness = () => {
     from(table) {
       return new SessionQuery(database, table);
     },
+    async rpc(name, { p_token_hash: tokenHash }) {
+      assert.equal(name, 'revoke_customer_refresh_session');
+      let row = [...database.customer_refresh_tokens.values()].find(
+        (r) => r.token_hash === tokenHash,
+      );
+      const seen = new Set();
+      while (row && !seen.has(row.id)) {
+        seen.add(row.id);
+        row.revoked_at = new Date(nowMs).toISOString();
+        row.last_used_at = null;
+        row.rotation_key_hash = null;
+        row = database.customer_refresh_tokens.get(row.replaced_by);
+      }
+      return { error: null };
+    },
   };
   const service = new CustomerSessionService({
     db,
@@ -233,6 +248,129 @@ test('parallel-refresh grace expires quickly instead of enabling token replay', 
 
   await assert.rejects(
     harness.service.rotateCustomerSession(initialToken, request),
+    /invalid or expired/,
+  );
+});
+
+const recoveryRequest = {
+  headers: {
+    'user-agent': 'Bulka old version',
+    'x-bulka-session-recovery': 'device-proof-'.padEnd(43, 'a'),
+  },
+};
+
+test('persistent customer session survives years without extending the access JWT', async (t) => {
+  const previous = process.env.CUSTOMER_REFRESH_TOKEN_DAYS;
+  delete process.env.CUSTOMER_REFRESH_TOKEN_DAYS;
+  t.after(() => {
+    if (previous === undefined) delete process.env.CUSTOMER_REFRESH_TOKEN_DAYS;
+    else process.env.CUSTOMER_REFRESH_TOKEN_DAYS = previous;
+  });
+  const h = createHarness();
+  const issued = await h.service.issueCustomerSession(
+    { id: h.customerId, phone: '+77001234567' },
+    recoveryRequest,
+  );
+  assert.equal(issued.refreshExpiresAt, null);
+  h.advance(5 * 365 * 86400000);
+  const restored = await h.service.rotateCustomerSession(issued.refreshToken, recoveryRequest);
+  assert.equal(restored.accessToken, 'access-v3');
+  assert.equal(restored.refreshExpiresAt, null);
+});
+
+test('lost rotation response recovers after an app update only with the durable proof', async () => {
+  const h = createHarness();
+  const initial = await h.service.createRefreshToken(h.customerId, recoveryRequest);
+  const rotated = await h.service.rotateCustomerSession(initial.token, recoveryRequest);
+  h.advance(86400000);
+  const updatedRequest = {
+    headers: { ...recoveryRequest.headers, 'user-agent': 'Bulka new version' },
+  };
+  const restored = await h.service.rotateCustomerSession(initial.token, updatedRequest);
+  assert.equal(restored.refreshToken, rotated.refreshToken);
+  await assert.rejects(
+    h.service.rotateCustomerSession(initial.token, {
+      headers: {
+        ...updatedRequest.headers,
+        'x-bulka-session-recovery': 'wrong-proof-'.padEnd(43, 'x'),
+      },
+    }),
+    /invalid or expired/,
+  );
+  const next = await h.service.rotateCustomerSession(rotated.refreshToken, updatedRequest);
+  h.advance(86400000);
+  assert.equal(
+    (await h.service.rotateCustomerSession(initial.token, updatedRequest)).refreshToken,
+    next.refreshToken,
+  );
+});
+
+test('logout from an older tab revokes the entire descendant chain', async () => {
+  const h = createHarness();
+  const initial = await h.service.createRefreshToken(h.customerId, recoveryRequest);
+  const rotated = await h.service.rotateCustomerSession(initial.token, recoveryRequest);
+  await h.service.revokeCustomerSession(initial.token);
+  for (const token of [initial.token, rotated.refreshToken]) {
+    await assert.rejects(
+      h.service.rotateCustomerSession(token, recoveryRequest),
+      /invalid or expired/,
+    );
+  }
+});
+
+test('password reset prevents recovery of a rotation interrupted before insertion', async () => {
+  const h = createHarness();
+  const initial = await h.service.createRefreshToken(h.customerId, recoveryRequest);
+  const create = h.service.createRefreshToken.bind(h.service);
+  h.service.createRefreshToken = async () => {
+    throw new Error('connection lost');
+  };
+  await assert.rejects(
+    h.service.rotateCustomerSession(initial.token, recoveryRequest),
+    /connection lost/,
+  );
+  h.database.customer_credentials.get(h.customerId).auth_version++;
+  h.service.createRefreshToken = create;
+  h.advance(60000);
+  await assert.rejects(
+    h.service.rotateCustomerSession(initial.token, recoveryRequest),
+    /credentials have changed/,
+  );
+  assert.equal(h.database.customer_refresh_tokens.size, 1);
+});
+
+test('logout during successor insertion cannot leave a usable orphan session', async () => {
+  const h = createHarness();
+  const initial = await h.service.createRefreshToken(h.customerId, recoveryRequest);
+  const create = h.service.createRefreshToken.bind(h.service);
+  h.service.createRefreshToken = async (...args) => {
+    await h.service.revokeCustomerSession(initial.token);
+    return create(...args);
+  };
+  await assert.rejects(
+    h.service.rotateCustomerSession(initial.token, recoveryRequest),
+    /was revoked/,
+  );
+  assert.ok(
+    [...h.database.customer_refresh_tokens.values()].every(
+      (row) => row.revoked_at && !row.last_used_at,
+    ),
+  );
+});
+
+test('an explicitly configured finite refresh lifetime still expires', async (t) => {
+  const previous = process.env.CUSTOMER_REFRESH_TOKEN_DAYS;
+  process.env.CUSTOMER_REFRESH_TOKEN_DAYS = '1';
+  t.after(() => {
+    if (previous === undefined) delete process.env.CUSTOMER_REFRESH_TOKEN_DAYS;
+    else process.env.CUSTOMER_REFRESH_TOKEN_DAYS = previous;
+  });
+  const h = createHarness();
+  const initial = await h.service.createRefreshToken(h.customerId, recoveryRequest);
+  assert.ok(initial.expiresAt);
+  h.advance(86400001);
+  await assert.rejects(
+    h.service.rotateCustomerSession(initial.token, recoveryRequest),
     /invalid or expired/,
   );
 });

@@ -1,18 +1,20 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
+const COOKIE_LIFETIME_MS = 400 * 24 * 60 * 60 * 1000;
 
-test('session options keep cashiers at twelve hours and other admins at two hours', () => {
+test('admin and cashier sessions keep a durable cookie and server revocation', () => {
   const { sessionOptionsForAdmin } = require('../src/middlewares/auth.middleware');
 
   assert.deepEqual(sessionOptionsForAdmin({ role: 'cashier' }), {
     expiresIn: '12h',
-    maxAgeMs: TWELVE_HOURS_MS,
+    maxAgeMs: COOKIE_LIFETIME_MS,
+    persistent: true,
   });
   assert.deepEqual(sessionOptionsForAdmin({ role: 'admin' }), {
     expiresIn: '2h',
-    maxAgeMs: 2 * 60 * 60 * 1000,
+    maxAgeMs: COOKIE_LIFETIME_MS,
+    persistent: true,
   });
 });
 
@@ -30,7 +32,7 @@ const installModule = (t, modulePath, exports) => {
   });
 };
 
-test('cashier password login issues a twelve-hour cookie, token, and server session', async (t) => {
+test('cashier password login issues a persistent database session', async (t) => {
   const credentialPath = require.resolve('../src/services/admin-credential-auth.service');
   const sessionPath = require.resolve('../src/services/admin-session.service');
   const middlewarePath = require.resolve('../src/middlewares/auth.middleware');
@@ -77,7 +79,6 @@ test('cashier password login issues a twelve-hour cookie, token, and server sess
       return this;
     },
   };
-  const startedAt = Date.now();
 
   await adminLoginHandler(
     {
@@ -93,11 +94,10 @@ test('cashier password login issues a twelve-hour cookie, token, and server sess
   assert.equal(responseBody.user.role, 'cashier');
   assert.equal(cookies.length, 1);
   assert.equal(cookies[0].name, 'bulka_admin');
-  assert.equal(cookies[0].options.maxAge, TWELVE_HOURS_MS);
+  assert.equal(cookies[0].options.maxAge, COOKIE_LIFETIME_MS);
   const token = verifyToken(cookies[0].value, 'bulka-admin');
   assert.equal(token.exp - token.iat, 12 * 60 * 60);
   assert.equal(savedSession.role, 'cashier');
   assert.equal(savedSession.authVersion, 7);
-  assert.ok(savedSession.expiresAt >= startedAt + TWELVE_HOURS_MS - 1_000);
-  assert.ok(savedSession.expiresAt <= Date.now() + TWELVE_HOURS_MS + 1_000);
+  assert.equal(savedSession.expiresAt, null);
 });

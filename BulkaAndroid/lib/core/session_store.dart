@@ -26,8 +26,40 @@ abstract final class SessionStore {
   static const _storage = SessionStorageBackend();
   static const _accessKey = 'bulka_access_token';
   static const _refreshKey = 'bulka_refresh_token';
+  static const _recordKey = 'bulka_customer_session_v2';
+  static Future<void>? _pendingWrite;
+
+  static Future<void> _serialize(Future<void> Function() operation) {
+    final previous = _pendingWrite;
+    final next = () async {
+      if (previous != null) await previous;
+      await operation();
+    }();
+    final settled = next.catchError((Object _) {});
+    _pendingWrite = settled;
+    unawaited(
+      settled.then((_) {
+        if (identical(_pendingWrite, settled)) _pendingWrite = null;
+      }),
+    );
+    return next;
+  }
+
+  static Future<String> recoveryKey() => _storage.recoveryKey();
 
   static Future<SessionTokens> readAndMigrate(SharedPreferences prefs) async {
+    final pending = _pendingWrite;
+    if (pending != null) await pending;
+    if (_storage.persistsRefreshToken) {
+      final record = await _storage.read(key: _recordKey);
+      if (record != null) {
+        final data = _asMap(jsonDecode(record));
+        return SessionTokens(
+          accessToken: _nullableString(data['accessToken']),
+          refreshToken: _nullableString(data['refreshToken']),
+        );
+      }
+    }
     var accessToken = await _storage.read(key: _accessKey);
     var refreshToken = await _storage.read(key: _refreshKey);
     final legacyAccess = prefs.getString('accessToken');
@@ -43,6 +75,18 @@ abstract final class SessionStore {
       await _storage.write(key: _refreshKey, value: refreshToken);
     }
     if (!_storage.persistsRefreshToken) refreshToken = null;
+    if (_storage.persistsRefreshToken &&
+        (accessToken != null || refreshToken != null)) {
+      await _serialize(
+        () => _storage.write(
+          key: _recordKey,
+          value: jsonEncode({
+            'accessToken': accessToken,
+            'refreshToken': refreshToken,
+          }),
+        ),
+      );
+    }
     await prefs.remove('accessToken');
     await prefs.remove('refreshToken');
     return SessionTokens(accessToken: accessToken, refreshToken: refreshToken);
@@ -81,22 +125,30 @@ abstract final class SessionStore {
     'pending_forte_operation_v1_',
   };
 
-  static Future<void> write(String accessToken, String? refreshToken) async {
-    await Future.wait([
-      _storage.write(key: _accessKey, value: accessToken),
-      if (refreshToken?.isNotEmpty == true)
-        _storage.write(key: _refreshKey, value: refreshToken!)
-      else
-        _storage.delete(key: _refreshKey),
-    ]);
-  }
+  static Future<void> write(String accessToken, String? refreshToken) =>
+      _serialize(() async {
+        if (_storage.persistsRefreshToken) {
+          // Commit the pair in one Keychain/Keystore entry. A terminated app
+          // must never reopen with tokens from two different rotations.
+          await _storage.write(
+            key: _recordKey,
+            value: jsonEncode({
+              'accessToken': accessToken,
+              'refreshToken': refreshToken,
+            }),
+          );
+        } else {
+          await _storage.write(key: _accessKey, value: accessToken);
+        }
+      });
 
-  static Future<void> clear() async {
+  static Future<void> clear() => _serialize(() async {
     await Future.wait([
+      _storage.delete(key: _recordKey),
       _storage.delete(key: _accessKey),
       _storage.delete(key: _refreshKey),
     ]);
-  }
+  });
 
   static Future<void> clearLegacyCustomerData(SharedPreferences prefs) async {
     await Future.wait(

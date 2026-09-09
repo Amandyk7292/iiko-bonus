@@ -1,6 +1,7 @@
 const {
   signAdminToken,
   verifyToken,
+  verifyAdminSessionToken,
   safeEqual,
   readBearerToken,
   readCookieToken,
@@ -36,11 +37,13 @@ const ADMIN_ROLES = new Set([
 
 const DEFAULT_ADMIN_SESSION_OPTIONS = Object.freeze({
   expiresIn: '2h',
-  maxAgeMs: 2 * 60 * 60 * 1000,
+  maxAgeMs: 400 * 24 * 60 * 60 * 1000,
+  persistent: true,
 });
 const CASHIER_SESSION_OPTIONS = Object.freeze({
   expiresIn: '12h',
-  maxAgeMs: 12 * 60 * 60 * 1000,
+  maxAgeMs: 400 * 24 * 60 * 60 * 1000,
+  persistent: true,
 });
 const sessionOptionsForAdmin = (admin) =>
   admin?.role === 'cashier' ? CASHIER_SESSION_OPTIONS : DEFAULT_ADMIN_SESSION_OPTIONS;
@@ -331,7 +334,7 @@ const issueAdminSession = async (
       role: payload.role,
       branchIds: payload.branchIds,
       authVersion: Number(admin?.authVersion) || 0,
-      expiresAt: payload.exp * 1000,
+      expiresAt: sessionOptions.persistent ? null : payload.exp * 1000,
       ip: req?.ip,
       userAgent: req?.headers?.['user-agent'],
     });
@@ -499,16 +502,44 @@ const adminPhoneLoginVerifyHandler = async (req, res) => {
 };
 
 const adminAuthMiddleware = async (req, res, next) => {
+  const token = readCookieToken(req) || readBearerToken(req);
+  let payload;
   try {
-    const payload = verifyToken(readCookieToken(req) || readBearerToken(req), 'bulka-admin');
+    payload = verifyAdminSessionToken(token);
     if (!ADMIN_ROLES.has(payload.role)) throw new Error('Invalid role');
-    const activeSession = await validateAdminSession(payload);
-    if (!activeSession || !ADMIN_ROLES.has(activeSession.role)) {
-      throw new Error('Session is revoked');
-    }
+  } catch (error) {
+    if (error?.statusCode) return res.status(error.statusCode).json({ error: error.message });
+    return res.status(401).json({ error: 'Admin session is invalid or expired' });
+  }
+  let activeSession;
+  try {
+    activeSession = await validateAdminSession(payload);
+  } catch (error) {
+    req.log?.error(
+      { err: error, event: 'admin_session_validation_unavailable' },
+      'Session validation unavailable',
+    );
+    return res.status(503).json({
+      error: 'Session service is temporarily unavailable',
+      code: 'ADMIN_SESSION_UNAVAILABLE',
+    });
+  }
+  if (!activeSession || !ADMIN_ROLES.has(activeSession.role)) {
+    return res.status(401).json({ error: 'Admin session is invalid or expired' });
+  }
+  try {
     const requestedBranch = req.headers['x-bulka-branch-id'] || req.query?.scopeBranchId || '';
     const requestedBranches = req.headers['x-bulka-branch-ids'] || req.query?.scopeBranchIds || '';
     req.admin = applyAdminBranchSelection(activeSession, requestedBranch, requestedBranches);
+    if (activeSession.sessionExpiresAt === null && req.path === '/session') {
+      res.cookie('bulka_admin', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production' || Boolean(process.env.RENDER),
+        sameSite: 'strict',
+        path: '/admin',
+        maxAge: DEFAULT_ADMIN_SESSION_OPTIONS.maxAgeMs,
+      });
+    }
     return next();
   } catch (error) {
     if (error?.statusCode) return res.status(error.statusCode).json({ error: error.message });

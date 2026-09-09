@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:math';
 import 'package:web/web.dart' as web;
 
 /// Web session persistence that never exposes a long-lived refresh token.
@@ -11,6 +13,20 @@ class SessionStorageBackend {
 
   static final Map<String, String> _memoryFallback = <String, String>{};
   static const _refreshKey = 'bulka_refresh_token';
+  static const _recoveryKey = 'bulka_session_recovery_v1';
+
+  Future<String> recoveryKey() async {
+    // This proof cannot authenticate without the separate HttpOnly cookie.
+    // Persist it before rotating; a storage error must leave the cookie intact.
+    final existing = web.window.localStorage.getItem(_recoveryKey);
+    if (existing != null && existing.isNotEmpty) return existing;
+    final random = Random.secure();
+    final proof = base64Url
+        .encode(List.generate(32, (_) => random.nextInt(256)))
+        .replaceAll('=', '');
+    web.window.localStorage.setItem(_recoveryKey, proof);
+    return web.window.localStorage.getItem(_recoveryKey)!;
+  }
 
   Future<String?> read({required String key}) async {
     if (key == _refreshKey) {

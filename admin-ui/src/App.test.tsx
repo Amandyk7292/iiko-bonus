@@ -16,10 +16,12 @@ const apiMocks = vi.hoisted(() => ({
 vi.mock('./lib/api', () => {
   class ApiError extends Error {
     code?: string;
+    status: number;
 
-    constructor(message: string, code?: string) {
+    constructor(message: string, status: number, code?: string) {
       super(message);
       this.code = code;
+      this.status = status;
     }
   }
   return {
@@ -57,6 +59,7 @@ vi.mock('./pages/WhatsAppPage', () => ({
 }));
 
 import App, { normalizeNumberInputValue } from './App';
+import { ApiError } from './lib/api';
 
 const renderApp = () =>
   render(
@@ -81,7 +84,7 @@ describe('Admin application authentication and role guards', () => {
   });
 
   it('signs in with password and opens the first allowed page', async () => {
-    apiMocks.session.mockRejectedValue(new Error('no session'));
+    apiMocks.session.mockRejectedValue(new ApiError('no session', 401));
     apiMocks.login.mockResolvedValue({
       user: { username: 'manager', role: 'branch_manager', branchIds: [] },
     });
@@ -107,6 +110,19 @@ describe('Admin application authentication and role guards', () => {
       expect(window.location.pathname).toBe('/admin/operations');
       view.unmount();
     }
+  });
+
+  it('keeps a temporary session check failure out of the login form and restores on retry', async () => {
+    apiMocks.session.mockRejectedValueOnce(new ApiError('temporarily unavailable', 503));
+    apiMocks.session.mockResolvedValue({
+      user: { username: 'owner', role: 'owner', branchIds: [] },
+    });
+    renderApp();
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Управление Bulka' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /повторить/i }));
+    expect(await screen.findByText('operations-page')).toBeInTheDocument();
+    expect(apiMocks.session).toHaveBeenCalledTimes(2);
   });
 
   it('routes retired courier accounts to an information screen without order access', async () => {

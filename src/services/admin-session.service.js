@@ -26,7 +26,7 @@ async function createAdminSession(
     role: String(role || 'viewer').slice(0, 32),
     branch_ids: Array.isArray(branchIds) ? branchIds.map(String).slice(0, 50) : [],
     auth_version: Number.isSafeInteger(Number(authVersion)) ? Number(authVersion) : 0,
-    expires_at: new Date(expiresAt).toISOString(),
+    expires_at: expiresAt === null ? 'infinity' : new Date(expiresAt).toISOString(),
     ip_hash: privacyHash(ip),
     user_agent_hash: privacyHash(userAgent),
   };
@@ -60,7 +60,9 @@ async function validateAdminSession(
     !session ||
     session.revoked_at ||
     session.admin_subject !== String(payload.sub) ||
-    Date.parse(session.expires_at) <= now().getTime()
+    (session.expires_at !== 'infinity' &&
+      (!Number.isFinite(Date.parse(session.expires_at)) ||
+        Date.parse(session.expires_at) <= now().getTime()))
   ) {
     return null;
   }
@@ -70,6 +72,7 @@ async function validateAdminSession(
       ...payload,
       role: 'whatsapp_operator',
       branchIds: [],
+      sessionExpiresAt: session.expires_at === 'infinity' ? null : session.expires_at,
     };
   }
 
@@ -78,6 +81,7 @@ async function validateAdminSession(
       ...payload,
       role: session.role,
       branchIds: session.branch_ids || [],
+      sessionExpiresAt: session.expires_at === 'infinity' ? null : session.expires_at,
     };
   }
 
@@ -111,6 +115,7 @@ async function validateAdminSession(
     ...payload,
     role: profileRole,
     branchIds: profileBranchIds,
+    sessionExpiresAt: session.expires_at === 'infinity' ? null : session.expires_at,
   };
 }
 

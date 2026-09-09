@@ -74,7 +74,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       ? Duration.zero
       : Durations.extralong1;
 
-  final _api = BulkaApiClient();
+  final _api = BulkaApiClient(sessionRecoveryKey: SessionStore.recoveryKey);
   late final _staff = widget.staffSession ?? StaffAccountSession();
   late final Future<void> _staffReady;
   int _cashierKitchenRequest = 0;
@@ -96,6 +96,8 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   bool _widgetRefreshQueued = false;
   bool _loginRouteOpen = false;
   bool _booting = true;
+  bool _sessionRecoveryPending = false;
+  Future<void>? _sessionRecoveryTask;
   bool _publicShellReady = false;
   final _startupReady = Completer<void>();
   String? _savedPhone;
@@ -190,7 +192,10 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       unawaited(_refreshRequiredAppUpdate());
     }
     final phone = _savedPhone;
-    if (state == AppLifecycleState.resumed && phone != null) {
+    if (state == AppLifecycleState.resumed && _sessionRecoveryPending) {
+      unawaited(_resumeSessionRecovery());
+      _startSessionRecovery();
+    } else if (state == AppLifecycleState.resumed && phone != null) {
       unawaited(_refreshProfile(phone));
       unawaited(PushNotifications.register(_api));
       _startProfileRefresh(phone);
@@ -328,7 +333,14 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     await prefs.remove('app_theme_mode');
     await SessionStore.clearLegacyCustomerData(prefs);
     var phone = prefs.getString('phone');
-    final tokens = await SessionStore.readAndMigrate(prefs);
+    SessionTokens tokens;
+    try {
+      tokens = await SessionStore.readAndMigrate(prefs);
+    } catch (_) {
+      // Locked/unavailable device storage is not a logout.
+      tokens = const SessionTokens();
+      _sessionRecoveryPending = true;
+    }
     var accessToken = tokens.accessToken;
     var refreshToken = tokens.refreshToken;
     var cachedCustomer = _readCustomer(prefs.getString('customer'));
@@ -366,12 +378,12 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       refreshToken: refreshToken,
       cacheScope: phone,
     );
-    if (kIsWeb) {
+    if (kIsWeb || (accessToken == null && refreshToken != null)) {
       final previousPhone = phone;
       final previousCustomerPhone = cachedCustomer?.phone;
       if (await _api.restoreSession(force: true)) {
         accessToken = _api.accessToken;
-        refreshToken = null;
+        refreshToken = _api.refreshToken;
         final restoredPhone = _api.sessionPhone;
         final identityChanged =
             restoredPhone != null &&
@@ -387,10 +399,14 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
           await OrderLiveStatus.clear(order: _widgetOrder);
         }
         phone = restoredPhone;
-        _api.setSession(accessToken: accessToken, cacheScope: phone);
+        _api.setSession(
+          accessToken: accessToken,
+          refreshToken: refreshToken,
+          cacheScope: phone,
+        );
         if (phone != null && accessToken != null) {
           await prefs.setString('phone', phone);
-          await SessionStore.write(accessToken, null);
+          await SessionStore.write(accessToken, refreshToken);
           if (cachedCustomer == null ||
               !_sameSessionPhone(cachedCustomer.phone, phone)) {
             try {
@@ -408,7 +424,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
                   cachedCustomer,
                   cachedTransactions,
                   accessToken,
-                  null,
+                  refreshToken,
                 );
                 profileHydratedDuringBootstrap = true;
               }
@@ -422,6 +438,8 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
             }
           }
         }
+      } else if (_api.sessionRestoreUnavailable) {
+        _sessionRecoveryPending = true;
       } else if (!_api.isAuthenticated) {
         phone = null;
         accessToken = null;
@@ -444,7 +462,9 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     if (!mounted) return;
     setState(() {
       _prefs = prefs;
-      _savedPhone = accessToken == null ? null : phone;
+      _savedPhone = accessToken == null && !_sessionRecoveryPending
+          ? null
+          : phone;
       _accessToken = accessToken;
       _refreshToken = refreshToken;
       _customer = accessToken == null ? null : cachedCustomer;
@@ -476,6 +496,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
         );
       }
     }
+    if (_sessionRecoveryPending) _startSessionRecovery();
     if (_pendingPushTarget != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) unawaited(_openPendingPushTarget());
@@ -726,6 +747,10 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   }
 
   Future<void> _refreshProfileOnce(String phone) async {
+    if (_sessionRecoveryPending) {
+      await _resumeSessionRecovery();
+      return;
+    }
     if (!_sameSessionPhone(_savedPhone, phone)) return;
     final requestAccessToken = _api.accessToken;
     if (requestAccessToken == null) return;
@@ -733,15 +758,12 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     try {
       final profile = await _api.getProfile(phone);
       if (!mounted) return;
-      if (!profile.exists || profile.customer == null) {
-        await _forceLocalLogout();
-        return;
-      }
       if (_api.accessToken != requestAccessToken ||
-          !_sameSessionPhone(_savedPhone, phone) ||
-          !_sameSessionPhone(profile.customer!.phone, phone)) {
+          !_sameSessionPhone(_savedPhone, phone)) {
         return;
       }
+      if (!profile.exists || profile.customer == null) return;
+      if (!_sameSessionPhone(profile.customer!.phone, phone)) return;
       final customer = await _withLatestLoyalty(profile.customer!);
       if (_api.accessToken != requestAccessToken ||
           !_sameSessionPhone(_savedPhone, phone)) {
@@ -770,10 +792,46 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       unawaited(
         HomeWidgetSync.update(customer: customer, activeOrder: _widgetOrder),
       );
-    } catch (error) {
-      if (error is ApiException && error.statusCode == 401) {
-        await _forceLocalLogout();
+    } catch (_) {
+      // Only a rejected refresh invokes the logout callback. A failed or
+      // delayed profile request must not invalidate the current session.
+    }
+  }
+
+  Future<void> _resumeSessionRecovery() => _sessionRecoveryTask ??=
+      _recoverSavedSession().whenComplete(() => _sessionRecoveryTask = null);
+
+  void _startSessionRecovery() {
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      unawaited(_resumeSessionRecovery());
+    });
+  }
+
+  Future<void> _recoverSavedSession() async {
+    final revision = _api._sessionRevision;
+    try {
+      if (!kIsWeb && _api.refreshToken == null) {
+        final prefs = _prefs ?? await SharedPreferences.getInstance();
+        final tokens = await SessionStore.readAndMigrate(prefs);
+        if (revision != _api._sessionRevision) return;
+        _api.setSession(
+          accessToken: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+          cacheScope: _savedPhone,
+        );
       }
+      if (!await _api.restoreSession(force: true)) {
+        if (!_api.sessionRestoreUnavailable) await _forceLocalLogout();
+        return;
+      }
+      final phone = _api.sessionPhone;
+      final access = _api.accessToken;
+      if (phone == null || access == null || !mounted) return;
+      _sessionRecoveryPending = false;
+      await _adoptRefreshedWebIdentity(access, _api.refreshToken, phone);
+    } catch (_) {
+      // Retry on resume or the next profile tick without deleting credentials.
     }
   }
 
@@ -980,6 +1038,10 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     String? refreshToken,
   ) async {
     final prefs = _prefs ?? await SharedPreferences.getInstance();
+    if (_api.accessToken != accessToken ||
+        !_sameSessionPhone(_api.sessionPhone, phone)) {
+      return false;
+    }
     final customerJson = jsonEncode(customer.toJson());
     final transactionsJson = jsonEncode(
       transactions.map((tx) => tx.toJson()).toList(),
@@ -992,6 +1054,10 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       await prefs.setString('phone', phone);
     }
     await SessionStore.write(accessToken, refreshToken);
+    if (_api.accessToken != accessToken ||
+        !_sameSessionPhone(_api.sessionPhone, phone)) {
+      return false;
+    }
     if (prefs.getString('customer') != customerJson) {
       await prefs.setString('customer', customerJson);
     }
@@ -1291,7 +1357,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     } catch (_) {
       if (_api.accessToken == accessToken &&
           _sameSessionPhone(_api.sessionPhone, sessionPhone)) {
-        await _forceLocalLogout();
+        _startProfileRefresh(sessionPhone);
       }
     }
   }
@@ -1334,6 +1400,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
   }
 
   Future<void> _clearSession() async {
+    _sessionRecoveryPending = false;
     _refreshTimer?.cancel();
     final prefs = _prefs ?? await SharedPreferences.getInstance();
     await SessionStore.clearCustomerData(prefs);

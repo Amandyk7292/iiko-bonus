@@ -242,9 +242,15 @@ async function parseResponse<T>(response: Response): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+let authenticationRevision = 0;
+async function acceptAdminLogin<T>(login: Promise<T>): Promise<T> {
+  const result = await login;
+  authenticationRevision++;
+  return result;
+}
 export async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const requestRevision = authenticationRevision;
   const headers = new Headers(options.headers);
-
   if (options.body && !(options.body instanceof FormData))
     headers.set('Content-Type', 'application/json');
   headers.set('Accept', 'application/json');
@@ -270,7 +276,7 @@ export async function request<T>(endpoint: string, options: RequestInit = {}): P
       );
       const requestId = errorData.requestId || responseRequestId(response) || undefined;
       const payload = { ...errorData, requestId };
-      if (response.status === 401) {
+      if (response.status === 401 && requestRevision === authenticationRevision) {
         window.dispatchEvent(new Event('unauthorized'));
       }
       throw new ApiError(
@@ -372,17 +378,21 @@ export const api = {
         requestId,
       );
     }
-    return parseResponse<{ user: AdminUser }>(response);
+    return acceptAdminLogin(parseResponse<{ user: AdminUser }>(response));
   },
 
   requestAdminPhoneLogin: (phone: string) =>
     publicAuthRequest<AdminPhoneLoginChallenge>('/login/phone/request', { phone }),
 
   verifyAdminPhoneLogin: (phone: string, code: string) =>
-    publicAuthRequest<{ user: AdminUser }>('/login/phone/verify', { phone, code }),
+    acceptAdminLogin(
+      publicAuthRequest<{ user: AdminUser }>('/login/phone/verify', { phone, code }),
+    ),
 
   exchangeWhatsAppOperatorAccess: (token: string) =>
-    publicAuthRequest<{ user: AdminUser }>('/whatsapp/operator-access', { token }),
+    acceptAdminLogin(
+      publicAuthRequest<{ user: AdminUser }>('/whatsapp/operator-access', { token }),
+    ),
 
   session: () => request<{ user: AdminUser }>('/session'),
   getAdminScope: () =>
@@ -392,9 +402,12 @@ export const api = {
       selectedBranchId: string | null;
     }>('/scope'),
   logout: async () => {
+    const logoutRevision = authenticationRevision;
     // Keep the authenticated UI visible unless the server confirms that the
     // session has been revoked. Network/5xx failures remain retryable.
     await request('/logout', json('POST'));
+    if (logoutRevision !== authenticationRevision) return;
+    authenticationRevision++;
     window.dispatchEvent(new Event('unauthorized'));
   },
 
@@ -1056,10 +1069,14 @@ export const api = {
   sendBroadcast: (message: string) =>
     request<{ success: boolean; count?: number }>('/broadcast', json('POST', { message })),
   sendPushMass: (titles: LocalizedText, bodies: LocalizedText) =>
-    request<{ success: boolean; count?: number; status?: 'sent' | 'partial' | 'queued' | 'failed' | 'no_recipients'; queuedCount?: number; savedCount?: number; totalTokens?: number }>(
-      '/push/mass',
-      json('POST', { titleTranslations: titles, bodyTranslations: bodies }),
-    ),
+    request<{
+      success: boolean;
+      count?: number;
+      status?: 'sent' | 'partial' | 'queued' | 'failed' | 'no_recipients';
+      queuedCount?: number;
+      savedCount?: number;
+      totalTokens?: number;
+    }>('/push/mass', json('POST', { titleTranslations: titles, bodyTranslations: bodies })),
 
   getLoyaltyTiers: async () => {
     const result = await request<LoyaltyTier[] | { tiers?: LoyaltyTier[]; data?: LoyaltyTier[] }>(

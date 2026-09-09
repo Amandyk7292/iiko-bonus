@@ -33,7 +33,7 @@ function cookieOptions(req, session = {}) {
   const expiresAt = Date.parse(session.refreshExpiresAt || '');
   const maxAge = Number.isFinite(expiresAt)
     ? Math.max(0, expiresAt - Date.now())
-    : 30 * 24 * 60 * 60 * 1000;
+    : 400 * 24 * 60 * 60 * 1000;
   const forwardedProtocol = String(req?.headers?.['x-forwarded-proto'] || '')
     .split(',')[0]
     .trim()

@@ -98,6 +98,17 @@ function verifyToken(token, audience) {
   });
 }
 
+// This signed credential identifies a database session. It must only be used
+// together with validateAdminSession, which enforces lifetime and revocation.
+function verifyAdminSessionToken(token) {
+  return jwt.verify(token, requireAdminJwtSecret(), {
+    algorithms: ['HS256'],
+    issuer: 'bulka-bonus',
+    audience: 'bulka-admin',
+    ignoreExpiration: true,
+  });
+}
+
 function safeEqual(left, right) {
   const leftBuffer = Buffer.from(String(left || ''));
   const rightBuffer = Buffer.from(String(right || ''));
@@ -121,6 +132,7 @@ function readCookieToken(req, cookieName = 'bulka_admin') {
 }
 
 module.exports = {
+  verifyAdminSessionToken,
   getAdminJwtSecret: requireAdminJwtSecret,
   getJwtSecret,
   signCustomerToken,

@@ -127,6 +127,185 @@ void main() {
     api.dispose();
   });
 
+  test(
+    'a delayed 401 retries the already refreshed token without rotating twice',
+    () async {
+      final lateResponse = Completer<http.Response>();
+      var oldRequests = 0;
+      var rotations = 0;
+      final api = BulkaApiClient(
+        client: MockClient((request) async {
+          if (request.url.path == '/api/auth/refresh') {
+            rotations++;
+            return http.Response(
+              jsonEncode({
+                'accessToken': 'new-access',
+                'refreshToken': 'new-refresh',
+              }),
+              200,
+            );
+          }
+          if (request.headers['Authorization'] == 'Bearer old-access') {
+            if (++oldRequests == 1) return lateResponse.future;
+            return http.Response('{}', 401);
+          }
+          return http.Response('{}', 200);
+        }),
+      )..setSession(accessToken: 'old-access', refreshToken: 'old-refresh');
+      final first = api.getCustomerLoyalty();
+      await _waitFor(() => oldRequests == 1);
+      await api.getCustomerLoyalty();
+      lateResponse.complete(http.Response('{}', 401));
+      await first;
+      expect(rotations, 1);
+      expect(api.accessToken, 'new-access');
+      api.dispose();
+    },
+  );
+
+  test(
+    'failed persistence after refresh retains the valid in-memory session',
+    () async {
+      final changes = <String?>[];
+      final api = BulkaApiClient(
+        sessionRecoveryKey: () async => 'durable-device-proof',
+        client: MockClient((request) async {
+          if (request.url.path == '/api/auth/refresh') {
+            expect(
+              request.headers['X-Bulka-Session-Recovery'],
+              'durable-device-proof',
+            );
+            return http.Response(
+              jsonEncode({
+                'accessToken': 'new-access',
+                'refreshToken': 'new-refresh',
+              }),
+              200,
+            );
+          }
+          return http.Response(
+            '{}',
+            request.headers['Authorization'] == 'Bearer new-access' ? 200 : 401,
+          );
+        }),
+        onSessionChanged: (access, refresh) async {
+          changes.add(access);
+          throw StateError('Keychain temporarily unavailable');
+        },
+      )..setSession(accessToken: 'old-access', refreshToken: 'old-refresh');
+      await api.getCustomerLoyalty();
+      expect(api.accessToken, 'new-access');
+      expect(api.refreshToken, 'new-refresh');
+      expect(changes, ['new-access']);
+      api.dispose();
+    },
+  );
+
+  test(
+    'refresh does not rotate before its recovery proof is durable',
+    () async {
+      var rotations = 0;
+      final api = BulkaApiClient(
+        sessionRecoveryKey: () async => throw StateError('storage unavailable'),
+        client: MockClient((request) async {
+          if (request.url.path == '/api/auth/refresh') rotations++;
+          return http.Response('{}', 401);
+        }),
+      )..setSession(accessToken: 'old-access', refreshToken: 'old-refresh');
+      expect(await api.restoreSession(force: true), false);
+      expect(api.sessionRestoreUnavailable, true);
+      expect(api.isAuthenticated, true);
+      expect(rotations, 0);
+      api.dispose();
+    },
+  );
+
+  for (final status in [200, 401]) {
+    test(
+      'a late refresh response ($status) cannot replace or clear a newer login',
+      () async {
+        final response = Completer<http.Response>();
+        var started = false;
+        final changes = <String?>[];
+        final api =
+            BulkaApiClient(
+              client: MockClient((request) async {
+                started = true;
+                return response.future;
+              }),
+              onSessionChanged: (access, refresh) async {
+                changes.add(access);
+              },
+            )..setSession(
+              accessToken: 'a-access',
+              refreshToken: 'a-refresh',
+              cacheScope: '77000000001',
+            );
+        final pending = api.restoreSession(force: true);
+        await _waitFor(() => started);
+        api.setSession(
+          accessToken: 'b-access',
+          refreshToken: 'b-refresh',
+          cacheScope: '77000000002',
+        );
+        response.complete(
+          http.Response(
+            jsonEncode({'accessToken': 'a-rotated', 'refreshToken': 'a-next'}),
+            status,
+          ),
+        );
+        await pending;
+        expect(api.accessToken, 'b-access');
+        expect(api.refreshToken, 'b-refresh');
+        expect(changes, isEmpty);
+        api.dispose();
+      },
+    );
+  }
+
+  test('non-authentication refresh errors preserve the login', () async {
+    for (final status in [400, 403, 404, 429, 503]) {
+      final api = BulkaApiClient(
+        client: MockClient((_) async => http.Response('{}', status)),
+      )..setSession(accessToken: 'access', refreshToken: 'refresh');
+      expect(await api.restoreSession(force: true), false);
+      expect(api.sessionRestoreUnavailable, true);
+      expect(api.isAuthenticated, true);
+      api.dispose();
+    }
+  });
+
+  test(
+    'native update migrates the old token pair and serializes logout after writes',
+    () async {
+      FlutterSecureStorage.setMockInitialValues({
+        'bulka_access_token': 'legacy-access',
+        'bulka_refresh_token': 'legacy-refresh',
+      });
+      final prefs = await SharedPreferences.getInstance();
+      final migrated = await SessionStore.readAndMigrate(prefs);
+      expect(migrated.refreshToken, 'legacy-refresh');
+      final proof = await SessionStore.recoveryKey();
+      expect(proof.length, 43);
+      expect(await SessionStore.recoveryKey(), proof);
+      await SessionStore.write('new-access', 'new-refresh');
+      const storage = FlutterSecureStorage();
+      final record = jsonDecode(
+        (await storage.read(key: 'bulka_customer_session_v2'))!,
+      );
+      expect(record, {
+        'accessToken': 'new-access',
+        'refreshToken': 'new-refresh',
+      });
+      final pending = SessionStore.write('queued-access', 'queued-refresh');
+      final logout = SessionStore.clear();
+      await Future.wait([pending, logout]);
+      final cleared = await SessionStore.readAndMigrate(prefs);
+      expect(cleared.accessToken, null);
+      expect(cleared.refreshToken, null);
+    },
+  );
+
   test('strict logout surfaces a missing server confirmation', () async {
     final api =
         BulkaApiClient(

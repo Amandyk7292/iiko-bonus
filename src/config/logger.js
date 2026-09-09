@@ -31,6 +31,8 @@ const logger = pino({
       '**.fcm_token',
       'req.headers.authorization',
       'req.headers.cookie',
+      'req.headers["x-bulka-session-recovery"]',
+      '["x-bulka-session-recovery"]',
     ],
     censor: '[REDACTED]',
   },

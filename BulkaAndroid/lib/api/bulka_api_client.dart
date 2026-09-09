@@ -33,12 +33,17 @@ class BulkaApiClient {
     Future<void> Function(String? accessToken, String? refreshToken)?
     onSessionChanged,
     @visibleForTesting bool? useCookieSessionTransport,
+    Future<String> Function()? sessionRecoveryKey,
   }) : _client = client ?? createBulkaHttpClient(),
        _onSessionChanged = onSessionChanged,
+       _sessionRecoveryKey = sessionRecoveryKey,
        _usesCookieSessionTransport = useCookieSessionTransport ?? kIsWeb;
 
   final http.Client _client;
   final bool _usesCookieSessionTransport;
+  final Future<String> Function()? _sessionRecoveryKey;
+  int _sessionRevision = 0;
+  bool _sessionRestoreUnavailable = false;
   final String _analyticsSessionId = _newAnalyticsId();
   Future<void> Function(String? accessToken, String? refreshToken)?
   _onSessionChanged;
@@ -67,7 +72,9 @@ class BulkaApiClient {
   }
 
   bool get isAuthenticated => _accessToken?.isNotEmpty == true;
+  bool get sessionRestoreUnavailable => _sessionRestoreUnavailable;
   String? get accessToken => _accessToken;
+  String? get refreshToken => _refreshToken;
   String? get sessionPhone => _sessionPhone;
   String? get sessionCacheScope => _sessionCacheScope;
 
@@ -87,6 +94,8 @@ class BulkaApiClient {
         : null;
     _sessionCacheScope = cacheScope;
     if (changed) {
+      _sessionRevision++;
+      _refreshRequest = null;
       _eventGeneration++;
       _wakeEventLoop();
       unawaited(_cancelEventStream());
@@ -1466,7 +1475,11 @@ class BulkaApiClient {
               .timeout(const Duration(seconds: 15));
           if (generation != _eventGeneration || _disposed) break;
           if (response.statusCode == 401) {
-            final refresh = await _refreshSession();
+            final refresh =
+                request.headers['Authorization'] != 'Bearer $_accessToken' &&
+                    isAuthenticated
+                ? _SessionRefreshResult.refreshed
+                : await _refreshSession();
             if (generation != _eventGeneration || _disposed) break;
             if (refresh == _SessionRefreshResult.refreshed) {
               final retry = http.Request('GET', _uri('/api/customer/events'));
@@ -1561,6 +1574,8 @@ class BulkaApiClient {
     String? bearerToken,
     bool allowRefresh = true,
   }) async {
+    final requestRevision = _sessionRevision;
+    final requestAccessToken = _accessToken;
     Future<http.Response> send() {
       final uri = _uri(path);
       final headers = _headers(bearerToken: bearerToken, json: body != null);
@@ -1576,11 +1591,21 @@ class BulkaApiClient {
     }
 
     var response = await send();
+    if (allowRefresh &&
+        bearerToken == null &&
+        requestRevision != _sessionRevision) {
+      throw ApiException(
+        'error_session_changed'.tr,
+        code: 'SESSION_IDENTITY_CHANGED',
+      );
+    }
     if (response.statusCode == 401 &&
         allowRefresh &&
         bearerToken == null &&
         (_usesCookieSessionTransport || _refreshToken?.isNotEmpty == true)) {
-      final refresh = await _refreshSession();
+      final refresh = requestAccessToken != _accessToken && isAuthenticated
+          ? _SessionRefreshResult.refreshed
+          : await _refreshSession();
       if (refresh == _SessionRefreshResult.refreshed) {
         response = await send();
       } else if (refresh == _SessionRefreshResult.identityChanged) {
@@ -1595,6 +1620,14 @@ class BulkaApiClient {
         );
       }
     }
+    if (allowRefresh &&
+        bearerToken == null &&
+        requestRevision != _sessionRevision) {
+      throw ApiException(
+        'error_session_changed'.tr,
+        code: 'SESSION_IDENTITY_CHANGED',
+      );
+    }
     return _decode(response);
   }
 
@@ -1604,6 +1637,7 @@ class BulkaApiClient {
       return false;
     }
     final result = await _refreshSession();
+    _sessionRestoreUnavailable = result == _SessionRefreshResult.unavailable;
     return result == _SessionRefreshResult.refreshed ||
         result == _SessionRefreshResult.identityChanged;
   }
@@ -1629,6 +1663,7 @@ class BulkaApiClient {
     _refreshToken = null;
     _sessionPhone = null;
     _sessionCacheScope = null;
+    _sessionRevision++;
     _eventGeneration++;
     _wakeEventLoop();
     await _cancelEventStream();
@@ -1636,6 +1671,7 @@ class BulkaApiClient {
   }
 
   Future<_SessionRefreshResult> _performRefresh() async {
+    final requestRevision = _sessionRevision;
     final refreshToken = _refreshToken;
     final previousSessionPhone =
         _sessionPhone ?? _nullableString(_sessionCacheScope);
@@ -1644,21 +1680,25 @@ class BulkaApiClient {
       return _SessionRefreshResult.rejected;
     }
     try {
+      final proof = await _sessionRecoveryKey?.call();
+      if (requestRevision != _sessionRevision) {
+        return _SessionRefreshResult.identityChanged;
+      }
       final response = await _client
           .post(
             _uri('/api/auth/refresh'),
-            headers: _headers(),
+            headers: {..._headers(), 'X-Bulka-Session-Recovery': ?proof},
             body: jsonEncode({
               if (!_usesCookieSessionTransport && refreshToken != null)
                 'refreshToken': refreshToken,
             }),
           )
           .timeout(const Duration(seconds: 15));
+      if (requestRevision != _sessionRevision) {
+        return _SessionRefreshResult.identityChanged;
+      }
       if (response.statusCode >= 400) {
-        if (response.statusCode == 408 ||
-            response.statusCode == 425 ||
-            response.statusCode == 429 ||
-            response.statusCode >= 500) {
+        if (response.statusCode != 401) {
           return _SessionRefreshResult.unavailable;
         }
         await _rejectSession();
@@ -1676,8 +1716,7 @@ class BulkaApiClient {
         return _SessionRefreshResult.unavailable;
       }
       if (_usesCookieSessionTransport && sessionPhone == null) {
-        await _rejectSession();
-        return _SessionRefreshResult.rejected;
+        return _SessionRefreshResult.unavailable;
       }
       final identityChanged =
           previousSessionPhone != null &&
@@ -1688,16 +1727,19 @@ class BulkaApiClient {
       _sessionPhone = sessionPhone ?? _sessionPhone;
       if (sessionPhone != null) _sessionCacheScope = sessionPhone;
       if (identityChanged) {
+        _sessionRevision++;
         _eventGeneration++;
         _wakeEventLoop();
       }
       try {
         await _onSessionChanged?.call(accessToken, nextRefresh);
       } catch (_) {
-        await _rejectSession();
-        return _SessionRefreshResult.rejected;
+        // Keep the valid in-memory session if persistence is temporarily
+        // unavailable. The durable proof recovers the previous stored token.
       }
-      if (_accessToken != accessToken) return _SessionRefreshResult.rejected;
+      if (_accessToken != accessToken) {
+        return _SessionRefreshResult.identityChanged;
+      }
       return identityChanged
           ? _SessionRefreshResult.identityChanged
           : _SessionRefreshResult.refreshed;

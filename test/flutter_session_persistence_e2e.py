@@ -61,6 +61,7 @@ class SessionBackend:
         self.child_sequence = 0
         self.requests = []
         self.customer = CUSTOMER
+        self.refresh_unavailable = False
 
     def _json(self, route: Route, payload, status=200, headers=None):
         response_headers = {"Content-Type": "application/json; charset=utf-8"}
@@ -86,7 +87,11 @@ class SessionBackend:
         return ""
 
     def _refresh(self, route: Route):
+        if self.refresh_unavailable:
+            self._json(route, {"error": "temporarily unavailable"}, status=503)
+            return
         headers = route.request.all_headers()
+        assert re.fullmatch(r"[A-Za-z0-9_-]{43}", headers.get("x-bulka-session-recovery", ""))
         parent = self._cookie(route, headers)
         assert parent, "refresh request did not carry the HttpOnly cookie"
         child = self.children.get(parent)
@@ -114,7 +119,7 @@ class SessionBackend:
             headers={
                 "Set-Cookie": (
                     f"bulka_customer_refresh={child}; Path=/api/auth; "
-                    "HttpOnly; Secure; SameSite=Strict; Max-Age=2592000"
+                    "HttpOnly; Secure; SameSite=Strict; Max-Age=34560000"
                 )
             },
         )
@@ -318,6 +323,7 @@ with tempfile.TemporaryDirectory(prefix="bulka-session-e2e-") as profile:
         assert len(backend.refresh_calls) == 1
         assert backend.refresh_calls[0]["transport"] == "cookie"
         assert_authenticated(page, "access-for-refresh-child-1")
+        proof = page.evaluate("localStorage.getItem('bulka_session_recovery_v1')")
         first.close()
 
         # A new Chromium process has no tab-scoped access token. The durable
@@ -330,6 +336,7 @@ with tempfile.TemporaryDirectory(prefix="bulka-session-e2e-") as profile:
         assert len(backend.refresh_calls) == 2
         assert backend.refresh_calls[-1]["parent"] == "refresh-child-1"
         assert_authenticated(page, "access-for-refresh-child-2")
+        assert page.evaluate("localStorage.getItem('bulka_session_recovery_v1')") == proof
         restarted.close()
 
         # The HttpOnly cookie is the durable source of truth. Even if Safari
@@ -444,9 +451,25 @@ with tempfile.TemporaryDirectory(prefix="bulka-session-e2e-") as profile:
         assert stored_customer["name"] == SECOND_CUSTOMER["name"]
         switched.close()
 
+        # Starting during an outage must retain the cookie and cached identity.
+        # The normal 30-second retry restores access without another login.
+        backend.refresh_unavailable = True
+        offline = open_context(playwright, profile)
+        install_routes(offline, backend)
+        offline_page = offline.pages[0] if offline.pages else offline.new_page()
+        offline_page.goto(f"{ORIGIN}/", wait_until="domcontentloaded", timeout=60_000)
+        wait_for_flutter(offline_page, backend)
+        assert offline_page.evaluate("localStorage.getItem('flutter.phone')") == json.dumps(SECOND_PHONE)
+        assert any(cookie['name'] == 'bulka_customer_refresh' for cookie in offline.cookies())
+        backend.refresh_unavailable = False
+        offline_page.wait_for_function("sessionStorage.getItem('bulka_access_token') !== null", timeout=45_000)
+        offline_page.wait_for_function("localStorage.getItem('flutter.customer') !== null", timeout=10_000)
+        assert_authenticated(offline_page, f"access-for-{backend.refresh_calls[-1]['child']}", SECOND_PHONE)
+        offline.close()
+
     print(
         "Flutter session persistence passed "
         f"({os.environ.get('BULKA_PLAYWRIGHT_BROWSER', 'chromium')}): "
-        "cold restart, two-tab refresh, and account switch "
+        "cold restart, update migration, two-tab refresh, account switch and outage recovery "
         f"({len(backend.refresh_calls)} refresh calls)"
     )
