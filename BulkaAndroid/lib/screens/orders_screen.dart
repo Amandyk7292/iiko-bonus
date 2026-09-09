@@ -216,7 +216,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
     bool? completed;
     try {
       if (!context.mounted) return;
-      final pending = await PendingForteOperationStore.load(widget.api);
+      final pending = await PendingForteOperationStore.resolveForCheckout(
+        widget.api,
+      );
       if (!context.mounted) return;
       completed = await Navigator.of(context).push<bool>(
         MaterialPageRoute(

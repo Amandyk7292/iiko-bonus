@@ -568,6 +568,11 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'kk': 'Қайтарылды',
     'en': 'Refunded',
   },
+  'payment_refunded_hint': {
+    'ru': 'Оплата возвращена. Вы можете оформить новый заказ.',
+    'kk': 'Төлем қайтарылды. Жаңа тапсырыс рәсімдеуге болады.',
+    'en': 'Payment was refunded. You can place a new order.',
+  },
   'payment_status_failed': {
     'ru': 'Не оплачено',
     'kk': 'Төленбеді',
@@ -645,9 +650,9 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'en': 'Share it only after receiving the order',
   },
   'delivery_status_unassigned': {
-    'ru': 'Ищем курьера',
-    'kk': 'Курьер ізделуде',
-    'en': 'Finding a courier',
+    'ru': 'Ожидает курьера',
+    'kk': 'Курьер күтуде',
+    'en': 'Awaiting a courier',
   },
   'delivery_status_assigned': {
     'ru': 'Курьер назначен',

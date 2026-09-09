@@ -734,6 +734,8 @@ const en: Record<string, string> = {
   'orders.refundConfirm':
     'Cancel the order and refund {{amount}} ₸ to the original payment method? Card posting time depends on the customer’s bank.',
   'orders.refundSucceeded': 'Order cancelled and refund submitted to the original payment method',
+  'orders.refundAwaitingConfirmation':
+    'The refund is awaiting bank confirmation. Its status will update automatically. Do not submit the refund again.',
   'orders.calculatingRefund': 'Calculating the exact refund…',
   'orders.refundNow': 'Refund amount',
   'orders.remainingAfterRefund': 'Remaining refundable',

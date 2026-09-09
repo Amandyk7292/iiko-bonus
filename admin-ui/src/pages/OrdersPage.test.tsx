@@ -177,6 +177,52 @@ describe('Orders workspace permissions and refund flow', () => {
     expect(apiMocks.updateDeliveryStatus).not.toHaveBeenCalled();
   });
 
+  it('closes cancellation while the bank confirms a refund and prevents another submission', async () => {
+    const user = userEvent.setup();
+    apiMocks.updateOrderStatus.mockResolvedValue({
+      success: true,
+      refundPending: true,
+      order: { ...order, refundStatus: 'unknown' },
+    });
+    renderPage();
+    await screen.findByText('№100039');
+    await user.click(screen.getByRole('combobox', { name: 'Изменить статус' }));
+    await user.click(screen.getByRole('option', { name: 'Отменён' }));
+    await user.type(
+      await screen.findByLabelText('Причина отмены (увидит клиент)'),
+      'Тестовый заказ',
+    );
+    await user.click(screen.getByRole('button', { name: 'Подтвердить' }));
+
+    expect(await screen.findByText('Возврат сверяется')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.queryByRole('combobox', { name: 'Изменить статус' })).not.toBeInTheDocument();
+    expect(apiMocks.updateOrderStatus).toHaveBeenCalledTimes(1);
+    expect(toast).toHaveBeenCalledWith(
+      'Возврат ожидает подтверждения банка. Статус обновится автоматически. Повторять возврат не нужно.',
+      'info',
+    );
+    expect(screen.queryByText('Возвращён')).not.toBeInTheDocument();
+  });
+
+  it('keeps a declined refund visible as an error without reporting success', async () => {
+    const user = userEvent.setup();
+    apiMocks.updateOrderStatus.mockRejectedValue(new Error('Банк отклонил возврат'));
+    renderPage();
+    await screen.findByText('№100039');
+    await user.click(screen.getByRole('combobox', { name: 'Изменить статус' }));
+    await user.click(screen.getByRole('option', { name: 'Отменён' }));
+    await user.type(
+      await screen.findByLabelText('Причина отмены (увидит клиент)'),
+      'Тестовый заказ',
+    );
+    await user.click(screen.getByRole('button', { name: 'Подтвердить' }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith('Банк отклонил возврат', 'error'));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.queryByText('Возврат сверяется')).not.toBeInTheDocument();
+    expect(apiMocks.updateOrderStatus).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps order and refund mutations unavailable to a viewer', async () => {
     apiMocks.getOrders.mockResolvedValue({
       orders: [{ ...order, trackingUrl: 'https://example.com/tracking/100039' }],

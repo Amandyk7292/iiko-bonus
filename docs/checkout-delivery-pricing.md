@@ -46,8 +46,39 @@ The live checkout showed goods 35 KZT, estimated delivery 2471 KZT and total
 2506 KZT. Screenshot: ignored local evidence
 `scratch/android-delivery-check-20260909/repeat-16-live-quote.png`.
 
-Only Premium Plaza's nearest-zone minimum was temporarily lowered from 2000 to
-35 KZT at 09:03:02 UTC to inspect the previously authorized test basket. It was
-restored at 09:04:10 UTC; the zone fee and other zones were unchanged. No payment,
-order or courier was created. The larger real payment remains pending owner
-confirmation because the original test was authorized for 35 KZT.
+After the owner explicitly authorized 2506 KZT, real test order 100043 was paid
+with the saved card ending 1328. Its customer fee remained 2471 KZT while Yandex's
+actual cost was 2470.80 KZT. No later amount was charged to the customer.
+
+The Android order changed from new to accepted and preparing without pressing
+Refresh after the corresponding browser admin and kitchen actions. An automobile
+courier was assigned, and the native app displayed the courier, car and a GPS map.
+The provider reported successive GPS positions. The actual Yandex claim response
+contained the selected branch coordinates and the saved recipient coordinates,
+house, entrance, floor, apartment and phone. The courier's own device was not
+inspected, and physical pickup/handoff was not performed.
+
+At the owner's urgent request, Yandex confirmed cancellation at 09:29:19 UTC with
+status `cancelled`, not `cancelled_with_payment`. Forte confirmed the full 2506 KZT
+refund at 09:29:54 UTC. Automatic reconciliation finalized the order at 09:30:34
+UTC: payment refunded, fulfillment and kitchen cancelled, refund succeeded.
+The owner independently confirmed receiving the money. Android and the browser
+subsequently showed the refund. Local evidence:
+
+- `scratch/android-delivery-check-20260909/repeat-38-courier-map.png`
+- `scratch/android-delivery-check-20260909/repeat-courier-assigned.json`
+- `scratch/android-delivery-check-20260909/repeat-cancellation-audit.json`
+- `scratch/android-delivery-check-20260909/repeat-39-after-refund.png`
+
+Premium Plaza's nearest-zone minimum was temporarily lowered from 2000 to 35 KZT
+for checkout attempts, and was last restored at 09:15:34 UTC after payment. A
+09:31:56 UTC inspection confirmed the original 2000 KZT minimum and 600 KZT zone
+fee. Other zone values were preserved.
+
+Two issues found during the repeat test were corrected: a previously refunded
+payment can no longer reopen its old bank checkout for a new basket, and an
+admin cancellation awaiting bank confirmation returns HTTP 202 with the saved
+pending refund state. The admin closes the confirmation dialog, shows an
+informational message, and prevents resubmission while reconciliation continues.
+An explicit bank decline still produces an error. No additional real payment or
+refund is needed to test these branches.

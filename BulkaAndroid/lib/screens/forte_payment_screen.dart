@@ -100,6 +100,25 @@ abstract final class PendingForteOperationStore {
     );
   }
 
+  static Future<PendingForteOperation?> resolveForCheckout(
+    BulkaApiClient api,
+  ) async {
+    final pending = await load(api);
+    if (pending == null) return null;
+    try {
+      final result = await api.checkFortePaymentStatus(pending.operationId);
+      final status = (result['paymentStatus'] ?? result['status'] ?? 'pending')
+          .toString();
+      if (isTerminalForteFailure(status)) {
+        await clear(api);
+        return null;
+      }
+    } catch (_) {
+      // An unavailable status must not create a second payment.
+    }
+    return pending;
+  }
+
   static Future<void> clear(BulkaApiClient api) async {
     final prefs = await SharedPreferences.getInstance();
     await Future.wait([
@@ -123,6 +142,7 @@ bool isTerminalForteFailure(String status) => const {
   'canceled',
   'declined',
   'voided',
+  'refunded',
 }.contains(status.toLowerCase());
 
 @visibleForTesting
@@ -501,6 +521,7 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
   @override
   Widget build(BuildContext context) {
     final paid = _paid;
+    final refunded = _paymentStatus == 'refunded';
     final terminalFailure = _terminalFailure;
     final verifying = _checkoutReturned && !paid && !terminalFailure;
     final refundComplete = const {
@@ -519,6 +540,8 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
               : 'card_setup_confirm'.tr
         : paid
         ? 'payment_received'.tr
+        : refunded
+        ? 'payment_status_refunded'.tr
         : terminalFailure
         ? 'payment_failed'.tr
         : verifying
@@ -534,6 +557,8 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
               : null
         : paid
         ? 'payment_saved'.tr
+        : refunded
+        ? 'payment_refunded_hint'.tr
         : terminalFailure
         ? 'payment_not_charged'.tr
         : verifying

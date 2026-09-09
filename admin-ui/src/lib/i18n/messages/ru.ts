@@ -747,6 +747,8 @@ const ru: Record<string, string> = {
   'orders.refundConfirm':
     'Отменить заказ и вернуть клиенту {{amount}} ₸ на исходный способ оплаты? Зачисление на карту зависит от банка клиента.',
   'orders.refundSucceeded': 'Заказ отменён, возврат отправлен через исходный способ оплаты',
+  'orders.refundAwaitingConfirmation':
+    'Возврат ожидает подтверждения банка. Статус обновится автоматически. Повторять возврат не нужно.',
   'orders.calculatingRefund': 'Рассчитываем точную сумму возврата…',
   'orders.refundNow': 'Будет возвращено',
   'orders.remainingAfterRefund': 'Останется доступно',

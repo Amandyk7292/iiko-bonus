@@ -123,7 +123,8 @@ const updateAdminStatus = async (req, res) => {
         admin: req.admin,
       },
     );
-    res.json({ success: true, order });
+    const refundPending = ['processing', 'unknown'].includes(order.refundStatus);
+    res.status(refundPending ? 202 : 200).json({ success: true, order, refundPending });
   } catch (error) {
     res.status(error.statusCode || 500).json({
       error: error.statusCode ? error.message : 'Не удалось изменить статус заказа',

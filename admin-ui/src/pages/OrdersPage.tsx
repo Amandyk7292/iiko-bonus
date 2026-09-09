@@ -177,7 +177,11 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
           item.id === order.id ? mergeMutationResult(item, result.order) : item,
         ),
       );
-      toast(status === 'cancelled' ? t('orders.refundSucceeded') : t('orders.statusSaved'));
+      if (status === 'cancelled' && isRefundReconciling(result.order)) {
+        toast(t('orders.refundAwaitingConfirmation'), 'info');
+      } else {
+        toast(status === 'cancelled' ? t('orders.refundSucceeded') : t('orders.statusSaved'));
+      }
       return true;
     } catch (caught) {
       if (status !== 'cancelled') {

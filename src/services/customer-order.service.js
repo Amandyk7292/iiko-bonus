@@ -593,7 +593,7 @@ async function notifyOrderStatus(order) {
 async function markRefundFailure(order, error) {
   const uncertain = error?.refundUncertain === true;
   const message = String(error?.message || 'Возврат не выполнен').slice(0, 1000);
-  await supabase
+  let query = supabase
     .from('kaspi_orders')
     .update({
       refund_status: uncertain ? 'unknown' : 'failed',
@@ -605,6 +605,10 @@ async function markRefundFailure(order, error) {
     })
     .eq('id', order.id)
     .eq('refund_status', 'processing');
+  if (order.refund_request_id) query = query.eq('refund_request_id', order.refund_request_id);
+  const { data, error: saveError } = await query.select('*').maybeSingle();
+  if (saveError) throw saveError;
+  return data;
 }
 
 async function finalizeConfirmedOrderRefund(
@@ -708,6 +712,7 @@ async function cancelPaidOrder(
     allowedFulfillmentStatuses = [],
     cancelBeforeRefund = false,
     reuseRefundRequestId = false,
+    acceptPendingRefund = false,
   } = {},
 ) {
   const currentStatus =
@@ -744,6 +749,9 @@ async function cancelPaidOrder(
       'Укажите понятную причину отмены минимум из 3 символов — клиент увидит её вместе с сообщением о возврате',
       'CANCELLATION_REASON_REQUIRED',
     );
+  }
+  if (acceptPendingRefund && ['processing', 'unknown'].includes(current.refund_status)) {
+    return normalizeOrder(current);
   }
   if (current.refund_status === 'processing') {
     throw refundError(409, 'Возврат по заказу уже выполняется', 'PAYMENT_REFUND_PROCESSING');
@@ -838,9 +846,12 @@ async function cancelPaidOrder(
       idempotencyKey: claimed.refund_request_id || refundRequestId,
     });
   } catch (error) {
-    await markRefundFailure(claimed, error).catch((saveError) =>
+    const pending = await markRefundFailure(claimed, error).catch((saveError) =>
       console.error('Не удалось сохранить ошибку возврата:', saveError.message),
     );
+    if (acceptPendingRefund && error?.refundUncertain === true && pending) {
+      return normalizeOrder(pending);
+    }
     if (giftRefundPrepared && error?.refundUncertain !== true) {
       const { rollbackGiftCertificateRefund } = require('./gift-certificate-purchase.service');
       await rollbackGiftCertificateRefund(claimed).catch((rollbackError) =>
@@ -927,7 +938,9 @@ async function updateAdminOrderStatus(
   assertDeliveryCompletionAllowed(current, nextStatus);
   if (nextStatus === 'cancelled' && currentStatus === 'cancelled') {
     if (current.status === 'paid') {
-      return cancelPaidOrder(current, cancellationReason || current.cancellation_reason);
+      return cancelPaidOrder(current, cancellationReason || current.cancellation_reason, {
+        acceptPendingRefund: true,
+      });
     }
     return normalizeOrder(current);
   }
@@ -935,7 +948,7 @@ async function updateAdminOrderStatus(
     if (!(STATUS_TRANSITIONS[currentStatus] || []).includes(nextStatus)) {
       throw httpError(409, `Нельзя изменить статус «${currentStatus}» на «${nextStatus}»`);
     }
-    return cancelPaidOrder(current, cancellationReason);
+    return cancelPaidOrder(current, cancellationReason, { acceptPendingRefund: true });
   }
   if (current.status !== 'paid') throw httpError(409, 'Статус неоплаченного заказа менять нельзя');
   if (['processing', 'unknown'].includes(current.refund_status)) {
