@@ -464,6 +464,9 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     if (phone != null && accessToken != null) {
       _api.trackEvent('app_open');
       unawaited(PushNotifications.register(_api));
+      if (prefs.getBool(BulkaPermissionGate.completedKey) == true) {
+        unawaited(PushNotifications.requestCustomerPermissionAfterSignIn(_api));
+      }
       if (!profileHydratedDuringBootstrap) await _refreshProfile(phone);
       unawaited(_refreshWidgetOrder());
       _startProfileRefresh(phone);
@@ -866,6 +869,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       _transactions = profile.transactions;
     });
     _startProfileRefresh(phone);
+    unawaited(PushNotifications.requestCustomerPermissionAfterSignIn(_api));
     unawaited(_refreshWidgetOrder());
     return null;
   }

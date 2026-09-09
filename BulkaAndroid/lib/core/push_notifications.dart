@@ -61,6 +61,7 @@ abstract final class PushNotifications {
   static int _customerPushGeneration = 0;
   static Future<void> _customerPushMutationTail = Future<void>.value();
   static Future<void>? _initializationTask;
+  static Future<void>? _customerPermissionTask;
   static StreamSubscription<String>? _tokenSubscription;
   static StreamSubscription<String>? _staffTokenSubscription;
   static bool _staffBridgeActivated = false;
@@ -544,18 +545,35 @@ abstract final class PushNotifications {
     }
   }
 
-  static Future<void> requestPermissionOnFirstLaunch(BulkaApiClient api) async {
-    if (kIsWeb) return;
-    final prefs = await SharedPreferences.getInstance();
-    if (prefs.getBool(_permissionPromptedKey) == true) return;
-    if (!_ready) await initialize();
-    if (!_ready) return;
+  /// A completed/skipped onboarding screen is not an OS notification grant.
+  /// Called after customer sign-in/restoration, never by the background retry.
+  static Future<void> requestCustomerPermissionAfterSignIn(BulkaApiClient api) {
+    if (kIsWeb || !api.isAuthenticated) return Future<void>.value();
+    final running = _customerPermissionTask;
+    if (running != null) return running;
+    late final Future<void> task;
+    task = _requestCustomerPermission(api).whenComplete(() {
+      if (identical(_customerPermissionTask, task)) {
+        _customerPermissionTask = null;
+      }
+    });
+    _customerPermissionTask = task;
+    return task;
+  }
+
+  static Future<void> _requestCustomerPermission(BulkaApiClient api) async {
     try {
+      await initialize();
+      if (!_ready || !api.isAuthenticated) return;
       final current = await FirebaseMessaging.instance
           .getNotificationSettings();
+      if (!api.isAuthenticated) return;
+      final prefs = await SharedPreferences.getInstance();
       final shouldRequest =
-          defaultTargetPlatform == TargetPlatform.android ||
-          current.authorizationStatus == AuthorizationStatus.notDetermined;
+          current.authorizationStatus == AuthorizationStatus.notDetermined ||
+          (defaultTargetPlatform == TargetPlatform.android &&
+              prefs.getBool(_permissionPromptedKey) != true &&
+              !_permissionAllowsPush(current.authorizationStatus));
       final settings = shouldRequest
           ? await FirebaseMessaging.instance.requestPermission(
               alert: true,

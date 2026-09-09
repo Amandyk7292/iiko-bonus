@@ -1,11 +1,30 @@
 # Customer application fixes, 9 September 2026
 
-## IPA hold
+## Device release
 
-The user explicitly requested completing the changes **without building or
-installing another IPA until their next instruction**. Do not dispatch the iOS
-workflow. Build 20 remains the last verified installation on the original iPhone.
-Build 21 finished before this hold; it was not downloaded or installed.
+On 9 September the user explicitly authorized building, installing and checking
+the IPA, superseding the earlier hold. Build 21 was never installed.
+
+Build **22** (version 1.0.1, source `1d4b73c0646a`) was installed on the original
+Amandyk iPhone at **09:15:09 +05:00**. Installation, a separate bundle/version
+query, and launch succeeded. Actions run `34309685403`, artifact `10088031264`.
+SHA-256: `f2cced1aa9c2b3976b88e4229e23c6bc2330090bf94fc067de9b9604b86a2004`.
+App/widget profiles, signing certificate, device eligibility, app group, push
+entitlement and the solid icon catalog passed local validation.
+
+Physical checking exposed missing customer notification authorization: Firebase
+initialized and customer login succeeded, but the token listener was never
+installed. The user confirmed that iOS had no Notifications settings entry for
+this app. The onboarding completion flag did not represent an OS permission;
+the existing post-onboarding permission helper was never called.
+
+The follow-up fix requests permission after customer sign-in or restoration of a
+session whose onboarding was completed. Requests are coalesced, an existing iOS
+denial is respected, and a logout during the settings query prevents a prompt.
+Background retries still never prompt. Regression tests cover a skipped screen,
+stale local permission flag, simultaneous calls, denial, logout, and Android's
+first runtime permission. The 22 push/onboarding tests and 62 final app/permission
+tests passed; Flutter analysis reported no issues.
 
 ## Implementation
 
@@ -66,9 +85,9 @@ This confirms APNs acceptance, not observation of the physical lock screen.
 
 Customer Firebase enrollment now waits for native initialization/APNs and retries
 late or offline registration. Broadcast results no longer report success for zero
-recipients. Physical customer FCM delivery remains unverified: the installed build
-20 does not contain the subsequent enrollment fixes, and the user's IPA hold must
-be respected. Do not send an unsolicited broadcast to test it.
+recipients. Physical customer FCM delivery remains under verification after the
+permission recovery above. Any device test targets only the user's own newly
+registered iPhone; no customer broadcast is authorized for testing.
 
 Local evidence is in `scratch/client-validation-complete.log`,
 `scratch/client-final-delta-tests.log`, `scratch/client-final-analyze-v2.log`,
