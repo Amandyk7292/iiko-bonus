@@ -82,3 +82,18 @@ pending refund state. The admin closes the confirmation dialog, shows an
 informational message, and prevents resubmission while reconciliation continues.
 An explicit bank decline still produces an error. No additional real payment or
 refund is needed to test these branches.
+
+The recovery fixes were published from `ded5218d612e` as healthy production
+release `20260909143959-ded5218d612e`; private staging was healthy too. Validation
+passed: 33 backend refund/lifecycle tests, 7 admin order tests, 79 Flutter tests,
+Flutter analysis, TypeScript, backend ESLint and source-size budgets. Nine backend
+refund tests also passed from the clean release checkout.
+
+Android 1.0.1 (27) was built and installed in the emulator. APK SHA-256:
+`07dbcf0e576a33fbaeea2b0fff7ebd399579fb42c3d3bf6e52f910065df354ec`.
+The native purchases page showed order 100043 cancelled and refunded, and its
+receipt showed goods 35 KZT, delivery 2471 KZT, total 2506 KZT and card ending
+1328. Evidence: `repeat-46-final-purchases.png` and
+`repeat-44-android27-receipt-loaded.png` in the same ignored evidence directory.
+A final read-only provider check at 09:45:30 UTC confirmed one Yandex claim,
+cancelled, and the order fully refunded. No IPA was built for this update.
