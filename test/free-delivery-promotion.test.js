@@ -17,9 +17,11 @@ const {
   resolveTargetedPromotion,
   savePromotion,
 } = require('../src/services/commerce-marketing.service');
-const { priceCheckoutDelivery: realPriceCheckoutDelivery } = require('../src/services/checkout-delivery-pricing.service');
-const priceCheckoutDelivery = (context, options) => realPriceCheckoutDelivery(context,
-  { probe: async () => {}, ...options });
+const {
+  priceCheckoutDelivery: realPriceCheckoutDelivery,
+} = require('../src/services/checkout-delivery-pricing.service');
+const priceCheckoutDelivery = (context, options) =>
+  realPriceCheckoutDelivery(context, { probe: async () => {}, ...options });
 const { adminMutationSchemas } = require('../src/contracts/admin-mutations.contract');
 const promotionBodySchema = adminMutationSchemas.promotionCreate.body;
 
@@ -91,9 +93,8 @@ test('free delivery preserves the goods price and remains zero at payment', asyn
     phase: 'quote',
     version: 1,
     now: 1000,
-    estimate: async () => {
-      throw new Error('A free customer fee does not need an estimate');
-    },
+    // The seller still needs courier funds when the customer pays no delivery fee.
+    estimate: async () => 1000,
   });
   assert.equal(quote.pricing.deliveryFee, 0);
   assert.equal(quote.pricing.total, 35);

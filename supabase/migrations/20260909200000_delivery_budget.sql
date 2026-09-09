@@ -182,10 +182,13 @@ begin
   select * into a from delivery_budget_account where id=true for update;
   if exists(select 1 from delivery_budget_entries where source_key=v_key) then return delivery_budget_snapshot(); end if;
   if a.revision<>p_revision then return jsonb_build_object('status','stale'); end if;
-  if p_mode='balance' and exists (
+  if p_mode='balance' and (exists (
     select 1 from delivery_jobs j left join delivery_budget_entries e on e.source_key='job:'||j.id::text
     where j.created_at>=a.created_at and (e.source_key is null or j.updated_at>e.updated_at)
-  ) then return jsonb_build_object('status','unsettled'); end if;
+  ) or exists (
+    select 1 from checkout_delivery_probes p left join delivery_budget_entries e on e.source_key='probe:'||p.id::text
+    where p.created_at>=a.created_at and p.external_claim_id is not null and e.source_key is null
+  )) then return jsonb_build_object('status','unsettled'); end if;
   v_delta:=case when p_mode='top_up' then p_amount else p_amount-a.balance end;
   update delivery_budget_account set balance=balance+v_delta,revision=revision+1,confirmed_at=now(),updated_at=now(),updated_by=p_actor where id=true;
   insert into delivery_budget_entries(source_key,amount,note,actor) values(v_key,v_delta,p_mode,p_actor);

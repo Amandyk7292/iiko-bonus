@@ -123,7 +123,12 @@ test('both free delivery and a previously signed quote are blocked before a paym
     checkout: { effectiveFulfillmentType: 'delivery' },
     pricing: { subtotal: 10000, discount: 0, total: 10000, deliveryFee: 0, canonicalItems: [] },
   };
-  const options = { version: 1, probe: async () => {}, assertAvailable: (checkout) => service.assertAvailable(checkout) };
+  const options = {
+    version: 1,
+    estimate: async () => 1000,
+    probe: async () => {},
+    assertAvailable: (checkout) => service.assertAvailable(checkout),
+  };
   const quote = await priceCheckoutDelivery(context, { ...options, phase: 'quote' });
   await service.recordProviderFailure({ code: 'insufficient_balance' });
   await assert.rejects(priceCheckoutDelivery(context, { ...options, phase: 'quote' }), {

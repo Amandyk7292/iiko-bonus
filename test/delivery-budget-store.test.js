@@ -15,7 +15,7 @@ test.before(async () => {
       status text default 'pending', fulfillment_status text default 'pending');
     create table delivery_jobs(id uuid primary key,order_id uuid,provider_status text,
       created_at timestamptz default now(),updated_at timestamptz default now());
-    create table checkout_delivery_probes(id uuid primary key,state text,provider_status text,
+    create table checkout_delivery_probes(id uuid primary key,state text,provider_status text,external_claim_id text,
       created_at timestamptz default now(),updated_at timestamptz default now());`);
   await db.exec(sql);
   await db.exec(sql);
@@ -201,6 +201,91 @@ test('historical deliveries cannot debit the newly confirmed opening balance', a
   await db.query("update delivery_jobs set created_at=now()-interval '2 hours' where id=$1", [jid]);
   await rpc('record_delivery_budget_cost', [`job:${jid}`, 1200, id]);
   assert.equal((await rpc('delivery_budget_snapshot')).balance, 5000);
+});
+
+test('unsettled courier costs block rebasing but allow a confirmed top-up', async () => {
+  const h = await hold();
+  const id = await order(h);
+  const jid = await job(id, 'accepted');
+  const state = await rpc('delivery_budget_snapshot');
+  assert.equal(
+    (await rpc('adjust_delivery_budget', [randomUUID(), state.revision, 5000, 'balance', 'owner']))
+      .status,
+    'unsettled',
+  );
+  const toppedUp = await rpc('adjust_delivery_budget', [
+    randomUUID(),
+    state.revision,
+    1000,
+    'top_up',
+    'owner',
+  ]);
+  assert.equal(toppedUp.balance, 6000);
+  assert.equal(toppedUp.reserved, 1500);
+  await db.query("update delivery_jobs set provider_status='cancelled_with_payment' where id=$1", [
+    jid,
+  ]);
+  await rpc('record_delivery_budget_cost', [`job:${jid}`, 200, id]);
+  const settled = await rpc('delivery_budget_snapshot');
+  const corrected = await rpc('adjust_delivery_budget', [
+    randomUUID(),
+    settled.revision,
+    5800,
+    'balance',
+    'owner',
+  ]);
+  assert.equal(corrected.balance, 5800);
+  assert.equal(corrected.reserved, 1500);
+});
+
+test('cost worker selects only pending terminal jobs and clears a duplicate bill retry', async () => {
+  const h = await hold();
+  const id = await order(h);
+  await job(id, 'accepted');
+  const jid = await job(id, 'delivered');
+  const pending = await rpc('pending_delivery_budget_costs');
+  assert.deepEqual(
+    pending.jobs.map((j) => j.id),
+    [jid],
+  );
+  await rpc('record_delivery_budget_cost', [`job:${jid}`, 1200, id]);
+  assert.equal((await rpc('pending_delivery_budget_costs')).jobs.length, 0);
+  await db.query('update delivery_jobs set updated_at=now() where id=$1', [jid]);
+  assert.equal((await rpc('pending_delivery_budget_costs')).jobs.length, 1);
+  await rpc('record_delivery_budget_cost', [`job:${jid}`, 1200, id]);
+  assert.equal((await rpc('pending_delivery_budget_costs')).jobs.length, 0);
+  assert.equal((await rpc('delivery_budget_snapshot')).balance, 3800);
+});
+
+test('an unbilled physical probe prevents rebasing until its cancellation cost is recorded', async () => {
+  const probe = randomUUID();
+  await db.query(
+    "insert into checkout_delivery_probes(id,state,provider_status,external_claim_id) values($1,'rejected','cancelled_with_payment','claim-1')",
+    [probe],
+  );
+  const state = await rpc('delivery_budget_snapshot');
+  assert.equal(
+    (await rpc('adjust_delivery_budget', [randomUUID(), state.revision, 4800, 'balance', 'owner']))
+      .status,
+    'unsettled',
+  );
+  assert.equal((await rpc('pending_delivery_budget_costs')).probes.length, 1);
+  await rpc('record_delivery_budget_cost', [`probe:${probe}`, 200]);
+  const settled = await rpc('delivery_budget_snapshot');
+  assert.equal(settled.balance, 4800);
+  assert.equal((await rpc('pending_delivery_budget_costs')).probes.length, 0);
+  assert.equal(
+    (
+      await rpc('adjust_delivery_budget', [
+        randomUUID(),
+        settled.revision,
+        4800,
+        'balance',
+        'owner',
+      ])
+    ).balance,
+    4800,
+  );
 });
 
 test('customer roles cannot read or modify the courier budget', async () => {
