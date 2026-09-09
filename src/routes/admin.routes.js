@@ -2,6 +2,7 @@ const express = require('express');
 const { registerIikoDashboardRoutes } = require('./admin/iiko-dashboard.routes');
 const crypto = require('crypto');
 const router = express.Router();
+const { registerDeliveryAvailabilityRoutes } = require('./admin/delivery-availability.routes');
 const multer = require('multer');
 const adminController = require('../controllers/admin.controller');
 const tierController = require('../controllers/tier.controller');
@@ -716,6 +717,7 @@ router.put(
     }
   },
 );
+registerDeliveryAvailabilityRoutes(router);
 router.get('/admin/api/online-ordering', async (_req, res) => {
   try {
     const config = await getOnlineOrderingConfig({ forceRefresh: true });

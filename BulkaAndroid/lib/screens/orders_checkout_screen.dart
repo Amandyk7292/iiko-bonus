@@ -43,9 +43,14 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   bool _isSelectingAddress = false;
   bool _isSelectingTime = false;
   bool? _forteAvailable;
+  bool _checkingPaymentAvailability = false;
   bool _onlineOrderingDisabled = false;
   String? _selectedPaymentMethodId;
   int _discount = 0;
+  bool _useBonuses = false;
+  int? _bonusAvailable;
+  int _bonusMaximum = 0;
+  int _bonusSpent = 0;
   int _deliveryFee = 0;
   int? _quotedTotal;
   String? _deliveryQuoteToken;
@@ -113,21 +118,6 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       !_onlineOrderingDisabled &&
       _forteAvailable == true &&
       _selectedPaymentMethodId != null;
-
-  Future<void> _loadPaymentAvailability() async {
-    if (mounted) {
-      setState(() => _forteAvailable = null);
-    }
-    final available = await widget.api.isFortePaymentAvailable().catchError(
-      (_) => false,
-    );
-    if (!mounted) return;
-    setState(() {
-      _forteAvailable = available;
-      _onlineOrderingDisabled = widget.api.onlineOrderingDisabled;
-      if (!available) _selectedPaymentMethodId = null;
-    });
-  }
 
   void _refreshPromoButton() {
     if (mounted) {
@@ -571,10 +561,14 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         scheduledAt: _scheduledSlot?.value,
         deliveryAddress: _usesDelivery ? _deliveryAddress : null,
         promoCode: _promoController.text.trim(),
+        useBonuses: _useBonuses,
       );
       if (!mounted || revision != _quoteRevision) return;
       setState(() {
         _discount = (quote['discount'] as num?)?.round() ?? 0;
+        _bonusAvailable = (quote['bonusAvailable'] as num?)?.floor();
+        _bonusMaximum = (quote['bonusMaximum'] as num?)?.floor() ?? 0;
+        _bonusSpent = (quote['bonusSpent'] as num?)?.floor() ?? 0;
         _deliveryFee = (quote['deliveryFee'] as num?)?.round() ?? 0;
         _quotedTotal = (quote['total'] as num?)?.round();
         _deliveryQuoteToken = quote['deliveryQuoteToken'] as String?;
@@ -737,6 +731,8 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
           checkoutId: _checkoutId,
           orderType: _orderType,
           savedPaymentMethodId: _selectedPaymentMethodId,
+          useBonuses: _useBonuses,
+          bonusSpent: _bonusSpent,
           deliveryQuoteToken: _deliveryQuoteToken,
           preorderFulfillmentType: _isPreorder
               ? _preorderFulfillment.wireValue

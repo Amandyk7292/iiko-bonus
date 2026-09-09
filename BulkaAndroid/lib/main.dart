@@ -128,6 +128,8 @@ part 'screens/home_screen.dart';
 part 'screens/home_feed_controller.dart';
 part 'screens/login_screen.dart';
 part 'screens/checkout_payment_widgets.dart';
+part 'screens/checkout_card_picker.dart';
+part 'screens/checkout_bonus_switch.dart';
 part 'screens/orders_screen.dart';
 part 'screens/orders_cart_widgets.dart';
 part 'screens/orders_checkout_screen.dart';

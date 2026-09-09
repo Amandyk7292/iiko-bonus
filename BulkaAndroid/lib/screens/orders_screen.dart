@@ -162,6 +162,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
       deliveryAddress: details.deliveryAddress,
       checkoutId: details.checkoutId,
       savedPaymentMethodId: details.savedPaymentMethodId,
+      useBonuses: details.useBonuses,
+      expectedBonusSpent: details.bonusSpent,
       deliveryQuoteToken: details.deliveryQuoteToken,
       additionalPhone: details.additionalPhone,
       promoCode: details.promoCode,

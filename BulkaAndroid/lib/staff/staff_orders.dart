@@ -23,6 +23,7 @@ class StaffOrderAmounts extends StatelessWidget {
   Widget build(BuildContext context) {
     final amount = _asDouble(order['amount']);
     final discount = _asDouble(order['discount']);
+    final bonusSpent = _asDouble(order['bonusSpent']);
     final deliveryFee = _asDouble(order['deliveryFee']);
     final type = order['orderType'] ?? order['fulfillmentType'];
     final hasDelivery =
@@ -34,12 +35,19 @@ class StaffOrderAmounts extends StatelessWidget {
       children: [
         _OrderInfoRow(
           label: 'receipt_goods'.tr,
-          value: staffMoney(max(0, amount - deliveryFee + discount)),
+          value: staffMoney(
+            max(0, amount - deliveryFee + discount + bonusSpent),
+          ),
         ),
         if (discount > 0)
           _OrderInfoRow(
             label: 'receipt_discount'.tr,
             value: '−${staffMoney(discount)}',
+          ),
+        if (bonusSpent > 0)
+          _OrderInfoRow(
+            label: 'checkout_bonus_spent'.tr,
+            value: '−${staffMoney(bonusSpent)}',
           ),
         if (hasDelivery)
           _OrderInfoRow(

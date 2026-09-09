@@ -35,10 +35,12 @@ void main() {
       orderType: 'pickup',
       scheduledAt: '2026-07-28T16:00:00.000Z',
       branchId: 'branch-1',
+      useBonuses: true,
     );
 
     expect(requestUri?.path, '/api/customer/forte-pay/quote');
     expect(quoteBody?['deliveryQuoteVersion'], 1);
+    expect(quoteBody?['useBonuses'], true);
   });
 
   test('Forte checkout sends the selected saved card id', () async {
@@ -70,6 +72,8 @@ void main() {
       checkoutId: '31f0d793-0102-4d2f-a5a1-744d12cffe7c',
       savedPaymentMethodId: '86d95454-7866-414d-a3f1-8f85cef12391',
       deliveryQuoteToken: 'server-locked-delivery-quote',
+      useBonuses: true,
+      expectedBonusSpent: 250,
     );
 
     expect(
@@ -79,33 +83,30 @@ void main() {
     expect(requestBody?['deliveryQuoteVersion'], 1);
     expect(requestBody?['deliveryQuoteToken'], 'server-locked-delivery-quote');
     expect(requestBody?.containsKey('deliveryFee'), false);
+    expect(requestBody?['expectedBonusSpent'], 250);
+    expect(requestBody?['useBonuses'], true);
   });
 
-  testWidgets('checkout renders every saved card and selects the tapped card', (
+  testWidgets('card picker keeps selection through background refreshes', (
     tester,
   ) async {
     String? selectedMethodId;
-    late StateSetter updateHarness;
+    bool? available = true;
+    late StateSetter update;
     final api = _SavedCardsApi();
-    final theme = buildBulkaTheme();
-    final colors = theme.extension<BulkaThemeColors>()!;
-
     await tester.pumpWidget(
       MaterialApp(
-        theme: theme,
+        theme: buildBulkaTheme(),
         home: Scaffold(
           body: StatefulBuilder(
             builder: (context, setState) {
-              updateHarness = setState;
+              update = setState;
               return buildCheckoutSavedCardsPanelForTest(
                 api: api,
+                available: available,
                 selectedMethodId: selectedMethodId,
-                onDefaultResolved: (methodId) {
-                  updateHarness(() => selectedMethodId = methodId);
-                },
-                onSelect: (methodId) {
-                  updateHarness(() => selectedMethodId = methodId);
-                },
+                onDefaultResolved: (id) => update(() => selectedMethodId = id),
+                onSelect: (id) => update(() => selectedMethodId = id),
               );
             },
           ),
@@ -113,85 +114,120 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-
-    expect(
-      find.byKey(const ValueKey('checkout-saved-card-card-one')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const ValueKey('checkout-saved-card-card-two')),
-      findsOneWidget,
-    );
-    expect(find.text('VISA •••• 1328'), findsOneWidget);
-    expect(find.text('MASTERCARD •••• 2046'), findsOneWidget);
     expect(selectedMethodId, 'card-one');
+    expect(find.text('•••• 1328'), findsOneWidget);
+    expect(find.text('•••• 2046'), findsNothing);
+    expect(api.loads, 1);
+
+    await tester.tap(find.byKey(const ValueKey('checkout-choose-card')));
+    await tester.pumpAndSettle();
     expect(
-      find.descendant(
-        of: find.byKey(const ValueKey('checkout-saved-card-card-one')),
-        matching: find.byIcon(Icons.check_circle_rounded),
-      ),
+      find.byKey(const ValueKey('checkout-add-saved-card')),
       findsOneWidget,
     );
-    final firstCard = find.byKey(
-      const ValueKey('checkout-saved-card-card-one'),
-    );
-    final selectedSurface = tester.widget<Material>(
-      find.byKey(const ValueKey('checkout-saved-card-surface-card-one')),
-    );
-    expect(selectedSurface.color, theme.colorScheme.secondaryContainer);
-    final selectedShape = selectedSurface.shape! as RoundedRectangleBorder;
-    expect(selectedShape.side.color, colors.brandBrown);
-    expect(
-      tester
-          .widget<Icon>(
-            find.descendant(
-              of: firstCard,
-              matching: find.byIcon(Icons.check_circle_rounded),
-            ),
-          )
-          .color,
-      colors.brandBrown,
-    );
-    expect(find.textContaining('CVV'), findsNothing);
-    expect(find.textContaining('защищённому токену'), findsNothing);
-
     await tester.tap(
       find.byKey(const ValueKey('checkout-saved-card-card-two')),
     );
     await tester.pumpAndSettle();
-
     expect(selectedMethodId, 'card-two');
+    expect(find.text('•••• 2046'), findsOneWidget);
     expect(
-      find.descendant(
-        of: find.byKey(const ValueKey('checkout-saved-card-card-two')),
-        matching: find.byIcon(Icons.check_circle_rounded),
-      ),
+      find.byKey(const ValueKey('checkout-close-card-picker')),
+      findsNothing,
+    );
+    for (var i = 0; i < 4; i++) {
+      update(() => available = null);
+      await tester.pump();
+      expect(find.text('•••• 2046'), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('checkout-saved-cards-loading')),
+        findsNothing,
+      );
+      update(() => available = true);
+      await tester.pumpAndSettle();
+    }
+    expect(api.loads, 1);
+    expect(selectedMethodId, 'card-two');
+    update(() => available = false);
+    await tester.pumpAndSettle();
+    expect(selectedMethodId, isNull);
+    expect(find.text('•••• 2046'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('checkout-saved-cards-unavailable')),
       findsOneWidget,
     );
-    expect(find.textContaining('CVV'), findsNothing);
   });
+
+  testWidgets(
+    'bonuses remain optional and unavailable balance cannot be spent',
+    (tester) async {
+      bool enabled = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildBulkaTheme(),
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) => buildCheckoutBonusSwitchForTest(
+                enabled: enabled,
+                available: 1200,
+                maximum: 895,
+                busy: false,
+                onChanged: (value) => setState(() => enabled = value),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byKey(const ValueKey('checkout-use-bonuses')));
+      await tester.pumpAndSettle();
+      expect(enabled, true);
+      await tester.tap(find.byKey(const ValueKey('checkout-use-bonuses')));
+      await tester.pumpAndSettle();
+      expect(enabled, false);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: buildCheckoutBonusSwitchForTest(
+              enabled: false,
+              available: 0,
+              maximum: 0,
+              busy: false,
+              onChanged: (_) => fail('Zero balance must disable redemption'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byKey(const ValueKey('checkout-use-bonuses')));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    },
+  );
 }
 
 class _SavedCardsApi extends BulkaApiClient {
+  int loads = 0;
   @override
-  Future<List<Map<String, dynamic>>> getFortePaymentMethods() async => [
-    {
-      'id': 'card-one',
-      'brand': 'visa',
-      'lastFour': '1328',
-      'expMonth': 12,
-      'expYear': 2029,
-      'isDefault': true,
-      'requiresRelink': false,
-    },
-    {
-      'id': 'card-two',
-      'brand': 'mastercard',
-      'lastFour': '2046',
-      'expMonth': 8,
-      'expYear': 2030,
-      'isDefault': false,
-      'requiresRelink': true,
-    },
-  ];
+  Future<List<Map<String, dynamic>>> getFortePaymentMethods() async {
+    loads++;
+    return [
+      {
+        'id': 'card-one',
+        'brand': 'visa',
+        'lastFour': '1328',
+        'expMonth': 12,
+        'expYear': 2029,
+        'isDefault': true,
+        'requiresRelink': false,
+      },
+      {
+        'id': 'card-two',
+        'brand': 'mastercard',
+        'lastFour': '2046',
+        'expMonth': 8,
+        'expYear': 2030,
+        'isDefault': false,
+        'requiresRelink': true,
+      },
+    ];
+  }
 }

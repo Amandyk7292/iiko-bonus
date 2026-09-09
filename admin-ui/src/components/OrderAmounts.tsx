@@ -7,7 +7,7 @@ export default function OrderAmounts({ order }: { order: AdminOrder }) {
   const deliveryFee = Number(order.deliveryFee || 0);
   const goodsSubtotal = Math.max(
     0,
-    Number((order.amount - deliveryFee + order.discount).toFixed(2)),
+    Number((order.amount - deliveryFee + order.discount + (order.bonusSpent || 0)).toFixed(2)),
   );
   const orderType = order.orderType ?? order.fulfillmentType;
   const hasDelivery =
@@ -30,6 +30,8 @@ export default function OrderAmounts({ order }: { order: AdminOrder }) {
     >
       {row(t('orders.goods'), `${formatNumber(goodsSubtotal)} ₸`)}
       {order.discount > 0 && row(t('orders.discountAmount'), `−${formatNumber(order.discount)} ₸`)}
+      {Number(order.bonusSpent || 0) > 0 &&
+        row(t('orders.bonusSpent'), `−${formatNumber(order.bonusSpent!)} ₸`)}
       {hasDelivery && row(t('orders.deliveryFee'), `${formatNumber(deliveryFee)} ₸`)}
       {row(t('orders.grandTotal'), `${formatNumber(order.amount)} ₸`, true)}
     </dl>

@@ -709,6 +709,7 @@ const ru: Record<string, string> = {
   'orders.amountBreakdown': 'Расчёт заказа',
   'orders.goods': 'Товары',
   'orders.discountAmount': 'Скидка',
+  'orders.bonusSpent': 'Списано бонусами',
   'orders.deliveryFee': 'Доставка',
   'orders.grandTotal': 'Итого',
   'orders.cancelCourierAutomatically': 'Вызванный курьер будет отменён автоматически перед отменой заказа.',

@@ -84,6 +84,7 @@ class CustomerOrder {
     required this.amount,
     required this.subtotal,
     required this.discount,
+    this.bonusSpent = 0,
     required this.branch,
     this.branchAddress,
     this.deliveryOrigin,
@@ -132,6 +133,7 @@ class CustomerOrder {
   final int amount;
   final int subtotal;
   final int discount;
+  final int bonusSpent;
   final String branch;
   final String? branchAddress;
   final DeliveryLocation? deliveryOrigin;
@@ -181,6 +183,7 @@ class CustomerOrder {
       amount: _asDouble(json['amount']).round(),
       subtotal: _asDouble(json['subtotal']).round(),
       discount: _asDouble(json['discount']).round(),
+      bonusSpent: _asInt(json['bonusSpent']),
       branch: _asString(json['branch']),
       branchAddress: _nullableString(json['branchAddress']),
       deliveryOrigin:
@@ -290,6 +293,7 @@ class CustomerOrder {
     'amount': amount,
     'subtotal': subtotal,
     'discount': discount,
+    'bonusSpent': bonusSpent,
     'branch': branch,
     'branchAddress': branchAddress,
     'deliveryOrigin': deliveryOrigin == null

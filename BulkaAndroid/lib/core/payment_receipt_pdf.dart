@@ -90,6 +90,11 @@ Future<Uint8List> buildPaymentReceiptPdf(PaymentReceipt receipt) async {
         row('receipt_goods'.tr, receipt.money(receipt.goodsSubtotal)),
         if (receipt.discount > 0)
           row('receipt_discount'.tr, '-${receipt.money(receipt.discount)}'),
+        if (receipt.bonusSpent > 0)
+          row(
+            'checkout_bonus_spent'.tr,
+            '-${receipt.money(receipt.bonusSpent)}',
+          ),
         if (receipt.hasDelivery)
           row('checkout_delivery_fee'.tr, receipt.money(receipt.deliveryFee)),
         row('receipt_total'.tr, receipt.money(receipt.amount)),

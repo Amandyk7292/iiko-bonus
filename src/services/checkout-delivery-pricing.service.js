@@ -1,6 +1,7 @@
 const crypto = require('node:crypto');
 const jwt = require('jsonwebtoken');
 const { getJwtSecret } = require('./auth.service');
+const { deliveryAvailability } = require('./delivery-availability.service');
 
 const FREE_DELIVERY_THRESHOLD = 10_000;
 const QUOTE_LIFETIME_SECONDS = 15 * 60;
@@ -82,11 +83,13 @@ async function priceCheckoutDelivery(
     estimate = (checkout, pricing) =>
       require('./yandex-delivery.service').estimateCheckoutDelivery(checkout, pricing),
     now = Math.floor(Date.now() / 1000),
+    assertAvailable = (checkout) => deliveryAvailability.assertAvailable(checkout),
   } = {},
 ) {
   const { checkout, pricing } = context;
   if (checkout.effectiveFulfillmentType !== 'delivery')
     return { pricing: withDeliveryFee(pricing, 0) };
+  await assertAvailable(checkout);
   const free =
     pricing.freeDelivery === true || pricing.total - pricing.deliveryFee >= FREE_DELIVERY_THRESHOLD;
 

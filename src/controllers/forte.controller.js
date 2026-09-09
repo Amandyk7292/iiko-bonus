@@ -4,6 +4,7 @@ const orderPaymentState = require('../services/order-payment-state.service');
 const paymentOperations = require('../services/payment-operations.service');
 const { isSafeWidgetFallbackError } = paymentOperations;
 const { priceOrder } = require('../services/order.service');
+const { priceCheckoutBonus, releaseCheckoutBonus } = require('../services/checkout-bonus.service');
 const {
   priceCheckoutDelivery,
   FREE_DELIVERY_THRESHOLD,
@@ -96,7 +97,10 @@ const availability = async (req, res) => {
 const quotePayment = async (req, res) => {
   try {
     normalizeOrderType(req.body?.orderType ?? req.body?.fulfillmentType ?? 'pickup');
-    const cities = await getCitiesWithPoints({ throwOnError: true });
+    const cities = await getCitiesWithPoints({
+      throwOnError: true,
+      applyDeliveryAvailability: false,
+    });
     const checkout = validateCheckout(req.body, cities);
     let pricing = await priceOrder(req.body?.items, req.body?.promoCode, {
       deliveryFee: checkout.deliveryFee,
@@ -112,7 +116,11 @@ const quotePayment = async (req, res) => {
         version: req.body?.deliveryQuoteVersion,
       },
     );
-    pricing = deliveryQuote.pricing;
+    pricing = await priceCheckoutBonus({
+      pricing: deliveryQuote.pricing,
+      customerId: req.customerAuth.id,
+      useBonuses: req.body?.useBonuses === true,
+    });
     const eta = await forecastOrderEta({
       branchId: checkout.branchId,
       orderType: checkout.effectiveFulfillmentType,
@@ -127,6 +135,9 @@ const quotePayment = async (req, res) => {
       discount: pricing.discount,
       deliveryFee: pricing.deliveryFee,
       total: pricing.total,
+      bonusAvailable: pricing.bonusAvailable,
+      bonusMaximum: pricing.bonusMaximum,
+      bonusSpent: pricing.bonusSpent,
       promoCode: pricing.promoCode,
       branchId: checkout.branchId,
       deliveryDistanceKm: checkout.deliveryDistanceKm,
@@ -164,7 +175,10 @@ const createPayment = async (req, res) => {
           existing.provider_payment_system === 'forte_widget' ? forteWidgetService : forteService;
         return service.paymentResponse(existing, req.body?.language || 'ru');
       }
-      const cities = await getCitiesWithPoints({ throwOnError: true });
+      const cities = await getCitiesWithPoints({
+        throwOnError: true,
+        applyDeliveryAvailability: false,
+      });
       const checkout = validateCheckout(req.body, cities);
       let pricing = await priceOrder(items, promoCode, {
         deliveryFee: checkout.deliveryFee,
@@ -181,12 +195,22 @@ const createPayment = async (req, res) => {
           token: req.body?.deliveryQuoteToken,
         },
       ));
-      await reservePromotionForCheckout(pricing, {
-        customerId,
-        requestId: checkoutId,
-        ttlMinutes: 35,
-      });
+      pricing = await priceCheckoutBonus(
+        {
+          pricing,
+          customerId,
+          requestId: checkoutId,
+          useBonuses: req.body?.useBonuses === true,
+          expectedBonusSpent: req.body?.expectedBonusSpent,
+        },
+        { phase: 'payment' },
+      );
       try {
+        await reservePromotionForCheckout(pricing, {
+          customerId,
+          requestId: checkoutId,
+          ttlMinutes: 35,
+        });
         await reserveCheckout({
           customerId,
           requestId: checkoutId,
@@ -197,6 +221,7 @@ const createPayment = async (req, res) => {
           ttlMinutes: 35,
         });
       } catch (error) {
+        await releaseCheckoutBonus(pricing, customerId, checkoutId).catch(() => undefined);
         await releasePromotionReservation({ customerId, requestId: checkoutId }).catch(
           () => undefined,
         );
@@ -252,6 +277,9 @@ const createPayment = async (req, res) => {
         return payment;
       } catch (error) {
         const order = await existingForteRequest(customerId, checkoutId);
+        if (!order && !String(error.code || '').endsWith('SAVE_UNKNOWN')) {
+          await releaseCheckoutBonus(pricing, customerId, checkoutId).catch(() => undefined);
+        }
         await Promise.allSettled([
           releaseCheckoutRequest(customerId, checkoutId),
           releasePromotionReservation({ customerId, requestId: checkoutId }),

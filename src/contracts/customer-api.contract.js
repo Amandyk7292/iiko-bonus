@@ -71,6 +71,7 @@ const checkoutQuoteBodySchema = z
     deliveryAddress: checkoutAddressSchema.nullish(),
     promoCode: nullableText(80),
     deliveryQuoteVersion: z.literal(1).optional(),
+    useBonuses: z.boolean().optional(),
   })
   .strict();
 const checkoutPaymentBodySchema = checkoutQuoteBodySchema
@@ -78,6 +79,7 @@ const checkoutPaymentBodySchema = checkoutQuoteBodySchema
     checkoutId: z.string().trim().uuid(),
     savedPaymentMethodId: nullableText(200),
     deliveryQuoteToken: nullableText(2048),
+    expectedBonusSpent: z.number().int().min(0).max(100000000).optional(),
     additionalPhone: nullableText(32),
     comment: nullableText(500),
     substitutionPreference: z

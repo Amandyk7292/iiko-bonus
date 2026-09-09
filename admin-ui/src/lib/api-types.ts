@@ -200,6 +200,7 @@ export interface AdminOrder {
   subtotal: number;
   discount: number;
   deliveryFee?: number;
+  bonusSpent?: number;
   branch: string;
   branchId?: string | null;
   orderType?: 'pickup' | 'preorder' | 'delivery' | string;

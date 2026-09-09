@@ -122,12 +122,9 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'en': 'Select an exact delivery address on the map.',
   },
   'checkout_delivery_unavailable': {
-    'ru':
-        'Доставка пока недоступна для выбранных точек. Вернитесь на главную и выберите самовывоз или предзаказ.',
-    'kk':
-        'Таңдалған орындар үшін жеткізу әзірге қолжетімсіз. Басты бетке оралып, алып кетуді немесе алдын ала тапсырысты таңдаңыз.',
-    'en':
-        'Delivery is not available for the configured locations yet. Return to Home and choose pickup or preorder.',
+    'ru': 'В данный момент доставка временно недоступна. Выберите самовывоз.',
+    'kk': 'Қазір жеткізу уақытша қолжетімсіз. Өзіңіз алып кетуді таңдаңыз.',
+    'en': 'Delivery is temporarily unavailable. Please choose pickup.',
   },
   'checkout_additional_phone': {
     'ru': 'Дополнительный номер',
@@ -190,6 +187,38 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'ru': 'Выберите способ оплаты',
     'kk': 'Төлем әдісін таңдаңыз',
     'en': 'Select payment method',
+  },
+  'checkout_use_bonuses': {
+    'ru': 'Списать бонусы',
+    'kk': 'Бонустарды пайдалану',
+    'en': 'Use bonuses',
+  },
+  'checkout_bonus_changed': {
+    'ru': 'Баланс бонусов изменился. Обновите расчёт заказа.',
+    'kk': 'Бонус теңгерімі өзгерді. Тапсырыс есебін жаңартыңыз.',
+    'en': 'Your bonus balance changed. Refresh the order total.',
+  },
+  'checkout_bonus_balance': {
+    'ru': 'Доступно: {amount} бонусов',
+    'kk': 'Қолжетімді: {amount} бонус',
+    'en': 'Available: {amount} bonuses',
+  },
+  'checkout_bonus_limit': {
+    'ru':
+        'До 50% стоимости товаров после скидок. Доставка оплачивается картой.',
+    'kk':
+        'Жеңілдіктерден кейінгі тауар құнының 50%-на дейін. Жеткізу картамен төленеді.',
+    'en': 'Up to 50% of goods after discounts. Delivery is paid by card.',
+  },
+  'checkout_bonus_after_quote': {
+    'ru': 'Выберите время, чтобы рассчитать доступные бонусы.',
+    'kk': 'Қолжетімді бонустарды есептеу үшін уақытты таңдаңыз.',
+    'en': 'Select a time to calculate available bonuses.',
+  },
+  'checkout_bonus_spent': {
+    'ru': 'Списано бонусами',
+    'kk': 'Бонустармен төленді',
+    'en': 'Paid with bonuses',
   },
   'checkout_comment': {'ru': 'Комментарий', 'kk': 'Пікір', 'en': 'Comment'},
   'checkout_comment_hint': {

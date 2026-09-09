@@ -6,6 +6,11 @@ String localizeErrorMessage(
 }) {
   final code = error is ApiException ? error.code : null;
   switch (code) {
+    case 'DELIVERY_TEMPORARILY_UNAVAILABLE':
+      return 'checkout_delivery_unavailable'.tr;
+    case 'CHECKOUT_BONUS_CHANGED':
+    case 'CHECKOUT_BONUS_UNAVAILABLE':
+      return 'checkout_bonus_changed'.tr;
     case 'PROMO_DELIVERY_ONLY':
       return 'checkout_promo_delivery_only'.tr;
     case 'CHECKOUT_QUOTE_CHANGED':

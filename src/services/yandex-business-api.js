@@ -830,6 +830,9 @@ async function businessApiRequest(
       }
     }
     if (!response.ok) {
+      await require('./delivery-availability.service').deliveryAvailability.recordProviderFailure(
+        payload,
+      );
       // Even a nominal provider "code" is untrusted and can contain echoed
       // contact/address data. The HTTP class is sufficient for retry policy.
       const providerCode = `YANDEX_BUSINESS_HTTP_${response.status}`;

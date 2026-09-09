@@ -696,6 +696,7 @@ const kk: Record<string, string> = {
   'orders.amountBreakdown': 'Тапсырыс есебі',
   'orders.goods': 'Тауарлар',
   'orders.discountAmount': 'Жеңілдік',
+  'orders.bonusSpent': 'Бонустармен төленді',
   'orders.deliveryFee': 'Жеткізу',
   'orders.grandTotal': 'Барлығы',
   'orders.cancelCourierAutomatically': 'Тапсырыстан бас тартпас бұрын шақырылған курьер автоматты түрде тоқтатылады.',

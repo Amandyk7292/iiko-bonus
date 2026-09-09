@@ -134,7 +134,8 @@ const Map<String, Map<String, String>> _accountTranslations = {
     'en': 'Delete account',
   },
   'delete_account_message': {
-    'ru': 'Вы уверены? Действие необратимо, а накопленные бонусы будут удалены.',
+    'ru':
+        'Вы уверены? Действие необратимо, а накопленные бонусы будут удалены.',
     'kk':
         'Сенімдісіз бе? Бұл әрекетті қайтаруға болмайды, жиналған бонустар жойылады.',
     'en':
@@ -173,6 +174,26 @@ const Map<String, Map<String, String>> _accountTranslations = {
   'surname_label': {'ru': 'Фамилия', 'kk': 'Тегі', 'en': 'Last name'},
   'email_label': {'ru': 'E-mail', 'kk': 'E-mail', 'en': 'Email'},
   'email_verified': {'ru': 'Подтверждён', 'kk': 'Расталған', 'en': 'Verified'},
+  'checkout_payment_title': {
+    'ru': 'Способ оплаты',
+    'kk': 'Төлем тәсілі',
+    'en': 'Payment method',
+  },
+  'checkout_card_payment': {
+    'ru': 'Оплата картой',
+    'kk': 'Картамен төлеу',
+    'en': 'Pay by card',
+  },
+  'checkout_choose_card': {
+    'ru': 'Выберите карту',
+    'kk': 'Картаны таңдаңыз',
+    'en': 'Choose a card',
+  },
+  'checkout_add_new_card': {
+    'ru': 'Добавить новую карту',
+    'kk': 'Жаңа карта қосу',
+    'en': 'Add a new card',
+  },
   'payment_methods_title': {
     'ru': 'Сохранённые карты',
     'kk': 'Сақталған карталар',

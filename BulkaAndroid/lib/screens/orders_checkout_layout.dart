@@ -31,9 +31,7 @@ extension _CheckoutScreenLayout on _CheckoutScreenState {
                       onChanged: _setPreorderFulfillment,
                     ),
                   ],
-                  if (_usesDelivery &&
-                      _deliveryAvailabilityChecked &&
-                      !_deliveryAvailable) ...[
+                  if (_deliveryUnavailable) ...[
                     const SizedBox(height: 10),
                     const _CheckoutDeliveryUnavailable(),
                   ],
@@ -153,8 +151,10 @@ extension _CheckoutScreenLayout on _CheckoutScreenState {
                       loading: _isSelectingTime,
                     ),
                   if (!_onlineOrderingDisabled) ...[
+                    const SizedBox(height: 24),
+                    _buildBonusSwitch(),
                     const SizedBox(height: 28),
-                    _CheckoutLabel('payment_methods_title'.tr),
+                    _CheckoutLabel('checkout_payment_title'.tr),
                     const SizedBox(height: 10),
                     _CheckoutSavedCardsPanel(
                       api: widget.api,
@@ -292,6 +292,15 @@ extension _CheckoutScreenLayout on _CheckoutScreenState {
                     ),
                     const SizedBox(height: 6),
                     Text('checkout_free_delivery_threshold'.tr),
+                  ],
+                  if (_useBonuses) ...[
+                    const SizedBox(height: 8),
+                    _CheckoutTotalRow(
+                      label: 'checkout_bonus_spent'.tr,
+                      value: _quotedTotal == null || _isQuoting
+                          ? '—'
+                          : '− ${_formatCartMoney(_bonusSpent)} ₸',
+                    ),
                   ],
                   const SizedBox(height: 8),
                   _CheckoutTotalRow(

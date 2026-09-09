@@ -228,7 +228,7 @@ async function getPaymentReceipt(receiptId, { db = supabase } = {}) {
   const { data, error } = await db
     .from('payment_receipts')
     .select(
-      '*,order:kaspi_orders(discount_amount,delivery_fee,fulfillment_type,preorder_fulfillment_type,provider_card_last_four)',
+      '*,order:kaspi_orders(discount_amount,bonus_spent,delivery_fee,fulfillment_type,preorder_fulfillment_type,provider_card_last_four)',
     )
     .eq('id', receiptId)
     .maybeSingle();
@@ -408,6 +408,7 @@ function customerPaymentReceipt(receipt) {
     currency: cleanText(receipt.currency, 3) || 'KZT',
     amount: Number(receipt.amount) || 0,
     discount: Number(order?.discount_amount) || 0,
+    bonusSpent: Number(order?.bonus_spent) || 0,
     deliveryFee: Number(order?.delivery_fee) || 0,
     hasDelivery: isDeliveryFulfillment(order) || Number(order?.delivery_fee) > 0,
     operation: receipt.operation_type === 'refund' ? 'refund' : 'purchase',
@@ -455,6 +456,7 @@ function renderPaymentReceipt(receipt, requestedLanguage, access = {}) {
       share: 'Поделиться',
       close: 'Закрыть',
       discount: 'Скидка',
+      bonus: 'Списано бонусами',
       goods: 'Товары',
       delivery: 'Доставка',
       payment: 'Оплата',
@@ -465,6 +467,7 @@ function renderPaymentReceipt(receipt, requestedLanguage, access = {}) {
       share: 'Бөлісу',
       close: 'Жабу',
       discount: 'Жеңілдік',
+      bonus: 'Бонустармен төленді',
       goods: 'Тауарлар',
       delivery: 'Жеткізу',
       payment: 'Төлем',
@@ -475,6 +478,7 @@ function renderPaymentReceipt(receipt, requestedLanguage, access = {}) {
       share: 'Share',
       close: 'Close',
       discount: 'Discount',
+      bonus: 'Paid with bonuses',
       goods: 'Items',
       delivery: 'Delivery',
       payment: 'Payment',
@@ -499,8 +503,8 @@ function renderPaymentReceipt(receipt, requestedLanguage, access = {}) {
         ? 'Paid by card'
         : 'Paid',
   }[language];
-  const { discount, deliveryFee: delivery, hasDelivery, amount } = customerReceipt;
-  const goodsSubtotal = Math.max(0, Number((amount - delivery + discount).toFixed(2)));
+  const { discount, bonusSpent, deliveryFee: delivery, hasDelivery, amount } = customerReceipt;
+  const goodsSubtotal = Math.max(0, Number((amount - delivery + discount + bonusSpent).toFixed(2)));
   const money = (value) => `${escapeHtml(localizedMoney(value, language))} ₸`;
   return `<!doctype html>
 <html lang="${language}">
@@ -537,6 +541,7 @@ function renderPaymentReceipt(receipt, requestedLanguage, access = {}) {
     <dl class="receipt-totals">
       <div><dt>${ui.goods}</dt><dd>${money(goodsSubtotal)}</dd></div>
       ${discount > 0 ? `<div><dt>${ui.discount}</dt><dd>−${money(discount)}</dd></div>` : ''}
+      ${bonusSpent > 0 ? `<div><dt>${ui.bonus}</dt><dd>−${money(bonusSpent)}</dd></div>` : ''}
       ${hasDelivery ? `<div><dt>${ui.delivery}</dt><dd>${money(delivery)}</dd></div>` : ''}
       <div class="grand-total"><dt>${copy.total}</dt><dd>${money(receipt.amount)}</dd></div>
     </dl>

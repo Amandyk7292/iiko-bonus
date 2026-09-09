@@ -546,6 +546,7 @@ async function estimateCheckoutDelivery(checkout, pricing) {
     return Math.ceil(price);
   } catch (error) {
     console.warn('Checkout delivery estimate failed:', error.code || error.message);
+    await require('./delivery-availability.service').deliveryAvailability.assertAvailable(checkout);
     throw deliveryError(
       'Не удалось рассчитать доставку. Попробуйте ещё раз.',
       503,
@@ -667,6 +668,11 @@ async function apiRequest(path, { method = 'POST', body, query = {}, config = ge
       } catch {
         payload = { message: text.slice(0, 500) };
       }
+    }
+    if (!response.ok || ['failed', 'estimating_failed'].includes(payload.status)) {
+      await require('./delivery-availability.service').deliveryAvailability.recordProviderFailure(
+        payload,
+      );
     }
     if (!response.ok) {
       const message = boundedString(

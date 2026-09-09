@@ -1010,6 +1010,16 @@ export const api = {
   getAuditLogs: ({
     page = 1,
     pageSize = 50,
+  getDeliveryAvailability: () =>
+    request<{
+      config: { disabled: boolean; reason?: string; revision?: string; detectedAt?: string };
+      canResume: boolean;
+    }>('/orders/delivery-availability'),
+  resumeDelivery: (revision: string) =>
+    request<{ config: { disabled: boolean } }>(
+      '/orders/delivery-availability',
+      json('PUT', { revision, balanceConfirmed: true }),
+    ),
     search = '',
     method = '',
     outcome = '',

@@ -201,4 +201,44 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('BLK-100039'), findsOneWidget);
   });
+
+  for (final language in ['ru', 'kk', 'en']) {
+    testWidgets('receipt separates spent bonuses from delivery in $language', (
+      tester,
+    ) async {
+      appLanguageNotifier.value = language;
+      final data = {
+        ...receiptData,
+        'amount': 1900,
+        'discount': 200,
+        'bonusSpent': 900,
+        'deliveryFee': 1000,
+      };
+      final receipt = PaymentReceipt.fromJson(data);
+      expect(receipt.goodsSubtotal, 2000);
+      final api = BulkaApiClient(
+        client: MockClient(
+          (_) async => http.Response(
+            jsonEncode({'success': true, 'receipt': data}),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          ),
+        ),
+      );
+      addTearDown(api.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PaymentReceiptScreen(receiptUrl: receiptUrl, api: api),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('checkout_bonus_spent'.tr),
+        150,
+      );
+      expect(find.text('checkout_bonus_spent'.tr), findsOneWidget);
+      expect(find.text('−900 ₸'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
 }

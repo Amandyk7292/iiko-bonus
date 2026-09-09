@@ -16,10 +16,11 @@ Widget buildCheckoutSavedCardsPanelForTest({
   required String? selectedMethodId,
   required ValueChanged<String?> onDefaultResolved,
   required ValueChanged<String> onSelect,
+  bool? available = true,
 }) {
   return _CheckoutSavedCardsPanel(
     api: api,
-    available: true,
+    available: available,
     selectedMethodId: selectedMethodId,
     onDefaultResolved: onDefaultResolved,
     onSelect: onSelect,
@@ -33,6 +34,8 @@ class _CheckoutDetails {
     required this.orderType,
     required this.scheduledAt,
     this.savedPaymentMethodId,
+    this.useBonuses = false,
+    this.bonusSpent = 0,
     this.deliveryQuoteToken,
     this.preorderFulfillmentType,
     this.branch,
@@ -47,6 +50,8 @@ class _CheckoutDetails {
   final _OrderType orderType;
   final String scheduledAt;
   final String? savedPaymentMethodId;
+  final bool useBonuses;
+  final int bonusSpent;
   final String? deliveryQuoteToken;
   final String? preorderFulfillmentType;
   final String? branch;
@@ -84,27 +89,36 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
   bool _loading = false;
   bool _adding = false;
   String? _error;
+  String? _sessionScope;
+  int _loadRevision = 0;
 
   @override
   void initState() {
     super.initState();
+    _sessionScope = widget.api.sessionCacheScope;
     if (widget.available == true) unawaited(_load());
   }
 
   @override
   void didUpdateWidget(covariant _CheckoutSavedCardsPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.available == true && oldWidget.available != true) {
-      unawaited(_load());
-    }
-    if (widget.available != true &&
-        oldWidget.available == true &&
-        _methods.isNotEmpty) {
-      setState(() {
-        _methods = const [];
-        _error = null;
-      });
+    final sessionChanged =
+        _sessionScope != widget.api.sessionCacheScope ||
+        oldWidget.api != widget.api;
+    if (sessionChanged ||
+        (widget.available == false && oldWidget.available != false)) {
+      _sessionScope = widget.api.sessionCacheScope;
+      _loadRevision++;
+      _methods = const [];
+      _loading = false;
+      _error = null;
       _resolveDefault(null);
+    }
+    if (widget.available == true &&
+        (sessionChanged ||
+            oldWidget.available == false ||
+            (oldWidget.available == null && _methods.isEmpty))) {
+      unawaited(_load());
     }
   }
 
@@ -130,6 +144,7 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
 
   Future<void> _load() async {
     if (widget.available != true || _loading) return;
+    final revision = ++_loadRevision;
     setState(() {
       _loading = true;
       _error = null;
@@ -139,15 +154,17 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
           .where((method) => (method['id'] ?? '').toString().isNotEmpty)
           .take(_maximumSavedPaymentMethods)
           .toList(growable: false);
-      if (!mounted) return;
+      if (!mounted || revision != _loadRevision) return;
       setState(() => _methods = methods);
       _resolveDefault(_preferredMethodId(methods));
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || revision != _loadRevision) return;
       setState(() => _error = 'payment_methods_load_error'.tr);
-      _resolveDefault(null);
+      if (_methods.isEmpty) _resolveDefault(null);
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && revision == _loadRevision) {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -210,7 +227,7 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
   @override
   Widget build(BuildContext context) {
     final colors = context.bulkaColors;
-    if (widget.available == null || _loading) {
+    if (_methods.isEmpty && (widget.available == null || _loading)) {
       return Container(
         key: const ValueKey('checkout-saved-cards-loading'),
         width: double.infinity,
@@ -242,7 +259,7 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
       );
     }
 
-    if (widget.available != true) {
+    if (widget.available == false) {
       return _CheckoutSavedCardsNotice(
         key: const ValueKey('checkout-saved-cards-unavailable'),
         icon: Icons.error_outline_rounded,
@@ -252,7 +269,7 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
       );
     }
 
-    if (_error != null) {
+    if (_error != null && _methods.isEmpty) {
       return _CheckoutSavedCardsNotice(
         key: const ValueKey('checkout-saved-cards-error'),
         icon: Icons.error_outline_rounded,
@@ -273,47 +290,81 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
       );
     }
 
-    return Column(
-      children: [
-        ..._methods.map((method) {
-          final id = (method['id'] ?? '').toString();
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: _CheckoutSavedCardTile(
-              method: method,
-              selected: widget.selectedMethodId == id,
-              onTap: () => widget.onSelect(id),
-            ),
-          );
-        }),
-        if (_methods.length < _maximumSavedPaymentMethods)
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: OutlinedButton.icon(
-              key: const ValueKey('checkout-add-saved-card'),
-              onPressed: _adding ? null : _addCard,
-              icon: _adding
-                  ? const SizedBox.square(
-                      dimension: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.add_card_rounded),
-              label: Text(
-                'payment_methods_add'.tr,
-                style: const TextStyle(
-                  fontFamily: _headingFont,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          )
-        else
-          const _CheckoutSavedCardsLimitNotice(
-            key: ValueKey('checkout-saved-cards-limit'),
-          ),
-      ],
+    final selectedId = _preferredMethodId(_methods);
+    final selected = _methods.firstWhere(
+      (method) => method['id'] == selectedId,
+      orElse: () => _methods.first,
     );
+    return Material(
+      key: const ValueKey('checkout-payment-method'),
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(BulkaRadii.control),
+        side: BorderSide(color: colors.cardBorder),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        key: const ValueKey('checkout-choose-card'),
+        onTap: _adding ? null : _chooseCard,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.credit_card_outlined, color: colors.brandBrown),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'checkout_card_payment'.tr,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  Icon(Icons.radio_button_checked, color: colors.brandBrown),
+                ],
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                child: Divider(height: 1, color: colors.cardBorder),
+              ),
+              _CheckoutCardIdentity(
+                method: selected,
+                trailing: _adding
+                    ? const SizedBox.square(
+                        dimension: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        color: colors.brandBrown,
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _chooseCard() async {
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      builder: (sheetContext) => _CheckoutCardPicker(
+        methods: _methods,
+        selectedId: _preferredMethodId(_methods),
+      ),
+    );
+    if (!mounted || selected == null) return;
+    if (selected == 'add') {
+      await _addCard();
+    } else {
+      widget.onSelect(selected);
+    }
   }
 }
 
@@ -347,135 +398,6 @@ class _CheckoutSavedCardsLimitNotice extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _CheckoutSavedCardTile extends StatelessWidget {
-  const _CheckoutSavedCardTile({
-    required this.method,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final Map<String, dynamic> method;
-  final bool selected;
-  final VoidCallback onTap;
-
-  String get _id => (method['id'] ?? '').toString();
-
-  String get _cardLabel {
-    final brand = (method['brand'] ?? 'card').toString().trim().toUpperCase();
-    final lastFour = (method['lastFour'] ?? '').toString().trim();
-    return '$brand •••• $lastFour';
-  }
-
-  String get _details {
-    final month = int.tryParse('${method['expMonth'] ?? ''}');
-    final year = int.tryParse('${method['expYear'] ?? ''}');
-    final values = <String>[];
-    if (month != null && year != null) {
-      values.add(
-        '${'payment_methods_expiry'.tr} '
-        '${month.toString().padLeft(2, '0')}/'
-        '${(year % 100).toString().padLeft(2, '0')}',
-      );
-    }
-    if (method['isDefault'] == true) {
-      values.add('payment_methods_default'.tr);
-    }
-    return values.join(' · ');
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.bulkaColors;
-    final scheme = Theme.of(context).colorScheme;
-    final details = _details;
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: details.isEmpty ? _cardLabel : '$_cardLabel. $details',
-      onTap: onTap,
-      excludeSemantics: true,
-      child: Material(
-        key: ValueKey('checkout-saved-card-surface-$_id'),
-        color: selected ? scheme.secondaryContainer : scheme.surface,
-        animationDuration: const Duration(milliseconds: 180),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(BulkaRadii.control),
-          side: BorderSide(
-            color: selected ? colors.brandBrown : colors.cardBorder,
-            width: selected ? 2 : 1,
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          key: ValueKey('checkout-saved-card-$_id'),
-          onTap: onTap,
-          excludeFromSemantics: true,
-          child: Container(
-            width: double.infinity,
-            constraints: const BoxConstraints(minHeight: 78),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-            child: Row(
-              children: [
-                Container(
-                  width: 46,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: colors.cardBorder),
-                  ),
-                  child: Icon(
-                    Icons.credit_card_rounded,
-                    color: colors.brandBrown,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _cardLabel,
-                        style: const TextStyle(
-                          fontFamily: _headingFont,
-                          fontSize: BulkaTypeScale.body,
-                          fontWeight: FontWeight.w700,
-                          color: _textDark,
-                        ),
-                      ),
-                      if (details.isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          details,
-                          style: TextStyle(
-                            color: colors.mutedText,
-                            fontSize: BulkaTypeScale.caption,
-                            height: 1.25,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Icon(
-                  selected
-                      ? Icons.check_circle_rounded
-                      : Icons.radio_button_unchecked_rounded,
-                  color: selected ? colors.brandBrown : colors.mutedText,
-                  size: 24,
-                ),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }

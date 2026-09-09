@@ -698,6 +698,7 @@ const en: Record<string, string> = {
   'orders.amountBreakdown': 'Order breakdown',
   'orders.goods': 'Items',
   'orders.discountAmount': 'Discount',
+  'orders.bonusSpent': 'Paid with bonuses',
   'orders.deliveryFee': 'Delivery',
   'orders.grandTotal': 'Total',
   'orders.cancelCourierAutomatically': 'The dispatched courier will be cancelled automatically before the order is cancelled.',

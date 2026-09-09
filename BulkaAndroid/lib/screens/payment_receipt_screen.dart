@@ -162,6 +162,11 @@ class _PaymentReceiptScreenState extends State<PaymentReceiptScreen> {
                 label: 'receipt_goods'.tr,
                 value: receipt.money(receipt.goodsSubtotal),
               ),
+              if (receipt.bonusSpent > 0)
+                _OrderInfoRow(
+                  label: 'checkout_bonus_spent'.tr,
+                  value: '−${receipt.money(receipt.bonusSpent)}',
+                ),
               if (receipt.discount > 0)
                 _OrderInfoRow(
                   label: 'receipt_discount'.tr,

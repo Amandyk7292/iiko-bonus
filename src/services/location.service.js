@@ -1,4 +1,5 @@
 const { supabase } = require('../config/supabase');
+const { deliveryAvailability } = require('./delivery-availability.service');
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_CITY_POINT_DISTANCE_KM = 150;
@@ -98,7 +99,10 @@ const normalizeLocation = (row) => ({
   sortOrder: Number(row.sort_order || 0),
 });
 
-async function getBulkaLocations({ includeInactive = false } = {}) {
+async function getBulkaLocations({
+  includeInactive = false,
+  applyDeliveryAvailability = true,
+} = {}) {
   let query = supabase
     .from('bulka_locations')
     .select(
@@ -112,7 +116,12 @@ async function getBulkaLocations({ includeInactive = false } = {}) {
     serviceError.cause = error;
     throw serviceError;
   }
-  return (data || []).map(normalizeLocation);
+  const locations = (data || []).map(normalizeLocation);
+  if (includeInactive || !applyDeliveryAvailability) return locations;
+  const availability = await deliveryAvailability.get().catch(() => ({ disabled: true }));
+  return availability.disabled
+    ? locations.map((location) => ({ ...location, deliveryEnabled: false }))
+    : locations;
 }
 
 const normalizeBulkaCity = (row) => ({
@@ -235,9 +244,12 @@ async function createBulkaLocation(payload = {}) {
   return normalizeLocation(data);
 }
 
-async function getCitiesWithPoints({ throwOnError = false } = {}) {
+async function getCitiesWithPoints({
+  throwOnError = false,
+  applyDeliveryAvailability = true,
+} = {}) {
   try {
-    const locations = await getBulkaLocations();
+    const locations = await getBulkaLocations({ applyDeliveryAvailability });
     const grouped = new Map();
     for (const location of locations) {
       if (!grouped.has(location.city)) {

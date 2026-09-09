@@ -583,7 +583,7 @@ void main() {
       findsNothing,
     );
 
-    final savedCardLabel = find.text('VISA •••• 1328');
+    final savedCardLabel = find.text('•••• 1328');
     await tester.scrollUntilVisible(
       savedCardLabel,
       420,
@@ -592,6 +592,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(savedCardLabel, findsOneWidget);
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('checkout-choose-card')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('checkout-choose-card')));
+    await tester.pumpAndSettle();
     expect(
       find.byKey(
         const ValueKey(
@@ -763,10 +769,12 @@ void main() {
         ),
       );
       await tester.scrollUntilVisible(
-        secondCard,
+        find.byKey(const ValueKey('checkout-choose-card')),
         420,
         scrollable: find.byType(Scrollable).last,
       );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('checkout-choose-card')));
       await tester.pumpAndSettle();
 
       expect(
@@ -785,6 +793,8 @@ void main() {
       );
 
       await tester.tap(secondCard);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('checkout-choose-card')));
       await tester.pumpAndSettle();
 
       expect(
@@ -909,7 +919,7 @@ void main() {
           api.savedPaymentMethodId,
           '31f0d793-0102-4d2f-a5a1-744d12cffe7c',
         );
-        expect(find.text('Оплата картой'), findsOneWidget);
+        expect(find.text('Оплата картой'), findsWidgets);
 
         await tester.pumpWidget(const SizedBox.shrink());
         await tester.pump();
@@ -2897,6 +2907,7 @@ class _CheckoutPaymentRoutingApiClient extends _FakeBulkaApiClient {
     String? preorderFulfillmentType,
     DeliveryAddress? deliveryAddress,
     String? promoCode,
+    bool useBonuses = false,
   }) async {
     forteQuoteCalls++;
     if (rejectQuote) {
@@ -2917,6 +2928,8 @@ class _CheckoutPaymentRoutingApiClient extends _FakeBulkaApiClient {
     required String scheduledAt,
     required String checkoutId,
     String? savedPaymentMethodId,
+    bool useBonuses = false,
+    int expectedBonusSpent = 0,
     String? deliveryQuoteToken,
     String? preorderFulfillmentType,
     String? branch,

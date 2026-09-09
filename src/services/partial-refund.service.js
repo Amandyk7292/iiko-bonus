@@ -107,7 +107,7 @@ function calculateRefund(order, requested, alreadyRefunded) {
 
   const lineSubtotal = lines.reduce((sum, line) => sum + line.unitAmount * line.quantity, 0);
   const subtotal = lineSubtotal > 0 ? lineSubtotal : Number(order.subtotal || 0);
-  const discount = Math.max(0, Number(order.discount_amount || 0));
+  const discount = Math.max(0, Number(order.discount_amount || 0) + Number(order.bonus_spent || 0));
   const lineRawOffsets = new Map();
   let rawOffset = 0;
   for (const line of lines) {
@@ -206,7 +206,9 @@ function buildRefundPreview(order, calculated, financials = {}) {
   );
   const eligiblePaid = Math.max(
     0,
-    Number(order.subtotal ?? order.amount ?? 0) - Number(order.discount_amount || 0),
+    Number(order.subtotal ?? order.amount ?? 0) -
+      Number(order.discount_amount || 0) -
+      Number(order.bonus_spent || 0),
   );
   const ratio = eligiblePaid > 0 ? Math.min(1, totalAfter / eligiblePaid) : 0;
   const targetEarned =

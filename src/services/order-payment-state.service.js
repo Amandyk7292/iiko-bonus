@@ -27,7 +27,12 @@ const paymentStatusCanTransition = (currentStatus, nextStatus) => {
 };
 
 const eligibleOrderAmount = (order) =>
-  Math.max(0, Number(order?.subtotal ?? order?.amount ?? 0) - Number(order?.discount_amount || 0));
+  Math.max(
+    0,
+    Number(order?.subtotal ?? order?.amount ?? 0) -
+      Number(order?.discount_amount || 0) -
+      Number(order?.bonus_spent || 0),
+  );
 
 class OrderPaymentStateService {
   orderRecord({
@@ -65,6 +70,8 @@ class OrderPaymentStateService {
       cart_items: cartItems,
       subtotal: pricing.subtotal,
       discount_amount: pricing.discount,
+      bonus_spent: pricing.bonusSpent || 0,
+      bonus_reservation_id: pricing.bonusReservationId || null,
       delivery_fee: pricing.deliveryFee || 0,
       promo_code: pricing.promoCode,
       fulfillment_type: checkout.orderType,
@@ -225,6 +232,17 @@ class OrderPaymentStateService {
     const tier = getTierInfo(customer.total_spent, tiers, settings);
     const eligibleAmount = eligibleOrderAmount(order);
     const earnedBonus = Math.max(0, Math.round(eligibleAmount * (Number(tier.percent || 0) / 100)));
+    if (Number(order.bonus_spent || 0) > 0) {
+      const { commitCheckoutBonus } = require('./checkout-bonus.service');
+      const result = await commitCheckoutBonus(
+        order,
+        earnedBonus,
+        Number(settings.bonus_activation?.delay_days || 0),
+      );
+      if (result?.status !== 'committed') return null;
+      queueCustomerLoyaltySync(order.customer_id);
+      return { ...order, earned_bonus: earnedBonus, bonus_awarded_at: new Date().toISOString() };
+    }
     await applyLoyaltyTransaction({
       customerId: order.customer_id,
       orderId: `kaspi:${order.operation_id}`,
@@ -361,6 +379,10 @@ class OrderPaymentStateService {
     }
 
     let recorded = order;
+    if (Number(order.bonus_spent || 0) > 0 && !order.bonus_awarded_at) {
+      recorded = await this.awardOrderBonus(order);
+      if (!recorded) return refundUnavailableOrder('Бонусы для этого заказа уже недоступны');
+    }
     if (order.fulfillment_status === 'pending' || lateCleanupCancellation) {
       const { data, error } = await supabase
         .from('kaspi_orders')
@@ -392,7 +414,13 @@ class OrderPaymentStateService {
         }
         recorded = latest;
       } else {
-        recorded = data;
+        recorded = {
+          ...data,
+          ...(recorded.bonus_awarded_at && {
+            bonus_awarded_at: recorded.bonus_awarded_at,
+            earned_bonus: recorded.earned_bonus,
+          }),
+        };
       }
     }
     const finalOrder = recorded.bonus_awarded_at ? recorded : await this.awardOrderBonus(recorded);

@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import DispatchMap from '../components/DispatchMap';
 import PageState from '../components/PageState';
+import DeliveryAvailabilityNotice from '../components/DeliveryAvailabilityNotice';
 import SelectControl from '../components/SelectControl';
 import { useFeedback } from '../components/Feedback';
 import {
@@ -388,6 +389,7 @@ export default function DispatchPage({ orderId }: { orderId?: string } = {}) {
 
   return (
     <div className="page-stack">
+      <DeliveryAvailabilityNotice />
       <div className="page-actions-row">
         <div>
           {!orderId && <h2 className="content-heading">{t('dispatch.heading')}</h2>}

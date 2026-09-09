@@ -1,6 +1,30 @@
 part of '../main.dart';
 
 extension _CheckoutScreenStatePreferences on _CheckoutScreenState {
+  bool get _deliveryUnavailable =>
+      _usesDelivery && _deliveryAvailabilityChecked && !_deliveryAvailable;
+
+  Future<void> _loadPaymentAvailability() async {
+    if (_checkingPaymentAvailability) return;
+    _checkingPaymentAvailability = true;
+    try {
+      final available = await widget.api.isFortePaymentAvailable();
+      if (!mounted) return;
+      _updateCheckoutState(() {
+        _forteAvailable = available;
+        _onlineOrderingDisabled = widget.api.onlineOrderingDisabled;
+        if (!available) _selectedPaymentMethodId = null;
+      });
+    } catch (_) {
+      // A failed background refresh must not discard an already loaded card.
+      if (mounted && _forteAvailable == null) {
+        _updateCheckoutState(() => _forteAvailable = false);
+      }
+    } finally {
+      _checkingPaymentAvailability = false;
+    }
+  }
+
   Future<void> _loadCheckoutPreferences() async {
     final prefs = await SharedPreferences.getInstance();
     final savedCheckoutId = prefs.getString(_draftKey('checkout_id'));
