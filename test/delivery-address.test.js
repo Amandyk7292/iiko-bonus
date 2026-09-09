@@ -12,6 +12,7 @@ test('a separately entered house completes the street address without treating t
     house: '17',
   });
   assert.equal(destination.fullname, 'Актау, 17-й микрорайон, дом 17');
+  assert.equal(destination.shortname, '17-й микрорайон, дом 17');
   assert.equal(destination.address, '17-й микрорайон');
 });
 
@@ -22,7 +23,9 @@ test('precomposed addresses do not repeat their city or house', () => {
     'Актау, 17-й микрорайон д. 34',
     'Актау, 17-й микрорайон дом 34',
   ]) {
-    assert.equal(deliveryDestination({ city: 'Актау', address, house: '34' }).fullname, address);
+    const destination = deliveryDestination({ city: 'Актау', address, house: '34' });
+    assert.equal(destination.fullname, address);
+    assert.equal(destination.shortname, address.slice('Актау, '.length));
   }
 });
 

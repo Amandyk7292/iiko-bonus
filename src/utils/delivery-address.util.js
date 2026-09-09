@@ -22,11 +22,16 @@ function deliveryDestination(raw = {}, fallbackCity = '') {
     address && house && !includesHouse(address, house) ? `${address}, дом ${house}` : address;
   const hasCity =
     city && streetAndHouse.toLocaleLowerCase('ru-RU').includes(city.toLocaleLowerCase('ru-RU'));
+  const fullname = hasCity ? streetAndHouse : [city, streetAndHouse].filter(Boolean).join(', ');
+  const cityPrefix = `${city}, `;
   return {
     ...raw,
     city,
     house,
-    fullname: hasCity ? streetAndHouse : [city, streetAndHouse].filter(Boolean).join(', '),
+    fullname,
+    shortname: fullname.toLocaleLowerCase('ru-RU').startsWith(cityPrefix.toLocaleLowerCase('ru-RU'))
+      ? fullname.slice(cityPrefix.length)
+      : streetAndHouse,
     entrance: text(raw.entrance || raw.porch || raw.porchnumber, 30),
     floor: text(raw.floor ?? raw.sfloor, 20),
     apartment: text(raw.apartment || raw.flat || raw.sflat, 30),

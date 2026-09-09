@@ -555,6 +555,7 @@ function buildClaimPayload(order, config = getConfig()) {
         contact: { name: customerName, phone: customerPhone },
         address: {
           fullname: destination.fullname,
+          shortname: destination.shortname,
           coordinates: [Number(order.delivery_longitude), Number(order.delivery_latitude)],
           country: config.country,
           city: destination.city,

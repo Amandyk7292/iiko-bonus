@@ -106,6 +106,7 @@ test('quote and claim carry the saved house and visible arrival details without 
   const claim = buildClaimPayload(candidate, config);
   const destination = claim.route_points[1].address;
   assert.equal(destination.fullname, 'Актау, 17-й микрорайон, дом 34');
+  assert.equal(destination.shortname, '17-й микрорайон, дом 34');
   assert.equal(quote.route_points[1].fullname, destination.fullname);
   assert.deepEqual(destination.coordinates, [order.delivery_longitude, order.delivery_latitude]);
   assert.deepEqual(quote.route_points[1].coordinates, destination.coordinates);

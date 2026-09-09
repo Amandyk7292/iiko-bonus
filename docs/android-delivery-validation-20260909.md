@@ -115,11 +115,14 @@ Ignored evidence directory: `scratch/android-delivery-check-20260909/`.
 The recipient tracking screenshot exposed an incomplete visible address: the
 separately saved house was omitted from Cargo `address.fullname`; only the house
 was included in `comment`. Entrance, floor and apartment were sent as structured
-fields but were not displayed by that recipient page.
+fields but were not displayed by that recipient page. A read-only `claims/info`
+request confirmed that Yandex retained these fields and the exact destination
+coordinates, while returning a district-only `shortname` and an empty `building`.
 
 Cargo quotes/claims and Business routes now share full-address formatting. The
 house is included in the address (without repeating it in legacy precomposed
-addresses) and in Cargo's `building` field. The readable courier comment includes
+addresses), in Cargo's explicit `shortname`, and in its `building` field.
+The readable courier comment includes
 the saved label, house, entrance, floor and apartment before optional notes.
 Structured fields, destination coordinates and registered phone are preserved.
 Validation: 96 focused address, Cargo, Business and dispatch tests passed, along
