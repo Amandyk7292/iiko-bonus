@@ -5,6 +5,14 @@
 On 9 September the user explicitly authorized building, installing and checking
 the IPA, superseding the earlier hold. Build 21 was never installed.
 
+The final **IPA 23**, version **1.0.1**, source `142eb871c92f`, was installed on
+the original Amandyk iPhone at **09:41:37 +05:00**. Installation reached 100%; a
+separate app query confirmed build 23, and native process launch succeeded.
+Actions run `34311492058`, artifact `10088604739`.
+SHA-256: `ccaffc3522cb363d08cce2d52d02718dd70c4ffaf5faf1ede29c1c348f92efae`.
+The artifact checksum and app/widget signing, profiles, device eligibility,
+push entitlement, shared app group and icon catalog were validated again.
+
 Build **22** (version 1.0.1, source `1d4b73c0646a`) was installed on the original
 Amandyk iPhone at **09:15:09 +05:00**. Installation, a separate bundle/version
 query, and launch succeeded. Actions run `34309685403`, artifact `10088031264`.
@@ -85,9 +93,22 @@ This confirms APNs acceptance, not observation of the physical lock screen.
 
 Customer Firebase enrollment now waits for native initialization/APNs and retries
 late or offline registration. Broadcast results no longer report success for zero
-recipients. Physical customer FCM delivery remains under verification after the
-permission recovery above. Any device test targets only the user's own newly
-registered iPhone; no customer broadcast is authorized for testing.
+recipients. With build 23, the original account's device count changed from **0
+to 1** at `2026-09-09T04:41:49.648475Z`. One test notification targeted that fresh
+iOS token only. FCM accepted it at `2026-09-09T04:42:22.738Z`, and a physical
+device screenshot captured its visible "Проверка Bulka" banner. This establishes
+actual foreground delivery, beyond provider acceptance. No customer broadcast
+was sent and no order/payment status was changed. Physical cashier delivery and
+all lock-screen lifecycle cases are not established by this customer test.
+
+The physical Locations screen showed the white bottom safe area and absent
+location button. The running customer Live Activity displayed "Готов" in Dynamic
+Island, and build 23 registered a fresh ActivityKit token after launch.
+
+Device evidence: `scratch/iphone-build23-install.log`,
+`scratch/iphone-build23-after-app.json`, `scratch/iphone-build23-launch.log`,
+`scratch/iphone-build23-push-after.json`, `scratch/iphone-build23-push-delivery.jsonl`,
+`scratch/iphone-build23-test-push.png`, and `scratch/iphone-build23-permission.png`.
 
 Local evidence is in `scratch/client-validation-complete.log`,
 `scratch/client-final-delta-tests.log`, `scratch/client-final-analyze-v2.log`,
