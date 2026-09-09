@@ -51,8 +51,9 @@ not cancelled by a global availability stop.
 
 On 2026-09-09, an authorized support request asked for the available corporate
 balance API and whether `claims/create` + `claims/info` can return a funds error
-before `claims/accept`. Support escalated the question to development; no
-technical answer was available at implementation time.
+before `claims/accept`. At 18:00, support relayed development's answer that
+Delivery has no method for retrieving the balance. They did not specify an
+insufficient-funds code or confirm the exact stage at which it is checked.
 
 Provider documentation:
 

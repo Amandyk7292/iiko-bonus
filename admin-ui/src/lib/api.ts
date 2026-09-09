@@ -1003,13 +1003,6 @@ export const api = {
   updateSiteAccess: (data: SiteAccessConfig) =>
     request<SiteAccessResponse>('/site-access', json('PUT', data)),
   getOnlineOrdering: () => request<OnlineOrderingResponse>('/online-ordering'),
-  updateOnlineOrdering: (data: OnlineOrderingConfig) =>
-    request<OnlineOrderingResponse>('/online-ordering', json('PUT', data)),
-
-  getSecurityStatus: () => request<SecurityStatus & { success: boolean }>('/security/status'),
-  getAuditLogs: ({
-    page = 1,
-    pageSize = 50,
   getDeliveryAvailability: () =>
     request<{
       config: { disabled: boolean; reason?: string; revision?: string; detectedAt?: string };
@@ -1020,6 +1013,13 @@ export const api = {
       '/orders/delivery-availability',
       json('PUT', { revision, balanceConfirmed: true }),
     ),
+  updateOnlineOrdering: (data: OnlineOrderingConfig) =>
+    request<OnlineOrderingResponse>('/online-ordering', json('PUT', data)),
+
+  getSecurityStatus: () => request<SecurityStatus & { success: boolean }>('/security/status'),
+  getAuditLogs: ({
+    page = 1,
+    pageSize = 50,
     search = '',
     method = '',
     outcome = '',
