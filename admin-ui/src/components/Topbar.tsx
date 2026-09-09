@@ -183,7 +183,11 @@ export default function Topbar({
         )}
         <div>
           <h1 className="sagi-page-title">
-            {operatorMode ? 'Переписки WhatsApp' : t(`page.${page}.title`)}
+            {operatorMode
+              ? 'Переписки WhatsApp'
+              : cashierMode && location.pathname === '/menu'
+                ? t('nav.inventory')
+                : t(`page.${page}.title`)}
           </h1>
         </div>
       </div>

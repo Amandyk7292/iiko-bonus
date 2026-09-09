@@ -46,6 +46,7 @@ const EVENT_TYPES = [
   'delivery.updated',
   'courier.updated',
   'menu.updated',
+  'inventory.updated',
   'locations.updated',
   'review.updated',
   'support.created',

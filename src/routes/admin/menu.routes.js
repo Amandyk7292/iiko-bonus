@@ -55,6 +55,34 @@ const validateUploadedImage = (req, res, next) => {
 };
 
 function registerMenuAdminRoutes(router) {
+  const {
+    loadCashierCatalog,
+    updateCashierProduct,
+  } = require('../../services/cashier-catalog.service');
+  router.get('/admin/api/staff/catalog', async (req, res) => {
+    try {
+      res.json({ success: true, ...(await loadCashierCatalog(req.admin)) });
+    } catch (error) {
+      res.status(error.statusCode || 500).json({ success: false, error: error.message });
+    }
+  });
+  router.patch(
+    '/admin/api/staff/catalog/:productId',
+    validateRequest(adminMutationSchemas.cashierInventory),
+    async (req, res) => {
+      try {
+        const inventory = await updateCashierProduct(
+          req.admin,
+          String(req.params.productId),
+          req.body,
+        );
+        res.json({ success: true, inventory });
+      } catch (error) {
+        res.status(error.statusCode || 500).json({ success: false, error: error.message });
+      }
+    },
+  );
+
   router.get('/admin/api/menu', adminAuthMiddleware, async (req, res) => {
     try {
       const selectedIikoApi = await getIikoClientForBranch(req.admin?.selectedBranchId);

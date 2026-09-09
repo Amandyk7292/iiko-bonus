@@ -23,6 +23,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private IDisposable _cashPrintSubscription;
         private IDisposable _barcodeSubscription;
         private IDisposable _beforePaymentSubscription;
+        private static StockSync _stockSync;
 
         public class OrderLoyaltyData
         {
@@ -77,7 +78,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                             args.Item3.ShowOkPopup(
                                 "Статус Bulka",
                                 LoyaltyFlow.GetQueueStatusText() + "\n\n" +
-                                GiftCertificateFlow.GetStatusText(),
+                                GiftCertificateFlow.GetStatusText() + "\n\n" + (_stockSync?.StatusText ?? "Остатки: обмен выключен"),
                                 "ОК");
                         }
                         catch (Exception ex)
@@ -116,6 +117,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 _beforePaymentSubscription = PluginContext.Notifications.BeforeProceedOrderPayment.Subscribe(BeforeProceedOrderPayment);
                 LoyaltyFlow.StartBackgroundRetry();
                 GiftCertificateFlow.StartBackgroundRetry();
+                if (!string.Equals(LoyaltyFlow.ReadPluginSetting("IIKO_STOCK_SYNC_ENABLED"), "false", StringComparison.OrdinalIgnoreCase))
+                    _stockSync = new StockSync();
 
                 PluginContext.Log.Info("IikoBonusPlugin: Initialized successfully.");
             }
@@ -146,6 +149,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
             TryDispose(_beforePaymentSubscription);
             LoyaltyFlow.StopBackgroundRetry();
             GiftCertificateFlow.StopBackgroundRetry();
+            TryDispose(_stockSync);
+            _stockSync = null;
         }
 
         private static bool OnBarcodeScanned(
@@ -165,6 +170,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private static void OnOrderChanged(
             Resto.Front.Api.Data.Common.EntityChangedEventArgs<IOrder> args)
         {
+            _stockSync?.RequestSync();
             GiftCertificateFlow.OnOrderChanged(args);
             LoyaltyFlow.OnOrderChanged(args);
         }

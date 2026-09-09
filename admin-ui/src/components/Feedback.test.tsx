@@ -27,6 +27,23 @@ function FeedbackHarness() {
 }
 
 describe('Feedback transitions', () => {
+  it('keeps a new confirmation open when the previous exit timer completes', () => {
+    vi.useFakeTimers();
+    render(
+      <I18nProvider>
+        <FeedbackProvider>
+          <FeedbackHarness />
+        </FeedbackProvider>
+      </I18nProvider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Удалить' }));
+    fireEvent.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Отмена' }),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Удалить' }));
+    act(() => vi.advanceTimersByTime(200));
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+  });
   beforeEach(() => {
     localStorage.setItem('adminLocale', 'ru');
   });

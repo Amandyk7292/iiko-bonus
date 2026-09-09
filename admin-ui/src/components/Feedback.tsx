@@ -184,6 +184,7 @@ export function FeedbackProvider({ children }: { children: ReactNode }) {
       setDialogClosing(true);
       schedule(
         () => {
+          if (dialogRef.current !== current) return;
           dialogRef.current = null;
           dialogSettlingRef.current = false;
           setDialog(null);

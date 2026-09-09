@@ -26,6 +26,7 @@ const eventArea = (type) => {
       delivery: 'dispatch',
       courier: 'couriers',
       menu: 'menu',
+      inventory: 'staff',
       locations: 'locations',
       review: 'reviews',
       support: 'support',
@@ -107,6 +108,14 @@ function publish(type, data = {}, audience = {}) {
   }
   // Service/job driven updates use the same public invalidation channel.
   if (type === 'menu.updated') publishClientChange(['menu']);
+  if (type === 'menu.updated' && data.inventory === true) {
+    publish(
+      'inventory.updated',
+      { branchId: data.branchId || null },
+      { adminOnly: true, branchId: data.branchId || audience.branchId || null },
+    );
+  }
+  if (type === 'order.created' || type === 'order.updated') publishClientChange(['menu']);
   if (type === 'locations.updated') publishClientChange(['locations', 'menu']);
   return event;
 }

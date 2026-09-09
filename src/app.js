@@ -310,6 +310,7 @@ const taplinkStaticHeaders = (res) => {
 // GET /admin/api/* is swallowed by /admin/* and returns index.html with 200.
 app.use(require('./middlewares/client-data-events.middleware').clientDataEvents);
 app.use(adminRoutes);
+app.use(require('./routes/front-inventory.routes'));
 app.use(loyaltyRoutes);
 app.use(walletRoutes);
 app.use(publicRoutes);

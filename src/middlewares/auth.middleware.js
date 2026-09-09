@@ -572,6 +572,8 @@ const cashierMutationAllowed = (req, area) => {
   }
   if (area === 'staff' && req.method === 'POST' && path === 'staff/push-test') return true;
   if (area === 'staff' && req.method === 'POST' && path === 'staff/push-heartbeat') return true;
+  if (area === 'staff' && req.method === 'PATCH' && /^staff\/catalog\/[a-z0-9_-]+$/i.test(path))
+    return true;
   if (area === 'kitchen' && req.method === 'PATCH' && /^kitchen\/[0-9a-f-]+\/status$/i.test(path)) {
     return new Set(['preparing', 'ready', 'handed_over']).has(String(req.body?.status || ''));
   }

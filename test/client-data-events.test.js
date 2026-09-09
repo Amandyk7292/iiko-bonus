@@ -40,9 +40,9 @@ test('two guest clients receive branch invalidations without private payloads, i
     assert.deepEqual(first().slice(1), second().slice(1));
     assert.deepEqual(
       first().map((event) => event.type),
-      ['connected', 'client.data.changed', 'client.data.changed'],
+      ['connected', 'client.data.changed', 'client.data.changed', 'client.data.changed'],
     );
-    assert.deepEqual(first()[2].data, { domains: ['locations', 'menu'] });
+    assert.deepEqual(first()[3].data, { domains: ['locations', 'menu'] });
     assert.ok(!JSON.stringify(first()).includes('secret'));
     assert.ok(!JSON.stringify(first()).includes('private'));
     assert.ok(customer().some((event) => event.type === 'order.updated'));

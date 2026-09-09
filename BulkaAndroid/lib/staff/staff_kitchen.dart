@@ -607,30 +607,108 @@ class _StaffKitchenState extends State<StaffKitchen>
       child: ListView(
         padding: const EdgeInsets.all(18),
         children: [
-          Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
+          Row(
             children: [
-              Text(
-                _online
-                    ? staffText(
-                        'Обновляется онлайн',
-                        'Онлайн жаңартылуда',
-                        'Live updates',
-                      )
-                    : staffText(
-                        'Восстанавливаем связь',
-                        'Байланыс қалпына келтірілуде',
-                        'Reconnecting',
+              Expanded(
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.circle,
+                      size: 8,
+                      color: _online
+                          ? const Color(0xFF278151)
+                          : const Color(0xFFB48632),
+                    ),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: Text(
+                        _online
+                            ? staffText('Онлайн', 'Онлайн', 'Online')
+                            : staffText(
+                                'Подключение…',
+                                'Қосылуда…',
+                                'Connecting…',
+                              ),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF746B63),
+                        ),
                       ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: _soundEnabled
+                    ? staffText('Выключить звук', 'Дыбысты өшіру', 'Mute sound')
+                    : staffText(
+                        'Включить звук',
+                        'Дыбысты қосу',
+                        'Enable sound',
+                      ),
+                isSelected: _soundEnabled,
+                selectedIcon: const Icon(Icons.volume_up_outlined, size: 21),
+                icon: const Icon(Icons.volume_off_outlined, size: 21),
+                onPressed: () async {
+                  setState(() => _soundEnabled = !_soundEnabled);
+                  _syncAlarm();
+                  await (await SharedPreferences.getInstance()).setBool(
+                    'staffKitchenSound',
+                    _soundEnabled,
+                  );
+                },
               ),
               IconButton(
                 tooltip: staffText('Обновить', 'Жаңарту', 'Refresh'),
                 onPressed: _loading ? null : _load,
-                icon: const Icon(Icons.refresh_rounded),
+                icon: const Icon(Icons.refresh_rounded, size: 21),
+              ),
+              PopupMenuButton<String>(
+                tooltip: staffText(
+                  'Вид заказов',
+                  'Тапсырыс көрінісі',
+                  'Order view',
+                ),
+                color: Colors.white,
+                surfaceTintColor: Colors.transparent,
+                icon: const Icon(Icons.tune_rounded, size: 21),
+                onSelected: (value) {
+                  setState(() {
+                    if (value == 'closed') {
+                      _closed = !_closed;
+                      _revision++;
+                    }
+                    _status = 'all';
+                  });
+                  if (value == 'closed') unawaited(_load());
+                },
+                itemBuilder: (_) => [
+                  PopupMenuItem(
+                    value: 'all',
+                    child: Text(
+                      staffText(
+                        'Все активные',
+                        'Барлық белсенді',
+                        'All active',
+                      ),
+                    ),
+                  ),
+                  CheckedPopupMenuItem(
+                    value: 'closed',
+                    checked: _closed,
+                    child: Text(
+                      staffText(
+                        'Завершённые заказы',
+                        'Аяқталған тапсырыстар',
+                        'Closed orders',
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
+          const SizedBox(height: 10),
           if (queued > 0)
             Container(
               margin: const EdgeInsets.symmetric(vertical: 12),
@@ -657,64 +735,64 @@ class _StaffKitchenState extends State<StaffKitchen>
             ),
           ),
           const SizedBox(height: 12),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(
-              staffText(
-                'Звук новых заказов',
-                'Жаңа тапсырыс дыбысы',
-                'New order alarm',
-              ),
-            ),
-            value: _soundEnabled,
-            onChanged: (enabled) async {
-              setState(() => _soundEnabled = enabled);
-              _syncAlarm();
-              await (await SharedPreferences.getInstance()).setBool(
-                'staffKitchenSound',
-                enabled,
-              );
-            },
-          ),
-          Wrap(
-            spacing: 8,
-            runSpacing: 6,
+          Row(
             children: [
-              for (final status in [
-                'queued',
-                'preparing',
-                'ready',
-                if (_closed) ...['handed_over', 'cancelled'],
-                'all',
-              ])
-                ChoiceChip(
-                  label: Text(
-                    '${_label(status)}${status == 'all' ? '' : ' (${_orders.where((row) => row['kitchenStatus'] == status).length})'}',
+              for (final status in ['queued', 'preparing', 'ready'])
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(right: status == 'ready' ? 0 : 8),
+                    child: Semantics(
+                      button: true,
+                      selected: _status == status,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(14),
+                        onTap: () => setState(() => _status = status),
+                        child: AnimatedContainer(
+                          duration: MediaQuery.disableAnimationsOf(context)
+                              ? Duration.zero
+                              : const Duration(milliseconds: 180),
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 14,
+                            horizontal: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: _status == status
+                                  ? const Color(0xFFAC8750)
+                                  : const Color(0xFFECE6DF),
+                            ),
+                          ),
+                          child: Column(
+                            children: [
+                              Text(
+                                '${_orders.where((row) => row['kitchenStatus'] == status).length}',
+                                style: const TextStyle(
+                                  fontSize: 21,
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF55301D),
+                                ),
+                              ),
+                              const SizedBox(height: 7),
+                              Text(
+                                _label(status),
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                  selected: _status == status,
-                  onSelected: (_) => setState(() => _status = status),
                 ),
             ],
           ),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(
-              staffText(
-                'Завершённые заказы',
-                'Аяқталған тапсырыстар',
-                'Closed orders',
-              ),
-            ),
-            value: _closed,
-            onChanged: (value) {
-              setState(() {
-                _closed = value;
-                _revision++;
-                _status = 'all';
-              });
-              unawaited(_load());
-            },
-          ),
+          const SizedBox(height: 12),
           if (_loading) const LinearProgressIndicator(),
           if (_error != null)
             Padding(
@@ -725,11 +803,17 @@ class _StaffKitchenState extends State<StaffKitchen>
               ),
             ),
           if (!_loading && visible.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: Text(
-                staffText('Заказов нет', 'Тапсырыстар жоқ', 'No orders'),
-                textAlign: TextAlign.center,
+            StaffEmptyState(
+              icon: Icons.soup_kitchen_outlined,
+              title: staffText(
+                'Заказов пока нет',
+                'Тапсырыстар әлі жоқ',
+                'No orders yet',
+              ),
+              description: staffText(
+                'Новые заказы появятся здесь автоматически.',
+                'Жаңа тапсырыстар осында автоматты түрде пайда болады.',
+                'New orders will appear here automatically.',
               ),
             ),
           for (final order in visible) _ticket(order),

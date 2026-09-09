@@ -43,6 +43,11 @@ const RESERVATION_RECONCILIATION_INTERVAL_MS = 60 * 1000;
 if (!process.env.VERCEL) {
   const runWorkers = process.env.RUN_BACKGROUND_WORKERS === 'true';
   const runBots = shouldRunBots();
+  registerWorker('staff-order-reminders', {
+    enabled: runWorkers,
+    intervalMs: 1000,
+    maxRunMs: 30000,
+  });
   registerWorker('pending-bonus-activation', { enabled: runWorkers, intervalMs: 60 * 60 * 1000 });
   registerWorker('live-activity-expiry', { enabled: runWorkers, intervalMs: 60 * 1000 });
   const activatePendingBonuses = () =>
@@ -71,15 +76,15 @@ if (!process.env.VERCEL) {
 
     const deliverQueuedPush = () =>
       runMonitoredWorker('push-outbox', () =>
-        Promise.all([
-          flushPushOutbox(100),
-          flushStaffPushOutbox(100),
-          flushStaffPushReminders(100),
-        ]),
+        Promise.all([flushPushOutbox(100), flushStaffPushOutbox(100)]),
       );
     setTimeout(deliverQueuedPush, 12 * 1000);
     const pushOutboxTimer = setInterval(deliverQueuedPush, 10 * 1000);
     pushOutboxTimer.unref?.();
+    const remindCashiers = () =>
+      runMonitoredWorker('staff-order-reminders', () => flushStaffPushReminders(100));
+    setTimeout(remindCashiers, 1000).unref?.();
+    setInterval(remindCashiers, 1000).unref?.();
 
     const deliverStaffOrderAlerts = () =>
       runMonitoredWorker('staff-order-alerts', () => flushStaffOrderAlerts(50));

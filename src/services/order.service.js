@@ -147,9 +147,12 @@ async function loadOrderCatalog({ branchId = null, orderType = 'pickup' } = {}) 
     branchPreparationMinutes = preparationMinutes(branch.default_preparation_minutes);
   }
   const selectedIikoApi = getIikoClientForCity(branchCity);
-  const rawMenu = await selectedIikoApi.getMenu({ strict: true });
-  const [stopIds, productOverrides, categoryOverrides, customProducts] = await Promise.all([
-    selectedIikoApi.getStopListProductIds(undefined, { strict: true }),
+  const {
+    branchCatalogSource,
+    branchProductAvailable,
+  } = require('./branch-catalog-source.service');
+  const { rawMenu, stopIds } = await branchCatalogSource(selectedIikoApi, branchId);
+  const [productOverrides, categoryOverrides, customProducts] = await Promise.all([
     menuService.getProductOverrides({
       strict: true,
       profileKey: selectedIikoApi.profileKey,
@@ -202,7 +205,7 @@ async function loadOrderCatalog({ branchId = null, orderType = 'pickup' } = {}) 
       name: override?.custom_name || product.name,
       nameTranslations: override?.name_translations,
       price,
-      isAvailable: globallyAvailable && (inventory?.isAvailable ?? true),
+      isAvailable: globallyAvailable && branchProductAvailable(branchAvailability, product.id),
       availableQuantity: inventory?.availableQuantity ?? null,
       preparationMinutes: preparationMinutes(
         inventory?.preparationMinutes ?? override?.preparation_minutes,

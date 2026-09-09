@@ -12,14 +12,7 @@ export const ADMIN_ALLOWED_PATHS: Record<string, string[]> = {
     '/transactions',
     '/integrations',
   ],
-  operator: [
-    '/operations',
-    '/customers',
-    '/whatsapp',
-    '/orders',
-    '/kitchen',
-    '/support',
-  ],
+  operator: ['/operations', '/customers', '/whatsapp', '/orders', '/kitchen', '/support'],
   marketer: [
     '/operations',
     '/analytics',
@@ -69,7 +62,7 @@ export const ADMIN_ALLOWED_PATHS: Record<string, string[]> = {
     '/transactions',
     '/integrations',
   ],
-  cashier: ['/kitchen', '/orders'],
+  cashier: ['/kitchen', '/orders', '/menu'],
   whatsapp_operator: ['/whatsapp'],
 };
 

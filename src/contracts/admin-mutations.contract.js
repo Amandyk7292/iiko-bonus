@@ -491,6 +491,22 @@ const inventoryBodySchema = z
   })
   .strict();
 
+const cashierInventoryBodySchema = z
+  .object({
+    expectedRevision: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+    sourceQuantity: z.number().int().min(0).max(100000).optional(),
+    manualStop: z.boolean().optional(),
+    useIiko: z.literal(true).optional(),
+  })
+  .strict()
+  .refine(
+    (value) =>
+      value.useIiko
+        ? value.sourceQuantity === undefined && value.manualStop === undefined
+        : value.sourceQuantity !== undefined || value.manualStop !== undefined,
+    'Укажите остаток или состояние стоп-листа',
+  );
+
 const courierParamsSchema = routeParams({ id: uuidSchema });
 const courierBodySchema = z
   .object({
@@ -1158,6 +1174,10 @@ const adminMutationSchemas = {
   customProductDelete: withParams(customProductParamsSchema),
   translate: withBody(translateBodySchema),
   inventory: { params: inventoryParamsSchema, body: inventoryBodySchema },
+  cashierInventory: {
+    params: routeParams({ productId: safeResourceIdSchema }),
+    body: cashierInventoryBodySchema,
+  },
   courierCreate: withBody(courierBodySchema),
   courierUpdate: { params: courierParamsSchema, body: courierBodySchema },
   courierActive: { params: courierParamsSchema, body: courierActiveBodySchema },

@@ -1,45 +1,120 @@
 part of '../main.dart';
 
 ThemeData staffTheme() {
+  const ink = Color(0xFF302B27),
+      border = Color(0xFFE6DED5),
+      brand = Color(0xFF55301D);
+  final shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(12));
   final colors =
       ColorScheme.fromSeed(
-        seedColor: const Color(0xFFFFB300),
+        seedColor: brand,
         brightness: Brightness.light,
       ).copyWith(
-        primary: const Color(0xFF55301D),
+        primary: brand,
         onPrimary: Colors.white,
         surface: Colors.white,
+        onSurface: ink,
+        surfaceContainer: Colors.white,
+        surfaceContainerLow: Colors.white,
+        surfaceContainerLowest: Colors.white,
+        surfaceContainerHigh: Colors.white,
+        surfaceContainerHighest: Colors.white,
+        outline: border,
+        outlineVariant: border,
       );
   return ThemeData(
     useMaterial3: true,
+    fontFamily: 'Montserrat',
     colorScheme: colors,
     scaffoldBackgroundColor: Colors.white,
+    canvasColor: Colors.white,
+    dividerColor: border,
     appBarTheme: const AppBarTheme(
       backgroundColor: Colors.white,
+      foregroundColor: ink,
       surfaceTintColor: Colors.transparent,
-      centerTitle: true,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      centerTitle: false,
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      height: 72,
+      indicatorColor: const Color(0xFFFFF1D3),
+      labelTextStyle: WidgetStateProperty.resolveWith(
+        (states) => TextStyle(
+          fontSize: 12,
+          fontWeight: states.contains(WidgetState.selected)
+              ? FontWeight.w700
+              : FontWeight.w500,
+          color: ink,
+        ),
+      ),
+    ),
+    bottomSheetTheme: const BottomSheetThemeData(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
+    ),
+    dialogTheme: const DialogThemeData(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: const Color(0xFFF7F7F5),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
+      labelStyle: const TextStyle(fontSize: 13, color: Color(0xFF746B63)),
+      hintStyle: const TextStyle(fontSize: 14, color: Color(0xFF93877C)),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: border),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: border),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: brand, width: 1.5),
+      ),
     ),
     cardTheme: CardThemeData(
       color: Colors.white,
       surfaceTintColor: Colors.transparent,
-      elevation: 1,
-      shadowColor: const Color(0x1855301D),
+      elevation: 0,
       margin: const EdgeInsets.symmetric(vertical: 6),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: const BorderSide(color: border),
+      ),
+    ),
+    chipTheme: ChipThemeData(
+      backgroundColor: Colors.white,
+      selectedColor: const Color(0xFFFFF3D9),
+      side: const BorderSide(color: border),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      labelStyle: const TextStyle(
+        fontFamily: 'Montserrat',
+        fontSize: 13,
+        color: ink,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
+        shape: shape,
         minimumSize: const Size(48, 48),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
+        shape: shape,
+        side: const BorderSide(color: border),
+        foregroundColor: ink,
+        backgroundColor: Colors.white,
         minimumSize: const Size(48, 48),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       ),
@@ -81,7 +156,9 @@ class StaffPicker extends StatelessWidget {
   Widget build(BuildContext context) => SizedBox(
     width: double.infinity,
     child: OutlinedButton(
-      style: OutlinedButton.styleFrom(padding: const EdgeInsets.all(16)),
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      ),
       onPressed: () async {
         final selected = await staffChooseFields(context, label, options, [
           value,

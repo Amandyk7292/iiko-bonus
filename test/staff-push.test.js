@@ -250,6 +250,7 @@ test('staff reminder worker sends one independently deduplicated bounded kitchen
         deepLink: '/admin/kitchen?embedded=app',
         pushOutboxId: '22222222-2222-4222-8222-222222222222',
         pushDedupeKey: 'staff-order:11111111-1111-4111-8111-111111111111:reminder:1',
+        pushCollapseKey: 'staff-order:11111111-1111-4111-8111-111111111111',
       });
       assert.deepEqual(sent[0][4], { expiresAt: '2026-08-13T12:15:00.000Z' });
       assert.doesNotMatch(JSON.stringify(sent[0]), /phone|address|amount|cart|customer/i);

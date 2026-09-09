@@ -756,6 +756,10 @@ router.get('/api/guest/menu', async (req, res) => {
     // source is unavailable, fail the request instead of publishing stale or
     // partially configured products.
     const menuService = require('../services/menu.service');
+    const {
+      branchCatalogSource,
+      branchProductAvailable,
+    } = require('../services/branch-catalog-source.service');
     const [
       { rawMenu, stopIds },
       productOverrides,
@@ -765,10 +769,7 @@ router.get('/api/guest/menu', async (req, res) => {
     ] = await Promise.all([
       // Keep iiko authentication ordered while fetching independent database
       // sources concurrently with its remote menu request.
-      selectedIikoApi.getMenu({ strict: true }).then(async (rawMenu) => ({
-        rawMenu,
-        stopIds: await selectedIikoApi.getStopListProductIds(undefined, { strict: true }),
-      })),
+      branchCatalogSource(selectedIikoApi, branchId),
       menuService.getProductOverrides({
         strict: true,
         profileKey: selectedIikoApi.profileKey,
@@ -875,7 +876,7 @@ router.get('/api/guest/menu', async (req, res) => {
       const isStopped =
         Boolean(override && override.is_stop_listed) ||
         stopIds.has(p.iikoProductId || p.id) ||
-        (branchId && inventory?.isAvailable === false);
+        (branchId && !branchProductAvailable(branchAvailability, p.id));
 
       products.push({
         id: p.id,

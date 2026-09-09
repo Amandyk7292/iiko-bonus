@@ -110,7 +110,20 @@ export default function Sidebar({
   );
   const visibleSections = useMemo(
     () =>
-      sections
+      (role === 'cashier'
+        ? [
+            {
+              title: 'nav.operations',
+              items: [
+                ...sections
+                  .flatMap((section) => section.items)
+                  .filter((item) => ['/orders', '/kitchen'].includes(item.to)),
+                { to: '/menu', label: 'nav.inventory', icon: UtensilsCrossed },
+              ],
+            },
+          ]
+        : sections
+      )
         .map((section) => ({
           ...section,
           items: section.items.filter(

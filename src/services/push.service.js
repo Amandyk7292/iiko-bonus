@@ -250,7 +250,13 @@ async function sendPushNotificationDetailed(fcmToken, title, body, data = {}, op
         priority: isOrderStatus ? 'normal' : 'high',
         ...(staffTtlMs ? { ttl: staffTtlMs } : {}),
         ...(normalizedData.pushDedupeKey
-          ? { collapseKey: `bulka-${normalizedData.pushDedupeKey}`.slice(0, 64) }
+          ? {
+              collapseKey:
+                `bulka-${normalizedData.pushCollapseKey || normalizedData.pushDedupeKey}`.slice(
+                  0,
+                  64,
+                ),
+            }
           : {}),
         notification: {
           ...(isOrderStatus
@@ -268,7 +274,12 @@ async function sendPushNotificationDetailed(fcmToken, title, body, data = {}, op
                 priority: 'high',
                 defaultSound: true,
                 ...(normalizedData.pushDedupeKey
-                  ? { tag: `bulka-${normalizedData.pushDedupeKey}`.slice(0, 160) }
+                  ? {
+                      tag: `bulka-${normalizedData.pushCollapseKey || normalizedData.pushDedupeKey}`.slice(
+                        0,
+                        160,
+                      ),
+                    }
                   : {}),
               }),
         },
@@ -279,7 +290,11 @@ async function sendPushNotificationDetailed(fcmToken, title, body, data = {}, op
               headers: {
                 ...(normalizedData.pushDedupeKey
                   ? {
-                      'apns-collapse-id': `bulka-${normalizedData.pushDedupeKey}`.slice(0, 64),
+                      'apns-collapse-id':
+                        `bulka-${normalizedData.pushCollapseKey || normalizedData.pushDedupeKey}`.slice(
+                          0,
+                          64,
+                        ),
                     }
                   : {}),
                 ...(staffTtlMs
@@ -304,7 +319,12 @@ async function sendPushNotificationDetailed(fcmToken, title, body, data = {}, op
           icon: '/icons/Icon-192.png',
           badge: '/icons/Icon-192.png',
           ...(normalizedData.pushDedupeKey
-            ? { tag: `bulka-${normalizedData.pushDedupeKey}`.slice(0, 160) }
+            ? {
+                tag: `bulka-${normalizedData.pushCollapseKey || normalizedData.pushDedupeKey}`.slice(
+                  0,
+                  160,
+                ),
+              }
             : {}),
         },
         fcmOptions: {

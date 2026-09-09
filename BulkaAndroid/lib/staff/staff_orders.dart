@@ -153,9 +153,9 @@ class _StaffOrdersState extends State<StaffOrders> {
           decoration: InputDecoration(
             prefixIcon: const Icon(Icons.search),
             labelText: staffText(
-              'Номер заказа, имя или телефон',
-              'Тапсырыс, аты немесе телефон',
-              'Order, name or phone',
+              'Поиск заказа',
+              'Тапсырысты іздеу',
+              'Search orders',
             ),
           ),
           onChanged: (_) {
@@ -166,59 +166,79 @@ class _StaffOrdersState extends State<StaffOrders> {
           },
         ),
         const SizedBox(height: 14),
-        StaffPicker(
-          label: staffText('Оплата', 'Төлем', 'Payment'),
-          value: _payment,
-          options: {
-            '': staffText('Все', 'Барлығы', 'All'),
-            for (final status in [
-              'pending',
-              'paid',
-              'failed',
-              'cancelled',
-              'refunded',
-            ])
-              status: staffStatus(status),
-          },
-          onChanged: (value) {
-            setState(() {
-              _payment = value;
-              _page = 1;
-            });
-            unawaited(_load());
-          },
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: StaffPicker(
+                label: staffText('Оплата', 'Төлем', 'Payment'),
+                value: _payment,
+                options: {
+                  '': staffText('Все', 'Барлығы', 'All'),
+                  for (final status in [
+                    'pending',
+                    'paid',
+                    'failed',
+                    'cancelled',
+                    'refunded',
+                  ])
+                    status: staffStatus(status),
+                },
+                onChanged: (value) {
+                  setState(() {
+                    _payment = value;
+                    _page = 1;
+                  });
+                  unawaited(_load());
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: StaffPicker(
+                label: staffText('Статус', 'Мәртебе', 'Status'),
+                value: _status,
+                options: {
+                  '': staffText('Все', 'Барлығы', 'All'),
+                  for (final status in staffOrderTransitions.keys)
+                    status: staffStatus(status),
+                },
+                onChanged: (value) {
+                  setState(() {
+                    _status = value;
+                    _page = 1;
+                  });
+                  unawaited(_load());
+                },
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 10),
-        StaffPicker(
-          label: staffText(
-            'Статус заказа',
-            'Тапсырыс мәртебесі',
-            'Order status',
-          ),
-          value: _status,
-          options: {
-            '': staffText('Все', 'Барлығы', 'All'),
-            for (final status in staffOrderTransitions.keys)
-              status: staffStatus(status),
-          },
-          onChanged: (value) {
-            setState(() {
-              _status = value;
-              _page = 1;
-            });
-            unawaited(_load());
-          },
-        ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 18),
         if (_loading) const LinearProgressIndicator(),
         if (_error != null) _StaffError(message: _error!, onRetry: _load),
         if (!_loading && _error == null && _orders.isEmpty)
-          Padding(
-            padding: const EdgeInsets.all(28),
-            child: Text(
-              staffText('Заказов нет', 'Тапсырыстар жоқ', 'No orders'),
-              textAlign: TextAlign.center,
+          StaffEmptyState(
+            icon: Icons.inbox_outlined,
+            title: staffText(
+              'Заказов пока нет',
+              'Тапсырыстар әлі жоқ',
+              'No orders yet',
             ),
+            description:
+                _search.text.isNotEmpty ||
+                    _payment.isNotEmpty ||
+                    _status.isNotEmpty
+                ? staffText(
+                    'Измените поиск или фильтры.',
+                    'Іздеуді немесе сүзгілерді өзгертіңіз.',
+                    'Try a different search or filter.',
+                  )
+                : staffText(
+                    'После онлайн-оплаты заказ появится здесь.',
+                    'Онлайн төлемнен кейін тапсырыс осында пайда болады.',
+                    'Paid online orders will appear here.',
+                  ),
           ),
         for (final order in _orders)
           Card(
@@ -273,34 +293,35 @@ class _StaffOrdersState extends State<StaffOrders> {
               ),
             ),
           ),
-        Wrap(
-          alignment: WrapAlignment.center,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 8,
-          children: [
-            IconButton(
-              tooltip: staffText('Назад', 'Артқа', 'Previous'),
-              onPressed: _page > 1 && !_loading
-                  ? () {
-                      _page--;
-                      unawaited(_load());
-                    }
-                  : null,
-              icon: const Icon(Icons.chevron_left),
-            ),
-            Text('$_page / ${max(1, (_total / 50).ceil())} · $_total'),
-            IconButton(
-              tooltip: staffText('Далее', 'Келесі', 'Next'),
-              onPressed: _page * 50 < _total && !_loading
-                  ? () {
-                      _page++;
-                      unawaited(_load());
-                    }
-                  : null,
-              icon: const Icon(Icons.chevron_right),
-            ),
-          ],
-        ),
+        if (_total > 50)
+          Wrap(
+            alignment: WrapAlignment.center,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            children: [
+              IconButton(
+                tooltip: staffText('Назад', 'Артқа', 'Previous'),
+                onPressed: _page > 1 && !_loading
+                    ? () {
+                        _page--;
+                        unawaited(_load());
+                      }
+                    : null,
+                icon: const Icon(Icons.chevron_left),
+              ),
+              Text('$_page / ${max(1, (_total / 50).ceil())} · $_total'),
+              IconButton(
+                tooltip: staffText('Далее', 'Келесі', 'Next'),
+                onPressed: _page * 50 < _total && !_loading
+                    ? () {
+                        _page++;
+                        unawaited(_load());
+                      }
+                    : null,
+                icon: const Icon(Icons.chevron_right),
+              ),
+            ],
+          ),
       ],
     ),
   );

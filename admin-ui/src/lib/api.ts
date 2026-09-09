@@ -1,3 +1,4 @@
+import type { CashierCatalog, CashierStockChange } from './cashier-catalog';
 import type { PaymentDiagnostics } from './payment-diagnostics';
 import { parseAdminScopeSelection } from './admin-city-scope';
 import { composeRequestAbortSignal } from './api-request-abort';
@@ -5,17 +6,14 @@ import { requestTimeoutMs, trackIikoRequest } from './iiko-request-policy';
 export { composeRequestAbortSignal } from './api-request-abort';
 const BASE_URL = '/admin/api';
 const BRANCH_SCOPE_STORAGE_KEY = 'adminSelectedBranchId';
-
 export function getAdminBranchScope() {
   return localStorage.getItem(BRANCH_SCOPE_STORAGE_KEY) || '';
 }
-
 export function setAdminBranchScope(branchId: string) {
   const value = String(branchId || '').trim();
   if (value) localStorage.setItem(BRANCH_SCOPE_STORAGE_KEY, value);
   else localStorage.removeItem(BRANCH_SCOPE_STORAGE_KEY);
 }
-
 export function applyAdminScopeHeaders(
   headers: Headers,
   endpoint: string,
@@ -35,7 +33,6 @@ export function applyAdminScopeHeaders(
     return;
   }
   if (selection.kind !== 'city') return;
-
   const isMenuEndpoint = endpoint === '/menu' || endpoint.startsWith('/menu/');
   if (isMenuEndpoint) {
     headers.set('X-Bulka-Branch-Id', selection.branchIds[0] || 'invalid-city-scope');
@@ -46,13 +43,11 @@ export function applyAdminScopeHeaders(
     selection.branchIds.length ? selection.branchIds.join(',') : 'invalid-city-scope',
   );
 }
-
 export class ApiError extends Error {
   status: number;
   code?: string;
   details?: unknown;
   requestId?: string;
-
   constructor(
     message: string,
     status: number,
@@ -344,6 +339,9 @@ async function publicAuthRequest<T>(endpoint: string, data: Record<string, unkno
 }
 
 export const api = {
+  getCashierCatalog: () => request<CashierCatalog>('/staff/catalog'),
+  updateCashierProduct: (id: string, data: CashierStockChange) =>
+    request(`/staff/catalog/${encodeURIComponent(id)}`, json('PATCH', data)),
   login: async (username: string, password: string, code: string) => {
     const loginData = { username, password, ...(code.trim() && { code: code.trim() }) };
     const response = await fetch(`${BASE_URL}/login`, {

@@ -36,6 +36,7 @@ const TaplinkPage = lazy(() => import('./pages/TaplinkPage'));
 const LocationsPage = lazy(() => import('./pages/LocationsPage'));
 const BonusPage = lazy(() => import('./pages/BonusPage'));
 const LoyaltyTiersPage = lazy(() => import('./pages/LoyaltyTiersPage'));
+const CashierCatalogPage = lazy(() => import('./pages/CashierCatalogPage'));
 const MenuPage = lazy(() => import('./pages/MenuPage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const SecurityPage = lazy(() => import('./pages/SecurityPage'));
@@ -600,11 +601,15 @@ export default function App() {
                   path="/menu"
                   element={guard(
                     '/menu',
-                    <MenuPage
-                      scopeLocations={scopeLocations}
-                      selectedBranchId={menuSelectedBranchId}
-                      onBranchChange={handleBranchChange}
-                    />,
+                    role === 'cashier' ? (
+                      <CashierCatalogPage />
+                    ) : (
+                      <MenuPage
+                        scopeLocations={scopeLocations}
+                        selectedBranchId={menuSelectedBranchId}
+                        onBranchChange={handleBranchChange}
+                      />
+                    ),
                   )}
                 />
                 <Route path="/settings" element={guard('/settings', <SettingsPage />)} />

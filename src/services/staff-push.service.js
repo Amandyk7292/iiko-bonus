@@ -516,6 +516,7 @@ async function flushStaffPushReminders(
           deepLink: '/admin/kitchen?embedded=app',
           pushOutboxId: String(row.reminder_id),
           pushDedupeKey: `staff-order:${row.order_id}:reminder:${row.reminder_sequence || 1}`,
+          pushCollapseKey: `staff-order:${row.order_id}`,
         },
         { expiresAt: row.expires_at },
       );

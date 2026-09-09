@@ -1,6 +1,6 @@
 part of '../main.dart';
 
-/// Cashiers have exactly two native destinations. Scope and allowed mutations
+/// Branch-scoped cashier workspace. Scope and allowed mutations
 /// still come from the server, not from hidden navigation items.
 class CashierWorkspace extends StatefulWidget {
   const CashierWorkspace({
@@ -22,7 +22,9 @@ class CashierWorkspace extends StatefulWidget {
   State<CashierWorkspace> createState() => _CashierWorkspaceState();
 }
 
-class _CashierWorkspaceState extends State<CashierWorkspace> {
+class _CashierWorkspaceState extends State<CashierWorkspace>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _transition;
   StaffNativePush? _push;
   int _tab = 0;
   bool _loading = true, _signingOut = false;
@@ -32,6 +34,11 @@ class _CashierWorkspaceState extends State<CashierWorkspace> {
   @override
   void initState() {
     super.initState();
+    _transition = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 220),
+      value: 1,
+    );
     _tab = widget.kitchenRequest > 0 ? 1 : 0;
     if (widget.user['role'] != 'cashier') return;
     unawaited(_loadScope());
@@ -128,7 +135,8 @@ class _CashierWorkspaceState extends State<CashierWorkspace> {
   @override
   Widget build(BuildContext context) {
     final orders = staffText('Заказы', 'Тапсырыстар', 'Orders');
-    final kitchen = staffText('Экран кухни', 'Асүй экраны', 'Kitchen');
+    final kitchen = staffText('Кухня', 'Асүй', 'Kitchen');
+    final catalog = staffText('Стоп-лист', 'Стоп-тізім', 'Stop list');
     if (widget.user['role'] != 'cashier') return const SizedBox.shrink();
     return Theme(
       data: staffTheme().copyWith(textTheme: Theme.of(context).textTheme),
@@ -136,13 +144,14 @@ class _CashierWorkspaceState extends State<CashierWorkspace> {
         appBar: AppBar(
           automaticallyImplyLeading: false,
           title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                _tab == 0 ? orders : kitchen,
+                [orders, kitchen, catalog][_tab],
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                  fontSize: 18,
+                  fontSize: 20,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -184,36 +193,61 @@ class _CashierWorkspaceState extends State<CashierWorkspace> {
             ? const Center(child: CircularProgressIndicator())
             : _error != null
             ? _StaffError(message: _error!, onRetry: _loadScope)
-            : IndexedStack(
-                index: _tab,
-                children: [
-                  StaffOrders(
-                    key: ValueKey('cashier-orders:${widget.api.scopeKey}'),
-                    api: widget.api,
-                    role: 'cashier',
-                  ),
-                  // Keep the kitchen mounted while viewing orders so its live feed
-                  // and foreground alarm continue until paid orders are accepted.
-                  StaffKitchen(
-                    key: ValueKey('cashier-kitchen:${widget.api.scopeKey}'),
-                    api: widget.api,
-                    canEdit: true,
-                  ),
-                ],
+            : FadeTransition(
+                opacity: _transition,
+                child: IndexedStack(
+                  index: _tab,
+                  children: [
+                    StaffOrders(
+                      key: ValueKey('cashier-orders:${widget.api.scopeKey}'),
+                      api: widget.api,
+                      role: 'cashier',
+                    ),
+                    // Keep the kitchen mounted while viewing orders so its live feed
+                    // and foreground alarm continue until paid orders are accepted.
+                    StaffKitchen(
+                      key: ValueKey('cashier-kitchen:${widget.api.scopeKey}'),
+                      api: widget.api,
+                      canEdit: true,
+                    ),
+                    CashierCatalog(
+                      key: ValueKey('cashier-catalog:${widget.api.scopeKey}'),
+                      api: widget.api,
+                    ),
+                  ],
+                ),
               ),
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: _tab,
-          onDestinationSelected: (index) => setState(() => _tab = index),
-          destinations: [
-            NavigationDestination(
-              icon: const Icon(Icons.receipt_long_outlined),
-              label: orders,
-            ),
-            NavigationDestination(
-              icon: const Icon(Icons.soup_kitchen_outlined),
-              label: kitchen,
-            ),
-          ],
+        bottomNavigationBar: DecoratedBox(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            border: Border(top: BorderSide(color: Color(0xFFECE6DF))),
+          ),
+          child: NavigationBar(
+            selectedIndex: _tab,
+            onDestinationSelected: (index) {
+              if (index == _tab) return;
+              setState(() => _tab = index);
+              if (MediaQuery.disableAnimationsOf(context)) {
+                _transition.value = 1;
+              } else {
+                _transition.forward(from: 0);
+              }
+            },
+            destinations: [
+              NavigationDestination(
+                icon: const Icon(Icons.receipt_long_outlined),
+                label: orders,
+              ),
+              NavigationDestination(
+                icon: const Icon(Icons.soup_kitchen_outlined),
+                label: kitchen,
+              ),
+              NavigationDestination(
+                icon: const Icon(Icons.inventory_2_outlined),
+                label: catalog,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -221,6 +255,7 @@ class _CashierWorkspaceState extends State<CashierWorkspace> {
 
   @override
   void dispose() {
+    _transition.dispose();
     _push?.dispose();
     super.dispose();
   }

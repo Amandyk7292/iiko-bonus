@@ -44,7 +44,7 @@ void main() {
   });
 
   testWidgets(
-    'cashier has only two native tabs, branch scope and no privileged actions',
+    'cashier has three native tabs, branch scope and no privileged actions',
     (tester) async {
       final api = CashierFixtureApi();
       addTearDown(api.close);
@@ -71,7 +71,7 @@ void main() {
       final nav = tester.widget<NavigationBar>(find.byType(NavigationBar));
       expect(
         nav.destinations.whereType<NavigationDestination>().map((d) => d.label),
-        ['Заказы', 'Экран кухни'],
+        ['Заказы', 'Кухня', 'Стоп-лист'],
       );
       expect(find.byType(MainShell), findsNothing);
       expect(find.byType(AdminPortalScreen), findsNothing);
@@ -83,6 +83,7 @@ void main() {
             '/scope',
             '/orders',
             '/kitchen',
+            '/staff/catalog',
           ].any((p) => r.startsWith('GET $p')),
         ),
         isTrue,

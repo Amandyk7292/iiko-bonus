@@ -10,6 +10,8 @@
     <add key="IIKO_BRANCH_ID" value="" />
     <!-- Обязательный уникальный секрет филиала для всех запросов лояльности. -->
     <add key="IIKO_BRANCH_POS_TOKEN" value="" />
+    <!-- Остатки и стоп-лист отправляет только главная касса группы. -->
+    <add key="IIKO_STOCK_SYNC_ENABLED" value="true" />
     <!-- Отдельная гибкая скидка для оплаты подарочным сертификатом. Не используйте тип Bulka Bonus. -->
     <add key="IIKO_GIFT_DISCOUNT_TYPE_NAME" value="Bulka Gift Certificate" />
     <add key="IIKO_GIFT_DISCOUNT_TYPE_ID" value="" />

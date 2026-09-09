@@ -1,6 +1,7 @@
 const { supabase } = require('../config/supabase');
 const { runBackgroundTask } = require('../utils/background-task.util');
 const { getIikoClientForCity } = require('./iiko-city-profile.service');
+const { getFrontInventoryStatus } = require('./front-inventory.service');
 
 const inventoryError = (message, statusCode = 400) =>
   Object.assign(new Error(message), { statusCode });
@@ -90,6 +91,9 @@ async function syncBranchInventory(
 ) {
   if (!branchId) return { tracked: false, balances: new Map(), stopIds: new Set() };
   try {
+    const frontSync = await getFrontInventoryStatus(branchId);
+    if (frontSync.configured)
+      return { tracked: true, source: 'front', frontSync, balances: new Map(), stopIds: new Set() };
     const location = await readLocation(branchId);
     const selectedIikoApi = iikoClient || getIikoClientForCity(location.city);
     const snapshot = await selectedIikoApi.getStopListSnapshot(undefined, { strict: true });
@@ -183,11 +187,11 @@ async function getBranchAvailability(
   if (!branchId) return new Map();
   if (sync) await syncBranchInventory(branchId, { strict, products, iikoClient });
   const now = new Date().toISOString();
-  const [inventoryResult, reservationsResult] = await Promise.all([
+  const [inventoryResult, reservationsResult, frontSync] = await Promise.all([
     supabase
       .from('branch_product_inventory')
       .select(
-        'product_id,product_name,source_quantity,manual_stop,source,last_synced_at,preparation_minutes',
+        'product_id,product_name,source_quantity,manual_stop,source,last_synced_at,preparation_minutes,stock_revision,front_quantity,front_managed',
       )
       .eq('branch_id', branchId),
     supabase
@@ -195,6 +199,7 @@ async function getBranchAvailability(
       .select('product_id,quantity,status,expires_at')
       .eq('branch_id', branchId)
       .in('status', ['active', 'committed']),
+    getFrontInventoryStatus(branchId),
   ]);
   if (inventoryResult.error) {
     if (strict) throw inventoryResult.error;
@@ -209,21 +214,32 @@ async function getBranchAvailability(
     if (item.status === 'active' && String(item.expires_at) <= now) continue;
     held.set(item.product_id, (held.get(item.product_id) || 0) + Number(item.quantity || 0));
   }
-  return new Map(
+  const result = new Map(
     (inventoryResult.data || []).map((item) => {
       const sourceQuantity = item.source_quantity == null ? null : Number(item.source_quantity);
       const reserved = held.get(item.product_id) || 0;
+      const fresh =
+        !frontSync.configured || frontSync.connected || ['admin', 'custom'].includes(item.source);
       return [
         String(item.product_id),
         {
           productName: item.product_name || null,
           sourceQuantity,
           reserved,
-          availableQuantity: sourceQuantity == null ? null : Math.max(0, sourceQuantity - reserved),
+          availableQuantity: !fresh
+            ? 0
+            : sourceQuantity == null
+              ? null
+              : Math.max(0, sourceQuantity - reserved),
           isAvailable:
-            item.manual_stop !== true && (sourceQuantity == null || sourceQuantity > reserved),
+            fresh &&
+            item.manual_stop !== true &&
+            (sourceQuantity == null || sourceQuantity > reserved),
           manualStop: item.manual_stop === true,
+          revision: Number(item.stock_revision || 0),
           source: item.source,
+          frontQuantity: item.front_quantity,
+          frontManaged: item.front_managed === true,
           lastSyncedAt: item.last_synced_at,
           preparationMinutes:
             item.preparation_minutes == null ? null : Number(item.preparation_minutes),
@@ -231,6 +247,8 @@ async function getBranchAvailability(
       ];
     }),
   );
+  result.frontSync = frontSync;
+  return result;
 }
 
 const normalizeReservationExpiry = (
@@ -303,6 +321,11 @@ async function reserveCheckout({
     await releaseCheckoutRequest(customerId, requestId).catch(() => undefined);
     throw inventoryError(slotRpcError.message, 409);
   }
+  require('./realtime.service').publish(
+    'menu.updated',
+    { inventory: true, branchId },
+    { adminOnly: true, branchId },
+  );
   return { inventory, slot };
 }
 
@@ -433,15 +456,11 @@ async function updateInventory(branchId, productId, payload = {}) {
     manual_stop: payload.manualStop === true,
     preparation_minutes:
       payload.preparationMinutes == null ? null : Number(payload.preparationMinutes),
-    source: 'admin',
+    source: quantity == null ? 'iiko' : 'admin',
     updated_at: new Date().toISOString(),
   };
   if (!row.product_id) throw inventoryError('Не указан товар');
-  const { data, error } = await supabase
-    .from('branch_product_inventory')
-    .upsert(row, { onConflict: 'branch_id,product_id' })
-    .select()
-    .single();
+  const { data, error } = await supabase.rpc('update_admin_inventory', { p_stock: row });
   if (error) throw error;
   const { notifyAvailableStock } = require('./stock-subscription.service');
   await notifyAvailableStock(String(branchId), [row.product_id]).catch((notificationError) =>
