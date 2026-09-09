@@ -193,12 +193,20 @@ const registerAccessAdminRoutes = (router) => {
       const rawUsername = String(req.params.username || '').trim();
       const username = normalizeKazakhstanPhone(rawUsername) || rawUsername.toLowerCase();
       const role = String(req.body?.role || 'viewer');
-      const selfOwner = String(req.admin?.sub || req.admin?.username || '').toLowerCase() === username
-        && ['owner', 'admin'].includes(req.admin?.role);
-      if (selfOwner && (role !== 'owner' || req.body?.active === false || req.body?.branchIds?.length)) {
-        return res.status(409).json({ success: false,
-          error: 'Нельзя понизить права или отключить собственную учётную запись владельца',
-          code: 'OWNER_SELF_ACCESS_PROTECTED' });
+      const selfOwner =
+        String(req.admin?.sub || req.admin?.username || '').toLowerCase() === username &&
+        ['owner', 'admin'].includes(req.admin?.role);
+      if (
+        selfOwner &&
+        (role !== 'owner' || req.body?.active === false || req.body?.branchIds?.length)
+      ) {
+        return res
+          .status(409)
+          .json({
+            success: false,
+            error: 'Нельзя понизить права или отключить собственную учётную запись владельца',
+            code: 'OWNER_SELF_ACCESS_PROTECTED',
+          });
       }
 
       const branchIds = normalizeAccessBranchIds(req.body?.branchIds);
