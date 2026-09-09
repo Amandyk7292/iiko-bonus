@@ -226,11 +226,13 @@ class ForteService {
     db = supabase,
     fetchImpl = fetch,
     orderService = orderPaymentState,
+    forecastEta = forecastOrderEta,
     env = process.env,
   } = {}) {
     this.db = db;
     this.fetchImpl = fetchImpl;
     this.orderService = orderService;
+    this.forecastEta = forecastEta;
     this.env = env;
   }
 
@@ -482,7 +484,7 @@ class ForteService {
           .join(', ')}`,
         255,
       ) || 'Заказ Bulka';
-    const eta = await forecastOrderEta({
+    const eta = await this.forecastEta({
       branchId: checkout.branchId,
       orderType: checkout.effectiveFulfillmentType,
       scheduledAt: checkout.scheduledAt,
@@ -490,6 +492,9 @@ class ForteService {
       deliveryAddress: checkout.deliveryAddress,
       deliveryDistanceKm: checkout.deliveryDistanceKm,
     });
+    await require('./delivery-budget.service').deliveryBudget.markPayment(
+      pricing.deliveryBudgetReservationId,
+    );
     const providerOrder = await this.createProviderOrder({
       amount: pricing.total,
       language: options.language,

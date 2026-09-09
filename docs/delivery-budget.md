@@ -17,7 +17,8 @@ checkouts cannot allocate the same money. Missing or failed budget reads block
 delivery; pickup continues to work. Old quotes without a courier estimate
 require a fresh quote, but no mobile app update is required.
 
-A marker is persisted before starting the bank payment. Unstarted orphan
+A marker is persisted immediately before the bank request, after local card
+validation. Preflight failures release the unstarted reservation. Unstarted orphan
 reservations expire after 35 minutes. Unknown bank outcomes retain their
 budget for reconciliation; they are not released just because a request
 timed out. An order-save trigger links the reservation in the same database

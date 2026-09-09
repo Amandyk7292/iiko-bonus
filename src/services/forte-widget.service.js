@@ -1168,6 +1168,9 @@ class ForteWidgetService {
       deliveryAddress: checkout.deliveryAddress,
       deliveryDistanceKm: checkout.deliveryDistanceKm,
     });
+    await require('./delivery-budget.service').deliveryBudget.markPayment(
+      pricing.deliveryBudgetReservationId,
+    );
     const providerCheckout = await this.createProviderCheckout({
       amountMinor: toMinorUnits(pricing.total),
       customerId,

@@ -241,7 +241,6 @@ const createPayment = async (req, res) => {
           paymentMethodId: req.body?.savedPaymentMethodId,
         };
         let payment;
-        await deliveryBudget.markPayment(pricing.deliveryBudgetReservationId);
         try {
           payment = await service.createCheckout(
             phone,

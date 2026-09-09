@@ -108,13 +108,17 @@ function controllerHarness(t) {
       operationId: 'same-operation',
     }),
     createCheckout: async (_phone, pricing) => {
+      if (state.preflightFailure) throw state.preflightFailure;
       state.charges.push(pricing);
       return { success: true, amount: pricing.total };
     },
   };
   install(t, '../src/services/forte-widget.service', payment);
   install(t, '../src/services/order-payment-state.service', {});
-  install(t, '../src/services/forte.service', { existingRequest: async () => null });
+  install(t, '../src/services/forte.service', {
+    existingRequest: async () => null,
+    availability: () => false,
+  });
   install(t, '../src/services/payment-operations.service', {
     getForteCheckoutDecision: async () => ({ effectiveIntegration: 'widget' }),
   });
@@ -188,19 +192,24 @@ test('a valid quoted payment cannot charge a saved card after other orders reser
   assert.equal(state.charges.length, 0);
 });
 
-test('the payment attempt must be durably marked before calling the bank', async (t) => {
+test('a failed payment preflight releases the unused delivery reservation', async (t) => {
   const { state, controller, request } = controllerHarness(t);
   const quote = response();
   await controller.quotePayment(request, quote);
   request.body.deliveryQuoteToken = quote.body.deliveryQuoteToken;
-  const { deliveryBudget, budgetError } = require('../src/services/delivery-budget.service');
-  t.mock.method(deliveryBudget, 'markPayment', async () => {
-    throw budgetError();
+  const { deliveryBudget } = require('../src/services/delivery-budget.service');
+  state.preflightFailure = Object.assign(new Error('Saved card is no longer available'), {
+    statusCode: 409,
+  });
+  const released = [];
+  t.mock.method(deliveryBudget, 'releaseUnstarted', async (...args) => {
+    released.push(args);
   });
   const payment = response();
   await controller.createPayment(request, payment);
-  assert.equal(payment.statusCode, 503);
+  assert.equal(payment.statusCode, 409);
   assert.equal(state.charges.length, 0);
+  assert.deepEqual(released, [[request.customerAuth.id, request.body.checkoutId]]);
 });
 
 test('missing quote is rejected before reserving goods or charging a saved card', async (t) => {
