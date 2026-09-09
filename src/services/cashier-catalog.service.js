@@ -91,7 +91,7 @@ async function loadCashierCatalog(admin) {
     menuService.getProductOverrides(scope),
     menuService.getCategoryOverrides(scope),
     menuService.getCustomProducts(scope),
-    getBranchAvailability(branchId, { strict: true }),
+    getBranchAvailability(branchId, { strict: true, online: false }),
   ]);
   const { data: branch, error } = await supabase
     .from('bulka_locations')

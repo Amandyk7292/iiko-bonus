@@ -7,7 +7,9 @@ const { PGlite } = require('@electric-sql/pglite');
 const db = new PGlite();
 test.before(async () => {
   await db.exec(`create role anon; create role authenticated; create role service_role;
-    create table bulka_locations(id uuid primary key, active boolean default true);
+    create table bulka_locations(id uuid primary key, active boolean default true,
+      pickup_slot_capacity integer default 10, delivery_slot_capacity integer default 10,
+      preorder_slot_capacity integer default 10);
     create table kaspi_orders(id uuid primary key, status text, kitchen_status text, fulfillment_status text);
     create table order_partial_refunds(id uuid primary key, order_id uuid, status text);
     create table custom_products(id uuid primary key);
@@ -18,7 +20,10 @@ test.before(async () => {
       primary key(branch_id,product_id));
     create table inventory_reservations(id uuid default gen_random_uuid(), customer_id uuid, client_request_id uuid,
       branch_id uuid, product_id text, quantity integer, status text, expires_at timestamptz,
-      order_id uuid, updated_at timestamptz default now());`);
+      order_id uuid, updated_at timestamptz default now());
+    create table fulfillment_slot_reservations(id uuid default gen_random_uuid(),
+      order_id uuid, branch_id uuid, fulfillment_type text, scheduled_at timestamptz,
+      status text, expires_at timestamptz, updated_at timestamptz default now());`);
   const reserve = readFileSync(
     'supabase/migrations/20260729090000_inventory_reservation_integrity.sql',
     'utf8',
@@ -33,6 +38,7 @@ test.before(async () => {
   await db.exec(
     readFileSync('supabase/migrations/20260910003000_cashier_inventory_guardrails.sql', 'utf8'),
   );
+  await db.exec(readFileSync('supabase/migrations/20260910013000_online_stock_buffer.sql', 'utf8'));
 });
 function frontSender(branchId) {
   const terminal = randomUUID(),
@@ -284,21 +290,21 @@ async function stock(id, quantity, revision = 0) {
     ])
   ).rows[0].data;
 }
-async function reserve(id) {
+async function reserve(id, quantity = 1) {
   const request = randomUUID();
   await db.query('select reserve_order_inventory($1,$2,$3,$4,35,null)', [
     randomUUID(),
     request,
     id,
-    JSON.stringify([{ id: 'bun', quantity: 1 }]),
+    JSON.stringify([{ id: 'bun', quantity }]),
   ]);
   return request;
 }
-test('one remaining unit admits only one checkout and a different branch has its own stock', async () => {
+test('two remaining units admit one online checkout and keep one unit at each branch', async () => {
   const first = await branch(),
     other = await branch();
-  await stock(first, 1);
-  await stock(other, 1);
+  await stock(first, 2);
+  await stock(other, 2);
   const attempts = await Promise.allSettled([reserve(first), reserve(first), reserve(first)]);
   assert.equal(attempts.filter((v) => v.status === 'fulfilled').length, 1);
   assert.equal(
@@ -307,6 +313,187 @@ test('one remaining unit admits only one checkout and a different branch has its
     2,
   );
   await reserve(other);
+});
+
+test('zero or one counted unit cannot be reserved online, including direct RPC calls', async () => {
+  for (const quantity of [0, 1]) {
+    const id = await branch();
+    await stock(id, quantity);
+    await assert.rejects(() => reserve(id), /Доступно: 0/);
+    const rows = await db.query('select * from inventory_reservations where branch_id=$1', [id]);
+    assert.equal(rows.rows.length, 0);
+  }
+});
+
+test('an order may take five of six units, but never five of five or split variants to bypass the buffer', async () => {
+  const id = await branch(),
+    other = await branch();
+  await stock(id, 6);
+  await stock(other, 5);
+  await assert.rejects(() => reserve(other, 5), /Доступно: 4/);
+  await assert.rejects(
+    () =>
+      db.query('select reserve_order_inventory($1,$2,$3,$4,35,null)', [
+        randomUUID(),
+        randomUUID(),
+        other,
+        [
+          { id: 'bun', quantity: 2, configuration: { size: 'a' } },
+          { id: 'bun', quantity: 3, configuration: { size: 'b' } },
+        ],
+      ]),
+    /Доступно: 4/,
+  );
+  const request = await reserve(id, 5);
+  const reservation = (
+    await db.query('select * from inventory_reservations where client_request_id=$1', [request])
+  ).rows[0];
+  await db.query('select reserve_order_inventory($1,$2,$3,$4,35,null)', [
+    reservation.customer_id,
+    request,
+    id,
+    [{ id: 'bun', quantity: 5 }],
+  ]);
+  assert.equal(
+    (
+      await db.query(
+        'select count(*)::integer as n from inventory_reservations where branch_id=$1',
+        [id],
+      )
+    ).rows[0].n,
+    1,
+  );
+  await assert.rejects(() => reserve(id), /Доступно: 0/);
+  await db.query("update inventory_reservations set status='released' where client_request_id=$1", [
+    request,
+  ]);
+  await reserve(id, 5);
+  assert.equal(
+    (
+      await db.query('select source_quantity from branch_product_inventory where branch_id=$1', [
+        id,
+      ])
+    ).rows[0].source_quantity,
+    6,
+  );
+});
+
+test('Front sale between loading the cart and checkout blocks payment reservation', async () => {
+  const id = await branch(),
+    send = frontSender(id);
+  await send(6);
+  await send(1);
+  await assert.rejects(() => reserve(id, 5), /Доступно: 0/);
+});
+
+test('unknown stock remains unlimited and an expired hold releases only the online capacity', async () => {
+  const id = await branch(),
+    send = frontSender(id);
+  await send(2);
+  const request = await reserve(id);
+  await db.query(
+    "update inventory_reservations set expires_at=now()-interval '1 second' where client_request_id=$1",
+    [request],
+  );
+  await reserve(id);
+  await assert.rejects(() => reserve(id), /Доступно: 0/);
+  await send(null);
+  await reserve(id, 99);
+});
+
+test('a rejected multi-product checkout rolls back earlier reservations in the same transaction', async () => {
+  const id = await branch();
+  await stock(id, 2);
+  await db.query(
+    "insert into branch_product_inventory(branch_id,product_id,source_quantity,source) values($1,'last-unit',1,'admin')",
+    [id],
+  );
+  await assert.rejects(
+    () =>
+      db.query('select reserve_order_inventory($1,$2,$3,$4,35,null)', [
+        randomUUID(),
+        randomUUID(),
+        id,
+        [
+          { id: 'bun', quantity: 1 },
+          { id: 'last-unit', quantity: 1 },
+        ],
+      ]),
+    /Доступно: 0/,
+  );
+  assert.equal(
+    (
+      await db.query(
+        'select count(*)::integer as n from inventory_reservations where branch_id=$1',
+        [id],
+      )
+    ).rows[0].n,
+    0,
+  );
+});
+
+async function checkoutOrder(branchId, requestId) {
+  const order = randomUUID();
+  await db.query("insert into kaspi_orders values($1,'pending','new','pending')", [order]);
+  await db.query('update inventory_reservations set order_id=$1 where client_request_id=$2', [
+    order,
+    requestId,
+  ]);
+  await db.query(
+    "insert into fulfillment_slot_reservations(order_id,branch_id,fulfillment_type,scheduled_at,status,expires_at) values($1,$2,'pickup',now()+interval '1 hour','active',now()+interval '35 minutes')",
+    [order, branchId],
+  );
+  return order;
+}
+
+test('payment confirmation and late recovery both recheck the last-unit buffer without partially committing a slot', async () => {
+  for (const allowReacquire of [false, true]) {
+    const id = await branch(),
+      send = frontSender(id);
+    await send(2);
+    const request = await reserve(id),
+      order = await checkoutOrder(id, request);
+    if (allowReacquire) {
+      await db.query("update inventory_reservations set status='expired' where order_id=$1", [
+        order,
+      ]);
+      await db.query(
+        "update fulfillment_slot_reservations set status='expired' where order_id=$1",
+        [order],
+      );
+    }
+    await send(1);
+    const failed = (
+      await db.query('select commit_order_reservations($1,$2) as data', [order, allowReacquire])
+    ).rows[0].data;
+    assert.equal(failed.status, 'unavailable');
+    assert.equal(failed.reason, 'inventory');
+    assert.equal(failed.productId, 'bun');
+    assert.equal(
+      (
+        await db.query('select status from fulfillment_slot_reservations where order_id=$1', [
+          order,
+        ])
+      ).rows[0].status,
+      allowReacquire ? 'expired' : 'active',
+    );
+    await send(2);
+    const committed = (
+      await db.query('select commit_order_reservations($1,$2) as data', [order, allowReacquire])
+    ).rows[0].data;
+    assert.equal(committed.status, 'committed');
+    assert.equal(committed.inventoryUnitsCommitted, 1);
+    assert.equal(committed.slotCommitted, 1);
+    await send(1);
+    const repeat = (
+      await db.query('select commit_order_reservations($1,$2) as data', [order, allowReacquire])
+    ).rows[0].data;
+    assert.equal(
+      repeat.status,
+      'already_committed',
+      'settled orders are not cancelled by the buffer',
+    );
+  }
 });
 test('manual quantity survives an iiko refresh and a stale cashier cannot overwrite it', async () => {
   const id = await branch();
@@ -343,7 +530,7 @@ test('handing over consumes manual stock exactly once; cancelling preserves it',
   for (const completed of [true, false]) {
     const id = await branch(),
       order = randomUUID();
-    await stock(id, 1);
+    await stock(id, 2);
     const request = await reserve(id);
     await db.query('insert into kaspi_orders values($1,$2,$3,$4)', [
       order,
@@ -364,7 +551,7 @@ test('handing over consumes manual stock exactly once; cancelling preserves it',
         id,
       ])
     ).rows[0].source_quantity;
-    assert.equal(quantity, completed ? 0 : 1);
+    assert.equal(quantity, completed ? 1 : 2);
   }
 });
 test('cashier stock RPC rejects extra scope fields, unlimited stock and invalid quantities', async () => {

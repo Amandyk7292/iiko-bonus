@@ -2,6 +2,7 @@ const { supabase } = require('../config/supabase');
 const { runBackgroundTask } = require('../utils/background-task.util');
 const { getIikoClientForCity } = require('./iiko-city-profile.service');
 const { getFrontInventoryStatus } = require('./front-inventory.service');
+const { onlineAvailableQuantity } = require('../utils/online-stock.util');
 
 const inventoryError = (message, statusCode = 400) =>
   Object.assign(new Error(message), { statusCode });
@@ -182,7 +183,7 @@ function refreshBranchInventoryInBackground(
 
 async function getBranchAvailability(
   branchId,
-  { sync = false, products = [], strict = false, iikoClient = null } = {},
+  { sync = false, products = [], strict = false, iikoClient = null, online = true } = {},
 ) {
   if (!branchId) return new Map();
   if (sync) await syncBranchInventory(branchId, { strict, products, iikoClient });
@@ -220,21 +221,24 @@ async function getBranchAvailability(
       const reserved = held.get(item.product_id) || 0;
       const fresh =
         !frontSync.configured || frontSync.connected || ['admin', 'custom'].includes(item.source);
+      const availableQuantity = !fresh
+        ? 0
+        : online
+          ? onlineAvailableQuantity(sourceQuantity, reserved)
+          : sourceQuantity == null
+            ? null
+            : Math.max(0, sourceQuantity - reserved);
       return [
         String(item.product_id),
         {
           productName: item.product_name || null,
           sourceQuantity,
           reserved,
-          availableQuantity: !fresh
-            ? 0
-            : sourceQuantity == null
-              ? null
-              : Math.max(0, sourceQuantity - reserved),
+          availableQuantity,
           isAvailable:
             fresh &&
             item.manual_stop !== true &&
-            (sourceQuantity == null || sourceQuantity > reserved),
+            (availableQuantity == null || availableQuantity > 0),
           manualStop: item.manual_stop === true,
           revision: Number(item.stock_revision || 0),
           source: item.source,

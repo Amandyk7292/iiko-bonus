@@ -1,5 +1,6 @@
 const { supabase } = require('../config/supabase');
 const { sendPushToCustomer } = require('./push.service');
+const { onlineAvailableQuantity } = require('../utils/online-stock.util');
 
 const stockError = (message, statusCode = 400, code = 'STOCK_SUBSCRIPTION_ERROR') =>
   Object.assign(new Error(message), { statusCode, code });
@@ -40,10 +41,10 @@ async function currentAvailability(branchId, productId) {
   }, 0);
   const quantity =
     inventory.source_quantity == null ? null : Math.max(0, Number(inventory.source_quantity) || 0);
+  const onlineQuantity = onlineAvailableQuantity(quantity, reserved);
   return {
     tracked: true,
-    available:
-      inventory.manual_stop !== true && (quantity == null || Math.max(0, quantity - reserved) > 0),
+    available: inventory.manual_stop !== true && (onlineQuantity == null || onlineQuantity > 0),
     productName: inventory.product_name || null,
   };
 }
