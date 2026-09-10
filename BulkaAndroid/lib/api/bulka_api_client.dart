@@ -1280,6 +1280,12 @@ class BulkaApiClient {
     if (json['success'] != true || slots is! List) {
       throw ApiException(_messageFrom(json, 'checkout_no_time_slots'.tr));
     }
+    if (slots.isEmpty && json['unavailableReason'] == 'closed') {
+      throw FulfillmentSlotsUnavailable('checkout_time_closed'.tr);
+    }
+    if (slots.isEmpty && json['unavailableReason'] == 'closing_soon') {
+      throw FulfillmentSlotsUnavailable('checkout_time_closing_soon'.tr);
+    }
     final requestedOffset = _asInt(
       json['timezoneOffsetMinutes'],
       fallback: 300,

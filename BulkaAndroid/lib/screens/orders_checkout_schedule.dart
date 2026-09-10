@@ -61,8 +61,11 @@ extension _CheckoutScheduleState on _CheckoutScreenState {
       );
     } catch (error) {
       if (mounted && revision == _scheduleRevision) {
-        _scheduleError = localizeErrorMessage(error);
+        _scheduleError = error is FulfillmentSlotsUnavailable
+            ? error.message
+            : localizeErrorMessage(error);
         _scheduleOptions.value = const [];
+        if (error is FulfillmentSlotsUnavailable) return true;
       }
       rethrow;
     }

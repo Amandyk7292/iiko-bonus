@@ -77,3 +77,26 @@ it('keeps map collapsed, preserves the typed address when moving its marker and 
     ),
   );
 });
+
+it.each(['01:00', '02:00'])('saves an 08:00–%s overnight schedule', async (close) => {
+  const user = userEvent.setup();
+  render(
+    <BrowserRouter>
+      <I18nProvider>
+        <LocationsPage user={null} />
+      </I18nProvider>
+    </BrowserRouter>,
+  );
+  await user.click(await screen.findByRole('button', { name: 'Редактировать' }));
+  const dialog = within(screen.getByRole('dialog'));
+  await user.clear(dialog.getByLabelText('Закрытие'));
+  await user.type(dialog.getByLabelText('Закрытие'), close);
+  await user.click(dialog.getByRole('button', { name: 'Сохранить' }));
+  await waitFor(() =>
+    expect(api.updateFulfillmentLocation).toHaveBeenCalledWith(
+      branch.id,
+      expect.objectContaining({ hours: { daily: { open: '08:00', close } } }),
+    ),
+  );
+  expect(screen.queryByText('Введите время в формате ЧЧ:ММ.')).not.toBeInTheDocument();
+});

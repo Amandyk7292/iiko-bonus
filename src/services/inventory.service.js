@@ -326,12 +326,13 @@ async function reserveCheckout({
   );
   if (inventoryRpcError) throw inventoryError(inventoryRpcError.message, 409);
 
-  const { data: slot, error: slotRpcError } = await supabase.rpc('reserve_fulfillment_slot', {
+  const { data: slot, error: slotRpcError } = await supabase.rpc('reserve_fulfillment_slot_v2', {
     p_customer_id: customerId,
     p_request_id: requestId,
     p_branch_id: branchId,
     p_fulfillment_type: orderType,
     p_scheduled_at: scheduledAt,
+    p_timezone_offset_minutes: require('./slot.service').timezoneOffsetMinutes(),
     p_ttl_minutes: reservation.ttlMinutes,
     p_expires_at: reservation.expiresAt,
   });

@@ -1,16 +1,7 @@
 const { supabase } = require('../config/supabase');
+const { MINUTE, DAY, dayStart, workingWindows, slotBucket } = require('./schedule-windows');
 
 const slotError = (message, statusCode = 400) => Object.assign(new Error(message), { statusCode });
-
-const parseClock = (value) => {
-  const match = /^(\d{2}):(\d{2})$/.exec(String(value || ''));
-  if (!match) return null;
-  const hour = Number(match[1]);
-  const minute = Number(match[2]);
-  return hour >= 0 && hour <= 24 && minute >= 0 && minute <= 59 && (hour < 24 || minute === 0)
-    ? hour * 60 + minute
-    : null;
-};
 
 const slotHorizonDays = (orderType, days) =>
   orderType === 'preorder' ? Math.min(14, Math.max(1, Number.parseInt(days, 10) || 7)) : 1;
@@ -59,7 +50,11 @@ async function listAvailableSlots({ branchId, orderType, days = 7, now = new Dat
     localNow.getUTCDate(),
   );
   const queryStart = new Date(startLocalDay - safeOffset * 60000).toISOString();
-  const queryEnd = new Date(startLocalDay + safeDays * 86400000 - safeOffset * 60000).toISOString();
+  const windows = workingWindows(location.hours, startLocalDay, safeDays);
+  const queryEnd = new Date(
+    Math.max(startLocalDay + DAY, ...windows.map((window) => window.end)) - safeOffset * MINUTE,
+  ).toISOString();
+  const interval = Number(location.slot_minutes || 60);
   const { data: reservations, error: reservationsError } = await supabase
     .from('fulfillment_slot_reservations')
     .select('scheduled_at,status,expires_at')
@@ -73,11 +68,10 @@ async function listAvailableSlots({ branchId, orderType, days = 7, now = new Dat
   const held = new Map();
   for (const reservation of reservations || []) {
     if (reservation.status === 'active' && new Date(reservation.expires_at) <= now) continue;
-    const key = new Date(reservation.scheduled_at).toISOString();
+    const key = slotBucket(Date.parse(reservation.scheduled_at), interval, safeOffset);
     held.set(key, (held.get(key) || 0) + 1);
   }
 
-  const interval = Number(location.slot_minutes || 60);
   const capacity = capacityFor(location, orderType);
   const lead = Number.parseInt(
     orderType === 'preorder'
@@ -87,32 +81,31 @@ async function listAvailableSlots({ branchId, orderType, days = 7, now = new Dat
   );
   const floor = orderType === 'preorder' ? 1440 : 0;
   const earliest = now.getTime() + Math.max(floor, Number.isFinite(lead) ? lead : 10) * 60000;
-  const dayKeys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
   const slots = [];
-
-  for (let dayOffset = 0; dayOffset < safeDays; dayOffset += 1) {
-    const localDayMs = startLocalDay + dayOffset * 86400000;
-    const localDay = new Date(localDayMs);
-    const schedule = location.hours?.[dayKeys[localDay.getUTCDay()]] || location.hours?.daily;
-    if (!schedule || schedule.closed === true) continue;
-    const open = parseClock(schedule.open);
-    const close = parseClock(schedule.close);
-    if (open == null || close == null || open >= close) continue;
-    const first = Math.ceil(open / interval) * interval;
-    for (let minute = first; minute < close; minute += interval) {
-      const instant = new Date(localDayMs + minute * 60000 - safeOffset * 60000);
-      if (instant.getTime() < earliest) continue;
-      const key = instant.toISOString();
-      const used = held.get(key) || 0;
-      if (used >= capacity) continue;
-      slots.push({
-        startsAt: key,
-        endsAt: new Date(
-          localDayMs + Math.min(minute + interval, close) * 60000 - safeOffset * 60000,
-        ).toISOString(),
-        capacity,
-        remaining: capacity - used,
-      });
+  const seen = new Set();
+  for (const window of windows) {
+    for (let day = dayStart(window.start); day < window.end; day += DAY) {
+      const open = Math.max(window.start, day);
+      const close = Math.min(window.end, day + DAY) - safeOffset * MINUTE;
+      const first = day + Math.ceil((open - day) / (interval * MINUTE)) * interval * MINUTE;
+      for (let bucket = first - safeOffset * MINUTE; bucket < close; bucket += interval * MINUTE) {
+        const end = Math.min(bucket + interval * MINUTE, close);
+        // Keep the capacity bucket stable while offering the remaining part of it.
+        const start =
+          orderType === 'preorder'
+            ? bucket
+            : Math.max(bucket, Math.ceil(earliest / (5 * MINUTE)) * 5 * MINUTE);
+        if (start < earliest || start >= end || seen.has(start)) continue;
+        const used = held.get(bucket) || 0;
+        if (used >= capacity) continue;
+        seen.add(start);
+        slots.push({
+          startsAt: new Date(start).toISOString(),
+          endsAt: new Date(end).toISOString(),
+          capacity,
+          remaining: capacity - used,
+        });
+      }
     }
   }
   return {
@@ -121,6 +114,14 @@ async function listAvailableSlots({ branchId, orderType, days = 7, now = new Dat
     slotMinutes: interval,
     serverTime: now.toISOString(),
     timezoneOffsetMinutes: safeOffset,
+    unavailableReason:
+      slots.length || orderType === 'preorder'
+        ? null
+        : !windows.some((window) => window.end > localNow.getTime())
+          ? 'closed'
+          : !windows.some((window) => window.end > earliest + safeOffset * MINUTE)
+            ? 'closing_soon'
+            : 'full',
     slots,
   };
 }

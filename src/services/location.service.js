@@ -72,7 +72,7 @@ const validateHours = (hours) => {
     if (schedule.closed === true) continue;
     const open = clockMinutes(schedule.open);
     const close = clockMinutes(schedule.close);
-    if (open === null || close === null || open >= close) {
+    if (open === null || close === null || open >= 1440 || open === close) {
       throw locationError('Время работы должно иметь формат HH:mm');
     }
   }

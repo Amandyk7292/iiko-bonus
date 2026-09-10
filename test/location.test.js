@@ -72,6 +72,44 @@ test('branch name and full address can be edited independently of map coordinate
   });
 });
 
+test('overnight 08:00–01:00 and 08:00–02:00 pass both request validation and location save', async () => {
+  const { adminMutationSchemas } = require('../src/contracts/admin-mutations.contract');
+  let updates;
+  const database = {
+    from() {
+      return {
+        select() {
+          return this;
+        },
+        eq() {
+          return this;
+        },
+        update(value) {
+          updates = value;
+          return this;
+        },
+        maybeSingle: async () => ({ data: { ...activeRow, ...updates }, error: null }),
+      };
+    },
+  };
+  await withLocationService(database, async (service) => {
+    for (const close of ['01:00', '02:00', '24:00']) {
+      const hours = { daily: { open: '08:00', close } };
+      assert.equal(adminMutationSchemas.locationUpdate.body.safeParse({ hours }).success, true);
+      const result = await service.updateBulkaLocation(activeRow.id, { hours });
+      assert.deepEqual(result.hours, hours);
+    }
+    for (const hours of [
+      { daily: { open: '08:00', close: '08:00' } },
+      { daily: { open: '08:00', close: '25:00' } },
+      { daily: { open: '24:00', close: '02:00' } },
+    ]) {
+      assert.equal(adminMutationSchemas.locationUpdate.body.safeParse({ hours }).success, false);
+      await assert.rejects(service.updateBulkaLocation(activeRow.id, { hours }));
+    }
+  });
+});
+
 test('delivery can be enabled with coordinates and no zones or tariff settings', async () => {
   let updates;
   const database = {

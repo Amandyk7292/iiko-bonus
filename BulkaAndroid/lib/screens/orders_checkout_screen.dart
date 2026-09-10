@@ -427,9 +427,11 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       if (!await _loadScheduleOptions()) return;
       if (!mounted) return;
       if (_scheduleOptions.value!.isEmpty) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('checkout_no_time_slots'.tr)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_scheduleError ?? 'checkout_no_time_slots'.tr),
+          ),
+        );
         return;
       }
       DateTime? selectedDay;

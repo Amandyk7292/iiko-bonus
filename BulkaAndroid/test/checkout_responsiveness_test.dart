@@ -255,6 +255,22 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+    'closing time explains why a new pickup can no longer be scheduled',
+    (tester) async {
+      final api = await _open(tester);
+      final waiting = api.pendingSlots = Completer<List<FulfillmentSlot>>();
+      await tester.tap(find.text('17:00–18:00'));
+      await tester.pump();
+      waiting.completeError(
+        FulfillmentSlotsUnavailable('checkout_time_closing_soon'.tr),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('checkout_time_closing_soon'.tr), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('bonus total changes on the next frame without a quote request', (
     tester,
   ) async {

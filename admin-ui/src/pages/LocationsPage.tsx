@@ -332,7 +332,8 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
     if (
       !validClock(pointDraft.open) ||
       !validClock(pointDraft.close) ||
-      clockMinutes(pointDraft.open) >= clockMinutes(pointDraft.close)
+      clockMinutes(pointDraft.open) >= 1440 ||
+      clockMinutes(pointDraft.open) === clockMinutes(pointDraft.close)
     ) {
       setPointError(t('locations.hoursInvalid'));
       return;
@@ -394,7 +395,8 @@ export default function LocationsPage({ user }: { user: AdminUser | null }) {
     if (
       !validClock(draft.open) ||
       !validClock(draft.close) ||
-      clockMinutes(draft.open) >= clockMinutes(draft.close)
+      clockMinutes(draft.open) >= 1440 ||
+      clockMinutes(draft.open) === clockMinutes(draft.close)
     ) {
       setFormError(t('locations.hoursInvalid'));
       return;

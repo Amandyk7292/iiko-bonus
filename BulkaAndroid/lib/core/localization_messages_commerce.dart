@@ -319,6 +319,22 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'kk': 'Бұл уақыт енді қолжетімсіз. Жаңа аралықты таңдаңыз.',
     'en': 'This time is no longer available. Select a new time slot.',
   },
+  'checkout_time_closed': {
+    'ru':
+        'На сегодня филиал уже закрылся. Выберите другую точку или оформите предзаказ.',
+    'kk':
+        'Бүгін филиал жабылды. Басқа филиалды таңдаңыз немесе алдын ала тапсырыс беріңіз.',
+    'en':
+        'This branch has closed for today. Choose another location or place a preorder.',
+  },
+  'checkout_time_closing_soon': {
+    'ru':
+        'До закрытия осталось слишком мало времени для нового заказа. Выберите другую точку или предзаказ.',
+    'kk':
+        'Жабылуға дейін жаңа тапсырысқа уақыт жеткіліксіз. Басқа филиалды немесе алдын ала тапсырысты таңдаңыз.',
+    'en':
+        'There is not enough time before closing for a new order. Choose another location or a preorder.',
+  },
   'checkout_phone_invalid': {
     'ru': 'Проверьте дополнительный номер телефона.',
     'kk': 'Қосымша телефон нөмірін тексеріңіз.',

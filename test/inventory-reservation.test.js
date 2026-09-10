@@ -51,7 +51,8 @@ test('reservation API forwards an exact payment expiry to inventory and slot RPC
 
   assert.equal(calls.length, 2);
   assert.equal(calls[0].name, 'reserve_order_inventory');
-  assert.equal(calls[1].name, 'reserve_fulfillment_slot');
+  assert.equal(calls[1].name, 'reserve_fulfillment_slot_v2');
+  assert.equal(calls[1].args.p_timezone_offset_minutes, 300);
   assert.equal(calls[0].args.p_expires_at, reservationExpiresAt);
   assert.equal(calls[1].args.p_expires_at, reservationExpiresAt);
   assert.equal(calls[0].args.p_ttl_minutes, 35);

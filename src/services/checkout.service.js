@@ -1,4 +1,5 @@
 const ORDER_TYPES = new Set(['pickup', 'delivery', 'preorder']);
+const { MINUTE, dayStart, workingWindows, slotBucket } = require('./schedule-windows');
 
 const checkoutError = (message, statusCode = 400) =>
   Object.assign(new Error(message), { statusCode });
@@ -158,44 +159,6 @@ const resolveBranch = (
   return selected;
 };
 
-const parseClock = (value) => {
-  const match = /^(\d{2}):(\d{2})$/.exec(String(value || ''));
-  if (!match) return null;
-  const hour = Number(match[1]);
-  const minute = Number(match[2]);
-  if (hour < 0 || hour > 24 || minute < 0 || minute > 59 || (hour === 24 && minute !== 0)) {
-    return null;
-  }
-  return hour * 60 + minute;
-};
-
-const branchHoursFor = (hours, localDate) => {
-  const day = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'][localDate.getUTCDay()];
-  const schedule = hours?.[day] ?? hours?.daily;
-  if (!schedule || typeof schedule !== 'object' || schedule.closed === true) return null;
-  const open = parseClock(schedule.open);
-  const close = parseClock(schedule.close);
-  if (open === null || close === null || open >= close) return null;
-  return { open, close };
-};
-
-const validateBranchHours = (instant, hours, offsetMinutes, slotMinutes = 60) => {
-  const local = new Date(instant.getTime() + offsetMinutes * 60 * 1000);
-  const schedule = branchHoursFor(hours, local);
-  if (!schedule) throw checkoutError('Расписание выбранного филиала не настроено', 503);
-  const minute = local.getUTCHours() * 60 + local.getUTCMinutes();
-  const interval =
-    Number.isInteger(slotMinutes) && slotMinutes >= 15 && slotMinutes <= 240 ? slotMinutes : 60;
-  const firstSlot = Math.ceil(schedule.open / interval) * interval;
-  if (minute < firstSlot || minute >= schedule.close || (minute - firstSlot) % interval !== 0) {
-    const clock = (value) =>
-      `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`;
-    throw checkoutError(
-      `Выберите доступное время с ${clock(firstSlot)} до ${clock(schedule.close)}`,
-    );
-  }
-};
-
 const normalizeSchedule = (
   raw,
   orderType,
@@ -243,19 +206,31 @@ const normalizeSchedule = (
     );
   }
 
-  if (orderType !== 'preorder') {
-    const localNow = new Date(now.getTime() + safeOffset * 60 * 1000);
-    const localScheduled = new Date(scheduledAt.getTime() + safeOffset * 60 * 1000);
-    const sameLocalDay =
-      localNow.getUTCFullYear() === localScheduled.getUTCFullYear() &&
-      localNow.getUTCMonth() === localScheduled.getUTCMonth() &&
-      localNow.getUTCDate() === localScheduled.getUTCDate();
-    if (!sameLocalDay) {
-      throw checkoutError('Для самовывоза и доставки выберите время на сегодня');
-    }
+  const localTime = scheduledAt.getTime() + safeOffset * MINUTE;
+  const localNow = now.getTime() + safeOffset * MINUTE;
+  const windows = workingWindows(
+    branchHours,
+    dayStart(orderType === 'preorder' ? localTime : localNow),
+  );
+  const window = windows.find((item) => localTime >= item.start && localTime < item.end);
+  if (!window)
+    throw checkoutError(
+      orderType !== 'preorder' && dayStart(localTime) !== dayStart(localNow)
+        ? 'Для самовывоза и доставки выберите время на сегодня в пределах работы филиала'
+        : 'Выберите доступное время в пределах работы филиала',
+    );
+  const interval =
+    Number.isInteger(slotMinutes) && slotMinutes >= 15 && slotMinutes <= 240 ? slotMinutes : 60;
+  const bucket = slotBucket(scheduledAt.getTime(), interval, safeOffset);
+  const onGrid = bucket === scheduledAt.getTime();
+  const currentWindow = orderType !== 'preorder' && bucket < now.getTime() + minimumLead * MINUTE;
+  const onFiveMinuteGrid = (localTime - dayStart(localTime)) % (5 * MINUTE) === 0;
+  if (
+    bucket + safeOffset * MINUTE < window.start ||
+    (!onGrid && !(currentWindow && onFiveMinuteGrid))
+  ) {
+    throw checkoutError('Выберите доступное время заказа');
   }
-
-  validateBranchHours(scheduledAt, branchHours, safeOffset, slotMinutes);
   return scheduledAt.toISOString();
 };
 
