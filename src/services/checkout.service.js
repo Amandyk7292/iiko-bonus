@@ -187,11 +187,7 @@ const validateBranchHours = (instant, hours, offsetMinutes, slotMinutes = 60) =>
   const interval =
     Number.isInteger(slotMinutes) && slotMinutes >= 15 && slotMinutes <= 240 ? slotMinutes : 60;
   const firstSlot = Math.ceil(schedule.open / interval) * interval;
-  if (
-    minute < firstSlot ||
-    minute + interval > schedule.close ||
-    (minute - firstSlot) % interval !== 0
-  ) {
+  if (minute < firstSlot || minute >= schedule.close || (minute - firstSlot) % interval !== 0) {
     const clock = (value) =>
       `${String(Math.floor(value / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`;
     throw checkoutError(

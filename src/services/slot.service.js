@@ -99,7 +99,7 @@ async function listAvailableSlots({ branchId, orderType, days = 7, now = new Dat
     const close = parseClock(schedule.close);
     if (open == null || close == null || open >= close) continue;
     const first = Math.ceil(open / interval) * interval;
-    for (let minute = first; minute + interval <= close; minute += interval) {
+    for (let minute = first; minute < close; minute += interval) {
       const instant = new Date(localDayMs + minute * 60000 - safeOffset * 60000);
       if (instant.getTime() < earliest) continue;
       const key = instant.toISOString();
@@ -107,7 +107,9 @@ async function listAvailableSlots({ branchId, orderType, days = 7, now = new Dat
       if (used >= capacity) continue;
       slots.push({
         startsAt: key,
-        endsAt: new Date(instant.getTime() + interval * 60000).toISOString(),
+        endsAt: new Date(
+          localDayMs + Math.min(minute + interval, close) * 60000 - safeOffset * 60000,
+        ).toISOString(),
         capacity,
         remaining: capacity - used,
       });

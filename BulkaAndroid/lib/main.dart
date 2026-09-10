@@ -138,6 +138,7 @@ part 'screens/orders_screen.dart';
 part 'screens/orders_cart_widgets.dart';
 part 'screens/orders_checkout_screen.dart';
 part 'screens/orders_checkout_state.dart';
+part 'screens/orders_checkout_schedule.dart';
 part 'screens/orders_checkout_quote.dart';
 part 'screens/orders_checkout_layout.dart';
 part 'screens/orders_checkout_ordering_notice.dart';

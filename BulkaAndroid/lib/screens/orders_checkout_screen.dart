@@ -34,6 +34,11 @@ class _CheckoutScreen extends StatefulWidget {
 
 class _CheckoutScreenState extends State<_CheckoutScreen> {
   late final _LiveRefresh _live;
+  late final StreamSubscription<Map<String, dynamic>> _scheduleEvents;
+  final _scheduleOptions = ValueNotifier<List<_PickupSlot>?>(const []);
+  bool _scheduleNeedsRefresh = false;
+  int _scheduleRevision = 0;
+  String? _scheduleError;
   bool _preferencesReady = false;
   late final TextEditingController _phoneController;
   final _promoController = TextEditingController();
@@ -121,22 +126,13 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       busy: () => !_preferencesReady || _isSubmitting || _isQuoting,
       minimumInterval: const Duration(seconds: 30),
     );
-    unawaited(_loadPaymentAvailability());
-  }
-
-  Future<void> _refreshLiveCheckout() async {
-    final locationsRequest = widget.api.getFulfillmentLocations();
-    await Future.wait([locationsRequest, _loadPaymentAvailability()]);
-    final locations = await locationsRequest;
-    if (!mounted) return;
-    setState(() {
-      _locations = locations;
-      _deliveryAvailable = locations.any((b) => b.active && b.deliveryEnabled);
-      _deliveryAvailabilityChecked = true;
-      final branch = locations.where((b) => b.id == _branchId).firstOrNull;
-      if (branch != null) _branch = branch.name;
+    _scheduleEvents = widget.api.customerEvents.listen((event) {
+      if (_dataEventMatches(event, {'locations', 'locations.updated'})) {
+        _scheduleNeedsRefresh = true;
+        _live.request(immediate: true);
+      }
     });
-    await _refreshQuote();
+    unawaited(_loadPaymentAvailability());
   }
 
   bool get _selectedPaymentAvailable =>
@@ -335,6 +331,8 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   @override
   void dispose() {
     _live.dispose();
+    unawaited(_scheduleEvents.cancel());
+    _scheduleOptions.dispose();
     _quoteFreshness?.cancel();
     _promoController.removeListener(_refreshPromoButton);
     _phoneController.removeListener(_saveDraft);
@@ -426,21 +424,9 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
     if (location == null) return;
     setState(() => _isSelectingTime = true);
     try {
-      List<_PickupSlot> timeSlots;
-      final slots = await widget.api.getFulfillmentSlots(
-        branchId: location.id,
-        orderType: _orderType.wireValue,
-        days: _orderType == _OrderType.preorder ? 7 : 1,
-      );
-      timeSlots = slots
-          .map(_slotFromFulfillment)
-          .take(_orderType == _OrderType.preorder ? 50 : 30)
-          .toList();
+      if (!await _loadScheduleOptions()) return;
       if (!mounted) return;
-      if (slots.isNotEmpty) {
-        _branchTimezoneOffsetMinutes = slots.first.timezoneOffsetMinutes;
-      }
-      if (timeSlots.isEmpty) {
+      if (_scheduleOptions.value!.isEmpty) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('checkout_no_time_slots'.tr)));
@@ -452,32 +438,23 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
           context: context,
           isScrollControlled: true,
           backgroundColor: Colors.white,
-          builder: (sheetContext) => _PreorderCalendarSheet(
-            slots: timeSlots,
-            selected: _scheduledSlot?.startsAt,
-          ),
+          builder: (sheetContext) => _liveScheduleSheet(calendar: true),
         );
         if (!mounted || selectedDay == null) return;
       }
-      final selectableSlots = selectedDay == null
-          ? timeSlots
-          : timeSlots
-                .where(
-                  (slot) => DateUtils.isSameDay(slot.startsAt, selectedDay),
-                )
-                .toList();
       final selected = await showModalBottomSheet<_PickupSlot>(
         context: context,
         isScrollControlled: true,
         backgroundColor: Colors.white,
-        builder: (sheetContext) => _CheckoutTimeSheet(
-          slots: selectableSlots,
-          selectedValue: _scheduledSlot?.value,
-        ),
+        builder: (sheetContext) => _liveScheduleSheet(day: selectedDay),
       );
       if (mounted && selected != null) {
+        final current = _scheduleOptions.value
+            ?.where((slot) => slot.value == selected.value)
+            .firstOrNull;
+        if (current == null) return;
         setState(() {
-          _scheduledSlot = selected;
+          _scheduledSlot = current;
           _quoteValid = false;
         });
         await _persistDraft();
@@ -541,45 +518,8 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   }
 
   Future<bool> _revalidateScheduledSlot() async {
-    final selected = _scheduledSlot;
-    final location = _effectiveLocation;
-    if (selected == null || location == null) return false;
-    final slots = await widget.api.getFulfillmentSlots(
-      branchId: location.id,
-      orderType: _orderType.wireValue,
-      days: _orderType == _OrderType.preorder ? 7 : 1,
-    );
-    FulfillmentSlot? matchingSlot;
-    final selectedInstant = DateTime.parse(selected.value);
-    for (final slot in slots) {
-      if (slot.startsAt.isAtSameMomentAs(selectedInstant)) {
-        matchingSlot = slot;
-        break;
-      }
-    }
-    if (!mounted) return false;
-    if (matchingSlot == null) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_draftKey('checkout_scheduled_at'));
-      if (!mounted) return false;
-      setState(() {
-        _scheduledSlot = null;
-        _quoteValid = false;
-        _quotedTotal = null;
-        _quoteError = null;
-        _etaQuote = null;
-      });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('checkout_time_expired'.tr)));
-      return false;
-    }
-    final refreshed = _slotFromFulfillment(matchingSlot);
-    setState(() {
-      _branchTimezoneOffsetMinutes = matchingSlot!.timezoneOffsetMinutes;
-      _scheduledSlot = refreshed;
-    });
-    return true;
+    if (_scheduledSlot == null || !await _loadScheduleOptions()) return false;
+    return _applyScheduleToSelection();
   }
 
   Future<void> _submit() async {

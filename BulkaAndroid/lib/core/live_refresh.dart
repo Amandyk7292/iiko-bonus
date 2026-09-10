@@ -37,8 +37,12 @@ class _LiveRefresh with WidgetsBindingObserver {
   bool _pending = false;
   bool _disposed = false;
 
-  void request() {
+  void request({bool immediate = false}) {
     if (_disposed) return;
+    if (immediate) {
+      _cooldown?.cancel();
+      _cooldown = null;
+    }
     _pending = true;
     _timer?.cancel();
     _timer = Timer(const Duration(milliseconds: 250), _flush);
