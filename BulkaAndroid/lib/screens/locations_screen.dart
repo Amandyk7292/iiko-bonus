@@ -74,8 +74,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
       for (final location in locations) {
         if (!location.active || !location.supports(widget.orderType)) continue;
         if (_deliveryList &&
-            (location.latitude == null ||
-                location.longitude == null)) {
+            (location.latitude == null || location.longitude == null)) {
           continue;
         }
         final city = location.city.trim().isEmpty
@@ -193,7 +192,10 @@ class _LocationsScreenState extends State<LocationsScreen> {
         .toList();
 
     return PopScope(
-      canPop: true,
+      canPop: _deliveryList || _showCities,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && !_deliveryList && !_showCities) _showCityList();
+      },
       child: Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         appBar: AppBar(
@@ -203,7 +205,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
           leading: IconButton(
             onPressed: () {
               FocusScope.of(context).unfocus();
-              Navigator.of(context).maybePop();
+              Navigator.of(context).pop();
             },
             icon: const Icon(Icons.chevron_left_rounded, size: 34),
             color: colors.mutedText,

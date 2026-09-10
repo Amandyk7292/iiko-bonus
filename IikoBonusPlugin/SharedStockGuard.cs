@@ -18,7 +18,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
     internal sealed class GuardItem
     {
         [DataMember(Name="productId")] public string ProductId { get; set; }
-        [DataMember(Name="quantity")] public int Quantity { get; set; }
+        [DataMember(Name="quantity")] public decimal Quantity { get; set; }
     }
     [DataContract]
     internal sealed class GuardRequest
@@ -30,6 +30,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
         [DataMember(Name="onlineNumber",EmitDefaultValue=false)] public long? OnlineNumber { get; set; }
         [DataMember(Name="state",EmitDefaultValue=false)] public string State { get; set; }
         [DataMember(Name="acknowledged",EmitDefaultValue=false)] public bool Acknowledged { get; set; }
+        [DataMember(Name="authorizationConfirmed",EmitDefaultValue=false)] public bool AuthorizationConfirmed { get; set; }
+        [DataMember(Name="lastError",EmitDefaultValue=false)] public string LastError { get; set; }
     }
     [DataContract]
     internal sealed class GuardHeartbeat
@@ -51,11 +53,12 @@ namespace Resto.Front.Api.IikoBonusPlugin
         [DataMember(Name="registered")] public bool Registered { get; set; }
         [DataMember(Name="ready")] public bool Ready { get; set; }
         [DataMember(Name="status")] public string Status { get; set; }
+        [DataMember(Name="onlineNumber")] public long? OnlineNumber { get; set; }
         [DataMember(Name="error")] public string Error { get; set; }
         [DataMember(Name="recountId")] public string RecountId { get; set; }
     }
 
-    internal sealed class SharedStockGuard : IDisposable
+    internal sealed partial class SharedStockGuard : IDisposable
     {
         private readonly object gate = new object();
         private readonly string path = Path.Combine(LoyaltyFlow.DataDirectoryPath,"BulkaSharedStock.json");
@@ -122,7 +125,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             var connected=group.MainTerminal!=null && (group.MainTerminal.Id==terminal.Id || os.IsConnectedToMainTerminal());
             var result=Send("heartbeat",new GuardHeartbeat { TerminalId=terminal.Id.ToString(),Connected=connected });
             if(requireReady && (!result.Enabled || !result.Registered || !result.Ready || !connected))
-                throw new InvalidOperationException("Общий учёт ещё не включён или нет связи со всеми кассами филиала. Оплата приостановлена.");
+                throw new InvalidOperationException("Эта касса не готова к продаже: проверьте связь, регистрацию кассы и режим учёта филиала.");
             status=result.Enabled && result.Ready ? "Общий учёт: кассы подключены" : "Общий учёт: продажи требуют настройки или восстановления связи";
         }
         private static GuardRequest Build(IOrder order,IOperationService os,long? number)
@@ -132,9 +135,10 @@ namespace Resto.Front.Api.IikoBonusPlugin
             {
                 var product=root as IOrderProductItem;
                 if(product==null || product.Product==null || product.Size!=null || product.AssignedModifiers.Count>0
-                    || product.Amount<=0 || product.Amount!=decimal.Floor(product.Amount) || product.Amount>9999)
-                    throw new InvalidOperationException("Общий учёт настроен для штучных товаров без размеров и модификаторов. Этот товар требует отдельной настройки.");
-                items.Add(new GuardItem { ProductId=product.Product.Id.ToString(),Quantity=(int)product.Amount });
+                    || product.Amount<=0 || product.Amount!=decimal.Round(product.Amount,3) || product.Amount>9999
+                    || (!product.Product.UseBalanceForSell && product.Amount!=decimal.Floor(product.Amount)))
+                    throw new InvalidOperationException("Проверьте количество товара. Вес учитывается до 0,001 единицы; размеры и модификаторы требуют отдельной настройки.");
+                items.Add(new GuardItem { ProductId=product.Product.Id.ToString(),Quantity=product.Amount });
             }
             return new GuardRequest { TerminalId=os.GetHostTerminal().Id.ToString(),ReceiptId=order.Id.ToString(),
                 Items=items.GroupBy(x=>x.ProductId).OrderBy(x=>x.Key).Select(x=>new GuardItem {ProductId=x.Key,Quantity=x.Sum(v=>v.Quantity)}).ToList(),
@@ -148,6 +152,12 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 lock(gate)
                 {
                     Heartbeat(os,true);
+                    if(requests.TryGetValue(order.Id.ToString(),out var unresolved) && !unresolved.AuthorizationConfirmed)
+                    {
+                        if(unresolved.OnlineNumber.HasValue)
+                            throw new InvalidOperationException("Завершите привязку через кнопку «Онлайн-заказ». Повторная оплата клиентом запрещена.");
+                        ResolvePendingLink(order.Id.ToString());
+                    }
                     requests.TryGetValue(order.Id.ToString(),out var saved);
                     var request=Build(order,os,saved?.OnlineNumber);
                     if(saved!=null && (saved.TerminalId!=request.TerminalId || saved.State!=null
@@ -161,10 +171,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                             || order.Payments.Sum(p=>p.Sum)!=order.ResultSum))
                             throw new InvalidOperationException("Онлайн-заказ уже оплачен. Используйте кнопку «Онлайн-заказ» для учёта внешней оплаты.");
                     }
-                    requests[request.ReceiptId]=request;
-                    Save(); // Durable intent BEFORE the request or any fiscal action.
-                    var result=Send("authorize",request);
-                    if(result.Status!="reserved") throw new InvalidOperationException("Bulka не подтвердила резерв товара.");
+                    Authorize(request);
                 }
             }
             catch(Exception error)
@@ -191,6 +198,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                         throw new InvalidOperationException("Настройте отдельный тип оплаты «Bulka онлайн» с разрешённой внешней оплатой.");
                     var type=os.GetPaymentTypes().SingleOrDefault(p=>p.Id==paymentTypeId && p.CanBeExternalProcessed && p.IsEnabled && !p.ProcessAsDiscount);
                     if(type==null) throw new InvalidOperationException("Тип «Bulka онлайн» недоступен для внешней оплаты.");
+                    ResolvePendingLink(order.Id.ToString());
                     requests.TryGetValue(order.Id.ToString(),out var saved);
                     if(saved!=null && !saved.OnlineNumber.HasValue) throw new InvalidOperationException("Этот чек уже закреплён как продажа с витрины. Для онлайн-заказа создайте отдельный чек.");
                     long? number=saved?.OnlineNumber;
@@ -203,17 +211,19 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     if(number<=0) throw new InvalidOperationException("Введите номер заказа Bulka.");
                     if(order.Payments.Any(p=>!p.IsExternal || !p.IsProcessedExternally || p.Type.Id!=paymentTypeId))
                         throw new InvalidOperationException("Уберите обычную оплату из чека: онлайн-заказ уже оплачен клиентом.");
+                    order=ImportReceipt(order,number.Value,os);
                     var request=Build(order,os,number);
-                    requests[request.ReceiptId]=request;
-                    Save();
-                    var result=Send("authorize",request);
-                    if(result.Status!="reserved") throw new InvalidOperationException("Связь с онлайн-заказом не подтверждена.");
+                    Authorize(request);
                     if(order.Payments.Count==0)
                         os.AddExternalPaymentItem(request.Total,true,null,null,type,order,os.GetDefaultCredentials());
                     vm.ShowOkPopup("Онлайн-заказ","Заказ №"+number+" связан с чеком. Оплата уже проведена в Bulka; повторное списание не требуется.","ОК");
                 }
             }
-            catch(Exception error) { vm.ShowErrorPopup(error.Message,"ОК"); }
+            catch(Exception error) {
+                lock(gate)
+                    if(order!=null && requests.TryGetValue(order.Id.ToString(),out var saved)) RecordProblem(saved,error);
+                vm.ShowErrorPopup(error.Message,"ОК");
+            }
         }
         internal void Recount(IOperationService os,IViewManager vm)
         {
@@ -228,7 +238,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                         "Убедитесь, что в остатках iikoFront указано фактическое количество готовых изделий, включая отложенные оплаченные онлайн-заказы. На время сверки продажи будут приостановлены.","Сверить","Отмена")) return;
                     Heartbeat(os,false);
                     // Flush known results first. Unknown/absent receipts remain held on the server.
-                    foreach(var order in os.GetOrders(true,false)) Observe(order);
+                    ObserveIndependently(os);
                     var request=new GuardRecount {TerminalId=os.GetHostTerminal().Id.ToString(),RecountId=Guid.NewGuid().ToString()};
                     var begin=Send("recount",request);
                     if(begin.Status!="paused" || !Guid.TryParse(begin.RecountId,out var recountId))
@@ -237,7 +247,9 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     request.Items=os.GetStopListProductsRemainingAmounts().GroupBy(entry=>entry.Key.Product.Id)
                         .Select(entries=>new StockSnapshotItem {ProductId=entries.Key.ToString(),
                             ProductName=(entries.First().Key.Product.Name ?? "Товар").Substring(0,Math.Min(160,(entries.First().Key.Product.Name ?? "Товар").Length)),
-                            Quantity=(int)Math.Min(100000m,Math.Max(0m,decimal.Floor(entries.Min(entry=>entry.Value.Item1))))})
+                            Quantity=decimal.Truncate(Math.Min(100000m,Math.Max(0m,entries.Min(entry=>entry.Value.Item1)))*1000m)/1000m,
+                            QuantityStep=entries.First().Key.Product.UseBalanceForSell ? 0.001m : 1m,
+                            Unit=entries.First().Key.Product.UseBalanceForSell ? (entries.First().Key.Product.MeasuringUnit?.Name ?? "кг") : "шт."})
                         .OrderBy(item=>item.ProductId).ToList();
                     if(request.Items.Count==0 || request.Items.Count>450) throw new InvalidOperationException("Задайте численные остатки витрины в iikoFront. Продажи остаются приостановлены до повторной сверки.");
                     if(Send("recount",request).Status!="completed") throw new InvalidOperationException("Сверка не подтверждена. Повторите её после восстановления связи.");
@@ -254,14 +266,13 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 lock(gate)
                 {
                     Heartbeat(PluginContext.Operations,false);
-                    foreach(var order in PluginContext.Operations.GetOrders(true,false))
-                        Observe(order);
+                    ObserveIndependently(PluginContext.Operations);
                 }
             }
             catch(Exception error) { status="Общий учёт: требуется связь или сверка"; PluginContext.Log.Warn("Bulka shared stock: "+error.Message); }
             finally { Interlocked.Exchange(ref busy,0); }
         }
-        internal void Observe(IOrder order)
+        private void ObserveCore(IOrder order)
         {
             if(!Enabled || order==null) return;
             lock(gate)
@@ -271,6 +282,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 if(order.Status!=OrderStatus.Closed && order.Status!=OrderStatus.Deleted) return;
                 // Keep tombstones indefinitely. An absent local order is NOT proof of cancellation.
                 var outcome=order.Status==OrderStatus.Closed ? "closed" : "voided";
+                if(!RecoverUnconfirmedOutcome(saved,outcome)) return;
                 var finish=new GuardRequest {TerminalId=saved.TerminalId,ReceiptId=saved.ReceiptId,Items=saved.Items,Total=saved.Total,State=outcome};
                 if(outcome=="closed")
                 {
@@ -283,6 +295,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 var result=Send("finish",finish);
                 if(result.Status!=outcome) throw new InvalidOperationException("Итог чека ещё не подтверждён Bulka.");
                 saved.Acknowledged=true;
+                saved.LastError=null;
                 Save();
             }
         }

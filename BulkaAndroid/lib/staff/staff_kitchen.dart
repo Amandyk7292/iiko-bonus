@@ -5,11 +5,13 @@ class StaffKitchen extends StatefulWidget {
     required this.api,
     required this.canEdit,
     this.canCancel = false,
+    this.onCounters,
     super.key,
   });
   final StaffApiClient api;
   final bool canEdit;
   final bool canCancel;
+  final ValueChanged<Map<String, int>>? onCounters;
   @override
   State<StaffKitchen> createState() => _StaffKitchenState();
 }
@@ -194,6 +196,36 @@ class _StaffKitchenState extends State<StaffKitchen>
           _error = null;
         });
         _syncAlarm();
+        final counters = result['counters'] as Map?;
+        widget.onCounters?.call({
+          'newOrders':
+              (counters?['newOrders'] as num?)?.toInt() ??
+              _orders
+                  .where(
+                    (row) =>
+                        row['kitchenStatus'] == 'queued' &&
+                        ![
+                          'cancelled',
+                          'completed',
+                        ].contains(row['fulfillmentStatus']),
+                  )
+                  .length,
+          'preparing':
+              (counters?['preparing'] as num?)?.toInt() ??
+              _orders
+                  .where((row) => row['kitchenStatus'] == 'preparing')
+                  .length,
+          'preorders':
+              (counters?['preorders'] as num?)?.toInt() ??
+              _orders
+                  .where(
+                    (row) =>
+                        row['kitchenStatus'] == 'queued' &&
+                        (row['orderType'] ?? row['fulfillmentType']) ==
+                            'preorder',
+                  )
+                  .length,
+        });
       }
     } catch (error) {
       if (mounted) setState(() => _error = '$error');
@@ -529,6 +561,10 @@ class _StaffKitchenState extends State<StaffKitchen>
                   'No substitutions',
                 ),
               ),
+            if (order['courierDispatchStatus'] == 'awaiting_receipt')
+              const StaffReceiptDispatchNotice(),
+            if (order['posReceiptDue'] == true)
+              const StaffDeferredReceiptNotice(),
             if ('${order['courierDispatchError'] ?? ''}'.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12),

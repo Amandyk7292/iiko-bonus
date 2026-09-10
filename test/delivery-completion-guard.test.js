@@ -52,19 +52,17 @@ test('pickup completion and non-terminal delivery updates remain available', () 
   );
 });
 
-test('delivery preorder also requires trusted delivery confirmation', () => {
-  assert.throws(
-    () =>
-      assertDeliveryCompletionAllowed(
-        {
-          fulfillment_type: 'preorder',
-          preorder_fulfillment_type: 'delivery',
-          fulfillment_status: 'ready',
-          delivery_status: 'en_route',
-        },
-        'completed',
-      ),
-    (error) => error.code === 'DELIVERY_CONFIRMATION_REQUIRED',
+test('preorder remains pickup even with a legacy delivery flag', () => {
+  assert.doesNotThrow(() =>
+    assertDeliveryCompletionAllowed(
+      {
+        fulfillment_type: 'preorder',
+        preorder_fulfillment_type: 'delivery',
+        fulfillment_status: 'ready',
+        delivery_status: 'en_route',
+      },
+      'completed',
+    ),
   );
 });
 

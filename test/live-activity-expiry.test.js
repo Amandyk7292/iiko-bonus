@@ -31,7 +31,6 @@ test('expiry uses actual readiness and covers pickup preorders only', () => {
   );
   for (const order of [
     { ...ready, fulfillment_type: 'delivery' },
-    { ...ready, fulfillment_type: 'preorder', preorder_fulfillment_type: 'delivery' },
     { ...ready, fulfillment_status: 'preparing' },
     { ...ready, kitchen_ready_at: 'invalid' },
   ])

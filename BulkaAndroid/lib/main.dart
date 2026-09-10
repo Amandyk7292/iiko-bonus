@@ -55,6 +55,7 @@ part 'core/staff_account_session.dart';
 
 part 'staff/cashier_workspace.dart';
 part 'staff/cashier_catalog.dart';
+part 'staff/staff_count_badge.dart';
 part 'staff/staff_empty_state.dart';
 part 'api/admin_portal_login_client.dart';
 part 'widgets/admin_password_login_form.dart';

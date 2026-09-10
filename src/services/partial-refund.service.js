@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { validQuantity, addQuantity } = require('../utils/quantity.util');
 const { supabase } = require('../config/supabase');
 const realtime = require('./realtime.service');
 const { sendPushToCustomer } = require('./push.service');
@@ -24,6 +25,12 @@ const normalizedLines = (order) =>
     name: String(item.name || 'Товар'),
     quantity: Math.max(0, Number(item.quantity || 0)),
     unitAmount: Math.max(0, Number(item.price || 0)),
+    lineTotal: Math.max(
+      0,
+      Number(item.lineTotal ?? Math.round(Number(item.price || 0) * Number(item.quantity || 0))),
+    ),
+    quantityStep: Number(item.quantityStep || 1),
+    unit: item.unit || 'шт.',
     imageUrl: item.imageUrl || item.image_url || null,
     configuration: item.configuration || null,
     modifiers: Array.isArray(item.modifiers) ? item.modifiers : [],
@@ -52,7 +59,7 @@ async function successfulRefundedQuantities(orderId) {
   for (const refund of data || []) {
     for (const item of refund.order_partial_refund_items || []) {
       const key = String(item.line_key);
-      quantities.set(key, (quantities.get(key) || 0) + Number(item.quantity || 0));
+      quantities.set(key, addQuantity(quantities.get(key) || 0, Number(item.quantity || 0)));
       amounts.set(key, (amounts.get(key) || 0) + Number(item.refund_amount || 0));
     }
   }
@@ -72,7 +79,10 @@ async function getRefundOptions(orderId) {
   const lines = normalizedLines(order).map((line) => ({
     ...line,
     refundedQuantity: refunded.quantities.get(line.lineKey) || 0,
-    refundableQuantity: Math.max(0, line.quantity - (refunded.quantities.get(line.lineKey) || 0)),
+    refundableQuantity: Math.max(
+      0,
+      addQuantity(line.quantity, -(refunded.quantities.get(line.lineKey) || 0)),
+    ),
     refundedAmount: refunded.amounts.get(line.lineKey) || 0,
   }));
   return {
@@ -98,35 +108,37 @@ function calculateRefund(order, requested, alreadyRefunded) {
   for (const entry of Array.isArray(requested) ? requested : []) {
     const key = String(entry?.lineKey || '').trim();
     const quantity = Number(entry?.quantity);
-    if (!key || !Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
+    if (!key || !validQuantity(quantity)) {
       throw refundError('Укажите корректное количество возвращаемых позиций');
     }
-    requestMap.set(key, (requestMap.get(key) || 0) + quantity);
+    requestMap.set(key, addQuantity(requestMap.get(key) || 0, quantity));
   }
   if (!requestMap.size) throw refundError('Выберите хотя бы одну позицию');
 
-  const lineSubtotal = lines.reduce((sum, line) => sum + line.unitAmount * line.quantity, 0);
+  const lineSubtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0);
   const subtotal = lineSubtotal > 0 ? lineSubtotal : Number(order.subtotal || 0);
   const discount = Math.max(0, Number(order.discount_amount || 0) + Number(order.bonus_spent || 0));
   const lineRawOffsets = new Map();
   let rawOffset = 0;
   for (const line of lines) {
     lineRawOffsets.set(line.lineKey, rawOffset);
-    rawOffset += line.unitAmount * line.quantity;
+    rawOffset += line.lineTotal;
   }
   const records = [];
   let refundAmount = 0;
   for (const [lineKey, quantity] of requestMap) {
     const line = lines.find((candidate) => candidate.lineKey === lineKey);
     if (!line) throw refundError('Одна из позиций заказа не найдена');
+    if (!validQuantity(quantity, { step: line.quantityStep }))
+      throw refundError('Количество не соответствует единице измерения товара');
     const refundedQuantity = alreadyRefunded.quantities.get(lineKey) || 0;
-    if (quantity > line.quantity - refundedQuantity) {
+    if (quantity > addQuantity(line.quantity, -refundedQuantity)) {
       throw refundError(
         `Для «${line.name}» доступно к возврату: ${Math.max(0, line.quantity - refundedQuantity)}`,
       );
     }
-    const targetQuantity = refundedQuantity + quantity;
-    const targetRaw = line.unitAmount * targetQuantity;
+    const targetQuantity = addQuantity(refundedQuantity, quantity);
+    const targetRaw = Math.round((line.lineTotal * targetQuantity) / line.quantity);
     const lineRawOffset = lineRawOffsets.get(lineKey) || 0;
     const targetDiscount =
       subtotal > 0
@@ -156,7 +168,7 @@ function calculateRefund(order, requested, alreadyRefunded) {
   const refundsEveryRemainingItem = lines.every((line) => {
     const previouslyRefunded = alreadyRefunded.quantities.get(line.lineKey) || 0;
     const requestedNow = requestMap.get(line.lineKey) || 0;
-    return previouslyRefunded + requestedNow >= line.quantity;
+    return addQuantity(previouslyRefunded, requestedNow) >= line.quantity;
   });
   const deliveryFee = Math.max(0, Number(order.delivery_fee || 0));
   const deliveryAlreadyRefunded = (alreadyRefunded.quantities.get('__delivery_fee__') || 0) > 0;

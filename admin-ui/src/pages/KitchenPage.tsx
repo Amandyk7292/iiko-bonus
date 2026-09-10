@@ -53,6 +53,7 @@ const dispatchStatuses = [
   'processing',
   'retrying',
   'awaiting_confirmation',
+  'awaiting_receipt',
   'succeeded',
   'failed',
 ];
@@ -486,10 +487,17 @@ export default function KitchenPage() {
             aria-controls={`kitchen-column-${column.status}`}
             tabIndex={activeColumn === column.status ? 0 : -1}
             onKeyDown={(event) => {
-              const index = columns.findIndex(item => item.status === activeColumn);
-              const next = event.key === 'ArrowRight' ? (index + 1) % 3
-                : event.key === 'ArrowLeft' ? (index + 2) % 3
-                : event.key === 'Home' ? 0 : event.key === 'End' ? 2 : -1;
+              const index = columns.findIndex((item) => item.status === activeColumn);
+              const next =
+                event.key === 'ArrowRight'
+                  ? (index + 1) % 3
+                  : event.key === 'ArrowLeft'
+                    ? (index + 2) % 3
+                    : event.key === 'Home'
+                      ? 0
+                      : event.key === 'End'
+                        ? 2
+                        : -1;
               if (next < 0) return;
               event.preventDefault();
               setActiveColumn(columns[next].status);
@@ -639,7 +647,13 @@ export default function KitchenPage() {
                             <ShoppingBag aria-hidden="true" size={18} />
                             <span className="grid min-w-0 gap-1 break-words">
                               <strong>{t(`kitchen.dispatch.${dispatchStatus}`)}</strong>
-                              <small>{t('kitchen.dispatchHelp')}</small>
+                              <small>
+                                {t(
+                                  order.posReceiptDue
+                                    ? 'kitchen.receiptDue'
+                                    : 'kitchen.dispatchHelp',
+                                )}
+                              </small>
                               {order.courierDispatchProvider && (
                                 <small>
                                   {t('kitchen.dispatch.provider', {

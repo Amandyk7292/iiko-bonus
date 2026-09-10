@@ -13,6 +13,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
     {
         [DataMember(Name="name")] public string Name { get; set; }
         [DataMember(Name="quantity")] public decimal Quantity { get; set; }
+        [DataMember(Name="unit")] public string Unit { get; set; }
     }
     [DataContract] internal sealed class InboxOrder
     {
@@ -27,7 +28,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         [DataMember(Name="amount")] public decimal Amount { get; set; }
         [DataMember(Name="deliveryFee")] public decimal DeliveryFee { get; set; }
         [DataMember(Name="comment")] public string Comment { get; set; }
-        internal string TypeLabel => OrderType=="preorder" ? "Предзаказ · "+(PreorderType=="delivery" ? "Доставка" : "Самовывоз") : OrderType=="delivery" ? "Доставка" : "Самовывоз";
+        internal string TypeLabel => OrderType=="preorder" ? "Предзаказ · Самовывоз" : OrderType=="delivery" ? "Доставка" : "Самовывоз";
     }
     [DataContract] internal sealed class InboxResponse
     {
@@ -52,11 +53,11 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private string lastKey="";
         private string lastDescription="";
         internal OnlineOrderInbox() { timer=new Timer(Poll,null,TimeSpan.FromSeconds(5),TimeSpan.FromSeconds(5)); }
-        private static InboxResponse Load(int page,bool peek=false)
+        private static InboxResponse Load(int page,bool peek=false,bool receipts=false)
         {
             var response=peek
                 ? LoyaltyFlow.SendApiRequest(HttpMethod.Post,"orders/poll",new InboxPoll {TerminalId=PluginContext.Operations.GetHostTerminal().Id.ToString()})
-                : LoyaltyFlow.SendApiRequest(HttpMethod.Get,"orders/inbox?page="+page);
+                : LoyaltyFlow.SendApiRequest(HttpMethod.Get,"orders/inbox?page="+page+"&receipts="+(receipts ? "true" : "false"));
             if(!response.IsSuccessStatusCode) throw new InvalidOperationException("Не удалось получить заказы Bulka. Проверьте связь и настройку филиала.");
             var result=LoyaltyFlow.DeserializeJson<InboxResponse>(response.Body);
             if(result?.Orders==null) throw new InvalidOperationException("Некорректный ответ списка заказов.");
@@ -88,28 +89,37 @@ namespace Resto.Front.Api.IikoBonusPlugin
         internal void Show(IViewManager vm)
         {
             int page=1;
+            bool receipts=false;
             while(true)
             {
                 try
                 {
-                    var result=Load(page);
+                    var result=Load(page,false,receipts);
                     var labels=result.Orders.Select(order=>"№"+order.Number+" · "+order.TypeLabel+" · "+order.Amount.ToString("0.##")+" ₸\n"+
                         string.Join(", ",(order.Items ?? new List<InboxItem>()).Take(3).Select(item=>item.Name+" × "+item.Quantity))).ToList();
                     int refresh=labels.Count; labels.Add("Обновить список");
+                    int toggle=labels.Count; labels.Add(receipts ? "Новые заказы" : "Оформить чеки после планшета");
                     int previous=labels.Count; if(page>1) labels.Add("Предыдущая страница"); else previous=-1;
                     int next=labels.Count; if(page*25<result.Total) labels.Add("Следующая страница"); else next=-1;
-                    int choice=vm.ShowChooserPopup("Новые заказы Bulka · "+result.Total,labels,-1,ButtonWidth.Normal,"Закрыть");
+                    int choice=vm.ShowChooserPopup((receipts ? "Ожидают чека · " : "Новые заказы Bulka · ")+result.Total,labels,-1,ButtonWidth.Normal,"Закрыть");
                     if(choice<0) return;
                     if(choice==refresh) continue;
+                    if(choice==toggle) {receipts=!receipts;page=1;continue;}
                     if(choice==previous) {page--;continue;}
                     if(choice==next) {page++;continue;}
                     var selected=result.Orders[choice];
                     var details=new StringBuilder(selected.TypeLabel+"\n"+selected.Customer+" · "+selected.Phone+"\n\n");
-                    foreach(var item in selected.Items ?? new List<InboxItem>()) details.AppendLine(item.Name+" — "+item.Quantity+" шт.");
+                    foreach(var item in selected.Items ?? new List<InboxItem>()) details.AppendLine(item.Name+" — "+item.Quantity+" "+(item.Unit ?? "шт."));
                     if(!string.IsNullOrWhiteSpace(selected.ScheduledAt) && DateTimeOffset.TryParse(selected.ScheduledAt,out var scheduled)) details.AppendLine("Ко времени: "+scheduled.ToLocalTime().ToString("dd.MM HH:mm"));
                     details.AppendLine("\nОплачено: "+selected.Amount.ToString("0.##")+" ₸");
                     if(selected.DeliveryFee>0) details.AppendLine("В том числе доставка: "+selected.DeliveryFee.ToString("0.##")+" ₸");
                     if(!string.IsNullOrWhiteSpace(selected.Comment)) details.AppendLine("Комментарий: "+selected.Comment);
+                    if(receipts)
+                    {
+                        vm.ShowOkPopup("Оформить чек №"+selected.Number,details+"\nОткройте пустой чек и нажмите «Онлайн-заказ». Введите №"+selected.Number+
+                            ". Товары, скидка и уже внесённая оплата перенесутся автоматически. Повторно оплачивать заказ не нужно.","ОК");
+                        continue;
+                    }
                     var accept=vm.ShowYesNoCancelPopup("Заказ №"+selected.Number,details.ToString(),"Принять","Отклонить","Назад");
                     if(!accept.HasValue) continue;
                     if(!accept.Value && !vm.ShowOkCancelPopup("Отклонить заказ №"+selected.Number,

@@ -16,9 +16,7 @@ async function listDispatchState({ branchIds = [] } = {}) {
       'id,order_number,branch_id,branch_name,fulfillment_type,preorder_fulfillment_type,delivery_latitude,delivery_longitude,delivery_address,courier_id,delivery_status,estimated_delivery_at,eta_min_at,eta_max_at,eta_confidence,route_distance_km,kitchen_status,promised_ready_at,created_at,amount,courier_dispatch_status,courier_dispatch_provider,courier_dispatch_requested_at,courier_dispatch_error,bulka_locations(latitude,longitude,name,address)',
     )
     .eq('status', 'paid')
-    .or(
-      'fulfillment_type.eq.delivery,and(fulfillment_type.eq.preorder,preorder_fulfillment_type.eq.delivery)',
-    )
+    .eq('fulfillment_type', 'delivery')
     .not('delivery_status', 'in', '(delivered,cancelled)')
     .order('created_at');
   if (Array.isArray(branchIds) && branchIds.length)

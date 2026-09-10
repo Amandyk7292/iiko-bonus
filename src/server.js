@@ -49,6 +49,19 @@ if (!process.env.VERCEL) {
     maxRunMs: 30000,
   });
   registerWorker('pending-bonus-activation', { enabled: runWorkers, intervalMs: 60 * 60 * 1000 });
+  registerWorker('order-acceptance-timeout', {
+    enabled: runWorkers,
+    intervalMs: 15_000,
+    critical: true,
+  });
+  if (runWorkers) {
+    const expireUnaccepted = () =>
+      runMonitoredWorker('order-acceptance-timeout', () =>
+        require('./services/order-acceptance-timeout.service').cancelUnacceptedOrders(),
+      );
+    setTimeout(expireUnaccepted, 5000).unref?.();
+    setInterval(expireUnaccepted, 15_000).unref?.();
+  }
   registerWorker('live-activity-expiry', { enabled: runWorkers, intervalMs: 60 * 1000 });
   const activatePendingBonuses = () =>
     runMonitoredWorker('pending-bonus-activation', activatePendingBonusesSafe);

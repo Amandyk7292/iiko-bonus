@@ -1,5 +1,4 @@
 const ORDER_FULFILLMENT_TYPES = new Set(['pickup', 'delivery', 'preorder']);
-const PREORDER_FULFILLMENT_TYPES = new Set(['pickup', 'delivery']);
 
 const normalizeOrderFulfillmentType = (value, fallback = 'pickup') => {
   const normalized = String(value || '')
@@ -8,12 +7,7 @@ const normalizeOrderFulfillmentType = (value, fallback = 'pickup') => {
   return ORDER_FULFILLMENT_TYPES.has(normalized) ? normalized : fallback;
 };
 
-const normalizePreorderFulfillmentType = (value, fallback = 'pickup') => {
-  const normalized = String(value || '')
-    .trim()
-    .toLowerCase();
-  return PREORDER_FULFILLMENT_TYPES.has(normalized) ? normalized : fallback;
-};
+const normalizePreorderFulfillmentType = () => 'pickup';
 
 const effectiveFulfillmentType = (orderOrType, preorderFulfillmentType) => {
   const order =
@@ -27,9 +21,7 @@ const effectiveFulfillmentType = (orderOrType, preorderFulfillmentType) => {
     order.fulfillment_type ?? order.orderType ?? order.fulfillmentType,
   );
   if (orderType !== 'preorder') return orderType;
-  return normalizePreorderFulfillmentType(
-    order.preorder_fulfillment_type ?? order.preorderFulfillmentType ?? preorderFulfillmentType,
-  );
+  return 'pickup';
 };
 
 const isDeliveryFulfillment = (orderOrType, preorderFulfillmentType) =>

@@ -16,7 +16,7 @@ const orderSubstitutionRequestParamsSchema = z
 const orderSubstitutionCreateBodySchema = z
   .object({
     lineKey: z.string().trim().min(1).max(220),
-    quantity: z.coerce.number().int().min(1).max(99),
+    quantity: z.coerce.number().min(0.001).max(99).multipleOf(0.001),
     action: z.enum(['remove_refund', 'call_customer', 'replace_with_approval']),
     replacementProductId: z.string().trim().min(1).max(100).optional(),
     note: z.string().trim().max(500).optional().default(''),

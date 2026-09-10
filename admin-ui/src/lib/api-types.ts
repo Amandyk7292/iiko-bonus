@@ -210,6 +210,8 @@ export interface AdminOrder {
   deliveryStatus?: string;
   kitchenStatus?: string;
   courierDispatchStatus?: string | null;
+  posReceiptDue?: boolean;
+  tabletReadyAt?: string | null;
   courierDispatchProvider?: string | null;
   courierDispatchRequestedAt?: string | null;
   courierDispatchError?: string | null;
@@ -253,6 +255,8 @@ export interface InventoryItem {
   product_id: string;
   product_name: string;
   source_quantity: number | null;
+  quantity_step?: number;
+  unit?: string;
   manual_stop: boolean;
   preparation_minutes?: number | null;
   source: string;
@@ -266,6 +270,8 @@ export interface PartialRefundLine {
   productId: string;
   name: string;
   quantity: number;
+  quantityStep?: number;
+  unit?: string;
   unitAmount: number;
   refundableQuantity: number;
   refundedQuantity: number;
@@ -441,6 +447,8 @@ export interface DispatchOrder {
   deliveryStatus?: string;
   kitchenStatus?: string;
   courierDispatchStatus?: string | null;
+  posReceiptDue?: boolean;
+  tabletReadyAt?: string | null;
   courierDispatchProvider?: string | null;
   courierDispatchRequestedAt?: string | null;
   courierDispatchError?: string | null;

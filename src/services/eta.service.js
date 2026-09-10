@@ -281,9 +281,7 @@ async function forecastOrderEta({
             .select('id')
             .eq('branch_id', branchId)
             .eq('status', 'paid')
-            .or(
-              'fulfillment_type.eq.delivery,and(fulfillment_type.eq.preorder,preorder_fulfillment_type.eq.delivery)',
-            )
+            .eq('fulfillment_type', 'delivery')
             .in('delivery_status', ['unassigned', 'assigned', 'picked_up', 'en_route'])
             .limit(200)
         : Promise.resolve({ data: [] }),

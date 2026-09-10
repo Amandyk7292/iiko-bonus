@@ -572,6 +572,7 @@ const cashierMutationAllowed = (req, area) => {
   }
   if (area === 'staff' && req.method === 'POST' && path === 'staff/push-test') return true;
   if (area === 'staff' && req.method === 'POST' && path === 'staff/push-heartbeat') return true;
+  if (area === 'staff' && req.method === 'POST' && path === 'staff/catalog/fallback') return true;
   if (
     area === 'staff' &&
     req.method === 'PATCH' &&

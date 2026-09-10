@@ -48,7 +48,7 @@ class OrderPaymentStateService {
   }) {
     const preparationMinutes = Math.min(240, Math.max(1, Number(pricing.preparationMinutes) || 15));
     const effectiveType =
-      checkout.effectiveFulfillmentType ||
+      (checkout.orderType === 'preorder' ? 'pickup' : checkout.effectiveFulfillmentType) ||
       effectiveFulfillmentType({
         fulfillment_type: checkout.orderType,
         preorder_fulfillment_type: checkout.preorderFulfillmentType,
@@ -76,8 +76,7 @@ class OrderPaymentStateService {
       delivery_budget_required: effectiveType === 'delivery',
       promo_code: pricing.promoCode,
       fulfillment_type: checkout.orderType,
-      preorder_fulfillment_type:
-        checkout.orderType === 'preorder' ? checkout.preorderFulfillmentType : null,
+      preorder_fulfillment_type: checkout.orderType === 'preorder' ? 'pickup' : null,
       branch_id: checkout.branchId,
       branch_name: checkout.branch,
       scheduled_at: checkout.scheduledAt,

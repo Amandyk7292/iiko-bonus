@@ -47,6 +47,7 @@ build/
 BulkaAndroid/android/key.properties
 BulkaAndroid/keystore/
 IikoBonusPlugin/Resto.Front.Api.IikoBonusPlugin.dll.config
+BulkaAndroid/test/failures/
 
 .tmp/
 

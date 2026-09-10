@@ -48,11 +48,6 @@ extension _CheckoutScreenStatePreferences on _CheckoutScreenState {
     final savedType = _orderTypeFromWire(
       prefs.getString('selected_order_type'),
     );
-    final savedPreorderFulfillment =
-        prefs.getString(_draftKey('checkout_preorder_fulfillment')) ==
-            'delivery'
-        ? _OrderType.delivery
-        : _OrderType.pickup;
     DeliveryAddress? address;
     try {
       address = await AddressRepository(api: widget.api).loadSelectedAddress();
@@ -93,7 +88,6 @@ extension _CheckoutScreenStatePreferences on _CheckoutScreenState {
         'selected_bakery_location_id_delivery',
       );
       _orderType = savedType;
-      _preorderFulfillment = savedPreorderFulfillment;
       _deliveryAddress = address;
       _scheduledSlot = null;
       _locations = locations;

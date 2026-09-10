@@ -128,7 +128,11 @@ function paymentReceiptUrl(receiptId, env = process.env, language = 'ru', nowMs 
 function normalizeReceiptItems(items) {
   if (!Array.isArray(items)) return [];
   return items.slice(0, 100).map((item, index) => {
-    const quantity = Math.min(99, Math.max(1, Math.round(Number(item?.quantity) || 1)));
+    const rawQuantity = Number(item?.quantity);
+    const quantity =
+      Number.isFinite(rawQuantity) && rawQuantity > 0
+        ? Math.min(99, Math.round(rawQuantity * 1000) / 1000)
+        : 1;
     const unitPrice = Math.max(0, Number(item?.price ?? item?.unitPrice) || 0);
     const names = Object.fromEntries(
       ['ru', 'kk', 'en']
@@ -139,8 +143,9 @@ function normalizeReceiptItems(items) {
       id: cleanText(item?.id || item?.productId || `item-${index + 1}`, 100),
       name: cleanText(item?.name || item?.title || `Позиция ${index + 1}`, 160),
       quantity,
+      unit: cleanText(item?.unit || 'шт.', 20),
       unitPrice,
-      lineTotal: Number((unitPrice * quantity).toFixed(2)),
+      lineTotal: Number(item?.lineTotal ?? Math.round(unitPrice * quantity)),
       ...(item?.name && { name_translations: catalogNameTranslations(item.name, names) }),
     };
   });
@@ -426,7 +431,7 @@ function renderPaymentReceipt(receipt, requestedLanguage, access = {}) {
     .map(
       (item) => `<tr>
             <td>${escapeHtml(item.name_translations?.[language] || item.name)}</td>
-            <td class="number">${item.quantity}</td>
+            <td class="number">${item.quantity}${['шт', 'шт.', 'pcs'].includes(item.unit) ? '' : ' ' + escapeHtml(item.unit)}</td>
             <td class="number">${escapeHtml(localizedMoney(item.unitPrice, language))} ₸</td>
             <td class="number">${escapeHtml(localizedMoney(item.lineTotal, language))} ₸</td>
           </tr>`,

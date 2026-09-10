@@ -230,14 +230,21 @@ const normalizeSchedule = (
 
   const configuredLead = Number.parseInt(
     orderType === 'preorder'
-      ? env.PREORDER_MIN_LEAD_MINUTES || '120'
+      ? env.PREORDER_MIN_LEAD_MINUTES || '1440'
       : env.ORDER_MIN_LEAD_MINUTES || '10',
     10,
   );
-  const minimumLead = Number.isInteger(configuredLead) && configuredLead >= 0 ? configuredLead : 10;
+  const minimumLead = Math.max(
+    orderType === 'preorder' ? 1440 : 0,
+    Number.isInteger(configuredLead) && configuredLead >= 0 ? configuredLead : 10,
+  );
   const delta = scheduledAt.getTime() - now.getTime();
   if (delta < minimumLead * 60 * 1000 || delta > 60 * 24 * 60 * 60 * 1000) {
-    throw checkoutError('Выберите доступное время заказа');
+    throw checkoutError(
+      orderType === 'preorder' && delta < 1440 * 60000
+        ? 'Предзаказ принимается минимум за 24 часа до получения'
+        : 'Выберите доступное время заказа',
+    );
   }
 
   if (orderType !== 'preorder') {
@@ -290,16 +297,16 @@ function validateCheckout(payload, cities, options = {}) {
   const env = options.env || process.env;
   const now = options.now instanceof Date ? options.now : new Date();
   const orderType = normalizeOrderType(payload?.orderType ?? payload?.fulfillmentType);
-  const preorderFulfillmentType =
+  if (
     orderType === 'preorder' &&
     String(payload?.preorderFulfillmentType || '')
       .trim()
       .toLowerCase() === 'delivery'
-      ? 'delivery'
-      : 'pickup';
-  const isDelivery =
-    orderType === 'delivery' ||
-    (orderType === 'preorder' && preorderFulfillmentType === 'delivery');
+  ) {
+    throw checkoutError('Предзаказ можно забрать только в выбранном филиале.');
+  }
+  const preorderFulfillmentType = 'pickup';
+  const isDelivery = orderType === 'delivery';
   const effectiveFulfillmentType = isDelivery ? 'delivery' : 'pickup';
   const deliveryAddress = isDelivery ? normalizeDeliveryAddress(payload?.deliveryAddress) : null;
   const branch = resolveBranch(

@@ -52,6 +52,9 @@ const ORDER_FIELDS = [
   'refund_error',
   'last_error',
   'courier_id',
+  'courier_dispatch_status',
+  'pos_receipt_due',
+  'tablet_ready_at',
   'delivery_status',
   'estimated_delivery_at',
   'promised_ready_at',
@@ -256,7 +259,7 @@ const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
     promoCode: order.promo_code || null,
     orderType: order.fulfillment_type || 'pickup',
     fulfillmentType: order.fulfillment_type || 'pickup',
-    preorderFulfillmentType: order.preorder_fulfillment_type || null,
+    preorderFulfillmentType: order.fulfillment_type === 'preorder' ? 'pickup' : null,
     effectiveFulfillmentType: effectiveFulfillmentType(order),
     branchId: order.branch_id == null ? null : String(order.branch_id),
     branch: order.branch_name || branchLocation?.name || '',
@@ -285,6 +288,9 @@ const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
     refundError: order.refund_error || null,
     lastError: order.last_error || null,
     deliveryStatus: order.delivery_status || 'unassigned',
+    courierDispatchStatus: order.courier_dispatch_status || null,
+    posReceiptDue: Boolean(order.pos_receipt_due),
+    tabletReadyAt: order.tablet_ready_at || null,
     deliveryConfirmedAt: order.delivery_confirmed_at || null,
     ...(includeDeliveryPin && order.delivery_pin ? { deliveryPin: order.delivery_pin } : {}),
     estimatedDeliveryAt: order.estimated_delivery_at || null,
@@ -731,6 +737,7 @@ async function cancelPaidOrder(
     reuseRefundRequestId = false,
     acceptPendingRefund = false,
     cancelExternalDelivery = false,
+    unacceptedBefore = null,
   } = {},
 ) {
   const currentStatus =
@@ -815,10 +822,21 @@ async function cancelPaidOrder(
       }),
       last_error: null,
       refund_request_id: refundRequestId,
+      ...(unacceptedBefore && {
+        acceptance_timeout_at: current.acceptance_timeout_at || requestedAt,
+        acceptance_timeout_retry_at: new Date(Date.now() + 60_000).toISOString(),
+      }),
     })
     .eq('id', current.id)
     .eq('status', 'paid');
   if (allowedStatuses.length) claim = claim.in('fulfillment_status', allowedStatuses);
+  if (unacceptedBefore) {
+    claim = current.acceptance_timeout_at
+      ? claim.eq('acceptance_timeout_at', current.acceptance_timeout_at)
+      : claim
+          .lte('staff_acceptance_requested_at', unacceptedBefore)
+          .is('acceptance_timeout_at', null);
+  }
   claim = current.refund_status
     ? claim.eq('refund_status', current.refund_status)
     : claim.is('refund_status', null);
@@ -842,6 +860,10 @@ async function cancelPaidOrder(
   }
 
   if (cancelBeforeRefund || cancelExternalDelivery) {
+    if (unacceptedBefore && !current.acceptance_timeout_at)
+      await notifyOrderStatus(claimed).catch((error) =>
+        console.error('Не удалось отправить уведомление об автоотмене:', error.message),
+      );
     await releaseOrderReservations(claimed.id).catch((error) =>
       console.error('Не удалось освободить резерв отменённого заказа:', error.message),
     );

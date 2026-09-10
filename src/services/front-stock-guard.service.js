@@ -2,6 +2,7 @@ const crypto = require('node:crypto');
 const { supabase } = require('../config/supabase');
 const { getIikoClientForBranch } = require('./iiko-city-profile.service');
 const realtime = require('./realtime.service');
+const { addQuantity } = require('../utils/quantity.util');
 
 async function rpc(name, args) {
   const { data, error } = await supabase.rpc(name, args);
@@ -30,7 +31,7 @@ async function stockArgs(branchId, payload) {
   const items = {};
   for (const item of payload.items) {
     const key = `${prefix}${item.productId.toLowerCase()}`;
-    items[key] = (items[key] || 0) + item.quantity;
+    items[key] = addQuantity(items[key] || 0, item.quantity);
     if (items[key] > 9999)
       throw Object.assign(new Error('Слишком большое количество товара'), { statusCode: 400 });
   }
@@ -89,4 +90,17 @@ async function recountFrontStock(branchId, payload) {
   realtime.publish('menu.updated', { inventory: true, branchId }, { adminOnly: true, branchId });
   return data;
 }
-module.exports = { heartbeatFrontStock, authorizeFrontStock, finishFrontStock, recountFrontStock };
+async function lookupFrontReceipt(branchId, payload) {
+  return rpc('lookup_front_stock_receipt', {
+    p_branch: branchId,
+    p_terminal: payload.terminalId,
+    p_receipt: payload.receiptId,
+  });
+}
+module.exports = {
+  heartbeatFrontStock,
+  authorizeFrontStock,
+  finishFrontStock,
+  recountFrontStock,
+  lookupFrontReceipt,
+};

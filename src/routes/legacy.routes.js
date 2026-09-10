@@ -782,7 +782,9 @@ router.get('/api/guest/menu', async (req, res) => {
         strict: true,
         profileKey: selectedIikoApi.profileKey,
       }),
-      branchId ? getBranchAvailability(branchId, { strict: true }) : Promise.resolve(new Map()),
+      branchId
+        ? getBranchAvailability(branchId, { strict: true, preorder: orderType === 'preorder' })
+        : Promise.resolve(new Map()),
     ]);
     const rawGroups = Array.isArray(rawMenu.groups) ? rawMenu.groups : [];
     const rawProducts = Array.isArray(rawMenu.products) ? rawMenu.products : [];
@@ -875,7 +877,7 @@ router.get('/api/guest/menu', async (req, res) => {
       const inventory = branchAvailability.get(String(p.id));
       const isStopped =
         Boolean(override && override.is_stop_listed) ||
-        stopIds.has(p.iikoProductId || p.id) ||
+        (orderType !== 'preorder' && stopIds.has(p.iikoProductId || p.id)) ||
         (branchId && !branchProductAvailable(branchAvailability, p.id));
 
       products.push({
@@ -889,6 +891,8 @@ router.get('/api/guest/menu', async (req, res) => {
         isAvailable: !isStopped,
         availableQuantity: inventory?.availableQuantity ?? null,
         inStockCount: inventory?.availableQuantity ?? null,
+        quantityStep: inventory?.quantityStep ?? 1,
+        unit: inventory?.unit ?? 'шт.',
         onlineOrderable: !isStopped,
         preparationMinutes: Number(
           inventory?.preparationMinutes ||
@@ -945,6 +949,8 @@ router.get('/api/guest/menu', async (req, res) => {
         isAvailable: cp.is_available && (inventory?.isAvailable ?? true),
         availableQuantity: inventory?.availableQuantity ?? null,
         inStockCount: inventory?.availableQuantity ?? null,
+        quantityStep: inventory?.quantityStep ?? 1,
+        unit: inventory?.unit ?? 'шт.',
         onlineOrderable: cp.is_available && (inventory?.isAvailable ?? true),
         preparationMinutes: Number(
           inventory?.preparationMinutes || cp.preparation_minutes || branchPreparationMinutes,

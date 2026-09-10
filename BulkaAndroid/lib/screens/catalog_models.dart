@@ -83,6 +83,8 @@ class CatalogProduct {
     this.fatGrams,
     this.carbsGrams,
     this.storageConditions = const [],
+    this.quantityStep = 1,
+    this.unit = 'шт.',
   });
 
   final String id;
@@ -90,7 +92,10 @@ class CatalogProduct {
   final int price;
   final String category;
   final String imageUrl;
-  final int? inStockCount;
+  final num? inStockCount;
+  final num quantityStep;
+  final String unit;
+  num get increment => quantityStep < 1 ? 0.1 : 1;
   final int preparationMinutes;
   final String description;
   final bool isStopListed;

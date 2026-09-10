@@ -12,6 +12,7 @@ const {
 } = require('../utils/menu-visibility.util');
 const { validateCartOptions } = require('./product-options.service');
 const { resolveTargetedPromotion } = require('./commerce-marketing.service');
+const { validQuantity, addQuantity } = require('../utils/quantity.util');
 
 const badRequest = (message) => {
   const error = new Error(message);
@@ -35,7 +36,7 @@ function calculateOrderTotal(items, catalog) {
   for (const item of items) {
     const id = String(item?.id || '').trim();
     const quantity = Number(item?.quantity);
-    if (!id || id.length > 100 || !Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
+    if (!id || id.length > 100 || !validQuantity(quantity, { max: 99 })) {
       throw badRequest('Некорректная позиция корзины');
     }
     const configuration =
@@ -46,14 +47,14 @@ function calculateOrderTotal(items, catalog) {
     const previous = quantities.get(key);
     quantities.set(key, {
       id,
-      quantity: Number(previous?.quantity || 0) + quantity,
+      quantity: addQuantity(Number(previous?.quantity || 0), quantity),
       configuration,
       modifiers,
     });
     if (quantities.get(key).quantity > 99) {
       throw badRequest('Количество одной позиции не может превышать 99');
     }
-    const productQuantity = (productQuantities.get(id) || 0) + quantity;
+    const productQuantity = addQuantity(productQuantities.get(id) || 0, quantity);
     if (productQuantity > 99) {
       throw badRequest('Количество одного товара не может превышать 99');
     }
@@ -64,7 +65,9 @@ function calculateOrderTotal(items, catalog) {
     const product = catalog.get(id);
     if (!product) throw badRequest('Один из товаров больше недоступен. Обновите корзину.');
     if (!product.isAvailable) throw badRequest(`«${product.name}» сейчас недоступен`);
-    if (Number.isInteger(product.availableQuantity) && quantity > product.availableQuantity) {
+    if (!validQuantity(quantity, { max: 99, step: Number(product.quantityStep || 1) }))
+      throw badRequest('Количество не соответствует единице товара');
+    if (Number.isFinite(product.availableQuantity) && quantity > product.availableQuantity) {
       throw badRequest(
         `Недостаточно товара «${product.name}». Доступно: ${Math.max(product.availableQuantity, 0)}`,
       );
@@ -78,7 +81,7 @@ function calculateOrderTotal(items, catalog) {
     const price = Number(product.price);
     if (!Number.isFinite(price) || price <= 0) throw badRequest('У товара некорректная цена');
 
-    subtotal += price * quantity;
+    subtotal += Math.round(price * quantity);
     canonicalItems.push({
       id,
       iikoProductId: product.iikoProductId || null,
@@ -87,6 +90,9 @@ function calculateOrderTotal(items, catalog) {
       name_translations: catalogNameTranslations(product.name, product.nameTranslations),
       price,
       quantity,
+      unit: product.unit || 'шт',
+      quantityStep: Number(product.quantityStep || 1),
+      lineTotal: Math.round(price * quantity),
       source: product.source || 'iiko',
       preparationMinutes: preparationMinutes(product.preparationMinutes),
       configuration,
@@ -185,6 +191,7 @@ async function loadOrderCatalog({ branchId = null, orderType = 'pickup' } = {}) 
         strict: true,
         products: rawMenu.products || [],
         iikoClient: selectedIikoApi,
+        preorder: orderType === 'preorder',
       })
     : new Map();
   const catalog = new Map();
@@ -198,7 +205,8 @@ async function loadOrderCatalog({ branchId = null, orderType = 'pickup' } = {}) 
     if (!price) continue;
     const inventory = branchAvailability.get(String(product.id));
     const globallyAvailable =
-      !stopIds.has(product.iikoProductId || product.id) && !override?.is_stop_listed;
+      (orderType === 'preorder' || !stopIds.has(product.iikoProductId || product.id)) &&
+      !override?.is_stop_listed;
     catalog.set(String(product.id), {
       iikoProductId: String(product.iikoProductId || product.id),
       productSizeId: product.sizePrices?.[0]?.sizeId || null,
@@ -207,6 +215,8 @@ async function loadOrderCatalog({ branchId = null, orderType = 'pickup' } = {}) 
       price,
       isAvailable: globallyAvailable && branchProductAvailable(branchAvailability, product.id),
       availableQuantity: inventory?.availableQuantity ?? null,
+      quantityStep: inventory?.quantityStep ?? 1,
+      unit: inventory?.unit || 'шт',
       preparationMinutes: preparationMinutes(
         inventory?.preparationMinutes ?? override?.preparation_minutes,
         branchPreparationMinutes,
@@ -244,10 +254,11 @@ async function priceOrder(
     customerId = null,
     orderType = 'pickup',
     fulfillmentType = orderType,
+    scheduledAt = null,
   } = {},
 ) {
   const [catalog, settings] = await Promise.all([
-    loadOrderCatalog({ branchId, orderType }),
+    loadOrderCatalog({ branchId, orderType, scheduledAt }),
     getSettings(),
   ]);
   const basePriced = calculateOrderTotal(items, catalog);

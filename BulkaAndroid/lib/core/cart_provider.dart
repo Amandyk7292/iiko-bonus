@@ -4,6 +4,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+String productQuantityText(num value) =>
+    value.toStringAsFixed(3).replaceFirst(RegExp(r'\.?0+$'), '');
+num normalizedProductQuantity(num value) => (value * 1000).round() / 1000;
+
 class CartItem {
   final String id;
   final String cartKey;
@@ -14,7 +18,13 @@ class CartItem {
   final bool isStopListed;
   final Map<String, dynamic>? configuration;
   final List<Map<String, dynamic>> modifiers;
-  int quantity;
+  num quantity;
+  final num quantityStep;
+  final String unit;
+  num get increment => quantityStep < 1 ? 0.1 : 1;
+  String get quantityLabel => quantityStep < 1
+      ? '${productQuantityText(quantity)} $unit'
+      : productQuantityText(quantity);
 
   CartItem({
     required this.id,
@@ -27,10 +37,12 @@ class CartItem {
     this.configuration,
     this.modifiers = const [],
     this.quantity = 1,
+    this.quantityStep = 1,
+    this.unit = 'шт.',
   }) : cartKey = cartKey ?? id,
        basePrice = basePrice ?? price;
 
-  int get total => price * quantity;
+  int get total => (price * quantity).round();
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -41,6 +53,8 @@ class CartItem {
     'imageUrl': imageUrl,
     'isStopListed': isStopListed,
     'quantity': quantity,
+    'quantityStep': quantityStep,
+    'unit': unit,
     'configuration': configuration,
     'modifiers': modifiers,
   };
@@ -69,7 +83,11 @@ class CartItem {
               .map((value) => Map<String, dynamic>.from(value))
               .toList()
         : const [],
-    quantity: ((json['quantity'] as num?)?.toInt() ?? 1).clamp(1, 99).toInt(),
+    quantity: normalizedProductQuantity(
+      ((json['quantity'] as num?) ?? 1).clamp(0.001, 99),
+    ),
+    quantityStep: json['quantityStep'] as num? ?? 1,
+    unit: json['unit']?.toString() ?? 'шт.',
   );
 }
 
@@ -80,6 +98,8 @@ class CartProductSnapshot {
     required this.price,
     required this.imageUrl,
     required this.isStopListed,
+    this.quantityStep = 1,
+    this.unit = 'шт.',
   });
 
   final String id;
@@ -87,6 +107,8 @@ class CartProductSnapshot {
   final int price;
   final String imageUrl;
   final bool isStopListed;
+  final num quantityStep;
+  final String unit;
 }
 
 class CartProvider extends ChangeNotifier {
@@ -105,8 +127,10 @@ class CartProvider extends ChangeNotifier {
   bool get isRestored => _restored;
   Future<void> get restored => _restoreCompleter.future;
 
-  int get itemCount =>
-      _items.values.fold(0, (sum, item) => sum + item.quantity);
+  int get itemCount => _items.values.fold(
+    0,
+    (sum, item) => sum + (item.quantityStep < 1 ? 1 : item.quantity.toInt()),
+  );
 
   int get totalAmount => _items.values.fold(0, (sum, item) => sum + item.total);
 
@@ -123,7 +147,7 @@ class CartProvider extends ChangeNotifier {
     return '$productId::$selection';
   }
 
-  static CartItem copyItem(CartItem item, {int? quantity}) => CartItem(
+  static CartItem copyItem(CartItem item, {num? quantity}) => CartItem(
     id: item.id,
     cartKey: item.cartKey,
     name: item.name,
@@ -138,12 +162,17 @@ class CartProvider extends ChangeNotifier {
         .map((value) => Map<String, dynamic>.from(value))
         .toList(growable: false),
     quantity: quantity ?? item.quantity,
+    quantityStep: item.quantityStep,
+    unit: item.unit,
   );
 
-  int getQuantity(String productId) {
+  num getQuantity(String productId) {
     return _items.values
         .where((item) => item.id == productId)
-        .fold(0, (sum, item) => sum + item.quantity);
+        .fold<num>(
+          0,
+          (sum, item) => normalizedProductQuantity(sum + item.quantity),
+        );
   }
 
   void addConfiguredItem({
@@ -154,12 +183,16 @@ class CartProvider extends ChangeNotifier {
     required String imageUrl,
     Map<String, dynamic>? configuration,
     List<Map<String, dynamic>> modifiers = const [],
-    int quantity = 1,
+    num quantity = 1,
+    num quantityStep = 1,
+    String unit = 'шт.',
   }) {
     final key = configuredCartKey(productId, configuration, modifiers);
     final current = _items[key];
     if (current != null) {
-      current.quantity = (current.quantity + quantity).clamp(1, 99);
+      current.quantity = normalizedProductQuantity(
+        (current.quantity + quantity).clamp(quantityStep, 99),
+      );
     } else {
       _items[key] = CartItem(
         id: productId,
@@ -170,7 +203,9 @@ class CartProvider extends ChangeNotifier {
         imageUrl: imageUrl,
         configuration: configuration,
         modifiers: modifiers,
-        quantity: quantity.clamp(1, 99),
+        quantity: normalizedProductQuantity(quantity.clamp(quantityStep, 99)),
+        quantityStep: quantityStep,
+        unit: unit,
       );
     }
     notifyListeners();
@@ -183,12 +218,16 @@ class CartProvider extends ChangeNotifier {
     required int price,
     required String imageUrl,
     bool isStopListed = false,
+    num quantityStep = 1,
+    String unit = 'шт.',
   }) {
     if (isStopListed) return;
     if (_items.containsKey(productId)) {
-      _items[productId]!.quantity = (_items[productId]!.quantity + 1).clamp(
-        1,
-        maxItemQuantity,
+      _items[productId]!.quantity = normalizedProductQuantity(
+        (_items[productId]!.quantity + (quantityStep < 1 ? 0.1 : 1)).clamp(
+          quantityStep,
+          maxItemQuantity,
+        ),
       );
     } else {
       _items[productId] = CartItem(
@@ -197,20 +236,25 @@ class CartProvider extends ChangeNotifier {
         price: price,
         imageUrl: imageUrl,
         isStopListed: isStopListed,
+        quantity: quantityStep < 1 ? 0.1 : 1,
+        quantityStep: quantityStep,
+        unit: unit,
       );
     }
     notifyListeners();
     unawaited(_save());
   }
 
-  void setQuantity(String productId, int quantity) {
+  void setQuantity(String productId, num quantity) {
     final item = _items[productId];
     if (item == null) return;
     if (item.isStopListed && quantity > item.quantity) return;
     if (quantity <= 0) {
       _items.remove(productId);
     } else {
-      _items[productId]!.quantity = quantity.clamp(1, maxItemQuantity);
+      _items[productId]!.quantity = normalizedProductQuantity(
+        quantity.clamp(item.quantityStep, maxItemQuantity),
+      );
     }
     notifyListeners();
     unawaited(_save());
@@ -240,7 +284,7 @@ class CartProvider extends ChangeNotifier {
       if (item.id.trim().isEmpty || item.quantity <= 0) continue;
       final copy = copyItem(
         item,
-        quantity: item.quantity.clamp(1, maxItemQuantity),
+        quantity: item.quantity.clamp(item.quantityStep, maxItemQuantity),
       );
       next[copy.cartKey] = copy;
     }
@@ -262,12 +306,14 @@ class CartProvider extends ChangeNotifier {
       if (current == null) {
         next[item.cartKey] = copyItem(
           item,
-          quantity: item.quantity.clamp(1, maxItemQuantity),
+          quantity: item.quantity.clamp(item.quantityStep, maxItemQuantity),
         );
       } else {
-        current.quantity = (current.quantity + item.quantity).clamp(
-          1,
-          maxItemQuantity,
+        current.quantity = normalizedProductQuantity(
+          (current.quantity + item.quantity).clamp(
+            item.quantityStep,
+            maxItemQuantity,
+          ),
         );
       }
     }
@@ -303,6 +349,8 @@ class CartProvider extends ChangeNotifier {
               imageUrl: current.imageUrl,
               isStopListed: true,
               quantity: current.quantity,
+              quantityStep: current.quantityStep,
+              unit: current.unit,
               configuration: current.configuration,
               modifiers: current.modifiers,
             )
@@ -315,13 +363,17 @@ class CartProvider extends ChangeNotifier {
               imageUrl: latest.imageUrl,
               isStopListed: latest.isStopListed,
               quantity: current.quantity,
+              quantityStep: latest.quantityStep,
+              unit: latest.unit,
               configuration: current.configuration,
               modifiers: current.modifiers,
             );
       if (current.name != next.name ||
           current.price != next.price ||
           current.imageUrl != next.imageUrl ||
-          current.isStopListed != next.isStopListed) {
+          current.isStopListed != next.isStopListed ||
+          current.quantityStep != next.quantityStep ||
+          current.unit != next.unit) {
         _items[entry.key] = next;
         changed = true;
       }

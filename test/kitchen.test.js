@@ -28,6 +28,22 @@ function loadKitchen(
   let order = structuredClone(initialOrder);
   const events = [];
   const db = {
+    rpc(name, args) {
+      assert.equal(name, 'apply_staff_order_transition');
+      let query = this.from('kaspi_orders')
+        .update(args.p_changes)
+        .eq('id', args.p_order)
+        .eq('kitchen_status', args.p_kitchen)
+        .eq('status', 'paid');
+      query =
+        args.p_fulfillment == null
+          ? query.is('fulfillment_status', null)
+          : query.eq('fulfillment_status', args.p_fulfillment);
+      return query
+        .or('refund_status.is.null,refund_status.not.in.(processing,unknown)')
+        .select('*')
+        .maybeSingle();
+    },
     from(table) {
       if (table === 'staff_push_devices') {
         const staffQuery = {

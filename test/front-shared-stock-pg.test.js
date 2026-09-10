@@ -2,7 +2,17 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { randomUUID, createHash } = require('node:crypto');
 const { Client } = require('pg');
-const createSchema = require('./helpers/front-stock-schema.cjs');
+const { readFileSync } = require('node:fs');
+async function createSchema(db) {
+  await require('./helpers/front-tablet-schema.cjs')(db);
+  await require('./helpers/front-refund-schema.cjs')(db);
+  for (const migration of [
+    '20260910147000_preorder_stop_only',
+    '20260910148000_tablet_recovery',
+    '20260910149000_staff_order_badges',
+  ])
+    await db.exec(readFileSync(`supabase/migrations/${migration}.sql`, 'utf8'));
+}
 const url = process.env.FRONT_STOCK_PG_TEST_URL;
 const isolated = process.env.FRONT_STOCK_PG_TEST_CONFIRM === 'isolated';
 
@@ -127,12 +137,14 @@ const isolated = process.env.FRONT_STOCK_PG_TEST_CONFIRM === 'isolated';
         assert.equal(result.ok, false);
         assert.equal(result.code, 'P0001');
         assert.equal(
-          (
-            await admin.query(
-              'select source_quantity from branch_product_inventory where branch_id=$1',
-              [b.branch],
-            )
-          ).rows[0].source_quantity,
+          Number(
+            (
+              await admin.query(
+                'select source_quantity from branch_product_inventory where branch_id=$1',
+                [b.branch],
+              )
+            ).rows[0].source_quantity,
+          ),
           1,
         );
       },

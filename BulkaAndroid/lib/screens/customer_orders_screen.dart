@@ -197,7 +197,14 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
                   .map((value) => Map<String, dynamic>.from(value))
                   .toList()
             : <Map<String, dynamic>>[];
-        final quantity = _asInt(item['quantity'], fallback: 1);
+        final quantity = num.tryParse('${item['quantity']}') ?? 1;
+        final quantityStep =
+            num.tryParse('${item['quantityStep']}') ??
+            (quantity % 1 != 0 ? 0.001 : 1);
+        final unit = _asString(
+          item['unit'],
+          fallback: quantityStep < 1 ? 'кг' : 'шт.',
+        );
         if (configuration != null || modifiers.isNotEmpty) {
           cart.addConfiguredItem(
             productId: _asString(item['id']),
@@ -208,12 +215,16 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
             configuration: configuration,
             modifiers: modifiers,
             quantity: quantity,
+            quantityStep: quantityStep,
+            unit: unit,
           );
         } else {
           cart.addItem(
             productId: _asString(item['id']),
             name: _asString(item['name']),
             price: _asInt(item['price']),
+            quantityStep: quantityStep,
+            unit: unit,
             imageUrl: _asString(item['imageUrl']),
           );
           cart.setQuantity(_asString(item['id']), quantity);

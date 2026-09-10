@@ -421,9 +421,12 @@ const kk: Record<string, string> = {
   'broadcast.confirmTitle': 'Барлық клиентке push жіберу керек пе?',
   'broadcast.confirmBody': 'Растағаннан кейін жіберілімді тоқтату мүмкін емес.',
   'broadcast.sent': 'Хабарлама жіберілді. Алушылар: {{count}}.',
-  'broadcast.noRecipients': 'Push жіберілмеді: қолжетімді клиент құрылғылары жоқ. Қолданбаға телефон нөмірімен кіріп, хабарландыруларға рұқсат беріңіз. Хабарлама қолданбада сақталды.',
-  'broadcast.failed': 'Push жіберілмеді: жіберу қызметі құрылғыларды қабылдамады. Хабарландыру тіркеуін жаңарту үшін қолданбаны ашыңыз. Хабарлама қолданбада сақталды.',
-  'broadcast.queued': 'Жіберу қызметі қабылдады: {{count}}. Қайта жіберуді күтуде: {{queuedCount}}.',
+  'broadcast.noRecipients':
+    'Push жіберілмеді: қолжетімді клиент құрылғылары жоқ. Қолданбаға телефон нөмірімен кіріп, хабарландыруларға рұқсат беріңіз. Хабарлама қолданбада сақталды.',
+  'broadcast.failed':
+    'Push жіберілмеді: жіберу қызметі құрылғыларды қабылдамады. Хабарландыру тіркеуін жаңарту үшін қолданбаны ашыңыз. Хабарлама қолданбада сақталды.',
+  'broadcast.queued':
+    'Жіберу қызметі қабылдады: {{count}}. Қайта жіберуді күтуде: {{queuedCount}}.',
   'broadcast.partial': 'Жіберу қызметі қабылдады: {{count}}. Кейбір құрылғылар қолжетімсіз.',
   'broadcast.validation': 'Тақырып пен мәтінді қазақ, орыс және ағылшын тілдерінде толтырыңыз.',
   'customers.export': 'CSV экспорты',
@@ -699,7 +702,8 @@ const kk: Record<string, string> = {
   'orders.bonusSpent': 'Бонустармен төленді',
   'orders.deliveryFee': 'Жеткізу',
   'orders.grandTotal': 'Барлығы',
-  'orders.cancelCourierAutomatically': 'Тапсырыстан бас тартпас бұрын шақырылған курьер автоматты түрде тоқтатылады.',
+  'orders.cancelCourierAutomatically':
+    'Тапсырыстан бас тартпас бұрын шақырылған курьер автоматты түрде тоқтатылады.',
   'orders.item': 'Тауар',
   'orders.empty': 'Тапсырыс жоқ',
   'orders.emptyHint': 'Онлайн төлемнен кейін тапсырыс осында шығады.',
@@ -981,7 +985,8 @@ const kk: Record<string, string> = {
   'marketing.editPromo': 'Промокодты өңдеу',
   'marketing.promoType': 'Промокод түрі',
   'marketing.freeDelivery': 'Тегін жеткізу',
-  'marketing.freeDeliveryHint': 'Сатып алушы жеткізу үшін төлемейді. Курьер ақысы Яндекс Бизнес жүйесіндегі Bulka шотынан төленеді.',
+  'marketing.freeDeliveryHint':
+    'Сатып алушы жеткізу үшін төлемейді. Курьер ақысы Яндекс Бизнес жүйесіндегі Bulka шотынан төленеді.',
   'marketing.additionalConditions': 'Қосымша шарттар',
   'marketing.conditionsConfigured': 'Бапталған',
   'marketing.discountType': 'Жеңілдік түрі',
@@ -1189,7 +1194,8 @@ const kk: Record<string, string> = {
   'inventory.stop': 'Стоп-лист',
   'inventory.source': 'Дереккөз',
   'inventory.saved': 'Қалдық сақталды',
-  'inventory.quantityInvalid': '0-ден 100000-ға дейінгі бүтін санды енгізіңіз.',
+  'inventory.quantityInvalid':
+    '0–100000 аралығындағы қалдықты енгізіңіз: бүтін дана немесе үтірден кейін үш таңбаға дейінгі салмақ.',
   'inventory.preparationInvalid': '1-ден 240 минутқа дейін енгізіңіз.',
   'inventory.empty': 'Қалдықтар әлі жоқ',
   'inventory.emptyHint': 'Филиал қалдықтарын жасау үшін iiko синхрондауын іске қосыңыз.',
@@ -1343,6 +1349,8 @@ const kk: Record<string, string> = {
   'kitchen.dispatch.processing': 'Автокурьер ізделуде',
   'kitchen.dispatch.retrying': 'Автокурьерді қайта іздеудеміз',
   'kitchen.dispatch.awaiting_confirmation': 'Диспетчер бағаны растауы керек',
+  'kitchen.dispatch.awaiting_receipt': 'Кассалық түбіртек күтілуде. Курьер әлі шақырылған жоқ.',
+  'kitchen.receiptDue': 'Касса қалпына келген соң түбіртекті рәсімдеу',
   'kitchen.dispatch.succeeded': 'Өтінім жеткізу қызметіне жіберілді',
   'kitchen.dispatch.failed': 'Автокурьерді шақыру мүмкін болмады',
   'kitchen.dispatch.provider': 'Қызмет: {{provider}}',

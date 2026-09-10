@@ -1413,13 +1413,18 @@ router.patch(
 router.get('/admin/api/kitchen', async (req, res) => {
   try {
     if (req.query.branchId) assertBranchAccess(req, req.query.branchId);
-    res.json({
-      success: true,
-      orders: await kitchenService.listKitchenOrders({
-        branchId: req.query.branchId || null,
-        branchIds: scopedBranchIds(req),
+    const scope = { branchId: req.query.branchId || null, branchIds: scopedBranchIds(req) };
+    const [orders, counters] = await Promise.all([
+      kitchenService.listKitchenOrders({
+        ...scope,
         includeClosed: req.query.includeClosed === 'true',
       }),
+      kitchenService.getKitchenCounters(scope),
+    ]);
+    res.json({
+      success: true,
+      orders,
+      counters,
     });
   } catch (error) {
     res.status(error.statusCode || 500).json({ success: false, error: error.message });

@@ -31,6 +31,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private IDisposable _inboxMenu;
         private IDisposable _inboxOrderButton;
         private IDisposable _recountButton;
+        private IDisposable _reconciliationButton;
 
         public class OrderLoyaltyData
         {
@@ -63,6 +64,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     (ValueTuple<IOrder,IOperationService,IViewManager> args) => _inbox.Show(args.Item3));
                 _recountButton = PluginContext.Operations.AddButtonToPluginsMenu("Сверить витрину", args =>
                     _sharedStock.Recount(PluginContext.Operations,args.Item1));
+                _reconciliationButton = PluginContext.Operations.AddButtonToPluginsMenu("Сверка чеков Bulka", args =>
+                    _sharedStock.ShowReconciliation(PluginContext.Operations,args.Item1));
 
                 _buttonSubscription = PluginContext.Operations.AddButtonToOrderEditScreen(
                     "Бонусы",
@@ -174,6 +177,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             TryDispose(_inboxMenu);
             TryDispose(_inboxOrderButton);
             TryDispose(_recountButton);
+            TryDispose(_reconciliationButton);
             LoyaltyFlow.StopBackgroundRetry();
             GiftCertificateFlow.StopBackgroundRetry();
             TryDispose(_stockSync);

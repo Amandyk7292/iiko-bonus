@@ -17,8 +17,8 @@ class ProductDetailsScreen extends StatefulWidget {
   final BulkaApiClient api;
   final CatalogProduct product;
   final ValueListenable<Map<String, CatalogProduct>> liveProducts;
-  final int initialQuantity;
-  final void Function(CatalogProduct product, int quantity) onQuantityChanged;
+  final num initialQuantity;
+  final void Function(CatalogProduct product, num quantity) onQuantityChanged;
   final bool initialFavorite;
   final Future<bool> Function()? onToggleFavorite;
   final bool hasSelectedOrderType;
@@ -30,7 +30,7 @@ class ProductDetailsScreen extends StatefulWidget {
 
 class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   late final _LiveRefresh _live;
-  late int _quantity;
+  late num _quantity;
   late bool _isFavorite;
   Map<String, dynamic> _options = const {};
   final Map<String, Set<String>> _selectedModifiers = {};
@@ -217,7 +217,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     return await widget.onEnsureOrderTypeSelected?.call() ?? false;
   }
 
-  Future<void> _updateQuantity(CatalogProduct product, int newQty) async {
+  Future<void> _updateQuantity(CatalogProduct product, num newQty) async {
     if (product.isStopListed) return;
     if (newQty > _quantity && !await _ensureOrderTypeSelected()) return;
     if (!mounted) return;
@@ -1342,16 +1342,21 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                   _ProductPurchaseBar(
                     price: _hasCustomOptions ? _configuredPrice : product.price,
                     quantity: _hasCustomOptions ? 0 : _quantity,
+                    unit: product.quantityStep < 1 ? product.unit : '',
                     disabled: product.isStopListed || _loadingOptions,
                     stopListed: product.isStopListed,
                     onAdd: () => _hasCustomOptions
                         ? _addConfiguredProduct(product)
-                        : _updateQuantity(product, 1),
-                    onDecrease: () => _updateQuantity(product, _quantity - 1),
+                        : _updateQuantity(product, product.increment),
+                    onDecrease: () =>
+                        _updateQuantity(product, _quantity - product.increment),
                     onIncrease:
                         _quantity >= _catalogProductQuantityLimit(product)
                         ? null
-                        : () => _updateQuantity(product, _quantity + 1),
+                        : () => _updateQuantity(
+                            product,
+                            _quantity + product.increment,
+                          ),
                   ),
                 ],
               ),

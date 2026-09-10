@@ -127,7 +127,7 @@ test('tablet accepted action delegates to the common queue, dispatch and accepta
   assert.deepEqual(calls[0].options.branchIds, [branch]);
   assert.deepEqual(calls[0].options.admin, admin);
 });
-test('POS guards accept only scoped product IDs, integer units and known outcomes', () => {
+test('POS guards accept only scoped product IDs, fractional quantities and known outcomes', () => {
   const sale = {
     terminalId: randomUUID(),
     receiptId: randomUUID(),
@@ -138,7 +138,7 @@ test('POS guards accept only scoped product IDs, integer units and known outcome
   for (const value of [
     { ...sale, branchId: randomUUID() },
     { ...sale, total: -1 },
-    { ...sale, items: [{ ...sale.items[0], quantity: 0.5 }] },
+    { ...sale, items: [{ ...sale.items[0], quantity: 0.0001 }] },
     { ...sale, state: 'closed' },
   ])
     assert.equal(frontStockSaleSchema.safeParse(value).success, false);

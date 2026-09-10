@@ -92,6 +92,30 @@ test('Yandex claim payload contains contacts, address details and API-compatible
   assert.equal(payload.client_requirements.assign_robot, false);
 });
 
+test('weighted products retain their actual package weight and declared line value', () => {
+  const candidate = {
+    ...order,
+    cart_items: [
+      {
+        id: 'weighted',
+        name: 'Бауырсак вес',
+        quantity: 0.375,
+        quantityStep: 0.001,
+        unit: 'кг',
+        price: 1900,
+        lineTotal: 713,
+      },
+    ],
+  };
+  const quote = buildQuotePayload(candidate, config);
+  const claim = buildClaimPayload(candidate, config);
+  assert.equal(quote.items[0].quantity, 1);
+  assert.equal(quote.items[0].weight, 0.375);
+  assert.equal(claim.items[0].quantity, 1);
+  assert.equal(claim.items[0].weight, 0.375);
+  assert.equal(claim.items[0].cost_value, '713.00');
+});
+
 test('quote and claim carry the saved house and visible arrival details without moving the selected pin', () => {
   const candidate = {
     ...order,

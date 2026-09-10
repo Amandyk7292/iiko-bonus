@@ -46,7 +46,7 @@ const orderParamsSchema = z.object({ id: uuidSchema }).strict();
 const refundLineSchema = z
   .object({
     lineKey: z.string().trim().min(1).max(220),
-    quantity: z.coerce.number().int().min(1).max(99),
+    quantity: z.coerce.number().min(0.001).max(99).multipleOf(0.001),
   })
   .strict();
 const partialRefundPreviewBodySchema = z

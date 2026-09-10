@@ -8,6 +8,7 @@ const { applyFrontInventorySnapshot } = require('../services/front-inventory.ser
 const router = express.Router();
 const {
   frontStockHeartbeatSchema,
+  frontReceiptLookupSchema,
   frontStockSaleSchema,
   frontStockFinishSchema,
   frontStockRecountSchema,
@@ -17,7 +18,22 @@ const {
   authorizeFrontStock,
   finishFrontStock,
   recountFrontStock,
+  lookupFrontReceipt,
 } = require('../services/front-stock-guard.service');
+router.post(
+  '/api/loyalty/inventory/receipt',
+  webhookRateLimit,
+  webhookMiddleware,
+  branchPosAuthMiddleware,
+  validateRequest({ body: frontReceiptLookupSchema }),
+  async (req, res, next) => {
+    try {
+      res.json({ success: true, ...(await lookupFrontReceipt(req.posBranchId, req.body)) });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 router.post(
   '/api/loyalty/inventory/recount',
   webhookRateLimit,
@@ -36,12 +52,31 @@ const {
   frontOrdersQuerySchema,
   frontOrderDecisionSchema,
   frontOrderPollSchema,
+  frontReceiptDraftSchema,
 } = require('../contracts/front-order-inbox.contract');
 const {
   listFrontOrders,
   decideFrontOrder,
   pollFrontOrders,
 } = require('../services/front-order-inbox.service');
+router.post(
+  '/api/loyalty/orders/receipt-draft',
+  webhookRateLimit,
+  webhookMiddleware,
+  branchPosAuthMiddleware,
+  validateRequest({ body: frontReceiptDraftSchema }),
+  async (req, res, next) => {
+    try {
+      const { getFrontReceiptDraft } = require('../services/front-receipt-draft.service');
+      res.json({
+        success: true,
+        ...(await getFrontReceiptDraft(req.posBranchId, req.body.number)),
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 router.post(
   '/api/loyalty/orders/poll',
@@ -71,6 +106,7 @@ router.get(
         ...(await listFrontOrders(req.posBranchId, {
           page: req.query.page,
           peek: req.query.peek === 'true',
+          receipts: req.query.receipts === 'true',
         })),
       });
     } catch (error) {

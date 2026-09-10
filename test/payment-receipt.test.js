@@ -108,6 +108,7 @@ test('customer receipt shows purchased items and payment card without merchant o
     id: 'cake',
     name: '<Датский с маком>',
     quantity: 2,
+    unit: 'шт.',
     unitPrice: 2400,
     lineTotal: 4800,
     name_translations: { ru: '<Датский с маком>' },
@@ -192,7 +193,7 @@ test('receipt separates the paid delivery fee and shows free delivery including 
   assert.match(html, /Итого<\/dt><dd>2\s506 ₸/);
   assert.equal(customerPaymentReceipt(paid).deliveryFee, 2471);
 
-  for (const type of ['delivery', 'preorder']) {
+  for (const type of ['delivery']) {
     const free = {
       ...record,
       amount: 10000,

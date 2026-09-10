@@ -24,7 +24,7 @@ ThemeData staffTheme() {
       );
   return ThemeData(
     useMaterial3: true,
-    fontFamily: 'Montserrat',
+    fontFamily: _descriptionFont,
     colorScheme: colors,
     scaffoldBackgroundColor: Colors.white,
     canvasColor: Colors.white,
@@ -96,7 +96,7 @@ ThemeData staffTheme() {
       side: const BorderSide(color: border),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       labelStyle: const TextStyle(
-        fontFamily: 'Montserrat',
+        fontFamily: _descriptionFont,
         fontSize: 13,
         color: ink,
       ),

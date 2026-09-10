@@ -107,7 +107,7 @@ extension _CatalogStockSubscriptionController on _CatalogScreenState {
   }
 }
 
-int _catalogProductQuantityLimit(CatalogProduct product) => min(
+num _catalogProductQuantityLimit(CatalogProduct product) => min(
   product.inStockCount ?? CartProvider.maxItemQuantity,
   CartProvider.maxItemQuantity,
 );
@@ -420,9 +420,11 @@ class _CatalogImageQuantityControl extends StatelessWidget {
     required this.onAdd,
     required this.onDecrease,
     required this.onIncrease,
+    this.unit = '',
   });
 
-  final int quantity;
+  final num quantity;
+  final String unit;
   final bool stopListed;
   final VoidCallback onAdd;
   final VoidCallback onDecrease;
@@ -499,9 +501,9 @@ class _CatalogImageQuantityControl extends StatelessWidget {
               ),
             ),
             SizedBox(
-              width: 28,
+              width: unit.isEmpty ? 28 : 66,
               child: Text(
-                '$quantity',
+                '${productQuantityText(quantity)}${unit.isEmpty ? '' : ' $unit'}',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: _headingFont,

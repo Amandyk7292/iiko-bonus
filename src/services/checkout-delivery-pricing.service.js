@@ -91,7 +91,7 @@ async function priceCheckoutDelivery(
   } = {},
 ) {
   const { checkout, pricing } = context;
-  if (checkout.effectiveFulfillmentType !== 'delivery')
+  if (checkout.orderType === 'preorder' || checkout.effectiveFulfillmentType !== 'delivery')
     return { pricing: withDeliveryFee(pricing, 0) };
   await assertAvailable(checkout);
   const free =

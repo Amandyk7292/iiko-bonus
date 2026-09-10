@@ -34,6 +34,7 @@ function harness(
     saveFails = false,
     deliveryFails = false,
     deliveryRaces = false,
+    acceptanceRaces = false,
   } = {},
 ) {
   let current = { ...order, ...state };
@@ -63,14 +64,28 @@ function harness(
             filters.push([column, value]);
             return this;
           },
+          in(column, values) {
+            filters.push([column, (value) => values.includes(value)]);
+            return this;
+          },
+          lte(column, value) {
+            filters.push([column, (actual) => actual != null && actual <= value]);
+            return this;
+          },
           async maybeSingle() {
+            if (acceptanceRaces && patch?.acceptance_timeout_at)
+              current.fulfillment_status = 'preparing';
             if (patch?.refund_status === 'processing' && (!deliveryCleared || deliveryRaces)) {
               return { data: null, error: new Error('DELIVERY_ACTIVE_JOB_CONFLICT') };
             }
             if (patch?.refund_status === 'unknown' && saveFails) {
               return { data: null, error: new Error('storage unavailable') };
             }
-            if (!filters.every(([column, value]) => current[column] === value)) {
+            if (
+              !filters.every(([column, value]) =>
+                typeof value === 'function' ? value(current[column]) : current[column] === value,
+              )
+            ) {
               return { data: null, error: null };
             }
             if (patch) {
@@ -227,4 +242,59 @@ test('other refund callers retain their existing uncertain-result handling', asy
     code: 'FORTE_WIDGET_REFUND_UNKNOWN',
   });
   assert.equal(h.current().refund_status, 'unknown');
+});
+
+test('automatic timeout cannot refund an order accepted during the cancellation claim', async (t) => {
+  const h = harness(t, {
+    acceptanceRaces: true,
+    state: {
+      fulfillment_status: 'new',
+      staff_acceptance_requested_at: '2026-09-10T10:00:00Z',
+      acceptance_timeout_at: null,
+    },
+  });
+  await assert.rejects(
+    h.service.cancelPaidOrder(h.current(), 'Не принят', {
+      allowedFulfillmentStatuses: ['new'],
+      cancelBeforeRefund: true,
+      reuseRefundRequestId: true,
+      unacceptedBefore: '2026-09-10T10:01:00Z',
+    }),
+    { code: 'PAYMENT_REFUND_CONFLICT' },
+  );
+  assert.equal(h.bankRequests(), 0);
+  assert.equal(h.current().fulfillment_status, 'preparing');
+});
+
+test('automatic timeout persists cancellation and reuses an uncertain refund key', async (t) => {
+  const h = harness(t, {
+    state: {
+      fulfillment_status: 'new',
+      staff_acceptance_requested_at: '2026-09-10T10:00:00Z',
+      acceptance_timeout_at: null,
+    },
+  });
+  const options = {
+    allowedFulfillmentStatuses: ['new'],
+    cancelBeforeRefund: true,
+    reuseRefundRequestId: true,
+    unacceptedBefore: '2026-09-10T10:01:00Z',
+  };
+  await assert.rejects(h.service.cancelPaidOrder(h.current(), 'Не принят', options), {
+    code: 'FORTE_WIDGET_REFUND_UNKNOWN',
+  });
+  const key = h.current().refund_request_id,
+    started = h.current().refund_requested_at;
+  assert.equal(h.current().fulfillment_status, 'cancelled');
+  assert.ok(h.current().acceptance_timeout_at);
+  await assert.rejects(
+    h.service.cancelPaidOrder(h.current(), 'Не принят', {
+      ...options,
+      allowedFulfillmentStatuses: ['cancelled'],
+    }),
+    { code: 'FORTE_WIDGET_REFUND_UNKNOWN' },
+  );
+  assert.equal(h.current().refund_request_id, key);
+  assert.equal(h.current().refund_requested_at, started);
+  assert.equal(h.bankRequests(), 2);
 });

@@ -244,12 +244,12 @@ extension _CatalogDataController on _CatalogScreenState {
     }
   }
 
-  int? _productAvailability(dynamic raw) {
+  num? _productAvailability(dynamic raw) {
     final product = _asMap(raw);
     final value = product['availableQuantity'] ?? product['inStockCount'];
     if (value == null) return null;
     final number = value is num ? value : num.tryParse(value.toString());
-    return number?.floor().clamp(0, 100000).toInt();
+    return number?.clamp(0, 100000);
   }
 
   int _productPreparation(dynamic raw) {
@@ -286,6 +286,10 @@ extension _CatalogDataController on _CatalogScreenState {
           'catalog_other_category'.tr,
       imageUrl: _asString(product['imageUrl']),
       inStockCount: availability,
+      quantityStep: product['quantityStep'] as num? ?? 1,
+      unit: _asString(product['unit']).isEmpty
+          ? 'шт.'
+          : _asString(product['unit']),
       preparationMinutes: _productPreparation(product),
       description: _asString(product['description']),
       ingredients: _asString(product['ingredients']),
@@ -445,6 +449,8 @@ extension _CatalogDataController on _CatalogScreenState {
         category: previous.category,
         imageUrl: previous.imageUrl,
         inStockCount: previous.inStockCount,
+        quantityStep: previous.quantityStep,
+        unit: previous.unit,
         preparationMinutes: previous.preparationMinutes,
         description: previous.description,
         ingredients: previous.ingredients,
@@ -469,6 +475,8 @@ extension _CatalogDataController on _CatalogScreenState {
           price: product.price,
           imageUrl: product.imageUrl,
           isStopListed: product.isStopListed,
+          quantityStep: product.quantityStep,
+          unit: product.unit,
         ),
       ),
     );

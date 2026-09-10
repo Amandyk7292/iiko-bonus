@@ -41,6 +41,8 @@ const KITCHEN_ORDER_FIELDS = [
   'courier_dispatch_status',
   'courier_dispatch_provider',
   'courier_dispatch_error',
+  'pos_receipt_due',
+  'tablet_ready_at',
   'customer_arrived_at',
   'delivery_jobs(id,provider,provider_status,internal_status,tracking_url,courier_name,courier_phone,courier_transport_type,courier_car_model,courier_car_number,courier_car_color,courier_latitude,courier_longitude,courier_location_updated_at,courier_location_accuracy,courier_speed,courier_direction,updated_at,created_at)',
 ].join(',');
@@ -139,6 +141,7 @@ const normalize = (order) => ({
   comment: order.comment || null,
   substitutionPreference: order.substitution_preference || 'call_customer',
   fulfillmentType: effectiveFulfillmentType(order),
+  orderType: order.fulfillment_type,
   fulfillmentStatus: order.fulfillment_status,
   kitchenStatus: order.kitchen_status || 'queued',
   createdAt: order.created_at,
@@ -156,6 +159,8 @@ const normalize = (order) => ({
   courierDispatchStatus: order.courier_dispatch_status || null,
   courierDispatchProvider: order.courier_dispatch_provider || null,
   courierDispatchError: order.courier_dispatch_error || null,
+  posReceiptDue: Boolean(order.pos_receipt_due),
+  tabletReadyAt: order.tablet_ready_at || null,
   externalDelivery: normalizeKitchenExternalDelivery(order.delivery_jobs),
   customerArrivedAt: order.customer_arrived_at || null,
 });
@@ -222,7 +227,7 @@ function runPostUpdateTasks(data, nextStatus) {
     const etaPromise = refreshOrderEta(data);
     const sideEffectsPromise = Promise.allSettled([
       notify(data),
-      ...(nextStatus === 'preparing' && isDeliveryFulfillment(data)
+      ...(['preparing', 'ready'].includes(nextStatus) && isDeliveryFulfillment(data)
         ? [processDeliveryDispatch(data.id)]
         : []),
       ...(nextStatus === 'handed_over' ? [releaseOrderReservations(data.id)] : []),
@@ -345,18 +350,13 @@ async function updateKitchenStatus(
       updates.fulfilled_at = now;
     }
   }
-  let updateQuery = supabase
-    .from('kaspi_orders')
-    .update(updates)
-    .eq('id', orderId)
-    .eq('kitchen_status', from)
-    .eq('status', 'paid');
-  updateQuery =
-    current.fulfillment_status == null
-      ? updateQuery.is('fulfillment_status', null)
-      : updateQuery.eq('fulfillment_status', current.fulfillment_status);
-  updateQuery = updateQuery.or('refund_status.is.null,refund_status.not.in.(processing,unknown)');
-  const { data, error } = await updateQuery.select('*').maybeSingle();
+  const { data, error } = await supabase.rpc('apply_staff_order_transition', {
+    p_order: orderId,
+    p_kitchen: current.kitchen_status,
+    p_fulfillment: current.fulfillment_status,
+    p_changes: updates,
+    p_actor: String(admin?.sub || admin?.username || 'staff').slice(0, 160),
+  });
   if (error) throw error;
   if (!data) {
     // A second tap (or a second iPad) may have raced the same acceptance.
@@ -393,4 +393,12 @@ async function updateKitchenStatus(
   return normalize(data);
 }
 
-module.exports = { TRANSITIONS, listKitchenOrders, updateKitchenStatus };
+async function getKitchenCounters({ branchId = null, branchIds = [] } = {}) {
+  const { data, error } = await supabase.rpc('staff_order_counts', {
+    p_branches: branchId ? [branchId] : branchIds.length ? branchIds : null,
+  });
+  if (error) throw error;
+  return data;
+}
+
+module.exports = { TRANSITIONS, listKitchenOrders, updateKitchenStatus, getKitchenCounters };

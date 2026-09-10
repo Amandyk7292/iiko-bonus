@@ -142,15 +142,17 @@ test('expiry, tampering, another customer, changed goods and changed destination
   }
 });
 
-test('preorder delivery uses the same policy; pickup has no fee', async () => {
+test('preorders never estimate or charge delivery even with a stale delivery flag', async () => {
   const input = context();
   input.checkout.orderType = 'preorder';
   const quote = await priceCheckoutDelivery(input, {
     phase: 'quote',
     version: 1,
-    estimate: async () => 1000,
+    estimate: async () => {
+      throw new Error('Preorders cannot call delivery');
+    },
   });
-  assert.equal(quote.pricing.total, 1035);
+  assert.equal(quote.pricing.total, 35);
   input.checkout.effectiveFulfillmentType = 'pickup';
   const pickup = await priceCheckoutDelivery(input, { phase: 'payment', version: 1 });
   assert.equal(pickup.pricing.total, 35);

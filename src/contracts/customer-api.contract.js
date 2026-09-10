@@ -39,7 +39,7 @@ const productOptionSummaryBodySchema = z
 const checkoutItemSchema = z
   .object({
     id: resourceIdSchema,
-    quantity: z.coerce.number().int().min(1).max(99),
+    quantity: z.coerce.number().min(0.001).max(99).multipleOf(0.001),
     configuration: cartConfigurationSchema.nullish(),
     modifiers: z.array(cartModifierSchema).max(50).nullish(),
   })
@@ -63,7 +63,11 @@ const checkoutQuoteBodySchema = z
     items: z.array(checkoutItemSchema).min(1).max(50),
     orderType: z.enum(['pickup', 'delivery', 'preorder']).nullish(),
     fulfillmentType: z.enum(['pickup', 'delivery', 'preorder']).nullish(),
-    preorderFulfillmentType: z.enum(['pickup', 'delivery']).nullish(),
+    preorderFulfillmentType: z
+      .literal('pickup', {
+        error: 'Предзаказ можно забрать только в выбранном филиале.',
+      })
+      .nullish(),
     branch: nullableText(160),
     branchId: nullableText(128),
     scheduledAt: z.iso.datetime({ offset: true }).nullish(),

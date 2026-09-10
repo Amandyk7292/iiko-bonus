@@ -3,6 +3,7 @@ const frontOrdersQuerySchema = z
   .object({
     page: z.coerce.number().int().min(1).max(10000).default(1),
     peek: z.enum(['true', 'false']).optional(),
+    receipts: z.enum(['true', 'false']).optional(),
   })
   .strict();
 const frontOrderDecisionSchema = z
@@ -13,4 +14,12 @@ const frontOrderDecisionSchema = z
   })
   .strict();
 const frontOrderPollSchema = z.object({ terminalId: z.string().uuid() }).strict();
-module.exports = { frontOrdersQuerySchema, frontOrderDecisionSchema, frontOrderPollSchema };
+const frontReceiptDraftSchema = z
+  .object({ number: z.number().int().positive().max(Number.MAX_SAFE_INTEGER) })
+  .strict();
+module.exports = {
+  frontOrdersQuerySchema,
+  frontOrderDecisionSchema,
+  frontOrderPollSchema,
+  frontReceiptDraftSchema,
+};

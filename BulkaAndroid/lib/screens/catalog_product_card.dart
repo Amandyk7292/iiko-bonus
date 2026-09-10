@@ -33,7 +33,7 @@ extension _CatalogProductCard on _CatalogScreenState {
     );
   }
 
-  Widget _buildProductCard(CatalogProduct product, int quantity) {
+  Widget _buildProductCard(CatalogProduct product, num quantity) {
     final colors = context.bulkaColors;
     final scheme = Theme.of(context).colorScheme;
     final favorite = _favoriteProductIds.contains(product.id);
@@ -208,14 +208,21 @@ extension _CatalogProductCard on _CatalogScreenState {
                       )
                     : _CatalogImageQuantityControl(
                         quantity: quantity,
+                        unit: product.quantityStep < 1 ? product.unit : '',
                         stopListed: false,
-                        onAdd: () => _setProductQuantity(product, 1),
-                        onDecrease: () =>
-                            _setProductQuantity(product, quantity - 1),
+                        onAdd: () =>
+                            _setProductQuantity(product, product.increment),
+                        onDecrease: () => _setProductQuantity(
+                          product,
+                          quantity - product.increment,
+                        ),
                         onIncrease:
                             quantity >= _catalogProductQuantityLimit(product)
                             ? null
-                            : () => _setProductQuantity(product, quantity + 1),
+                            : () => _setProductQuantity(
+                                product,
+                                quantity + product.increment,
+                              ),
                       ),
               ),
             ],

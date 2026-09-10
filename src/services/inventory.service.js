@@ -123,7 +123,7 @@ async function syncBranchInventory(
     const balances = new Map();
     const rows = [];
     for (const item of group.items || []) {
-      const quantity = Math.max(0, Math.floor(Number(item.balance)));
+      const quantity = Math.max(0, Math.round(Number(item.balance) * 1000) / 1000);
       const publicProductId = publicProductByIikoId.get(item.productId) || item.productId;
       balances.set(publicProductId, quantity);
       rows.push({
@@ -183,7 +183,14 @@ function refreshBranchInventoryInBackground(
 
 async function getBranchAvailability(
   branchId,
-  { sync = false, products = [], strict = false, iikoClient = null, online = true } = {},
+  {
+    sync = false,
+    products = [],
+    strict = false,
+    iikoClient = null,
+    online = true,
+    preorder = false,
+  } = {},
 ) {
   if (!branchId) return new Map();
   if (sync) await syncBranchInventory(branchId, { strict, products, iikoClient });
@@ -192,12 +199,12 @@ async function getBranchAvailability(
     supabase
       .from('branch_product_inventory')
       .select(
-        'product_id,product_name,source_quantity,manual_stop,source,last_synced_at,preparation_minutes,stock_revision,front_quantity,front_managed',
+        'product_id,product_name,source_quantity,manual_stop,preorder_stop,source,last_synced_at,preparation_minutes,stock_revision,front_quantity,front_managed,quantity_step,unit',
       )
       .eq('branch_id', branchId),
     supabase
       .from('inventory_reservations')
-      .select('product_id,quantity,status,expires_at')
+      .select('product_id,quantity,status,expires_at,allocation_kind')
       .eq('branch_id', branchId)
       .in('status', ['active', 'committed']),
     getFrontInventoryStatus(branchId),
@@ -213,6 +220,7 @@ async function getBranchAvailability(
   const held = new Map();
   for (const item of reservationsResult.data || []) {
     if (item.status === 'active' && String(item.expires_at) <= now) continue;
+    if (item.allocation_kind === 'preorder') continue;
     held.set(item.product_id, (held.get(item.product_id) || 0) + Number(item.quantity || 0));
   }
   const result = new Map(
@@ -225,7 +233,7 @@ async function getBranchAvailability(
       const availableQuantity = !fresh
         ? 0
         : online
-          ? onlineAvailableQuantity(sourceQuantity, reserved)
+          ? onlineAvailableQuantity(sourceQuantity, reserved, Number(item.quantity_step || 1))
           : sourceQuantity == null
             ? null
             : Math.max(0, sourceQuantity - reserved);
@@ -233,14 +241,17 @@ async function getBranchAvailability(
         String(item.product_id),
         {
           productName: item.product_name || null,
-          sourceQuantity,
-          reserved,
-          availableQuantity,
-          isAvailable:
-            fresh &&
-            item.manual_stop !== true &&
-            (availableQuantity == null || availableQuantity > 0),
-          manualStop: item.manual_stop === true,
+          sourceQuantity: preorder ? null : sourceQuantity,
+          quantityStep: Number(item.quantity_step || 1),
+          unit: item.unit || 'шт',
+          reserved: preorder ? 0 : reserved,
+          availableQuantity: preorder ? null : availableQuantity,
+          isAvailable: preorder
+            ? item.preorder_stop !== true
+            : fresh &&
+              item.manual_stop !== true &&
+              (availableQuantity == null || availableQuantity > 0),
+          manualStop: preorder ? item.preorder_stop === true : item.manual_stop === true,
           revision: Number(item.stock_revision || 0),
           source: item.source,
           frontQuantity: item.front_quantity,
@@ -253,6 +264,7 @@ async function getBranchAvailability(
     }),
   );
   result.frontSync = frontSync;
+  result.preorder = preorder;
   return result;
 }
 
@@ -301,7 +313,7 @@ async function reserveCheckout({
     ttlMinutes,
   });
   const { data: inventory, error: inventoryRpcError } = await supabase.rpc(
-    'reserve_order_inventory',
+    orderType === 'preorder' ? 'reserve_preorder_inventory' : 'reserve_order_inventory',
     {
       p_customer_id: customerId,
       p_request_id: requestId,
@@ -309,6 +321,7 @@ async function reserveCheckout({
       p_items: items,
       p_ttl_minutes: reservation.ttlMinutes,
       p_expires_at: reservation.expiresAt,
+      ...(orderType === 'preorder' && { p_scheduled_at: scheduledAt }),
     },
   );
   if (inventoryRpcError) throw inventoryError(inventoryRpcError.message, 409);
@@ -421,7 +434,7 @@ async function listInventory({ branchId = '', branchIds = [] } = {}) {
   let query = supabase
     .from('branch_product_inventory')
     .select(
-      'branch_id,product_id,product_name,source_quantity,manual_stop,source,last_synced_at,updated_at,preparation_minutes,bulka_locations(name,address)',
+      'branch_id,product_id,product_name,source_quantity,quantity_step,unit,manual_stop,source,last_synced_at,updated_at,preparation_minutes,bulka_locations(name,address)',
     )
     .order('product_name', { ascending: true });
   if (branchId) query = query.eq('branch_id', branchId);
@@ -435,8 +448,8 @@ async function updateInventory(branchId, productId, payload = {}) {
   const quantity = payload.sourceQuantity;
   if (quantity !== null && quantity !== undefined) {
     const numeric = Number(quantity);
-    if (!Number.isInteger(numeric) || numeric < 0 || numeric > 100000) {
-      throw inventoryError('Остаток должен быть целым числом от 0 до 100000');
+    if (!require('../utils/quantity.util').validQuantity(numeric, { min: 0, max: 100000 })) {
+      throw inventoryError('Остаток должен быть от 0 до 100000, до трёх знаков после запятой');
     }
   }
   if (payload.manualStop !== undefined && typeof payload.manualStop !== 'boolean') {

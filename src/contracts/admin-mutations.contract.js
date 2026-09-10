@@ -485,7 +485,7 @@ const inventoryParamsSchema = routeParams({
 const inventoryBodySchema = z
   .object({
     productName: shortText(160).optional(),
-    sourceQuantity: z.coerce.number().int().min(0).max(100_000).nullable(),
+    sourceQuantity: z.coerce.number().min(0).max(100_000).multipleOf(0.001).nullable(),
     manualStop: z.boolean(),
     preparationMinutes: z.coerce.number().int().min(1).max(240).nullable().optional(),
   })
@@ -494,16 +494,21 @@ const inventoryBodySchema = z
 const cashierInventoryBodySchema = z
   .object({
     expectedRevision: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
-    sourceQuantity: z.number().int().min(0).max(100000).optional(),
+    preorderStop: z.boolean().optional(),
+    sourceQuantity: z.number().min(0).max(100000).multipleOf(0.001).optional(),
     manualStop: z.boolean().optional(),
     useIiko: z.literal(true).optional(),
   })
   .strict()
   .refine(
     (value) =>
-      value.useIiko
-        ? value.sourceQuantity === undefined && value.manualStop === undefined
-        : value.sourceQuantity !== undefined || value.manualStop !== undefined,
+      value.preorderStop !== undefined
+        ? value.sourceQuantity === undefined &&
+          value.manualStop === undefined &&
+          value.useIiko === undefined
+        : value.useIiko
+          ? value.sourceQuantity === undefined && value.manualStop === undefined
+          : value.sourceQuantity !== undefined || value.manualStop !== undefined,
     'Укажите остаток или состояние стоп-листа',
   );
 

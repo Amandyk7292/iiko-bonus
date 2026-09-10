@@ -10,7 +10,7 @@ Future<bool> confirmCashierStockChange(
       ? '${staffText('Остаток iikoFront', 'iikoFront қалдығы', 'iikoFront stock')}: ${product['frontQuantity'] ?? staffText('не ограничен', 'шектеусіз', 'unlimited')}'
       : changes.containsKey('sourceQuantity')
       ? '${staffText('Остаток', 'Қалдық', 'Stock')}: ${product['sourceQuantity'] ?? '—'} → ${changes['sourceQuantity']}'
-      : changes['manualStop'] == true
+      : changes['manualStop'] == true || changes['preorderStop'] == true
       ? staffText(
           'Добавить в стоп-лист',
           'Стоп-тізімге қосу',
@@ -49,8 +49,13 @@ Future<bool> confirmCashierStockChange(
 }
 
 class CashierCatalog extends StatefulWidget {
-  const CashierCatalog({required this.api, super.key});
+  const CashierCatalog({
+    required this.api,
+    this.pendingPreorders = 0,
+    super.key,
+  });
   final StaffApiClient api;
+  final int pendingPreorders;
   @override
   State<CashierCatalog> createState() => _CashierCatalogState();
 }
@@ -65,6 +70,7 @@ class _CashierCatalogState extends State<CashierCatalog> {
   final _searchController = TextEditingController();
   final _scroll = ScrollController();
   final Set<String> _saving = {};
+  bool _preorders = false;
   @override
   void initState() {
     super.initState();
@@ -84,8 +90,15 @@ class _CashierCatalogState extends State<CashierCatalog> {
       while (_pending && mounted) {
         _pending = false;
         try {
-          final result = await widget.api.request('/staff/catalog');
+          final requestedPreorders = _preorders;
+          final result = await widget.api.request(
+            '/staff/catalog${requestedPreorders ? '?scope=preorder' : ''}',
+          );
           if (mounted) {
+            if (requestedPreorders != _preorders) {
+              _pending = true;
+              continue;
+            }
             setState(() {
               _products = staffRows(result['products']);
               _frontSync = result['frontSync'] is Map
@@ -126,13 +139,14 @@ class _CashierCatalogState extends State<CashierCatalog> {
     if (_saving.contains(id)) return;
     setState(() => _saving.add(id));
     try {
-      if (!await confirmCashierStockChange(context, product, {
-            'manualStop': stopped,
-          }) ||
+      final changes = {
+        product['preorder'] == true ? 'preorderStop' : 'manualStop': stopped,
+      };
+      if (!await confirmCashierStockChange(context, product, changes) ||
           !mounted) {
         return;
       }
-      await _save(product, {'manualStop': stopped});
+      await _save(product, changes);
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -146,6 +160,7 @@ class _CashierCatalogState extends State<CashierCatalog> {
   }
 
   Future<void> _edit(Map<String, dynamic> product) async {
+    if (product['preorder'] == true) return;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -169,6 +184,60 @@ class _CashierCatalogState extends State<CashierCatalog> {
   void _filterChanged(VoidCallback change) {
     setState(change);
     if (_scroll.hasClients) _scroll.jumpTo(0);
+  }
+
+  void _selectScope(bool preorders) {
+    if (_preorders == preorders) return;
+    _filterChanged(() {
+      _preorders = preorders;
+      _filter = 'all';
+      _products = [];
+      _loading = true;
+    });
+    unawaited(_load());
+  }
+
+  Future<void> _useTablet() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(
+          staffText(
+            'Управлять с планшета?',
+            'Планшеттен басқару керек пе?',
+            'Manage from the tablet?',
+          ),
+        ),
+        content: Text(
+          staffText(
+            'Кассы временно не смогут начинать новые продажи. Оплаченные заказы и резервы сохранятся. Для возврата управления выполните сверку витрины на главной кассе.',
+            'Кассалар жаңа сатылымдарды уақытша бастай алмайды. Төленген тапсырыстар мен резервтер сақталады. Басқаруды қайтару үшін негізгі кассада қалдықты салыстырыңыз.',
+            'Registers will temporarily stop starting new sales. Paid orders and reservations stay protected. Reconcile stock on the main register to return control.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(staffText('Отмена', 'Бас тарту', 'Cancel')),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(staffText('Переключить', 'Ауыстыру', 'Switch')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await widget.api.request(
+        '/staff/catalog/fallback',
+        method: 'POST',
+        body: {'requestId': _newCheckoutId(), 'confirmed': true},
+      );
+      await _load();
+    } catch (error) {
+      if (mounted) setState(() => _error = '$error');
+    }
   }
 
   @override
@@ -240,7 +309,98 @@ class _CashierCatalogState extends State<CashierCatalog> {
                     _filterChanged(() => _search = value.trim()),
               ),
               const SizedBox(height: 10),
-              if (_frontSync['configured'] == true)
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => _selectScope(false),
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: !_preorders
+                            ? const Color(0xFFFFF3D4)
+                            : Colors.white,
+                      ),
+                      child: Text(
+                        staffText('Витрина', 'Сөре', 'Display stock'),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _selectScope(true),
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: _preorders
+                            ? const Color(0xFFFFF3D4)
+                            : Colors.white,
+                      ),
+                      icon: Padding(
+                        padding: EdgeInsets.only(
+                          right: widget.pendingPreorders > 99 ? 16 : 0,
+                        ),
+                        child: StaffCountBadge(
+                          key: const ValueKey('cashier-preorders-count'),
+                          count: widget.pendingPreorders,
+                          label: staffText(
+                            'Непринятые предзаказы',
+                            'Қабылданбаған алдын ала тапсырыстар',
+                            'Unaccepted preorders',
+                          ),
+                          child: const Icon(
+                            Icons.calendar_today_outlined,
+                            size: 18,
+                          ),
+                        ),
+                      ),
+                      label: Text(
+                        staffText(
+                          'Предзаказы',
+                          'Алдын ала тапсырыстар',
+                          'Preorders',
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              if (_preorders)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Text(
+                    staffText(
+                      'Самовывоз минимум через 24 часа. Доступность по стоп-листу.',
+                      'Кемінде 24 сағаттан кейін алып кету. Қолжетімділік стоп-тізім арқылы.',
+                      'Pickup at least 24 hours ahead. Availability is controlled by the stop list.',
+                    ),
+                  ),
+                ),
+              if (!_preorders && _frontSync['guardEnabled'] == true)
+                _frontSync['controlMode'] == 'tablet'
+                    ? Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Text(
+                          staffText(
+                            'Учёт с планшета. Кассовые продажи приостановлены.',
+                            'Планшеттен есепке алу. Кассадағы сатылымдар тоқтатылды.',
+                            'Tablet stock control. Register sales are paused.',
+                          ),
+                        ),
+                      )
+                    : OutlinedButton.icon(
+                        onPressed: _useTablet,
+                        icon: const Icon(
+                          Icons.tablet_android_outlined,
+                          size: 18,
+                        ),
+                        label: Text(
+                          staffText(
+                            'Управлять с планшета',
+                            'Планшеттен басқару',
+                            'Manage from tablet',
+                          ),
+                        ),
+                      ),
+              if (!_preorders && _frontSync['configured'] == true)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: Row(
@@ -255,7 +415,13 @@ class _CashierCatalogState extends State<CashierCatalog> {
                       const SizedBox(width: 7),
                       Expanded(
                         child: Text(
-                          _frontSync['connected'] == true
+                          _frontSync['controlMode'] == 'tablet'
+                              ? staffText(
+                                  'Резервы синхронизированы',
+                                  'Резервтер синхрондалған',
+                                  'Reservations synchronized',
+                                )
+                              : _frontSync['connected'] == true
                               ? staffText(
                                   'iikoFront подключён',
                                   'iikoFront қосылған',
@@ -302,11 +468,12 @@ class _CashierCatalogState extends State<CashierCatalog> {
                           'Стоп-тізім',
                           'Stopped',
                         ),
-                        'untracked': staffText(
-                          'Не указано',
-                          'Көрсетілмеген',
-                          'Not set',
-                        ),
+                        if (!_preorders)
+                          'untracked': staffText(
+                            'Не указано',
+                            'Көрсетілмеген',
+                            'Not set',
+                          ),
                       },
                       onChanged: (value) =>
                           _filterChanged(() => _filter = value),
@@ -327,17 +494,18 @@ class _CashierCatalogState extends State<CashierCatalog> {
                         ),
                       ),
                     ),
-                    SizedBox(
-                      width: 68,
-                      child: Text(
-                        staffText('Остаток', 'Қалдық', 'Stock'),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Color(0xFF746B63),
+                    if (!_preorders)
+                      SizedBox(
+                        width: 68,
+                        child: Text(
+                          staffText('Остаток', 'Қалдық', 'Stock'),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFF746B63),
+                          ),
                         ),
                       ),
-                    ),
                     SizedBox(
                       width: 52,
                       child: Text(
@@ -410,6 +578,8 @@ class _CashierCatalogState extends State<CashierCatalog> {
           )
         : p['manualStop'] == true
         ? staffText('В стоп-листе', 'Стоп-тізімде', 'In stop list')
+        : p['preorder'] == true
+        ? staffText('Доступно', 'Қолжетімді', 'Available')
         : p['availableQuantity'] == null
         ? staffText(
             'Остаток не указан',
@@ -480,7 +650,7 @@ class _CashierCatalogState extends State<CashierCatalog> {
                       color: Color(0xFF746B63),
                     ),
                   ),
-                if (p['stockSource'] == 'manual')
+                if (p['preorder'] != true && p['stockSource'] == 'manual')
                   Text(
                     staffText('Вручную', 'Қолмен', 'Manual'),
                     style: const TextStyle(
@@ -492,30 +662,33 @@ class _CashierCatalogState extends State<CashierCatalog> {
             ),
           ),
           const SizedBox(width: 6),
-          SizedBox(
-            width: 62,
-            child: Tooltip(
-              message: staffText(
-                'Изменить остаток',
-                'Қалдықты өзгерту',
-                'Edit stock',
-              ),
-              child: OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 4),
-                  minimumSize: const Size(48, 44),
+          if (p['preorder'] != true)
+            SizedBox(
+              width: 62,
+              child: Tooltip(
+                message: staffText(
+                  'Изменить остаток',
+                  'Қалдықты өзгерту',
+                  'Edit stock',
                 ),
-                onPressed: blocked || busy ? null : () => _edit(p),
-                child: Text(
-                  p['sourceQuantity'] == null ? '—' : '${p['sourceQuantity']}',
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    minimumSize: const Size(48, 44),
+                  ),
+                  onPressed: blocked || busy ? null : () => _edit(p),
+                  child: Text(
+                    p['sourceQuantity'] == null
+                        ? '—'
+                        : '${p['sourceQuantity']}',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
           const SizedBox(width: 6),
           SizedBox(
             width: 46,
@@ -554,7 +727,7 @@ class _CashierQuantitySheet extends StatefulWidget {
     this.useIiko,
   });
   final Map<String, dynamic> product;
-  final Future<void> Function(int) save;
+  final Future<void> Function(num) save;
   final Future<void> Function()? useIiko;
   @override
   State<_CashierQuantitySheet> createState() => _CashierQuantitySheetState();
@@ -631,17 +804,16 @@ class _CashierQuantitySheetState extends State<_CashierQuantitySheet> {
                 controller: _quantity,
                 autofocus: true,
                 enabled: !_saving,
-                keyboardType: TextInputType.number,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 inputFormatters: [
-                  FilteringTextInputFormatter.digitsOnly,
-                  LengthLimitingTextInputFormatter(6),
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                  LengthLimitingTextInputFormatter(10),
                 ],
                 decoration: InputDecoration(
-                  labelText: staffText(
-                    'На точке, шт.',
-                    'Нүктедегі саны',
-                    'On hand, units',
-                  ),
+                  labelText:
+                      '${staffText('На точке', 'Нүктедегі саны', 'On hand')}, ${widget.product['unit'] ?? 'шт'}',
                   errorText: _error,
                 ),
               ),
@@ -669,8 +841,18 @@ class _CashierQuantitySheetState extends State<_CashierQuantitySheet> {
                 onPressed: _saving
                     ? null
                     : () async {
-                        final value = int.tryParse(_quantity.text);
-                        if (value == null || value < 0 || value > 100000) {
+                        final value = num.tryParse(
+                          _quantity.text.replaceAll(',', '.'),
+                        );
+                        final step =
+                            (widget.product['quantityStep'] as num?) ?? 1;
+                        if (value == null ||
+                            value < 0 ||
+                            value > 100000 ||
+                            (value * 1000 - (value * 1000).round()).abs() >
+                                0.000001 ||
+                            (value * 1000).round() % (step * 1000).round() !=
+                                0) {
                           setState(
                             () => _error = staffText(
                               'Введите число от 0 до 100 000',

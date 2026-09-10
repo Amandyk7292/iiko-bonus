@@ -43,101 +43,110 @@ void main() {
       );
     }
   });
-  testWidgets(
-    'refund requires server preview and keeps key on uncertain retry',
-    (tester) async {
-      final submitted = <Map<String, dynamic>>[];
-      var previews = 0;
-      final api = StaffApiClient(
-        baseUrl: 'https://bulka.test',
-        client: MockClient((request) async {
-          final path = request.url.path;
-          if (path.endsWith('/refund-options')) {
-            return http.Response(
-              jsonEncode({
-                'refund': {
-                  'paidAmount': 1800,
-                  'alreadyRefunded': 0,
-                  'remainingAmount': 1800,
-                  'previewSupported': true,
-                  'lines': [
-                    {
-                      'lineKey': 'line-1',
-                      'name': 'Test product',
-                      'refundableQuantity': 2,
-                    },
-                  ],
-                },
-              }),
-              200,
-            );
-          }
-          if (path.endsWith('/partial-refund-preview')) {
-            previews++;
-            return http.Response(
-              jsonEncode({
-                'preview': {
-                  'amount': 777,
-                  'adjustment': {
-                    'spentBonusRestored': 20,
-                    'earnedBonusReversed': 5,
+  for (final weighted in [false, true]) {
+    testWidgets(
+      'refund requires server preview and keeps key on uncertain retry (weighted: $weighted)',
+      (tester) async {
+        final submitted = <Map<String, dynamic>>[];
+        var previews = 0;
+        final api = StaffApiClient(
+          baseUrl: 'https://bulka.test',
+          client: MockClient((request) async {
+            final path = request.url.path;
+            if (path.endsWith('/refund-options')) {
+              return http.Response(
+                jsonEncode({
+                  'refund': {
+                    'paidAmount': 1800,
+                    'alreadyRefunded': 0,
+                    'remainingAmount': 1800,
+                    'previewSupported': true,
+                    'lines': [
+                      {
+                        'lineKey': 'line-1',
+                        'name': 'Test product',
+                        'refundableQuantity': weighted ? 0.75 : 2,
+                        'quantityStep': weighted ? 0.001 : 1,
+                      },
+                    ],
                   },
-                },
-              }),
-              200,
-            );
-          }
-          if (path.endsWith('/partial-refund')) {
-            submitted.add(jsonDecode(request.body) as Map<String, dynamic>);
-            if (submitted.length == 1) throw http.ClientException('Offline');
-            return http.Response(
-              jsonEncode({
-                'refund': {'status': 'completed'},
-              }),
-              200,
-            );
-          }
-          return http.Response('{}', 404);
-        }),
-      );
-      await tester.pumpWidget(
-        MaterialApp(
-          home: StaffRefund(
-            api: api,
-            order: const {'id': 'order-1', 'number': 42},
+                }),
+                200,
+              );
+            }
+            if (path.endsWith('/partial-refund-preview')) {
+              previews++;
+              return http.Response(
+                jsonEncode({
+                  'preview': {
+                    'amount': 777,
+                    'adjustment': {
+                      'spentBonusRestored': 20,
+                      'earnedBonusReversed': 5,
+                    },
+                  },
+                }),
+                200,
+              );
+            }
+            if (path.endsWith('/partial-refund')) {
+              submitted.add(jsonDecode(request.body) as Map<String, dynamic>);
+              if (submitted.length == 1) throw http.ClientException('Offline');
+              return http.Response(
+                jsonEncode({
+                  'refund': {'status': 'completed'},
+                }),
+                200,
+              );
+            }
+            return http.Response('{}', 404);
+          }),
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            home: StaffRefund(
+              api: api,
+              order: const {'id': 'order-1', 'number': 42},
+            ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      expect(find.text('Подтвердить сумму'), findsNothing);
-      await tester.enterText(find.byType(TextField).first, '0.5');
-      await tester.tap(find.text('Рассчитать возврат'));
-      await tester.pumpAndSettle();
-      expect(previews, 0);
-      expect(submitted, isEmpty);
-      await tester.enterText(find.byType(TextField).first, '1');
-      await tester.tap(find.text('Рассчитать возврат'));
-      await tester.pumpAndSettle();
-      expect(previews, 1);
-      expect(find.text('777 ₸'), findsOneWidget);
-      expect(submitted, isEmpty);
-      await tester.ensureVisible(find.text('Подтвердить сумму'));
-      await tester.tap(find.text('Подтвердить сумму'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Вернуть деньги'));
-      await tester.pumpAndSettle();
-      expect(submitted.length, 1);
-      expect(find.textContaining('Нет связи'), findsOneWidget);
-      await tester.tap(find.text('Вернуть деньги'));
-      await tester.pumpAndSettle();
-      expect(submitted.length, 2);
-      expect(submitted[1]['idempotencyKey'], submitted[0]['idempotencyKey']);
-      expect(submitted[0]['items'], [
-        {'lineKey': 'line-1', 'quantity': 1},
-      ]);
-      expect(tester.takeException(), isNull);
-      await tester.pumpWidget(const SizedBox.shrink());
-      api.close();
-    },
-  );
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Подтвердить сумму'), findsNothing);
+        await tester.enterText(
+          find.byType(TextField).first,
+          weighted ? '0.1234' : '0.5',
+        );
+        await tester.tap(find.text('Рассчитать возврат'));
+        await tester.pumpAndSettle();
+        expect(previews, 0);
+        expect(submitted, isEmpty);
+        await tester.enterText(
+          find.byType(TextField).first,
+          weighted ? '0,375' : '1',
+        );
+        await tester.tap(find.text('Рассчитать возврат'));
+        await tester.pumpAndSettle();
+        expect(previews, 1);
+        expect(find.text('777 ₸'), findsOneWidget);
+        expect(submitted, isEmpty);
+        await tester.ensureVisible(find.text('Подтвердить сумму'));
+        await tester.tap(find.text('Подтвердить сумму'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Вернуть деньги'));
+        await tester.pumpAndSettle();
+        expect(submitted.length, 1);
+        expect(find.textContaining('Нет связи'), findsOneWidget);
+        await tester.tap(find.text('Вернуть деньги'));
+        await tester.pumpAndSettle();
+        expect(submitted.length, 2);
+        expect(submitted[1]['idempotencyKey'], submitted[0]['idempotencyKey']);
+        expect(submitted[0]['items'], [
+          {'lineKey': 'line-1', 'quantity': weighted ? 0.375 : 1},
+        ]);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+        api.close();
+      },
+    );
+  }
 }

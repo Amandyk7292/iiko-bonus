@@ -1067,11 +1067,14 @@ void main() {
         find.text('Ассортимент выбран для этого типа заказа'),
         findsOneWidget,
       );
-      expect(find.textContaining('Доставка пока недоступна'), findsOneWidget);
+      expect(
+        find.textContaining('доставка временно недоступна'),
+        findsOneWidget,
+      );
     },
   );
 
-  testWidgets('preorder checkout offers delivery and pickup', (tester) async {
+  testWidgets('preorder checkout only offers pickup', (tester) async {
     SharedPreferences.setMockInitialValues({
       'selected_order_type': 'preorder',
       'selected_bakery_location': 'Bulka, Астана',
@@ -1110,35 +1113,15 @@ void main() {
     expect(find.text('Предзаказ'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('preorder-fulfillment-delivery')),
+      findsNothing,
+    );
+    expect(
+      find.textContaining('Самовывоз из выбранного филиала'),
       findsOneWidget,
     );
     expect(
-      find.byKey(const ValueKey('preorder-fulfillment-pickup')),
-      findsOneWidget,
-    );
-    final pickupOption = find.byKey(
-      const ValueKey('preorder-fulfillment-pickup'),
-    );
-    final pickupSemantics = tester.widget<Semantics>(
-      find
-          .ancestor(
-            of: pickupOption,
-            matching: find.byWidgetPredicate(
-              (widget) =>
-                  widget is Semantics && widget.properties.label == 'Самовывоз',
-            ),
-          )
-          .first,
-    );
-    expect(pickupSemantics.properties.button, isTrue);
-    expect(pickupSemantics.properties.selected, isTrue);
-    expect(pickupSemantics.properties.inMutuallyExclusiveGroup, isTrue);
-    expect(
-      find.descendant(
-        of: pickupOption,
-        matching: find.byIcon(Icons.check_circle_rounded),
-      ),
-      findsOneWidget,
+      find.textContaining('Адрес доставки', findRichText: true),
+      findsNothing,
     );
 
     var redRequiredStar = false;
@@ -1152,32 +1135,6 @@ void main() {
       });
     }
     expect(redRequiredStar, isTrue);
-
-    await tester.tap(
-      find.byKey(const ValueKey('preorder-fulfillment-delivery')),
-    );
-    await tester.pumpAndSettle();
-    final deliveryOption = find.byKey(
-      const ValueKey('preorder-fulfillment-delivery'),
-    );
-    expect(
-      find.descendant(
-        of: deliveryOption,
-        matching: find.byIcon(Icons.check_circle_rounded),
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(
-        of: pickupOption,
-        matching: find.byIcon(Icons.check_circle_rounded),
-      ),
-      findsNothing,
-    );
-    expect(
-      find.textContaining('Адрес доставки', findRichText: true),
-      findsWidgets,
-    );
   });
 
   testWidgets('all main tabs fit 320px with larger text', (tester) async {
@@ -1644,47 +1601,46 @@ void main() {
     semantics.dispose();
   });
 
-  testWidgets(
-    'preorder delivery shows courier progress and repeats as delivery',
-    (tester) async {
-      SharedPreferences.setMockInitialValues({});
-      tester.view.physicalSize = const Size(430, 932);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      final api = _PreorderDeliveryApiClient();
+  testWidgets('legacy preorder repeats as pickup without courier controls', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    tester.view.physicalSize = const Size(430, 932);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final api = _PreorderDeliveryApiClient();
 
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: buildBulkaTheme(),
-          home: ChangeNotifierProvider(
-            create: (_) => CartProvider(),
-            child: CustomerOrdersScreen(api: api),
-          ),
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildBulkaTheme(),
+        home: ChangeNotifierProvider(
+          create: (_) => CartProvider(),
+          child: CustomerOrdersScreen(api: api),
         ),
-      );
-      await tester.pumpAndSettle();
+      ),
+    );
+    await tester.pumpAndSettle();
 
-      expect(find.text('Курьер назначен'), findsOneWidget);
-      expect(find.text('Я приехал'), findsNothing);
+    expect(find.text('Курьер назначен'), findsNothing);
+    expect(find.text('Я приехал'), findsNothing);
 
-      await tester.ensureVisible(find.byTooltip('Повторить'));
-      await tester.tap(find.byTooltip('Повторить'));
-      await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byTooltip('Повторить'));
+    await tester.tap(find.byTooltip('Повторить'));
+    await tester.pumpAndSettle();
 
-      final prefs = await SharedPreferences.getInstance();
-      expect(prefs.getString('selected_order_type'), 'preorder');
-      expect(
-        prefs.getString(
-          customerPreferenceKey(
-            'checkout_preorder_fulfillment',
-            api.sessionCacheScope,
-          ),
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('selected_order_type'), 'preorder');
+    expect(
+      prefs.getString(
+        customerPreferenceKey(
+          'checkout_preorder_fulfillment',
+          api.sessionCacheScope,
         ),
-        'delivery',
-      );
-    },
-  );
+      ),
+      'pickup',
+    );
+  });
 
   testWidgets('customer orders do not expose cancellation controls', (
     tester,
@@ -1867,7 +1823,7 @@ void main() {
     tester,
   ) async {
     appLanguageNotifier.value = 'ru';
-    var selectedQuantity = 0;
+    num selectedQuantity = 0;
     final liveProducts = ValueNotifier<Map<String, CatalogProduct>>(const {});
     addTearDown(liveProducts.dispose);
     const product = CatalogProduct(

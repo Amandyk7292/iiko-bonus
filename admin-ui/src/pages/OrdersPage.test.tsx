@@ -63,16 +63,24 @@ const renderPage = (role = 'branch_manager') => {
 describe('Orders workspace permissions and refund flow', () => {
   it('cashier can cancel an order but cannot dispatch or move it to other statuses', async () => {
     const user = userEvent.setup();
-    apiMocks.updateOrderStatus.mockResolvedValue({ success: true, order: { ...order, orderStatus: 'cancelled', paymentStatus: 'refunded' } });
+    apiMocks.updateOrderStatus.mockResolvedValue({
+      success: true,
+      order: { ...order, orderStatus: 'cancelled', paymentStatus: 'refunded' },
+    });
     renderPage('cashier');
     await screen.findByText('№100039');
     expect(screen.queryByRole('button', { name: 'Яндекс Go' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('combobox', { name: 'Изменить статус' }));
-    expect(screen.getByRole('option', { name: 'Готовится' })).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('option', { name: 'Готовится' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    );
     await user.click(screen.getByRole('option', { name: 'Отменён' }));
     await user.type(await screen.findByLabelText('Причина отмены (увидит клиент)'), 'Нет товара');
     await user.click(screen.getByRole('button', { name: 'Подтвердить' }));
-    await waitFor(() => expect(apiMocks.updateOrderStatus).toHaveBeenCalledWith(order.id, 'cancelled', 'Нет товара'));
+    await waitFor(() =>
+      expect(apiMocks.updateOrderStatus).toHaveBeenCalledWith(order.id, 'cancelled', 'Нет товара'),
+    );
   });
   it('separates merchandise, discounts and the customer delivery fee from courier costs', async () => {
     apiMocks.getOrders.mockResolvedValue({
@@ -137,11 +145,11 @@ describe('Orders workspace permissions and refund flow', () => {
     const preorder = screen.getByText('№11').closest('tr')!;
     expect(within(pickup).getByText('Самовывоз')).toBeInTheDocument();
     expect(within(preorder).getByText('Предзаказ')).toBeInTheDocument();
-    expect(within(preorder).getAllByText('Доставка')).toHaveLength(2);
+    expect(within(preorder).getByText('Самовывоз')).toBeInTheDocument();
     expect(within(pickup).getByText('Самовывоз')).toHaveClass('fulfillment-pickup');
     expect(within(preorder).getByText('Предзаказ')).toHaveClass('fulfillment-preorder');
-    expect(within(preorder).getAllByText('Доставка')[0]).toHaveClass('fulfillment-delivery');
-    expect(within(preorder).getByRole('button', { name: 'Яндекс Go' })).toBeInTheDocument();
+    expect(within(preorder).getByText('Самовывоз')).toHaveClass('fulfillment-pickup');
+    expect(within(preorder).queryByRole('button', { name: 'Яндекс Go' })).not.toBeInTheDocument();
     await user.click(within(pickup).getByRole('combobox', { name: 'Изменить статус' }));
     expect(screen.getByRole('option', { name: 'Принят' })).toHaveAttribute('aria-disabled', 'true');
     expect(screen.getByRole('option', { name: 'Готовится' })).toHaveAttribute(

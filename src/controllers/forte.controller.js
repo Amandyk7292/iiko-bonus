@@ -108,6 +108,7 @@ const quotePayment = async (req, res) => {
       branchId: checkout.branchId,
       customerId: req.customerAuth.id,
       orderType: checkout.orderType,
+      scheduledAt: checkout.scheduledAt,
       fulfillmentType: checkout.effectiveFulfillmentType,
     });
     const deliveryQuote = await priceCheckoutDelivery(
@@ -186,6 +187,7 @@ const createPayment = async (req, res) => {
         branchId: checkout.branchId,
         customerId,
         orderType: checkout.orderType,
+        scheduledAt: checkout.scheduledAt,
         fulfillmentType: checkout.effectiveFulfillmentType,
       });
       ({ pricing } = await priceCheckoutDelivery(

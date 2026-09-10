@@ -115,7 +115,10 @@ async function getSubstitutionOptions(orderId) {
   const [refund, inventoryResult, availability] = await Promise.all([
     getRefundOptions(orderId),
     listInventory({ branchId: order.branch_id }),
-    getBranchAvailability(order.branch_id, { strict: true }),
+    getBranchAvailability(order.branch_id, {
+      strict: true,
+      preorder: order.fulfillment_type === 'preorder',
+    }),
   ]);
   const replacements = inventoryResult
     .map((item) => {
@@ -140,10 +143,7 @@ async function getSubstitutionOptions(orderId) {
 const rpcRow = (value) => (Array.isArray(value) ? value[0] : value);
 
 async function resolveReplacementForExecution(order, request) {
-  const effectiveOrderType =
-    order.fulfillment_type === 'preorder'
-      ? order.preorder_fulfillment_type || 'pickup'
-      : order.fulfillment_type || 'pickup';
+  const effectiveOrderType = order.fulfillment_type || 'pickup';
   const [catalog, refundOptions] = await Promise.all([
     loadOrderCatalog({ branchId: order.branch_id, orderType: effectiveOrderType }),
     getRefundOptions(order.id),
@@ -154,7 +154,7 @@ async function resolveReplacementForExecution(order, request) {
   if (
     !product ||
     product.isAvailable !== true ||
-    (Number.isInteger(product.availableQuantity) &&
+    (Number.isFinite(product.availableQuantity) &&
       product.availableQuantity < Number(request.quantity || 0))
   ) {
     throw conflict('REPLACEMENT_UNAVAILABLE', 'Выбранная замена больше недоступна');
@@ -170,6 +170,8 @@ async function resolveReplacementForExecution(order, request) {
         name: String(product.name || request.replacement_product_name || 'Товар').slice(0, 160),
         price: Number(product.price),
         quantity: Number(request.quantity),
+        quantityStep: product.quantityStep || 1,
+        unit: product.unit || 'шт.',
         source: product.source || 'iiko',
         preparationMinutes: Number(product.preparationMinutes || 15),
         configuration: null,
@@ -432,6 +434,12 @@ async function executeSubstitution(order, request, requestedBy = 'admin') {
 
 async function createSubstitution(orderId, payload, requestedBy) {
   const order = await readOrder(orderId);
+  if (payload.action !== 'call_customer' && Number(order.partially_refunded_amount || 0) > 0) {
+    throw conflict(
+      'SUBSTITUTION_AFTER_PARTIAL_REFUND',
+      'После частичного возврата состав заказа менять нельзя. Доступен возврат оставшихся позиций.',
+    );
+  }
   if (
     order.status !== 'paid' ||
     ['completed', 'cancelled'].includes(String(order.fulfillment_status || ''))

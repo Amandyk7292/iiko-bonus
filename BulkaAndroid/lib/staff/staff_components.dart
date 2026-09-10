@@ -642,3 +642,33 @@ Future<bool> staffConfirmDiscard(BuildContext context) async =>
       ),
     ) ??
     false;
+
+class StaffReceiptDispatchNotice extends StatelessWidget {
+  const StaffReceiptDispatchNotice({super.key});
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 12),
+    child: Text(
+      staffText(
+        'Ожидается чек. При неисправной кассе включите управление с планшета в стоп-листе, затем отметьте «Готов к выдаче».',
+        'Түбіртек күтілуде. Касса істемесе, стоп-парақта планшеттен басқаруды қосып, «Беруге дайын» деп белгілеңіз.',
+        'Waiting for a receipt. If the POS is unavailable, enable tablet control in Stock, then mark the order ready for handover.',
+      ),
+    ),
+  );
+}
+
+class StaffDeferredReceiptNotice extends StatelessWidget {
+  const StaffDeferredReceiptNotice({super.key});
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 12),
+    child: Text(
+      staffText(
+        'Можно выдать заказ. Чек iikoFront нужно оформить после восстановления кассы.',
+        'Тапсырысты беруге болады. Касса қалпына келген соң iikoFront түбіртегін рәсімдеу қажет.',
+        'Ready for handover. Complete the iikoFront receipt once the POS is restored.',
+      ),
+    ),
+  );
+}

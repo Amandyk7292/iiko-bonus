@@ -299,44 +299,40 @@ test('preorder enforces lead time and the selected branch hours', () => {
         env,
         branchHours,
       ),
-    /доступное время/,
+    /24 часа/,
   );
   assert.equal(
     normalizeSchedule(
-      '2026-07-14T09:00:00+05:00',
+      '2026-07-14T18:00:00+05:00',
       'preorder',
       new Date('2026-07-13T13:00:00.000Z'),
       env,
       branchHours,
     ),
-    '2026-07-14T04:00:00.000Z',
+    '2026-07-14T13:00:00.000Z',
   );
 });
 
-test('preorder supports delivery with future slots and delivery tariff', () => {
-  const checkout = validateCheckout(
-    {
-      orderType: 'preorder',
-      preorderFulfillmentType: 'delivery',
-      deliveryAddress: {
-        city: 'Актау',
-        address: '11-й микрорайон, дом 25',
-        latitude: 43.654,
-        longitude: 51.198,
-      },
-      scheduledAt: '2026-07-14T09:00:00+05:00',
-    },
-    cities,
-    { now: new Date('2026-07-13T12:00:00.000Z'), env },
+test('preorder delivery is rejected before quoting or paying', () => {
+  assert.throws(
+    () =>
+      validateCheckout(
+        {
+          orderType: 'preorder',
+          preorderFulfillmentType: 'delivery',
+          deliveryAddress: {
+            city: 'Актау',
+            address: '11-й микрорайон, дом 25',
+            latitude: 43.654,
+            longitude: 51.198,
+          },
+          scheduledAt: '2026-07-14T18:00:00+05:00',
+        },
+        cities,
+        { now: new Date('2026-07-13T12:00:00.000Z'), env },
+      ),
+    /Предзаказ можно забрать только/,
   );
-
-  assert.equal(checkout.orderType, 'preorder');
-  assert.equal(checkout.preorderFulfillmentType, 'delivery');
-  assert.equal(checkout.branchId, primaryBranchId);
-  assert.equal(checkout.deliveryFee, 0);
-  assert.equal('deliveryMinimumOrder' in checkout, false);
-  assert.equal(checkout.deliveryAddress.address, '11-й микрорайон, дом 25');
-  assert.equal(checkout.scheduledAt, '2026-07-14T04:00:00.000Z');
 });
 
 test('preorder pickup remains the default receiving method', () => {
@@ -344,7 +340,7 @@ test('preorder pickup remains the default receiving method', () => {
     {
       orderType: 'preorder',
       branchId: primaryBranchId,
-      scheduledAt: '2026-07-14T09:00:00+05:00',
+      scheduledAt: '2026-07-14T18:00:00+05:00',
     },
     cities,
     { now: new Date('2026-07-13T12:00:00.000Z'), env },
@@ -359,7 +355,7 @@ test('pickup and delivery expose only today while preorder keeps future dates', 
   assert.throws(
     () =>
       normalizeSchedule(
-        '2026-07-14T09:00:00+05:00',
+        '2026-07-14T18:00:00+05:00',
         'pickup',
         new Date('2026-07-13T12:00:00.000Z'),
         env,

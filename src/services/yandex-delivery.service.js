@@ -376,7 +376,11 @@ function cargoItems(order, config, { quote = false } = {}) {
           },
         ];
   return sourceItems.slice(0, 50).map((item, index) => {
-    const quantity = Math.min(99, Math.max(1, Math.round(Number(item.quantity) || 1)));
+    const orderedQuantity = Number(item.quantity) || 1;
+    // Cargo quantities describe packages. A weighed line is one package with
+    // its actual weight and the cost of that entire line, not a rounded kg count.
+    const weighed = Number(item.quantityStep || 1) < 1;
+    const quantity = weighed ? 1 : Math.min(99, Math.max(1, Math.round(orderedQuantity)));
     const size = {
       length: Number(item.deliveryLengthM || item.lengthM) || config.defaultItem.length,
       width: Number(item.deliveryWidthM || item.widthM) || config.defaultItem.width,
@@ -384,7 +388,9 @@ function cargoItems(order, config, { quote = false } = {}) {
     };
     const base = {
       size,
-      weight: Number(item.deliveryWeightKg || item.weightKg) || config.defaultItem.weight,
+      weight: weighed
+        ? orderedQuantity
+        : Number(item.deliveryWeightKg || item.weightKg) || config.defaultItem.weight,
       quantity,
       pickup_point: 1,
       ...(quote ? { dropoff_point: 2 } : { droppof_point: 2 }),
@@ -397,7 +403,9 @@ function cargoItems(order, config, { quote = false } = {}) {
       ),
       ...base,
       title: boundedString(item.name || item.title || `Позиция ${index + 1}`, 200),
-      cost_value: money(item.price),
+      cost_value: money(
+        weighed ? (item.lineTotal ?? Math.round(Number(item.price) * orderedQuantity)) : item.price,
+      ),
       cost_currency: 'KZT',
       age_restricted: false,
     };
@@ -2920,6 +2928,16 @@ async function dispatchBusinessOrder(order, options, config) {
 async function dispatchOrder(orderId, options = {}) {
   const config = getConfig();
   const order = await readOrder(orderId);
+  if (!isDeliveryFulfillment(order)) {
+    throw deliveryError('Курьер нужен только для доставки', 409, 'ORDER_NOT_DELIVERY');
+  }
+  if (order.courier_dispatch_status === 'awaiting_receipt') {
+    throw deliveryError(
+      'Вызов курьера ожидает подтверждения кассового чека',
+      409,
+      'FRONT_RECEIPT_REQUIRED',
+    );
+  }
   const existing = await findActiveJob(order.id);
   const apiFamily = existing?.api_family || config.apiMode;
   assertConfigured(config, apiFamily);

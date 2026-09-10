@@ -320,7 +320,7 @@ extension _CatalogInteractionController on _CatalogScreenState {
     publishClientRoute(_pendingClientUri!);
   }
 
-  Future<void> _setProductQuantity(CatalogProduct product, int quantity) async {
+  Future<void> _setProductQuantity(CatalogProduct product, num quantity) async {
     if (product.isStopListed) return;
     final next = quantity.clamp(0, _catalogProductQuantityLimit(product));
     final cart = context.read<CartProvider>();
@@ -348,6 +348,8 @@ extension _CatalogInteractionController on _CatalogScreenState {
           price: product.price,
           imageUrl: product.imageUrl,
           isStopListed: product.isStopListed,
+          quantityStep: product.quantityStep,
+          unit: product.unit,
         );
         _api.trackEvent(
           'add_to_cart',

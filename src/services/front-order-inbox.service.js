@@ -14,20 +14,21 @@ async function pollFrontOrders(branchId, { terminalId }) {
   return data;
 }
 
-async function listFrontOrders(branchId, { page = 1, peek = false } = {}) {
+async function listFrontOrders(branchId, { page = 1, peek = false, receipts = false } = {}) {
   let query = supabase
     .from('kaspi_orders')
     .select(
       peek
         ? 'id,order_number'
-        : 'id,order_number,phone,cart_items,amount,subtotal,discount_amount,delivery_fee,fulfillment_type,preorder_fulfillment_type,fulfillment_status,scheduled_at,comment,delivery_address,customers(name,phone)',
+        : 'id,order_number,phone,cart_items,amount,subtotal,discount_amount,delivery_fee,fulfillment_type,preorder_fulfillment_type,fulfillment_status,pos_receipt_due,scheduled_at,comment,delivery_address,customers(name,phone)',
       { count: 'exact' },
     )
     .eq('branch_id', branchId)
     .eq('status', 'paid')
-    .in('fulfillment_status', ['new'])
+    .in('fulfillment_status', receipts && !peek ? ['preparing', 'ready', 'completed'] : ['new'])
     .is('refund_status', null)
     .order('created_at', { ascending: true });
+  if (receipts && !peek) query = query.eq('pos_receipt_due', true);
   query = peek ? query.limit(1) : query.range((page - 1) * 25, page * 25 - 1);
   const { data, error, count } = await query;
   if (error) throw error;
@@ -45,13 +46,15 @@ async function listFrontOrders(branchId, { page = 1, peek = false } = {}) {
             items: (order.cart_items || []).map((item) => ({
               name: String(item.name || item.productName || ''),
               quantity: Number(item.quantity || 0),
+              unit: item.unit || 'шт.',
             })),
             orderType: order.fulfillment_type,
-            preorderType: order.preorder_fulfillment_type,
+            preorderType: order.fulfillment_type === 'preorder' ? 'pickup' : null,
             scheduledAt: order.scheduled_at,
             amount: Number(order.amount),
             deliveryFee: Number(order.delivery_fee || 0),
             comment: order.comment || '',
+            posReceiptDue: Boolean(order.pos_receipt_due),
           },
     ),
   };

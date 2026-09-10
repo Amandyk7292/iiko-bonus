@@ -26,7 +26,6 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   final _promoController = TextEditingController();
   final _commentController = TextEditingController();
   _OrderType _orderType = _OrderType.pickup;
-  _OrderType _preorderFulfillment = _OrderType.pickup;
   String _branch = '';
   String? _branchId;
   String? _explicitDeliveryBranchId;
@@ -61,9 +60,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   String _checkoutId = _newCheckoutId();
 
   bool get _isPreorder => _orderType == _OrderType.preorder;
-  bool get _usesDelivery =>
-      _orderType == _OrderType.delivery ||
-      (_isPreorder && _preorderFulfillment == _OrderType.delivery);
+  bool get _usesDelivery => _orderType == _OrderType.delivery;
   String _draftKey(String base) =>
       customerPreferenceKey(base, widget.api.sessionCacheScope);
   void _updateCheckoutState(VoidCallback update) => setState(update);
@@ -241,10 +238,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
     final prefs = await SharedPreferences.getInstance();
     await Future.wait([
       prefs.setString('selected_order_type', _orderType.wireValue),
-      prefs.setString(
-        _draftKey('checkout_preorder_fulfillment'),
-        _preorderFulfillment.wireValue,
-      ),
+      prefs.setString(_draftKey('checkout_preorder_fulfillment'), 'pickup'),
       prefs.setString(_draftKey('checkout_phone'), _phoneController.text),
       prefs.setString(_draftKey('checkout_promo'), _promoController.text),
       prefs.setString(_draftKey('checkout_comment'), _commentController.text),
@@ -315,22 +309,6 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
 
   BakeryLocation? get _effectiveLocation =>
       _usesDelivery ? _deliveryBranchLocation : _selectedBranchLocation;
-
-  Future<void> _setPreorderFulfillment(_OrderType value) async {
-    if (!_isPreorder || value == _preorderFulfillment) return;
-    _quoteRevision++;
-    setState(() {
-      _preorderFulfillment = value;
-      _scheduledSlot = null;
-      _discount = 0;
-      _deliveryFee = 0;
-      _quotedTotal = null;
-      _quoteError = null;
-      _etaQuote = null;
-      _isQuoting = false;
-    });
-    await _persistDraft();
-  }
 
   @override
   void dispose() {
@@ -553,9 +531,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       final quote = await widget.api.quoteForteOrder(
         cartItems: widget.cartItems,
         orderType: _orderType.wireValue,
-        preorderFulfillmentType: _isPreorder
-            ? _preorderFulfillment.wireValue
-            : null,
+        preorderFulfillmentType: _isPreorder ? 'pickup' : null,
         branch: _usesDelivery ? null : _branch,
         branchId: _usesDelivery ? null : _branchId,
         scheduledAt: _scheduledSlot?.value,
@@ -734,9 +710,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
           useBonuses: _useBonuses,
           bonusSpent: _bonusSpent,
           deliveryQuoteToken: _deliveryQuoteToken,
-          preorderFulfillmentType: _isPreorder
-              ? _preorderFulfillment.wireValue
-              : null,
+          preorderFulfillmentType: _isPreorder ? 'pickup' : null,
           branch: _usesDelivery ? null : _branch,
           branchId: _usesDelivery ? null : _branchId,
           scheduledAt: _scheduledSlot!.value,

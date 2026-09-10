@@ -30,6 +30,15 @@ class _CashierWorkspaceState extends State<CashierWorkspace>
   bool _loading = true, _signingOut = false;
   String? _error;
   String _branchName = '';
+  Map<String, int> _counts = const {};
+
+  void _updateCounts(Map<String, int> counts) {
+    if (!mounted ||
+        counts.entries.every((entry) => _counts[entry.key] == entry.value)) {
+      return;
+    }
+    setState(() => _counts = counts);
+  }
 
   @override
   void initState() {
@@ -209,10 +218,12 @@ class _CashierWorkspaceState extends State<CashierWorkspace>
                       key: ValueKey('cashier-kitchen:${widget.api.scopeKey}'),
                       api: widget.api,
                       canEdit: true,
+                      onCounters: _updateCounts,
                     ),
                     CashierCatalog(
                       key: ValueKey('cashier-catalog:${widget.api.scopeKey}'),
                       api: widget.api,
+                      pendingPreorders: _counts['preorders'] ?? 0,
                     ),
                   ],
                 ),
@@ -235,11 +246,29 @@ class _CashierWorkspaceState extends State<CashierWorkspace>
             },
             destinations: [
               NavigationDestination(
-                icon: const Icon(Icons.receipt_long_outlined),
+                icon: StaffCountBadge(
+                  key: const ValueKey('cashier-orders-count'),
+                  count: _counts['newOrders'] ?? 0,
+                  label: staffText(
+                    'Непринятые заказы',
+                    'Қабылданбаған тапсырыстар',
+                    'Unaccepted orders',
+                  ),
+                  child: const Icon(Icons.receipt_long_outlined),
+                ),
                 label: orders,
               ),
               NavigationDestination(
-                icon: const Icon(Icons.soup_kitchen_outlined),
+                icon: StaffCountBadge(
+                  key: const ValueKey('cashier-kitchen-count'),
+                  count: _counts['preparing'] ?? 0,
+                  label: staffText(
+                    'Ещё не готовы',
+                    'Әлі дайын емес',
+                    'Not ready yet',
+                  ),
+                  child: const Icon(Icons.soup_kitchen_outlined),
+                ),
                 label: kitchen,
               ),
               NavigationDestination(

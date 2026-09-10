@@ -29,8 +29,7 @@ class StaffOrderAmounts extends StatelessWidget {
     final hasDelivery =
         deliveryFee > 0 ||
         order['effectiveFulfillmentType'] == 'delivery' ||
-        type == 'delivery' ||
-        (type == 'preorder' && order['preorderFulfillmentType'] == 'delivery');
+        type == 'delivery';
     return Column(
       children: [
         _OrderInfoRow(
@@ -740,6 +739,10 @@ class _StaffOrderDetailState extends State<StaffOrderDetail> {
             if (_error != null)
               _StaffError(message: _error!, onRetry: _refresh),
             StaffOrderAmounts(order: _order),
+            if (_order['courierDispatchStatus'] == 'awaiting_receipt')
+              const StaffReceiptDispatchNotice(),
+            if (_order['posReceiptDue'] == true)
+              const StaffDeferredReceiptNotice(),
             const SizedBox(height: 12),
             StaffFacts({
               staffText('Оплата', 'Төлем', 'Payment'): staffStatus(
@@ -996,9 +999,14 @@ class _StaffRefundState extends State<StaffRefund> {
       final quantity = num.tryParse(
         _quantities['${line['lineKey']}']!.text.replaceAll(',', '.'),
       );
+      final step = (line['quantityStep'] as num?) ?? 1;
+      final scaled = quantity == null || !quantity.isFinite
+          ? 0
+          : (quantity * 1000).round();
       if (quantity == null ||
           !quantity.isFinite ||
-          quantity != quantity.roundToDouble() ||
+          (quantity * 1000 - scaled).abs() > 0.000001 ||
+          scaled % (step * 1000).round().clamp(1, 1000) != 0 ||
           quantity < 0 ||
           quantity > (line['refundableQuantity'] as num)) {
         throw Exception(

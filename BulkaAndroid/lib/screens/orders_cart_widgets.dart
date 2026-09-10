@@ -109,6 +109,7 @@ class _CartProductCard extends StatelessWidget {
                 ),
                 _CartQuantityStepper(
                   quantity: item.quantity,
+                  unit: item.quantityStep < 1 ? item.unit : '',
                   onDecrease: onDecrease,
                   onIncrease: onIncrease,
                 ),
@@ -126,9 +127,11 @@ class _CartQuantityStepper extends StatelessWidget {
     required this.quantity,
     required this.onDecrease,
     required this.onIncrease,
+    this.unit = '',
   });
 
-  final int quantity;
+  final num quantity;
+  final String unit;
   final VoidCallback onDecrease;
   final VoidCallback? onIncrease;
 
@@ -152,11 +155,11 @@ class _CartQuantityStepper extends StatelessWidget {
           ),
           Semantics(
             label: 'cart_quantity'.tr,
-            value: '$quantity',
+            value: '${productQuantityText(quantity)} $unit',
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               child: Text(
-                '$quantity',
+                '${productQuantityText(quantity)}${unit.isEmpty ? '' : ' $unit'}',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   fontFamily: _headingFont,

@@ -284,7 +284,8 @@ async function validateCartOptions(items) {
     const unitPrice = Number(item.price) + Number(builder?.priceDelta || 0) + modifiers.priceDelta;
     if (!Number.isSafeInteger(unitPrice) || unitPrice <= 0)
       throw optionError('Некорректная цена опций');
-    subtotal += unitPrice * Number(item.quantity);
+    const lineTotal = Math.round(unitPrice * Number(item.quantity));
+    subtotal += lineTotal;
     const selectionPayload = {
       configuration: builder,
       modifiers: modifiers.groups,
@@ -296,6 +297,7 @@ async function validateCartOptions(items) {
       .slice(0, 24);
     return {
       ...item,
+      lineTotal,
       price: unitPrice,
       basePrice: Number(item.price),
       lineKey,

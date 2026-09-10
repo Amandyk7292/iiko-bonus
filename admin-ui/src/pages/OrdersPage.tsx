@@ -38,10 +38,9 @@ const paymentBadgeStatus = (order: AdminOrder) =>
 
 const isPreorder = (order: AdminOrder) => (order.orderType ?? order.fulfillmentType) === 'preorder';
 const fulfillmentType = (order: AdminOrder) =>
-  order.effectiveFulfillmentType ??
-  (isPreorder(order)
-    ? (order.preorderFulfillmentType ?? 'pickup')
-    : (order.orderType ?? order.fulfillmentType ?? 'pickup'));
+  isPreorder(order)
+    ? 'pickup'
+    : (order.effectiveFulfillmentType ?? order.orderType ?? order.fulfillmentType ?? 'pickup');
 
 export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
   const { t, formatDate, formatNumber } = useI18n();
@@ -361,6 +360,11 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
                     <td data-label={t('orders.number')}>
                       <div className="order-cell-content">
                         <strong>№{order.number}</strong>
+                        {order.posReceiptDue && (
+                          <span className="status-pill status-warning">
+                            {t('kitchen.receiptDue')}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td data-label={t('common.date')} className="tabular">

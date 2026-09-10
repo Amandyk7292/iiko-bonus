@@ -44,7 +44,7 @@ class OrderSubstitution {
 
   final String id;
   final String productName;
-  final int quantity;
+  final num quantity;
   final String action;
   final String status;
   final String? replacementProductName;
@@ -55,7 +55,7 @@ class OrderSubstitution {
       OrderSubstitution(
         id: _asString(json['id']),
         productName: _asString(json['productName']),
-        quantity: _asInt(json['quantity'], fallback: 1),
+        quantity: json['quantity'] as num? ?? 1,
         action: _asString(json['action']),
         status: _asString(json['status']),
         replacementProductName: _nullableString(json['replacementProductName']),
@@ -209,7 +209,10 @@ class CustomerOrder {
         json['fulfillmentType'] ?? json['orderType'],
         fallback: 'pickup',
       ),
-      preorderFulfillmentType: _nullableString(json['preorderFulfillmentType']),
+      preorderFulfillmentType:
+          (json['fulfillmentType'] ?? json['orderType']) == 'preorder'
+          ? 'pickup'
+          : _nullableString(json['preorderFulfillmentType']),
       effectiveFulfillmentType: _nullableString(
         json['effectiveFulfillmentType'],
       ),
@@ -260,11 +263,9 @@ class CustomerOrder {
   }
 
   String get effectiveFulfillmentType {
+    if (fulfillmentType == 'preorder') return 'pickup';
     final fromApi = _effectiveFulfillmentType;
     if (fromApi == 'pickup' || fromApi == 'delivery') return fromApi!;
-    if (fulfillmentType == 'preorder') {
-      return preorderFulfillmentType == 'delivery' ? 'delivery' : 'pickup';
-    }
     return fulfillmentType == 'delivery' ? 'delivery' : 'pickup';
   }
 

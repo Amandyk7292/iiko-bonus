@@ -6,9 +6,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class StockApi extends StaffApiClient {
-  StockApi({this.largeCatalog = false, this.frontConnected = false});
+  StockApi({
+    this.largeCatalog = false,
+    this.frontConnected = false,
+    this.showCounters = false,
+  });
   final bool largeCatalog;
   final bool frontConnected;
+  final bool showCounters;
   bool manual = true;
   final changes = <Map<String, dynamic>>[];
   final eventsFeed = StreamController<Map<String, dynamic>>.broadcast();
@@ -114,7 +119,12 @@ class StockApi extends StaffApiClient {
         ],
       };
     }
-    return {'orders': [], 'total': 0};
+    return {
+      'orders': [],
+      'total': 0,
+      if (showCounters)
+        'counters': {'newOrders': 7, 'preparing': 3, 'preorders': 2},
+    };
   }
 }
 
@@ -131,6 +141,43 @@ void main() {
     SharedPreferences.setMockInitialValues({'staffKitchenSound': false});
     appLanguageNotifier.value = 'ru';
   });
+  testWidgets('cashier badges remain legible above the full stock list', (
+    tester,
+  ) async {
+    final api = StockApi(largeCatalog: true, showCounters: true);
+    addTearDown(api.eventsFeed.close);
+    addTearDown(api.close);
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: staffTheme().copyWith(
+          textTheme: ThemeData(fontFamily: 'Montserrat').textTheme,
+        ),
+        home: RepaintBoundary(
+          key: const ValueKey('badge-preview'),
+          child: CashierWorkspace(
+            api: api,
+            user: const {'role': 'cashier'},
+            onLogout: () async {},
+            nativePushEnabled: false,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Стоп-лист').last);
+    await tester.pumpAndSettle();
+    await expectLater(
+      find.byKey(const ValueKey('badge-preview')),
+      matchesGoldenFile('goldens/cashier-order-badges.png'),
+    );
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('cashier stock saves quantity, streams changes and stays white', (
     tester,
   ) async {

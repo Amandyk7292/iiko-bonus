@@ -421,9 +421,12 @@ const en: Record<string, string> = {
   'broadcast.confirmTitle': 'Send a push notification to all customers?',
   'broadcast.confirmBody': 'The broadcast cannot be recalled after confirmation.',
   'broadcast.sent': 'Notification sent. Recipients: {{count}}.',
-  'broadcast.noRecipients': 'Push was not sent: no customer devices are available. Sign in to the app with a phone number and allow notifications. The message was saved in the app inbox.',
-  'broadcast.failed': 'Push was not sent: the delivery service rejected the devices. Open the app to refresh notification registration. The message was saved in the app inbox.',
-  'broadcast.queued': 'Accepted by the delivery service: {{count}}. Waiting for a retry: {{queuedCount}}.',
+  'broadcast.noRecipients':
+    'Push was not sent: no customer devices are available. Sign in to the app with a phone number and allow notifications. The message was saved in the app inbox.',
+  'broadcast.failed':
+    'Push was not sent: the delivery service rejected the devices. Open the app to refresh notification registration. The message was saved in the app inbox.',
+  'broadcast.queued':
+    'Accepted by the delivery service: {{count}}. Waiting for a retry: {{queuedCount}}.',
   'broadcast.partial': 'Accepted by the delivery service: {{count}}. Some devices are unavailable.',
   'broadcast.validation': 'Enter the title and message in Russian, Kazakh, and English.',
   'customers.export': 'Export CSV',
@@ -658,8 +661,7 @@ const en: Record<string, string> = {
   'locations.hoursInvalid': 'Enter time in HH:MM format.',
   'locations.coordinatesInvalid': 'Select a valid branch point on the map.',
   'locations.mapManagement': 'Map location',
-  'locations.mapManagementHint':
-    'Drag the branch marker or click the correct building on the map.',
+  'locations.mapManagementHint': 'Drag the branch marker or click the correct building on the map.',
   'locations.posTitle': 'POS plugin key',
   'locations.posHint':
     'This key links the iiko plugin to this branch. The secret is shown only once.',
@@ -701,7 +703,8 @@ const en: Record<string, string> = {
   'orders.bonusSpent': 'Paid with bonuses',
   'orders.deliveryFee': 'Delivery',
   'orders.grandTotal': 'Total',
-  'orders.cancelCourierAutomatically': 'The dispatched courier will be cancelled automatically before the order is cancelled.',
+  'orders.cancelCourierAutomatically':
+    'The dispatched courier will be cancelled automatically before the order is cancelled.',
   'orders.item': 'Item',
   'orders.empty': 'No orders yet',
   'orders.emptyHint': 'An online-paid order will appear here.',
@@ -983,7 +986,8 @@ const en: Record<string, string> = {
   'marketing.editPromo': 'Edit promo code',
   'marketing.promoType': 'Promotion type',
   'marketing.freeDelivery': 'Free delivery',
-  'marketing.freeDeliveryHint': 'The customer pays nothing for delivery. The courier is paid from Bulka’s Yandex Business account.',
+  'marketing.freeDeliveryHint':
+    'The customer pays nothing for delivery. The courier is paid from Bulka’s Yandex Business account.',
   'marketing.additionalConditions': 'Additional conditions',
   'marketing.conditionsConfigured': 'Configured',
   'marketing.discountType': 'Discount type',
@@ -1188,7 +1192,8 @@ const en: Record<string, string> = {
   'inventory.stop': 'Stop list',
   'inventory.source': 'Source',
   'inventory.saved': 'Inventory saved',
-  'inventory.quantityInvalid': 'Enter an integer from 0 to 100000.',
+  'inventory.quantityInvalid':
+    'Enter stock from 0 to 100000: whole units or weight with up to three decimal places.',
   'inventory.preparationInvalid': 'Enter a preparation time from 1 to 240 minutes.',
   'inventory.empty': 'No inventory yet',
   'inventory.emptyHint': 'Run iiko synchronization to create branch inventory.',
@@ -1342,6 +1347,9 @@ const en: Record<string, string> = {
   'kitchen.dispatch.processing': 'Searching for a car courier',
   'kitchen.dispatch.retrying': 'Retrying the car courier search',
   'kitchen.dispatch.awaiting_confirmation': 'Waiting for dispatcher price confirmation',
+  'kitchen.dispatch.awaiting_receipt':
+    'Waiting for the POS receipt. Courier has not been requested yet.',
+  'kitchen.receiptDue': 'Complete the receipt when the POS is restored',
   'kitchen.dispatch.succeeded': 'Request sent to the delivery provider',
   'kitchen.dispatch.failed': 'Could not request a car courier',
   'kitchen.dispatch.provider': 'Provider: {{provider}}',

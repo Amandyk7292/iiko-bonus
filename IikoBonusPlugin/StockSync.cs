@@ -23,7 +23,9 @@ namespace Resto.Front.Api.IikoBonusPlugin
     {
         [DataMember(Name = "productId")] public string ProductId { get; set; }
         [DataMember(Name = "productName")] public string ProductName { get; set; }
-        [DataMember(Name = "quantity")] public int Quantity { get; set; }
+        [DataMember(Name = "quantity")] public decimal Quantity { get; set; }
+        [DataMember(Name = "quantityStep")] public decimal QuantityStep { get; set; } = 1m;
+        [DataMember(Name = "unit")] public string Unit { get; set; } = "шт";
     }
 
     internal sealed class StockSync : IDisposable, IObserver<VoidValue>
@@ -80,7 +82,9 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     {
                         ProductId = entries.Key.ToString(),
                         ProductName = name.Length > 160 ? name.Substring(0, 160) : name,
-                        Quantity = (int)Math.Min(100000m, Math.Max(0m, decimal.Floor(quantity)))
+                        Quantity = decimal.Truncate(Math.Min(100000m, Math.Max(0m, quantity))*1000m)/1000m,
+                        QuantityStep = first.Key.Product.UseBalanceForSell ? 0.001m : 1m,
+                        Unit = first.Key.Product.MeasuringUnit?.Name ?? (first.Key.Product.UseBalanceForSell ? "кг" : "шт")
                     };
                 }).OrderBy(item => item.ProductId).ToList();
                 // Never truncate a full snapshot: omission means unlimited stock.

@@ -70,6 +70,9 @@ async function dispatchAcceptedDeliveryOrder(order, { yandexDelivery, dispatchSe
   if (!order.courier_dispatch_requested_at) {
     return { skipped: true, reason: 'not_accepted' };
   }
+  if (order.courier_dispatch_status === 'awaiting_receipt') {
+    return { skipped: true, reason: 'awaiting_receipt' };
+  }
   if (
     order.courier_id ||
     !['', 'unassigned'].includes(String(order.delivery_status || 'unassigned')) ||
@@ -138,6 +141,9 @@ async function processDeliveryDispatch(orderId, dependencies = {}) {
   if (!current.courier_dispatch_requested_at) {
     return { skipped: true, reason: 'not_accepted' };
   }
+  if (current.courier_dispatch_status === 'awaiting_receipt') {
+    return { skipped: true, reason: 'awaiting_receipt' };
+  }
   if (current.courier_dispatch_completed_at || current.courier_dispatch_status === 'succeeded') {
     return { skipped: true, reason: 'already_completed' };
   }
@@ -172,6 +178,9 @@ async function processDeliveryDispatch(orderId, dependencies = {}) {
     .maybeSingle();
   if (claimError) throw claimError;
   if (!claimed) return { skipped: true, reason: 'already_processing' };
+  if (claimed.courier_dispatch_status === 'awaiting_receipt') {
+    return { skipped: true, reason: 'awaiting_receipt' };
+  }
 
   try {
     const result = await dispatchAcceptedDeliveryOrder(claimed, dependencies);

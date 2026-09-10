@@ -24,13 +24,6 @@ extension _CheckoutScreenLayout on _CheckoutScreenState {
                     const SizedBox(height: 14),
                     const _OnlineOrderingDisabledNotice(),
                   ],
-                  if (_isPreorder) ...[
-                    const SizedBox(height: 14),
-                    _PreorderFulfillmentSelector(
-                      value: _preorderFulfillment,
-                      onChanged: _setPreorderFulfillment,
-                    ),
-                  ],
                   if (_deliveryUnavailable) ...[
                     const SizedBox(height: 10),
                     const _CheckoutDeliveryUnavailable(),

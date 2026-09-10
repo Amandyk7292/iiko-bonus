@@ -178,6 +178,11 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'kk': 'Уақытты таңдаңыз',
     'en': 'Select a time',
   },
+  'checkout_preorder_pickup_only': {
+    'ru': 'Самовывоз из выбранного филиала',
+    'kk': 'Таңдалған филиалдан алып кету',
+    'en': 'Pickup at the selected branch',
+  },
   'checkout_catalog_locked': {
     'ru': 'Ассортимент выбран для этого типа заказа',
     'kk': 'Ассортимент осы тапсырыс түріне таңдалды',

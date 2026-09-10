@@ -81,11 +81,12 @@ async function listAvailableSlots({ branchId, orderType, days = 7, now = new Dat
   const capacity = capacityFor(location, orderType);
   const lead = Number.parseInt(
     orderType === 'preorder'
-      ? process.env.PREORDER_MIN_LEAD_MINUTES || '120'
+      ? process.env.PREORDER_MIN_LEAD_MINUTES || '1440'
       : process.env.ORDER_MIN_LEAD_MINUTES || '10',
     10,
   );
-  const earliest = now.getTime() + Math.max(0, lead) * 60000;
+  const floor = orderType === 'preorder' ? 1440 : 0;
+  const earliest = now.getTime() + Math.max(floor, Number.isFinite(lead) ? lead : 10) * 60000;
   const dayKeys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
   const slots = [];
 

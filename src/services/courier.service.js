@@ -638,6 +638,13 @@ async function assignCourier(
     throw courierError('Заказ не найден', 404);
   }
   if (!isDeliveryFulfillment(order)) throw courierError('Курьер нужен только для доставки');
+  if (order.courier_dispatch_status === 'awaiting_receipt') {
+    throw courierError(
+      'Вызов курьера ожидает подтверждения кассового чека',
+      409,
+      'FRONT_RECEIPT_REQUIRED',
+    );
+  }
   if (order.status !== 'paid') throw courierError('Назначить курьера можно после оплаты', 409);
   if (
     !order.courier_dispatch_requested_at &&

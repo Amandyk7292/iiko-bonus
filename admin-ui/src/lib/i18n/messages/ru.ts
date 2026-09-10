@@ -432,9 +432,12 @@ const ru: Record<string, string> = {
   'broadcast.confirmTitle': 'Отправить push всем клиентам?',
   'broadcast.confirmBody': 'После подтверждения отменить рассылку будет невозможно.',
   'broadcast.sent': 'Уведомление отправлено. Получателей: {{count}}.',
-  'broadcast.noRecipients': 'Push не отправлен: нет доступных устройств клиентов. Войдите в приложение по номеру телефона и разрешите уведомления. Сообщение сохранено в уведомлениях приложения.',
-  'broadcast.failed': 'Push не отправлен: сервис отправки отклонил устройства. Откройте приложение, чтобы обновить регистрацию уведомлений. Сообщение сохранено в приложении.',
-  'broadcast.queued': 'Передано сервису отправки: {{count}}. Ожидают повторной попытки: {{queuedCount}}.',
+  'broadcast.noRecipients':
+    'Push не отправлен: нет доступных устройств клиентов. Войдите в приложение по номеру телефона и разрешите уведомления. Сообщение сохранено в уведомлениях приложения.',
+  'broadcast.failed':
+    'Push не отправлен: сервис отправки отклонил устройства. Откройте приложение, чтобы обновить регистрацию уведомлений. Сообщение сохранено в приложении.',
+  'broadcast.queued':
+    'Передано сервису отправки: {{count}}. Ожидают повторной попытки: {{queuedCount}}.',
   'broadcast.partial': 'Передано сервису отправки: {{count}}. Часть устройств недоступна.',
   'broadcast.validation': 'Заполните заголовок и текст на русском, казахском и английском.',
   'customers.export': 'Экспорт CSV',
@@ -669,8 +672,7 @@ const ru: Record<string, string> = {
   'locations.hoursInvalid': 'Введите время в формате ЧЧ:ММ.',
   'locations.coordinatesInvalid': 'Выберите корректную точку филиала на карте.',
   'locations.mapManagement': 'Точка на карте',
-  'locations.mapManagementHint':
-    'Перетащите метку филиала или нажмите на нужное здание на карте.',
+  'locations.mapManagementHint': 'Перетащите метку филиала или нажмите на нужное здание на карте.',
   'locations.posTitle': 'Ключ кассового плагина',
   'locations.posHint':
     'Ключ связывает плагин iiko с этим филиалом. Секрет показывается только один раз.',
@@ -712,7 +714,8 @@ const ru: Record<string, string> = {
   'orders.bonusSpent': 'Списано бонусами',
   'orders.deliveryFee': 'Доставка',
   'orders.grandTotal': 'Итого',
-  'orders.cancelCourierAutomatically': 'Вызванный курьер будет отменён автоматически перед отменой заказа.',
+  'orders.cancelCourierAutomatically':
+    'Вызванный курьер будет отменён автоматически перед отменой заказа.',
   'orders.item': 'Товар',
   'orders.empty': 'Заказов пока нет',
   'orders.emptyHint': 'После онлайн-оплаты заказ появится здесь.',
@@ -995,7 +998,8 @@ const ru: Record<string, string> = {
   'marketing.editPromo': 'Редактирование промокода',
   'marketing.promoType': 'Тип промокода',
   'marketing.freeDelivery': 'Бесплатная доставка',
-  'marketing.freeDeliveryHint': 'Покупатель не платит за доставку. Курьер оплачивается со счёта Bulka в Яндекс Бизнес.',
+  'marketing.freeDeliveryHint':
+    'Покупатель не платит за доставку. Курьер оплачивается со счёта Bulka в Яндекс Бизнес.',
   'marketing.additionalConditions': 'Дополнительные условия',
   'marketing.conditionsConfigured': 'Настроены',
   'marketing.discountType': 'Тип скидки',
@@ -1202,7 +1206,8 @@ const ru: Record<string, string> = {
   'inventory.stop': 'Стоп-лист',
   'inventory.source': 'Источник',
   'inventory.saved': 'Остаток сохранён',
-  'inventory.quantityInvalid': 'Введите целое число от 0 до 100000.',
+  'inventory.quantityInvalid':
+    'Введите остаток от 0 до 100000: целые штуки или вес до трёх знаков после запятой.',
   'inventory.preparationInvalid': 'Введите время от 1 до 240 минут.',
   'inventory.empty': 'Остатков пока нет',
   'inventory.emptyHint': 'Нажмите «Синхронизировать с iiko», чтобы создать остатки по филиалам.',
@@ -1358,6 +1363,8 @@ const ru: Record<string, string> = {
   'kitchen.dispatch.processing': 'Ищем автокурьера',
   'kitchen.dispatch.retrying': 'Повторяем поиск автокурьера',
   'kitchen.dispatch.awaiting_confirmation': 'Ожидается подтверждение цены диспетчером',
+  'kitchen.dispatch.awaiting_receipt': 'Ожидается кассовый чек. Курьер ещё не вызван.',
+  'kitchen.receiptDue': 'Оформить чек после восстановления кассы',
   'kitchen.dispatch.succeeded': 'Заявка передана службе доставки',
   'kitchen.dispatch.failed': 'Не удалось вызвать автокурьера',
   'kitchen.dispatch.provider': 'Служба: {{provider}}',

@@ -106,10 +106,12 @@ class _ProductPurchaseBar extends StatelessWidget {
     required this.onAdd,
     required this.onDecrease,
     required this.onIncrease,
+    this.unit = '',
   });
 
   final int price;
-  final int quantity;
+  final num quantity;
+  final String unit;
   final bool disabled;
   final bool stopListed;
   final VoidCallback onAdd;
@@ -120,7 +122,7 @@ class _ProductPurchaseBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.bulkaColors;
     final priceText = Text(
-      '${formatUiInteger(context, price)} ₸',
+      '${formatUiInteger(context, price)} ₸${unit.isEmpty ? '' : ' / $unit'}',
       style: const TextStyle(
         fontFamily: _descriptionFont,
         fontSize: BulkaTypeScale.titleSmall,
@@ -162,6 +164,7 @@ class _ProductPurchaseBar extends StatelessWidget {
                   Expanded(child: priceText),
                   _CatalogImageQuantityControl(
                     quantity: quantity,
+                    unit: unit,
                     stopListed: disabled,
                     onAdd: onAdd,
                     onDecrease: onDecrease,

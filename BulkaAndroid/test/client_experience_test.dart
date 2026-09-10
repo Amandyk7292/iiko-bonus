@@ -88,7 +88,7 @@ void main() {
   });
 
   test(
-    'preorder delivery keeps its actual receiving method and delivery ETA',
+    'preorder always uses pickup readiness despite obsolete delivery fields',
     () {
       final estimatedDeliveryAt = DateTime.utc(2026, 7, 30, 14, 40);
       final promisedReadyAt = DateTime.utc(2026, 7, 30, 14, 10);
@@ -113,33 +113,30 @@ void main() {
       });
 
       expect(order.fulfillmentType, 'preorder');
-      expect(order.preorderFulfillmentType, 'delivery');
-      expect(order.effectiveFulfillmentType, 'delivery');
-      expect(order.usesDelivery, isTrue);
-      expect(order.eta, estimatedDeliveryAt);
+      expect(order.preorderFulfillmentType, 'pickup');
+      expect(order.effectiveFulfillmentType, 'pickup');
+      expect(order.usesDelivery, isFalse);
+      expect(order.eta, promisedReadyAt);
 
       final restored = CustomerOrder.fromJson(order.toJson());
-      expect(restored.preorderFulfillmentType, 'delivery');
-      expect(restored.effectiveFulfillmentType, 'delivery');
-      expect(restored.eta, estimatedDeliveryAt);
+      expect(restored.preorderFulfillmentType, 'pickup');
+      expect(restored.effectiveFulfillmentType, 'pickup');
+      expect(restored.eta, promisedReadyAt);
     },
   );
 
-  test(
-    'legacy preorder derives pickup or delivery without the new API field',
-    () {
-      final delivery = CustomerOrder.fromJson({
-        'fulfillmentType': 'preorder',
-        'preorderFulfillmentType': 'delivery',
-      });
-      final pickup = CustomerOrder.fromJson({'fulfillmentType': 'preorder'});
+  test('legacy preorder defaults to pickup', () {
+    final delivery = CustomerOrder.fromJson({
+      'fulfillmentType': 'preorder',
+      'preorderFulfillmentType': 'delivery',
+    });
+    final pickup = CustomerOrder.fromJson({'fulfillmentType': 'preorder'});
 
-      expect(delivery.effectiveFulfillmentType, 'delivery');
-      expect(delivery.usesDelivery, isTrue);
-      expect(pickup.effectiveFulfillmentType, 'pickup');
-      expect(pickup.usesDelivery, isFalse);
-    },
-  );
+    expect(delivery.effectiveFulfillmentType, 'pickup');
+    expect(delivery.usesDelivery, isFalse);
+    expect(pickup.effectiveFulfillmentType, 'pickup');
+    expect(pickup.usesDelivery, isFalse);
+  });
 
   test('notification settings serialize all customer choices', () {
     const preferences = NotificationPreferences(

@@ -1341,7 +1341,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             }
         }
 
-        private static IDiscountType FindLoyaltyDiscountType(IOperationService os)
+        internal static IDiscountType FindLoyaltyDiscountType(IOperationService os)
         {
             var discountTypes = os.GetDiscountTypes().Where(d => d != null).ToList();
             Guid configuredId;

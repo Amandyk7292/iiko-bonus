@@ -214,7 +214,16 @@ export default function InventoryPage({ role = 'viewer' }: { role?: string }) {
     const draft = explicitDraft ?? draftsRef.current[key];
     if (!draft || savingId) return;
     const quantity = draft.quantity.trim() === '' ? null : Number(draft.quantity);
-    if (quantity != null && (!Number.isInteger(quantity) || quantity < 0 || quantity > 100000)) {
+    const scaled = quantity == null ? 0 : Math.round(quantity * 1000);
+    const step = Math.round((item.quantity_step || 1) * 1000);
+    if (
+      quantity != null &&
+      (!Number.isFinite(quantity) ||
+        quantity < 0 ||
+        quantity > 100000 ||
+        Math.abs(quantity * 1000 - scaled) > 0.000001 ||
+        scaled % step !== 0)
+    ) {
       toast(t('inventory.quantityInvalid'), 'error');
       return;
     }
@@ -426,8 +435,8 @@ export default function InventoryPage({ role = 'viewer' }: { role?: string }) {
                           type="number"
                           min="0"
                           max="100000"
-                          step="1"
-                          inputMode="numeric"
+                          step={item.quantity_step || 1}
+                          inputMode={item.quantity_step === 0.001 ? 'decimal' : 'numeric'}
                           name={`inventoryQuantity-${item.branch_id}-${item.product_id}`}
                           value={draft.quantity}
                           disabled={!inventoryMutationsAllowed}

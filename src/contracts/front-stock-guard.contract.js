@@ -3,6 +3,12 @@ const { z } = require('../middlewares/validation.middleware');
 const frontStockHeartbeatSchema = z
   .object({ terminalId: z.string().uuid(), connected: z.boolean() })
   .strict();
+const frontReceiptLookupSchema = z
+  .object({
+    terminalId: z.string().uuid(),
+    receiptId: z.string().uuid(),
+  })
+  .strict();
 const frontStockSaleSchema = z
   .object({
     terminalId: z.string().uuid(),
@@ -10,7 +16,10 @@ const frontStockSaleSchema = z
     items: z
       .array(
         z
-          .object({ productId: z.string().uuid(), quantity: z.number().int().positive().max(9999) })
+          .object({
+            productId: z.string().uuid(),
+            quantity: z.number().positive().max(9999).multipleOf(0.001),
+          })
           .strict(),
       )
       .min(1)
@@ -34,9 +43,15 @@ const frontStockRecountSchema = z
           .object({
             productId: z.string().uuid(),
             productName: z.string().max(160),
-            quantity: z.number().int().min(0).max(100000),
+            quantity: z.number().min(0).max(100000).multipleOf(0.001),
+            quantityStep: z.union([z.literal(1), z.literal(0.001)]).optional(),
+            unit: z.string().min(1).max(16).optional(),
           })
-          .strict(),
+          .strict()
+          .refine(
+            (item) => item.quantityStep === 0.001 || Number.isInteger(item.quantity),
+            'Укажите весовую единицу измерения',
+          ),
       )
       .min(1)
       .max(450)
@@ -45,6 +60,7 @@ const frontStockRecountSchema = z
   .strict();
 module.exports = {
   frontStockHeartbeatSchema,
+  frontReceiptLookupSchema,
   frontStockSaleSchema,
   frontStockFinishSchema,
   frontStockRecountSchema,

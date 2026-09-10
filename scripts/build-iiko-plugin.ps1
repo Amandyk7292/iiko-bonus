@@ -98,6 +98,7 @@ foreach ($staleArtifact in @(
 }
 Copy-Item -LiteralPath $pluginDll -Destination (Join-Path $OutputDirectory 'Resto.Front.Api.IikoBonusPlugin.dll') -Force
 Copy-Item -LiteralPath $manifest -Destination (Join-Path $OutputDirectory 'Manifest.xml') -Force
+Copy-Item -LiteralPath (Join-Path $root 'docs/iiko-front-shared-stock.md') -Destination (Join-Path $OutputDirectory 'INSTALL.md') -Force
 
 $targetConfig = Join-Path $OutputDirectory 'Resto.Front.Api.IikoBonusPlugin.dll.config'
 if ($ProductionConfig) {

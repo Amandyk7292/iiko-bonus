@@ -36,11 +36,114 @@ class CashierFixtureApi extends StaffApiClient {
   }
 }
 
+class BadgeFixtureApi extends CashierFixtureApi {
+  final feed = StreamController<Map<String, dynamic>>.broadcast();
+  Map<String, int> counters = {'newOrders': 7, 'preparing': 3, 'preorders': 2};
+  @override
+  Stream<Map<String, dynamic>> events({String? lastEventId}) => feed.stream;
+  @override
+  Future<dynamic> request(
+    String endpoint, {
+    String method = 'GET',
+    Object? body,
+    bool authenticated = true,
+    Map<String, String> headers = const {},
+    Map<String, String> query = const {},
+  }) async {
+    final result = await super.request(
+      endpoint,
+      method: method,
+      body: body,
+      authenticated: authenticated,
+      headers: headers,
+      query: query,
+    );
+    if (endpoint.startsWith('/kitchen')) {
+      return {...result as Map, 'counters': counters};
+    }
+    return result;
+  }
+}
+
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({'staffKitchenSound': false});
     FlutterSecureStorage.setMockInitialValues({});
     appLanguageNotifier.value = 'ru';
+  });
+
+  testWidgets('branch counters stay live on stop list and disappear at zero', (
+    tester,
+  ) async {
+    final api = BadgeFixtureApi();
+    addTearDown(api.close);
+    addTearDown(api.feed.close);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildBulkaTheme(),
+        home: CashierWorkspace(
+          api: api,
+          user: const {'role': 'cashier'},
+          nativePushEnabled: false,
+          onLogout: () async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final nav = find.byType(NavigationBar);
+    await tester.tap(
+      find.descendant(of: nav, matching: find.text('Стоп-лист')),
+    );
+    await tester.pumpAndSettle();
+    Finder badge(String id) => find.byKey(ValueKey(id));
+    expect(
+      find.descendant(
+        of: badge('cashier-orders-count'),
+        matching: find.text('7'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: badge('cashier-kitchen-count'),
+        matching: find.text('3'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: badge('cashier-preorders-count'),
+        matching: find.text('2'),
+      ),
+      findsOneWidget,
+    );
+    api.counters = {'newOrders': 0, 'preparing': 4, 'preorders': 0};
+    api.feed.add({'type': 'order.updated', 'id': 'accepted'});
+    await tester.pumpAndSettle();
+    expect(
+      find.descendant(
+        of: badge('cashier-orders-count'),
+        matching: find.byType(Badge),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: badge('cashier-preorders-count'),
+        matching: find.byType(Badge),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: badge('cashier-kitchen-count'),
+        matching: find.text('4'),
+      ),
+      findsOneWidget,
+    );
+    expect(tester.widget<NavigationBar>(nav).selectedIndex, 2);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
   });
 
   testWidgets(

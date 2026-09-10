@@ -53,7 +53,10 @@ class _SelectedOrderTypeCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'checkout_catalog_locked'.tr,
+                    (value == _OrderType.preorder
+                            ? 'checkout_preorder_pickup_only'
+                            : 'checkout_catalog_locked')
+                        .tr,
                     style: TextStyle(
                       color: context.bulkaColors.mutedText,
                       fontSize: BulkaTypeScale.caption,
@@ -65,102 +68,6 @@ class _SelectedOrderTypeCard extends StatelessWidget {
             const Icon(Icons.check_circle_rounded, color: Color(0xFF2E7D32)),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _PreorderFulfillmentSelector extends StatelessWidget {
-  const _PreorderFulfillmentSelector({
-    required this.value,
-    required this.onChanged,
-  });
-
-  final _OrderType value;
-  final Future<void> Function(_OrderType value) onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      container: true,
-      label: 'checkout_preorder_method'.tr,
-      child: Row(
-        children: [
-          for (final type in const [
-            _OrderType.delivery,
-            _OrderType.pickup,
-          ]) ...[
-            if (type == _OrderType.pickup) const SizedBox(width: 10),
-            Expanded(
-              child: Semantics(
-                button: true,
-                selected: value == type,
-                inMutuallyExclusiveGroup: true,
-                label: type.label,
-                onTap: () => onChanged(type),
-                excludeSemantics: true,
-                child: Material(
-                  color: value == type
-                      ? Theme.of(context).colorScheme.secondaryContainer
-                      : Theme.of(context).colorScheme.surface,
-                  animationDuration: BulkaMotion.duration(
-                    context,
-                    BulkaMotion.fast,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(BulkaRadii.control),
-                    side: BorderSide(
-                      color: value == type
-                          ? context.bulkaColors.brandBrown
-                          : context.bulkaColors.cardBorder,
-                      width: value == type ? 2 : 1,
-                    ),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: InkWell(
-                    key: ValueKey('preorder-fulfillment-${type.wireValue}'),
-                    onTap: () => onChanged(type),
-                    excludeFromSemantics: true,
-                    child: Container(
-                      constraints: const BoxConstraints(minHeight: 70),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 12,
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(type.icon, size: 22, color: _textDark),
-                          const SizedBox(width: 6),
-                          Flexible(
-                            child: Text(
-                              type.label,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontFamily: _headingFont,
-                                fontSize: BulkaTypeScale.body,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          if (value == type) ...[
-                            const SizedBox(width: 4),
-                            Icon(
-                              Icons.check_circle_rounded,
-                              size: 18,
-                              color: context.bulkaColors.brandBrown,
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ],
       ),
     );
   }

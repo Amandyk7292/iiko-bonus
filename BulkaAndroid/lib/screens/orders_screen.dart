@@ -460,11 +460,16 @@ class _OrdersScreenState extends State<OrdersScreen> {
               final item = items[index];
               return _CartProductCard(
                 item: item,
-                onDecrease: () =>
-                    cart.setQuantity(item.cartKey, item.quantity - 1),
+                onDecrease: () => cart.setQuantity(
+                  item.cartKey,
+                  item.quantity - item.increment,
+                ),
                 onIncrease: item.isStopListed
                     ? null
-                    : () => cart.setQuantity(item.cartKey, item.quantity + 1),
+                    : () => cart.setQuantity(
+                        item.cartKey,
+                        item.quantity + item.increment,
+                      ),
               );
             },
           ),

@@ -2,6 +2,7 @@ const multer = require('multer');
 const { adminAuthMiddleware } = require('../../middlewares/auth.middleware');
 const { validateRequest } = require('../../middlewares/validation.middleware');
 const { adminMutationSchemas } = require('../../contracts/admin-mutations.contract');
+const { z } = require('../../middlewares/validation.middleware');
 const { supabase } = require('../../config/supabase');
 const menuService = require('../../services/menu.service');
 const {
@@ -58,10 +59,14 @@ function registerMenuAdminRoutes(router) {
   const {
     loadCashierCatalog,
     updateCashierProduct,
+    beginTabletStockControl,
   } = require('../../services/cashier-catalog.service');
   router.get('/admin/api/staff/catalog', async (req, res) => {
     try {
-      res.json({ success: true, ...(await loadCashierCatalog(req.admin)) });
+      res.json({
+        success: true,
+        ...(await loadCashierCatalog(req.admin, req.query.scope === 'preorder')),
+      });
     } catch (error) {
       res.status(error.statusCode || 500).json({ success: false, error: error.message });
     }
@@ -79,6 +84,19 @@ function registerMenuAdminRoutes(router) {
         res.json({ success: true, inventory });
       } catch (error) {
         res.status(error.statusCode || 500).json({ success: false, error: error.message });
+      }
+    },
+  );
+  router.post(
+    '/admin/api/staff/catalog/fallback',
+    validateRequest({
+      body: z.object({ requestId: z.string().uuid(), confirmed: z.literal(true) }).strict(),
+    }),
+    async (req, res, next) => {
+      try {
+        res.json({ success: true, ...(await beginTabletStockControl(req.admin, req.body)) });
+      } catch (error) {
+        next(error);
       }
     },
   );
