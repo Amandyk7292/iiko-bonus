@@ -1,5 +1,18 @@
 part of '../main.dart';
 
+@visibleForTesting
+Widget buildCheckoutScreenForTest({
+  required BulkaApiClient api,
+  required int total,
+  required List<Map<String, dynamic>> cartItems,
+  Future<FortePaymentOutcome> Function()? onSubmit,
+}) => _CheckoutScreen(
+  api: api,
+  total: total,
+  cartItems: cartItems,
+  onSubmit: (_) async => await onSubmit?.call() ?? FortePaymentOutcome.failed,
+);
+
 class _CheckoutScreen extends StatefulWidget {
   const _CheckoutScreen({
     required this.api,
@@ -38,6 +51,13 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   bool _isQuoting = false;
   bool _quotePending = false;
   bool _quoteFeedbackPending = false;
+  bool _isApplyingPromo = false;
+  bool _quoteValid = false;
+  String _promoInputText = '';
+  String _appliedPromoCode = '';
+  String? _inflightQuoteKey;
+  String? _lastQuotedKey;
+  Timer? _quoteFreshness;
   bool _isSelectingBranch = false;
   bool _isSelectingAddress = false;
   bool _isSelectingTime = false;
@@ -89,15 +109,25 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
     );
     _live = _LiveRefresh(
       widget.api,
-      {'locations', 'menu', 'checkout', 'settings'},
+      {
+        'locations',
+        'menu',
+        'checkout',
+        'settings',
+        'customer.updated',
+        'loyalty',
+      },
       _refreshLiveCheckout,
       busy: () => !_preferencesReady || _isSubmitting || _isQuoting,
+      minimumInterval: const Duration(seconds: 30),
     );
     unawaited(_loadPaymentAvailability());
   }
 
   Future<void> _refreshLiveCheckout() async {
-    final locations = await widget.api.getFulfillmentLocations();
+    final locationsRequest = widget.api.getFulfillmentLocations();
+    await Future.wait([locationsRequest, _loadPaymentAvailability()]);
+    final locations = await locationsRequest;
     if (!mounted) return;
     setState(() {
       _locations = locations;
@@ -106,8 +136,6 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       final branch = locations.where((b) => b.id == _branchId).firstOrNull;
       if (branch != null) _branch = branch.name;
     });
-    await _loadPaymentAvailability();
-    if (!mounted) return;
     await _refreshQuote();
   }
 
@@ -117,16 +145,10 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       _selectedPaymentMethodId != null;
 
   void _refreshPromoButton() {
-    if (mounted) {
-      _quoteRevision++;
-      setState(() {
-        _discount = 0;
-        _isQuoting = false;
-        _quotedTotal = null;
-        _quoteError = null;
-        _etaQuote = null;
-      });
-    }
+    // TextEditingController also notifies about cursor/focus changes.
+    final text = _promoController.text.trim();
+    if (!mounted || text == _promoInputText) return;
+    setState(() => _promoInputText = text);
   }
 
   _PickupSlot _slotFromDate(
@@ -313,6 +335,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   @override
   void dispose() {
     _live.dispose();
+    _quoteFreshness?.cancel();
     _promoController.removeListener(_refreshPromoButton);
     _phoneController.removeListener(_saveDraft);
     _promoController.removeListener(_saveDraft);
@@ -342,7 +365,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         _branchId = prefs.getString('selected_bakery_location_id');
         _scheduledSlot = null;
         _deliveryFee = 0;
-        _isQuoting = false;
+        _quoteValid = false;
         _quotedTotal = null;
         _quoteError = null;
         _etaQuote = null;
@@ -368,7 +391,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         _deliveryAddress = selected;
         _scheduledSlot = null;
         _deliveryFee = 0;
-        _isQuoting = false;
+        _quoteValid = false;
         _quotedTotal = null;
         _quoteError = null;
         _etaQuote = null;
@@ -453,7 +476,10 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         ),
       );
       if (mounted && selected != null) {
-        setState(() => _scheduledSlot = selected);
+        setState(() {
+          _scheduledSlot = selected;
+          _quoteValid = false;
+        });
         await _persistDraft();
         await _refreshQuote();
       }
@@ -514,86 +540,6 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         : '';
   }
 
-  Future<void> _refreshQuote({bool showFeedback = false}) async {
-    if (!_canQuote) return;
-    if (_isQuoting) {
-      _quotePending = true;
-      _quoteFeedbackPending = _quoteFeedbackPending || showFeedback;
-      return;
-    }
-    final revision = ++_quoteRevision;
-    setState(() {
-      _isQuoting = true;
-      _quoteError = null;
-      _quotedTotal = null;
-    });
-    try {
-      final quote = await widget.api.quoteForteOrder(
-        cartItems: widget.cartItems,
-        orderType: _orderType.wireValue,
-        preorderFulfillmentType: _isPreorder ? 'pickup' : null,
-        branch: _usesDelivery ? null : _branch,
-        branchId: _usesDelivery ? null : _branchId,
-        scheduledAt: _scheduledSlot?.value,
-        deliveryAddress: _usesDelivery ? _deliveryAddress : null,
-        promoCode: _promoController.text.trim(),
-        useBonuses: _useBonuses,
-      );
-      if (!mounted || revision != _quoteRevision) return;
-      setState(() {
-        _discount = (quote['discount'] as num?)?.round() ?? 0;
-        _bonusAvailable = (quote['bonusAvailable'] as num?)?.floor();
-        _bonusMaximum = (quote['bonusMaximum'] as num?)?.floor() ?? 0;
-        _bonusSpent = (quote['bonusSpent'] as num?)?.floor() ?? 0;
-        _deliveryFee = (quote['deliveryFee'] as num?)?.round() ?? 0;
-        _quotedTotal = (quote['total'] as num?)?.round();
-        _deliveryQuoteToken = quote['deliveryQuoteToken'] as String?;
-        final eta = _asMap(quote['eta']);
-        _etaQuote = eta.isEmpty ? null : eta;
-      });
-      if (showFeedback) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              _discount > 0 || _asString(quote['promoCode']).isNotEmpty
-                  ? 'checkout_promo_applied'.tr
-                  : 'checkout_price_checked'.tr,
-            ),
-          ),
-        );
-      }
-    } catch (error) {
-      if (mounted && revision == _quoteRevision) {
-        setState(() {
-          _quoteError = localizeErrorMessage(error);
-          _quotedTotal = null;
-          _etaQuote = null;
-        });
-      }
-    } finally {
-      if (mounted && revision == _quoteRevision) {
-        setState(() => _isQuoting = false);
-        if (_quotePending) {
-          final pendingFeedback = _quoteFeedbackPending;
-          _quotePending = false;
-          _quoteFeedbackPending = false;
-          unawaited(_refreshQuote(showFeedback: pendingFeedback));
-        }
-      }
-    }
-  }
-
-  Future<void> _applyPromo() async {
-    FocusScope.of(context).unfocus();
-    if (!_canQuote) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('checkout_time_required'.tr)));
-      return;
-    }
-    await _refreshQuote(showFeedback: true);
-  }
-
   Future<bool> _revalidateScheduledSlot() async {
     final selected = _scheduledSlot;
     final location = _effectiveLocation;
@@ -618,6 +564,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       if (!mounted) return false;
       setState(() {
         _scheduledSlot = null;
+        _quoteValid = false;
         _quotedTotal = null;
         _quoteError = null;
         _etaQuote = null;
@@ -681,7 +628,11 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       return;
     }
     if (_isSubmitting) return;
-    if (_quotedTotal == null || _isQuoting || _quoteError != null) {
+    if (_hasUnappliedPromo) return;
+    if (!_quoteValid ||
+        _quotedTotal == null ||
+        _isQuoting ||
+        _quoteError != null) {
       await _refreshQuote();
       return;
     }
@@ -716,7 +667,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
           scheduledAt: _scheduledSlot!.value,
           deliveryAddress: _usesDelivery ? _deliveryAddress : null,
           additionalPhone: _phoneController.text.trim(),
-          promoCode: _promoController.text.trim(),
+          promoCode: _appliedPromoCode,
           comment: _commentController.text.trim(),
         ),
       );
@@ -756,7 +707,13 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         context,
       ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
       setState(() => _isSubmitting = false);
-      if (error is ApiException && error.code == 'CHECKOUT_QUOTE_CHANGED') {
+      if (error is ApiException &&
+          const {
+            'CHECKOUT_QUOTE_CHANGED',
+            'CHECKOUT_BONUS_CHANGED',
+            'CHECKOUT_BONUS_UNAVAILABLE',
+          }.contains(error.code)) {
+        _quoteValid = false;
         await _refreshQuote();
       }
     }

@@ -72,6 +72,7 @@ extension _CheckoutScreenStatePreferences on _CheckoutScreenState {
     if (!mounted) return;
     _phoneController.text = prefs.getString(_draftKey('checkout_phone')) ?? '';
     _promoController.text = prefs.getString(_draftKey('checkout_promo')) ?? '';
+    _appliedPromoCode = _promoController.text.trim();
     _commentController.text =
         prefs.getString(_draftKey('checkout_comment')) ?? '';
     _updateCheckoutState(() {

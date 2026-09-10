@@ -79,6 +79,7 @@ extension _CheckoutScreenLayout on _CheckoutScreenState {
                       children: [
                         Expanded(
                           child: TextField(
+                            key: const ValueKey('checkout-promo-input'),
                             controller: _promoController,
                             textCapitalization: TextCapitalization.characters,
                             decoration: InputDecoration(
@@ -90,9 +91,12 @@ extension _CheckoutScreenLayout on _CheckoutScreenState {
                         SizedBox(
                           width: 126,
                           child: FilledButton(
+                            key: const ValueKey('checkout-apply-promo'),
                             onPressed:
-                                _promoController.text.trim().isEmpty ||
-                                    _isQuoting
+                                (_promoController.text.trim().isEmpty &&
+                                        !_hasUnappliedPromo) ||
+                                    _isApplyingPromo ||
+                                    _isSubmitting
                                 ? null
                                 : _applyPromo,
                             style: FilledButton.styleFrom(
@@ -102,7 +106,7 @@ extension _CheckoutScreenLayout on _CheckoutScreenState {
                                 alpha: 0.5,
                               ),
                             ),
-                            child: _isQuoting
+                            child: _isApplyingPromo
                                 ? const SizedBox(
                                     width: 20,
                                     height: 20,
@@ -277,7 +281,7 @@ extension _CheckoutScreenLayout on _CheckoutScreenState {
                     const SizedBox(height: 8),
                     _CheckoutTotalRow(
                       label: 'checkout_delivery_fee'.tr,
-                      value: _quotedTotal == null || _isQuoting
+                      value: _quotedTotal == null
                           ? '—'
                           : _deliveryFee == 0
                           ? 'checkout_delivery_free'.tr
@@ -290,7 +294,7 @@ extension _CheckoutScreenLayout on _CheckoutScreenState {
                     const SizedBox(height: 8),
                     _CheckoutTotalRow(
                       label: 'checkout_bonus_spent'.tr,
-                      value: _quotedTotal == null || _isQuoting
+                      value: _quotedTotal == null
                           ? '—'
                           : '− ${_formatCartMoney(_bonusSpent)} ₸',
                     ),
@@ -298,7 +302,7 @@ extension _CheckoutScreenLayout on _CheckoutScreenState {
                   const SizedBox(height: 8),
                   _CheckoutTotalRow(
                     label: 'checkout_total'.tr,
-                    value: _quotedTotal == null || _isQuoting
+                    value: _quotedTotal == null
                         ? '—'
                         : '${_formatCartMoney(_quotedTotal!)} ₸',
                     emphasized: true,
@@ -312,6 +316,8 @@ extension _CheckoutScreenLayout on _CheckoutScreenState {
                           _isSubmitting ||
                               !_selectedPaymentAvailable ||
                               _isQuoting ||
+                              !_quoteValid ||
+                              _hasUnappliedPromo ||
                               _quotedTotal == null ||
                               _quoteError != null
                           ? null

@@ -74,14 +74,12 @@ extension _CheckoutBonusControl on _CheckoutScreenState {
     enabled: _useBonuses,
     available: _bonusAvailable,
     maximum: _bonusMaximum,
-    busy: _isQuoting || _isSubmitting,
+    busy: _isSubmitting,
     onChanged: (value) {
       _updateCheckoutState(() {
         _useBonuses = value;
-        _quotedTotal = null;
-        _bonusSpent = 0;
+        _recalculateBonusSelection();
       });
-      unawaited(_refreshQuote());
     },
   );
 }

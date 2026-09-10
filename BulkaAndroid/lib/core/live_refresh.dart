@@ -11,7 +11,13 @@ bool _dataEventMatches(Map<String, dynamic> event, Set<String> domains) {
 /// One refresh per burst; an invalidation during a request always runs again.
 /// Recovery also refreshes data, since event history can be lost on a restart.
 class _LiveRefresh with WidgetsBindingObserver {
-  _LiveRefresh(BulkaApiClient api, this.domains, this.refresh, {this.busy}) {
+  _LiveRefresh(
+    BulkaApiClient api,
+    this.domains,
+    this.refresh, {
+    this.busy,
+    this.minimumInterval = Duration.zero,
+  }) {
     _events = api.customerEvents.listen((event) {
       if (_dataEventMatches(event, domains)) request();
     });
@@ -22,9 +28,11 @@ class _LiveRefresh with WidgetsBindingObserver {
   final Set<String> domains;
   final Future<void> Function() refresh;
   final bool Function()? busy;
+  final Duration minimumInterval;
   late final StreamSubscription<Map<String, dynamic>> _events;
   late final StreamSubscription<dynamic> _network;
   Timer? _timer;
+  Timer? _cooldown;
   bool _running = false;
   bool _pending = false;
   bool _disposed = false;
@@ -37,13 +45,19 @@ class _LiveRefresh with WidgetsBindingObserver {
   }
 
   Future<void> _flush() async {
-    if (_disposed || !_pending || _running) return;
+    if (_disposed || !_pending || _running || _cooldown != null) return;
     if (busy?.call() == true) {
       request();
       return;
     }
     _pending = false;
     _running = true;
+    if (minimumInterval > Duration.zero) {
+      _cooldown = Timer(minimumInterval, () {
+        _cooldown = null;
+        if (_pending && !_disposed) request();
+      });
+    }
     try {
       await refresh();
     } catch (_) {
@@ -62,6 +76,7 @@ class _LiveRefresh with WidgetsBindingObserver {
   void dispose() {
     _disposed = true;
     _timer?.cancel();
+    _cooldown?.cancel();
     unawaited(_events.cancel());
     unawaited(_network.cancel());
     WidgetsBinding.instance.removeObserver(this);
