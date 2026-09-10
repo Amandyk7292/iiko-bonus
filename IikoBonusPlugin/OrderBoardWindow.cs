@@ -53,7 +53,6 @@ namespace Resto.Front.Api.IikoBonusPlugin
         internal OrderBoardWindow(string branch, IntPtr owner, bool canImport, bool automatic)
         {
             this.canImport = canImport; this.automatic = automatic;
-            Loaded += (_, __) => { if (automatic) System.Media.SystemSounds.Exclamation.Play(); };
             KeyDown += (_, e) => {
                 if (e.Key != System.Windows.Input.Key.Escape) return;
                 if (confirmation != null) { confirmation = null; Render(); }
@@ -62,6 +61,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             Title = "Bulka · Экран заказов"; FontFamily = new FontFamily("Segoe UI");
             Background = Brushes.White; Foreground = Brush("#302820");
             WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize; ShowInTaskbar = false;
+            ShowActivated = true; Topmost = automatic;
             Width = 1280; Height = 800; UseLayoutRounding = true;
             if (owner != IntPtr.Zero) new WindowInteropHelper(this).Owner = owner;
             SourceInitialized += (_, __) => {
@@ -108,6 +108,15 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, Content = columns };
             horizontal.SizeChanged += (_, __) => columns.Width = Math.Max(940, horizontal.ActualWidth);
             Grid.SetRow(horizontal, 2); root.Children.Add(horizontal); Content = root;
+        }
+        internal void AlertNewOrder()
+        {
+            if (!IsVisible) return;
+            if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+            Topmost = true;
+            Activate();
+            System.Media.SystemSounds.Exclamation.Play();
+            scrolls[0].ScrollToTop();
         }
         private Button Button(string label, Action action, bool primary = false)
         {
@@ -157,7 +166,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 var column = snapshot.Columns.First(c => c.Stage == BoardColumn.Stages[i]);
                 counts[i].Text = column.Total.ToString();
                 // Rebuild only changed columns and retain their scroll position.
-                var signature = string.Join("|", column.Orders.Select(o => o.Id + o.Number + o.Phone + o.Customer + o.Comment + o.ScheduledAt + o.Amount + o.PosReceiptDue + o.CourierName + o.CourierPhone + o.CourierVehicle +
+                var signature = string.Join("|", column.Orders.Select(o => o.Id + o.Number + o.Phone + o.Customer + o.Comment + o.ScheduledAt + o.Amount + o.PosReceiptDue + o.AutomaticReceipt + o.ReceiptError + o.CourierName + o.CourierPhone + o.CourierVehicle +
                     string.Join(";", (o.Items ?? new List<InboxItem>()).Select(item => item.Name + item.Quantity + item.Unit)))) + column.Page + ":" + column.Total + ":" + connected + ":" +
                     (column.Orders.Any(o => o.Id == confirmation) ? confirmation + confirmAction : "") + ":" + string.Join(",", column.Orders.Where(o => pending.Contains(o.Id)).Select(o => o.Id));
                 if (rendered[i] == signature) continue;
@@ -214,7 +223,11 @@ namespace Resto.Front.Api.IikoBonusPlugin
             else if (stage == 1) actions.Children.Add(Button("Заказ готов", () => Submit(order, "ready"), true));
             else if (stage == 2) actions.Children.Add(Button(order.OrderType == "delivery" ? "Передать курьеру" : "Заказ выдан", () => Confirm(order, "hand_over"), true));
             else actions.Children.Add(Text(order.OrderType == "delivery" ? "Передан курьеру" : "Заказ выдан", 16, "#267147", true));
-            if (canImport && stage > 0 && order.PosReceiptDue)
+            if (order.AutomaticReceipt)
+                actions.Children.Add(Text(!order.PosReceiptDue ? "Чек оформлен в iikoFront" :
+                    string.IsNullOrWhiteSpace(order.ReceiptError) ? "Чек передаётся в кассу" : "Чек ожидает: " + order.ReceiptError,
+                    14, order.PosReceiptDue ? "#8B5C24" : "#267147"));
+            if (canImport && stage > 0 && order.PosReceiptDue && !order.AutomaticReceipt)
                 actions.Children.Add(Button("Оформить чек", () => { used = true; SelectedReceiptNumber = order.Number; Close(); }));
             body.Children.Add(actions);
             var card = new Border { Padding = new Thickness(12), Margin = new Thickness(0, 0, 0, 10), BorderThickness = new Thickness(stage == 0 ? 2 : 1),

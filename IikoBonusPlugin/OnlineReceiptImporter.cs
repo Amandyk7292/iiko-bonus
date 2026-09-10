@@ -38,7 +38,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             using(var hash=SHA256.Create())
                 return new Guid(hash.ComputeHash(Encoding.UTF8.GetBytes("bulka:"+receipt+":"+order+":"+key)).Take(16).ToArray());
         }
-        private IOrder ImportReceipt(IOrder order,long number,IOperationService os)
+        internal IOrder ImportReceipt(IOrder order,long number,IOperationService os,bool remember=true)
         {
             var response=LoyaltyFlow.SendApiRequest(HttpMethod.Post,"orders/receipt-draft",new ReceiptDraftRequest { Number=number });
             var draft=LoyaltyFlow.DeserializeJson<ReceiptDraft>(response.Body);
@@ -58,8 +58,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 Items=draft.Items.GroupBy(i=>i.ProductId).Select(g=>new GuardItem {ProductId=g.Key,Quantity=g.Sum(i=>i.Quantity)})
                     .OrderBy(i=>i.ProductId).ToList()
             };
-            requests[pending.ReceiptId]=pending;
-            Save();
+            if(remember) { requests[pending.ReceiptId]=pending; Save(); }
             if(existing.Count<draft.Items.Count)
             {
                 var edit=os.CreateEditSession();

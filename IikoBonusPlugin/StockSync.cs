@@ -66,10 +66,11 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 var operations = PluginContext.Operations;
                 var terminal = operations.GetHostTerminal();
                 var group = operations.GetHostTerminalsGroup();
-                // One writer per branch. Other registers report their sales to the main register.
-                if (group.MainTerminal == null || group.MainTerminal.Id != terminal.Id)
+                // Connected registers see the same group's remaining amounts.
+                // The server orders snapshots by capture time and rejects stale ones.
+                if (group.MainTerminal == null || (group.MainTerminal.Id != terminal.Id && !operations.IsConnectedToMainTerminal()))
                 {
-                    status = "Остатки: обмен выполняется на главной кассе филиала";
+                    status = "Остатки: ожидается связь с главной кассой филиала";
                     return;
                 }
                 var remaining = operations.GetStopListProductsRemainingAmounts();

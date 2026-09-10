@@ -32,6 +32,9 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private IDisposable _reconciliationButton;
         private IDisposable _pairingMenu;
         private IDisposable _pairingOrderButton;
+        private IDisposable _onlinePaymentRegistration;
+        private OnlineReceiptSync _automaticReceipts;
+        private static OfflineReceiptSync _offlineReceipts;
 
         public class OrderLoyaltyData
         {
@@ -58,6 +61,15 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 LoyaltyFlow.RestoreActiveOrders();
                 GiftCertificateFlow.RestoreActiveOrders();
                 _sharedStock = new SharedStockGuard();
+                try { _offlineReceipts=new OfflineReceiptSync(); }
+                catch(Exception error) {PluginContext.Log.Error("Bulka offline receipt journal: "+error.Message);}
+                try
+                {
+                    _onlinePaymentRegistration = PluginContext.Operations.RegisterPaymentSystem(new OnlinePaymentProcessor(),false,
+                        Resto.Front.Api.Data.Payments.FiscalPaymentTypeGroup.NonCash);
+                    _automaticReceipts = new OnlineReceiptSync(_sharedStock);
+                }
+                catch(Exception error) { PluginContext.Log.Error("Bulka online payment registration: " + error.Message); }
                 _inbox = new OnlineOrderInbox();
                 _pairingMenu = PluginContext.Operations.AddButtonToPluginsMenu("Привязать кассу", args => PosPairing.Show(args.Item1));
                 _pairingOrderButton = PluginContext.Operations.AddButtonToOrderEditScreen("Привязать кассу",
@@ -102,7 +114,9 @@ namespace Resto.Front.Api.IikoBonusPlugin
                             args.Item3.ShowOkPopup(
                                 "Статус Bulka",
                                 LoyaltyFlow.GetQueueStatusText() + "\n\n" +
-                                GiftCertificateFlow.GetStatusText() + "\n\n" + (_stockSync?.StatusText ?? "Остатки: обмен выключен") + "\n\n" + _sharedStock.StatusText,
+                                GiftCertificateFlow.GetStatusText() + "\n\n" + (_stockSync?.StatusText ?? "Остатки: обмен выключен") + "\n\n" + _sharedStock.StatusText
+                                + "\n\n" + (_automaticReceipts?.StatusText ?? "Внешняя оплата Bulka: обработчик не зарегистрирован. Проверьте журнал плагина.")
+                                + "\n\n" + (_offlineReceipts?.StatusText ?? "Продажи кассы: журнал недоступен, нужна сверка"),
                                 "ОК");
                         }
                         catch (Exception ex)
@@ -174,6 +188,9 @@ namespace Resto.Front.Api.IikoBonusPlugin
             TryDispose(_reconciliationButton);
             TryDispose(_pairingMenu);
             TryDispose(_pairingOrderButton);
+            TryDispose(_automaticReceipts);
+            TryDispose(_offlineReceipts);
+            TryDispose(_onlinePaymentRegistration);
             LoyaltyFlow.StopBackgroundRetry();
             GiftCertificateFlow.StopBackgroundRetry();
             TryDispose(_stockSync);
@@ -203,6 +220,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
             Resto.Front.Api.Data.Common.EntityChangedEventArgs<IOrder> args)
         {
             _stockSync?.RequestSync();
+            try { _offlineReceipts?.Observe(args.Entity); }
+            catch(Exception error) {PluginContext.Log.Error("Bulka offline receipt capture: "+error.Message);}
             try { _sharedStock?.Observe(args.Entity); }
             catch (Exception error) { PluginContext.Log.Warn("Bulka stock receipt reconciliation pending: " + error.Message); }
             if (_sharedStock.IsLinked(args.Entity)) return;

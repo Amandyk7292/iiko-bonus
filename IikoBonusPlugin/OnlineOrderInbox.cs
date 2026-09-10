@@ -12,12 +12,13 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private readonly object gate = new object();
         private readonly SemaphoreSlim network = new SemaphoreSlim(1, 1);
         private readonly int[] pages = {1, 1, 1, 1};
+        private readonly OrderAlertState alerts = new OrderAlertState();
         private OrderBoardWindow window;
+        private bool windowStarting;
         private int polling, opening, refreshing;
         private volatile bool disposed;
-        private string revision = "", lastAlertKey = "";
-        private DateTime lastAlert = DateTime.MinValue;
-        internal OnlineOrderInbox() { timer = new Timer(Poll, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5)); }
+        private string revision = "";
+        internal OnlineOrderInbox() { timer = new Timer(Poll, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2)); }
 
         private static T Request<T>(HttpMethod method, string path, object body = null)
         {
@@ -60,16 +61,22 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     var peek = Request<InboxResponse>(HttpMethod.Post, "orders/board/poll", new InboxPoll {
                         TerminalId = PluginContext.Operations.GetHostTerminal().Id.ToString() });
                     if (peek == null) throw new InvalidOperationException("Нет ответа от Bulka.");
-                    bool visible; lock (gate) visible = window != null;
+                    bool visible, needsAttention;
+                    lock (gate)
+                    {
+                        visible = window != null;
+                        alerts.Observe(peek.Total, peek.NewestOrderNumber, peek.Orders?.FirstOrDefault()?.Id ?? "");
+                        needsAttention = alerts.IsDue(DateTime.UtcNow, visible);
+                    }
                     if (visible && peek.Revision != revision)
                     {
                         var result = Load(); OnWindow(view => view.Update(result)); revision = peek.Revision;
                     }
                     else if (visible) OnWindow(view => view.SetConnected());
-                    var key = (peek.Orders?.FirstOrDefault()?.Id ?? "") + ":" + peek.Total;
-                    if (peek.Total > 0 && !visible && (key != lastAlertKey || DateTime.UtcNow - lastAlert > TimeSpan.FromSeconds(30)))
-                    { lastAlertKey = key; RequestAutomaticOpen(); }
-                    if (peek.Total == 0) lastAlertKey = "";
+                    if (needsAttention && visible) OnWindow(view => {
+                        view.AlertNewOrder(); lock (gate) alerts.Presented();
+                    });
+                    else if (needsAttention) RequestAutomaticOpen();
                 }
                 finally { network.Release(); }
             }
@@ -84,17 +91,23 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 try
                 {
                     // Wait for iikoFront's active payment/dialog operation to finish.
-                    PluginContext.Operations.TryExecuteUiOperation(vm => Show(vm, false, true));
+                    PluginContext.Operations.TryExecuteUiOperation(vm => {
+                        lock (gate) { if (disposed || !alerts.HasPending) return; }
+                        Show(vm, false, true);
+                    });
                 }
                 catch (Exception error) { PluginContext.Log.Warn("Bulka board open: " + error.Message); }
-                finally { lastAlert = DateTime.UtcNow; Interlocked.Exchange(ref opening, 0); }
+                finally { Interlocked.Exchange(ref opening, 0); }
             });
         }
         internal long? Show(IViewManager vm, bool canImport = false, bool automatic = false)
         {
-            lock (gate) { if (disposed || window != null) return null; }
+            lock (gate)
+            {
+                if (disposed || window != null || windowStarting) return null;
+                windowStarting = true;
+            }
             var owner = OrderBoardWindow.CaptureOwner();
-            if (automatic && owner == IntPtr.Zero) return null;
             long? selected = null; Exception failure = null;
             var thread = new Thread(() => {
                 try
@@ -105,16 +118,25 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     view.PageRequested += (index, page) => { lock (gate) pages[index] = page; Refresh(); };
                     lock (gate)
                     {
-                        if (disposed || window != null) return;
+                        if (disposed) return;
                         window = view;
                         for (var i = 0; i < pages.Length; i++) pages[i] = 1;
                         revision = "";
                     }
                     view.Loaded += (_, __) => Refresh();
+                    view.ContentRendered += (_, __) => {
+                        if (automatic) view.AlertNewOrder();
+                        lock (gate) alerts.Presented();
+                        PluginContext.Log.Info("Bulka board opened: " + (automatic ? "new-order alert" : "cashier"));
+                    };
                     view.ShowDialog(); selected = view.SelectedReceiptNumber;
                 }
                 catch (Exception error) { failure = error; }
-                finally { lock (gate) window = null; lastAlert = DateTime.UtcNow; System.Windows.Threading.Dispatcher.CurrentDispatcher.InvokeShutdown(); }
+                finally
+                {
+                    lock (gate) { window = null; windowStarting = false; alerts.Closed(DateTime.UtcNow); }
+                    System.Windows.Threading.Dispatcher.CurrentDispatcher.InvokeShutdown();
+                }
             });
             thread.IsBackground = true; thread.SetApartmentState(ApartmentState.STA); thread.Start(); thread.Join();
             if (failure != null) vm.ShowErrorPopup("Не удалось открыть экран заказов: " + failure.Message, "ОК");

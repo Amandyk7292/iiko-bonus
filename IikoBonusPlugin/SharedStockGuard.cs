@@ -96,6 +96,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         }
         internal bool IsLinked(IOrder order)
         {
+            if(OnlineReceiptSync.OrderId(order)!=null) return true;
             lock(gate) return order!=null && requests.TryGetValue(order.Id.ToString(),out var request) && request.OnlineNumber.HasValue;
         }
         private void Save()
@@ -147,6 +148,13 @@ namespace Resto.Front.Api.IikoBonusPlugin
         }
         internal void BeforeOperation(IOrder order,IOperationService os,IViewManager vm,bool payment)
         {
+            if(OnlineReceiptSync.OrderId(order)!=null)
+            {
+                // Automatic paid-order receipts are verified by BulkaOnline.
+                // They consume the earlier online reservation, not a new POS sale.
+                OnlineReceiptSync.Action(os,"verify",OnlineReceiptSync.OrderId(order),order);
+                return;
+            }
             if(!Enabled || order==null) return;
             try
             {

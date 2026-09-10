@@ -98,6 +98,8 @@ async function lookupFrontReceipt(branchId, payload) {
   });
 }
 module.exports = {
+  stockArgs,
+  rpc,
   heartbeatFrontStock,
   authorizeFrontStock,
   finishFrontStock,

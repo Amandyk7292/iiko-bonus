@@ -5,7 +5,7 @@ const { decideFrontOrder } = require('./front-order-inbox.service');
 const STAGES = ['new', 'preparing', 'ready', 'handed_over'];
 const PAGE_SIZE = 25;
 const fields =
-  'id,order_number,phone,cart_items,amount,delivery_fee,fulfillment_type,scheduled_at,comment,kitchen_status,fulfillment_status,pos_receipt_due,created_at,customers(name,phone),delivery_jobs(courier_name,courier_phone,courier_car_model,courier_car_number,updated_at)';
+  'id,order_number,phone,cart_items,amount,delivery_fee,fulfillment_type,scheduled_at,comment,kitchen_status,fulfillment_status,pos_receipt_due,created_at,customers(name,phone),front_receipt_jobs(status,last_error),delivery_jobs(courier_name,courier_phone,courier_car_model,courier_car_number,updated_at)';
 
 function card(order) {
   const courier = [...(order.delivery_jobs || [])].sort((a, b) =>
@@ -28,6 +28,8 @@ function card(order) {
     deliveryFee: Number(order.delivery_fee || 0),
     comment: order.comment || '',
     posReceiptDue: Boolean(order.pos_receipt_due),
+    automaticReceipt: Boolean(order.front_receipt_jobs),
+    receiptError: order.front_receipt_jobs?.last_error || '',
     courierName: courier?.courier_name || '',
     courierPhone: courier?.courier_phone || '',
     courierVehicle: [courier?.courier_car_model, courier?.courier_car_number]

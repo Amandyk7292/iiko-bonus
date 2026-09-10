@@ -11,6 +11,7 @@ internal static class BoardViewTests
 {
     [STAThread] private static void Main(string[] args)
     {
+        OrderAlertTests.Run();
         var view = new OrderBoardWindow("19а ЖК Жасыл дала", IntPtr.Zero, true, false);
         var model = new BoardResponse { Columns = BoardColumn.Stages.Select((stage, i) => new BoardColumn {
             Stage = stage, Page = 1, Total = 1, Orders = new List<InboxOrder> { new InboxOrder {
@@ -22,6 +23,10 @@ internal static class BoardViewTests
                 Comment = i == 0 ? "Упакуйте, пожалуйста, отдельно" : null,
             } }
         }).ToList() };
+        view.Update(model);
+        model.Columns[3].Orders[0].AutomaticReceipt=true;
+        model.Columns[3].Orders[0].PosReceiptDue=true;
+        model.Columns[3].Orders[0].ReceiptError="Ожидается внешний тип оплаты Bulka онлайн";
         view.Update(model);
         var root = (FrameworkElement)view.Content;
         Layout(root, 1280, 800);

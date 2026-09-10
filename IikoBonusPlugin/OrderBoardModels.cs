@@ -20,6 +20,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
         [DataMember(Name="amount")] public decimal Amount { get; set; }
         [DataMember(Name="comment")] public string Comment { get; set; }
         [DataMember(Name="posReceiptDue")] public bool PosReceiptDue { get; set; }
+        [DataMember(Name="automaticReceipt")] public bool AutomaticReceipt { get; set; }
+        [DataMember(Name="receiptError")] public string ReceiptError { get; set; }
         [DataMember(Name="courierName")] public string CourierName { get; set; }
         [DataMember(Name="courierPhone")] public string CourierPhone { get; set; }
         [DataMember(Name="courierVehicle")] public string CourierVehicle { get; set; }
@@ -30,6 +32,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         [DataMember(Name="orders")] public List<InboxOrder> Orders { get; set; }
         [DataMember(Name="total")] public int Total { get; set; }
         [DataMember(Name="revision")] public string Revision { get; set; }
+        [DataMember(Name="newestOrderNumber")] public long NewestOrderNumber { get; set; }
     }
     [DataContract] internal sealed class BoardColumn
     {

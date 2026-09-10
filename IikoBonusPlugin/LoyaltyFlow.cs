@@ -774,6 +774,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
         {
             try
             {
+                order = GetOpenLoyaltyOrder(order, os, vm);
+                if (order == null) return;
                 if (PluginEntry.ActiveOrders.TryGetValue(order.Id, out var existingData))
                 {
                     string title = "Управление лояльностью чека";
@@ -870,11 +872,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     }
                     else if (action == 1) // Выбрать другого клиента
                     {
-                        if (existingData.DiscountAmount > 0 && !RemoveLoyaltyDiscountFromOrder(order, os, vm)) return;
-                        CancelReservationOrQueue(existingData.CustomerId, order.Id.ToString(), existingData.ReservationId, vm);
-                        PluginEntry.ActiveOrders.TryRemove(order.Id, out _);
-                        PersistActiveOrders();
-                        // Continuing below to search for a new customer
+                        // Keep the existing customer until a valid replacement is
+                        // found and the cashier chooses how to apply their bonuses.
                     }
                     else if (action == 2) // Открепить клиента от чека
                     {
@@ -1101,25 +1100,68 @@ namespace Resto.Front.Api.IikoBonusPlugin
             }
         }
 
+        private static IOrder GetOpenLoyaltyOrder(IOrder order, IOperationService os, IViewManager vm)
+        {
+            if (order == null) return null;
+            var current = os.GetOrderById(order.Id);
+            if (current != null && current.Status != OrderStatus.Closed && current.Status != OrderStatus.Deleted)
+                return current;
+            // Preserve closed-check accounting through the existing durable queue.
+            if (current != null) OnOrderChanged(current);
+            vm.ShowErrorPopup("Этот чек уже закрыт. Для новой покупки откройте новый чек.", "ОК");
+            return null;
+        }
+
+        private static bool ReplaceAttachedCustomer(ref IOrder order, IOperationService os,
+            IViewManager vm, PluginEntry.OrderLoyaltyData expected)
+        {
+            lock (GetOrderOperationLock(order.Id.ToString()))
+            {
+                order = GetOpenLoyaltyOrder(order, os, vm);
+                if (order == null) return false;
+                if (!PluginEntry.ActiveOrders.TryGetValue(order.Id, out var current) || !ReferenceEquals(current, expected))
+                {
+                    vm.ShowErrorPopup("Привязка чека изменилась. Отсканируйте QR клиента ещё раз.", "ОК");
+                    return false;
+                }
+                string error; bool retryable;
+                if (!TryCancelReservation(current.CustomerId, order.Id.ToString(), current.ReservationId, out error, out retryable))
+                {
+                    PluginContext.Log.Warn("Bulka customer replacement cancellation: " + error);
+                    vm.ShowErrorPopup("Не удалось подтвердить освобождение бонусов прежнего клиента. Привязка сохранена. Повторите сканирование после восстановления связи.", "ОК");
+                    return false;
+                }
+                current.ReservationId = null;
+                if (!PersistActiveOrders())
+                {
+                    vm.ShowErrorPopup("Не удалось сохранить состояние на кассе. Смена клиента не завершена.", "ОК");
+                    return false;
+                }
+                if (GetAppliedLoyaltyDiscountAmount(order, os) > 0.01m && !RemoveLoyaltyDiscountFromOrder(order, os, vm)) return false;
+                order = GetOpenLoyaltyOrder(order, os, vm);
+                if (order == null) return false;
+                current.DiscountAmount = 0;
+                current.PayableAmount = Math.Max(0m, order.ResultSum);
+                current.OrderFullSum = current.PayableAmount;
+                PluginEntry.ActiveOrders.TryRemove(order.Id, out _);
+                if (PersistActiveOrders()) return true;
+                PluginEntry.ActiveOrders[order.Id] = current;
+                vm.ShowErrorPopup("Не удалось сохранить смену клиента на кассе. Повторите сканирование.", "ОК");
+                return false;
+            }
+        }
+
         private static void RunSearchAndApply(IOrder order, IOperationService os, IViewManager vm, string query)
         {
             try
             {
                 if (!EnsureApiConfiguration(vm)) return;
-                order = os.GetOrderById(order.Id);
-                if (order == null || order.Status == OrderStatus.Closed || order.Status == OrderStatus.Deleted)
-                {
-                    vm.ShowErrorPopup("Этот чек уже закрыт. Для новой покупки откройте новый чек.", "ОК");
-                    return;
-                }
-                if (PluginEntry.ActiveOrders.ContainsKey(order.Id))
-                {
-                    vm.ShowErrorPopup("К этому заказу уже привязан клиент. Используйте кнопку «Бонусы», чтобы изменить привязку или сумму.", "ОК");
-                    return;
-                }
+                order = GetOpenLoyaltyOrder(order, os, vm);
+                if (order == null) return;
+                PluginEntry.ActiveOrders.TryGetValue(order.Id, out var previousCustomer);
 
                 var orphanDiscount = GetAppliedLoyaltyDiscountAmount(order, os);
-                if (orphanDiscount > 0.01m)
+                if (previousCustomer == null && orphanDiscount > 0.01m)
                 {
                     if (!RemoveLoyaltyDiscountFromOrder(order, os, vm)) return;
                     PluginContext.Log.Error("IikoBonusPlugin: Removed an untracked Bulka Bonus discount from order " + order.Id + ".");
@@ -1223,6 +1265,11 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     vm.ShowErrorPopup("Сервис вернул некорректные данные клиента.", "ОК");
                     return;
                 }
+                if (previousCustomer != null && string.Equals(previousCustomer.CustomerId, selectedCustomer.id, StringComparison.OrdinalIgnoreCase))
+                {
+                    Run(order, os, vm);
+                    return;
+                }
                 decimal serverBalance = selectedCustomer.balances != null && selectedCustomer.balances.Length > 0
                     ? Math.Max(0m, selectedCustomer.balances[0].balance)
                     : 0;
@@ -1238,7 +1285,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 var maxDiscountPercent = Math.Max(0m, Math.Min(100m, selectedCustomer.maxDiscountPercent));
                 order = os.GetOrderById(order.Id);
                 if (order == null || order.Status == OrderStatus.Closed || order.Status == OrderStatus.Deleted) return;
-                var eligibleOrderTotal = Math.Max(0m, order.ResultSum);
+                var eligibleOrderTotal = Math.Max(0m, order.ResultSum + GetAppliedLoyaltyDiscountAmount(order, os));
                 if (eligibleOrderTotal <= 0)
                 {
                     vm.ShowErrorPopup("В чеке нет суммы для списания бонусов. Добавьте товары и снова откройте «Бонусы».", "ОК");
@@ -1250,6 +1297,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
 
                 string info = "Клиент: " + selectedCustomer.name + "\nНомер: " + selectedCustomer.phone + regDateInfo + "\nДоступно: " + balance + " бонусов\nКэшбэк: " + selectedCustomer.cashbackPercent + "%";
                 
+                if (previousCustomer != null) info = "Сменить клиента в чеке\n\n" + info + "\n\nБонусы прежнего клиента будут освобождены.";
                 decimal discountAmount = 0;
                 
                 if (autoDiscount > 0)
@@ -1268,10 +1316,20 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 }
                 else
                 {
-                    vm.ShowOkPopup("Система лояльности", info + "\n\nДоступно бонусов для списания: 0\nБудет начислен только кэшбэк.", "ОК");
+                    if (previousCustomer != null)
+                    {
+                        if (vm.ShowChooserPopup(info, new List<string> { "Привязать нового клиента", "Отмена" }, 0,
+                            Resto.Front.Api.UI.ButtonWidth.Wider, "Отмена") != 0) return;
+                    }
+                    else vm.ShowOkPopup("Система лояльности", info + "\n\nДоступно бонусов для списания: 0\nБудет начислен только кэшбэк.", "ОК");
                     discountAmount = 0;
                 }
 
+                if (previousCustomer != null && !ReplaceAttachedCustomer(ref order, os, vm, previousCustomer)) return;
+                order = GetOpenLoyaltyOrder(order, os, vm);
+                if (order == null) return;
+                eligibleOrderTotal = Math.Max(0m, order.ResultSum);
+                discountAmount = Math.Min(discountAmount, Math.Round(eligibleOrderTotal * maxDiscountPercent / 100m, 2));
                 ReservationResponse reservation = null;
                 if (discountAmount > 0 && !TryReserveDiscount(
                         selectedCustomer.id,
@@ -1601,9 +1659,13 @@ namespace Resto.Front.Api.IikoBonusPlugin
 
         public static void OnOrderChanged(EntityChangedEventArgs<IOrder> args)
         {
+            OnOrderChanged(args.Entity);
+        }
+
+        private static void OnOrderChanged(IOrder order)
+        {
             try
             {
-                var order = args.Entity;
                 if (order == null) return;
 
                 if (order.Status == OrderStatus.Deleted)

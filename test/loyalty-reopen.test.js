@@ -94,6 +94,25 @@ test('editing an unpaid check updates the branch ledger with the new amounts', a
   assert.equal(Number(rows[0].order_total), 450);
   assert.equal(Number(rows[0].discount_amount), 225);
 });
+test('scanning a different customer releases only the former unpaid reservation and delayed cancellation cannot affect the new customer', async () => {
+  const first = await fixture(),
+    second = { ...first, customer: randomUUID() };
+  await db.query('insert into customers values($1,2000)', [second.customer]);
+  const old = await reserve(first, 1000, 500);
+  await assert.rejects(reserve(second, 1000, 500));
+  await cancel(first, old.reservation_id);
+  const current = await reserve(second, 1000, 500);
+  assert.notEqual(current.reservation_id, old.reservation_id);
+  await cancel(first, old.reservation_id);
+  const rows = (
+    await db.query('select customer_id,status from loyalty_reservations where id=$1', [
+      current.reservation_id,
+    ])
+  ).rows;
+  assert.equal(rows[0].customer_id, second.customer);
+  assert.equal(rows[0].status, 'active');
+  assert.equal((await reserve(second, 1000, 500)).reservation_id, current.reservation_id);
+});
 test('committed purchase cannot be repurposed or cancelled', async () => {
   const ctx = await fixture();
   const first = await reserve(ctx, 1000, 500);
