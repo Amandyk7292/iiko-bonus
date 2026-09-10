@@ -86,8 +86,8 @@ test('the customer catalog and quote reject the last unit while the cashier sees
   }
   assert.equal(online.get('two').availableQuantity, 1);
   assert.equal(online.get('two').isAvailable, true);
-  assert.equal(online.get('unlimited').availableQuantity, null);
-  assert.equal(online.get('unlimited').isAvailable, true);
+  assert.equal(online.get('unlimited').availableQuantity, 0);
+  assert.equal(online.get('unlimited').isAvailable, false);
   const catalog = new Map(
     [...online].map(([id, stock]) => [id, { ...stock, name: 'Плюшка', price: 35 }]),
   );

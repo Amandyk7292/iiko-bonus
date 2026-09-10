@@ -184,7 +184,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private static bool SameItems(List<GuardItem> a,List<GuardItem> b) =>
             a.Count==b.Count && a.Zip(b,(x,y)=>x.ProductId==y.ProductId && x.Quantity==y.Quantity).All(x=>x);
 
-        internal void LinkOnline(IOrder order,IOperationService os,IViewManager vm)
+        internal void LinkOnline(IOrder order,IOperationService os,IViewManager vm,long selectedNumber)
         {
             if(!Enabled) { vm.ShowErrorPopup("Сначала настройте общий учёт на всех кассах филиала.","ОК"); return; }
             try
@@ -202,13 +202,9 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     ResolvePendingLink(order.Id.ToString());
                     requests.TryGetValue(order.Id.ToString(),out var saved);
                     if(saved!=null && !saved.OnlineNumber.HasValue) throw new InvalidOperationException("Этот чек уже закреплён как продажа с витрины. Для онлайн-заказа создайте отдельный чек.");
-                    long? number=saved?.OnlineNumber;
-                    if(!number.HasValue)
-                    {
-                        var input=vm.ShowInputDialog("Номер оплаченного онлайн-заказа",InputDialogTypes.Number,null,"Привязать","Отмена");
-                        if(input==null) return;
-                        number=input is NumberInputDialogResult n ? n.Number : input is DecimalInputDialogResult d ? (long)d.Decimal : 0;
-                    }
+                    if(saved?.OnlineNumber != null && saved.OnlineNumber != selectedNumber)
+                        throw new InvalidOperationException("Чек уже связан с другим заказом Bulka. Откройте пустой чек.");
+                    long? number=selectedNumber;
                     if(number<=0) throw new InvalidOperationException("Введите номер заказа Bulka.");
                     if(order.Payments.Any(p=>!p.IsExternal || !p.IsProcessedExternally || p.Type.Id!=paymentTypeId))
                         throw new InvalidOperationException("Уберите обычную оплату из чека: онлайн-заказ уже оплачен клиентом.");

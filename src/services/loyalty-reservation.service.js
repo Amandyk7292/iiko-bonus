@@ -168,13 +168,22 @@ const mapRpcError = (error, { branch = null } = {}) => {
     message.includes('committed reservation') ||
     message.includes('is not active')
   ) {
-    return reservationError(message, 409);
+    return reservationError(
+      'Этот чек уже обработан или связан с другим клиентом. Для новой покупки откройте новый чек.',
+      409,
+    );
   }
   if (message.includes('discount exceeds')) {
-    return reservationError('discountAmount exceeds available balance', 409);
+    return reservationError(
+      'Доступный остаток бонусов или сумма чека изменились. Обновите данные и выберите списание заново.',
+      409,
+    );
   }
   if (message.includes('branch loyalty claim conflict')) {
-    return reservationError('Branch loyalty claim does not match the reservation', 409);
+    return reservationError(
+      'Резерв бонусов не соответствует этому чеку или филиалу. Обновите чек и повторите.',
+      409,
+    );
   }
   if (message.includes('branch loyalty rolling limit exceeded')) {
     recordPosSafetyRejection('rolling', branch);

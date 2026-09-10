@@ -1,6 +1,16 @@
 part of '../main.dart';
 
 const Map<String, Map<String, String>> _featureStateTranslations = {
+  'catalog_remaining_pieces': {
+    'ru': 'Осталось {count} шт.',
+    'kk': '{count} дана қалды',
+    'en': '{count} left',
+  },
+  'catalog_remaining_weight': {
+    'ru': 'Осталось {count} {unit}',
+    'kk': '{count} {unit} қалды',
+    'en': '{count} {unit} left',
+  },
   // Helpful feature states
   'catalog_sub': {
     'ru':

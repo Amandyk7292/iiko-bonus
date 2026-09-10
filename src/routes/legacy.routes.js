@@ -945,13 +945,16 @@ router.get('/api/guest/menu', async (req, res) => {
         price: cp.price,
         categoryId: catId,
         imageUrl: cp.image_url,
-        inStopList: !cp.is_available || inventory?.isAvailable === false,
-        isAvailable: cp.is_available && (inventory?.isAvailable ?? true),
+        inStopList:
+          !cp.is_available || (branchId && !branchProductAvailable(branchAvailability, cp.id)),
+        isAvailable:
+          cp.is_available && (!branchId || branchProductAvailable(branchAvailability, cp.id)),
         availableQuantity: inventory?.availableQuantity ?? null,
         inStockCount: inventory?.availableQuantity ?? null,
         quantityStep: inventory?.quantityStep ?? 1,
         unit: inventory?.unit ?? 'шт.',
-        onlineOrderable: cp.is_available && (inventory?.isAvailable ?? true),
+        onlineOrderable:
+          cp.is_available && (!branchId || branchProductAvailable(branchAvailability, cp.id)),
         preparationMinutes: Number(
           inventory?.preparationMinutes || cp.preparation_minutes || branchPreparationMinutes,
         ),

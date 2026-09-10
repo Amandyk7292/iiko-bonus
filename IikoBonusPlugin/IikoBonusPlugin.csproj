@@ -7,7 +7,7 @@
     <AssemblyName>Resto.Front.Api.IikoBonusPlugin</AssemblyName>
     <RootNamespace>Resto.Front.Api.IikoBonusPlugin</RootNamespace>
     <Platforms>AnyCPU</Platforms>
-    <Version>1.6.0</Version>
+    <Version>1.7.0</Version>
     <Deterministic>true</Deterministic>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <IikoFrontApiVersion>9.4.7024-alpha</IikoFrontApiVersion>
@@ -21,6 +21,7 @@
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.Security" />
+    <Reference Include="System.Windows.Forms" />
   </ItemGroup>
 
   <ItemGroup>

@@ -41,7 +41,6 @@ extension _CatalogProductCard on _CatalogScreenState {
     final stockKey = _stockSubscriptionKey(product.id, _selectedBakeryId);
     final stockSubscribed = _stockSubscriptions.containsKey(stockKey);
     final stockBusy = _stockSubscriptionBusy.contains(stockKey);
-
     return Semantics(
       container: true,
       explicitChildNodes: true,
@@ -266,6 +265,15 @@ extension _CatalogProductCard on _CatalogScreenState {
                         letterSpacing: -0.2,
                       ),
                     ),
+                    if (_selectedBakeryId.isNotEmpty &&
+                        !unavailable &&
+                        product.inStockCount != null) ...[
+                      const SizedBox(height: 8),
+                      CatalogStockBadge(
+                        quantity: product.inStockCount!,
+                        unit: product.unit,
+                      ),
+                    ],
                     if (product.weightGrams != null) ...[
                       const SizedBox(height: 5),
                       Text(

@@ -439,7 +439,10 @@ function buildBusinessRoute(order, input = {}) {
       longitude: branch.longitude,
       latitude: branch.latitude,
       fullname: addressText(branch.city, branch.address || branch.full_address || branch.name),
-      extra_data: { contact_phone: config.senderPhone },
+      extra_data: {
+        contact_phone: config.senderPhone,
+        comment: require('../utils/order-handoff-note.util').courierOrderHandoffNote(order),
+      },
     }),
     buildOrderRoutePoint({
       longitude: order?.delivery_longitude,
@@ -478,14 +481,14 @@ function buildBusinessCreatePayload(
       : '';
   const customerOrderComment = boundedString(order?.comment, 500);
   const orderComment = boundedString(
-    comment ||
-      [
-        `Bulka, заказ №${order?.order_number || order?.id || ''}`,
-        addressComment,
-        customerOrderComment,
-      ]
-        .filter(Boolean)
-        .join('. '),
+    [
+      require('../utils/order-handoff-note.util').courierOrderHandoffNote(order).replace(/\.$/, ''),
+      comment,
+      addressComment,
+      customerOrderComment,
+    ]
+      .filter(Boolean)
+      .join('. '),
     1000,
   );
   return buildOrderCreatePayload({

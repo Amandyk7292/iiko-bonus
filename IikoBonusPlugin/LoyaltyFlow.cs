@@ -684,9 +684,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                         {
                             var message = response.StatusCode == HttpStatusCode.NotFound
                                 ? "Клиент или резервация не найдены. Обновите данные гостя."
-                                : response.StatusCode == HttpStatusCode.Conflict
-                                    ? "Доступный баланс изменился на другом терминале. Выберите сумму списания заново."
-                                    : GetApiErrorMessage(response.Body,
+                                : GetApiErrorMessage(response.Body,
                                         "Не удалось зарезервировать бонусы. Списание не применено. Код: " + (int)response.StatusCode);
                             vm.ShowErrorPopup(message, "ОК");
                         }
@@ -1108,6 +1106,12 @@ namespace Resto.Front.Api.IikoBonusPlugin
             try
             {
                 if (!EnsureApiConfiguration(vm)) return;
+                order = os.GetOrderById(order.Id);
+                if (order == null || order.Status == OrderStatus.Closed || order.Status == OrderStatus.Deleted)
+                {
+                    vm.ShowErrorPopup("Этот чек уже закрыт. Для новой покупки откройте новый чек.", "ОК");
+                    return;
+                }
                 if (PluginEntry.ActiveOrders.ContainsKey(order.Id))
                 {
                     vm.ShowErrorPopup("К этому заказу уже привязан клиент. Используйте кнопку «Бонусы», чтобы изменить привязку или сумму.", "ОК");
@@ -1232,7 +1236,14 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 }
 
                 var maxDiscountPercent = Math.Max(0m, Math.Min(100m, selectedCustomer.maxDiscountPercent));
+                order = os.GetOrderById(order.Id);
+                if (order == null || order.Status == OrderStatus.Closed || order.Status == OrderStatus.Deleted) return;
                 var eligibleOrderTotal = Math.Max(0m, order.ResultSum);
+                if (eligibleOrderTotal <= 0)
+                {
+                    vm.ShowErrorPopup("В чеке нет суммы для списания бонусов. Добавьте товары и снова откройте «Бонусы».", "ОК");
+                    return;
+                }
                 decimal maxAllowed = eligibleOrderTotal * (maxDiscountPercent / 100m);
                 decimal autoDiscount = Math.Min(balance, maxAllowed);
                 autoDiscount = Math.Round(autoDiscount, 2);

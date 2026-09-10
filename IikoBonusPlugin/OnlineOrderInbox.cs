@@ -1,143 +1,157 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
-using System.Runtime.Serialization;
-using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using Resto.Front.Api.UI;
-
 namespace Resto.Front.Api.IikoBonusPlugin
 {
-    [DataContract] internal sealed class InboxItem
-    {
-        [DataMember(Name="name")] public string Name { get; set; }
-        [DataMember(Name="quantity")] public decimal Quantity { get; set; }
-        [DataMember(Name="unit")] public string Unit { get; set; }
-    }
-    [DataContract] internal sealed class InboxOrder
-    {
-        [DataMember(Name="id")] public string Id { get; set; }
-        [DataMember(Name="number")] public long Number { get; set; }
-        [DataMember(Name="phone")] public string Phone { get; set; }
-        [DataMember(Name="customer")] public string Customer { get; set; }
-        [DataMember(Name="items")] public List<InboxItem> Items { get; set; }
-        [DataMember(Name="orderType")] public string OrderType { get; set; }
-        [DataMember(Name="preorderType")] public string PreorderType { get; set; }
-        [DataMember(Name="scheduledAt")] public string ScheduledAt { get; set; }
-        [DataMember(Name="amount")] public decimal Amount { get; set; }
-        [DataMember(Name="deliveryFee")] public decimal DeliveryFee { get; set; }
-        [DataMember(Name="comment")] public string Comment { get; set; }
-        internal string TypeLabel => OrderType=="preorder" ? "Предзаказ · Самовывоз" : OrderType=="delivery" ? "Доставка" : "Самовывоз";
-    }
-    [DataContract] internal sealed class InboxResponse
-    {
-        [DataMember(Name="orders")] public List<InboxOrder> Orders { get; set; }
-        [DataMember(Name="total")] public int Total { get; set; }
-    }
-    [DataContract] internal sealed class InboxDecision
-    {
-        [DataMember(Name="orderId")] public string OrderId { get; set; }
-        [DataMember(Name="terminalId")] public string TerminalId { get; set; }
-        [DataMember(Name="action")] public string Action { get; set; }
-    }
-    [DataContract] internal sealed class InboxPoll
-    {
-        [DataMember(Name="terminalId")] public string TerminalId { get; set; }
-    }
     internal sealed class OnlineOrderInbox : IDisposable
     {
         private readonly Timer timer;
-        private int busy;
-        private DateTime lastNotification=DateTime.MinValue;
-        private string lastKey="";
-        private string lastDescription="";
-        internal OnlineOrderInbox() { timer=new Timer(Poll,null,TimeSpan.FromSeconds(5),TimeSpan.FromSeconds(5)); }
-        private static InboxResponse Load(int page,bool peek=false,bool receipts=false)
+        private readonly object gate = new object();
+        private readonly SemaphoreSlim network = new SemaphoreSlim(1, 1);
+        private readonly int[] pages = {1, 1, 1, 1};
+        private OrderBoardWindow window;
+        private int polling, opening, refreshing;
+        private volatile bool disposed;
+        private string revision = "", lastAlertKey = "";
+        private DateTime lastAlert = DateTime.MinValue;
+        internal OnlineOrderInbox() { timer = new Timer(Poll, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5)); }
+
+        private static T Request<T>(HttpMethod method, string path, object body = null)
         {
-            var response=peek
-                ? LoyaltyFlow.SendApiRequest(HttpMethod.Post,"orders/poll",new InboxPoll {TerminalId=PluginContext.Operations.GetHostTerminal().Id.ToString()})
-                : LoyaltyFlow.SendApiRequest(HttpMethod.Get,"orders/inbox?page="+page+"&receipts="+(receipts ? "true" : "false"));
-            if(!response.IsSuccessStatusCode) throw new InvalidOperationException("Не удалось получить заказы Bulka. Проверьте связь и настройку филиала.");
-            var result=LoyaltyFlow.DeserializeJson<InboxResponse>(response.Body);
-            if(result?.Orders==null) throw new InvalidOperationException("Некорректный ответ списка заказов.");
+            var response = LoyaltyFlow.SendApiRequest(method, path, body);
+            if (!response.IsSuccessStatusCode)
+            {
+                GuardResponse error = null;
+                try { error = LoyaltyFlow.DeserializeJson<GuardResponse>(response.Body); } catch { }
+                throw new InvalidOperationException(error?.Error ?? "Нет связи с Bulka. Действие не подтверждено. Повторите после восстановления связи.");
+            }
+            return LoyaltyFlow.DeserializeJson<T>(response.Body);
+        }
+        private BoardResponse Load()
+        {
+            int[] current; lock (gate) current = (int[])pages.Clone();
+            var query = string.Join("&", BoardColumn.Stages.Select((stage, i) => stage + "=" + current[i]));
+            var result = Request<BoardResponse>(HttpMethod.Get, "orders/board?" + query);
+            if (result?.Columns == null || result.Columns.Count != 4)
+                throw new InvalidOperationException("Не удалось загрузить экран заказов. Обновите плагин и проверьте связь.");
             return result;
         }
-        private void Poll(object state)
+        private void OnWindow(Action<OrderBoardWindow> action)
         {
-            if(Interlocked.CompareExchange(ref busy,1,0)!=0) return;
+            lock (gate)
+            {
+                var target = window;
+                if (target != null && !target.Dispatcher.HasShutdownStarted)
+                    target.Dispatcher.BeginInvoke(new Action(() => action(target)));
+            }
+        }
+        private async void Poll(object state)
+        {
+            if (disposed || Interlocked.CompareExchange(ref polling, 1, 0) != 0) return;
             try
             {
-                var result=Load(1,true);
-                if(result.Total==0) { lastKey=""; return; }
-                var key=result.Orders.FirstOrDefault()?.Id+":"+result.Total;
-                if(key==lastKey && DateTime.UtcNow-lastNotification<TimeSpan.FromSeconds(30)) return;
-                if(key!=lastKey)
-                {
-                    var incoming=Load(1).Orders.FirstOrDefault();
-                    if(incoming==null) return;
-                    lastDescription="Новый заказ Bulka №"+incoming.Number+" · "+incoming.TypeLabel+"\n"+incoming.Phone+"\n"+
-                        string.Join("; ",(incoming.Items ?? new List<InboxItem>()).Take(5).Select(item=>item.Name+" × "+item.Quantity));
-                }
-                PluginContext.Operations.AddNotificationMessage(lastDescription+
-                    "\nОжидают принятия: "+result.Total+". Откройте «Заказы Bulka».","BulkaOnlineOrders",TimeSpan.FromSeconds(30));
-                lastKey=key; lastNotification=DateTime.UtcNow;
-            }
-            catch(Exception error) { PluginContext.Log.Warn("Bulka inbox: "+error.Message); }
-            finally { Interlocked.Exchange(ref busy,0); }
-        }
-        internal void Show(IViewManager vm)
-        {
-            int page=1;
-            bool receipts=false;
-            while(true)
-            {
+                await network.WaitAsync().ConfigureAwait(false);
                 try
                 {
-                    var result=Load(page,false,receipts);
-                    var labels=result.Orders.Select(order=>"№"+order.Number+" · "+order.TypeLabel+" · "+order.Amount.ToString("0.##")+" ₸\n"+
-                        string.Join(", ",(order.Items ?? new List<InboxItem>()).Take(3).Select(item=>item.Name+" × "+item.Quantity))).ToList();
-                    int refresh=labels.Count; labels.Add("Обновить список");
-                    int toggle=labels.Count; labels.Add(receipts ? "Новые заказы" : "Оформить чеки после планшета");
-                    int previous=labels.Count; if(page>1) labels.Add("Предыдущая страница"); else previous=-1;
-                    int next=labels.Count; if(page*25<result.Total) labels.Add("Следующая страница"); else next=-1;
-                    int choice=vm.ShowChooserPopup((receipts ? "Ожидают чека · " : "Новые заказы Bulka · ")+result.Total,labels,-1,ButtonWidth.Normal,"Закрыть");
-                    if(choice<0) return;
-                    if(choice==refresh) continue;
-                    if(choice==toggle) {receipts=!receipts;page=1;continue;}
-                    if(choice==previous) {page--;continue;}
-                    if(choice==next) {page++;continue;}
-                    var selected=result.Orders[choice];
-                    var details=new StringBuilder(selected.TypeLabel+"\n"+selected.Customer+" · "+selected.Phone+"\n\n");
-                    foreach(var item in selected.Items ?? new List<InboxItem>()) details.AppendLine(item.Name+" — "+item.Quantity+" "+(item.Unit ?? "шт."));
-                    if(!string.IsNullOrWhiteSpace(selected.ScheduledAt) && DateTimeOffset.TryParse(selected.ScheduledAt,out var scheduled)) details.AppendLine("Ко времени: "+scheduled.ToLocalTime().ToString("dd.MM HH:mm"));
-                    details.AppendLine("\nОплачено: "+selected.Amount.ToString("0.##")+" ₸");
-                    if(selected.DeliveryFee>0) details.AppendLine("В том числе доставка: "+selected.DeliveryFee.ToString("0.##")+" ₸");
-                    if(!string.IsNullOrWhiteSpace(selected.Comment)) details.AppendLine("Комментарий: "+selected.Comment);
-                    if(receipts)
+                    if (disposed) return;
+                    var peek = Request<InboxResponse>(HttpMethod.Post, "orders/board/poll", new InboxPoll {
+                        TerminalId = PluginContext.Operations.GetHostTerminal().Id.ToString() });
+                    if (peek == null) throw new InvalidOperationException("Нет ответа от Bulka.");
+                    bool visible; lock (gate) visible = window != null;
+                    if (visible && peek.Revision != revision)
                     {
-                        vm.ShowOkPopup("Оформить чек №"+selected.Number,details+"\nОткройте пустой чек и нажмите «Онлайн-заказ». Введите №"+selected.Number+
-                            ". Товары, скидка и уже внесённая оплата перенесутся автоматически. Повторно оплачивать заказ не нужно.","ОК");
-                        continue;
+                        var result = Load(); OnWindow(view => view.Update(result)); revision = peek.Revision;
                     }
-                    var accept=vm.ShowYesNoCancelPopup("Заказ №"+selected.Number,details.ToString(),"Принять","Отклонить","Назад");
-                    if(!accept.HasValue) continue;
-                    if(!accept.Value && !vm.ShowOkCancelPopup("Отклонить заказ №"+selected.Number,
-                        "Клиент увидит «Нет в наличии». Оплата будет возвращена на исходный способ оплаты.","Отклонить","Назад")) continue;
-                    var response=LoyaltyFlow.SendApiRequest(HttpMethod.Post,"orders/decision",new InboxDecision {
-                        OrderId=selected.Id,TerminalId=PluginContext.Operations.GetHostTerminal().Id.ToString(),Action=accept.Value ? "accept" : "reject" });
-                    if(!response.IsSuccessStatusCode)
-                    {
-                        GuardResponse error=null;
-                        try {error=LoyaltyFlow.DeserializeJson<GuardResponse>(response.Body);} catch { }
-                        throw new InvalidOperationException(error?.Error ?? "Действие не подтверждено. Обновите заказ перед повтором.");
-                    }
-                    vm.ShowOkPopup("Заказ №"+selected.Number,accept.Value ? "Заказ принят. Статус обновлён у клиента." : "Отмена оформлена. Статус возврата доступен в Bulka.","ОК");
-                    page=1;
+                    else if (visible) OnWindow(view => view.SetConnected());
+                    var key = (peek.Orders?.FirstOrDefault()?.Id ?? "") + ":" + peek.Total;
+                    if (peek.Total > 0 && !visible && (key != lastAlertKey || DateTime.UtcNow - lastAlert > TimeSpan.FromSeconds(30)))
+                    { lastAlertKey = key; RequestAutomaticOpen(); }
+                    if (peek.Total == 0) lastAlertKey = "";
                 }
-                catch(Exception error) {vm.ShowErrorPopup(error.Message,"ОК");return;}
+                finally { network.Release(); }
             }
+            catch (Exception error)
+            { revision = ""; OnWindow(view => view.SetError(error.Message)); PluginContext.Log.Warn("Bulka board poll: " + error.Message); }
+            finally { Interlocked.Exchange(ref polling, 0); }
         }
-        public void Dispose() { timer.Dispose(); }
+        private void RequestAutomaticOpen()
+        {
+            if (Interlocked.CompareExchange(ref opening, 1, 0) != 0) return;
+            ThreadPool.QueueUserWorkItem(_ => {
+                try
+                {
+                    // Wait for iikoFront's active payment/dialog operation to finish.
+                    PluginContext.Operations.TryExecuteUiOperation(vm => Show(vm, false, true));
+                }
+                catch (Exception error) { PluginContext.Log.Warn("Bulka board open: " + error.Message); }
+                finally { lastAlert = DateTime.UtcNow; Interlocked.Exchange(ref opening, 0); }
+            });
+        }
+        internal long? Show(IViewManager vm, bool canImport = false, bool automatic = false)
+        {
+            lock (gate) { if (disposed || window != null) return null; }
+            var owner = OrderBoardWindow.CaptureOwner();
+            if (automatic && owner == IntPtr.Zero) return null;
+            long? selected = null; Exception failure = null;
+            var thread = new Thread(() => {
+                try
+                {
+                    var view = new OrderBoardWindow(PosPairing.Current?.BranchName ?? "Bulka", owner, canImport, automatic);
+                    view.ActionRequested += Change;
+                    view.RefreshRequested += Refresh;
+                    view.PageRequested += (index, page) => { lock (gate) pages[index] = page; Refresh(); };
+                    lock (gate)
+                    {
+                        if (disposed || window != null) return;
+                        window = view;
+                        for (var i = 0; i < pages.Length; i++) pages[i] = 1;
+                        revision = "";
+                    }
+                    view.Loaded += (_, __) => Refresh();
+                    view.ShowDialog(); selected = view.SelectedReceiptNumber;
+                }
+                catch (Exception error) { failure = error; }
+                finally { lock (gate) window = null; lastAlert = DateTime.UtcNow; System.Windows.Threading.Dispatcher.CurrentDispatcher.InvokeShutdown(); }
+            });
+            thread.IsBackground = true; thread.SetApartmentState(ApartmentState.STA); thread.Start(); thread.Join();
+            if (failure != null) vm.ShowErrorPopup("Не удалось открыть экран заказов: " + failure.Message, "ОК");
+            return selected;
+        }
+        private void Refresh()
+        {
+            if (Interlocked.CompareExchange(ref refreshing, 1, 0) != 0) return;
+            Task.Run(async () => {
+                await network.WaitAsync().ConfigureAwait(false);
+                try { if (!disposed) { var result = Load(); OnWindow(view => view.Update(result)); } }
+                catch (Exception error) { OnWindow(view => view.SetError(error.Message)); }
+                finally { network.Release(); Interlocked.Exchange(ref refreshing, 0); }
+            });
+        }
+        private void Change(InboxOrder order, string action)
+        {
+            Task.Run(async () => {
+                await network.WaitAsync().ConfigureAwait(false);
+                try
+                {
+                    if (disposed) return;
+                    Request<GuardResponse>(HttpMethod.Post, "orders/board/action", new InboxDecision {
+                        OrderId = order.Id, TerminalId = PluginContext.Operations.GetHostTerminal().Id.ToString(), Action = action });
+                    var result = Load(); OnWindow(view => view.Update(result));
+                }
+                catch (Exception error)
+                {
+                    try { if (!disposed) { var result = Load(); OnWindow(view => view.Update(result)); } } catch { }
+                    OnWindow(view => view.SetError(error.Message));
+                }
+                finally { network.Release(); OnWindow(view => view.FinishAction(order.Id)); }
+            });
+        }
+        public void Dispose()
+        {
+            disposed = true; timer.Dispose(); OnWindow(view => view.Close());
+        }
     }
 }

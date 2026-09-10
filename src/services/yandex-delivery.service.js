@@ -573,10 +573,16 @@ function buildClaimPayload(order, config = getConfig()) {
     order.customers?.name || `Клиент заказа №${order.order_number}`,
     160,
   );
-  const comment = deliveryCourierComment(destination, order.comment);
+  const { courierOrderHandoffNote } = require('../utils/order-handoff-note.util');
+  const handoffNote = courierOrderHandoffNote(order);
+  const comment = boundedString(
+    [handoffNote, deliveryCourierComment(destination, order.comment)].filter(Boolean).join(' '),
+    700,
+  );
   const itemSummary = orderItemsSummary(order);
   const pickupComment = boundedString(
     [
+      handoffNote,
       `Забрать в Bulka «${branch.name || order.branch_name || 'точка выдачи'}»`,
       `заказ №${order.order_number}`,
       itemSummary ? `состав: ${itemSummary}` : '',
@@ -641,7 +647,7 @@ function buildClaimPayload(order, config = getConfig()) {
     skip_door_to_door: false,
     optional_return: false,
     comment: boundedString(
-      `Bulka, заказ №${order.order_number}. Забрать: ${itemSummary}. Только автомобиль, термосумка обязательна.`,
+      `${handoffNote} Забрать: ${itemSummary}. Только автомобиль, термосумка обязательна.`,
       7000,
     ),
     referral_source: 'bulka',

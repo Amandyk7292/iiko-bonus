@@ -15,7 +15,7 @@ function branchProductAvailable(inventory, productId) {
   const item = inventory.get(String(productId));
   if (item) return item.isAvailable !== false;
   if (inventory.preorder) return true;
-  return !inventory.frontSync?.configured || inventory.frontSync.connected;
+  return false;
 }
 
 module.exports = { branchCatalogSource, branchProductAvailable };

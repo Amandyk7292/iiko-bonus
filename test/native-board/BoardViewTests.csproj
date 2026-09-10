@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework><UseWPF>true</UseWPF><OutputType>Exe</OutputType>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems><TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../IikoBonusPlugin/OrderBoardModels.cs" Link="OrderBoardModels.cs" />
+    <Compile Include="../../IikoBonusPlugin/OrderBoardWindow.cs" Link="OrderBoardWindow.cs" />
+    <Compile Include="BoardViewTests.cs" />
+    <Reference Include="System.Windows.Forms"/><Reference Include="System.Runtime.Serialization"/>
+  </ItemGroup>
+</Project>

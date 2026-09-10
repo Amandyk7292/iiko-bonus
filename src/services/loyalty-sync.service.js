@@ -30,17 +30,27 @@ async function syncCustomerLoyalty(customerId) {
     { customerId: customer.id },
   );
 
-  const { tier } = await resolveWalletTier(customer);
+  let tier;
   const providers = await Promise.allSettled([
     sendAppleWalletPush(customer.id),
-    updateGoogleWalletObject(customer, tier),
+    (async () => {
+      ({ tier } = await resolveWalletTier(customer));
+      return updateGoogleWalletObject(customer, tier);
+    })(),
   ]);
   for (const [index, result] of providers.entries()) {
     if (result.status !== 'rejected') continue;
     const provider = index === 0 ? 'Apple Wallet' : 'Google Wallet';
     console.error(`${provider} sync failed:`, result.reason?.message || String(result.reason));
   }
-  return { customer, tier, providers };
+  return {
+    customer,
+    tier,
+    providers,
+    retryable: providers.some(
+      (result) => result.status === 'rejected' || result.value?.retryable === true,
+    ),
+  };
 }
 
 function queueCustomerLoyaltySync(customerId) {
@@ -52,20 +62,29 @@ function queueCustomerLoyaltySync(customerId) {
     return;
   }
 
-  const state = { rerun: true };
+  const state = { rerun: true, attempts: 0 };
   queued.set(id, state);
-  setImmediate(async () => {
+  const run = async () => {
+    let retry = false;
     try {
       while (state.rerun) {
         state.rerun = false;
-        await syncCustomerLoyalty(id);
+        const result = await syncCustomerLoyalty(id);
+        retry = result.retryable;
       }
     } catch (error) {
       console.error('Loyalty realtime sync failed:', error.message);
+      retry = true;
     } finally {
-      queued.delete(id);
+      const delays = [3000, 15000, 60000];
+      if (retry && state.attempts < delays.length) {
+        state.rerun = true;
+        const timer = setTimeout(run, delays[state.attempts++]);
+        timer.unref?.();
+      } else queued.delete(id);
     }
-  });
+  };
+  setImmediate(run);
 }
 
 module.exports = { queueCustomerLoyaltySync, syncCustomerLoyalty };

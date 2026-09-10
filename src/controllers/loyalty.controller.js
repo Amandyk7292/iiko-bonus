@@ -93,6 +93,9 @@ const commitLogPayload = (payload, result) => {
 };
 
 async function notifyCommittedLoyalty(payload, result) {
+  // A retried acknowledgement must still repair a missed wallet/realtime update.
+  // Keep it independent of customer notification delivery and deduplicate those below.
+  queueCustomerLoyaltySync(payload.customerId);
   if (result.duplicate) return;
   try {
     const { data: customer, error } = await supabase
@@ -117,7 +120,6 @@ async function notifyCommittedLoyalty(payload, result) {
   } catch (error) {
     console.error('Push notification failed:', error.message);
   }
-  queueCustomerLoyaltySync(payload.customerId);
 }
 
 async function recordCommittedLoyalty(payload, result) {

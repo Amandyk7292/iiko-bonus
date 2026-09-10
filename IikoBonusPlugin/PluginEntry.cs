@@ -16,7 +16,6 @@ namespace Resto.Front.Api.IikoBonusPlugin
     {
         private IDisposable _buttonSubscription;
         private IDisposable _statusButtonSubscription;
-        private IDisposable _pickupButtonSubscription;
         private IDisposable _giftButtonSubscription;
         private IDisposable _orderSubscription;
         private IDisposable _billPrintSubscription;
@@ -25,7 +24,6 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private IDisposable _beforePaymentSubscription;
         private static StockSync _stockSync;
         private static SharedStockGuard _sharedStock;
-        private IDisposable _sharedStockButton;
         private IDisposable _beforeServiceSubscription;
         private OnlineOrderInbox _inbox;
         private IDisposable _inboxMenu;
@@ -64,9 +62,12 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 _pairingMenu = PluginContext.Operations.AddButtonToPluginsMenu("Привязать кассу", args => PosPairing.Show(args.Item1));
                 _pairingOrderButton = PluginContext.Operations.AddButtonToOrderEditScreen("Привязать кассу",
                     (ValueTuple<IOrder,IOperationService,IViewManager> args) => PosPairing.Show(args.Item3));
-                _inboxMenu = PluginContext.Operations.AddButtonToPluginsMenu("Заказы Bulka", args => _inbox.Show(args.Item1));
-                _inboxOrderButton = PluginContext.Operations.AddButtonToOrderEditScreen("Заказы Bulka",
-                    (ValueTuple<IOrder,IOperationService,IViewManager> args) => _inbox.Show(args.Item3));
+                _inboxMenu = PluginContext.Operations.AddButtonToPluginsMenu("Экран заказов Bulka", args => _inbox.Show(args.Item1));
+                _inboxOrderButton = PluginContext.Operations.AddButtonToOrderEditScreen("Экран заказов Bulka",
+                    (ValueTuple<IOrder,IOperationService,IViewManager> args) => {
+                        var selected = _inbox.Show(args.Item3, true);
+                        if (selected.HasValue) _sharedStock.LinkOnline(args.Item1,args.Item2,args.Item3,selected.Value);
+                    });
                 _recountButton = PluginContext.Operations.AddButtonToPluginsMenu("Сверить витрину", args =>
                     _sharedStock.Recount(PluginContext.Operations,args.Item1));
                 _reconciliationButton = PluginContext.Operations.AddButtonToPluginsMenu("Сверка чеков Bulka", args =>
@@ -111,14 +112,6 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     }
                 );
 
-                _pickupButtonSubscription = PluginContext.Operations.AddButtonToOrderEditScreen(
-                    "Выдать онлайн-заказ",
-                    (ValueTuple<IOrder, IOperationService, IViewManager> args) =>
-                    {
-                        LoyaltyFlow.RunPickupHandoffByPin(args.Item1, args.Item3);
-                    }
-                );
-
                 _giftButtonSubscription = PluginContext.Operations.AddButtonToOrderEditScreen(
                     "Сертификат",
                     (ValueTuple<IOrder, IOperationService, IViewManager> args) =>
@@ -141,8 +134,6 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 _beforePaymentSubscription = PluginContext.Notifications.BeforeProceedOrderPayment.Subscribe(BeforeProceedOrderPayment);
                 _beforeServiceSubscription = PluginContext.Notifications.BeforeServiceCheque.Subscribe(args =>
                     _sharedStock.BeforeOperation(args.Item1,args.Item3,args.Item4,false));
-                _sharedStockButton = PluginContext.Operations.AddButtonToOrderEditScreen("Онлайн-заказ",
-                    (ValueTuple<IOrder,IOperationService,IViewManager> args) => _sharedStock.LinkOnline(args.Item1,args.Item2,args.Item3));
                 LoyaltyFlow.StartBackgroundRetry();
                 GiftCertificateFlow.StartBackgroundRetry();
                 if (!string.Equals(LoyaltyFlow.ReadPluginSetting("IIKO_STOCK_SYNC_ENABLED"), "false", StringComparison.OrdinalIgnoreCase))
@@ -168,7 +159,6 @@ namespace Resto.Front.Api.IikoBonusPlugin
         {
             TryDispose(_buttonSubscription);
             TryDispose(_statusButtonSubscription);
-            TryDispose(_pickupButtonSubscription);
             TryDispose(_giftButtonSubscription);
             TryDispose(_orderSubscription);
             TryDispose(_billPrintSubscription);
@@ -176,7 +166,6 @@ namespace Resto.Front.Api.IikoBonusPlugin
             TryDispose(_barcodeSubscription);
             TryDispose(_beforePaymentSubscription);
             TryDispose(_beforeServiceSubscription);
-            TryDispose(_sharedStockButton);
             TryDispose(_sharedStock);
             TryDispose(_inbox);
             TryDispose(_inboxMenu);

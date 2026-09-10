@@ -140,7 +140,7 @@ test('quote and claim carry the saved house and visible arrival details without 
   assert.equal(destination.sflat, '18');
   assert.equal(
     destination.comment,
-    'ЖК Пример. Дом 34. Подъезд 2. Этаж 4. Квартира 18. Позвонить заранее',
+    'Заказ Bulka №100042. При получении назовите кассиру номер заказа №100042. ЖК Пример. Дом 34. Подъезд 2. Этаж 4. Квартира 18. Позвонить заранее',
   );
   assert.equal(claim.route_points[1].contact.phone, order.customers.phone);
 });

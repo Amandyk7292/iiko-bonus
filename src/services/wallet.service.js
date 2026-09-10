@@ -49,6 +49,8 @@ function getApnProvider() {
   apnProviderInitialized = true;
   try {
     apnProvider = new apn.Provider({
+      // This VPS has a working IPv4 route to APNs; IPv6 connection attempts time out.
+      family: 4,
       cert: readSecretBuffer('WALLET_CERT', 'wallet_cert.pem'),
       key: readSecretBuffer('WALLET_KEY', 'wallet_private_key.pem'),
       passphrase: process.env.WALLET_KEY_PASSPHRASE || undefined,
@@ -106,10 +108,18 @@ async function sendAppleWalletPush(customerId) {
   const notification = createAppleWalletNotification(passTypeIdentifier);
   const result = await provider.send(notification, tokens);
   await removeInvalidApplePushTokens(result.failed || []);
+  const failures = (result.failed || []).map(
+    (failure) => failure.response?.reason || failure.error?.code || 'APNS_TRANSPORT_ERROR',
+  );
+  if (failures.length)
+    console.error('Apple Wallet push failed:', [...new Set(failures)].join(', '));
   return {
     configured: true,
     sent: result.sent?.length || 0,
     failed: result.failed?.length || 0,
+    retryable: failures.some(
+      (reason) => !['BadDeviceToken', 'DeviceTokenNotForTopic', 'Unregistered'].includes(reason),
+    ),
   };
 }
 

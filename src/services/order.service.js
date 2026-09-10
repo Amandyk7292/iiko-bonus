@@ -233,7 +233,8 @@ async function loadOrderCatalog({ branchId = null, orderType = 'pickup' } = {}) 
       iikoProductId: null,
       name: product.name,
       price: Number(product.price),
-      isAvailable: product.is_available !== false && (inventory?.isAvailable ?? true),
+      isAvailable:
+        product.is_available !== false && branchProductAvailable(branchAvailability, product.id),
       availableQuantity: inventory?.availableQuantity ?? null,
       preparationMinutes: preparationMinutes(
         inventory?.preparationMinutes ?? product.preparation_minutes,

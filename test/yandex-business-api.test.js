@@ -206,7 +206,10 @@ test('integration helpers read Business configuration and build an order without
     {
       geopoint: [51.2011, 43.6499],
       fullname: 'Актау, 17-й микрорайон, 1',
-      extra_data: { contact_phone: '+77001112233' },
+      extra_data: {
+        contact_phone: '+77001112233',
+        comment: 'Заказ Bulka №100042. При получении назовите кассиру номер заказа №100042.',
+      },
     },
     {
       geopoint: [51.1978, 43.6512],
@@ -234,7 +237,8 @@ test('integration helpers read Business configuration and build an order without
     class: 'express',
     offer: 'offer-1',
     requirements: { thermobag: true },
-    comment: 'Bulka, заказ №100042. Позвонить заранее. Домофон не работает',
+    comment:
+      'Заказ Bulka №100042. При получении назовите кассиру номер заказа №100042. Позвонить заранее. Домофон не работает',
   });
 
   const selected = selectBusinessQuote(zoneInfo, routeStats, config);
