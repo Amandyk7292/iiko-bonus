@@ -1,2 +1,4 @@
 *.sh text eol=lf
 *.sql text eol=lf
+# This migration was applied with CRLF; preserve its recorded byte checksum.
+supabase/migrations/20260909231000_recurring_cashier_reminders.sql text eol=crlf
