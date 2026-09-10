@@ -34,6 +34,9 @@ test.before(async () => {
     create table front_stock_policies(branch_id uuid primary key,enabled boolean default false,
       terminal_ids uuid[] check(cardinality(terminal_ids)<=8),updated_at timestamptz default now());`);
   await db.exec(readFileSync('supabase/migrations/20260910160000_pos_device_pairing.sql', 'utf8'));
+  await db.exec(
+    readFileSync('supabase/migrations/20260910161000_pos_pairing_lock_order.sql', 'utf8'),
+  );
 });
 test.after(() => db.close());
 const hash = () => randomUUID().replaceAll('-', '').repeat(2);

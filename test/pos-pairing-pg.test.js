@@ -32,6 +32,9 @@ const enabled = url && process.env.POS_PAIRING_PG_TEST_CONFIRM === 'isolated';
     await a.query(
       readFileSync('supabase/migrations/20260910160000_pos_device_pairing.sql', 'utf8'),
     );
+    await a.query(
+      readFileSync('supabase/migrations/20260910161000_pos_pairing_lock_order.sql', 'utf8'),
+    );
     const hash = () => randomUUID().replaceAll('-', '').repeat(2);
     async function fixture() {
       const branch = randomUUID(),
@@ -75,5 +78,19 @@ const enabled = url && process.env.POS_PAIRING_PG_TEST_CONFIRM === 'isolated';
     const winner = b.query(sql, [retry.code, randomUUID(), retry.group, 'Retried', hash()]);
     await a.query('rollback');
     assert.equal((await winner).rows[0].result.branchId, retry.branch);
+    const replacing = await fixture();
+    await a.query('begin');
+    await a.query('select 1 from bulka_locations where id=$1 for update', [replacing.branch]);
+    const waitingActivation = b.query(sql, [
+      replacing.code,
+      randomUUID(),
+      replacing.group,
+      'Late register',
+      hash(),
+    ]);
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    await a.query('select issue_pos_pairing_code($1,$2)', [replacing.branch, hash()]);
+    await a.query('commit');
+    assert.deepEqual((await waitingActivation).rows[0].result, { error: 'invalid_code' });
   },
 );
