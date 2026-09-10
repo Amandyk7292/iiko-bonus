@@ -1,9 +1,10 @@
 const { z } = require('../middlewares/validation.middleware');
+const { iikoGuidSchema } = require('./iiko-guid.schema');
 
 const frontInventorySnapshotSchema = z
   .object({
-    terminalId: z.string().uuid(),
-    terminalGroupId: z.string().uuid(),
+    terminalId: iikoGuidSchema,
+    terminalGroupId: iikoGuidSchema,
     sessionId: z.string().uuid(),
     sequence: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
     capturedAt: z.iso.datetime(),
@@ -11,7 +12,7 @@ const frontInventorySnapshotSchema = z
       .array(
         z
           .object({
-            productId: z.string().uuid(),
+            productId: iikoGuidSchema,
             productName: z.string().trim().min(1).max(160),
             quantity: z.number().min(0).max(100000).multipleOf(0.001),
             quantityStep: z.union([z.literal(1), z.literal(0.001)]).optional(),

@@ -1,23 +1,24 @@
 const { z } = require('../middlewares/validation.middleware');
+const { iikoGuidSchema } = require('./iiko-guid.schema');
 
 const frontStockHeartbeatSchema = z
-  .object({ terminalId: z.string().uuid(), connected: z.boolean() })
+  .object({ terminalId: iikoGuidSchema, connected: z.boolean() })
   .strict();
 const frontReceiptLookupSchema = z
   .object({
-    terminalId: z.string().uuid(),
-    receiptId: z.string().uuid(),
+    terminalId: iikoGuidSchema,
+    receiptId: iikoGuidSchema,
   })
   .strict();
 const frontStockSaleSchema = z
   .object({
-    terminalId: z.string().uuid(),
-    receiptId: z.string().uuid(),
+    terminalId: iikoGuidSchema,
+    receiptId: iikoGuidSchema,
     items: z
       .array(
         z
           .object({
-            productId: z.string().uuid(),
+            productId: iikoGuidSchema,
             quantity: z.number().positive().max(9999).multipleOf(0.001),
           })
           .strict(),
@@ -35,13 +36,13 @@ const frontStockFinishSchema = frontStockSaleSchema
 
 const frontStockRecountSchema = z
   .object({
-    terminalId: z.string().uuid(),
+    terminalId: iikoGuidSchema,
     recountId: z.string().uuid(),
     items: z
       .array(
         z
           .object({
-            productId: z.string().uuid(),
+            productId: iikoGuidSchema,
             productName: z.string().max(160),
             quantity: z.number().min(0).max(100000).multipleOf(0.001),
             quantityStep: z.union([z.literal(1), z.literal(0.001)]).optional(),

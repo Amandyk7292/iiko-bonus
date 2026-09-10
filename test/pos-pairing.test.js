@@ -70,9 +70,9 @@ async function activate(
 
 test('two registers link independently; retry cannot consume a code for another register', async () => {
   const b = await branch(),
-    t1 = randomUUID(),
-    t2 = randomUUID(),
-    group = randomUUID(),
+    t1 = 'a1234567-1234-0123-0123-123456789abc',
+    t2 = 'b1234567-1234-e123-f123-123456789abc',
+    group = 'c1234567-1234-f123-c123-123456789abc',
     h1 = hash(),
     h2 = hash();
   const c1 = await code(b);
@@ -260,8 +260,8 @@ const invoke = async (fn, req) => {
 };
 test('paired POS authentication binds branch, physical terminal, group and gift reservation; no global token needed', async (t) => {
   const b = randomUUID(),
-    terminal = randomUUID(),
-    group = randomUUID(),
+    terminal = 'a1234567-1234-0123-0123-123456789abc',
+    group = 'c1234567-1234-f123-c123-123456789abc',
     token = 'pt1_' + 'c'.repeat(64);
   let active = true;
   t.mock.method(supabase, 'from', (table) =>
