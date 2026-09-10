@@ -212,8 +212,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             LoyaltyFlow.ReadPluginSetting("IIKO_GIFT_DISCOUNT_TYPE_NAME") ??
             "Bulka Gift Certificate";
 
-        private static readonly string BranchId =
-            LoyaltyFlow.ReadPluginSetting("IIKO_BRANCH_ID");
+        private static string BranchId => LoyaltyFlow.BranchId;
 
         private static readonly int ReservationTtlMinutes = Clamp(
             ReadIntSetting("IIKO_GIFT_RESERVATION_TTL_MIN", 120),

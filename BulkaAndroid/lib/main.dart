@@ -54,6 +54,7 @@ part 'api/staff_api_client.dart';
 part 'core/staff_account_session.dart';
 
 part 'staff/cashier_workspace.dart';
+part 'staff/cashier_pos_devices.dart';
 part 'staff/cashier_catalog.dart';
 part 'staff/staff_count_badge.dart';
 part 'staff/staff_empty_state.dart';

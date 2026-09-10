@@ -316,6 +316,7 @@ registerTaplinkAdminRoutes(router);
 registerIikoDashboardRoutes(router);
 registerAccessAdminRoutes(router);
 registerStaffPushAdminRoutes(router);
+require('./admin/pos-pairing.routes').registerPosPairingAdminRoutes(router);
 router.get('/admin/api/settings', adminAuthMiddleware, adminController.getSettingsHandler);
 router.get('/admin/api/scope', async (req, res) => {
   try {

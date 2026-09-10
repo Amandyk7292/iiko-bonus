@@ -1,7 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const loyaltyController = require('../controllers/loyalty.controller');
-const { webhookMiddleware } = require('../middlewares/webhook.middleware');
+const {
+  posTransportMiddleware: webhookMiddleware,
+} = require('../middlewares/pos-transport.middleware');
 const { webhookRateLimit } = require('../middlewares/rate-limit.middleware');
 const {
   branchPosAuthMiddleware,

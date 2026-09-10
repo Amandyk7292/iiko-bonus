@@ -67,14 +67,15 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private bool storageHealthy = true;
         private int busy;
         private string status = "Общий учёт: ожидает настройки филиала";
-        internal bool Enabled { get; }
+        private readonly bool enabledAtStartup;
+        internal bool Enabled => enabledAtStartup || (PosPairing.Current?.SharedStockEnabled ?? false);
         internal string StatusText => status;
 
         internal SharedStockGuard()
         {
             // The persisted ledger also acts as an arming marker: flipping the
             // config off cannot silently remove protection from existing holds.
-            Enabled = File.Exists(path) || string.Equals(LoyaltyFlow.ReadPluginSetting("IIKO_SHARED_STOCK_ENABLED"),"true",StringComparison.OrdinalIgnoreCase);
+            enabledAtStartup = File.Exists(path) || File.Exists(Path.Combine(LoyaltyFlow.DataDirectoryPath,"BulkaSharedStock.enabled")) || string.Equals(LoyaltyFlow.ReadPluginSetting("IIKO_SHARED_STOCK_ENABLED"),"true",StringComparison.OrdinalIgnoreCase);
             requests = new Dictionary<string,GuardRequest>();
             if (File.Exists(path))
             {

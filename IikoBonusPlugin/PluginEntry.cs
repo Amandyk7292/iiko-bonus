@@ -32,6 +32,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private IDisposable _inboxOrderButton;
         private IDisposable _recountButton;
         private IDisposable _reconciliationButton;
+        private IDisposable _pairingMenu;
+        private IDisposable _pairingOrderButton;
 
         public class OrderLoyaltyData
         {
@@ -59,6 +61,9 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 GiftCertificateFlow.RestoreActiveOrders();
                 _sharedStock = new SharedStockGuard();
                 _inbox = new OnlineOrderInbox();
+                _pairingMenu = PluginContext.Operations.AddButtonToPluginsMenu("Привязать кассу", args => PosPairing.Show(args.Item1));
+                _pairingOrderButton = PluginContext.Operations.AddButtonToOrderEditScreen("Привязать кассу",
+                    (ValueTuple<IOrder,IOperationService,IViewManager> args) => PosPairing.Show(args.Item3));
                 _inboxMenu = PluginContext.Operations.AddButtonToPluginsMenu("Заказы Bulka", args => _inbox.Show(args.Item1));
                 _inboxOrderButton = PluginContext.Operations.AddButtonToOrderEditScreen("Заказы Bulka",
                     (ValueTuple<IOrder,IOperationService,IViewManager> args) => _inbox.Show(args.Item3));
@@ -178,6 +183,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
             TryDispose(_inboxOrderButton);
             TryDispose(_recountButton);
             TryDispose(_reconciliationButton);
+            TryDispose(_pairingMenu);
+            TryDispose(_pairingOrderButton);
             LoyaltyFlow.StopBackgroundRetry();
             GiftCertificateFlow.StopBackgroundRetry();
             TryDispose(_stockSync);

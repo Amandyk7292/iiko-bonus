@@ -174,6 +174,27 @@ class _CashierWorkspaceState extends State<CashierWorkspace>
             ],
           ),
           actions: [
+            IconButton(
+              tooltip: staffText(
+                'Кассы филиала',
+                'Филиал кассалары',
+                'Branch registers',
+              ),
+              onPressed: _loading || _error != null
+                  ? null
+                  : () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => Theme(
+                          data: staffTheme(),
+                          child: CashierPosDevicesScreen(
+                            api: widget.api,
+                            branchName: _branchName,
+                          ),
+                        ),
+                      ),
+                    ),
+              icon: const Icon(Icons.point_of_sale_outlined),
+            ),
             if (_push != null)
               ListenableBuilder(
                 listenable: _push!,

@@ -86,15 +86,22 @@ async function getBranchPosCoverage({ db = supabase } = {}) {
   const [
     { data: branches, error: branchError },
     { data: credentials, error: credentialError },
+    { data: devices, error: deviceError },
     activeLegacyReservations,
   ] = await Promise.all([
     db.from('bulka_locations').select('id').eq('active', true),
     db.from('branch_pos_credentials').select('branch_id').eq('active', true),
+    db.from('pos_devices').select('branch_id').eq('active', true),
     countActiveLegacyReservations(),
   ]);
   if (branchError) throw branchError;
   if (credentialError) throw credentialError;
-  const configured = new Set((credentials || []).map((row) => String(row.branch_id)));
+  // The app starts before pending DDL. Only a missing table may fall back to
+  // legacy coverage during that short deployment window.
+  if (deviceError && !['42P01', 'PGRST205'].includes(deviceError.code)) throw deviceError;
+  const configured = new Set(
+    [...(credentials || []), ...(devices || [])].map((row) => String(row.branch_id)),
+  );
   const activeBranchIds = (branches || []).map((row) => String(row.id));
   const configuredActiveBranches = activeBranchIds.filter((id) => configured.has(id)).length;
   return {

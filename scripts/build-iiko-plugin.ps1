@@ -99,6 +99,13 @@ foreach ($staleArtifact in @(
 Copy-Item -LiteralPath $pluginDll -Destination (Join-Path $OutputDirectory 'Resto.Front.Api.IikoBonusPlugin.dll') -Force
 Copy-Item -LiteralPath $manifest -Destination (Join-Path $OutputDirectory 'Manifest.xml') -Force
 Copy-Item -LiteralPath (Join-Path $root 'docs/iiko-front-shared-stock.md') -Destination (Join-Path $OutputDirectory 'INSTALL.md') -Force
+foreach ($guide in @('README.md', 'PAIRING.md')) {
+    $sourceGuide = [IO.Path]::GetFullPath((Join-Path $root "IikoBonusPlugin_Ready/$guide"))
+    $targetGuide = [IO.Path]::GetFullPath((Join-Path $OutputDirectory $guide))
+    if ($sourceGuide -ne $targetGuide) {
+        Copy-Item -LiteralPath $sourceGuide -Destination $targetGuide -Force
+    }
+}
 
 $targetConfig = Join-Path $OutputDirectory 'Resto.Front.Api.IikoBonusPlugin.dll.config'
 if ($ProductionConfig) {
@@ -130,5 +137,5 @@ Write-Host "iiko plugin package built: $OutputDirectory"
 Write-Host "Configuration: $configMode"
 Write-Host "SHA256: $hash"
 if (-not $ProductionConfig) {
-    Write-Warning 'The package contains no API token and cannot authenticate until a production config is supplied.'
+    Write-Host 'Pair each register with its own six-digit code from the cashier app. No manual API token is required.'
 }

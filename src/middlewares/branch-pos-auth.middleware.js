@@ -31,9 +31,12 @@ async function branchPosAuthMiddleware(req, res, next) {
     if (req.posAuthMode === 'branch' && UUID_PATTERN.test(String(req.posBranchId || ''))) {
       return next();
     }
-    const branchId = readHeader(req, 'x-bulka-branch-id');
+    const branchId = req.pairedPos?.branch_id || readHeader(req, 'x-bulka-branch-id');
     const token = readHeader(req, 'x-bulka-pos-token');
-    if (!UUID_PATTERN.test(branchId) || token.length < 40 || token.length > 160) {
+    if (
+      !UUID_PATTERN.test(branchId) ||
+      (!req.pairedPos && (token.length < 40 || token.length > 160))
+    ) {
       return reject(res);
     }
 
@@ -41,12 +44,14 @@ async function branchPosAuthMiddleware(req, res, next) {
       { data: credential, error: credentialError },
       { data: activeBranch, error: branchError },
     ] = await Promise.all([
-      supabase
-        .from('branch_pos_credentials')
-        .select('branch_id,token_hash,active')
-        .eq('branch_id', branchId)
-        .eq('active', true)
-        .maybeSingle(),
+      req.pairedPos
+        ? Promise.resolve({ data: req.pairedPos })
+        : supabase
+            .from('branch_pos_credentials')
+            .select('branch_id,token_hash,active')
+            .eq('branch_id', branchId)
+            .eq('active', true)
+            .maybeSingle(),
       supabase
         .from('bulka_locations')
         .select('id')
@@ -57,7 +62,7 @@ async function branchPosAuthMiddleware(req, res, next) {
     if (credentialError) throw credentialError;
     if (branchError) throw branchError;
 
-    const suppliedHash = branchPosTokenHash(token);
+    const suppliedHash = req.pairedPos?.token_hash || branchPosTokenHash(token);
     const expectedHash = credential?.token_hash || '0'.repeat(64);
     if (!credential || !activeBranch || !safeEqual(suppliedHash, expectedHash)) {
       return reject(res);
@@ -102,7 +107,12 @@ async function branchPosAuthMiddleware(req, res, next) {
 function branchPosRolloutMiddleware(req, res, next) {
   const hasBranchHeader = Boolean(readHeader(req, 'x-bulka-branch-id'));
   const hasTokenHeader = Boolean(readHeader(req, 'x-bulka-pos-token'));
-  if (branchPosEnforcementMode() === 'required' || hasBranchHeader || hasTokenHeader) {
+  if (
+    req.pairedPos ||
+    branchPosEnforcementMode() === 'required' ||
+    hasBranchHeader ||
+    hasTokenHeader
+  ) {
     return branchPosAuthMiddleware(req, res, next);
   }
   req.posAuthMode = 'legacy';

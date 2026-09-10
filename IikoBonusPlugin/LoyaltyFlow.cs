@@ -235,7 +235,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private static readonly string ApiToken = ReadPluginSetting("IIKO_LOYALTY_API_TOKEN") ?? ReadPluginSetting("API_TOKEN");
         private static readonly string DiscountTypeId = ReadPluginSetting("IIKO_LOYALTY_DISCOUNT_TYPE_ID");
         private static readonly string DiscountTypeName = ReadPluginSetting("IIKO_LOYALTY_DISCOUNT_TYPE_NAME") ?? "Bulka Bonus";
-        private static readonly string BranchId = ReadPluginSetting("IIKO_BRANCH_ID");
+        internal static string BranchId => PosPairing.IsPaired ? PosPairing.Current.BranchId : ReadPluginSetting("IIKO_BRANCH_ID");
         private static readonly string BranchPosToken = ReadPluginSetting("IIKO_BRANCH_POS_TOKEN");
         private static readonly int RetryIntervalSec = Clamp(ReadIntSetting("IIKO_LOYALTY_RETRY_INTERVAL_SEC", 60), 10, 3600);
         private static readonly int MaxAttempts = Clamp(ReadIntSetting("IIKO_LOYALTY_MAX_ATTEMPTS", 0), 0, 1000);
@@ -418,7 +418,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 PluginContext.Log.Error("IikoBonusPlugin: Cannot read pending queue for status: " + ex);
                 return "Bulka Bonus\nAPI: " + ApiBaseUrl + "\nОшибка чтения локальной очереди. Проверьте журнал плагина.";
             }
-            var tokenStatus = IsTokenConfigured() ? "общий токен задан" : "общий токен НЕ задан";
+            var tokenStatus = PosPairing.IsPaired ? "Касса привязана: " + PosPairing.Current.BranchName : "Привяжите кассу по коду из приложения";
             var branchTokenStatus = IsBranchPosConfigured()
                 ? "ключ филиала задан"
                 : "ключ филиала НЕ задан";
@@ -439,6 +439,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
 
         private static bool IsTokenConfigured()
         {
+            if (PosPairing.IsPaired) return true;
             if (string.IsNullOrWhiteSpace(ApiToken) || ApiToken.Length < 32) return false;
             var normalized = ApiToken.Trim().ToLowerInvariant();
             return !normalized.Contains("replace") && !normalized.Contains("change-me") && !normalized.Contains("secret-here");
@@ -454,6 +455,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
 
         private static bool IsBranchPosConfigured()
         {
+            if (PosPairing.IsPaired) return true;
             Guid branchId;
             return Guid.TryParse(BranchId, out branchId) &&
                    !string.IsNullOrWhiteSpace(BranchPosToken) &&
@@ -492,7 +494,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private static bool EnsureApiToken(IViewManager vm)
         {
             if (IsTokenConfigured()) return true;
-            const string message = "Не задан IIKO_LOYALTY_API_TOKEN для бонусной системы.";
+            const string message = "Откройте «Привязать кассу» и введите код из приложения кассира.";
             PluginContext.Log.Error("IikoBonusPlugin: " + message);
             try { vm.ShowErrorPopup(message, "ОК"); } catch { }
             return false;
@@ -509,7 +511,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         {
             if (IsBranchPosConfigured()) return true;
             const string message =
-                "Задайте IIKO_BRANCH_ID и отдельный IIKO_BRANCH_POS_TOKEN этой кассы.";
+                "Откройте «Привязать кассу» и введите код из приложения кассира.";
             PluginContext.Log.Error("IikoBonusPlugin: Branch POS credentials are not configured.");
             try { vm.ShowErrorPopup(message, "ОК"); } catch { }
             return false;
@@ -537,9 +539,15 @@ namespace Resto.Front.Api.IikoBonusPlugin
             var requestUri = new Uri(baseUri, relativePath.TrimStart('/'));
             using (var request = new HttpRequestMessage(method, requestUri))
             {
-                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ApiToken);
+                var paired = PosPairing.IsPaired ? PosPairing.Current : null;
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", paired?.Token ?? ApiToken);
                 request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-                if (!string.IsNullOrWhiteSpace(BranchId) &&
+                if (paired != null)
+                {
+                    request.Headers.TryAddWithoutValidation("X-Bulka-Branch-Id", paired.BranchId);
+                    request.Headers.TryAddWithoutValidation("X-Bulka-Terminal-Id", PluginContext.Operations.GetHostTerminal().Id.ToString());
+                }
+                else if (!string.IsNullOrWhiteSpace(BranchId) &&
                     !string.IsNullOrWhiteSpace(BranchPosToken))
                 {
                     request.Headers.TryAddWithoutValidation("X-Bulka-Branch-Id", BranchId);

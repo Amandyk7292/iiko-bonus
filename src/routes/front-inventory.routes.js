@@ -1,6 +1,8 @@
 const express = require('express');
 const { branchPosAuthMiddleware } = require('../middlewares/branch-pos-auth.middleware');
-const { webhookMiddleware } = require('../middlewares/webhook.middleware');
+const {
+  posTransportMiddleware: webhookMiddleware,
+} = require('../middlewares/pos-transport.middleware');
 const { webhookRateLimit } = require('../middlewares/rate-limit.middleware');
 const { validateRequest } = require('../middlewares/validation.middleware');
 const { frontInventorySnapshotSchema } = require('../contracts/front-inventory.contract');
