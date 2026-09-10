@@ -219,8 +219,9 @@ async function getBranchAvailability(
     (inventoryResult.data || []).map((item) => {
       const sourceQuantity = item.source_quantity == null ? null : Number(item.source_quantity);
       const reserved = held.get(item.product_id) || 0;
-      const fresh =
-        !frontSync.configured || frontSync.connected || ['admin', 'custom'].includes(item.source);
+      const fresh = frontSync.guardEnabled
+        ? frontSync.connected && sourceQuantity != null
+        : !frontSync.configured || frontSync.connected || ['admin', 'custom'].includes(item.source);
       const availableQuantity = !fresh
         ? 0
         : online

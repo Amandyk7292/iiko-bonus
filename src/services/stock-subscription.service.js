@@ -1,6 +1,7 @@
 const { supabase } = require('../config/supabase');
 const { sendPushToCustomer } = require('./push.service');
 const { onlineAvailableQuantity } = require('../utils/online-stock.util');
+const { getFrontInventoryStatus } = require('./front-inventory.service');
 
 const stockError = (message, statusCode = 400, code = 'STOCK_SUBSCRIPTION_ERROR') =>
   Object.assign(new Error(message), { statusCode, code });
@@ -17,7 +18,7 @@ const normalizeSubscription = (row) => ({
 
 async function currentAvailability(branchId, productId) {
   const now = new Date().toISOString();
-  const [inventoryResult, reservationsResult] = await Promise.all([
+  const [inventoryResult, reservationsResult, front] = await Promise.all([
     supabase
       .from('branch_product_inventory')
       .select('product_id,product_name,source_quantity,manual_stop')
@@ -30,11 +31,17 @@ async function currentAvailability(branchId, productId) {
       .eq('branch_id', branchId)
       .eq('product_id', productId)
       .in('status', ['active', 'committed']),
+    getFrontInventoryStatus(branchId),
   ]);
   if (inventoryResult.error) throw inventoryResult.error;
   if (reservationsResult.error) throw reservationsResult.error;
   const inventory = inventoryResult.data;
-  if (!inventory) return { tracked: false, available: true, productName: null };
+  if (!inventory)
+    return {
+      tracked: front.guardEnabled === true,
+      available: !front.guardEnabled,
+      productName: null,
+    };
   const reserved = (reservationsResult.data || []).reduce((total, reservation) => {
     if (reservation.status === 'active' && String(reservation.expires_at) <= now) return total;
     return total + Math.max(0, Number(reservation.quantity) || 0);
@@ -44,7 +51,10 @@ async function currentAvailability(branchId, productId) {
   const onlineQuantity = onlineAvailableQuantity(quantity, reserved);
   return {
     tracked: true,
-    available: inventory.manual_stop !== true && (onlineQuantity == null || onlineQuantity > 0),
+    available:
+      (!front.guardEnabled || (front.connected && quantity != null)) &&
+      inventory.manual_stop !== true &&
+      (onlineQuantity == null || onlineQuantity > 0),
     productName: inventory.product_name || null,
   };
 }

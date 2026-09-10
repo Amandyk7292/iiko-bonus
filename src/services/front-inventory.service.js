@@ -7,7 +7,12 @@ const FRONT_FRESHNESS_MS = 45_000;
 function frontSyncStatus(row, now = Date.now()) {
   return {
     configured: Boolean(row),
-    connected: Boolean(row && now - Date.parse(row.last_seen_at) <= FRONT_FRESHNESS_MS),
+    connected: Boolean(
+      row &&
+      now - Date.parse(row.last_seen_at) <= FRONT_FRESHNESS_MS &&
+      (!row.guard_enabled || row.guard_ready),
+    ),
+    guardEnabled: row?.guard_enabled === true,
     lastSyncedAt: row?.last_seen_at || null,
     terminalGroupId: row?.terminal_group_id || null,
   };
@@ -15,8 +20,8 @@ function frontSyncStatus(row, now = Date.now()) {
 
 async function getFrontInventoryStatus(branchId) {
   const { data, error } = await supabase
-    .from('branch_front_inventory_sync')
-    .select('last_seen_at,terminal_group_id')
+    .from('branch_front_inventory_health')
+    .select('last_seen_at,terminal_group_id,guard_enabled,guard_ready')
     .eq('branch_id', branchId)
     .maybeSingle();
   if (error) throw error;

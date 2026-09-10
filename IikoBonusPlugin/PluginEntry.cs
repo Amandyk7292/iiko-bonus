@@ -24,6 +24,13 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private IDisposable _barcodeSubscription;
         private IDisposable _beforePaymentSubscription;
         private static StockSync _stockSync;
+        private static SharedStockGuard _sharedStock;
+        private IDisposable _sharedStockButton;
+        private IDisposable _beforeServiceSubscription;
+        private OnlineOrderInbox _inbox;
+        private IDisposable _inboxMenu;
+        private IDisposable _inboxOrderButton;
+        private IDisposable _recountButton;
 
         public class OrderLoyaltyData
         {
@@ -49,6 +56,13 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 PluginContext.Log.Info("IikoBonusPlugin: Initializing...");
                 LoyaltyFlow.RestoreActiveOrders();
                 GiftCertificateFlow.RestoreActiveOrders();
+                _sharedStock = new SharedStockGuard();
+                _inbox = new OnlineOrderInbox();
+                _inboxMenu = PluginContext.Operations.AddButtonToPluginsMenu("Заказы Bulka", args => _inbox.Show(args.Item1));
+                _inboxOrderButton = PluginContext.Operations.AddButtonToOrderEditScreen("Заказы Bulka",
+                    (ValueTuple<IOrder,IOperationService,IViewManager> args) => _inbox.Show(args.Item3));
+                _recountButton = PluginContext.Operations.AddButtonToPluginsMenu("Сверить витрину", args =>
+                    _sharedStock.Recount(PluginContext.Operations,args.Item1));
 
                 _buttonSubscription = PluginContext.Operations.AddButtonToOrderEditScreen(
                     "Бонусы",
@@ -60,7 +74,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
                             var os = args.Item2;
                             var vm = args.Item3;
 
-                            LoyaltyFlow.Run(order, os, vm);
+                            if (_sharedStock.IsLinked(order)) vm.ShowErrorPopup("Бонусы онлайн-заказа уже учтены в Bulka.", "ОК");
+                            else LoyaltyFlow.Run(order, os, vm);
                         }
                         catch (Exception ex)
                         {
@@ -78,7 +93,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                             args.Item3.ShowOkPopup(
                                 "Статус Bulka",
                                 LoyaltyFlow.GetQueueStatusText() + "\n\n" +
-                                GiftCertificateFlow.GetStatusText() + "\n\n" + (_stockSync?.StatusText ?? "Остатки: обмен выключен"),
+                                GiftCertificateFlow.GetStatusText() + "\n\n" + (_stockSync?.StatusText ?? "Остатки: обмен выключен") + "\n\n" + _sharedStock.StatusText,
                                 "ОК");
                         }
                         catch (Exception ex)
@@ -100,7 +115,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     "Сертификат",
                     (ValueTuple<IOrder, IOperationService, IViewManager> args) =>
                     {
-                        GiftCertificateFlow.Run(args.Item1, args.Item2, args.Item3);
+                        if (_sharedStock.IsLinked(args.Item1)) args.Item3.ShowErrorPopup("Онлайн-заказ уже оплачен в Bulka.", "ОК");
+                        else GiftCertificateFlow.Run(args.Item1, args.Item2, args.Item3);
                     }
                 );
 
@@ -115,6 +131,10 @@ namespace Resto.Front.Api.IikoBonusPlugin
 
                 _barcodeSubscription = PluginContext.Notifications.OrderEditBarcodeScanned.Subscribe(OnBarcodeScanned);
                 _beforePaymentSubscription = PluginContext.Notifications.BeforeProceedOrderPayment.Subscribe(BeforeProceedOrderPayment);
+                _beforeServiceSubscription = PluginContext.Notifications.BeforeServiceCheque.Subscribe(args =>
+                    _sharedStock.BeforeOperation(args.Item1,args.Item3,args.Item4,false));
+                _sharedStockButton = PluginContext.Operations.AddButtonToOrderEditScreen("Онлайн-заказ",
+                    (ValueTuple<IOrder,IOperationService,IViewManager> args) => _sharedStock.LinkOnline(args.Item1,args.Item2,args.Item3));
                 LoyaltyFlow.StartBackgroundRetry();
                 GiftCertificateFlow.StartBackgroundRetry();
                 if (!string.Equals(LoyaltyFlow.ReadPluginSetting("IIKO_STOCK_SYNC_ENABLED"), "false", StringComparison.OrdinalIgnoreCase))
@@ -147,6 +167,13 @@ namespace Resto.Front.Api.IikoBonusPlugin
             TryDispose(_cashPrintSubscription);
             TryDispose(_barcodeSubscription);
             TryDispose(_beforePaymentSubscription);
+            TryDispose(_beforeServiceSubscription);
+            TryDispose(_sharedStockButton);
+            TryDispose(_sharedStock);
+            TryDispose(_inbox);
+            TryDispose(_inboxMenu);
+            TryDispose(_inboxOrderButton);
+            TryDispose(_recountButton);
             LoyaltyFlow.StopBackgroundRetry();
             GiftCertificateFlow.StopBackgroundRetry();
             TryDispose(_stockSync);
@@ -156,6 +183,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private static bool OnBarcodeScanned(
             ValueTuple<string, IOrder, IOperationService, IViewManager> args)
         {
+            if (_sharedStock.IsLinked(args.Item2)) return false;
             if (GiftCertificateFlow.TryHandleBarcode(args)) return true;
             return LoyaltyFlow.OnBarcodeScanned(args);
         }
@@ -163,14 +191,21 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private static void BeforeProceedOrderPayment(
             ValueTuple<IOrder, IViewManager, IOperationService> args)
         {
-            GiftCertificateFlow.BeforeProceedOrderPayment(args);
-            LoyaltyFlow.BeforeProceedOrderPayment(args);
+            if (!_sharedStock.IsLinked(args.Item1))
+            {
+                GiftCertificateFlow.BeforeProceedOrderPayment(args);
+                LoyaltyFlow.BeforeProceedOrderPayment(args);
+            }
+            _sharedStock.BeforeOperation(args.Item1,args.Item3,args.Item2,true);
         }
 
         private static void OnOrderChanged(
             Resto.Front.Api.Data.Common.EntityChangedEventArgs<IOrder> args)
         {
             _stockSync?.RequestSync();
+            try { _sharedStock?.Observe(args.Entity); }
+            catch (Exception error) { PluginContext.Log.Warn("Bulka stock receipt reconciliation pending: " + error.Message); }
+            if (_sharedStock.IsLinked(args.Entity)) return;
             GiftCertificateFlow.OnOrderChanged(args);
             LoyaltyFlow.OnOrderChanged(args);
         }

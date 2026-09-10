@@ -352,6 +352,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
             }
         }
 
+        internal static bool HasActiveOrder(Guid orderId) => ActiveOrders.ContainsKey(orderId);
+
         public static void Run(IOrder order, IOperationService operationService, IViewManager viewManager)
         {
             if (order == null || operationService == null || viewManager == null) return;

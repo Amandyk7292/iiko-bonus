@@ -954,6 +954,9 @@ async function updateAdminOrderStatus(
   { branchIds = [], admin = null } = {},
 ) {
   if (!ORDER_STATUSES.includes(nextStatus)) throw httpError(400, 'Некорректный статус заказа');
+  // The tablet's "accepted" action must claim the shared queue and dispatch
+  // delivery exactly like acceptance in Front/the kitchen workspace.
+  if (nextStatus === 'accepted') nextStatus = 'preparing';
   const { data: current, error: readError } = await supabase
     .from('kaspi_orders')
     .select('*')
