@@ -7,8 +7,11 @@
     <Compile Include="../../IikoBonusPlugin/OrderBoardModels.cs" Link="OrderBoardModels.cs" />
     <Compile Include="../../IikoBonusPlugin/OrderAlertState.cs" Link="OrderAlertState.cs" />
     <Compile Include="../../IikoBonusPlugin/OrderBoardWindow.cs" Link="OrderBoardWindow.cs" />
+    <Compile Include="../../IikoBonusPlugin/OnlineOrderInbox.cs" Link="OnlineOrderInbox.cs" />
+    <Compile Include="AutoOpenTests.cs" />
+    <Compile Include="InboxTestHost.cs" />
     <Compile Include="BoardViewTests.cs" />
     <Compile Include="OrderAlertTests.cs" />
-    <Reference Include="System.Windows.Forms"/><Reference Include="System.Runtime.Serialization"/>
+    <Reference Include="System.Windows.Forms"/><Reference Include="System.Runtime.Serialization"/><Reference Include="System.Net.Http"/>
   </ItemGroup>
 </Project>

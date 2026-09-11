@@ -16,10 +16,14 @@ class _LiveRefresh with WidgetsBindingObserver {
     this.domains,
     this.refresh, {
     this.busy,
+    this.acceptEvent,
     this.minimumInterval = Duration.zero,
   }) {
     _events = api.customerEvents.listen((event) {
-      if (_dataEventMatches(event, domains)) request();
+      if (_dataEventMatches(event, domains) &&
+          acceptEvent?.call(event) != false) {
+        request();
+      }
     });
     _network = networkRecoveryEvents().listen((_) => request());
     WidgetsBinding.instance.addObserver(this);
@@ -28,6 +32,7 @@ class _LiveRefresh with WidgetsBindingObserver {
   final Set<String> domains;
   final Future<void> Function() refresh;
   final bool Function()? busy;
+  final bool Function(Map<String, dynamic>)? acceptEvent;
   final Duration minimumInterval;
   late final StreamSubscription<Map<String, dynamic>> _events;
   late final StreamSubscription<dynamic> _network;
@@ -44,7 +49,8 @@ class _LiveRefresh with WidgetsBindingObserver {
       _cooldown = null;
     }
     _pending = true;
-    _timer?.cancel();
+    // Bound the wait even if stock events keep arriving on a busy branch.
+    if (_timer?.isActive == true) return;
     _timer = Timer(const Duration(milliseconds: 250), _flush);
   }
 

@@ -45,7 +45,11 @@ namespace Resto.Front.Api.IikoBonusPlugin
         }
 
         internal string StatusText => status;
-        internal void RequestSync() { Interlocked.Exchange(ref dirty, 1); }
+        internal void RequestSync()
+        {
+            Interlocked.Exchange(ref dirty, 1);
+            ThreadPool.QueueUserWorkItem(Tick);
+        }
         public void OnNext(VoidValue value) { RequestSync(); }
         public void OnCompleted() { }
         public void OnError(Exception error)
@@ -107,7 +111,12 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 PluginContext.Log.Warn("Bulka stock sync: " + error.Message);
                 // Next attempt takes a new snapshot, never replays stale quantities.
             }
-            finally { Interlocked.Exchange(ref busy, 0); }
+            finally
+            {
+                Interlocked.Exchange(ref busy, 0);
+                if (Volatile.Read(ref dirty) != 0 && Volatile.Read(ref disposed) == 0)
+                    ThreadPool.QueueUserWorkItem(Tick);
+            }
         }
 
         public void Dispose()

@@ -701,6 +701,7 @@ router.post(
 
 router.get('/api/guest/menu', async (req, res) => {
   try {
+    res.set('Cache-Control', 'no-store');
     const branchId = String(req.query.branchId || '').trim();
     const orderType = normalizeMenuOrderType(req.query.orderType || 'pickup');
     if (!orderType) {
@@ -875,10 +876,11 @@ router.get('/api/guest/menu', async (req, res) => {
       }
 
       const inventory = branchAvailability.get(String(p.id));
-      const isStopped =
+      const catalogStopped =
         Boolean(override && override.is_stop_listed) ||
-        (orderType !== 'preorder' && stopIds.has(p.iikoProductId || p.id)) ||
-        (branchId && !branchProductAvailable(branchAvailability, p.id));
+        (orderType !== 'preorder' && stopIds.has(p.iikoProductId || p.id));
+      const isStopped =
+        catalogStopped || (branchId && !branchProductAvailable(branchAvailability, p.id));
 
       products.push({
         id: p.id,
@@ -888,6 +890,7 @@ router.get('/api/guest/menu', async (req, res) => {
         categoryId: p.parentGroup,
         imageUrl: (override && override.custom_image_url) || imageUrl,
         inStopList: isStopped,
+        catalogAvailable: !catalogStopped,
         isAvailable: !isStopped,
         availableQuantity: inventory?.availableQuantity ?? null,
         inStockCount: inventory?.availableQuantity ?? null,
@@ -949,6 +952,7 @@ router.get('/api/guest/menu', async (req, res) => {
           !cp.is_available || (branchId && !branchProductAvailable(branchAvailability, cp.id)),
         isAvailable:
           cp.is_available && (!branchId || branchProductAvailable(branchAvailability, cp.id)),
+        catalogAvailable: cp.is_available === true,
         availableQuantity: inventory?.availableQuantity ?? null,
         inStockCount: inventory?.availableQuantity ?? null,
         quantityStep: inventory?.quantityStep ?? 1,

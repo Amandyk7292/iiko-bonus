@@ -12,6 +12,7 @@ internal static class BoardViewTests
     [STAThread] private static void Main(string[] args)
     {
         OrderAlertTests.Run();
+        AutoOpenTests.Run();
         var view = new OrderBoardWindow("19а ЖК Жасыл дала", IntPtr.Zero, true, false);
         var model = new BoardResponse { Columns = BoardColumn.Stages.Select((stage, i) => new BoardColumn {
             Stage = stage, Page = 1, Total = 1, Orders = new List<InboxOrder> { new InboxOrder {

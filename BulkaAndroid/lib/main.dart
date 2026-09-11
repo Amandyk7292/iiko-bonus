@@ -164,6 +164,7 @@ part 'screens/location_directory_screen.dart';
 part 'screens/catalog_screen.dart';
 part 'screens/catalog_screen_helpers.dart';
 part 'screens/catalog_data_controller.dart';
+part 'screens/catalog_stock_controller.dart';
 part 'screens/catalog_interaction_controller.dart';
 part 'screens/catalog_screen_view.dart';
 part 'screens/catalog_screen_layout.dart';

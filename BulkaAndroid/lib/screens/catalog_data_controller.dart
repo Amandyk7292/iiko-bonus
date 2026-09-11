@@ -286,6 +286,7 @@ extension _CatalogDataController on _CatalogScreenState {
           'catalog_other_category'.tr,
       imageUrl: _asString(product['imageUrl']),
       inStockCount: availability,
+      catalogAvailable: product['catalogAvailable'] as bool?,
       quantityStep: product['quantityStep'] as num? ?? 1,
       unit: _asString(product['unit']).isEmpty
           ? 'шт.'

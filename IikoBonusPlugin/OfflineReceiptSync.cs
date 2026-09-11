@@ -24,7 +24,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private readonly Dictionary<string,OfflineReceipt> pending;
         private readonly Dictionary<string,DateTime> attempted=new Dictionary<string,DateTime>();
         private readonly Timer timer;
-        private int busy;
+        private int busy, requested;
         private bool disposed;
         internal string StatusText {get;private set;}="Продажи кассы: ожидание закрытых чеков";
         internal OfflineReceiptSync()
@@ -46,14 +46,25 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 pending[receipt.ReceiptId]=receipt;
                 DurableJsonFile.Write(path,pending);
             }
+            // Persist first, then send without waiting for the retry timer.
+            Interlocked.Exchange(ref requested,1);
+            ThreadPool.QueueUserWorkItem(Tick);
         }
         private void Tick(object state)
         {
             if(Interlocked.CompareExchange(ref busy,1,0)!=0) return;
             try
             {
+                var retryFailed=true;
+                while(true)
+                {
+                Interlocked.Exchange(ref requested,0);
                 List<OfflineReceipt> batch;
-                lock(gate) {if(disposed) return;batch=pending.Values.OrderBy(x=>attempted.TryGetValue(x.ReceiptId,out var last) ? last : DateTime.MinValue).Take(25).ToList();}
+                lock(gate) {if(disposed) return;batch=pending.Values
+                    .Where(x=>retryFailed || !attempted.ContainsKey(x.ReceiptId))
+                    .OrderBy(x=>attempted.TryGetValue(x.ReceiptId,out var last) ? last : DateTime.MinValue).Take(25).ToList();}
+                if(batch.Count==0) break;
+                retryFailed=false;
                 foreach(var receipt in batch)
                 {
                     lock(gate) attempted[receipt.ReceiptId]=DateTime.UtcNow;
@@ -82,8 +93,15 @@ namespace Resto.Front.Api.IikoBonusPlugin
                         // must not prevent unrelated closed receipts from syncing.
                     }
                 }
+                // Drain receipts that arrived while HTTP was busy. Failed
+                // receipts wait for the next timer, avoiding a hot retry loop.
+                }
             }
-            finally {Interlocked.Exchange(ref busy,0);}
+            finally
+            {
+                Interlocked.Exchange(ref busy,0);
+                if(Interlocked.Exchange(ref requested,0)!=0) ThreadPool.QueueUserWorkItem(Tick);
+            }
         }
         public void Dispose() {lock(gate) disposed=true;timer.Dispose();}
     }

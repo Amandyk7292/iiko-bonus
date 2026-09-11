@@ -89,6 +89,7 @@ const {
   registerBusinessFoundationCustomerRoutes,
 } = require('./customer/business-foundation.routes');
 const { registerTaplinkPublicRoutes } = require('./public/taplink.routes');
+const { registerMenuStockPublicRoutes } = require('./public/menu-stock.routes');
 
 const referenceUpload = multer({
   storage: multer.memoryStorage(),
@@ -141,6 +142,7 @@ const acceptAnalyticsEvents = async (req, res, customerId = null) => {
 router.use('/api/public', publicApiRateLimit);
 router.get('/api/public/events', (req, res) => realtime.openStream(req, res, { public: true }));
 registerTaplinkPublicRoutes(router);
+registerMenuStockPublicRoutes(router);
 router.post(
   '/api/public/analytics/events',
   validateRequest({ body: analyticsEventsBodySchema }),

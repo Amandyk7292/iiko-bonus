@@ -90,11 +90,11 @@ namespace Resto.Front.Api.IikoBonusPlugin
             ThreadPool.QueueUserWorkItem(_ => {
                 try
                 {
-                    // Wait for iikoFront's active payment/dialog operation to finish.
-                    PluginContext.Operations.TryExecuteUiOperation(vm => {
-                        lock (gate) { if (disposed || !alerts.HasPending) return; }
-                        Show(vm, false, true);
-                    });
+                    // The board has its own STA dispatcher and only talks to
+                    // Bulka. Waiting for an iiko UI callback can defer this
+                    // alert indefinitely while the cashier edits a receipt.
+                    lock (gate) { if (disposed || !alerts.HasPending) return; }
+                    Show(null, false, true);
                 }
                 catch (Exception error) { PluginContext.Log.Warn("Bulka board open: " + error.Message); }
                 finally { Interlocked.Exchange(ref opening, 0); }
@@ -104,7 +104,8 @@ namespace Resto.Front.Api.IikoBonusPlugin
         {
             lock (gate)
             {
-                if (disposed || window != null || windowStarting) return null;
+                if (disposed || windowStarting) return null;
+                if (window != null) { OnWindow(view => view.AlertNewOrder()); return null; }
                 windowStarting = true;
             }
             var owner = OrderBoardWindow.CaptureOwner();
@@ -129,7 +130,16 @@ namespace Resto.Front.Api.IikoBonusPlugin
                         lock (gate) alerts.Presented();
                         PluginContext.Log.Info("Bulka board opened: " + (automatic ? "new-order alert" : "cashier"));
                     };
-                    view.ShowDialog(); selected = view.SelectedReceiptNumber;
+                    if (automatic)
+                    {
+                        // Modeless display leaves the active iiko operation
+                        // intact behind the full-screen alert.
+                        view.Closed += (_, __) => view.Dispatcher.BeginInvokeShutdown(System.Windows.Threading.DispatcherPriority.Background);
+                        view.Show();
+                        System.Windows.Threading.Dispatcher.Run();
+                    }
+                    else view.ShowDialog();
+                    selected = view.SelectedReceiptNumber;
                 }
                 catch (Exception error) { failure = error; }
                 finally
@@ -139,7 +149,11 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 }
             });
             thread.IsBackground = true; thread.SetApartmentState(ApartmentState.STA); thread.Start(); thread.Join();
-            if (failure != null) vm.ShowErrorPopup("Не удалось открыть экран заказов: " + failure.Message, "ОК");
+            if (failure != null)
+            {
+                if (vm != null) vm.ShowErrorPopup("Не удалось открыть экран заказов: " + failure.Message, "ОК");
+                else throw new InvalidOperationException("Не удалось открыть экран заказов: " + failure.Message, failure);
+            }
             return selected;
         }
         private void Refresh()
