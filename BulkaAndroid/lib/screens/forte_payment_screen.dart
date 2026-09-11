@@ -110,7 +110,7 @@ abstract final class PendingForteOperationStore {
       final status = (result['paymentStatus'] ?? result['status'] ?? 'pending')
           .toString();
       if (isTerminalForteFailure(status)) {
-        await clear(api);
+        await clear(api, expectedCheckoutId: pending.checkoutId);
         return null;
       }
     } catch (_) {
@@ -119,8 +119,69 @@ abstract final class PendingForteOperationStore {
     return pending;
   }
 
-  static Future<void> clear(BulkaApiClient api) async {
+  // Reordering is an explicit new purchase. A normal checkout retry above
+  // still keeps a paid operation so it can finish without a second charge.
+  static Future<void> prepareNewCheckout(BulkaApiClient api) async {
+    final pending = await load(api);
     final prefs = await SharedPreferences.getInstance();
+    final checkoutKey = customerPreferenceKey(
+      'checkout_id',
+      api.sessionCacheScope,
+    );
+    final savedCheckoutId = prefs.getString(checkoutKey);
+    if (pending != null || savedCheckoutId != null) {
+      Map<String, dynamic> result;
+      try {
+        result = pending != null
+            ? await api.checkFortePaymentStatus(pending.operationId)
+            : await api.checkForteCheckoutStatus(savedCheckoutId!);
+      } catch (_) {
+        throw ApiException('forte_payment_pending_hint'.tr);
+      }
+      final status = _asString(
+        result['paymentStatus'] ?? result['status'],
+      ).toLowerCase();
+      final current = await load(api);
+      if ((status != 'paid' && !isTerminalForteFailure(status)) ||
+          current?.checkoutId != pending?.checkoutId ||
+          prefs.getString(checkoutKey) != savedCheckoutId) {
+        throw ApiException('forte_payment_pending_hint'.tr);
+      }
+    }
+    await clear(api);
+    await Future.wait([
+      for (final key in [
+        'checkout_scheduled_at',
+        'checkout_promo',
+        'checkout_comment',
+      ])
+        prefs.remove(customerPreferenceKey(key, api.sessionCacheScope)),
+    ]);
+  }
+
+  static Future<void> clear(
+    BulkaApiClient api, {
+    String? expectedCheckoutId,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (expectedCheckoutId != null) {
+      final raw = prefs.getString(_key(api));
+      PendingForteOperation? current;
+      if (raw != null) {
+        try {
+          current = PendingForteOperation.fromJson(_asMap(jsonDecode(raw)));
+        } catch (_) {
+          return;
+        }
+      }
+      final saved = prefs.getString(
+        customerPreferenceKey('checkout_id', api.sessionCacheScope),
+      );
+      if ((current != null && current.checkoutId != expectedCheckoutId) ||
+          (saved != null && saved != expectedCheckoutId)) {
+        return;
+      }
+    }
     await Future.wait([
       prefs.remove(_key(api)),
       // The checkout id is only valid for the pending operation. Clearing the
@@ -348,7 +409,12 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
       if (_paid || _terminalFailure) {
         _timer?.cancel();
         if (!widget.cardSetup) {
-          unawaited(PendingForteOperationStore.clear(widget.api));
+          unawaited(
+            PendingForteOperationStore.clear(
+              widget.api,
+              expectedCheckoutId: widget.checkoutId,
+            ),
+          );
         }
       }
     } catch (_) {
@@ -359,6 +425,7 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
   }
 
   Future<void> _startCheckout() async {
+    if (_paid || _terminalFailure) return;
     final uri = _checkoutUri;
     if (uri == null) {
       setState(() => _checkoutError = 'forte_checkout_invalid'.tr);

@@ -173,6 +173,25 @@ class _OrdersScreenState extends State<OrdersScreen> {
     if (operationId.isEmpty) {
       throw ApiException('checkout_operation_missing'.tr);
     }
+    final status = _asString(result['paymentStatus']).toLowerCase();
+    if (status == 'paid') {
+      await PendingForteOperationStore.clear(
+        widget.api,
+        expectedCheckoutId: details.checkoutId,
+      );
+      await cart.clearAndWait();
+      return FortePaymentOutcome.paid;
+    }
+    if (isTerminalForteFailure(status)) {
+      await PendingForteOperationStore.clear(
+        widget.api,
+        expectedCheckoutId: details.checkoutId,
+      );
+      throw ApiException(
+        'forte_payment_session_closed'.tr,
+        code: 'PAYMENT_SESSION_CLOSED',
+      );
+    }
     final forteRedirectUrl = (result['redirectUrl'] ?? '').toString();
     if (forteRedirectUrl.isEmpty) {
       throw ApiException('forte_checkout_invalid'.tr);

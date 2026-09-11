@@ -46,6 +46,7 @@ function controllerHarness(t) {
     bonusAvailable: 0,
     fundsBlocked: false,
     probeBlocked: false,
+    lookups: [],
   };
   const {
     deliveryAvailability,
@@ -101,7 +102,13 @@ function controllerHarness(t) {
     canonicalItems: [{ id: 'bun', quantity: 1, price: 35 }],
   };
   const payment = {
-    existingRequest: async () => state.existing,
+    existingRequest: async (customerId, checkoutId) => {
+      state.lookups.push({ customerId, checkoutId });
+      return state.existing;
+    },
+    availability: () => true,
+    getOrderStatus: async () => state.existing,
+    orderService: { recordPaidOrder: async () => state.existing },
     paymentResponse: async (order) => ({
       success: true,
       amount: order.amount,
@@ -281,6 +288,62 @@ test('retry returns the existing payment even with an expired quote and slot', a
   assert.equal(payment.body.operationId, 'same-operation');
   assert.equal(state.charges.length, 0);
   assert.equal(state.validations, 0);
+});
+
+for (const status of ['paid', 'failed', 'expired', 'refunded']) {
+  test(`retry of a ${status} checkout never reopens its bank session`, async (t) => {
+    const { state, controller, request } = controllerHarness(t);
+    state.existing = {
+      id: 'previous-order',
+      operation_id: 'previous-operation',
+      payment_method: 'forte_card',
+      provider_payment_system: 'forte_widget',
+      amount: 1035,
+      status,
+    };
+    const payment = response();
+    await controller.createPayment(request, payment);
+    assert.equal(payment.statusCode, 200);
+    assert.equal(payment.body.paymentStatus, status);
+    assert.equal(payment.body.operationId, 'previous-operation');
+    assert.equal(payment.body.redirectUrl, null);
+    assert.equal(state.charges.length, 0);
+    assert.equal(state.validations, 0);
+  });
+}
+
+test('lost create response is resolved by the authenticated customer and checkout id', async (t) => {
+  const { state, controller, request } = controllerHarness(t);
+  state.existing = {
+    payment_method: 'forte_card',
+    operation_id: '217615f9-b35f-4eb4-9f6d-777f2236bb25',
+    status: 'paid',
+  };
+  request.params = { checkoutId: request.body.checkoutId };
+  const result = response();
+  await controller.checkCheckoutStatus(request, result);
+  assert.equal(result.body.paymentStatus, 'paid');
+  assert.deepEqual(state.lookups, [
+    {
+      customerId: request.customerAuth.id,
+      checkoutId: request.body.checkoutId,
+    },
+  ]);
+  assert.equal(state.charges.length, 0);
+});
+
+test('unknown or invalid checkout cannot disclose another customer payment', async (t) => {
+  const { state, controller, request } = controllerHarness(t);
+  request.params = { checkoutId: request.body.checkoutId };
+  const missing = response();
+  await controller.checkCheckoutStatus(request, missing);
+  assert.equal(missing.statusCode, 404);
+  const calls = state.lookups.length;
+  request.params.checkoutId = 'invalid';
+  const invalid = response();
+  await controller.checkCheckoutStatus(request, invalid);
+  assert.equal(invalid.statusCode, 400);
+  assert.equal(state.lookups.length, calls);
 });
 
 test('saved order and customer details keep the charged fee while provider overage stays private', () => {

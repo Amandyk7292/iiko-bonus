@@ -504,6 +504,14 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'kk': 'Нәтиже әлі тексеріліп жатыр',
     'en': 'The result is still being checked',
   },
+  'forte_payment_session_closed': {
+    'ru':
+        'Предыдущая оплата завершена без списания или возвращена. Нажмите «Оформить заказ», чтобы начать новую оплату.',
+    'kk':
+        'Алдыңғы төлем есептен шығарылмай аяқталды немесе қайтарылды. Жаңа төлем үшін «Тапсырысты рәсімдеу» түймесін басыңыз.',
+    'en':
+        'The previous payment ended without a charge or was refunded. Place the order again to start a new payment.',
+  },
   'forte_payment_pending_hint': {
     'ru':
         'Не начинайте новую оплату. Сначала проверьте эту операцию или откройте «Мои покупки».',

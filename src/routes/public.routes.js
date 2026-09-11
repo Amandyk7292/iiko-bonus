@@ -63,6 +63,7 @@ const {
   customerProductParamsSchema,
   favoriteMutationBodySchema,
   forteCardSetupBodySchema,
+  forteCheckoutParamsSchema,
   forteOperationParamsSchema,
   fortePaymentMethodParamsSchema,
   forteWidgetWebhookBodySchema,
@@ -872,6 +873,11 @@ router.post(
   forteController.quotePayment,
 );
 router.get('/api/customer/forte-pay/status/:operationId', forteController.checkStatus);
+router.get(
+  '/api/customer/forte-pay/checkout/:checkoutId',
+  validateRequest({ params: forteCheckoutParamsSchema }),
+  forteController.checkCheckoutStatus,
+);
 router.get('/api/customer/forte-pay/methods', forteController.listPaymentMethods);
 router.post(
   '/api/customer/forte-pay/card-setup',

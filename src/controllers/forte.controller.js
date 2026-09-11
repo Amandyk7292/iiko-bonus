@@ -173,6 +173,29 @@ const createPayment = async (req, res) => {
             statusCode: 409,
           });
         }
+        // Idempotent retries must report the result of a finished purchase,
+        // never send its consumed bank session back to the customer.
+        if (
+          [
+            'paid',
+            'failed',
+            'expired',
+            'refunded',
+            'cancelled',
+            'canceled',
+            'declined',
+            'voided',
+          ].includes(existing.status)
+        ) {
+          return {
+            success: true,
+            operationId: String(existing.operation_id),
+            orderId: String(existing.id),
+            amount: Number(existing.amount),
+            paymentStatus: existing.status,
+            redirectUrl: null,
+          };
+        }
         const service =
           existing.provider_payment_system === 'forte_widget' ? forteWidgetService : forteService;
         return service.paymentResponse(existing, req.body?.language || 'ru');
@@ -354,6 +377,24 @@ const checkStatus = async (req, res) => {
   }
 };
 
+const checkCheckoutStatus = async (req, res) => {
+  try {
+    const checkoutId = String(req.params.checkoutId || '');
+    if (!CHECKOUT_ID_PATTERN.test(checkoutId)) {
+      return res.status(400).json({ error: 'Некорректный идентификатор оформления' });
+    }
+    const order = await forteWidgetService.existingRequest(req.customerAuth.id, checkoutId);
+    if (!order || order.payment_method !== 'forte_card') {
+      return res.status(404).json({ error: 'Оплата этого оформления пока не найдена' });
+    }
+    return checkStatus({ ...req, params: { operationId: String(order.operation_id) } }, res);
+  } catch (error) {
+    return res.status(error.statusCode || 500).json({
+      error: publicError(error, 'Не удалось проверить предыдущее оформление'),
+    });
+  }
+};
+
 const listPaymentMethods = async (req, res) => {
   try {
     const methods = forteWidgetService.availability()
@@ -471,6 +512,7 @@ const handleWidgetWebhook = async (req, res) => {
 module.exports = {
   availability,
   checkCardSetupStatus,
+  checkCheckoutStatus,
   checkStatus,
   createCardSetup,
   createPayment,

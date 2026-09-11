@@ -186,6 +186,8 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
     try {
       final items = await widget.api.reorder(order.id);
       if (!mounted) return;
+      await PendingForteOperationStore.prepareNewCheckout(widget.api);
+      if (!mounted) return;
       final cart = context.read<CartProvider>()..clear();
       for (final item in items) {
         final configuration = item['configuration'] is Map

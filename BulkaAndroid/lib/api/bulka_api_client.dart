@@ -656,6 +656,18 @@ class BulkaApiClient {
     return json;
   }
 
+  Future<Map<String, dynamic>> checkForteCheckoutStatus(
+    String checkoutId,
+  ) async {
+    final json = await _get(
+      '/api/customer/forte-pay/checkout/${Uri.encodeComponent(checkoutId)}',
+    );
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'error_forte_status'.tr));
+    }
+    return json;
+  }
+
   Future<List<BakeryLocation>> getFulfillmentLocations() async {
     final json = await _get('/api/guest/locations');
     final rawLocations = json['locations'];

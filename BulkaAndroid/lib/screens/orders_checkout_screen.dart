@@ -649,6 +649,9 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         context,
       ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
       setState(() => _isSubmitting = false);
+      if (error is ApiException && error.code == 'PAYMENT_SESSION_CLOSED') {
+        _checkoutId = _newCheckoutId();
+      }
       if (error is ApiException &&
           const {
             'CHECKOUT_QUOTE_CHANGED',
