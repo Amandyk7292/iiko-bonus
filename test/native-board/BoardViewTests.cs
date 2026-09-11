@@ -13,6 +13,7 @@ internal static class BoardViewTests
     {
         OrderAlertTests.Run();
         AutoOpenTests.Run();
+        BoardCrowdedTests.Run(args.Length > 0 ? args[0] : ".");
         var view = new OrderBoardWindow("19а ЖК Жасыл дала", IntPtr.Zero, true, false);
         var model = new BoardResponse { Columns = BoardColumn.Stages.Select((stage, i) => new BoardColumn {
             Stage = stage, Page = 1, Total = 1, Orders = new List<InboxOrder> { new InboxOrder {
@@ -32,9 +33,9 @@ internal static class BoardViewTests
         var root = (FrameworkElement)view.Content;
         Layout(root, 1280, 800);
         var calls = new List<string>(); view.ActionRequested += (order, action) => calls.Add(order.Id + ":" + action);
-        Click(root, "Принять заказ");
+        Click(root, "Принять");
         Check(calls.SequenceEqual(new[] { "order-0:accept" }), "accept by card identity");
-        Check(Buttons(root).All(b => Label(b) != "Принять заказ"), "duplicate acceptance disabled while pending");
+        Check(Buttons(root).All(b => Label(b) != "Принять"), "duplicate acceptance disabled while pending");
         view.FinishAction("order-0"); Click(root, "Отклонить");
         Check(calls.Count == 1, "reject requires confirmation");
         Click(root, "Да, отклонить"); Check(calls.Last() == "order-0:reject", "confirmed rejection identity");
@@ -42,7 +43,7 @@ internal static class BoardViewTests
         Click(root, "Да, заказ выдан"); Check(calls.Last() == "order-2:hand_over", "courier handover is not delivery completion");
         view.FinishAction("order-2");
         view.SetError("Нет связи. Изменение не подтверждено.");
-        Check(Buttons(root).Where(b => Label(b) == "Принять заказ").All(b => !b.IsEnabled), "offline actions disabled");
+        Check(Buttons(root).Where(b => Label(b) == "Принять").All(b => !b.IsEnabled), "offline actions disabled");
         view.Update(model);
         var directory = args.Length > 0 ? args[0] : "."; Directory.CreateDirectory(directory);
         Render(root, Path.Combine(directory, "pos-board-1280.png"), 1280, 800);
