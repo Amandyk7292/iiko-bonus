@@ -118,7 +118,9 @@ class CatalogProduct {
     unit: stockUnit,
     preparationMinutes: preparationMinutes,
     description: description,
-    isStopListed: catalogAvailable != true || !available,
+    // Old cached menus lack the global flag. Refresh counts but keep any
+    // existing stop until a full menu confirms that it can be cleared.
+    isStopListed: !(catalogAvailable ?? !isStopListed) || !available,
     catalogAvailable: catalogAvailable,
     ingredients: ingredients,
     allergens: allergens,

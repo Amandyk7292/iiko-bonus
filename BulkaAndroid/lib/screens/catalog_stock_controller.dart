@@ -26,11 +26,6 @@ extension _CatalogStockController on _CatalogScreenState {
     }
     final lifecycle = WidgetsBinding.instance.lifecycleState;
     if (lifecycle != null && lifecycle != AppLifecycleState.resumed) return;
-    // Older cached menus do not distinguish a global stop from a branch count.
-    if (_allProducts.any((p) => p.catalogAvailable == null)) {
-      await _silentRefresh();
-      return;
-    }
     final endpoint = _menuEndpoint;
     final revision = _menuLoadRevision;
     final branch = _selectedBakeryId;
