@@ -1,38 +1,6 @@
 part of '../main.dart';
 
 extension _CatalogProductCard on _CatalogScreenState {
-  Widget _buildProductRows(
-    List<CatalogProduct> products,
-    int columns,
-    double spacing, {
-    Key? key,
-  }) {
-    final cart = context.read<CartProvider>();
-    return SliverList.builder(
-      key: key,
-      itemCount: (products.length / columns).ceil(),
-      itemBuilder: (context, row) => Padding(
-        padding: const EdgeInsets.only(bottom: 18),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            for (var column = 0; column < columns; column++) ...[
-              if (column > 0) SizedBox(width: spacing),
-              Expanded(
-                child: row * columns + column < products.length
-                    ? _buildProductCard(
-                        products[row * columns + column],
-                        cart.getQuantity(products[row * columns + column].id),
-                      )
-                    : const SizedBox.shrink(),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildProductCard(CatalogProduct product, num quantity) {
     final colors = context.bulkaColors;
     final scheme = Theme.of(context).colorScheme;
@@ -44,7 +12,7 @@ extension _CatalogProductCard on _CatalogScreenState {
     return Semantics(
       container: true,
       explicitChildNodes: true,
-      enabled: !unavailable,
+      enabled: true,
       label: product.title,
       value: [
         '${_CatalogScreenState._formatPrice(context, product.price)} ₸',
@@ -64,13 +32,11 @@ extension _CatalogProductCard on _CatalogScreenState {
                   color: Colors.transparent,
                   child: Semantics(
                     button: true,
-                    enabled: !unavailable,
+                    enabled: true,
                     label: _catalogOpenProductLabel(product),
                     excludeSemantics: true,
                     child: InkWell(
-                      onTap: unavailable
-                          ? null
-                          : () => _openProductDetails(product),
+                      onTap: () => _openProductDetails(product),
                       borderRadius: BorderRadius.circular(BulkaRadii.card),
                       child: _CatalogProductImage(
                         key: ValueKey('catalog-product-image-${product.id}'),
@@ -97,26 +63,18 @@ extension _CatalogProductCard on _CatalogScreenState {
                   excludeSemantics: true,
                   child: IconButton(
                     key: ValueKey('catalog-favorite-${product.id}'),
-                    onPressed: unavailable
-                        ? null
-                        : () => unawaited(_toggleFavorite(product)),
+                    onPressed: () => unawaited(_toggleFavorite(product)),
                     tooltip: favorite
                         ? 'catalog_remove_favorite'.tr
                         : 'catalog_add_favorite'.tr,
                     style: IconButton.styleFrom(
-                      backgroundColor: unavailable
-                          ? const Color(0xFFF0EEEB).withValues(alpha: 0.94)
-                          : Colors.white.withValues(alpha: 0.9),
-                      foregroundColor: unavailable
-                          ? colors.mutedText
-                          : favorite
+                      backgroundColor: Colors.white.withValues(alpha: 0.94),
+                      foregroundColor: favorite
                           ? colors.brandBrown
                           : colors.mutedText,
                       minimumSize: const Size(44, 44),
                       side: BorderSide(
-                        color: unavailable
-                            ? colors.cardBorder
-                            : favorite
+                        color: favorite
                             ? colors.brandGold
                             : colors.cardBorder.withValues(alpha: 0.72),
                       ),
@@ -145,7 +103,10 @@ extension _CatalogProductCard on _CatalogScreenState {
                       decoration: BoxDecoration(
                         color: const Color(0xFFF0EEEB).withValues(alpha: 0.96),
                         borderRadius: BorderRadius.circular(BulkaRadii.small),
-                        border: Border.all(color: colors.cardBorder),
+                        border: Border.all(
+                          color: colors.cardBorder,
+                          width: BulkaStrokes.hairline,
+                        ),
                       ),
                       child: Text(
                         'catalog_stop_list'.tr,
@@ -162,67 +123,78 @@ extension _CatalogProductCard on _CatalogScreenState {
               Positioned(
                 right: 7,
                 bottom: -20,
-                child: unavailable
-                    ? Semantics(
-                        button: true,
-                        toggled: stockSubscribed,
-                        label: stockSubscribed
-                            ? 'stock_notify_enabled'.tr
-                            : 'stock_notify_enable'.tr,
-                        child: IconButton.filled(
-                          key: ValueKey('stock-notify-${product.id}'),
-                          tooltip: stockSubscribed
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 220),
+                  switchInCurve: Curves.easeOutBack,
+                  switchOutCurve: Curves.easeIn,
+                  transitionBuilder: (child, animation) => FadeTransition(
+                    opacity: animation,
+                    child: ScaleTransition(scale: animation, child: child),
+                  ),
+                  child: unavailable
+                      ? Semantics(
+                          key: ValueKey('catalog-stock-notify-${product.id}'),
+                          button: true,
+                          toggled: stockSubscribed,
+                          label: stockSubscribed
                               ? 'stock_notify_enabled'.tr
                               : 'stock_notify_enable'.tr,
-                          onPressed: stockBusy
-                              ? null
-                              : () => unawaited(
-                                  _toggleStockSubscription(product),
-                                ),
-                          style: IconButton.styleFrom(
-                            minimumSize: const Size(48, 48),
-                            backgroundColor: stockSubscribed
-                                ? colors.brandBrown
-                                : _bulkaYellow,
-                            foregroundColor: stockSubscribed
-                                ? Colors.white
-                                : _textDark,
-                            disabledBackgroundColor: colors.disabledSurface,
-                            disabledForegroundColor: colors.mutedText,
-                          ),
-                          icon: stockBusy
-                              ? SizedBox.square(
-                                  dimension: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: colors.brandBrown,
+                          child: IconButton.filled(
+                            key: ValueKey('stock-notify-${product.id}'),
+                            tooltip: stockSubscribed
+                                ? 'stock_notify_enabled'.tr
+                                : 'stock_notify_enable'.tr,
+                            onPressed: stockBusy
+                                ? null
+                                : () => unawaited(
+                                    _toggleStockSubscription(product),
                                   ),
-                                )
-                              : Icon(
-                                  stockSubscribed
-                                      ? Icons.notifications_active_rounded
-                                      : Icons.add_alert_rounded,
+                            style: IconButton.styleFrom(
+                              minimumSize: const Size(48, 48),
+                              backgroundColor: stockSubscribed
+                                  ? colors.brandBrown
+                                  : _bulkaYellow,
+                              foregroundColor: stockSubscribed
+                                  ? Colors.white
+                                  : _textDark,
+                              disabledBackgroundColor: colors.disabledSurface,
+                              disabledForegroundColor: colors.mutedText,
+                            ),
+                            icon: stockBusy
+                                ? SizedBox.square(
+                                    dimension: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: colors.brandBrown,
+                                    ),
+                                  )
+                                : Icon(
+                                    stockSubscribed
+                                        ? Icons.notifications_active_rounded
+                                        : Icons.add_alert_rounded,
+                                  ),
+                          ),
+                        )
+                      : _CatalogImageQuantityControl(
+                          key: ValueKey('catalog-quantity-${product.id}'),
+                          quantity: quantity,
+                          unit: product.quantityStep < 1 ? product.unit : '',
+                          stopListed: false,
+                          onAdd: () =>
+                              _setProductQuantity(product, product.increment),
+                          onDecrease: () => _setProductQuantity(
+                            product,
+                            quantity - product.increment,
+                          ),
+                          onIncrease:
+                              quantity >= _catalogProductQuantityLimit(product)
+                              ? null
+                              : () => _setProductQuantity(
+                                  product,
+                                  quantity + product.increment,
                                 ),
                         ),
-                      )
-                    : _CatalogImageQuantityControl(
-                        quantity: quantity,
-                        unit: product.quantityStep < 1 ? product.unit : '',
-                        stopListed: false,
-                        onAdd: () =>
-                            _setProductQuantity(product, product.increment),
-                        onDecrease: () => _setProductQuantity(
-                          product,
-                          quantity - product.increment,
-                        ),
-                        onIncrease:
-                            quantity >= _catalogProductQuantityLimit(product)
-                            ? null
-                            : () => _setProductQuantity(
-                                product,
-                                quantity + product.increment,
-                              ),
-                      ),
+                ),
               ),
             ],
           ),
@@ -230,7 +202,7 @@ extension _CatalogProductCard on _CatalogScreenState {
           Material(
             color: Colors.transparent,
             child: InkWell(
-              onTap: unavailable ? null : () => _openProductDetails(product),
+              onTap: () => _openProductDetails(product),
               borderRadius: BorderRadius.circular(BulkaRadii.control),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),

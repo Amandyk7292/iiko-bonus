@@ -52,11 +52,7 @@ const Map<String, Map<String, String>> _navigationAndProfileTranslations = {
     'kk': 'Менің мекенжайларым',
     'en': 'My addresses',
   },
-  'menu_contact': {
-    'ru': 'Связаться с нами',
-    'kk': 'Бізбен байланысу',
-    'en': 'Contact us',
-  },
+  'menu_contact': {'ru': 'Поддержка', 'kk': 'Қолдау', 'en': 'Support'},
   'menu_info': {'ru': 'Информация', 'kk': 'Ақпарат', 'en': 'Information'},
   'legal_documents_title': {
     'ru': 'Документы и условия',

@@ -12,6 +12,18 @@ const branch = BakeryLocation(
   longitude: 51.16,
   hours: {
     'daily': {'open': '08:00', 'close': '21:00'},
+  },
+);
+
+const branchWithSundayOff = BakeryLocation(
+  id: 'one-with-sunday-off',
+  name: 'Ardager',
+  city: 'Актау',
+  address: '9-й микрорайон, 30/3',
+  latitude: 43.65,
+  longitude: 51.16,
+  hours: {
+    'daily': {'open': '08:00', 'close': '21:00'},
     'sun': {'closed': true},
   },
 );
@@ -81,8 +93,61 @@ void main() {
     expect(bakeryHoursToday(branch, DateTime.utc(2026, 9, 7, 3)).open, true);
     expect(bakeryHoursToday(branch, DateTime.utc(2026, 9, 7, 16)).open, false);
     expect(
-      bakeryHoursToday(branch, DateTime.utc(2026, 9, 6, 8)).label,
+      bakeryHoursToday(branchWithSundayOff, DateTime.utc(2026, 9, 6, 8)).label,
       'Выходной',
+    );
+  });
+
+  test('overnight hours stay open after midnight until the closing time', () {
+    const overnight = BakeryLocation(
+      id: 'overnight',
+      name: 'Night bakery',
+      city: 'Актау',
+      address: '19а',
+      hours: {
+        'daily': {'open': '08:00', 'close': '02:00'},
+      },
+    );
+
+    expect(
+      bakeryHoursToday(overnight, DateTime.utc(2026, 9, 12, 19, 7)).open,
+      true,
+    );
+    expect(
+      bakeryHoursToday(overnight, DateTime.utc(2026, 9, 12, 20, 59)).open,
+      true,
+    );
+    expect(
+      bakeryHoursToday(overnight, DateTime.utc(2026, 9, 12, 21)).open,
+      false,
+    );
+    expect(
+      bakeryHoursToday(overnight, DateTime.utc(2026, 9, 13, 3)).open,
+      true,
+    );
+  });
+
+  test('previous day overnight hours carry into a configured day off', () {
+    const saturdayNight = BakeryLocation(
+      id: 'saturday-night',
+      name: 'Night bakery',
+      city: 'Актау',
+      address: '19а',
+      hours: {
+        'sat': {'open': '08:00', 'close': '02:00'},
+        'sun': {'closed': true},
+      },
+    );
+
+    final afterMidnight = bakeryHoursToday(
+      saturdayNight,
+      DateTime.utc(2026, 9, 12, 19, 7),
+    );
+    expect(afterMidnight.open, true);
+    expect(afterMidnight.label, '08:00 – 02:00');
+    expect(
+      bakeryHoursToday(saturdayNight, DateTime.utc(2026, 9, 12, 22)).open,
+      false,
     );
   });
 
@@ -107,8 +172,6 @@ void main() {
       await tester.tap(find.text('Ardager'));
       await tester.pumpAndSettle();
       expect(find.text('directory_route'.tr), findsOneWidget);
-      await tester.tap(find.text('directory_hours'.tr));
-      await tester.pumpAndSettle();
       expect(find.textContaining('08:00 – 21:00'), findsWidgets);
       await tester.tap(find.byTooltip('close_btn'.tr));
       await tester.pumpAndSettle();

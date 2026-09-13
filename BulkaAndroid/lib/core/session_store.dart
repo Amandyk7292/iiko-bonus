@@ -120,6 +120,7 @@ abstract final class SessionStore {
     'checkout_preorder_fulfillment_',
     'checkout_id_',
     'checkout_id_created_at_',
+    'checkout_cart_revision_',
     'customer_orders_cache_',
     'pending_gift_purchase_v1_',
     'pending_forte_operation_v1_',

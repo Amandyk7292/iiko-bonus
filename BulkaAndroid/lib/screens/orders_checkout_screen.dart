@@ -20,6 +20,7 @@ class _CheckoutScreen extends StatefulWidget {
     required this.cartItems,
     required this.onSubmit,
     this.initialCheckoutId,
+    this.cartRevision,
   });
 
   final BulkaApiClient api;
@@ -27,6 +28,7 @@ class _CheckoutScreen extends StatefulWidget {
   final List<Map<String, dynamic>> cartItems;
   final Future<FortePaymentOutcome> Function(_CheckoutDetails details) onSubmit;
   final String? initialCheckoutId;
+  final String? cartRevision;
 
   @override
   State<_CheckoutScreen> createState() => _CheckoutScreenState();
@@ -40,7 +42,6 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   int _scheduleRevision = 0;
   String? _scheduleError;
   bool _preferencesReady = false;
-  late final TextEditingController _phoneController;
   final _promoController = TextEditingController();
   final _commentController = TextEditingController();
   _OrderType _orderType = _OrderType.pickup;
@@ -66,7 +67,13 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   bool _isSelectingBranch = false;
   bool _isSelectingAddress = false;
   bool _isSelectingTime = false;
+  String? _scheduleKey;
+  Future<bool>? _scheduleFlight;
+  String? _scheduleFlightKey;
+  int? _scheduleFlightRevision;
   bool? _forteAvailable;
+  bool _usePersonalAccount = false;
+  bool _personalAccountAvailable = false;
   bool _checkingPaymentAvailability = false;
   bool _onlineOrderingDisabled = false;
   String? _selectedPaymentMethodId;
@@ -101,9 +108,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
         ).hasMatch(initialCheckoutId)) {
       _checkoutId = initialCheckoutId;
     }
-    _phoneController = TextEditingController();
     _promoController.addListener(_refreshPromoButton);
-    _phoneController.addListener(_saveDraft);
     _promoController.addListener(_saveDraft);
     _commentController.addListener(_saveDraft);
     _onlineOrderingDisabled = widget.api.onlineOrderingDisabled;
@@ -124,10 +129,13 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       },
       _refreshLiveCheckout,
       busy: () => !_preferencesReady || _isSubmitting || _isQuoting,
-      minimumInterval: const Duration(seconds: 30),
+      acceptEvent: _matchesCheckoutBranch,
     );
     _scheduleEvents = widget.api.customerEvents.listen((event) {
-      if (_dataEventMatches(event, {'locations', 'locations.updated'})) {
+      if (!_matchesCheckoutBranch(event)) return;
+      if (_dataEventMatches(event, {'locations', 'locations.updated'}) ||
+          (_dataEventMatches(event, {'menu'}) &&
+              _asMap(event['data'])['inventory'] == true)) {
         _scheduleNeedsRefresh = true;
         _live.request(immediate: true);
       }
@@ -135,10 +143,19 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
     unawaited(_loadPaymentAvailability());
   }
 
+  bool _matchesCheckoutBranch(Map<String, dynamic> event) {
+    final eventBranch = _asMap(event['data'])['branchId'];
+    return eventBranch == null ||
+        eventBranch == '' ||
+        _branchId == null ||
+        eventBranch == _branchId;
+  }
+
   bool get _selectedPaymentAvailable =>
       !_onlineOrderingDisabled &&
-      _forteAvailable == true &&
-      _selectedPaymentMethodId != null;
+      (_usePersonalAccount
+          ? _personalAccountAvailable
+          : _forteAvailable == true && _selectedPaymentMethodId != null);
 
   void _refreshPromoButton() {
     // TextEditingController also notifies about cursor/focus changes.
@@ -257,7 +274,6 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
     await Future.wait([
       prefs.setString('selected_order_type', _orderType.wireValue),
       prefs.setString(_draftKey('checkout_preorder_fulfillment'), 'pickup'),
-      prefs.setString(_draftKey('checkout_phone'), _phoneController.text),
       prefs.setString(_draftKey('checkout_promo'), _promoController.text),
       prefs.setString(_draftKey('checkout_comment'), _commentController.text),
       if (_scheduledSlot == null)
@@ -335,10 +351,8 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
     _scheduleOptions.dispose();
     _quoteFreshness?.cancel();
     _promoController.removeListener(_refreshPromoButton);
-    _phoneController.removeListener(_saveDraft);
     _promoController.removeListener(_saveDraft);
     _commentController.removeListener(_saveDraft);
-    _phoneController.dispose();
     _promoController.dispose();
     _commentController.dispose();
     super.dispose();
@@ -403,20 +417,20 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   Future<void> _selectScheduledTime() async {
     if (_isSelectingTime) return;
     if (!_usesDelivery && _branch.trim().isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('checkout_branch_required'.tr)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        bulkaSnackBar(content: Text('checkout_branch_required'.tr)),
+      );
       return;
     }
     if (_usesDelivery && _deliveryAddress == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('checkout_delivery_address_required'.tr)),
+        bulkaSnackBar(content: Text('checkout_delivery_address_required'.tr)),
       );
       return;
     }
     if (_usesDelivery && _deliveryBranchLocation == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('checkout_delivery_unavailable'.tr)),
+        bulkaSnackBar(content: Text('checkout_delivery_unavailable'.tr)),
       );
       return;
     }
@@ -424,14 +438,9 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
     if (location == null) return;
     setState(() => _isSelectingTime = true);
     try {
-      if (!await _loadScheduleOptions()) return;
+      // Present the sheet immediately; cached slots stay visible during refresh.
+      unawaited(_loadScheduleOptions());
       if (!mounted) return;
-      if (_scheduleOptions.value!.isEmpty) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('checkout_no_time_slots'.tr)));
-        return;
-      }
       DateTime? selectedDay;
       if (_isPreorder) {
         selectedDay = await showModalBottomSheet<DateTime>(
@@ -458,13 +467,13 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
           _quoteValid = false;
         });
         await _persistDraft();
-        await _refreshQuote();
+        unawaited(_refreshQuote());
       }
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
+      ).showSnackBar(bulkaSnackBar(content: Text(localizeErrorMessage(error))));
     } finally {
       if (mounted) setState(() => _isSelectingTime = false);
     }
@@ -472,7 +481,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
 
   bool get _canQuote =>
       !_onlineOrderingDisabled &&
-      _scheduledSlot != null &&
+      (_usesDelivery || _scheduledSlot != null) &&
       (_usesDelivery
           ? _deliveryAddress != null && _deliveryBranchLocation != null
           : _branch.trim().isNotEmpty);
@@ -518,6 +527,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   }
 
   Future<bool> _revalidateScheduledSlot() async {
+    if (_usesDelivery) return true;
     if (_scheduledSlot == null || !await _loadScheduleOptions()) return false;
     return _applyScheduleToSelection();
   }
@@ -525,13 +535,13 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
   Future<void> _submit() async {
     if (_onlineOrderingDisabled) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('checkout_online_ordering_disabled'.tr)),
+        bulkaSnackBar(content: Text('checkout_online_ordering_disabled'.tr)),
       );
       return;
     }
     if (!_selectedPaymentAvailable) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        bulkaSnackBar(
           content: Text(
             _forteAvailable == true && _selectedPaymentMethodId == null
                 ? 'payment_methods_empty'.tr
@@ -542,29 +552,22 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       return;
     }
     if (!_usesDelivery && _branch.trim().isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('checkout_branch_required'.tr)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        bulkaSnackBar(content: Text('checkout_branch_required'.tr)),
+      );
       return;
     }
     if (_usesDelivery &&
         (_deliveryAddress == null || !_deliveryAddress!.hasValidCoordinates)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('checkout_delivery_address_required'.tr)),
+        bulkaSnackBar(content: Text('checkout_delivery_address_required'.tr)),
       );
       return;
     }
-    if (_scheduledSlot == null) {
+    if (!_usesDelivery && _scheduledSlot == null) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('checkout_time_required'.tr)));
-      return;
-    }
-    final phoneDigits = _phoneController.text.replaceAll(RegExp(r'\D'), '');
-    if (phoneDigits.isNotEmpty && phoneDigits.length < 10) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('checkout_phone_invalid'.tr)));
+      ).showSnackBar(bulkaSnackBar(content: Text('checkout_time_required'.tr)));
       return;
     }
     if (_isSubmitting) return;
@@ -588,6 +591,11 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       // same idempotent request after restart.
       await Future.wait([
         prefs.setString(_draftKey('checkout_id'), _checkoutId),
+        if (widget.cartRevision != null)
+          prefs.setString(
+            _draftKey('checkout_cart_revision'),
+            widget.cartRevision!,
+          ),
         prefs.setString(
           _draftKey('checkout_id_created_at'),
           DateTime.now().toUtc().toIso8601String(),
@@ -596,17 +604,22 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       final outcome = await widget.onSubmit(
         _CheckoutDetails(
           checkoutId: _checkoutId,
+          paymentMethod: _usePersonalAccount
+              ? 'personal_account'
+              : 'forte_card',
+          expectedTotal: _quotedTotal?.toDouble(),
           orderType: _orderType,
-          savedPaymentMethodId: _selectedPaymentMethodId,
+          savedPaymentMethodId: _usePersonalAccount
+              ? null
+              : _selectedPaymentMethodId,
           useBonuses: _useBonuses,
           bonusSpent: _bonusSpent,
           deliveryQuoteToken: _deliveryQuoteToken,
           preorderFulfillmentType: _isPreorder ? 'pickup' : null,
           branch: _usesDelivery ? null : _branch,
           branchId: _usesDelivery ? null : _branchId,
-          scheduledAt: _scheduledSlot!.value,
+          scheduledAt: _usesDelivery ? null : _scheduledSlot!.value,
           deliveryAddress: _usesDelivery ? _deliveryAddress : null,
-          additionalPhone: _phoneController.text.trim(),
           promoCode: _appliedPromoCode,
           comment: _commentController.text.trim(),
         ),
@@ -620,6 +633,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
           prefs.remove(_draftKey('checkout_comment')),
           prefs.remove(_draftKey('checkout_preorder_fulfillment')),
           prefs.remove(_draftKey('checkout_id')),
+          prefs.remove(_draftKey('checkout_cart_revision')),
           prefs.remove(_draftKey('checkout_id_created_at')),
         ]);
         if (mounted) Navigator.pop(context, true);
@@ -635,6 +649,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
             unawaited(
               Future.wait([
                 prefs.remove(_draftKey('checkout_id')),
+                prefs.remove(_draftKey('checkout_cart_revision')),
                 prefs.remove(_draftKey('checkout_id_created_at')),
               ]),
             );
@@ -645,8 +660,15 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
+      ).showSnackBar(bulkaSnackBar(content: Text(localizeErrorMessage(error))));
       setState(() => _isSubmitting = false);
+      if (error is ApiException &&
+          const {
+            'PAYMENT_SESSION_CLOSED',
+            'PERSONAL_ACCOUNT_INSUFFICIENT',
+          }.contains(error.code)) {
+        _checkoutId = _newCheckoutId();
+      }
       if (error is ApiException &&
           const {
             'CHECKOUT_QUOTE_CHANGED',

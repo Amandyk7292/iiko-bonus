@@ -164,6 +164,10 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('auth-method-password')));
     await tester.pumpAndSettle();
     await tester.enterText(
+      find.byKey(const ValueKey('auth-admin-username')),
+      'admin',
+    );
+    await tester.enterText(
       find.byKey(const ValueKey('auth-admin-password')),
       'fixture-password',
     );

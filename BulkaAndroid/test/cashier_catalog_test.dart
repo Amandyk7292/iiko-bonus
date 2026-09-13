@@ -17,7 +17,9 @@ class StockApi extends StaffApiClient {
   bool manual = true;
   final changes = <Map<String, dynamic>>[];
   final eventsFeed = StreamController<Map<String, dynamic>>.broadcast();
-  int quantity = 5, revision = 1;
+  num quantity = 5;
+  int revision = 1;
+  String unit = 'шт';
   bool stopped = false;
   @override
   Stream<Map<String, dynamic>> events({String? lastEventId}) =>
@@ -46,7 +48,11 @@ class StockApi extends StaffApiClient {
         throw const StaffApiException(409, 'conflict', 'Остаток уже изменился');
       }
       if (change.containsKey('sourceQuantity')) {
-        quantity = change['sourceQuantity'] as int;
+        final entered = change['sourceQuantity'] as num;
+        quantity = change['stockReason'] == 'receipt'
+            ? quantity + entered
+            : entered;
+        unit = '${change['unit'] ?? unit}';
       }
       if (change.containsKey('manualStop')) {
         stopped = change['manualStop'] as bool;
@@ -56,7 +62,20 @@ class StockApi extends StaffApiClient {
         manual = false;
       }
       revision++;
-      return {'success': true};
+      return {
+        'success': true,
+        'inventory': {
+          'sourceQuantity': quantity,
+          'availableQuantity': quantity - 1,
+          'reserved': 1,
+          'manualStop': stopped,
+          'revision': revision,
+          'stockSource': manual ? 'manual' : 'iiko',
+          'frontQuantity': 3,
+          'quantityStep': unit == 'кг' ? 0.001 : 1,
+          'unit': unit,
+        },
+      };
     }
     if (endpoint == '/staff/catalog') {
       return {
@@ -75,6 +94,8 @@ class StockApi extends StaffApiClient {
             'reserved': 1,
             'manualStop': stopped,
             'revision': revision,
+            'quantityStep': unit == 'кг' ? 0.001 : 1,
+            'unit': unit,
             if (frontConnected) ...{
               'stockSource': manual ? 'manual' : 'iiko',
               'isIikoProduct': true,
@@ -125,6 +146,57 @@ class StockApi extends StaffApiClient {
       if (showCounters)
         'counters': {'newOrders': 7, 'preparing': 3, 'preorders': 2},
     };
+  }
+}
+
+class SortedStockApi extends StockApi {
+  @override
+  Future<dynamic> request(
+    String endpoint, {
+    String method = 'GET',
+    Object? body,
+    bool authenticated = true,
+    Map<String, String> headers = const {},
+    Map<String, String> query = const {},
+  }) {
+    if (endpoint == '/staff/catalog' && method == 'GET') {
+      Map<String, dynamic> row(
+        String id,
+        String name, {
+        num? source = 5,
+        num? available = 5,
+        bool stopped = false,
+      }) => {
+        'id': id,
+        'name': name,
+        'category': 'Выпечка',
+        'imageUrl': '',
+        'sourceQuantity': source,
+        'availableQuantity': available,
+        'reserved': 0,
+        'manualStop': stopped,
+        'revision': 1,
+        'quantityStep': 1,
+        'unit': 'шт',
+      };
+      return Future.value({
+        'frontSync': {'configured': false, 'connected': false},
+        'products': [
+          row('unknown', 'Без количества', source: null, available: null),
+          row('stopped', 'Стоп', stopped: true),
+          row('zero', 'Ноль', source: 0, available: 0),
+          row('available', 'В наличии', source: 8, available: 8),
+        ],
+      });
+    }
+    return super.request(
+      endpoint,
+      method: method,
+      body: body,
+      authenticated: authenticated,
+      headers: headers,
+      query: query,
+    );
   }
 }
 
@@ -248,8 +320,14 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(api.changes.single, {'expectedRevision': 1, 'sourceQuantity': 7});
-    expect(find.widgetWithText(OutlinedButton, '7'), findsOneWidget);
+    expect(api.changes.single, {
+      'expectedRevision': 1,
+      'sourceQuantity': 7,
+      'stockReason': 'receipt',
+      'unit': 'шт',
+      'operationId': isA<String>(),
+    });
+    expect(find.widgetWithText(OutlinedButton, '12'), findsOneWidget);
     api.quantity = 3;
     api.revision++;
     api.eventsFeed.add({
@@ -304,6 +382,73 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     },
   );
+  testWidgets('cashier can select kilograms for an absolute correction', (
+    tester,
+  ) async {
+    final api = StockApi();
+    addTearDown(() {
+      api.eventsFeed.close();
+      api.close();
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: staffTheme(),
+        home: Scaffold(body: CashierCatalog(api: api)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(OutlinedButton, '5'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('кг'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).last, '1.25');
+    await tester.tap(find.widgetWithText(FilledButton, 'Сохранить'));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('Фактический остаток: 5 → 1.25 кг'),
+      findsOneWidget,
+    );
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.widgetWithText(FilledButton, 'Сохранить'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(api.changes.single, {
+      'expectedRevision': 1,
+      'sourceQuantity': 1.25,
+      'stockReason': 'correction',
+      'unit': 'кг',
+      'operationId': isA<String>(),
+    });
+    expect(find.widgetWithText(OutlinedButton, '1.25'), findsOneWidget);
+  });
+
+  testWidgets('stock list orders available, zero, stopped and unknown', (
+    tester,
+  ) async {
+    final api = SortedStockApi();
+    addTearDown(() {
+      api.eventsFeed.close();
+      api.close();
+    });
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: staffTheme(),
+        home: Scaffold(body: CashierCatalog(api: api)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final positions = ['available', 'zero', 'stopped', 'unknown']
+        .map((id) => tester.getTopLeft(find.byKey(ValueKey('stock-$id'))).dy)
+        .toList();
+    expect(positions, orderedEquals([...positions]..sort()));
+  });
   testWidgets(
     '120 products use a lazy list with pinned search and category selection',
     (tester) async {

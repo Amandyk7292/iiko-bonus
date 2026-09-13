@@ -57,8 +57,22 @@ void main() {
         await tester.pump(const Duration(seconds: 1));
         expect(tester.takeException(), isNull);
         expect(find.textContaining('5%'), findsWidgets);
-        final title = tester.widget<Text>(find.textContaining('Статус:'));
-        expect(title.style?.color, Colors.white);
+        final title = tester.widget<Text>(
+          find.textContaining('Очень длинное название уровня').first,
+        );
+        expect(title.style?.color, const Color(0xFF703111));
+        expect(
+          find.byKey(const ValueKey('loyalty-personal-account')),
+          findsOneWidget,
+        );
+        final cardCenter = tester.getCenter(
+          find.byKey(const ValueKey('loyalty-tier-card')),
+        );
+        final logoCenter = tester.getCenter(
+          find.byKey(const ValueKey('loyalty-card-logo')),
+        );
+        expect(logoCenter.dx, closeTo(cardCenter.dx, 0.01));
+        expect(logoCenter.dy, closeTo(cardCenter.dy, 0.01));
       },
     );
   }

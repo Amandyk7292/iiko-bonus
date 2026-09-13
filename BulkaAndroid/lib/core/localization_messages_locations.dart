@@ -135,6 +135,22 @@ const Map<String, Map<String, String>> _locationTranslations = {
     'kk': 'Барлығын оқу',
     'en': 'Mark all read',
   },
+  'branch_closed_title': {
+    'ru': 'Извините, мы сейчас закрыты.',
+    'kk': 'Кешіріңіз, біз қазір жабықпыз.',
+    'en': 'Sorry, we are closed right now.',
+  },
+  'branch_closed_hours': {
+    'ru': 'Заказ можно оформить в часы работы: {hours}.',
+    'kk': 'Тапсырысты жұмыс уақытында рәсімдей аласыз: {hours}.',
+    'en': 'You can place an order during opening hours: {hours}.',
+  },
+  'branch_closed_ok': {'ru': 'Понятно', 'kk': 'Түсінікті', 'en': 'Got it'},
+  'notifications_new_count': {
+    'ru': 'Новых: {count}',
+    'kk': 'Жаңа: {count}',
+    'en': 'New: {count}',
+  },
   'notifications_mark_read': {
     'ru': 'Дважды нажмите, чтобы отметить прочитанным',
     'kk': 'Оқылды деп белгілеу үшін екі рет түртіңіз',

@@ -35,7 +35,10 @@ class _CheckoutBonusSwitch extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border.all(color: context.bulkaColors.cardBorder),
+        border: Border.all(
+          color: context.bulkaColors.cardBorder,
+          width: BulkaStrokes.hairline,
+        ),
         borderRadius: BorderRadius.circular(BulkaRadii.control),
       ),
       child: SwitchListTile.adaptive(

@@ -12,56 +12,53 @@ bool _dataEventMatches(Map<String, dynamic> event, Set<String> domains) {
 /// Recovery also refreshes data, since event history can be lost on a restart.
 class _LiveRefresh with WidgetsBindingObserver {
   _LiveRefresh(
-    BulkaApiClient api,
+    this.api,
     this.domains,
     this.refresh, {
     this.busy,
-    this.minimumInterval = Duration.zero,
+    this.acceptEvent,
   }) {
     _events = api.customerEvents.listen((event) {
-      if (_dataEventMatches(event, domains)) request();
+      if (_dataEventMatches(event, domains) &&
+          acceptEvent?.call(event) != false) {
+        request();
+      }
     });
-    _network = networkRecoveryEvents().listen((_) => request());
+    _network = networkRecoveryEvents().listen((_) => _recover());
     WidgetsBinding.instance.addObserver(this);
   }
 
+  final BulkaApiClient api;
   final Set<String> domains;
   final Future<void> Function() refresh;
   final bool Function()? busy;
-  final Duration minimumInterval;
+  final bool Function(Map<String, dynamic>)? acceptEvent;
   late final StreamSubscription<Map<String, dynamic>> _events;
   late final StreamSubscription<dynamic> _network;
   Timer? _timer;
-  Timer? _cooldown;
   bool _running = false;
   bool _pending = false;
   bool _disposed = false;
 
   void request({bool immediate = false}) {
     if (_disposed) return;
-    if (immediate) {
-      _cooldown?.cancel();
-      _cooldown = null;
-    }
     _pending = true;
-    _timer?.cancel();
-    _timer = Timer(const Duration(milliseconds: 250), _flush);
+    // Bound the wait even if stock events keep arriving on a busy branch.
+    if (_timer?.isActive == true) return;
+    _timer = Timer(
+      immediate ? Duration.zero : const Duration(milliseconds: 250),
+      _flush,
+    );
   }
 
   Future<void> _flush() async {
-    if (_disposed || !_pending || _running || _cooldown != null) return;
+    if (_disposed || !_pending || _running) return;
     if (busy?.call() == true) {
       request();
       return;
     }
     _pending = false;
     _running = true;
-    if (minimumInterval > Duration.zero) {
-      _cooldown = Timer(minimumInterval, () {
-        _cooldown = null;
-        if (_pending && !_disposed) request();
-      });
-    }
     try {
       await refresh();
     } catch (_) {
@@ -74,13 +71,17 @@ class _LiveRefresh with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) request();
+    if (state == AppLifecycleState.resumed) _recover();
+  }
+
+  void _recover() {
+    api.reconnectEvents();
+    request(immediate: true);
   }
 
   void dispose() {
     _disposed = true;
     _timer?.cancel();
-    _cooldown?.cancel();
     unawaited(_events.cancel());
     unawaited(_network.cancel());
     WidgetsBinding.instance.removeObserver(this);

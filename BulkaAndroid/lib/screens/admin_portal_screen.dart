@@ -112,9 +112,9 @@ class _AdminPortalScreenState extends State<AdminPortalScreen>
 
   void _showExternalOpenError() {
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('admin_portal_external_error'.tr)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      bulkaSnackBar(content: Text('admin_portal_external_error'.tr)),
+    );
   }
 
   void _retry() {
@@ -234,7 +234,10 @@ class _AdminPortalErrorState extends StatelessWidget {
             decoration: BoxDecoration(
               color: colors.surfaceCream,
               borderRadius: BorderRadius.circular(BulkaRadii.card),
-              border: Border.all(color: colors.cardBorder),
+              border: Border.all(
+                color: colors.cardBorder,
+                width: BulkaStrokes.hairline,
+              ),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,

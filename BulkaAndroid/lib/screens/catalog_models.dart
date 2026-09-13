@@ -73,6 +73,7 @@ class CatalogProduct {
     required this.preparationMinutes,
     this.description = '',
     this.isStopListed = false,
+    this.catalogAvailable,
     this.ingredients = '',
     this.allergens = const [],
     this.dietaryTags = const [],
@@ -95,10 +96,43 @@ class CatalogProduct {
   final num? inStockCount;
   final num quantityStep;
   final String unit;
-  num get increment => quantityStep < 1 ? 0.1 : 1;
+  num get increment => quantityStep < 1 ? max<num>(quantityStep, 0.5) : 1;
   final int preparationMinutes;
   final String description;
   final bool isStopListed;
+  final bool? catalogAvailable;
+
+  CatalogProduct withStock({
+    required num? quantity,
+    required bool available,
+    required num step,
+    required String stockUnit,
+  }) => CatalogProduct(
+    id: id,
+    title: title,
+    price: price,
+    category: category,
+    imageUrl: imageUrl,
+    inStockCount: quantity,
+    quantityStep: step,
+    unit: stockUnit,
+    preparationMinutes: preparationMinutes,
+    description: description,
+    // Old cached menus lack the global flag. Refresh counts but keep any
+    // existing stop until a full menu confirms that it can be cleared.
+    isStopListed: !(catalogAvailable ?? !isStopListed) || !available,
+    catalogAvailable: catalogAvailable,
+    ingredients: ingredients,
+    allergens: allergens,
+    dietaryTags: dietaryTags,
+    searchKeywords: searchKeywords,
+    weightGrams: weightGrams,
+    caloriesKcal: caloriesKcal,
+    proteinGrams: proteinGrams,
+    fatGrams: fatGrams,
+    carbsGrams: carbsGrams,
+    storageConditions: storageConditions,
+  );
   final String ingredients;
   final List<String> allergens;
   final List<String> dietaryTags;

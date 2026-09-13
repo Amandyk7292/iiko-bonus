@@ -23,7 +23,9 @@ class BulkaDesktopPhoneViewport extends StatelessWidget {
     final browserSize = browserMediaQuery.size;
     final usePhoneViewport =
         desktopModeOverride ??
-        (kIsWeb && browserSize.width >= desktopBreakpoint);
+        (kIsWeb &&
+            !bulkaBrowserIsTablet &&
+            browserSize.width >= desktopBreakpoint);
 
     if (!usePhoneViewport) return child;
 

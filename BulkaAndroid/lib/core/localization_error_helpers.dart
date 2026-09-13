@@ -98,7 +98,7 @@ void showApiErrorSnackBar(
   messenger
     ..hideCurrentSnackBar()
     ..showSnackBar(
-      SnackBar(
+      bulkaSnackBar(
         behavior: SnackBarBehavior.floating,
         content: Semantics(
           liveRegion: true,
@@ -115,7 +115,7 @@ void showApiErrorSnackBar(
                 onPressed: () {
                   Clipboard.setData(ClipboardData(text: supportCode));
                   messenger.showSnackBar(
-                    SnackBar(content: Text('support_code_copied'.tr)),
+                    bulkaSnackBar(content: Text('support_code_copied'.tr)),
                   );
                 },
               ),

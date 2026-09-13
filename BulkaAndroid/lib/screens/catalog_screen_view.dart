@@ -175,7 +175,10 @@ extension _CatalogScreenView on _CatalogScreenState {
               backgroundColor: Colors.white,
               foregroundColor: colors.brandBrown,
               minimumSize: const Size(48, 48),
-              side: BorderSide(color: colors.cardBorder),
+              side: BorderSide(
+                color: colors.cardBorder,
+                width: BulkaStrokes.hairline,
+              ),
             ),
           ),
         ),
@@ -313,7 +316,10 @@ extension _CatalogScreenView on _CatalogScreenState {
                           borderRadius: BorderRadius.circular(
                             BulkaRadii.control,
                           ),
-                          borderSide: BorderSide(color: colors.cardBorder),
+                          borderSide: BorderSide(
+                            color: colors.cardBorder,
+                            width: BulkaStrokes.hairline,
+                          ),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(
@@ -347,7 +353,10 @@ extension _CatalogScreenView on _CatalogScreenState {
                     tapTargetSize: MaterialTapTargetSize.padded,
                     side: _favoritesOnly
                         ? BorderSide.none
-                        : BorderSide(color: colors.cardBorder),
+                        : BorderSide(
+                            color: colors.cardBorder,
+                            width: BulkaStrokes.hairline,
+                          ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(BulkaRadii.control),
                     ),

@@ -19,7 +19,10 @@ class _AuthLoginMethodSelector extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.disabledSurface.withValues(alpha: .45),
         borderRadius: BorderRadius.circular(BulkaRadii.control),
-        border: Border.all(color: colors.cardBorder),
+        border: Border.all(
+          color: colors.cardBorder,
+          width: BulkaStrokes.hairline,
+        ),
       ),
       child: Row(
         children: [

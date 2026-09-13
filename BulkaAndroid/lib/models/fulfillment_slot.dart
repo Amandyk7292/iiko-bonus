@@ -1,5 +1,9 @@
 part of '../main.dart';
 
+class FulfillmentSlotsUnavailable extends ApiException {
+  FulfillmentSlotsUnavailable(super.message);
+}
+
 class FulfillmentSlot {
   const FulfillmentSlot({
     required this.startsAt,

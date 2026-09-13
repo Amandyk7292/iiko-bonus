@@ -1,5 +1,61 @@
 part of '../main.dart';
 
+String _notificationMonthLabel(DateTime date) {
+  const months = {
+    'ru': [
+      'Январь',
+      'Февраль',
+      'Март',
+      'Апрель',
+      'Май',
+      'Июнь',
+      'Июль',
+      'Август',
+      'Сентябрь',
+      'Октябрь',
+      'Ноябрь',
+      'Декабрь',
+    ],
+    'kk': [
+      'Қаңтар',
+      'Ақпан',
+      'Наурыз',
+      'Сәуір',
+      'Мамыр',
+      'Маусым',
+      'Шілде',
+      'Тамыз',
+      'Қыркүйек',
+      'Қазан',
+      'Қараша',
+      'Желтоқсан',
+    ],
+    'en': [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ],
+  };
+  final language = months.containsKey(AppLang.current) ? AppLang.current : 'ru';
+  final month = months[language]![date.month - 1];
+  return date.year == DateTime.now().year ? month : '$month ${date.year}';
+}
+
+String _notificationDateTimeLabel(DateTime date) {
+  String two(int value) => value.toString().padLeft(2, '0');
+  return '${two(date.day)}.${two(date.month)}.${two(date.year % 100)} '
+      '${two(date.hour)}:${two(date.minute)}';
+}
+
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({
     required this.api,
@@ -219,7 +275,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   void _showError(String message) {
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ).showSnackBar(bulkaSnackBar(content: Text(message)));
   }
 
   @override
@@ -235,14 +291,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               selectedTab: _selectedTab,
               onBack: () => Navigator.of(context).maybePop(),
               onSelectTab: _selectTab,
-              onSettings: _selectedTab == 0 && _isAuthenticated
-                  ? () => Navigator.of(context).push<void>(
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            NotificationSettingsScreen(api: widget.api),
-                      ),
-                    )
-                  : null,
             ),
             Expanded(
               child: ColoredBox(
@@ -283,6 +331,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           return _NotificationErrorState(onRetry: _reloadNotifications);
         }
         final items = [...?snapshot.data]
+          ..removeWhere((item) => item.isPushOnlyOrderStatus)
           ..sort(
             (a, b) =>
                 (DateTime.tryParse(b.createdAt)?.millisecondsSinceEpoch ?? 0)
@@ -303,64 +352,82 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           );
         }
 
-        final hasUnread = items.any((item) => !item.isRead);
+        final unreadCount = items.where((item) => !item.isRead).length;
+        final hasUnread = unreadCount > 0;
+        final children = <Widget>[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(2, 2, 2, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'notifications_new_count'.trArgs({'count': unreadCount}),
+                    key: const ValueKey('notifications-new-count'),
+                    style: TextStyle(
+                      color: context.bulkaColors.mutedText,
+                      fontSize: BulkaTypeScale.bodySmall,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                if (hasUnread)
+                  TextButton(
+                    key: const ValueKey('notifications-read-all'),
+                    onPressed: _markAllRead,
+                    child: Text('notifications_read_all'.tr),
+                  ),
+              ],
+            ),
+          ),
+        ];
+        for (var index = 0; index < items.length; index++) {
+          final item = items[index];
+          final date = DateTime.tryParse(item.createdAt)?.toLocal();
+          final previous = index > 0
+              ? DateTime.tryParse(items[index - 1].createdAt)?.toLocal()
+              : null;
+          final newMonth =
+              date != null &&
+              (previous == null ||
+                  date.year != previous.year ||
+                  date.month != previous.month);
+          if (newMonth) {
+            children.add(
+              Padding(
+                padding: EdgeInsets.only(top: index == 0 ? 12 : 28, bottom: 14),
+                child: Text(
+                  _notificationMonthLabel(date),
+                  key: ValueKey(
+                    'notification-month-${date.year}-${date.month}',
+                  ),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: _textDark,
+                    fontFamily: _headingFont,
+                    fontSize: BulkaTypeScale.title,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            );
+          }
+          children.add(
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _NotificationCard(
+                notification: item,
+                onTap: () => _openNotification(item),
+              ),
+            ),
+          );
+        }
         return RefreshIndicator(
           color: _bulkaYellow,
           onRefresh: _reloadNotifications,
-          child: ListView.separated(
+          child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(16, 18, 16, 32),
-            itemCount: items.length + (hasUnread ? 1 : 0),
-            separatorBuilder: (_, _) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              if (hasUnread && index == 0) {
-                return Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton.icon(
-                    onPressed: _markAllRead,
-                    icon: const Icon(Icons.done_all_rounded, size: 19),
-                    label: Text('notifications_read_all'.tr),
-                  ),
-                );
-              }
-              final itemIndex = index - (hasUnread ? 1 : 0);
-              final item = items[itemIndex];
-              final date = DateTime.tryParse(item.createdAt)?.toLocal();
-              final previous = itemIndex > 0
-                  ? DateTime.tryParse(items[itemIndex - 1].createdAt)?.toLocal()
-                  : null;
-              final newDay =
-                  date != null &&
-                  (previous == null ||
-                      date.year != previous.year ||
-                      date.month != previous.month ||
-                      date.day != previous.day);
-              return Column(
-                children: [
-                  if (newDay)
-                    Padding(
-                      padding: EdgeInsets.only(
-                        top: itemIndex == 0 ? 8 : 24,
-                        bottom: 18,
-                      ),
-                      child: Text(
-                        MaterialLocalizations.of(
-                          context,
-                        ).formatMediumDate(date).toUpperCase(),
-                        style: TextStyle(
-                          color: context.bulkaColors.mutedText,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  _NotificationCard(
-                    notification: item,
-                    onTap: () => _openNotification(item),
-                  ),
-                ],
-              );
-            },
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 32),
+            children: children,
           ),
         );
       },
@@ -400,15 +467,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           onRefresh: _reloadContacts,
           child: ListView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(16, 24, 16, 36),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
             children: [
               for (final card in standard) ...[
                 _StandardContactCard(card: card, onAction: _openContactAction),
-                const SizedBox(height: 16),
+                const SizedBox(height: 10),
               ],
               for (final card in compact) ...[
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(4, 4, 4, 12),
+                  padding: const EdgeInsets.fromLTRB(4, 2, 4, 8),
                   child: Text(
                     card.titleFor(AppLang.current),
                     textAlign: TextAlign.center,
@@ -421,7 +488,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   ),
                 ),
                 _CompactContactGrid(card: card, onAction: _openContactAction),
-                const SizedBox(height: 16),
+                const SizedBox(height: 10),
               ],
             ],
           ),
@@ -436,13 +503,11 @@ class _NotificationCenterHeader extends StatelessWidget {
     required this.selectedTab,
     required this.onBack,
     required this.onSelectTab,
-    this.onSettings,
   });
 
   final int selectedTab;
   final VoidCallback onBack;
   final ValueChanged<int> onSelectTab;
-  final VoidCallback? onSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -469,14 +534,7 @@ class _NotificationCenterHeader extends StatelessWidget {
                     color: _bulkaBrown,
                   ),
                 ),
-                if (onSettings != null)
-                  _NotificationHeaderButton(
-                    tooltip: 'notifications_settings_title'.tr,
-                    icon: Icons.tune_rounded,
-                    onTap: onSettings!,
-                  )
-                else
-                  const SizedBox(width: 48),
+                const SizedBox(width: 48),
               ],
             ),
           ),
@@ -575,7 +633,7 @@ class _NotificationTab extends StatelessWidget {
             borderRadius: BorderRadius.circular(BulkaRadii.control),
             side: BorderSide(
               color: selected ? colors.brandBrown : colors.cardBorder,
-              width: selected ? 2 : 1,
+              width: 0.8,
             ),
           ),
           child: InkWell(
@@ -754,19 +812,11 @@ class _NotificationCard extends StatelessWidget {
   final AppNotification notification;
   final VoidCallback onTap;
 
-  IconData get _icon {
-    final type = notification.type.toLowerCase();
-    if (type.contains('order')) return Icons.receipt_long_rounded;
-    if (type.contains('bonus')) return Icons.card_giftcard_rounded;
-    if (type.contains('promo')) return Icons.local_offer_rounded;
-    if (type.contains('support')) return Icons.forum_rounded;
-    return Icons.notifications_active_rounded;
-  }
-
   @override
   Widget build(BuildContext context) {
     final localizedTitle = notification.titleFor(AppLang.current);
     final localizedBody = notification.bodyFor(AppLang.current);
+    final date = DateTime.tryParse(notification.createdAt)?.toLocal();
     return Semantics(
       button: true,
       label: '$localizedTitle. $localizedBody',
@@ -774,87 +824,66 @@ class _NotificationCard extends StatelessWidget {
       child: Material(
         color: Colors.white,
         borderRadius: BorderRadius.circular(BulkaRadii.card),
-        elevation: 0,
+        elevation: 2,
         shadowColor: const Color(0x20532814),
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(BulkaRadii.card),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 10),
-            child: Row(
+            padding: const EdgeInsets.fromLTRB(18, 15, 18, 17),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(BulkaRadii.card),
+              border: Border.all(color: const Color(0xFFEEDFC7), width: 0.8),
+            ),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: notification.isRead
-                        ? const Color(0xFFFFF2D1)
-                        : Color(0xFFFFE7B0),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(_icon, color: _bulkaBrown, size: 23),
-                ),
-                const SizedBox(width: 13),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              localizedTitle,
-                              style: const TextStyle(
-                                fontFamily: _headingFont,
-                                color: _bulkaBrown,
-                                fontWeight: FontWeight.w700,
-                                fontSize: BulkaTypeScale.body,
-                              ),
-                            ),
-                          ),
-                          if (!notification.isRead)
-                            Container(
-                              width: 9,
-                              height: 9,
-                              margin: const EdgeInsets.only(top: 5, left: 8),
-                              decoration: const BoxDecoration(
-                                color: Color(0xFFFFE7B0),
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                        ],
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        localizedBody,
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        date == null ? '' : _notificationDateTimeLabel(date),
                         style: TextStyle(
                           color: context.bulkaColors.brandBrown,
-                          height: 1.45,
+                          fontSize: BulkaTypeScale.caption,
+                          fontWeight: FontWeight.w600,
+                          fontFeatures: const [FontFeature.tabularFigures()],
                         ),
                       ),
-                      if (notification.createdAt.isNotEmpty) ...[
-                        const SizedBox(height: 9),
-                        Text(
-                          DateTime.tryParse(notification.createdAt) == null
-                              ? ''
-                              : formatUiTime(
-                                  context,
-                                  DateTime.parse(
-                                    notification.createdAt,
-                                  ).toLocal(),
-                                ),
-                          style: TextStyle(
-                            color: context.bulkaColors.mutedText,
-                            fontSize: BulkaTypeScale.caption,
-                            fontWeight: FontWeight.w600,
-                          ),
+                    ),
+                    if (!notification.isRead)
+                      Container(
+                        width: 10,
+                        height: 10,
+                        decoration: const BoxDecoration(
+                          color: _bulkaYellow,
+                          shape: BoxShape.circle,
                         ),
-                      ],
-                    ],
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  localizedTitle,
+                  style: const TextStyle(
+                    fontFamily: _headingFont,
+                    color: _bulkaBrown,
+                    fontWeight: FontWeight.w700,
+                    fontSize: BulkaTypeScale.body,
+                    height: 1.2,
                   ),
                 ),
+                if (localizedBody.trim().isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    localizedBody,
+                    style: TextStyle(
+                      color: context.bulkaColors.brandBrown,
+                      fontSize: BulkaTypeScale.bodySmall,
+                      height: 1.4,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -874,11 +903,11 @@ class _StandardContactCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final language = AppLang.current;
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(BulkaRadii.card),
-        border: Border.all(color: const Color(0xFFEEDFC7)),
+        border: Border.all(color: const Color(0xFFEEDFC7), width: 0.8),
         boxShadow: const [
           BoxShadow(
             color: Color(0x14532814),
@@ -888,32 +917,35 @@ class _StandardContactCard extends StatelessWidget {
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Row(
             children: [
-              const _ContactBrandBadge(height: 58),
-              const SizedBox(width: 13),
+              const _ContactBrandBadge(height: 46),
+              const SizedBox(width: 11),
               Expanded(
                 child: Text(
                   card.titleFor(language),
                   style: const TextStyle(
                     fontFamily: _headingFont,
                     color: _bulkaBrown,
-                    fontSize: BulkaTypeScale.title,
+                    fontSize: BulkaTypeScale.titleSmall,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
             ],
           ),
-          if (card.actions.isNotEmpty) const SizedBox(height: 18),
+          if (card.actions.isNotEmpty) const SizedBox(height: 12),
           for (var index = 0; index < card.actions.length; index++) ...[
-            _ContactActionButton(
-              action: card.actions[index],
-              onTap: () => onAction(card.actions[index]),
+            Align(
+              alignment: Alignment.center,
+              child: _ContactActionButton(
+                action: card.actions[index],
+                onTap: () => onAction(card.actions[index]),
+              ),
             ),
-            if (index != card.actions.length - 1) const SizedBox(height: 10),
+            if (index != card.actions.length - 1) const SizedBox(height: 8),
           ],
         ],
       ),
@@ -940,12 +972,12 @@ class _ContactActionButton extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(BulkaRadii.control),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 _ContactActionIcon(action: action),
-                const SizedBox(width: 11),
+                const SizedBox(width: 8),
                 Flexible(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -958,7 +990,7 @@ class _ContactActionButton extends StatelessWidget {
                         style: const TextStyle(
                           fontFamily: _headingFont,
                           color: _bulkaBrown,
-                          fontSize: BulkaTypeScale.body,
+                          fontSize: BulkaTypeScale.bodySmall,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -977,8 +1009,12 @@ class _ContactActionButton extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(width: 8),
-                const Icon(Icons.chevron_right_rounded, color: _bulkaBrown),
+                const SizedBox(width: 6),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  color: _bulkaBrown,
+                  size: 18,
+                ),
               ],
             ),
           ),
@@ -1007,7 +1043,7 @@ class _CompactContactGrid extends StatelessWidget {
             : 4;
         final width =
             (constraints.maxWidth - spacing * (columns - 1)) / columns;
-        final height = 108.0 + max(0, min(textScale - 1, 1)) * 24;
+        final height = 92.0 + max(0, min(textScale - 1, 1)) * 22;
         return Wrap(
           spacing: spacing,
           runSpacing: spacing,
@@ -1056,16 +1092,16 @@ class _CompactContactTile extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(BulkaRadii.control),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(BulkaRadii.control),
-              border: Border.all(color: const Color(0xFFEEDFC7)),
+              border: Border.all(color: const Color(0xFFEEDFC7), width: 0.8),
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 _ContactActionIcon(action: action),
-                const SizedBox(height: 7),
+                const SizedBox(height: 5),
                 Text(
                   label,
                   maxLines: 2,
@@ -1123,8 +1159,8 @@ class _ContactBrandBadge extends StatelessWidget {
 class _ContactActionIcon extends StatelessWidget {
   const _ContactActionIcon({required this.action});
 
-  static const double frameSize = 42;
-  static const double glyphSize = 22;
+  static const double frameSize = 34;
+  static const double glyphSize = 18;
 
   final AppContactAction action;
 

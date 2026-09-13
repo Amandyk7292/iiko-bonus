@@ -12,6 +12,7 @@ class ProductDetailsScreen extends StatefulWidget {
     this.onToggleFavorite,
     this.hasSelectedOrderType = true,
     this.onEnsureOrderTypeSelected,
+    this.onOpenRelatedProduct,
   });
 
   final BulkaApiClient api;
@@ -23,6 +24,7 @@ class ProductDetailsScreen extends StatefulWidget {
   final Future<bool> Function()? onToggleFavorite;
   final bool hasSelectedOrderType;
   final Future<bool> Function()? onEnsureOrderTypeSelected;
+  final ValueChanged<CatalogProduct>? onOpenRelatedProduct;
 
   @override
   State<ProductDetailsScreen> createState() => _ProductDetailsScreenState();
@@ -43,6 +45,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   bool _uploadingReference = false;
   bool _loadingOptions = true;
   final _sheetGate = _AsyncActionGate();
+  List<String> _boughtTogetherIds = const [];
 
   @override
   void initState() {
@@ -57,6 +60,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     );
     unawaited(_loadOptions());
     unawaited(widget.api.recordProductView(widget.product.id));
+    unawaited(_loadBoughtTogether());
   }
 
   @override
@@ -65,6 +69,82 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     updateDocumentTitle('Bulka');
     _inscriptionController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadBoughtTogether() async {
+    try {
+      final ids = await widget.api.getBoughtTogetherProductIds(
+        widget.product.id,
+      );
+      if (mounted) setState(() => _boughtTogetherIds = ids);
+    } catch (_) {
+      // Optional recommendations must never block viewing or buying a product.
+    }
+  }
+
+  Widget _buildBoughtTogether(CatalogProduct current) {
+    final onOpen = widget.onOpenRelatedProduct;
+    if (onOpen == null || _boughtTogetherIds.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final available = {
+      for (final product in widget.liveProducts.value.values)
+        product.id.toLowerCase(): product,
+    };
+    final seen = <String>{current.id.toLowerCase()};
+    final products = _boughtTogetherIds
+        .map((id) => available[id.toLowerCase()])
+        .whereType<CatalogProduct>()
+        .where(
+          (p) =>
+              !p.isStopListed &&
+              p.catalogAvailable != false &&
+              p.price > 0 &&
+              seen.add(p.id.toLowerCase()),
+        )
+        .take(6)
+        .toList();
+    if (products.isEmpty) return const SizedBox.shrink();
+    final scale = MediaQuery.textScalerOf(context).scale(1);
+    return Padding(
+      key: const ValueKey('product-bought-together'),
+      padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'product_bought_together'.tr,
+            style: const TextStyle(
+              fontFamily: _headingFont,
+              fontSize: BulkaTypeScale.titleSmall,
+              fontWeight: FontWeight.w700,
+              color: _textDark,
+            ),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            height: 206 + max(0, scale - 1) * 72,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: products.length,
+              separatorBuilder: (_, _) => const SizedBox(width: 12),
+              itemBuilder: (context, index) {
+                final item = products[index];
+                return _CartPopularProductCard(
+                  product: _CartSuggestion(
+                    id: item.id,
+                    name: item.title,
+                    price: item.price,
+                    imageUrl: item.imageUrl,
+                  ),
+                  onTap: () => onOpen(item),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadOptions({bool preserveSelection = false}) async {
@@ -183,7 +263,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   Future<void> _pickReference() async {
     if (!widget.api.isAuthenticated) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('catalog_upload_login_required'.tr)),
+        bulkaSnackBar(content: Text('catalog_upload_login_required'.tr)),
       );
       return;
     }
@@ -203,9 +283,9 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       if (mounted) setState(() => _referenceUrl = url);
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
+        ScaffoldMessenger.of(context).showSnackBar(
+          bulkaSnackBar(content: Text(localizeErrorMessage(error))),
+        );
       }
     } finally {
       if (mounted) setState(() => _uploadingReference = false);
@@ -446,7 +526,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       );
       if (count < minimum) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          bulkaSnackBar(
             content: Text(
               'catalog_select_option'.trArgs({'option': _optionTitle(group)}),
             ),
@@ -600,9 +680,9 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       ClipboardData(text: catalogProductShareText(product)),
     );
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('catalog_product_link_copied'.tr)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      bulkaSnackBar(content: Text('catalog_product_link_copied'.tr)),
+    );
   }
 
   Future<void> _showIngredientsSheet(CatalogProduct product) async {
@@ -652,7 +732,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                           backgroundColor: Colors.white,
                           foregroundColor: colors.brandBrown,
                           minimumSize: const Size(48, 48),
-                          side: BorderSide(color: colors.cardBorder),
+                          side: BorderSide(
+                            color: colors.cardBorder,
+                            width: BulkaStrokes.hairline,
+                          ),
                         ),
                         icon: const Icon(Icons.close_rounded),
                       ),
@@ -697,7 +780,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                               borderRadius: BorderRadius.circular(
                                 BulkaRadii.control,
                               ),
-                              border: Border.all(color: colors.cardBorder),
+                              border: Border.all(
+                                color: colors.cardBorder,
+                                width: BulkaStrokes.hairline,
+                              ),
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -762,7 +848,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
               tapTargetSize: MaterialTapTargetSize.padded,
               backgroundColor: Colors.white,
               foregroundColor: colors.brandBrown,
-              side: BorderSide(color: colors.cardBorder),
+              side: BorderSide(
+                color: colors.cardBorder,
+                width: BulkaStrokes.hairline,
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -798,7 +887,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
               minimumSize: const Size(52, 52),
               backgroundColor: Colors.white,
               foregroundColor: colors.brandBrown,
-              side: BorderSide(color: colors.cardBorder),
+              side: BorderSide(
+                color: colors.cardBorder,
+                width: BulkaStrokes.hairline,
+              ),
             ),
           ),
         ],
@@ -814,9 +906,9 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       backgroundColor: Colors.white,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.only(top: 12),
+          padding: EdgeInsets.zero,
           child: Align(
-            alignment: Alignment.bottomCenter,
+            alignment: Alignment.topCenter,
             child: Material(
               color: Colors.white,
               borderRadius: const BorderRadius.vertical(
@@ -824,10 +916,9 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
               ),
               clipBehavior: Clip.antiAlias,
               child: Column(
-                mainAxisSize: MainAxisSize.min,
+                mainAxisSize: MainAxisSize.max,
                 children: [
-                  Flexible(
-                    fit: FlexFit.loose,
+                  Expanded(
                     child: Stack(
                       children: [
                         SingleChildScrollView(
@@ -1327,6 +1418,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                   ],
                                 ),
                               ),
+                              _buildBoughtTogether(product),
                             ],
                           ),
                         ),

@@ -546,6 +546,16 @@ const Map<String, Map<String, String>> _orderAndPaymentTranslations = {
     'kk': 'Тапсырыс бойынша көмек',
     'en': 'Get help with this order',
   },
+  'support_whatsapp_message': {
+    'ru': 'Здравствуйте! Нужна помощь в приложении Bulka.',
+    'kk': 'Сәлеметсіз бе! Bulka қолданбасында көмек қажет.',
+    'en': 'Hello! I need help with the Bulka app.',
+  },
+  'order_support_whatsapp_message': {
+    'ru': 'Здравствуйте! Нужна помощь по заказу №{number}.',
+    'kk': 'Сәлеметсіз бе! №{number} тапсырыс бойынша көмек қажет.',
+    'en': 'Hello! I need help with order #{number}.',
+  },
   'order_receipt': {
     'ru': 'Чек об оплате',
     'kk': 'Төлем түбіртегі',
@@ -1317,6 +1327,11 @@ const Map<String, Map<String, String>> _orderAndPaymentTranslations = {
     'en': 'Bulka branches map',
   },
   'checkout_success_title': {'ru': 'Успешно', 'kk': 'Сәтті', 'en': 'Success'},
+  'checkout_cart_changed': {
+    'ru': 'Корзина изменилась. Вернитесь в корзину и проверьте заказ.',
+    'kk': 'Себет өзгерді. Себетке оралып, тапсырысты тексеріңіз.',
+    'en': 'Your cart changed. Return to the cart and review your order.',
+  },
   'checkout_success_message': {
     'ru': 'Ваш заказ успешно оформлен!',
     'kk': 'Тапсырысыңыз сәтті рәсімделді!',

@@ -1,5 +1,7 @@
 part of '../main.dart';
 
+const customerAvatarUploadKey = '__upload_custom_avatar__';
+
 @immutable
 class CustomerAvatarOption {
   const CustomerAvatarOption(this.key, this.assetPath);
@@ -32,18 +34,26 @@ CustomerAvatarOption? _customerAvatarByKey(String? key) {
 }
 
 class CustomerAvatar extends StatelessWidget {
-  const CustomerAvatar({required this.avatarKey, this.size = 64, super.key});
+  const CustomerAvatar({
+    required this.avatarKey,
+    this.avatarUrl,
+    this.size = 64,
+    super.key,
+  });
 
   final String? avatarKey;
+  final String? avatarUrl;
   final double size;
 
   @override
   Widget build(BuildContext context) {
     final option = _customerAvatarByKey(avatarKey);
+    final customUrl = avatarKey == 'custom' ? avatarUrl?.trim() ?? '' : '';
+    final hasImage = option != null || customUrl.isNotEmpty;
     final colors = context.bulkaColors;
     return Semantics(
-      image: option != null,
-      label: option == null ? 'avatar_not_selected'.tr : 'avatar_selected'.tr,
+      image: hasImage,
+      label: hasImage ? 'avatar_selected'.tr : 'avatar_not_selected'.tr,
       child: Container(
         width: size,
         height: size,
@@ -53,7 +63,23 @@ class CustomerAvatar extends StatelessWidget {
           boxShadow: BulkaShadows.avatar,
         ),
         clipBehavior: Clip.antiAlias,
-        child: option == null
+        child: customUrl.isNotEmpty
+            ? _NetworkImage(
+                key: const ValueKey('customer-custom-avatar'),
+                url: customUrl,
+                fit: BoxFit.cover,
+                loadingPlaceholder: Icon(
+                  Icons.person_rounded,
+                  color: colors.goldSoft,
+                  size: size * 0.52,
+                ),
+                errorPlaceholder: Icon(
+                  Icons.person_rounded,
+                  color: colors.goldSoft,
+                  size: size * 0.52,
+                ),
+              )
+            : option == null
             ? Icon(
                 Icons.person_rounded,
                 color: colors.goldSoft,
@@ -97,7 +123,7 @@ Future<String?> showCustomerAvatarPicker(
       final height = MediaQuery.sizeOf(sheetContext).height;
       final scheme = Theme.of(sheetContext).colorScheme;
       final desiredHeight =
-          120 + ((customerAvatarOptions.length / 3).ceil() * 112);
+          204 + ((customerAvatarOptions.length / 3).ceil() * 112);
       return Container(
         height: min(height * 0.86, desiredHeight.toDouble()),
         decoration: const BoxDecoration(
@@ -152,6 +178,31 @@ Future<String?> showCustomerAvatarPicker(
                   icon: const Icon(Icons.close_rounded, size: 22),
                 ),
               ],
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                key: const ValueKey('customer-avatar-upload'),
+                onPressed: () =>
+                    Navigator.pop(sheetContext, customerAvatarUploadKey),
+                icon: const Icon(Icons.add_a_photo_outlined),
+                label: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('avatar_upload'.tr),
+                    Text(
+                      'avatar_upload_hint'.tr,
+                      style: TextStyle(
+                        color: context.bulkaColors.mutedText,
+                        fontSize: BulkaTypeScale.caption,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
             const SizedBox(height: 8),
             Expanded(

@@ -27,6 +27,7 @@ class _CashierWorkspaceState extends State<CashierWorkspace>
   late final AnimationController _transition;
   StaffNativePush? _push;
   int _tab = 0;
+  bool _reportsOpened = false;
   bool _loading = true, _signingOut = false;
   String? _error;
   String _branchName = '';
@@ -122,7 +123,7 @@ class _CashierWorkspaceState extends State<CashierWorkspace>
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
+        ).showSnackBar(bulkaSnackBar(content: Text('$error')));
       }
     } finally {
       if (mounted) setState(() => _signingOut = false);
@@ -146,6 +147,7 @@ class _CashierWorkspaceState extends State<CashierWorkspace>
     final orders = staffText('Заказы', 'Тапсырыстар', 'Orders');
     final kitchen = staffText('Кухня', 'Асүй', 'Kitchen');
     final catalog = staffText('Стоп-лист', 'Стоп-тізім', 'Stop list');
+    final reports = staffText('Отчёты', 'Есептер', 'Reports');
     if (widget.user['role'] != 'cashier') return const SizedBox.shrink();
     return Theme(
       data: staffTheme().copyWith(textTheme: Theme.of(context).textTheme),
@@ -156,7 +158,7 @@ class _CashierWorkspaceState extends State<CashierWorkspace>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                [orders, kitchen, catalog][_tab],
+                [orders, kitchen, catalog, reports][_tab],
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
@@ -246,6 +248,13 @@ class _CashierWorkspaceState extends State<CashierWorkspace>
                       api: widget.api,
                       pendingPreorders: _counts['preorders'] ?? 0,
                     ),
+                    if (_reportsOpened)
+                      CashierReports(
+                        key: ValueKey('cashier-reports:${widget.api.scopeKey}'),
+                        api: widget.api,
+                      )
+                    else
+                      const SizedBox.shrink(),
                   ],
                 ),
               ),
@@ -258,7 +267,10 @@ class _CashierWorkspaceState extends State<CashierWorkspace>
             selectedIndex: _tab,
             onDestinationSelected: (index) {
               if (index == _tab) return;
-              setState(() => _tab = index);
+              setState(() {
+                _tab = index;
+                if (index == 3) _reportsOpened = true;
+              });
               if (MediaQuery.disableAnimationsOf(context)) {
                 _transition.value = 1;
               } else {
@@ -295,6 +307,10 @@ class _CashierWorkspaceState extends State<CashierWorkspace>
               NavigationDestination(
                 icon: const Icon(Icons.inventory_2_outlined),
                 label: catalog,
+              ),
+              NavigationDestination(
+                icon: const Icon(Icons.assessment_outlined),
+                label: reports,
               ),
             ],
           ),

@@ -38,6 +38,7 @@ class _CatalogScreenState extends State<CatalogScreen>
       ValueNotifier(const {});
   String _selectedBakery = '';
   String _selectedBakeryId = '';
+  BakeryLocation? _selectedBakeryLocation;
   DeliveryAddress? _selectedDeliveryAddress;
   String _searchQuery = '';
   String _selectedCategory = _catalogAllCategoryKey;
@@ -73,6 +74,7 @@ class _CatalogScreenState extends State<CatalogScreen>
   Timer? _autoRefreshTimer;
   late final _LiveRefresh _menuLive;
   late final _LiveRefresh _branchLive;
+  late final _LiveRefresh _stockLive;
 
   BulkaApiClient get _api => widget.api;
 
@@ -109,7 +111,11 @@ class _CatalogScreenState extends State<CatalogScreen>
       {'menu', 'locations', 'menu.updated'},
       _silentRefresh,
       busy: () => !_menuScopeReady || _activeMenuLoads > 0,
+      acceptEvent: (event) =>
+          _matchesCatalogBranch(event) &&
+          _asMap(event['data'])['inventory'] != true,
     );
+    _stockLive = _createStockRefresh();
     _branchLive = _LiveRefresh(
       _api,
       {'locations'},
@@ -126,6 +132,8 @@ class _CatalogScreenState extends State<CatalogScreen>
       if (_lastMenuAttempt == null ||
           DateTime.now().difference(_lastMenuAttempt!) >= interval) {
         _refreshIfActive();
+      } else {
+        _stockLive.request();
       }
     });
   }
@@ -162,6 +170,13 @@ class _CatalogScreenState extends State<CatalogScreen>
 
   void applyClientUri(Uri uri) {
     _pendingClientUri = normalizedClientUri(uri);
+    if (_menuScopeReady &&
+        !_isLoading &&
+        _allProducts.isEmpty &&
+        productIdFromClientUri(uri) != null) {
+      unawaited(_loadMenu());
+      return;
+    }
     _applyPendingClientUri();
   }
 
@@ -238,6 +253,7 @@ class _CatalogScreenState extends State<CatalogScreen>
       return;
     }
     setState(() {
+      _menuScopeReady = false;
       _menuLoadRevision++;
       _productOptionsRevision++;
       _resolvedProductOptionIds = const {};
@@ -268,6 +284,7 @@ class _CatalogScreenState extends State<CatalogScreen>
     _networkRecoverySubscription?.cancel();
     _menuLive.dispose();
     _branchLive.dispose();
+    _stockLive.dispose();
     _searchController.dispose();
     _liveProducts.dispose();
     WidgetsBinding.instance.removeObserver(this);

@@ -212,7 +212,7 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    ).showSnackBar(bulkaSnackBar(content: Text(message)));
   }
 
   void _moveMap(LatLng point, double zoom) {
@@ -741,7 +741,10 @@ class _BulkaTextField extends StatelessWidget {
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(BulkaRadii.control),
-              borderSide: BorderSide(color: colors.cardBorder),
+              borderSide: BorderSide(
+                color: colors.cardBorder,
+                width: BulkaStrokes.hairline,
+              ),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(BulkaRadii.control),

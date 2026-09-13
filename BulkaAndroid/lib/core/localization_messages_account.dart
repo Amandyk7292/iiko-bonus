@@ -70,6 +70,26 @@ const Map<String, Map<String, String>> _accountTranslations = {
     'kk': 'Аватар сақталды.',
     'en': 'Avatar saved.',
   },
+  'avatar_upload': {
+    'ru': 'Загрузить своё фото',
+    'kk': 'Өз фотоңызды жүктеу',
+    'en': 'Upload your photo',
+  },
+  'avatar_upload_hint': {
+    'ru': 'JPEG, PNG или WebP, не более 5 МБ',
+    'kk': 'JPEG, PNG немесе WebP, 5 МБ-тан аспайды',
+    'en': 'JPEG, PNG or WebP, up to 5 MB',
+  },
+  'avatar_file_too_large': {
+    'ru': 'Фото должно быть не более 5 МБ.',
+    'kk': 'Фото көлемі 5 МБ-тан аспауы керек.',
+    'en': 'The photo must be no larger than 5 MB.',
+  },
+  'avatar_invalid_format': {
+    'ru': 'Выберите фото в формате JPEG, PNG или WebP.',
+    'kk': 'JPEG, PNG немесе WebP форматындағы фотоны таңдаңыз.',
+    'en': 'Choose a JPEG, PNG, or WebP photo.',
+  },
   'avatar_save_error': {
     'ru': 'Не удалось сохранить аватар.',
     'kk': 'Аватарды сақтау мүмкін болмады.',
@@ -198,6 +218,11 @@ const Map<String, Map<String, String>> _accountTranslations = {
     'ru': 'Сохранённые карты',
     'kk': 'Сақталған карталар',
     'en': 'Saved cards',
+  },
+  'payment_methods_card': {
+    'ru': 'Банковская карта',
+    'kk': 'Банк картасы',
+    'en': 'Bank card',
   },
   'payment_methods_add': {
     'ru': 'Добавить карту',
@@ -348,6 +373,26 @@ const Map<String, Map<String, String>> _accountTranslations = {
     'en': 'Your current cashback is {percent}%.',
   },
   'tier_base': {'ru': 'Базовый', 'kk': 'Негізгі', 'en': 'Base'},
+  'loyalty_cashback_level': {
+    'ru': 'Ваш уровень кешбэка',
+    'kk': 'Кешбэк деңгейіңіз',
+    'en': 'Your cashback level',
+  },
+  'loyalty_bonus_balance': {
+    'ru': 'Баланс бонусов',
+    'kk': 'Бонус балансы',
+    'en': 'Bonus balance',
+  },
+  'loyalty_bonus_rate': {
+    'ru': '1 бонус = 1 ₸',
+    'kk': '1 бонус = 1 ₸',
+    'en': '1 bonus = 1 ₸',
+  },
+  'loyalty_personal_account': {
+    'ru': 'Личный счёт',
+    'kk': 'Жеке шот',
+    'en': 'Personal account',
+  },
   'tier_bronze': {'ru': 'Бронза', 'kk': 'Қола', 'en': 'Bronze'},
   'tier_silver': {'ru': 'Серебро', 'kk': 'Күміс', 'en': 'Silver'},
   'tier_gold': {'ru': 'Золото', 'kk': 'Алтын', 'en': 'Gold'},

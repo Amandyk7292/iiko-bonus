@@ -701,7 +701,7 @@ abstract final class PushNotifications {
       if (title != null && title.toString().isNotEmpty) {
         if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          bulkaSnackBar(
             behavior: SnackBarBehavior.floating,
             margin: const EdgeInsets.all(16),
             backgroundColor: const Color(0xFF3B2117),

@@ -174,7 +174,7 @@ void main() {
       final nav = tester.widget<NavigationBar>(find.byType(NavigationBar));
       expect(
         nav.destinations.whereType<NavigationDestination>().map((d) => d.label),
-        ['Заказы', 'Кухня', 'Стоп-лист'],
+      ['Заказы', 'Кухня', 'Стоп-лист', 'Отчёты'],
       );
       expect(find.byType(MainShell), findsNothing);
       expect(find.byType(AdminPortalScreen), findsNothing);

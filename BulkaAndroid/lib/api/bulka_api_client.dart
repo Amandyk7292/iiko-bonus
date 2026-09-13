@@ -58,6 +58,7 @@ class BulkaApiClient {
   Completer<void> _eventWakeUp = Completer<void>();
   int _eventGeneration = 0;
   bool _eventLoopRunning = false;
+  DateTime? _lastEventReconnect;
   bool _disposed = false;
 
   Stream<Map<String, dynamic>> get customerEvents {
@@ -331,6 +332,37 @@ class BulkaApiClient {
     }
   }
 
+  Future<Map<String, dynamic>> uploadCustomerAvatar({
+    required List<int> bytes,
+    required String fileName,
+    required String mimeType,
+  }) async {
+    final mediaType = MediaType.parse(mimeType);
+    final request = http.MultipartRequest(
+      'POST',
+      _uri('/api/customer/profile/avatar'),
+    );
+    request.headers.addAll(_headers(json: false));
+    request.files.add(
+      http.MultipartFile.fromBytes(
+        'image',
+        bytes,
+        filename: fileName,
+        contentType: mediaType,
+      ),
+    );
+    final streamed = await _client
+        .send(request)
+        .timeout(const Duration(seconds: 30));
+    final response = await http.Response.fromStream(streamed);
+    final json = _decode(response);
+    final avatar = _asMap(json['avatar']);
+    if (json['success'] != true || avatar.isEmpty) {
+      throw ApiException(_messageFrom(json, 'avatar_save_error'.tr));
+    }
+    return avatar;
+  }
+
   Future<AppReleasePolicy> getAppReleasePolicy(String platform) async {
     final normalized = platform.toLowerCase();
     final json = await _get(
@@ -515,9 +547,11 @@ class BulkaApiClient {
   }
 
   Future<Map<String, dynamic>> createFortePayment({
+    String paymentMethod = 'forte_card',
+    double? expectedTotal,
     required List<Map<String, dynamic>> cartItems,
     required String orderType,
-    required String scheduledAt,
+    required String? scheduledAt,
     required String checkoutId,
     String? savedPaymentMethodId,
     bool useBonuses = false,
@@ -533,6 +567,8 @@ class BulkaApiClient {
     String substitutionPreference = 'call_customer',
   }) async {
     final json = await _post('/api/customer/forte-pay/create', {
+      'paymentMethod': paymentMethod,
+      'expectedTotal': ?expectedTotal,
       'useBonuses': useBonuses,
       'expectedBonusSpent': expectedBonusSpent,
       'deliveryQuoteVersion': 1,
@@ -564,6 +600,18 @@ class BulkaApiClient {
   }
 
   String? _forteSavedCardLabel;
+  Future<Map<String, dynamic>> getPersonalAccount() =>
+      _get('/api/customer/personal-account');
+  Future<Map<String, dynamic>> createPersonalAccountTopup(
+    String requestId,
+    int amount,
+  ) => _post('/api/customer/personal-account/topups', {
+    'requestId': requestId,
+    'amount': amount,
+    'language': AppLang.current,
+  });
+  Future<Map<String, dynamic>> checkPersonalAccountTopup(String id) =>
+      _get('/api/customer/personal-account/topups/${Uri.encodeComponent(id)}');
   String? get forteSavedCardLabel => _forteSavedCardLabel;
   bool _onlineOrderingDisabled = false;
   bool get onlineOrderingDisabled => _onlineOrderingDisabled;
@@ -652,6 +700,18 @@ class BulkaApiClient {
         code: _nullableString(json['code']),
         requestId: _requestIdFrom(json),
       );
+    }
+    return json;
+  }
+
+  Future<Map<String, dynamic>> checkForteCheckoutStatus(
+    String checkoutId,
+  ) async {
+    final json = await _get(
+      '/api/customer/forte-pay/checkout/${Uri.encodeComponent(checkoutId)}',
+    );
+    if (json['success'] != true) {
+      throw ApiException(_messageFrom(json, 'error_forte_status'.tr));
     }
     return json;
   }
@@ -789,6 +849,36 @@ class BulkaApiClient {
     return orders.map((item) => CustomerOrder.fromJson(_asMap(item))).toList();
   }
 
+  Future<CustomerOrder> getCustomerOrder(String orderId) async {
+    final json = await _get(
+      '/api/customer/orders/${Uri.encodeComponent(orderId)}',
+    );
+    final order = _asMap(json['order']);
+    if (json['success'] != true || order.isEmpty) {
+      throw ApiException(_messageFrom(json, 'orders_load_error'.tr));
+    }
+    return CustomerOrder.fromJson(order);
+  }
+
+  Future<List<CustomerOrder>> getMoreCustomerOrders(
+    CustomerOrder before, {
+    bool completed = false,
+  }) async {
+    final scope = completed ? 'completed' : 'active';
+    final date = Uri.encodeComponent(
+      before.createdAt.toUtc().toIso8601String(),
+    );
+    final json = await _get(
+      '/api/customer/orders?scope=$scope&pageSize=50&beforeCreatedAt=$date&beforeId=${Uri.encodeComponent(before.id)}',
+    );
+    if (json['success'] != true || json['orders'] is! List) {
+      throw ApiException(_messageFrom(json, 'orders_load_error'.tr));
+    }
+    return (json['orders'] as List)
+        .map((item) => CustomerOrder.fromJson(_asMap(item)))
+        .toList();
+  }
+
   Future<CustomerOrder> markCustomerArrived(String orderId) async {
     final json = await _post(
       '/api/customer/orders/${Uri.encodeComponent(orderId)}/arrived',
@@ -902,6 +992,14 @@ class BulkaApiClient {
       }
     }
     return result;
+  }
+
+  Future<List<String>> getBoughtTogetherProductIds(String productId) async {
+    final json = await _get(
+      '/api/public/products/${Uri.encodeComponent(productId)}/bought-together',
+    );
+    final ids = json['productIds'];
+    return ids is List ? ids.whereType<String>().toList() : const [];
   }
 
   Future<Set<String>> getFavorites() async {
@@ -1280,6 +1378,12 @@ class BulkaApiClient {
     if (json['success'] != true || slots is! List) {
       throw ApiException(_messageFrom(json, 'checkout_no_time_slots'.tr));
     }
+    if (slots.isEmpty && json['unavailableReason'] == 'closed') {
+      throw FulfillmentSlotsUnavailable('checkout_time_closed'.tr);
+    }
+    if (slots.isEmpty && json['unavailableReason'] == 'closing_soon') {
+      throw FulfillmentSlotsUnavailable('checkout_time_closing_soon'.tr);
+    }
     final requestedOffset = _asInt(
       json['timezoneOffsetMinutes'],
       fallback: 300,
@@ -1391,6 +1495,20 @@ class BulkaApiClient {
     _eventWakeUp = Completer<void>();
   }
 
+  void reconnectEvents() {
+    if (_disposed || _eventController?.hasListener != true) return;
+    final now = DateTime.now();
+    if (_lastEventReconnect != null &&
+        now.difference(_lastEventReconnect!) < const Duration(seconds: 1)) {
+      return;
+    }
+    _lastEventReconnect = now;
+    _eventGeneration++;
+    _wakeEventLoop();
+    unawaited(_cancelEventStream());
+    _startEventLoopIfAuthenticated();
+  }
+
   Future<void> _cancelEventStream() async {
     final done = _eventStreamDone;
     _eventStreamDone = null;
@@ -1408,7 +1526,7 @@ class BulkaApiClient {
     Timer? watchdog;
     void heartbeat() {
       watchdog?.cancel();
-      watchdog = Timer(const Duration(seconds: 50), () {
+      watchdog = Timer(const Duration(seconds: 12), () {
         if (!done.isCompleted) done.complete();
       });
     }
@@ -1512,7 +1630,7 @@ class BulkaApiClient {
         }
         final retryDone = Completer<void>();
         final retryTimer = Timer(
-          const Duration(seconds: 3),
+          const Duration(seconds: 1),
           retryDone.complete,
         );
         try {

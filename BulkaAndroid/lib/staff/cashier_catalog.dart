@@ -1,15 +1,32 @@
 part of '../main.dart';
 
+String _cashierQuantity(dynamic value) {
+  final number = num.tryParse('$value');
+  if (number == null) return '—';
+  return number.toStringAsFixed(3).replaceFirst(RegExp(r'\.?0+$'), '');
+}
+
 Future<bool> confirmCashierStockChange(
   BuildContext context,
   Map<String, dynamic> product,
   Map<String, dynamic> changes,
 ) async {
   FocusScope.of(context).unfocus();
+  final current = num.tryParse('${product['sourceQuantity']}');
+  final entered = num.tryParse('${changes['sourceQuantity']}');
+  final receipt = changes['stockReason'] == 'receipt';
+  final unit = '${changes['unit'] ?? product['unit'] ?? 'шт'}';
+  final resulting = entered == null
+      ? null
+      : receipt
+      ? (current ?? 0) + entered
+      : entered;
   final detail = changes['useIiko'] == true
       ? '${staffText('Остаток iikoFront', 'iikoFront қалдығы', 'iikoFront stock')}: ${product['frontQuantity'] ?? staffText('не ограничен', 'шектеусіз', 'unlimited')}'
       : changes.containsKey('sourceQuantity')
-      ? '${staffText('Остаток', 'Қалдық', 'Stock')}: ${product['sourceQuantity'] ?? '—'} → ${changes['sourceQuantity']}'
+      ? receipt
+            ? '${staffText('Добавить', 'Қосу', 'Add')}: +${_cashierQuantity(entered)} $unit\n${staffText('Остаток', 'Қалдық', 'Stock')}: ${_cashierQuantity(current ?? 0)} → ${_cashierQuantity(resulting)} $unit'
+            : '${staffText('Фактический остаток', 'Нақты қалдық', 'Physical stock')}: ${_cashierQuantity(current)} → ${_cashierQuantity(resulting)} $unit'
       : changes['manualStop'] == true || changes['preorderStop'] == true
       ? staffText(
           'Добавить в стоп-лист',
@@ -21,6 +38,19 @@ Future<bool> confirmCashierStockChange(
           'Стоп-тізімнен алу',
           'Remove from stop list',
         );
+  final reason = changes['stockReason'] == 'receipt'
+      ? staffText(
+          'Причина: добавление в витрину',
+          'Себебі: витринаға қосу',
+          'Reason: added to display',
+        )
+      : changes['stockReason'] == 'correction'
+      ? staffText(
+          'Причина: исправление остатка',
+          'Себебі: қалдықты түзету',
+          'Reason: stock correction',
+        )
+      : '';
   return await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
@@ -32,7 +62,9 @@ Future<bool> confirmCashierStockChange(
               'Save changes?',
             ),
           ),
-          content: Text('${product['name']}\n\n$detail'),
+          content: Text(
+            '${product['name']}\n\n$detail${reason.isEmpty ? '' : '\n$reason'}',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, false),
@@ -126,12 +158,21 @@ class _CashierCatalogState extends State<CashierCatalog> {
     Map<String, dynamic> product,
     Map<String, dynamic> changes,
   ) async {
-    await widget.api.request(
+    final response = await widget.api.request(
       '/staff/catalog/${Uri.encodeComponent('${product['id']}')}',
       method: 'PATCH',
       body: {'expectedRevision': product['revision'] ?? 0, ...changes},
     );
-    await _load();
+    final inventory = response is Map && response['inventory'] is Map
+        ? Map<String, dynamic>.from(response['inventory'] as Map)
+        : null;
+    if (mounted && inventory != null) {
+      final index = _products.indexWhere((item) => item['id'] == product['id']);
+      if (index >= 0) {
+        setState(() => _products[index] = {..._products[index], ...inventory});
+      }
+    }
+    unawaited(_load());
   }
 
   Future<void> _stop(Map<String, dynamic> product, bool stopped) async {
@@ -151,7 +192,7 @@ class _CashierCatalogState extends State<CashierCatalog> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
+        ).showSnackBar(bulkaSnackBar(content: Text('$error')));
       }
       await _load();
     } finally {
@@ -169,7 +210,12 @@ class _CashierCatalogState extends State<CashierCatalog> {
       useSafeArea: true,
       builder: (_) => _CashierQuantitySheet(
         product: product,
-        save: (quantity) => _save(product, {'sourceQuantity': quantity}),
+        save: (quantity, reason, unit, operationId) => _save(product, {
+          'sourceQuantity': quantity,
+          'stockReason': reason,
+          'unit': unit,
+          'operationId': operationId,
+        }),
         useIiko:
             product['stockSource'] == 'manual' &&
                 product['isIikoProduct'] == true &&
@@ -178,7 +224,6 @@ class _CashierCatalogState extends State<CashierCatalog> {
             : null,
       ),
     );
-    await _load();
   }
 
   void _filterChanged(VoidCallback change) {
@@ -273,7 +318,24 @@ class _CashierCatalogState extends State<CashierCatalog> {
                           : p['sourceQuantity'] == null)),
             )
             .toList()
-          ..sort((a, b) => '${a['name']}'.compareTo('${b['name']}'));
+          ..sort((a, b) {
+            int rank(Map<String, dynamic> product) {
+              if (product['manualStop'] == true ||
+                  product['blockedBy'] != null) {
+                return 2;
+              }
+              if (product['sourceQuantity'] == null) return 3;
+              final available = num.tryParse('${product['availableQuantity']}');
+              return available == null || available > 0 ? 0 : 1;
+            }
+
+            final byState = rank(a).compareTo(rank(b));
+            return byState != 0
+                ? byState
+                : '${a['name']}'.toLowerCase().compareTo(
+                    '${b['name']}'.toLowerCase(),
+                  );
+          });
     return Column(
       children: [
         Padding(
@@ -368,9 +430,9 @@ class _CashierCatalogState extends State<CashierCatalog> {
                   padding: const EdgeInsets.symmetric(vertical: 8),
                   child: Text(
                     staffText(
-                      'Самовывоз минимум через 24 часа. Доступность по стоп-листу.',
-                      'Кемінде 24 сағаттан кейін алып кету. Қолжетімділік стоп-тізім арқылы.',
-                      'Pickup at least 24 hours ahead. Availability is controlled by the stop list.',
+                      'Предзаказ на завтра или послезавтра. Доступность по стоп-листу.',
+                      'Ертеңге немесе бүрсігүнге алдын ала тапсырыс. Қолжетімділік стоп-тізім арқылы.',
+                      'Preorder for tomorrow or the following day. Availability follows the stop list.',
                     ),
                   ),
                 ),
@@ -727,18 +789,69 @@ class _CashierQuantitySheet extends StatefulWidget {
     this.useIiko,
   });
   final Map<String, dynamic> product;
-  final Future<void> Function(num) save;
+  final Future<void> Function(num, String, String, String) save;
   final Future<void> Function()? useIiko;
   @override
   State<_CashierQuantitySheet> createState() => _CashierQuantitySheetState();
 }
 
 class _CashierQuantitySheetState extends State<_CashierQuantitySheet> {
-  late final TextEditingController _quantity = TextEditingController(
-    text: '${widget.product['sourceQuantity'] ?? ''}',
-  );
+  late final TextEditingController _quantity;
   String? _error;
+  String? _operationId;
   bool _saving = false;
+  String _reason = 'receipt';
+  late String _unit;
+
+  @override
+  void initState() {
+    super.initState();
+    _quantity = TextEditingController();
+    _unit = widget.product['unit'] == 'кг' ? 'кг' : 'шт';
+  }
+
+  num? get _entered => num.tryParse(_quantity.text.replaceAll(',', '.'));
+  num get _current => num.tryParse('${widget.product['sourceQuantity']}') ?? 0;
+  String get _originalUnit => widget.product['unit'] == 'кг' ? 'кг' : 'шт';
+  num? get _resulting {
+    final entered = _entered;
+    if (entered == null) return null;
+    return _reason == 'receipt' ? _current + entered : entered;
+  }
+
+  void _changeReason(String reason) {
+    if (reason == 'receipt' && _unit != _originalUnit) {
+      setState(
+        () => _error = staffText(
+          'При смене единицы используйте «Исправили»',
+          'Өлшем бірлігін ауыстырғанда «Түзетілді» таңдаңыз',
+          'Use “Corrected” when changing the unit',
+        ),
+      );
+      return;
+    }
+    setState(() {
+      _reason = reason;
+      _operationId = null;
+      _error = null;
+      if (reason == 'correction' && widget.product['sourceQuantity'] != null) {
+        _quantity.text = _cashierQuantity(widget.product['sourceQuantity']);
+      } else {
+        _quantity.clear();
+      }
+    });
+  }
+
+  void _changeUnit(String unit) {
+    setState(() {
+      _unit = unit;
+      _reason = unit == _originalUnit ? _reason : 'correction';
+      _quantity.clear();
+      _operationId = null;
+      _error = null;
+    });
+  }
+
   Future<void> _returnToIiko() async {
     setState(() => _saving = true);
     try {
@@ -800,22 +913,92 @@ class _CashierQuantitySheetState extends State<_CashierQuantitySheet> {
                 style: const TextStyle(fontSize: 14, color: Color(0xFF746B63)),
               ),
               const SizedBox(height: 22),
+              Text(
+                staffText(
+                  'Единица измерения',
+                  'Өлшем бірлігі',
+                  'Unit of measure',
+                ),
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 8),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'шт', label: Text('шт')),
+                  ButtonSegment(value: 'кг', label: Text('кг')),
+                ],
+                selected: {_unit},
+                onSelectionChanged: _saving
+                    ? null
+                    : (selected) => _changeUnit(selected.first),
+              ),
+              const SizedBox(height: 16),
               TextField(
                 controller: _quantity,
                 autofocus: true,
                 enabled: !_saving,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
+                keyboardType: TextInputType.numberWithOptions(
+                  decimal: _unit == 'кг',
                 ),
                 inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]')),
+                  FilteringTextInputFormatter.allow(
+                    RegExp(_unit == 'кг' ? r'[0-9.,]' : r'[0-9]'),
+                  ),
                   LengthLimitingTextInputFormatter(10),
                 ],
                 decoration: InputDecoration(
-                  labelText:
-                      '${staffText('На точке', 'Нүктедегі саны', 'On hand')}, ${widget.product['unit'] ?? 'шт'}',
+                  labelText: _reason == 'receipt'
+                      ? '${staffText('Добавить', 'Қосу', 'Add')}, $_unit'
+                      : '${staffText('Фактический остаток', 'Нақты қалдық', 'Physical stock')}, $_unit',
                   errorText: _error,
                 ),
+                onChanged: (_) => setState(() {
+                  _operationId = null;
+                  _error = null;
+                }),
+              ),
+              if (_resulting != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    _reason == 'receipt'
+                        ? '${staffText('Было', 'Бұрын', 'Before')}: ${_cashierQuantity(_current)} $_unit · ${staffText('Будет', 'Болады', 'After')}: ${_cashierQuantity(_resulting)} $_unit'
+                        : '${staffText('Изменение', 'Өзгеріс', 'Change')}: ${(_resulting! - _current) > 0 ? '+' : ''}${_cashierQuantity(_resulting! - _current)} $_unit',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF746B63),
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 10),
+              Text(
+                staffText(
+                  'Причина изменения',
+                  'Өзгерту себебі',
+                  'Reason for change',
+                ),
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 8),
+              SegmentedButton<String>(
+                segments: [
+                  ButtonSegment(
+                    value: 'receipt',
+                    label: Text(staffText('Добавили', 'Қосылды', 'Added')),
+                    icon: const Icon(Icons.add_box_outlined),
+                  ),
+                  ButtonSegment(
+                    value: 'correction',
+                    label: Text(
+                      staffText('Исправили', 'Түзетілді', 'Corrected'),
+                    ),
+                    icon: const Icon(Icons.edit_outlined),
+                  ),
+                ],
+                selected: {_reason},
+                onSelectionChanged: _saving
+                    ? null
+                    : (selected) => _changeReason(selected.first),
               ),
               const SizedBox(height: 10),
               Text(
@@ -841,14 +1024,15 @@ class _CashierQuantitySheetState extends State<_CashierQuantitySheet> {
                 onPressed: _saving
                     ? null
                     : () async {
-                        final value = num.tryParse(
-                          _quantity.text.replaceAll(',', '.'),
-                        );
-                        final step =
-                            (widget.product['quantityStep'] as num?) ?? 1;
+                        final value = _entered;
+                        final step = _unit == 'кг' ? 0.001 : 1;
+                        final resulting = _resulting;
                         if (value == null ||
                             value < 0 ||
+                            (_reason == 'receipt' && value <= 0) ||
                             value > 100000 ||
+                            resulting == null ||
+                            resulting > 100000 ||
                             (value * 1000 - (value * 1000).round()).abs() >
                                 0.000001 ||
                             (value * 1000).round() % (step * 1000).round() !=
@@ -867,15 +1051,25 @@ class _CashierQuantitySheetState extends State<_CashierQuantitySheet> {
                           _error = null;
                         });
                         try {
+                          _operationId ??= staffRequestId();
                           if (!await confirmCashierStockChange(
                                 context,
                                 widget.product,
-                                {'sourceQuantity': value},
+                                {
+                                  'sourceQuantity': value,
+                                  'stockReason': _reason,
+                                  'unit': _unit,
+                                },
                               ) ||
                               !mounted) {
                             return;
                           }
-                          await widget.save(value);
+                          await widget.save(
+                            value,
+                            _reason,
+                            _unit,
+                            _operationId!,
+                          );
                           if (context.mounted) Navigator.pop(context);
                         } catch (error) {
                           if (mounted) setState(() => _error = '$error');

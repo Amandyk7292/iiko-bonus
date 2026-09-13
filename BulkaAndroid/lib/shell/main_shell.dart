@@ -180,6 +180,16 @@ class _MainShellState extends State<MainShell> {
     _changeTab(1);
   }
 
+  void _openCatalogProduct(String id) {
+    final uri = productClientUri(id);
+    setState(() => _tab = 1);
+    widget.onTabChanged?.call(1);
+    publishClientRoute(uri);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _catalogKey.currentState?.applyClientUri(uri);
+    });
+  }
+
   void _changeTab(int index) {
     if (index == _tab) {
       if (index == 1) {
@@ -190,10 +200,6 @@ class _MainShellState extends State<MainShell> {
       return;
     }
     final destination = _uriForTab(index);
-    // A hidden catalog tab can still hold the product URI that opened its last
-    // details route. Clear that pending route before the tab becomes visible;
-    // otherwise the first frame of the catalog may reopen the previous product
-    // when the user only asked to return to the catalog root.
     if (index == 1) {
       _catalogKey.currentState?.applyClientUri(destination);
     }
@@ -237,6 +243,7 @@ class _MainShellState extends State<MainShell> {
         customer: customer,
         transactions: widget.transactions,
         onExplore: () => _changeTab(1),
+        onOpenProduct: _openCatalogProduct,
         onRequireAuth: _requireAuth,
         onOpenOrders: widget.onOpenOrders,
       ),
@@ -409,13 +416,14 @@ class FloatingNavBar extends StatelessWidget {
             color: highContrast
                 ? context.bulkaColors.cardBorder
                 : Colors.white.withValues(alpha: 0.72),
+            width: BulkaStrokes.hairline,
           ),
         ),
         boxShadow: [
           BoxShadow(
-            color: _cocoa.withValues(alpha: 0.075),
-            blurRadius: 28,
-            offset: const Offset(0, -8),
+            color: _cocoa.withValues(alpha: 0.06),
+            blurRadius: 14,
+            offset: const Offset(0, -3),
           ),
         ],
       ),
@@ -453,7 +461,7 @@ class FloatingNavBar extends StatelessWidget {
     if (!useBlur) return bar;
     return ClipRect(
       child: BackdropFilter(
-        filter: ui.ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+        filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: bar,
       ),
     );
@@ -507,7 +515,7 @@ class _NavButton extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   AnimatedScale(
-                    scale: selected ? 1.035 : 1,
+                    scale: selected ? 1.02 : 1,
                     duration: duration,
                     curve: BulkaMotion.enterCurve,
                     child: AnimatedContainer(
@@ -547,17 +555,25 @@ class _NavButton extends StatelessWidget {
                         color: centerIdle
                             ? colors.brandGold.withValues(alpha: 0.16)
                             : Colors.transparent,
-                        border: centerIdle
+                        border: selected
+                            ? Border.all(
+                                color: colors.brandBrown.withValues(
+                                  alpha: 0.72,
+                                ),
+                                width: BulkaStrokes.hairline,
+                              )
+                            : centerIdle
                             ? Border.all(
                                 color: colors.brandGold.withValues(alpha: 0.58),
+                                width: BulkaStrokes.hairline,
                               )
                             : null,
                         boxShadow: selected
                             ? const [
                                 BoxShadow(
-                                  color: Color(0x35FFB814),
-                                  blurRadius: 16,
-                                  offset: Offset(0, 7),
+                                  color: Color(0x2BFFB814),
+                                  blurRadius: 7,
+                                  offset: Offset(0, 2),
                                 ),
                               ]
                             : null,
@@ -716,7 +732,12 @@ class _DesktopNavigation extends StatelessWidget {
         child: Container(
           width: 118,
           decoration: BoxDecoration(
-            border: Border(right: BorderSide(color: colors.cardBorder)),
+            border: Border(
+              right: BorderSide(
+                color: colors.cardBorder,
+                width: BulkaStrokes.hairline,
+              ),
+            ),
           ),
           child: NavigationRail(
             selectedIndex: selectedIndex,
@@ -816,7 +837,10 @@ class AccountProfileScreen extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: colors.surfaceCream,
                   borderRadius: BorderRadius.circular(BulkaRadii.card),
-                  border: Border.all(color: colors.cardBorder),
+                  border: Border.all(
+                    color: colors.cardBorder,
+                    width: BulkaStrokes.hairline,
+                  ),
                 ),
                 child: Column(
                   children: [
@@ -883,7 +907,10 @@ class AccountProfileScreen extends StatelessWidget {
               decoration: BoxDecoration(
                 color: colors.surfaceCream,
                 borderRadius: BorderRadius.circular(BulkaRadii.card),
-                border: Border.all(color: colors.cardBorder),
+                border: Border.all(
+                  color: colors.cardBorder,
+                  width: BulkaStrokes.hairline,
+                ),
               ),
               child: Column(
                 children: [
@@ -916,9 +943,9 @@ class AccountProfileScreen extends StatelessWidget {
                   ),
                   Divider(height: 1, indent: 60, color: colors.cardBorder),
                   _ProfileMenuItem(
-                    icon: Icons.mail_outline_rounded,
+                    icon: Icons.support_agent_outlined,
                     title: 'menu_contact'.tr,
-                    onTap: () => _openTelegram(context),
+                    onTap: () => unawaited(openBulkaSupportWhatsApp(context)),
                   ),
                   Divider(height: 1, indent: 60, color: colors.cardBorder),
                   _ProfileMenuItem(
@@ -943,9 +970,9 @@ class AccountProfileScreen extends StatelessWidget {
                           await onStaffLogout!();
                         } catch (error) {
                           if (context.mounted) {
-                            ScaffoldMessenger.of(
-                              context,
-                            ).showSnackBar(SnackBar(content: Text('$error')));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              bulkaSnackBar(content: Text('$error')),
+                            );
                           }
                         }
                       },

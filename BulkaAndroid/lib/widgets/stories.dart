@@ -1340,12 +1340,15 @@ class _StoryLoadingSurface extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(24, 18, 24, 17),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Image.asset(
-                      'assets/brand/bulka_logo.png',
-                      key: const ValueKey('story-loading-logo'),
-                      width: 160,
-                      fit: BoxFit.contain,
+                  children: const [
+                    SizedBox.square(
+                      key: ValueKey('story-loading-spinner'),
+                      dimension: 48,
+                      child: CircularProgressIndicator(
+                        color: Color(0xFFFFB814),
+                        strokeWidth: 3.5,
+                        strokeCap: StrokeCap.round,
+                      ),
                     ),
                   ],
                 ),

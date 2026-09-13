@@ -135,6 +135,15 @@ Future<_CheckoutApi> _open(WidgetTester tester, {int deliveryFee = 0}) async {
   await tester.pumpAndSettle();
   expect(api.requests, ['']);
   expect(tester.widget<GradientButton>(_submit).onPressed, isNotNull);
+  expect(find.byKey(const ValueKey('checkout-steps')), findsOneWidget);
+  expect(find.text('Адрес'), findsOneWidget);
+  expect(find.text('Время'), findsOneWidget);
+  expect(find.text('Оплата'), findsOneWidget);
+  expect(find.byKey(const ValueKey('checkout-sticky-action')), findsOneWidget);
+  expect(
+    find.byKey(const ValueKey('checkout-price-breakdown')),
+    findsOneWidget,
+  );
   addTearDown(() async {
     await tester.pumpWidget(const SizedBox.shrink());
     await api.events.close();
@@ -144,6 +153,21 @@ Future<_CheckoutApi> _open(WidgetTester tester, {int deliveryFee = 0}) async {
 }
 
 void main() {
+  testWidgets('cached time choices open before a slow refresh finishes', (
+    tester,
+  ) async {
+    final api = await _open(tester);
+    final waiting = api.pendingSlots = Completer<List<FulfillmentSlot>>();
+    await tester.tap(find.text('17:00–18:00'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('continue_btn'.tr), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    waiting.complete([]);
+    await tester.pumpAndSettle();
+    expect(find.text('checkout_no_time_slots'.tr), findsOneWidget);
+  });
+
   testWidgets(
     'hours changes bypass checkout cooldown and update the selected interval',
     (tester) async {
@@ -152,7 +176,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pumpAndSettle();
-      expect(api.requests.length, 1);
+      expect(api.requests.length, 2);
       expect(find.text('17:00–18:00'), findsOneWidget);
       await tester.enterText(_promo, 'DRAFT');
       api.slotDuration = 30;
@@ -161,7 +185,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pumpAndSettle();
       expect(find.text('17:00–17:30'), findsOneWidget);
-      expect(api.requests.length, 2);
+      expect(api.requests.length, 3);
       expect(tester.widget<TextField>(_promo).controller!.text, 'DRAFT');
     },
   );
@@ -221,7 +245,7 @@ void main() {
     waiting.complete(outdated);
     await tester.pumpAndSettle();
     expect(find.text('17:00–18:00'), findsNothing);
-    expect(find.text('17:00–17:30'), findsOneWidget);
+    expect(find.text('17:00–17:30'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
 
@@ -254,6 +278,22 @@ void main() {
     expect(tester.widget<GradientButton>(_submit).onPressed, isNotNull);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'closing time explains why a new pickup can no longer be scheduled',
+    (tester) async {
+      final api = await _open(tester);
+      final waiting = api.pendingSlots = Completer<List<FulfillmentSlot>>();
+      await tester.tap(find.text('17:00–18:00'));
+      await tester.pump();
+      waiting.completeError(
+        FulfillmentSlotsUnavailable('checkout_time_closing_soon'.tr),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('checkout_time_closing_soon'.tr), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('bonus total changes on the next frame without a quote request', (
     tester,
@@ -322,16 +362,16 @@ void main() {
     for (var i = 0; i < 8; i++) {
       api.change();
       await tester.pump();
-      await tester.pump(const Duration(seconds: 3));
-      await tester.pump();
       expect(find.text('1 120 ₸'), findsNWidgets(2));
     }
-    expect(api.requests.length, 1);
-    expect(api.directoryLoads, 2);
-    await tester.pump(const Duration(seconds: 8));
     await tester.pump(const Duration(milliseconds: 300));
     await tester.pumpAndSettle();
     expect(api.requests.length, 2);
+    api.change();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+    expect(api.requests.length, 3);
   });
 
   testWidgets('promo waits for Apply and updates the goods-only bonus limit', (

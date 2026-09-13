@@ -186,13 +186,16 @@ class _CheckoutCardBrand extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 54,
-      height: 50,
+      width: 46,
+      height: 40,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border.all(color: context.bulkaColors.cardBorder),
-        borderRadius: BorderRadius.circular(11),
+        border: Border.all(
+          color: context.bulkaColors.cardBorder,
+          width: BulkaStrokes.hairline,
+        ),
+        borderRadius: BorderRadius.circular(9),
       ),
       child: add
           ? const Icon(Icons.add_rounded, size: 28)

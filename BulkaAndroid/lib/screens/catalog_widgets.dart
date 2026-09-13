@@ -38,7 +38,7 @@ extension _CatalogStockSubscriptionController on _CatalogScreenState {
       if (!mounted || _selectedBakeryId.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('stock_notify_select_branch'.tr)),
+            bulkaSnackBar(content: Text('stock_notify_select_branch'.tr)),
           );
         }
         return;
@@ -76,13 +76,13 @@ extension _CatalogStockSubscriptionController on _CatalogScreenState {
         });
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('stock_notify_enabled'.tr)));
+        ).showSnackBar(bulkaSnackBar(content: Text('stock_notify_enabled'.tr)));
       } else {
         await _api.deleteStockSubscription(existing.id);
         if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('stock_notify_disabled'.tr)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          bulkaSnackBar(content: Text('stock_notify_disabled'.tr)),
+        );
       }
     } catch (error) {
       if (!mounted) return;
@@ -93,6 +93,13 @@ extension _CatalogStockSubscriptionController on _CatalogScreenState {
           _stockSubscriptions = {..._stockSubscriptions, key: existing};
         }
       });
+      if (error is ApiException && error.code == 'PRODUCT_ALREADY_AVAILABLE') {
+        unawaited(_silentRefresh());
+        ScaffoldMessenger.of(context).showSnackBar(
+          bulkaSnackBar(content: Text('stock_notify_already_available'.tr)),
+        );
+        return;
+      }
       showApiErrorSnackBar(
         context,
         error,
@@ -141,7 +148,10 @@ class _CatalogProductImage extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: borderRadius,
-        border: Border.all(color: context.bulkaColors.cardBorder),
+        border: Border.all(
+          color: context.bulkaColors.cardBorder,
+          width: BulkaStrokes.hairline,
+        ),
       ),
       child: Center(
         child: Icon(
@@ -415,6 +425,7 @@ class _CatalogCategoryFallback extends StatelessWidget {
 
 class _CatalogImageQuantityControl extends StatelessWidget {
   const _CatalogImageQuantityControl({
+    super.key,
     required this.quantity,
     required this.stopListed,
     required this.onAdd,
@@ -646,17 +657,20 @@ class _CatalogSkeletonCatalogState extends State<_CatalogSkeletonCatalog>
 
 class _CatalogMessageState extends StatelessWidget {
   const _CatalogMessageState({
-    required this.icon,
+    this.icon,
     required this.title,
     required this.subtitle,
     this.actionLabel,
+    this.actionIcon = Icons.refresh_rounded,
     this.onAction,
+    super.key,
   });
 
-  final IconData icon;
+  final IconData? icon;
   final String title;
   final String subtitle;
   final String? actionLabel;
+  final IconData actionIcon;
   final VoidCallback? onAction;
 
   @override
@@ -671,21 +685,27 @@ class _CatalogMessageState extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(BulkaRadii.card),
-            border: Border.all(color: context.bulkaColors.cardBorder),
+            border: Border.all(
+              color: context.bulkaColors.cardBorder,
+              width: BulkaStrokes.hairline,
+            ),
+            boxShadow: BulkaShadows.card,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 64,
-                height: 64,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFFFECC0),
-                  shape: BoxShape.circle,
+              if (icon != null) ...[
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFFFECC0),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: _bulkaBrown, size: 30),
                 ),
-                child: Icon(icon, color: _bulkaBrown, size: 30),
-              ),
-              const SizedBox(height: 16),
+                const SizedBox(height: 16),
+              ],
               Text(
                 title,
                 textAlign: TextAlign.center,
@@ -712,7 +732,7 @@ class _CatalogMessageState extends StatelessWidget {
                 const SizedBox(height: 18),
                 FilledButton.icon(
                   onPressed: onAction,
-                  icon: const Icon(Icons.refresh_rounded, size: 20),
+                  icon: Icon(actionIcon, size: 20),
                   label: Text(actionLabel!),
                 ),
               ],

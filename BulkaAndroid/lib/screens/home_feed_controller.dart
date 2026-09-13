@@ -14,7 +14,6 @@ extension _HomeFeedController on _HomeScreenState {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
     final cachedStories = prefs.getString('cached_stories_json');
-    final cachedNews = prefs.getString('cached_news_json');
     if (cachedStories != null && _stories.isEmpty) {
       try {
         final decoded = jsonDecode(cachedStories) as List<dynamic>;
@@ -23,14 +22,6 @@ extension _HomeFeedController on _HomeScreenState {
               .map((e) => PromoStory.fromJson(_asMap(e)))
               .toList();
           _initialLoading = false;
-        });
-      } catch (_) {}
-    }
-    if (cachedNews != null && _news.isEmpty) {
-      try {
-        final decoded = jsonDecode(cachedNews) as List<dynamic>;
-        _updateHomeState(() {
-          _news = decoded.map((e) => NewsItem.fromJson(_asMap(e))).toList();
         });
       } catch (_) {}
     }
@@ -49,7 +40,7 @@ extension _HomeFeedController on _HomeScreenState {
     if (!mounted || _feedLoading) return;
     _feedLoading = true;
     try {
-      await Future.wait([_loadStories(), _loadNews()]);
+      await _loadStories();
     } finally {
       _feedLoading = false;
     }
@@ -74,23 +65,6 @@ extension _HomeFeedController on _HomeScreenState {
         _storiesLoadFailed = true;
         _initialLoading = false;
       });
-    }
-  }
-
-  Future<void> _loadNews() async {
-    try {
-      final news = await widget.api.getNews();
-      if (!mounted) return;
-      _updateHomeState(() {
-        _news = news;
-        _newsLoadFailed = false;
-      });
-      await _saveFeedCache(
-        'cached_news_json',
-        news.map((item) => item.toJson()).toList(),
-      );
-    } catch (_) {
-      if (mounted) _updateHomeState(() => _newsLoadFailed = true);
     }
   }
 

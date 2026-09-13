@@ -51,7 +51,7 @@ class _PaymentReceiptScreenState extends State<PaymentReceiptScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('receipt_share_error'.tr)));
+        ).showSnackBar(bulkaSnackBar(content: Text('receipt_share_error'.tr)));
       }
     } finally {
       if (mounted) setState(() => _sharing = false);

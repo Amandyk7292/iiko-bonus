@@ -308,7 +308,7 @@ void main() {
     final telegramTile = tester.getRect(
       find.byKey(const ValueKey('compact-contact-tile-action-telegram')),
     );
-    expect(instagramTile.height, 108);
+    expect(instagramTile.height, 92);
     expect(instagramTile.width, lessThan(120));
     expect(whatsappTile.top, instagramTile.top);
     expect(telegramTile.top, instagramTile.top);
@@ -318,8 +318,8 @@ void main() {
     final compactInstagramIcon = tester.widget<Container>(
       find.byKey(const ValueKey('contact-action-icon-action-instagram')),
     );
-    expect(standardPhoneIcon.constraints?.minWidth, 42);
-    expect(standardPhoneIcon.constraints?.minHeight, 42);
+    expect(standardPhoneIcon.constraints?.minWidth, 34);
+    expect(standardPhoneIcon.constraints?.minHeight, 34);
     expect(compactInstagramIcon.constraints, standardPhoneIcon.constraints);
     final standardIconDecoration =
         standardPhoneIcon.decoration! as BoxDecoration;
@@ -427,8 +427,9 @@ void main() {
             'notifications': [
               {
                 'id': 'notification-1',
-                'title': 'Заказ готов',
-                'body': 'Можно забирать',
+                'title': 'Новинка',
+                'body': 'Попробуйте сегодня',
+                'type': 'broadcast',
                 'createdAt': '2026-08-03T12:00:00Z',
                 'isRead': false,
               },

@@ -304,7 +304,7 @@ class _QrDialogState extends State<QrDialog> with WidgetsBindingObserver {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('wallet_unavailable'.tr)));
+      ).showSnackBar(bulkaSnackBar(content: Text('wallet_unavailable'.tr)));
     }
   }
 }

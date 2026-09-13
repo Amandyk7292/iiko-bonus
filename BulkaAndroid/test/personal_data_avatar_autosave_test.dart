@@ -116,17 +116,29 @@ void main() {
     final pendingSave = Completer<void>();
     final api = _AvatarProfileApi(pendingSave: pendingSave);
     final propagatedCalls =
-        <({String customerId, String phone, String avatarKey})>[];
+        <
+          ({
+            String customerId,
+            String phone,
+            String avatarKey,
+            String? avatarUrl,
+          })
+        >[];
     await _pumpScreen(
       tester,
       api: api,
       onAvatarSaved:
-          ({required customerId, required phone, required avatarKey}) async =>
-              propagatedCalls.add((
-                customerId: customerId,
-                phone: phone,
-                avatarKey: avatarKey,
-              )),
+          ({
+            required customerId,
+            required phone,
+            required avatarKey,
+            required avatarUrl,
+          }) async => propagatedCalls.add((
+            customerId: customerId,
+            phone: phone,
+            avatarKey: avatarKey,
+            avatarUrl: avatarUrl,
+          )),
     );
 
     const selectedKey = 'kz_female_02';
@@ -175,6 +187,7 @@ void main() {
         customerId: _customer.id,
         phone: _customer.phone,
         avatarKey: selectedKey,
+        avatarUrl: null,
       ),
     ]);
     expect(find.byKey(const ValueKey('customer-avatar-saving')), findsNothing);
@@ -197,17 +210,29 @@ void main() {
   ) async {
     final api = _AvatarProfileApi(saveError: StateError('boom'));
     final propagatedCalls =
-        <({String customerId, String phone, String avatarKey})>[];
+        <
+          ({
+            String customerId,
+            String phone,
+            String avatarKey,
+            String? avatarUrl,
+          })
+        >[];
     await _pumpScreen(
       tester,
       api: api,
       onAvatarSaved:
-          ({required customerId, required phone, required avatarKey}) async =>
-              propagatedCalls.add((
-                customerId: customerId,
-                phone: phone,
-                avatarKey: avatarKey,
-              )),
+          ({
+            required customerId,
+            required phone,
+            required avatarKey,
+            required avatarUrl,
+          }) async => propagatedCalls.add((
+            customerId: customerId,
+            phone: phone,
+            avatarKey: avatarKey,
+            avatarUrl: avatarUrl,
+          )),
     );
 
     await _selectAvatar(tester, 'kz_female_03');
@@ -232,8 +257,12 @@ void main() {
       tester,
       api: api,
       onAvatarSaved:
-          ({required customerId, required phone, required avatarKey}) async =>
-              throw StateError('local propagation failed'),
+          ({
+            required customerId,
+            required phone,
+            required avatarKey,
+            required avatarUrl,
+          }) async => throw StateError('local propagation failed'),
       onProfileUpdated: () async => refreshCalls++,
     );
 
@@ -261,7 +290,12 @@ void main() {
       tester,
       api: api,
       onAvatarSaved:
-          ({required customerId, required phone, required avatarKey}) async {},
+          ({
+            required customerId,
+            required phone,
+            required avatarKey,
+            required avatarUrl,
+          }) async {},
       onBack: () => backCalls++,
       asPushedRoute: true,
     );

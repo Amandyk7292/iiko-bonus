@@ -35,5 +35,7 @@ window.bulkaFirebaseModulesReady = new Promise((resolve) => window.setTimeout(re
   });
 
 (async () => {
-  await _flutter.loader.load();
+  await _flutter.loader.load({
+    config: { hostElement: document.getElementById('bulka-app') },
+  });
 })();

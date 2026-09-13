@@ -824,7 +824,10 @@ class _LoginScreenState extends State<LoginScreen> {
           decoration: BoxDecoration(
             color: scheme.surface,
             borderRadius: BorderRadius.circular(BulkaRadii.control),
-            border: Border.all(color: colors.cardBorder),
+            border: Border.all(
+              color: colors.cardBorder,
+              width: BulkaStrokes.hairline,
+            ),
             boxShadow: const [
               BoxShadow(
                 color: Color(0x0A000000),
@@ -1343,7 +1346,10 @@ class _AuthCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(BulkaRadii.card),
-        border: Border.all(color: colors.cardBorder),
+        border: Border.all(
+          color: colors.cardBorder,
+          width: BulkaStrokes.hairline,
+        ),
         boxShadow: _softShadow,
       ),
       child: child,

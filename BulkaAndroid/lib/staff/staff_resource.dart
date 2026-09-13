@@ -282,7 +282,7 @@ class StaffCouriers extends StatelessWidget {
             await Clipboard.setData(ClipboardData(text: '${row['accessUrl']}'));
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
+                bulkaSnackBar(
                   content: Text(
                     staffText(
                       'Ссылка скопирована',
@@ -354,7 +354,7 @@ class StaffCouriers extends StatelessWidget {
             if (context.mounted) {
               ScaffoldMessenger.of(
                 context,
-              ).showSnackBar(SnackBar(content: Text('$e')));
+              ).showSnackBar(bulkaSnackBar(content: Text('$e')));
             }
           }
         },

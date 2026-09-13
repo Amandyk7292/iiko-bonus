@@ -363,7 +363,7 @@ class StaffApiClient {
     final data = <String>[];
     await for (final line
         in response.stream
-            .timeout(const Duration(seconds: 50))
+            .timeout(const Duration(seconds: 12))
             .transform(utf8.decoder)
             .transform(const LineSplitter())) {
       if (line.isEmpty) {

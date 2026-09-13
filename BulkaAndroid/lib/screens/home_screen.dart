@@ -30,14 +30,12 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   List<PromoStory> _stories = const [];
-  List<NewsItem> _news = const [];
   Set<String> _viewedStoryGroups = const {};
   late final _LiveRefresh _live;
   Timer? _feedRefreshTimer;
   bool _feedLoading = false;
   bool _initialLoading = true;
   bool _storiesLoadFailed = false;
-  bool _newsLoadFailed = false;
   final _navigationGate = _AsyncActionGate();
 
   @override
@@ -87,11 +85,13 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  Future<void> _openLocationsDirectory() async {
+  Future<void> _openMyAddresses() async {
     await _navigationGate.run(() async {
-      await Navigator.of(
-        context,
-      ).push<void>(MaterialPageRoute(builder: (_) => const LocationsScreen()));
+      await Navigator.of(context).push<DeliveryAddress>(
+        MaterialPageRoute(
+          builder: (_) => AddressSelectionScreen(api: widget.api),
+        ),
+      );
     });
   }
 
@@ -181,9 +181,9 @@ class _HomeScreenState extends State<HomeScreen> {
                               Row(
                                 children: [
                                   _IconCircleButton(
-                                    tooltip: 'locations_tooltip'.tr,
+                                    tooltip: 'my_addresses'.tr,
                                     icon: Icons.location_on_outlined,
-                                    onTap: _openLocationsDirectory,
+                                    onTap: _openMyAddresses,
                                   ),
                                   const SizedBox(width: 4),
                                   _IconCircleButton(
@@ -248,22 +248,6 @@ class _HomeScreenState extends State<HomeScreen> {
                                 onQrTap: _openQr,
                               ),
                       ),
-                      if (_news.isNotEmpty) ...[
-                        const SizedBox(height: 24),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: NewsFeed(news: _news),
-                        ),
-                      ] else if (_newsLoadFailed) ...[
-                        const SizedBox(height: 24),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: _HomeFeedErrorCard(
-                            message: 'home_news_load_error'.tr,
-                            onRetry: _loadFeed,
-                          ),
-                        ),
-                      ],
                     ],
                   ),
                 ),
@@ -362,7 +346,10 @@ class _HomeFeedErrorCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: colors.surfaceCream,
           borderRadius: BorderRadius.circular(BulkaRadii.control),
-          border: Border.all(color: colors.cardBorder),
+          border: Border.all(
+            color: colors.cardBorder,
+            width: BulkaStrokes.hairline,
+          ),
         ),
         child: Row(
           children: [
@@ -431,7 +418,11 @@ class _HomeGreeting extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(
           children: [
-            CustomerAvatar(avatarKey: current?.avatarKey, size: 48),
+            CustomerAvatar(
+              avatarKey: current?.avatarKey,
+              avatarUrl: current?.avatarUrl,
+              size: 48,
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
@@ -529,7 +520,10 @@ class _GuestLoyaltyCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: colors.surfaceCream,
           borderRadius: BorderRadius.circular(BulkaRadii.card),
-          border: Border.all(color: colors.cardBorder),
+          border: Border.all(
+            color: colors.cardBorder,
+            width: BulkaStrokes.hairline,
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -671,7 +665,7 @@ class _OrderTypeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final illustrationWidth = tall ? 192.0 : 118.0;
+    final illustrationWidth = tall ? 230.0 : 142.0;
     final cacheWidth =
         (illustrationWidth * MediaQuery.devicePixelRatioOf(context)).ceil();
     return BulkaPressScale(
@@ -722,19 +716,16 @@ class _OrderTypeCard extends StatelessWidget {
                       ),
                     ),
                     Positioned(
-                      // Keep the compact-card artwork anchored to the outer
-                      // right corner, away from the title's reading zone.
-                      right: tall ? -46 : -29,
-                      // Short illustrations have transparent space above the
-                      // artwork. Lower the source canvas so the first visible
-                      // pixels start below the title instead of behind it.
-                      bottom: tall ? -18 : -34,
+                      // Enlarge the artwork below the heading, keeping the
+                      // lower-left action unobstructed.
+                      right: tall ? -46 : -26,
+                      bottom: tall ? -18 : -30,
                       child: SizedBox(
                         key: ValueKey(
                           'order-illustration-${illustration.name}',
                         ),
                         width: illustrationWidth,
-                        height: tall ? 170 : 88,
+                        height: tall ? 198 : 112,
                         child: _DeferredOrderIllustration(
                           assetPath: illustration.assetPath,
                           fit: BoxFit.contain,

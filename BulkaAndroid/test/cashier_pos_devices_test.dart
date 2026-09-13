@@ -8,6 +8,7 @@ class PairingApi extends StaffApiClient {
   int codes = 0;
   bool linked = false;
   bool fail = false;
+  String? requestedRole;
   final List<Map<String, Object?>> devices = [
     {
       'terminalId': 'one',
@@ -27,7 +28,8 @@ class PairingApi extends StaffApiClient {
   }) async {
     if (endpoint.endsWith('/pairing-code')) {
       expect(method, 'POST');
-      expect(body, isEmpty);
+      requestedRole = (body as Map)['deviceRole'] as String?;
+      expect(requestedRole, anyOf('register', 'bakery'));
       codes++;
       if (fail) throw const StaffApiException(503, 'OFFLINE', 'Нет связи');
       return {
@@ -36,6 +38,7 @@ class PairingApi extends StaffApiClient {
         'expiresAt': DateTime.now()
             .add(const Duration(minutes: 5))
             .toIso8601String(),
+        'deviceRole': requestedRole,
       };
     }
     reads++;
@@ -47,6 +50,7 @@ class PairingApi extends StaffApiClient {
               'id': query['pairingId'],
               'terminalId': linked ? 'two' : null,
               'status': linked ? 'paired' : 'waiting',
+              'deviceRole': requestedRole,
             },
     };
   }
@@ -162,6 +166,23 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('654321'), findsOneWidget);
     expect(api.codes, 2);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('bakery mode is sent with the code and is explained separately', (
+    tester,
+  ) async {
+    final api = PairingApi();
+    addTearDown(api.close);
+    await open(tester, api);
+    await tester.tap(find.byKey(const ValueKey('pos-role-bakery')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const ValueKey('pos-create-code')));
+    await tester.tap(find.byKey(const ValueKey('pos-create-code')));
+    await tester.pumpAndSettle();
+    expect(api.requestedRole, 'bakery');
+    expect(find.text('Код для терминала пекарни'), findsOneWidget);
+    expect(find.text('Привязать пекарню'), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
 

@@ -1,5 +1,133 @@
 part of '../main.dart';
 
+class _CheckoutSteps extends StatelessWidget {
+  const _CheckoutSteps({
+    required this.addressComplete,
+    required this.timeComplete,
+    required this.paymentComplete,
+  });
+
+  final bool addressComplete;
+  final bool timeComplete;
+  final bool paymentComplete;
+
+  @override
+  Widget build(BuildContext context) {
+    final completed = [addressComplete, timeComplete, paymentComplete];
+    final firstPending = completed.indexWhere((value) => !value);
+    final activeIndex = firstPending < 0 ? completed.length - 1 : firstPending;
+    final labels = [
+      'checkout_step_address'.tr,
+      'checkout_step_time'.tr,
+      'checkout_step_payment'.tr,
+    ];
+    final colors = context.bulkaColors;
+    return Semantics(
+      key: const ValueKey('checkout-steps'),
+      container: true,
+      label: labels.join(' → '),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(BulkaRadii.card),
+          border: Border.all(
+            color: colors.cardBorder,
+            width: BulkaStrokes.hairline,
+          ),
+          boxShadow: BulkaShadows.card,
+        ),
+        child: Row(
+          children: [
+            for (var index = 0; index < labels.length; index++) ...[
+              Expanded(
+                child: _CheckoutStepItem(
+                  index: index,
+                  label: labels[index],
+                  completed: completed[index],
+                  active: index == activeIndex,
+                ),
+              ),
+              if (index < labels.length - 1)
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 18,
+                  color: colors.mutedText,
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CheckoutStepItem extends StatelessWidget {
+  const _CheckoutStepItem({
+    required this.index,
+    required this.label,
+    required this.completed,
+    required this.active,
+  });
+
+  final int index;
+  final String label;
+  final bool completed;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.bulkaColors;
+    final emphasized = completed || active;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AnimatedContainer(
+          duration: BulkaMotion.duration(context, BulkaMotion.fast),
+          width: 30,
+          height: 30,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: completed
+                ? colors.brandBrown
+                : active
+                ? colors.brandGold
+                : colors.disabledSurface,
+            border: Border.all(
+              color: emphasized ? colors.brandBrown : colors.cardBorder,
+              width: BulkaStrokes.hairline,
+            ),
+          ),
+          child: completed
+              ? const Icon(Icons.check_rounded, color: Colors.white, size: 18)
+              : Text(
+                  '${index + 1}',
+                  style: TextStyle(
+                    color: emphasized ? colors.brandBrown : colors.mutedText,
+                    fontFamily: _headingFont,
+                    fontSize: BulkaTypeScale.caption,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+        ),
+        const SizedBox(height: 5),
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: emphasized ? colors.brandBrown : colors.mutedText,
+            fontSize: BulkaTypeScale.caption,
+            fontWeight: emphasized ? FontWeight.w700 : FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _SelectedOrderTypeCard extends StatelessWidget {
   const _SelectedOrderTypeCard({required this.value});
 
@@ -14,8 +142,12 @@ class _SelectedOrderTypeCard extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(BulkaRadii.control),
-          border: Border.all(color: _almond.withValues(alpha: 0.7)),
+          borderRadius: BorderRadius.circular(BulkaRadii.card),
+          border: Border.all(
+            color: _almond.withValues(alpha: 0.7),
+            width: BulkaStrokes.hairline,
+          ),
+          boxShadow: BulkaShadows.card,
         ),
         child: Row(
           children: [
@@ -490,7 +622,10 @@ class _CheckoutField extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(BulkaRadii.control),
-              border: Border.all(color: context.bulkaColors.cardBorder),
+              border: Border.all(
+                color: context.bulkaColors.cardBorder,
+                width: BulkaStrokes.hairline,
+              ),
             ),
             child: Row(
               children: [

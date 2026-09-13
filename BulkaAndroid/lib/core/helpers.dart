@@ -1,5 +1,65 @@
 part of '../main.dart';
 
+SnackBar bulkaSnackBar({
+  Key? key,
+  required Widget content,
+  Color? backgroundColor,
+  double? elevation,
+  EdgeInsetsGeometry? margin,
+  EdgeInsetsGeometry? padding,
+  double? width,
+  ShapeBorder? shape,
+  HitTestBehavior? hitTestBehavior,
+  SnackBarBehavior? behavior,
+  SnackBarAction? action,
+  double? actionOverflowThreshold,
+  bool? showCloseIcon,
+  Color? closeIconColor,
+  Duration duration = const Duration(seconds: 4),
+  bool? persist,
+  Animation<double>? animation,
+  VoidCallback? onVisible,
+  DismissDirection? dismissDirection,
+  Clip clipBehavior = Clip.hardEdge,
+}) {
+  return SnackBar(
+    key: key,
+    content: Builder(
+      builder: (snackContext) {
+        void dismiss() =>
+            ScaffoldMessenger.maybeOf(snackContext)?.hideCurrentSnackBar();
+
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: dismiss,
+          onVerticalDragEnd: (details) {
+            if ((details.primaryVelocity ?? 0).abs() >= 80) dismiss();
+          },
+          child: content,
+        );
+      },
+    ),
+    backgroundColor: backgroundColor,
+    elevation: elevation,
+    margin: margin,
+    padding: padding,
+    width: width,
+    shape: shape,
+    hitTestBehavior: hitTestBehavior,
+    behavior: behavior,
+    action: action,
+    actionOverflowThreshold: actionOverflowThreshold,
+    showCloseIcon: showCloseIcon,
+    closeIconColor: closeIconColor,
+    duration: duration,
+    persist: persist,
+    animation: animation,
+    onVisible: onVisible,
+    dismissDirection: dismissDirection ?? DismissDirection.horizontal,
+    clipBehavior: clipBehavior,
+  );
+}
+
 /// Prevents a rapid second tap from starting the same asynchronous UI action
 /// while the first route, dialog, sheet, or request is still active.
 class _AsyncActionGate {
@@ -161,7 +221,10 @@ InputDecoration _inputDecoration({
       height: 1.25,
     ),
     enabledBorder: OutlineInputBorder(
-      borderSide: BorderSide(color: colors.cardBorder),
+      borderSide: BorderSide(
+        color: colors.cardBorder,
+        width: BulkaStrokes.hairline,
+      ),
       borderRadius: BorderRadius.circular(BulkaRadii.control),
     ),
     focusedBorder: OutlineInputBorder(
@@ -179,20 +242,6 @@ InputDecoration _inputDecoration({
   );
 }
 
-Future<void> _openTelegram(BuildContext context) async {
-  final opened = await launchUrl(
-    Uri.parse('tg://resolve?domain=bulkawallet_bot'),
-    mode: LaunchMode.externalApplication,
-  );
-  if (!opened && context.mounted) {
-    await _openExternalUrl(
-      context,
-      Uri.parse('https://t.me/bulkawallet_bot'),
-      'error_open_telegram'.tr,
-    );
-  }
-}
-
 Future<void> _openExternalUrl(
   BuildContext context,
   Uri uri,
@@ -205,7 +254,9 @@ Future<void> _openExternalUrl(
   }
   final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
   if (!opened && context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(bulkaSnackBar(content: Text(error)));
   }
 }
 

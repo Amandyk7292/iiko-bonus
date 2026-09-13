@@ -14,7 +14,7 @@ extension _CheckoutQuoteState on _CheckoutScreenState {
     'branchId': _usesDelivery ? null : _branchId,
     'deliveryBranch': _usesDelivery ? _deliveryBranchLocation?.id : null,
     'address': _usesDelivery ? _deliveryAddress?.toOrderPayload() : null,
-    'scheduledAt': _scheduledSlot?.value,
+    'scheduledAt': _usesDelivery ? null : _scheduledSlot?.value,
     'promo': _appliedPromoCode,
   });
 
@@ -28,7 +28,7 @@ extension _CheckoutQuoteState on _CheckoutScreenState {
 
   void _showPromoFeedback() {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
+      bulkaSnackBar(
         content: Text(
           _appliedPromoCode.isNotEmpty
               ? 'checkout_promo_applied'.tr
@@ -68,7 +68,7 @@ extension _CheckoutQuoteState on _CheckoutScreenState {
         preorderFulfillmentType: _isPreorder ? 'pickup' : null,
         branch: _usesDelivery ? null : _branch,
         branchId: _usesDelivery ? null : _branchId,
-        scheduledAt: _scheduledSlot?.value,
+        scheduledAt: _usesDelivery ? null : _scheduledSlot?.value,
         deliveryAddress: _usesDelivery ? _deliveryAddress : null,
         promoCode: _appliedPromoCode,
       );
@@ -130,7 +130,7 @@ extension _CheckoutQuoteState on _CheckoutScreenState {
     if (!_canQuote) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('checkout_time_required'.tr)));
+      ).showSnackBar(bulkaSnackBar(content: Text('checkout_time_required'.tr)));
       return;
     }
     final code = _promoController.text.trim();
