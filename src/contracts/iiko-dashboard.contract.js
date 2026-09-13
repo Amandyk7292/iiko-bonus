@@ -121,6 +121,7 @@ const validBarterRange = (input) =>
   Date.parse(input.to) >= Date.parse(input.from) &&
   Date.parse(input.to) - Date.parse(input.from) <= 366 * 86400000;
 const barterQuery = barterScope.strict().refine(validBarterRange, 'Некорректный период');
+const invoiceQuery = barterQuery;
 const barterPersonMutation = z
   .object({
     query: barterQuery,
@@ -133,6 +134,7 @@ const barterPersonMutation = z
   })
   .strict();
 module.exports = {
+  invoiceQuery,
   barterQuery,
   barterPersonMutation,
   receiptQuery,

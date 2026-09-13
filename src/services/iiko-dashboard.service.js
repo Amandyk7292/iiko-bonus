@@ -122,6 +122,9 @@ class IikoDashboardService {
   async barters(input) {
     return require('./iiko-dashboard-barters').barters(this, input);
   }
+  async invoices(input) {
+    return require('./iiko-dashboard-invoices').invoices(this, input);
+  }
   async barterPeople(report) {
     return require('./iiko-dashboard-barter-people').people(report);
   }

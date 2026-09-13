@@ -10,6 +10,7 @@ const {
   receiptQuery,
   barterQuery,
   barterPersonMutation,
+  invoiceQuery,
 } = require('../../contracts/iiko-dashboard.contract');
 const { validateRequest } = require('../../middlewares/validation.middleware');
 const { reportWorkbook, balanceReport } = require('../../services/iiko-dashboard-export');
@@ -19,6 +20,7 @@ function registerIikoDashboardRoutes(router, reporting = service) {
   const controlJobs = new ReportJobs();
   const receiptJobs = new ReportJobs();
   const barterJobs = new ReportJobs();
+  const invoiceJobs = new ReportJobs();
   const ownerOnly = (req, res, next) => {
     if (!['owner', 'admin'].includes(req.admin?.role))
       return res.status(403).json({ code: 'FORBIDDEN', error: 'Недостаточно прав' });
@@ -35,6 +37,33 @@ function registerIikoDashboardRoutes(router, reporting = service) {
       });
     }
   };
+  router.post(
+    '/admin/api/iiko-dashboard/invoices',
+    ownerOnly,
+    validateRequest({ body: invoiceQuery }),
+    handle((req) => invoiceJobs.read(JSON.stringify(req.body), () => reporting.invoices(req.body))),
+  );
+  router.post(
+    '/admin/api/iiko-dashboard/invoices/export',
+    ownerOnly,
+    validateRequest({ body: invoiceQuery }),
+    async (req, res) => {
+      try {
+        const report = await invoiceJobs.result(JSON.stringify(req.body), () =>
+          reporting.invoices(req.body),
+        );
+        res.set(
+          'Content-Disposition',
+          `attachment; filename="iiko-invoices-${req.body.from}.xlsx"`,
+        );
+        res
+          .type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+          .send(reportWorkbook(report));
+      } catch (error) {
+        res.status(error.statusCode || 502).json({ code: error.code || 'IIKO_REPORT_FAILED' });
+      }
+    },
+  );
   router.post(
     '/admin/api/iiko-dashboard/barters',
     ownerOnly,

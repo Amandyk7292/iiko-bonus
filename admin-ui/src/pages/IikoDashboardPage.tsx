@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   PackageSearch,
   Handshake,
+  PackagePlus,
 } from 'lucide-react';
 import { useI18n } from '../lib/i18n';
 import { isIikoRequestPending } from '../lib/iiko-request-policy';
@@ -38,6 +39,7 @@ import Balances from './iiko-dashboard/Balances';
 import Settings, { parsePreferences, type Preferences } from './iiko-dashboard/Settings';
 import Controls from './iiko-dashboard/Controls';
 import Barters from './iiko-dashboard/Barters';
+import Invoices from './iiko-dashboard/Invoices';
 import './iiko-dashboard/dashboard.css';
 import './iiko-dashboard/workspace.css';
 
@@ -47,6 +49,7 @@ const tabs = [
   { id: 'rankings', icon: BarChart3 },
   { id: 'reports', icon: Table2 },
   { id: 'writeoffs', icon: ClipboardMinus },
+  { id: 'invoices', icon: PackagePlus },
   { id: 'operations', icon: ShieldCheck },
   { id: 'barters', icon: Handshake },
   { id: 'assortment', icon: PackageSearch },
@@ -392,6 +395,9 @@ export default function IikoDashboardPage() {
           department={department}
           refresh={refresh}
         />
+      )}
+      {tab === 'invoices' && (
+        <Invoices key={serverId} base={base} department={department} refresh={refresh} />
       )}
       {tab === 'operations' && (
         <Controls

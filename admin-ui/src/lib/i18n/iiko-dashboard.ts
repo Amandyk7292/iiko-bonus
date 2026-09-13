@@ -1,4 +1,5 @@
 const ru = {
+  'id.invoices': 'Накладные',
   'id.barters': 'Бартеры',
   'id.operations': 'Скидки и возвраты',
   'id.assortment': 'Ассортимент',
@@ -147,6 +148,7 @@ const ru = {
 };
 type Keys = keyof typeof ru;
 const kk: Record<Keys, string> = {
+  'id.invoices': 'Жүкқұжаттар',
   'id.barters': 'Бартерлер',
   'id.operations': 'Жеңілдіктер мен қайтарулар',
   'id.assortment': 'Ассортимент',
@@ -294,6 +296,7 @@ const kk: Record<Keys, string> = {
   'id.range': 'Бір жылдан аспайтын кезеңді таңдаңыз',
 };
 const en: Record<Keys, string> = {
+  'id.invoices': 'Invoices',
   'id.barters': 'Barters',
   'id.operations': 'Discounts and refunds',
   'id.assortment': 'Assortment',
