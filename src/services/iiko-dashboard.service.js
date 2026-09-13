@@ -57,8 +57,14 @@ class IikoDashboardService {
     this.schemaRequests = new Map();
     this.reports = new ReportCache();
   }
-  listServers() {
+  async listServers() {
     return this.client.listServers();
+  }
+  async saveServer(input) {
+    return this.client.saveServer(input);
+  }
+  async deleteServer(id) {
+    return this.client.deleteServer(id);
   }
   async columns(request, serverId, reportType) {
     const key = `${serverId}:${reportType}`;

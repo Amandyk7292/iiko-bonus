@@ -10,6 +10,7 @@ const rms = {
     'bulka-17mkr-6',
     'bulka-17mkr',
     'bulka-18a',
+    'bulka-19a-mkr-11-dom',
     'bulka-19-33',
     'bulka26mkr-25b',
     'bulka-28mkr',

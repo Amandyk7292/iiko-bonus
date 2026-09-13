@@ -14,7 +14,7 @@ test('receipt requires exact identity and includes full-price items without disc
     { orderId: '287' },
     { department: '' },
     { date: '2026-02-30' },
-    { serverId: 'unknown' },
+    { serverId: 'unknown server' },
     { orderNumber: 287 },
   ])
     assert(!receiptQuery.safeParse({ ...input, ...change }).success);

@@ -158,7 +158,7 @@ test('query validation constrains scope and names without accepting client-suppl
   for (const change of [
     { from: '2026-02-30' },
     { from: '2026-09-09' },
-    { serverId: 'other' },
+    { serverId: 'other server' },
     { source: 'payment' },
   ])
     assert(!barterQuery.safeParse({ ...input, ...change }).success);

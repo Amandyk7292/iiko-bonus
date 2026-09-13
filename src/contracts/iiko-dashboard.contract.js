@@ -1,6 +1,38 @@
 const { z } = require('../middlewares/validation.middleware');
-const { servers } = require('../config/iiko-dashboard');
-const serverId = z.enum(servers.map((server) => server.id));
+const serverId = z
+  .string()
+  .trim()
+  .min(1)
+  .max(80)
+  .regex(/^[a-z0-9][a-z0-9-]*$/);
+const serverHost = z
+  .string()
+  .trim()
+  .max(300)
+  .transform((value) =>
+    value
+      .toLowerCase()
+      .replace(/^https:\/\//, '')
+      .replace(/\/$/, ''),
+  )
+  .refine((value) => /^[a-z0-9][a-z0-9-]{0,62}\.iiko\.it$/.test(value), {
+    message: 'Некорректный адрес сервера iiko',
+  });
+const serverMutation = z
+  .object({
+    host: serverHost,
+    city: z.enum(['aktau', 'astana']),
+    kind: z.enum(['chain', 'rms']),
+    useCityCredentials: z.boolean().default(true),
+    login: z.string().trim().max(160).default(''),
+    password: z.string().max(512).default(''),
+  })
+  .strict()
+  .refine(
+    (input) => input.useCityCredentials || (input.login.length > 0 && input.password.length > 0),
+    { message: 'Укажите логин и пароль iiko' },
+  );
+const serverParams = z.object({ id: serverId }).strict();
 const reportType = z.enum(['SALES', 'TRANSACTIONS', 'DELIVERIES']);
 const date = z.iso.date();
 const field = z
@@ -137,6 +169,8 @@ const barterPersonMutation = z
   })
   .strict();
 module.exports = {
+  serverMutation,
+  serverParams,
   invoiceQuery,
   barterQuery,
   barterPersonMutation,

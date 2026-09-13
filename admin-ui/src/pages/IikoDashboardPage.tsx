@@ -103,7 +103,14 @@ export default function IikoDashboardPage() {
     void dashboardApi
       .servers()
       .then((data) => {
-        if (active) setServers(data.servers);
+        if (active) {
+          setServers(data.servers);
+          setServerId((current) =>
+            data.servers.some((server) => server.id === current && server.active)
+              ? current
+              : data.servers.find((server) => server.active)?.id || '',
+          );
+        }
       })
       .catch((caught) => {
         if (active) {
@@ -447,7 +454,17 @@ export default function IikoDashboardPage() {
         <Barters key={serverId} base={base} department={department} refresh={refresh} />
       )}
       {tab === 'settings' && (
-        <Settings servers={servers} preferences={preferences} onChange={setPreferences} />
+        <Settings
+          servers={servers}
+          preferences={preferences}
+          onChange={setPreferences}
+          onServersChange={(updated) => {
+            setServers(updated);
+            if (!updated.some((server) => server.id === serverId && server.active)) {
+              setServerId(updated.find((server) => server.active)?.id || '');
+            }
+          }}
+        />
       )}
     </div>
   );

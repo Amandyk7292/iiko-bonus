@@ -168,7 +168,7 @@ test('controls query binds return flag, scope and preceding equal-length period'
 test('control contracts reject arbitrary modes, parameters, scopes and invalid thresholds', () => {
   assert(controlsQuery.safeParse(input).success);
   for (const patch of [
-    { serverId: 'private' },
+    { serverId: 'private server' },
     { mode: 'other' },
     { from: '2026-02-30' },
     { to: '2028-09-07' },

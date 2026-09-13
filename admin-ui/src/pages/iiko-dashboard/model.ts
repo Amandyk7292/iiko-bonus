@@ -6,6 +6,14 @@ export interface Server {
   configured: boolean;
   active: boolean;
 }
+export interface ServerMutation {
+  host: string;
+  city: Server['city'];
+  kind: Server['kind'];
+  useCityCredentials: boolean;
+  login: string;
+  password: string;
+}
 export interface Column {
   name: string;
   type: string;

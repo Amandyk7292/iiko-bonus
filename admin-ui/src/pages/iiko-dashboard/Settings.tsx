@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { ArrowDown, ArrowUp } from 'lucide-react';
+import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
 import { useI18n } from '../../lib/i18n';
-import { download } from './api';
-import { metrics, type Server } from './model';
+import Modal from '../../components/Modal';
+import { dashboardApi, download } from './api';
+import { metrics, type Server, type ServerMutation } from './model';
 import type { Template } from './ReportBuilder';
 export interface Preferences {
   cards: string[];
@@ -68,14 +69,233 @@ export function parsePreferences(raw: string): Preferences {
     auto: data.auto,
   };
 }
+
+const emptyServer: ServerMutation = {
+  host: '',
+  city: 'aktau',
+  kind: 'rms',
+  useCityCredentials: true,
+  login: '',
+  password: '',
+};
+
+function ServerManager({
+  servers,
+  onChange,
+}: {
+  servers: Server[];
+  onChange: (servers: Server[]) => void;
+}) {
+  const { t } = useI18n();
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState<ServerMutation>(emptyServer);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [removing, setRemoving] = useState<Server | null>(null);
+
+  const save = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (saving) return;
+    setSaving(true);
+    setError('');
+    try {
+      const result = await dashboardApi.saveServer(draft);
+      onChange(result.servers);
+      setAdding(false);
+      setDraft(emptyServer);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : t('common.error'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = async () => {
+    if (!removing || saving) return;
+    setSaving(true);
+    setError('');
+    try {
+      const result = await dashboardApi.deleteServer(removing.id);
+      onChange(result.servers);
+      setRemoving(null);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : t('common.error'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section className="card id-panel">
+      <div className="page-actions-row">
+        <h2>{t('id.source')}</h2>
+        <button
+          type="button"
+          className="btn-outline px-4 inline-flex items-center gap-2"
+          onClick={() => {
+            setError('');
+            setAdding(true);
+          }}
+        >
+          <Plus size={16} />
+          {t('id.addServer')}
+        </button>
+      </div>
+      <p className="id-muted">{t('id.noDoubleCount')}</p>
+      {servers.map((server) => (
+        <div className="id-server-row" key={server.id}>
+          <div className="page-actions-row">
+            <strong>{server.host}</strong>
+            <button
+              type="button"
+              className="btn-outline px-3"
+              aria-label={`${t('common.delete')} ${server.host}`}
+              onClick={() => {
+                setError('');
+                setRemoving(server);
+              }}
+            >
+              <Trash2 size={16} />
+            </button>
+          </div>
+          <span>
+            {server.kind === 'chain' ? t('id.chain') : t('id.rms')} ·{' '}
+            {server.city === 'aktau' ? 'Актау' : 'Астана'}
+          </span>
+          <small>
+            {t(!server.active ? 'id.closed' : server.configured ? 'id.configured' : 'id.missing')}
+          </small>
+        </div>
+      ))}
+      <Modal open={adding} title={t('id.addServer')} onClose={() => !saving && setAdding(false)}>
+        <form className="modal-body form-stack" onSubmit={save}>
+          <label className="field-group">
+            {t('id.serverAddress')}
+            <input
+              className="input-classic"
+              required
+              autoFocus
+              placeholder="bulka-19a-mkr-11-dom.iiko.it"
+              value={draft.host}
+              onChange={(event) => setDraft({ ...draft, host: event.target.value })}
+            />
+          </label>
+          <label className="field-group">
+            {t('id.city')}
+            <select
+              className="input-classic"
+              value={draft.city}
+              onChange={(event) =>
+                setDraft({ ...draft, city: event.target.value as Server['city'] })
+              }
+            >
+              <option value="aktau">Актау</option>
+              <option value="astana">Астана</option>
+            </select>
+          </label>
+          <label className="field-group">
+            {t('id.serverKind')}
+            <select
+              className="input-classic"
+              value={draft.kind}
+              onChange={(event) =>
+                setDraft({ ...draft, kind: event.target.value as Server['kind'] })
+              }
+            >
+              <option value="rms">{t('id.rms')}</option>
+              <option value="chain">{t('id.chain')}</option>
+            </select>
+          </label>
+          <label className="switch-row">
+            <input
+              type="checkbox"
+              checked={draft.useCityCredentials}
+              onChange={(event) => setDraft({ ...draft, useCityCredentials: event.target.checked })}
+            />
+            <span className="switch-control" aria-hidden="true" />
+            <span>{t('id.useCityCredentials')}</span>
+          </label>
+          {!draft.useCityCredentials && (
+            <>
+              <label className="field-group">
+                {t('id.iikoLogin')}
+                <input
+                  className="input-classic"
+                  required
+                  autoComplete="off"
+                  value={draft.login}
+                  onChange={(event) => setDraft({ ...draft, login: event.target.value })}
+                />
+              </label>
+              <label className="field-group">
+                {t('id.iikoPassword')}
+                <input
+                  className="input-classic"
+                  type="password"
+                  required
+                  autoComplete="new-password"
+                  value={draft.password}
+                  onChange={(event) => setDraft({ ...draft, password: event.target.value })}
+                />
+              </label>
+            </>
+          )}
+          {error && (
+            <p role="alert" className="id-error">
+              {error}
+            </p>
+          )}
+          <button type="submit" className="btn-classic px-5" disabled={saving}>
+            {t(saving ? 'common.saving' : 'common.save')}
+          </button>
+        </form>
+      </Modal>
+      <Modal
+        open={Boolean(removing)}
+        title={t('id.removeServer')}
+        onClose={() => !saving && setRemoving(null)}
+      >
+        <div className="modal-body">
+          <p>{removing?.host}</p>
+          {error && (
+            <p role="alert" className="id-error">
+              {error}
+            </p>
+          )}
+          <div className="modal-actions">
+            <button
+              type="button"
+              className="btn-outline px-5"
+              onClick={() => setRemoving(null)}
+              disabled={saving}
+            >
+              {t('common.cancel')}
+            </button>
+            <button
+              type="button"
+              className="btn-classic px-5"
+              onClick={() => void remove()}
+              disabled={saving}
+            >
+              {t('common.delete')}
+            </button>
+          </div>
+        </div>
+      </Modal>
+    </section>
+  );
+}
+
 export default function Settings({
   servers,
   preferences,
   onChange,
+  onServersChange,
 }: {
   servers: Server[];
   preferences: Preferences;
   onChange: (value: Preferences) => void;
+  onServersChange: (servers: Server[]) => void;
 }) {
   const { t } = useI18n();
   const [error, setError] = useState(false);
@@ -198,22 +418,7 @@ export default function Settings({
           </p>
         )}
       </section>
-      <section className="card id-panel">
-        <h2>{t('id.source')}</h2>
-        <p className="id-muted">{t('id.noDoubleCount')}</p>
-        {servers.map((server) => (
-          <div className="id-server-row" key={server.id}>
-            <strong>{server.host}</strong>
-            <span>
-              {server.kind === 'chain' ? t('id.chain') : t('id.rms')} ·{' '}
-              {server.city === 'aktau' ? 'Актау' : 'Астана'}
-            </span>
-            <small>
-              {t(!server.active ? 'id.closed' : server.configured ? 'id.configured' : 'id.missing')}
-            </small>
-          </div>
-        ))}
-      </section>
+      <ServerManager servers={servers} onChange={onServersChange} />
     </div>
   );
 }

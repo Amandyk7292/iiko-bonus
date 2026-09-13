@@ -1,11 +1,20 @@
 import { ApiError, request } from '../../lib/api';
 import type { AnalyticsQuery } from './Rankings';
-import type { Columns, Query, Report, Server } from './model';
+import type { Columns, Query, Report, Server, ServerMutation } from './model';
 const base = '/iiko-dashboard';
 export const dashboardApi = {
   analytics: (query: AnalyticsQuery, signal?: AbortSignal) =>
     request<Report>(`${base}/analytics`, { method: 'POST', body: JSON.stringify(query), signal }),
   servers: () => request<{ servers: Server[] }>(`${base}/servers`),
+  saveServer: (server: ServerMutation) =>
+    request<{ servers: Server[] }>(`${base}/servers`, {
+      method: 'POST',
+      body: JSON.stringify(server),
+    }),
+  deleteServer: (id: string) =>
+    request<{ servers: Server[] }>(`${base}/servers/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    }),
   schema: (serverId: string, reportType: string, signal?: AbortSignal) =>
     request<{ columns: Columns; dateField: string }>(
       `${base}/schema?${new URLSearchParams({ serverId, reportType })}`,

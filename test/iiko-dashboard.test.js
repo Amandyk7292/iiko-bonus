@@ -3,8 +3,9 @@ const assert = require('node:assert/strict');
 const { Response } = require('node-fetch');
 const { IikoDashboardClient } = require('../src/services/iiko-dashboard-client');
 const { buildReport } = require('../src/services/iiko-dashboard.service');
-const { reportQuery } = require('../src/contracts/iiko-dashboard.contract');
+const { reportQuery, serverMutation } = require('../src/contracts/iiko-dashboard.contract');
 const { servers, credentialsFor } = require('../src/config/iiko-dashboard');
+const { IikoDashboardServerRegistry } = require('../src/services/iiko-dashboard-servers.service');
 const { reportWorkbook } = require('../src/services/iiko-dashboard-export');
 const AdmZip = require('adm-zip');
 const token = '12345678-1234-1234-1234-123456789012';
@@ -24,10 +25,29 @@ const columns = {
   Department: { groupingAllowed: true, filteringAllowed: true },
 };
 
-test('21 RMS servers and two independent Chain sources keep credentials within the assigned city', () => {
-  assert.equal(servers.length, 23);
-  assert.equal(new Set(servers.map((server) => server.id)).size, 23);
+const serverDatabase = (initial = []) => {
+  const rows = initial.map((row) => ({ ...row }));
+  return {
+    rows,
+    from: () => ({
+      select: () => ({
+        order: async () => ({ data: rows.map((row) => ({ ...row })), error: null }),
+      }),
+      upsert: async (row) => {
+        const index = rows.findIndex((item) => item.id === row.id);
+        if (index === -1) rows.push({ ...row });
+        else rows[index] = { ...row };
+        return { error: null };
+      },
+    }),
+  };
+};
+
+test('22 RMS servers and two independent Chain sources keep credentials within the assigned city', () => {
+  assert.equal(servers.length, 24);
+  assert.equal(new Set(servers.map((server) => server.id)).size, 24);
   assert.equal(servers.filter((server) => server.kind === 'chain').length, 2);
+  assert(servers.some((server) => server.host === 'bulka-19a-mkr-11-dom.iiko.it'));
   const env = { IIKO_DASHBOARD_AKTAU_LOGIN: 'fixture', IIKO_DASHBOARD_AKTAU_PASSWORD: 'secret' };
   assert.equal(
     credentialsFor(
@@ -52,6 +72,31 @@ test('21 RMS servers and two independent Chain sources keep credentials within t
   );
 });
 
+test('managed servers are encrypted, listed without secrets and can be removed', async () => {
+  const db = serverDatabase();
+  const env = { BULKA_SECRET: 'x'.repeat(40) };
+  const registry = new IikoDashboardServerRegistry({ db, env, cacheMs: 0 });
+  const input = serverMutation.parse({
+    host: 'https://fixture-new.iiko.it/',
+    city: 'aktau',
+    kind: 'rms',
+    useCityCredentials: false,
+    login: 'report-user',
+    password: 'report-password',
+  });
+  const added = await registry.save(input);
+  assert(added.some((server) => server.id === 'fixture-new' && server.configured));
+  assert(!JSON.stringify(added).includes('report-password'));
+  assert(!db.rows[0].credential_cipher.includes('report-password'));
+  assert.deepEqual(registry.credentials(await registry.find('fixture-new')), {
+    login: 'report-user',
+    password: 'report-password',
+  });
+  const remaining = await registry.remove('fixture-new');
+  assert(!remaining.some((server) => server.id === 'fixture-new'));
+  assert.equal(db.rows[0].deleted, true);
+});
+
 test('report range includes last day but cannot be overridden by a filter', () => {
   const result = buildReport(input, columns);
   assert.deepEqual(result.filters['OpenDate.Typed'], {
@@ -72,9 +117,9 @@ test('report range includes last day but cannot be overridden by a filter', () =
   assert.throws(() => buildReport({ ...input, groupBy: ['Revenue'] }, columns));
 });
 
-test('contracts reject arbitrary servers, invalid dates and excessive ranges', () => {
+test('contracts accept managed server ids and reject malformed ids, dates and excessive ranges', () => {
   for (const patch of [
-    { serverId: 'localhost' },
+    { serverId: 'https://private-host' },
     { from: '2026-02-30' },
     { to: '2026-08-01' },
     { to: '2028-09-01' },
@@ -118,7 +163,7 @@ test('authentication accepts text responses and secrets never leave server metad
       throw new Error(`network error ${url}`);
     },
   });
-  assert.doesNotMatch(JSON.stringify(client.listServers()), /fixture-secret|fixture/);
+  assert.doesNotMatch(JSON.stringify(await client.listServers()), /fixture-secret|fixture/);
   await assert.rejects(
     client.withSession('aktau-chain', () => {}),
     (error) =>
@@ -179,7 +224,7 @@ test('financial reporting routes reject staff and invalid payloads before queryi
   const invalid = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-fixture-role': 'owner' },
-    body: JSON.stringify({ ...input, serverId: 'private-host' }),
+    body: JSON.stringify({ ...input, serverId: 'private_host' }),
   });
   assert.equal(invalid.status, 400);
   assert.equal(calls, 0);

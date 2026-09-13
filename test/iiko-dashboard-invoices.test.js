@@ -126,7 +126,7 @@ test('loader requests incoming invoices per active supplier and loads reference 
 test('invoice query constrains the server and date range', () => {
   assert(invoiceQuery.safeParse(input).success);
   assert(invoiceQuery.safeParse({ ...input, supplier: 'Поставщик A' }).success);
-  assert(!invoiceQuery.safeParse({ ...input, serverId: 'other' }).success);
+  assert(!invoiceQuery.safeParse({ ...input, serverId: 'other server' }).success);
   assert(!invoiceQuery.safeParse({ ...input, from: '2026-02-30' }).success);
   assert(!invoiceQuery.safeParse({ ...input, supplier: 'x'.repeat(251) }).success);
   assert(!invoiceQuery.safeParse({ ...input, total: 1 }).success);

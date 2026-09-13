@@ -11,6 +11,8 @@ const {
   barterQuery,
   barterPersonMutation,
   invoiceQuery,
+  serverMutation,
+  serverParams,
 } = require('../../contracts/iiko-dashboard.contract');
 const { validateRequest } = require('../../middlewares/validation.middleware');
 const { reportWorkbook, balanceReport } = require('../../services/iiko-dashboard-export');
@@ -189,7 +191,19 @@ function registerIikoDashboardRoutes(router, reporting = service) {
   router.get(
     '/admin/api/iiko-dashboard/servers',
     ownerOnly,
-    handle(() => ({ servers: reporting.listServers() })),
+    handle(async () => ({ servers: await reporting.listServers() })),
+  );
+  router.post(
+    '/admin/api/iiko-dashboard/servers',
+    ownerOnly,
+    validateRequest({ body: serverMutation }),
+    handle(async (req) => ({ servers: await reporting.saveServer(req.body) })),
+  );
+  router.delete(
+    '/admin/api/iiko-dashboard/servers/:id',
+    ownerOnly,
+    validateRequest({ params: serverParams }),
+    handle(async (req) => ({ servers: await reporting.deleteServer(req.params.id) })),
   );
   router.get(
     '/admin/api/iiko-dashboard/schema',

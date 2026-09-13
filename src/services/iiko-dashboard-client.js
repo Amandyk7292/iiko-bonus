@@ -1,25 +1,41 @@
 const crypto = require('node:crypto');
 const fetch = require('node-fetch');
 const { servers, credentialsFor } = require('../config/iiko-dashboard');
-
-const failure = (code, statusCode = 502) => Object.assign(new Error(code), { code, statusCode });
+const { failure } = require('./iiko-dashboard-client-errors');
 
 class IikoDashboardClient {
-  constructor({
-    fetchImpl = fetch,
-    credentials = credentialsFor,
-    timeoutMs = 20000,
-    reportTimeoutMs = 45000,
-  } = {}) {
+  constructor(options = {}) {
+    const {
+      fetchImpl = fetch,
+      credentials = credentialsFor,
+      serverRegistry,
+      timeoutMs = 20000,
+      reportTimeoutMs = 45000,
+    } = options;
     this.fetch = fetchImpl;
     this.credentials = credentials;
+    this.serverRegistry =
+      serverRegistry === undefined && credentials === credentialsFor
+        ? require('./iiko-dashboard-servers.service').registry
+        : serverRegistry;
     this.timeoutMs = timeoutMs;
     this.reportTimeoutMs = reportTimeoutMs;
     this.queues = new Map();
   }
 
-  listServers() {
+  async listServers() {
+    if (this.serverRegistry) return this.serverRegistry.list();
     return servers.map((server) => ({ ...server, configured: Boolean(this.credentials(server)) }));
+  }
+
+  async saveServer(input) {
+    if (!this.serverRegistry) throw failure('IIKO_REPORT_SERVER_STORAGE');
+    return this.serverRegistry.save(input);
+  }
+
+  async deleteServer(id) {
+    if (!this.serverRegistry) throw failure('IIKO_REPORT_SERVER_STORAGE');
+    return this.serverRegistry.remove(id);
   }
 
   async request(server, path, token, body, secretQuery, format = 'json') {
@@ -73,10 +89,14 @@ class IikoDashboardClient {
   }
 
   async withSession(serverId, work) {
-    const server = servers.find((item) => item.id === serverId);
+    const server = this.serverRegistry
+      ? await this.serverRegistry.find(serverId)
+      : servers.find((item) => item.id === serverId);
     if (!server) throw failure('IIKO_REPORT_SERVER', 400);
     if (!server.active) throw failure('IIKO_REPORT_CLOSED', 409);
-    const credential = this.credentials(server);
+    const credential = this.serverRegistry
+      ? this.serverRegistry.credentials(server)
+      : this.credentials(server);
     if (!credential) throw failure('IIKO_REPORT_NOT_CONFIGURED', 409);
     let queue = this.queues.get(serverId);
     if (!queue) {
