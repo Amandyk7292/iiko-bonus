@@ -279,7 +279,7 @@ class _StaffWorkspaceState extends State<StaffWorkspace> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
+        ).showSnackBar(bulkaSnackBar(content: Text('$error')));
       }
     } finally {
       if (mounted) setState(() => _signingOut = false);

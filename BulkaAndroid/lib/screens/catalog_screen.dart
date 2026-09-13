@@ -38,6 +38,7 @@ class _CatalogScreenState extends State<CatalogScreen>
       ValueNotifier(const {});
   String _selectedBakery = '';
   String _selectedBakeryId = '';
+  BakeryLocation? _selectedBakeryLocation;
   DeliveryAddress? _selectedDeliveryAddress;
   String _searchQuery = '';
   String _selectedCategory = _catalogAllCategoryKey;
@@ -169,6 +170,13 @@ class _CatalogScreenState extends State<CatalogScreen>
 
   void applyClientUri(Uri uri) {
     _pendingClientUri = normalizedClientUri(uri);
+    if (_menuScopeReady &&
+        !_isLoading &&
+        _allProducts.isEmpty &&
+        productIdFromClientUri(uri) != null) {
+      unawaited(_loadMenu());
+      return;
+    }
     _applyPendingClientUri();
   }
 
@@ -245,6 +253,7 @@ class _CatalogScreenState extends State<CatalogScreen>
       return;
     }
     setState(() {
+      _menuScopeReady = false;
       _menuLoadRevision++;
       _productOptionsRevision++;
       _resolvedProductOptionIds = const {};

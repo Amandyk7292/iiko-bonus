@@ -1,0 +1,1 @@
+bool browserIsTablet() => false;

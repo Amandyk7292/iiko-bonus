@@ -12,6 +12,7 @@ extension _CatalogDataController on _CatalogScreenState {
     _updateCatalogState(() {
       _selectedBakery = branch?.displayLabel ?? '';
       _selectedBakeryId = branch?.id ?? '';
+      _selectedBakeryLocation = branch;
     });
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
@@ -26,7 +27,10 @@ extension _CatalogDataController on _CatalogScreenState {
   }
 
   Future<void> _silentRefresh() {
-    if (!mounted || !_menuScopeReady || _activeMenuLoads > 0) {
+    if (!mounted ||
+        !_menuScopeReady ||
+        _selectedBakeryId.isEmpty ||
+        _activeMenuLoads > 0) {
       return Future<void>.value();
     }
     return _silentRefreshRequest ??= _loadMenu(silent: true).whenComplete(() {
@@ -36,6 +40,21 @@ extension _CatalogDataController on _CatalogScreenState {
 
   Future<void> _loadMenu({bool silent = false}) async {
     if (!mounted) return;
+    final previewProductId = _pendingClientUri == null
+        ? null
+        : productIdFromClientUri(_pendingClientUri!);
+    if (_selectedBakeryId.isEmpty && previewProductId == null) {
+      _updateCatalogState(() {
+        _categories = const [_catalogAllCategoryKey];
+        _apiCategoryImages = const {};
+        _allProducts = const [];
+        _liveProducts.value = const {};
+        _isLoading = false;
+        _usingCachedMenu = false;
+        _loadError = null;
+      });
+      return;
+    }
     _activeMenuLoads++;
     _lastMenuAttempt = DateTime.now();
     final revision = ++_menuLoadRevision;
@@ -238,7 +257,7 @@ extension _CatalogDataController on _CatalogScreenState {
         });
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('error_save'.tr)));
+        ).showSnackBar(bulkaSnackBar(content: Text('error_save'.tr)));
       }
       return wasFavorite;
     }
@@ -517,6 +536,7 @@ extension _CatalogDataController on _CatalogScreenState {
       _updateCatalogState(() {
         _selectedBakery = branch?.displayLabel ?? '';
         _selectedBakeryId = branch?.id ?? '';
+        _selectedBakeryLocation = branch;
         _selectedDeliveryAddress = address;
       });
       return;
@@ -536,10 +556,28 @@ extension _CatalogDataController on _CatalogScreenState {
             ? prefs.getString('selected_bakery_location_id')?.trim()
             : null) ??
         '';
+    BakeryLocation? branch;
+    if (selectedId.isNotEmpty) {
+      try {
+        final locations = await _api.getFulfillmentLocations();
+        branch = locations
+            .where(
+              (location) =>
+                  location.id == selectedId &&
+                  location.active &&
+                  location.supports(requestedOrderType),
+            )
+            .firstOrNull;
+      } catch (_) {
+        // Keep the saved branch usable offline. Server-side checkout validation
+        // remains authoritative when its live schedule cannot be loaded.
+      }
+    }
     if (!mounted || requestedOrderType != _orderType) return;
     _updateCatalogState(() {
-      _selectedBakery = selected;
-      _selectedBakeryId = selectedId;
+      _selectedBakery = branch?.displayLabel ?? selected;
+      _selectedBakeryId = branch?.id ?? selectedId;
+      _selectedBakeryLocation = branch;
       _selectedDeliveryAddress = null;
     });
   }
@@ -562,6 +600,7 @@ extension _CatalogDataController on _CatalogScreenState {
           _selectedDeliveryAddress = selected;
           _selectedBakery = branch?.displayLabel ?? '';
           _selectedBakeryId = branch?.id ?? '';
+          _selectedBakeryLocation = branch;
         });
         await _loadMenu();
         return;
@@ -578,9 +617,27 @@ extension _CatalogDataController on _CatalogScreenState {
       final selectedId =
           prefs.getString('selected_bakery_location_id')?.trim() ?? '';
       if (mounted) {
+        BakeryLocation? branch;
+        if (selectedId.isNotEmpty) {
+          try {
+            final locations = await _api.getFulfillmentLocations();
+            branch = locations
+                .where(
+                  (location) =>
+                      location.id == selectedId &&
+                      location.active &&
+                      location.supports(_orderType),
+                )
+                .firstOrNull;
+          } catch (_) {
+            // The selected label and id still allow the menu to load offline.
+          }
+        }
+        if (!mounted) return;
         _updateCatalogState(() {
-          _selectedBakery = value;
-          _selectedBakeryId = selectedId;
+          _selectedBakery = branch?.displayLabel ?? value;
+          _selectedBakeryId = branch?.id ?? selectedId;
+          _selectedBakeryLocation = branch;
         });
         await _loadMenu();
       }

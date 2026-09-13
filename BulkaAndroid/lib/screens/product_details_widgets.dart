@@ -157,7 +157,10 @@ class _ProductPurchaseBar extends StatelessWidget {
               decoration: BoxDecoration(
                 color: colors.surfaceCream,
                 borderRadius: BorderRadius.circular(32),
-                border: Border.all(color: colors.cardBorder),
+                border: Border.all(
+                  color: colors.cardBorder,
+                  width: BulkaStrokes.hairline,
+                ),
               ),
               child: Row(
                 children: [
@@ -265,7 +268,10 @@ class _ProductFactIcon extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: colors.brandGold.withValues(alpha: 0.14),
                           shape: BoxShape.circle,
-                          border: Border.all(color: colors.cardBorder),
+                          border: Border.all(
+                            color: colors.cardBorder,
+                            width: BulkaStrokes.hairline,
+                          ),
                         ),
                         child: Icon(
                           isAllergen

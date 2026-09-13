@@ -18,7 +18,7 @@ class _AdminPasswordLoginForm extends StatefulWidget {
 }
 
 class _AdminPasswordLoginFormState extends State<_AdminPasswordLoginForm> {
-  final _username = TextEditingController(text: 'admin');
+  final _username = TextEditingController();
   final _password = TextEditingController();
   final _code = TextEditingController();
   bool _loading = false;

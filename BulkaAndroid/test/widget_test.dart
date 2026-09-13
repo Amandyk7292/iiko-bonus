@@ -894,7 +894,13 @@ void main() {
           expect(blockedButton.onPressed, isNull);
           expect(api.forteCreateCalls, 0);
           api.rejectQuote = false;
-          await tester.tap(find.text('Повторить расчёт'));
+          final retryQuote = find.text('Повторить расчёт');
+          await tester.scrollUntilVisible(
+            retryQuote,
+            240,
+            scrollable: find.byType(Scrollable).last,
+          );
+          await tester.tap(retryQuote);
           await tester.pumpAndSettle();
           expect(
             find.byKey(const ValueKey('checkout-quote-error')),
@@ -977,10 +983,8 @@ void main() {
     await tester.pump();
 
     expect(api.slotRequests, 1);
-    expect(
-      find.byKey(const ValueKey('checkout-field-loading')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const ValueKey('checkout-field-loading')), findsNothing);
+    expect(find.byType(BottomSheet), findsOneWidget);
 
     api.releaseSlots();
     await tester.pump(const Duration(milliseconds: 500));
@@ -2169,7 +2173,7 @@ void main() {
       expect(decoration.image, isNull);
     }
     expect(find.byKey(const ValueKey('order-splash-pickup')), findsNothing);
-    expect(deliveryArtworkRect.width, closeTo(192, 0.01));
+    expect(deliveryArtworkRect.width, closeTo(230, 0.01));
     expect(deliveryArtworkRect.right, closeTo(deliveryRect.right + 46, 0.01));
     expect(deliveryArtworkRect.bottom, closeTo(deliveryRect.bottom + 18, 0.01));
     expect(
@@ -2485,6 +2489,35 @@ void main() {
         'astana-1',
       );
       expect(prefs.getString('selected_order_type'), 'delivery');
+    },
+  );
+
+  testWidgets(
+    'home location pin opens saved addresses without changing order type',
+    (tester) async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('selected_order_type', 'pickup');
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildBulkaTheme(),
+          home: HomeScreen(
+            api: _FakeBulkaApiClient(),
+            customer: _testCustomer,
+            transactions: _testTransactions,
+            onHistoryTap: () {},
+            onProfileTap: () {},
+            onRequireAuth: () async => true,
+            onOpenCatalog: (_) async {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Мои адреса'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AddressSelectionScreen), findsOneWidget);
+      expect(find.text('Адреса пока не добавлены'), findsOneWidget);
+      expect(find.byIcon(Icons.add_rounded), findsOneWidget);
+      expect(prefs.getString('selected_order_type'), 'pickup');
     },
   );
 
@@ -2879,9 +2912,11 @@ class _CheckoutPaymentRoutingApiClient extends _FakeBulkaApiClient {
 
   @override
   Future<Map<String, dynamic>> createFortePayment({
+    String paymentMethod = 'forte_card',
+    double? expectedTotal,
     required List<Map<String, dynamic>> cartItems,
     required String orderType,
-    required String scheduledAt,
+    required String? scheduledAt,
     required String checkoutId,
     String? savedPaymentMethodId,
     bool useBonuses = false,

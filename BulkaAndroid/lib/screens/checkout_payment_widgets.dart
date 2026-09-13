@@ -24,6 +24,7 @@ Widget buildCheckoutSavedCardsPanelForTest({
     selectedMethodId: selectedMethodId,
     onDefaultResolved: onDefaultResolved,
     onSelect: onSelect,
+    onActivate: () {},
     onRetryAvailability: () {},
   );
 }
@@ -33,6 +34,8 @@ class _CheckoutDetails {
     required this.checkoutId,
     required this.orderType,
     required this.scheduledAt,
+    this.paymentMethod = 'forte_card',
+    this.expectedTotal,
     this.savedPaymentMethodId,
     this.useBonuses = false,
     this.bonusSpent = 0,
@@ -41,14 +44,15 @@ class _CheckoutDetails {
     this.branch,
     this.branchId,
     this.deliveryAddress,
-    this.additionalPhone,
     this.promoCode,
     this.comment,
   });
 
   final String checkoutId;
+  final String paymentMethod;
+  final double? expectedTotal;
   final _OrderType orderType;
-  final String scheduledAt;
+  final String? scheduledAt;
   final String? savedPaymentMethodId;
   final bool useBonuses;
   final int bonusSpent;
@@ -57,7 +61,6 @@ class _CheckoutDetails {
   final String? branch;
   final String? branchId;
   final DeliveryAddress? deliveryAddress;
-  final String? additionalPhone;
   final String? promoCode;
   final String? comment;
 }
@@ -69,7 +72,9 @@ class _CheckoutSavedCardsPanel extends StatefulWidget {
     required this.selectedMethodId,
     required this.onDefaultResolved,
     required this.onSelect,
+    required this.onActivate,
     required this.onRetryAvailability,
+    this.active = true,
   });
 
   final BulkaApiClient api;
@@ -77,7 +82,9 @@ class _CheckoutSavedCardsPanel extends StatefulWidget {
   final String? selectedMethodId;
   final ValueChanged<String?> onDefaultResolved;
   final ValueChanged<String> onSelect;
+  final VoidCallback onActivate;
   final VoidCallback onRetryAvailability;
+  final bool active;
 
   @override
   State<_CheckoutSavedCardsPanel> createState() =>
@@ -172,7 +179,7 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
     if (_adding || _loading) return;
     if (_methods.length >= _maximumSavedPaymentMethods) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('payment_methods_limit_reached'.tr)),
+        bulkaSnackBar(content: Text('payment_methods_limit_reached'.tr)),
       );
       return;
     }
@@ -181,7 +188,13 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
         .toSet();
     setState(() => _adding = true);
     try {
+      final session = widget.api.sessionCacheScope;
       final result = await widget.api.createForteCardSetup();
+      if (!mounted || session != widget.api.sessionCacheScope) return;
+      if (result['paymentStatus'] == 'paid') {
+        await _load();
+        return;
+      }
       final operationId = (result['operationId'] ?? '').toString();
       final redirectUrl = (result['redirectUrl'] ?? '').toString();
       if (operationId.isEmpty || redirectUrl.isEmpty) {
@@ -215,9 +228,9 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('payment_methods_add_error'.tr)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          bulkaSnackBar(content: Text('payment_methods_add_error'.tr)),
+        );
       }
     } finally {
       if (mounted) setState(() => _adding = false);
@@ -227,6 +240,50 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
   @override
   Widget build(BuildContext context) {
     final colors = context.bulkaColors;
+    if (!widget.active) {
+      return Material(
+        key: const ValueKey('checkout-card-payment-choice'),
+        color: colors.surfaceCream,
+        borderRadius: BorderRadius.circular(BulkaRadii.control),
+        child: InkWell(
+          onTap: widget.onActivate,
+          borderRadius: BorderRadius.circular(BulkaRadii.control),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.radio_button_off_rounded,
+                  color: colors.brandBrown,
+                  size: 22,
+                ),
+                const SizedBox(width: 10),
+                Icon(
+                  Icons.credit_card_outlined,
+                  color: colors.brandBrown,
+                  size: 22,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'checkout_card_payment'.tr,
+                    style: const TextStyle(
+                      fontSize: BulkaTypeScale.body,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: colors.mutedText,
+                  size: 22,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     if (_methods.isEmpty && (widget.available == null || _loading)) {
       return Container(
         key: const ValueKey('checkout-saved-cards-loading'),
@@ -236,7 +293,10 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
         decoration: BoxDecoration(
           color: colors.surfaceCream,
           borderRadius: BorderRadius.circular(BulkaRadii.control),
-          border: Border.all(color: colors.cardBorder),
+          border: Border.all(
+            color: colors.cardBorder,
+            width: BulkaStrokes.hairline,
+          ),
         ),
         child: Row(
           children: [
@@ -300,34 +360,42 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
       color: Colors.white,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(BulkaRadii.control),
-        side: BorderSide(color: colors.cardBorder),
+        side: BorderSide(
+          color: colors.cardBorder,
+          width: BulkaStrokes.hairline,
+        ),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         key: const ValueKey('checkout-choose-card'),
         onTap: _adding ? null : _chooseCard,
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
           child: Column(
             children: [
               Row(
                 children: [
                   Icon(Icons.credit_card_outlined, color: colors.brandBrown),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       'checkout_card_payment'.tr,
                       style: const TextStyle(
-                        fontSize: 17,
+                        fontSize: BulkaTypeScale.body,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
-                  Icon(Icons.radio_button_checked, color: colors.brandBrown),
+                  Icon(
+                    widget.active
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_off,
+                    color: colors.brandBrown,
+                  ),
                 ],
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 14),
+                padding: const EdgeInsets.symmetric(vertical: 10),
                 child: Divider(height: 1, color: colors.cardBorder),
               ),
               _CheckoutCardIdentity(
@@ -381,7 +449,10 @@ class _CheckoutSavedCardsLimitNotice extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.surfaceCream,
         borderRadius: BorderRadius.circular(BulkaRadii.control),
-        border: Border.all(color: colors.cardBorder),
+        border: Border.all(
+          color: colors.cardBorder,
+          width: BulkaStrokes.hairline,
+        ),
       ),
       child: Row(
         children: [
@@ -428,7 +499,10 @@ class _CheckoutSavedCardsNotice extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.surfaceCream,
         borderRadius: BorderRadius.circular(BulkaRadii.control),
-        border: Border.all(color: colors.cardBorder),
+        border: Border.all(
+          color: colors.cardBorder,
+          width: BulkaStrokes.hairline,
+        ),
       ),
       child: Column(
         children: [

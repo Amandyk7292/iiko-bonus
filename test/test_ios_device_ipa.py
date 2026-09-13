@@ -20,6 +20,8 @@ class DeviceIpaVerification(unittest.TestCase):
         with zipfile.ZipFile(Path(directory) / 'Bulka.ipa', 'w') as archive:
             archive.writestr('Payload/Runner.app/Info.plist', plistlib.dumps({
                 'CFBundleIdentifier': bundle,
+                'CFBundleIcons': {'CFBundlePrimaryIcon': {
+                    'CFBundleIconName': 'BulkaSolid', 'UIPrerenderedIcon': True}},
                 'CFBundleShortVersionString': '1.0.1', 'CFBundleVersion': '2'}))
             archive.writestr('Payload/Runner.app/embedded.mobileprovision', b'cms-profile')
 

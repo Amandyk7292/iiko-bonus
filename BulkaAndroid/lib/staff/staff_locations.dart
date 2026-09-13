@@ -402,7 +402,7 @@ class _StaffLocationDetailState extends State<StaffLocationDetail> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('$e')));
+        ).showSnackBar(bulkaSnackBar(content: Text('$e')));
       }
     }
   }

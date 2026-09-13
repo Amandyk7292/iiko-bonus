@@ -32,6 +32,9 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
   final Set<String> _repeatInFlight = {};
   String? _error;
   List<CustomerOrder> _orders = const [];
+  CustomerOrder? _activeBefore, _completedBefore;
+  bool _moreActive = false, _moreCompleted = false, _loadingMore = false;
+  bool _loadedMoreActive = false, _loadedMoreCompleted = false;
   bool _usingOfflineCache = false;
   PaymentReturnNotice? _paymentReturnNotice;
   String? _pendingInitialOrderId;
@@ -92,7 +95,7 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
   }
 
   Future<void> _load({bool silent = false}) async {
-    if (_refreshInFlight) return;
+    if (_refreshInFlight || _loadingMore) return;
     _refreshInFlight = true;
     if (!silent) {
       setState(() {
@@ -106,8 +109,17 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
         widget.api.getCustomerOrders(completed: true),
       ]);
       final byId = <String, CustomerOrder>{
+        for (final order in _orders) order.id: order,
         for (final order in groups.expand((group) => group)) order.id: order,
       };
+      if (!_loadedMoreActive) {
+        _activeBefore = groups[0].lastOrNull;
+        _moreActive = groups[0].length == 50;
+      }
+      if (!_loadedMoreCompleted) {
+        _completedBefore = groups[1].lastOrNull;
+        _moreCompleted = groups[1].length == 50;
+      }
       final orders = byId.values.toList()
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
       final prefs = await SharedPreferences.getInstance();
@@ -115,7 +127,7 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
         _cacheKey,
         jsonEncode({
           'cachedAt': DateTime.now().toUtc().toIso8601String(),
-          'orders': orders.map((order) => order.toJson()).toList(),
+          'orders': orders.take(200).map((order) => order.toJson()).toList(),
         }),
       );
       if (!mounted) return;
@@ -160,6 +172,46 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
     }
   }
 
+  Future<void> _loadMore() async {
+    if (_loadingMore || _refreshInFlight) return;
+    setState(() => _loadingMore = true);
+    try {
+      final loadActive = _moreActive && _activeBefore != null;
+      final loadCompleted = _moreCompleted && _completedBefore != null;
+      final pages = await Future.wait([
+        if (loadActive)
+          widget.api.getMoreCustomerOrders(_activeBefore!)
+        else
+          Future.value(<CustomerOrder>[]),
+        if (loadCompleted)
+          widget.api.getMoreCustomerOrders(_completedBefore!, completed: true)
+        else
+          Future.value(<CustomerOrder>[]),
+      ]);
+      if (!mounted) return;
+      setState(() {
+        if (loadActive) _loadedMoreActive = true;
+        if (loadCompleted) _loadedMoreCompleted = true;
+        _activeBefore = pages[0].lastOrNull ?? _activeBefore;
+        _completedBefore = pages[1].lastOrNull ?? _completedBefore;
+        if (loadActive) _moreActive = pages[0].length == 50;
+        if (loadCompleted) _moreCompleted = pages[1].length == 50;
+        _orders = {
+          for (final order in [..._orders, ...pages.expand((page) => page)])
+            order.id: order,
+        }.values.toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      });
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          bulkaSnackBar(content: Text(localizeErrorMessage(error))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loadingMore = false);
+    }
+  }
+
   void _scheduleInitialOrderOpen() {
     final id = _pendingInitialOrderId;
     if (id == null || id.isEmpty || !mounted) return;
@@ -178,6 +230,20 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
       return;
     }
     _pendingInitialOrderId = null;
+    unawaited(
+      widget.api
+          .getCustomerOrder(id)
+          .then((order) {
+            if (mounted) return _openDetails(order);
+          })
+          .catchError((Object error) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                bulkaSnackBar(content: Text(localizeErrorMessage(error))),
+              );
+            }
+          }),
+    );
   }
 
   Future<void> _repeatOrder(CustomerOrder order) async {
@@ -253,13 +319,13 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('order_added_to_cart'.tr)));
+      ).showSnackBar(bulkaSnackBar(content: Text('order_added_to_cart'.tr)));
       Navigator.of(context).pop();
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
+      ).showSnackBar(bulkaSnackBar(content: Text(localizeErrorMessage(error))));
     } finally {
       if (mounted) setState(() => _repeatInFlight.remove(order.id));
     }
@@ -354,14 +420,26 @@ class _CustomerOrdersScreenState extends State<CustomerOrdersScreen>
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(18, 20, 18, 32),
-        itemCount: _orders.length,
+        itemCount: _orders.length + (_moreActive || _moreCompleted ? 1 : 0),
         separatorBuilder: (_, _) => const SizedBox(height: 14),
-        itemBuilder: (_, index) => _CustomerOrderCard(
-          order: _orders[index],
-          onRepeat: () => _repeatOrder(_orders[index]),
-          onOpen: () => _openDetails(_orders[index]),
-          repeatLoading: _repeatInFlight.contains(_orders[index].id),
-        ),
+        itemBuilder: (_, index) => index == _orders.length
+            ? OutlinedButton(
+                onPressed: _loadingMore ? null : _loadMore,
+                child: _loadingMore
+                    ? const SizedBox.square(
+                        dimension: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text(
+                        staffText('Показать ещё', 'Тағы көрсету', 'Show more'),
+                      ),
+              )
+            : _CustomerOrderCard(
+                order: _orders[index],
+                onRepeat: () => _repeatOrder(_orders[index]),
+                onOpen: () => _openDetails(_orders[index]),
+                repeatLoading: _repeatInFlight.contains(_orders[index].id),
+              ),
       ),
     );
   }

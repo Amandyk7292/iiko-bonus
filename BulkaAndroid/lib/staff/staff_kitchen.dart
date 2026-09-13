@@ -400,7 +400,7 @@ class _StaffKitchenState extends State<StaffKitchen>
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
+        ).showSnackBar(bulkaSnackBar(content: Text('$error')));
       }
     } finally {
       if (mounted) setState(() => _saving.remove(id));

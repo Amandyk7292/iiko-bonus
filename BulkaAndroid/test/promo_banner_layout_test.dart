@@ -293,7 +293,7 @@ void main() {
       const MaterialApp(home: SplashScreen(text: 'Loading Bulka')),
     );
     final scaffold = tester.widget<Scaffold>(find.byType(Scaffold));
-    expect(scaffold.backgroundColor, const Color(0xFFFFB300));
+    expect(scaffold.backgroundColor, Colors.white);
     expect(find.byType(Image), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsNothing);
     final logo = find.byKey(const ValueKey('splash-clean-logo'));
@@ -305,7 +305,7 @@ void main() {
     expect(find.text('Loading Bulka'), findsNothing);
   });
 
-  testWidgets('story viewer uses the global white loading surface', (
+  testWidgets('story viewer uses one spinner without a loading logo', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -336,17 +336,17 @@ void main() {
       tester.widget(find.byKey(const ValueKey('story-loading-content'))),
       isA<Padding>(),
     );
-    final loadingLogo = tester.widget<Image>(
-      find.byKey(const ValueKey('story-loading-logo')),
-    );
-    expect(loadingLogo.width, 160);
+    expect(find.byKey(const ValueKey('story-loading-logo')), findsNothing);
+    final loadingSpinner = find.byKey(const ValueKey('story-loading-spinner'));
+    expect(loadingSpinner, findsOneWidget);
+    expect(tester.getSize(loadingSpinner), const Size.square(48));
     final loadingContent = find.byKey(const ValueKey('story-loading-content'));
     expect(
       find.descendant(
         of: loadingContent,
-        matching: find.byType(LinearProgressIndicator),
+        matching: find.byType(CircularProgressIndicator),
       ),
-      findsNothing,
+      findsOneWidget,
     );
     expect(
       find.descendant(of: loadingContent, matching: find.byType(Text)),

@@ -76,7 +76,9 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  testWidgets('stories render while news is still pending', (tester) async {
+  testWidgets('stories render without requesting the disabled news feed', (
+    tester,
+  ) async {
     final api = FeedApi();
     await tester.pumpWidget(home(api));
     await frames(tester);
@@ -90,13 +92,14 @@ void main() {
     await frames(tester);
     expect(find.byType(PromoBannerSlider), findsOneWidget);
     expect(find.byType(PromoBannerShimmer), findsNothing);
-    expect(api.news.isCompleted, isFalse);
-    api.news.complete([]);
+    expect(api.newsRequests, 0);
     await frames(tester);
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('news render while stories are still pending', (tester) async {
+  testWidgets('news are not rendered even when the API could return them', (
+    tester,
+  ) async {
     final api = FeedApi();
     await tester.pumpWidget(home(api));
     await frames(tester);
@@ -104,7 +107,8 @@ void main() {
       const NewsItem(id: 1, title: 'Быстрая новость', imageUrl: ''),
     ]);
     await frames(tester);
-    expect(find.byType(NewsFeed, skipOffstage: false), findsOneWidget);
+    expect(find.byType(NewsFeed, skipOffstage: false), findsNothing);
+    expect(api.newsRequests, 0);
     expect(api.stories.isCompleted, isFalse);
     api.stories.complete([]);
     await frames(tester);
@@ -124,7 +128,7 @@ void main() {
     await tester.pumpWidget(home(api, visible: false));
     await tester.pump(const Duration(minutes: 3));
     expect(api.storyRequests, 1);
-    expect(api.newsRequests, 1);
+    expect(api.newsRequests, 0);
     await tester.pumpWidget(home(api));
     await tester.pump(const Duration(minutes: 1));
     await frames(tester);
@@ -136,7 +140,9 @@ void main() {
     'cached catalog renders before a slow response without changing cart prices',
     (tester) async {
       SharedPreferences.setMockInitialValues({
-        'catalog_cache_ru_pickup_all': jsonEncode({
+        'selected_bakery_location_id_pickup': 'branch-one',
+        'selected_bakery_location_pickup': 'Филиал',
+        'catalog_cache_ru_pickup_branch-one': jsonEncode({
           'payload': menu,
           'cachedAt': DateTime.now().toIso8601String(),
         }),
@@ -184,6 +190,10 @@ void main() {
   testWidgets(
     'catalog coalesces update bursts and does not poll a hidden tab',
     (tester) async {
+      SharedPreferences.setMockInitialValues({
+        'selected_bakery_location_id_pickup': 'branch-one',
+        'selected_bakery_location_pickup': 'Филиал',
+      });
       final events = StreamController<Map<String, dynamic>>.broadcast();
       final pending = Completer<http.Response>();
       var menuRequests = 0;

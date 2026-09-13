@@ -76,6 +76,7 @@ class Customer {
     this.email,
     this.region,
     this.avatarKey,
+    this.avatarUrl,
     this.emailVerified = false,
   });
 
@@ -95,6 +96,7 @@ class Customer {
   final String? email;
   final String? region;
   final String? avatarKey;
+  final String? avatarUrl;
   final bool emailVerified;
 
   factory Customer.fromJson(Map<String, dynamic> json) {
@@ -139,6 +141,7 @@ class Customer {
       email: _nullableString(json['email']),
       region: _nullableString(json['region']),
       avatarKey: _nullableString(json['avatar_key'] ?? json['avatarKey']),
+      avatarUrl: _nullableString(json['avatar_url'] ?? json['avatarUrl']),
       emailVerified:
           json['emailVerified'] == true || json['email_verified'] == true,
     );
@@ -161,10 +164,16 @@ class Customer {
     'email': email,
     'region': region,
     'avatar_key': avatarKey,
+    'avatar_url': avatarUrl,
     'email_verified': emailVerified,
   };
 
-  Customer copyWith({Tier? tier, String? avatarKey}) {
+  Customer copyWith({
+    Tier? tier,
+    String? avatarKey,
+    String? avatarUrl,
+    bool clearAvatarUrl = false,
+  }) {
     return Customer(
       id: id,
       name: name,
@@ -182,6 +191,7 @@ class Customer {
       email: email,
       region: region,
       avatarKey: avatarKey ?? this.avatarKey,
+      avatarUrl: clearAvatarUrl ? null : avatarUrl ?? this.avatarUrl,
       emailVerified: emailVerified,
     );
   }
@@ -1141,6 +1151,15 @@ class AppNotification {
     };
     return legacyTitles[normalizedTitle];
   }
+
+  bool get isPushOnlyOrderStatus => const {
+    'order_accepted',
+    'order_preparing',
+    'order_ready',
+    'order_completed',
+    'order_cancelled',
+    'order_refunded',
+  }.contains(_systemMessageKey);
 
   String get _orderNumber {
     final fromPayload = _asString(

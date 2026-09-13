@@ -96,7 +96,7 @@ class CatalogProduct {
   final num? inStockCount;
   final num quantityStep;
   final String unit;
-  num get increment => quantityStep < 1 ? 0.1 : 1;
+  num get increment => quantityStep < 1 ? max<num>(quantityStep, 0.5) : 1;
   final int preparationMinutes;
   final String description;
   final bool isStopListed;

@@ -142,9 +142,9 @@ class _AddressSelectionScreenState extends State<AddressSelectionScreen> {
         });
       } catch (error) {
         if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
+        ScaffoldMessenger.of(context).showSnackBar(
+          bulkaSnackBar(content: Text(localizeErrorMessage(error))),
+        );
       }
     });
   }
@@ -160,7 +160,7 @@ class _AddressSelectionScreenState extends State<AddressSelectionScreen> {
       setState(() => _selectedId = previous);
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
+      ).showSnackBar(bulkaSnackBar(content: Text(localizeErrorMessage(error))));
     }
   }
 
@@ -206,9 +206,9 @@ class _AddressSelectionScreenState extends State<AddressSelectionScreen> {
           _addresses = previousAddresses;
           _selectedId = previousSelectedId;
         });
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(localizeErrorMessage(error))));
+        ScaffoldMessenger.of(context).showSnackBar(
+          bulkaSnackBar(content: Text(localizeErrorMessage(error))),
+        );
       }
     });
   }
@@ -235,7 +235,7 @@ class _AddressSelectionScreenState extends State<AddressSelectionScreen> {
         });
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('address_updated'.tr)));
+        ).showSnackBar(bulkaSnackBar(content: Text('address_updated'.tr)));
       } catch (error) {
         if (!mounted) return;
         showApiErrorSnackBar(context, error, fallbackKey: 'error_save');
@@ -327,9 +327,9 @@ class _AddressSelectionScreenState extends State<AddressSelectionScreen> {
                       onAction: _addAddress,
                     )
                   : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(24, 34, 24, 24),
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
                       itemCount: _addresses.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 14),
+                      separatorBuilder: (_, _) => const SizedBox(height: 10),
                       itemBuilder: (context, index) {
                         final address = _addresses[index];
                         return _AddressListTile(
@@ -470,26 +470,30 @@ class _AddressListTile extends StatelessWidget {
     final colors = context.bulkaColors;
     final scheme = Theme.of(context).colorScheme;
     final savedDetails = _savedDetails;
+    final locationDetails = address.location.fullAddress.trim();
+    final courierComment = address.courierComment?.trim() ?? '';
     return Semantics(
       button: true,
       selected: selected,
       label: [
         address.title,
+        locationDetails,
         savedDetails,
+        courierComment,
       ].where((value) => value.isNotEmpty).join('. '),
       child: Material(
         color: selected
             ? scheme.secondaryContainer.withValues(alpha: 0.58)
             : scheme.surface,
-        borderRadius: BorderRadius.circular(BulkaRadii.card),
+        borderRadius: BorderRadius.circular(16),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(BulkaRadii.card),
+          borderRadius: BorderRadius.circular(16),
           child: Container(
-            constraints: const BoxConstraints(minHeight: 82),
-            padding: const EdgeInsets.fromLTRB(22, 16, 16, 16),
+            constraints: const BoxConstraints(minHeight: 68),
+            padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(BulkaRadii.card),
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: selected ? colors.brandBrown : colors.cardBorder,
                 width: selected ? 2 : 1.4,
@@ -504,25 +508,53 @@ class _AddressListTile extends StatelessWidget {
                     children: [
                       Text(
                         address.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        maxLines: selected ? null : 1,
+                        overflow: selected
+                            ? TextOverflow.visible
+                            : TextOverflow.ellipsis,
                         style: TextStyle(
                           fontFamily: _headingFont,
                           color: scheme.onSurface,
-                          fontSize: BulkaTypeScale.titleSmall,
+                          fontSize: 16,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
+                      if (selected && locationDetails.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          locationDetails,
+                          style: TextStyle(
+                            color: scheme.onSurface,
+                            fontSize: 13,
+                            height: 1.2,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                       if (savedDetails.isNotEmpty) ...[
-                        const SizedBox(height: 7),
+                        const SizedBox(height: 4),
                         Text(
                           savedDetails,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                          maxLines: selected ? null : 2,
+                          overflow: selected
+                              ? TextOverflow.visible
+                              : TextOverflow.ellipsis,
                           style: TextStyle(
                             color: colors.mutedText,
-                            fontSize: BulkaTypeScale.body,
+                            fontSize: 13,
                             height: 1.18,
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                      ],
+                      if (selected && courierComment.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          '${'courier_comment_label'.tr}: $courierComment',
+                          style: TextStyle(
+                            color: colors.mutedText,
+                            fontSize: 13,
+                            height: 1.2,
                             fontWeight: FontWeight.w400,
                           ),
                         ),
@@ -530,29 +562,29 @@ class _AddressListTile extends StatelessWidget {
                     ],
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     AnimatedContainer(
                       key: ValueKey('address-selected-indicator-${address.id}'),
                       duration: BulkaMotion.duration(context, BulkaMotion.fast),
-                      width: 34,
-                      height: 34,
+                      width: 26,
+                      height: 26,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: selected ? colors.brandGold : scheme.surface,
-                        border: Border.all(
-                          color: selected
-                              ? colors.brandBrown
-                              : colors.cardBorder,
-                          width: selected ? 2 : 1,
-                        ),
+                        border: selected
+                            ? null
+                            : Border.all(
+                                color: colors.cardBorder,
+                                width: BulkaStrokes.hairline,
+                              ),
                       ),
                       child: selected
                           ? Icon(
                               Icons.check_rounded,
-                              size: 25,
+                              size: 20,
                               color: colors.brandBrown,
                             )
                           : null,

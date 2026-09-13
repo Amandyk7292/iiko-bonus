@@ -13,7 +13,71 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   setUp(() {
     appLanguageNotifier.value = 'ru';
+    SharedPreferences.setMockInitialValues({
+      'selected_bakery_location_id_pickup': 'branch-one',
+      'selected_bakery_location_pickup': 'Филиал',
+    });
+  });
+
+  testWidgets('catalog asks for a bakery instead of showing skeletons', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 520);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     SharedPreferences.setMockInitialValues({});
+    var menuRequests = 0;
+    final client = MockClient((request) async {
+      if (request.url.path.endsWith('/api/guest/menu')) menuRequests++;
+      return http.Response(
+        jsonEncode({'success': true}),
+        200,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    });
+    addTearDown(client.close);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildBulkaTheme(),
+        home: ChangeNotifierProvider(
+          create: (_) => CartProvider(),
+          child: Scaffold(
+            extendBody: true,
+            bottomNavigationBar: const SizedBox(
+              height: 88,
+              child: ColoredBox(color: Colors.white),
+            ),
+            body: CatalogScreen(api: BulkaApiClient(client: client)),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('catalog-select-bakery-state')),
+      findsOneWidget,
+    );
+    expect(find.text('Сначала выберите пекарню'), findsOneWidget);
+    expect(find.text('Выбрать пекарню'), findsWidgets);
+    expect(
+      find.byKey(const ValueKey('catalog-skeleton-categories')),
+      findsNothing,
+    );
+    expect(menuRequests, 0);
+    expect(find.byIcon(Icons.storefront_rounded), findsNothing);
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -700));
+    await tester.pumpAndSettle();
+    final button = find.descendant(
+      of: find.byKey(const ValueKey('catalog-select-bakery-state')),
+      matching: find.text('Выбрать пекарню'),
+    );
+    expect(button.hitTestable(), findsOneWidget);
+    expect(tester.getBottomRight(button).dy, lessThanOrEqualTo(520 - 88));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 
   testWidgets('catalog search stays pinned while category cards scroll', (
@@ -429,6 +493,7 @@ void main() {
     SharedPreferences.setMockInitialValues({
       'selected_order_type': 'pickup',
       'selected_bakery_location_pickup': bakeryAddress,
+      'selected_bakery_location_id_pickup': 'branch-one',
     });
 
     final client = MockClient((request) async {
@@ -553,9 +618,33 @@ void main() {
   testWidgets('late pickup response cannot replace the delivery catalog', (
     tester,
   ) async {
+    SharedPreferences.setMockInitialValues({
+      'selected_bakery_location_id_pickup': 'branch-one',
+      'selected_bakery_location_pickup': 'Филиал',
+      'selected_bakery_location_id_delivery': 'branch-one',
+      'selected_bakery_location_delivery': 'Филиал',
+    });
     final pickupResponse = Completer<http.Response>();
     final requestedTypes = <String>[];
     final client = MockClient((request) async {
+      if (request.url.path.endsWith('/api/guest/locations')) {
+        return http.Response(
+          jsonEncode({
+            'success': true,
+            'locations': [
+              {
+                'id': 'branch-one',
+                'name': 'Филиал',
+                'address': 'Адрес',
+                'city': 'Актау',
+                'deliveryEnabled': true,
+              },
+            ],
+          }),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }
       if (!request.url.path.endsWith('/api/guest/menu')) {
         return http.Response(
           jsonEncode({'success': true}),

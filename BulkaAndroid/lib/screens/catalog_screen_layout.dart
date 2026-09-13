@@ -18,6 +18,7 @@ extension _CatalogScreenLayout on _CatalogScreenState {
     final visibleProducts = _filteredProducts;
     final filterActive = _filterActive;
     final categoryGroups = _categoryGroups;
+    final needsBakerySelection = _menuScopeReady && _selectedBakeryId.isEmpty;
     final hasSearchQuery = _searchQuery.trim().isNotEmpty;
     final browseByCategory =
         !hasSearchQuery &&
@@ -25,7 +26,8 @@ extension _CatalogScreenLayout on _CatalogScreenState {
         !_favoritesOnly &&
         !filterActive &&
         categoryGroups.isNotEmpty;
-    final showCategorySelector = !_isLoading && !browseByCategory;
+    final showCategorySelector =
+        !_isLoading && !needsBakerySelection && !browseByCategory;
     final searchSuggestions = _searchSuggestions;
     final favoritesEmpty =
         _favoritesOnly &&
@@ -63,6 +65,7 @@ extension _CatalogScreenLayout on _CatalogScreenState {
                 color: _bulkaYellow,
                 onRefresh: _loadMenu,
                 child: CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
                   slivers: [
                     SliverPersistentHeader(
                       pinned: true,
@@ -335,7 +338,18 @@ extension _CatalogScreenLayout on _CatalogScreenState {
                     ),
 
                     // Product List
-                    if (_isLoading)
+                    if (needsBakerySelection)
+                      SliverToBoxAdapter(
+                        child: _CatalogMessageState(
+                          key: const ValueKey('catalog-select-bakery-state'),
+                          title: 'catalog_select_bakery_title'.tr,
+                          subtitle: 'catalog_sub'.tr,
+                          actionLabel: 'catalog_action'.tr,
+                          actionIcon: Icons.location_on_outlined,
+                          onAction: _selectFulfillmentSource,
+                        ),
+                      )
+                    else if (_isLoading)
                       const SliverToBoxAdapter(child: _CatalogSkeletonCatalog())
                     else if (_loadError != null)
                       SliverToBoxAdapter(
@@ -472,6 +486,15 @@ extension _CatalogScreenLayout on _CatalogScreenState {
                               crossSpacing,
                             );
                           },
+                        ),
+                      ),
+                    if (needsBakerySelection ||
+                        _isLoading ||
+                        _loadError != null ||
+                        visibleProducts.isEmpty)
+                      SliverToBoxAdapter(
+                        child: SizedBox(
+                          height: _catalogContentBottomInset(context),
                         ),
                       ),
                   ],

@@ -80,7 +80,10 @@ class _BalanceHistoryScreenState extends State<BalanceHistoryScreen> {
               style: IconButton.styleFrom(
                 minimumSize: const Size(44, 44),
                 foregroundColor: colors.brandBrown,
-                side: BorderSide(color: colors.cardBorder),
+                side: BorderSide(
+                  color: colors.cardBorder,
+                  width: BulkaStrokes.hairline,
+                ),
                 shape: const CircleBorder(),
               ),
               icon: const Icon(Icons.chevron_left_rounded, size: 28),

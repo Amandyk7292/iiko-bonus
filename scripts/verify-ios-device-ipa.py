@@ -7,7 +7,7 @@ import tempfile
 import zipfile
 
 
-def verify(directory, expected):
+def verify(directory, expected, app_store=False):
     packages = list(Path(directory).glob('*.ipa'))
     if len(packages) != 1:
         raise ValueError('Expected exactly one IPA')
@@ -31,7 +31,10 @@ def verify(directory, expected):
             path.write_bytes(archive.read(root + '/embedded.mobileprovision'))
             profile = plistlib.loads(subprocess.check_output(
                 ['security', 'cms', '-D', '-i', str(path)], stderr=subprocess.PIPE))
-            if not profile.get('ProvisionedDevices'):
+            if app_store and (profile.get('ProvisionedDevices') or profile.get('ProvisionsAllDevices')
+                              or profile.get('Entitlements', {}).get('get-task-allow')):
+                raise ValueError('IPA profile is not for App Store distribution')
+            if not app_store and not profile.get('ProvisionedDevices'):
                 raise ValueError('IPA profile does not allow direct device installation')
         print('Verified IPA:', expected, 'version', info.get('CFBundleShortVersionString'),
               'build', info.get('CFBundleVersion'))
@@ -41,5 +44,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('directory')
     parser.add_argument('--expected-bundle-id', required=True)
+    parser.add_argument('--app-store', action='store_true')
     args = parser.parse_args()
-    verify(args.directory, args.expected_bundle_id)
+    verify(args.directory, args.expected_bundle_id, args.app_store)

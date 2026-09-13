@@ -65,7 +65,7 @@ void main() {
     final username = tester.widget<TextField>(
       find.byKey(const ValueKey('auth-admin-username')),
     );
-    expect(username.controller!.text, 'admin');
+    expect(username.controller!.text, isEmpty);
     for (final key in [
       'auth-method-password',
       'auth-admin-username',
@@ -124,6 +124,10 @@ void main() {
       );
       await selectMethod(tester, 'password');
       await tester.enterText(
+        find.byKey(const ValueKey('auth-admin-username')),
+        'admin',
+      );
+      await tester.enterText(
         find.byKey(const ValueKey('auth-admin-password')),
         'secret',
       );
@@ -169,6 +173,10 @@ void main() {
       ),
     );
     await selectMethod(tester, 'password');
+    await tester.enterText(
+      find.byKey(const ValueKey('auth-admin-username')),
+      'admin',
+    );
     await tester.enterText(
       find.byKey(const ValueKey('auth-admin-password')),
       'secret',

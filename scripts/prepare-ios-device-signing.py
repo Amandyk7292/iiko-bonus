@@ -14,6 +14,15 @@ def run(*args):
     return subprocess.check_output(args, stderr=subprocess.PIPE)
 
 
+def validate_distribution(profile, app_store=False):
+    if app_store:
+        if (profile.get('ProvisionedDevices') or profile.get('ProvisionsAllDevices')
+                or profile['Entitlements'].get('get-task-allow')):
+            raise ValueError('App Store build requires App Store distribution profiles')
+    elif not profile.get('ProvisionedDevices'):
+        raise ValueError('Use development or ad hoc profiles for direct device installation')
+
+
 def prepare():
     if sys.platform != 'darwin':
         raise ValueError('Signing requires a macOS runner')
@@ -21,6 +30,7 @@ def prepare():
     temp = Path(os.environ['RUNNER_TEMP']).resolve() / 'bulka-signing'
     temp.mkdir(mode=0o700, parents=True, exist_ok=True)
     profiles = {}
+    app_store = os.environ.get('IOS_DISTRIBUTION') == 'app-store'
     for bundle, secret_name in [('com.bulka.bonus', 'IOS_APP_PROFILE'),
                                 ('com.bulka.bonus.BulkaWidget', 'IOS_WIDGET_PROFILE')]:
         source = temp / (bundle + '.mobileprovision')
@@ -33,8 +43,7 @@ def prepare():
             raise ValueError('Provisioning profile bundle mismatch: ' + bundle)
         if profile['ExpirationDate'] <= datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None):
             raise ValueError('Expired provisioning profile: ' + bundle)
-        if not profile.get('ProvisionedDevices'):
-            raise ValueError('Use development or ad hoc profiles for direct device installation')
+        validate_distribution(profile, app_store)
         target = Path.home() / 'Library/MobileDevice/Provisioning Profiles'
         target.mkdir(parents=True, exist_ok=True)
         (target / (profile['UUID'] + '.mobileprovision')).write_bytes(source.read_bytes())
@@ -47,7 +56,7 @@ def prepare():
             raise ValueError('App and widget profiles must use the same team')
         if bool(profile['Entitlements'].get('get-task-allow')) != development:
             raise ValueError('App and widget profile types must match')
-    if not set.intersection(*(set(p['ProvisionedDevices']) for p in profiles.values())):
+    if not app_store and not set.intersection(*(set(p['ProvisionedDevices']) for p in profiles.values())):
         raise ValueError('App and widget profiles have no common device')
     firebase = base64.b64decode(os.environ['IOS_FIREBASE_PLIST'], validate=True)
     if plistlib.loads(firebase).get('BUNDLE_ID') != 'com.bulka.bonus':
@@ -86,7 +95,7 @@ def prepare():
         settings[target] = {'team': team, 'identity': identity,
                             'profile': profile['UUID'], 'entitlements': str(path)}
     (temp / 'targets.json').write_text(json.dumps(settings), encoding='utf-8')
-    export = {'method': 'debugging' if development else 'release-testing',
+    export = {'method': 'app-store-connect' if app_store else ('debugging' if development else 'release-testing'),
               'signingStyle': 'manual', 'teamID': team, 'signingCertificate': identity,
               'provisioningProfiles': {b: p['UUID'] for b, p in profiles.items()},
               'manageAppVersionAndBuildNumber': False}

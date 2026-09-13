@@ -118,7 +118,7 @@ class _NotificationSettingsScreenState
       await BulkaMotion.confirm();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('notifications_settings_saved'.tr)),
+          bulkaSnackBar(content: Text('notifications_settings_saved'.tr)),
         );
       }
     } catch (error) {

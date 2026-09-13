@@ -27,16 +27,19 @@ class PendingForteOperation {
     required this.operationId,
     required this.checkoutId,
     required this.createdAt,
+    this.cartRevision,
   });
 
   final String operationId;
   final String checkoutId;
   final DateTime createdAt;
+  final String? cartRevision;
 
   Map<String, dynamic> toJson() => {
     'operationId': operationId,
     'checkoutId': checkoutId,
     'createdAt': createdAt.toUtc().toIso8601String(),
+    'cartRevision': cartRevision,
   };
 
   static PendingForteOperation? fromJson(Map<String, dynamic> json) {
@@ -50,6 +53,7 @@ class PendingForteOperation {
       operationId: operationId,
       checkoutId: checkoutId,
       createdAt: createdAt,
+      cartRevision: json['cartRevision'] as String?,
     );
   }
 }
@@ -86,6 +90,7 @@ abstract final class PendingForteOperationStore {
     BulkaApiClient api, {
     required String operationId,
     required String checkoutId,
+    String? cartRevision,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
@@ -95,28 +100,73 @@ abstract final class PendingForteOperationStore {
           operationId: operationId,
           checkoutId: checkoutId,
           createdAt: DateTime.now(),
+          cartRevision: cartRevision,
         ).toJson(),
       ),
     );
   }
 
   static Future<PendingForteOperation?> resolveForCheckout(
-    BulkaApiClient api,
-  ) async {
+    BulkaApiClient api, {
+    String? cartRevision,
+  }) async {
     final pending = await load(api);
-    if (pending == null) return null;
+    final prefs = await SharedPreferences.getInstance();
+    final checkoutId =
+        pending?.checkoutId ??
+        prefs.getString(
+          customerPreferenceKey('checkout_id', api.sessionCacheScope),
+        );
+    if (checkoutId == null) return null;
+    final savedRevision =
+        pending?.cartRevision ??
+        prefs.getString(
+          customerPreferenceKey(
+            'checkout_cart_revision',
+            api.sessionCacheScope,
+          ),
+        );
+    final sameCart = cartRevision == null || savedRevision == cartRevision;
+    Map<String, dynamic> result;
     try {
-      final result = await api.checkFortePaymentStatus(pending.operationId);
-      final status = (result['paymentStatus'] ?? result['status'] ?? 'pending')
-          .toString();
-      if (isTerminalForteFailure(status)) {
-        await clear(api, expectedCheckoutId: pending.checkoutId);
+      result = pending != null
+          ? await api.checkFortePaymentStatus(pending.operationId)
+          : await api.checkForteCheckoutStatus(checkoutId);
+    } catch (error) {
+      if (error is ApiException && error.statusCode == 404 && pending == null) {
+        await clear(api, expectedCheckoutId: checkoutId);
         return null;
       }
-    } catch (_) {
-      // An unavailable status must not create a second payment.
+      // An unknown result must never start a second payment or apply an old
+      // payment to changed cart contents.
+      if (!sameCart) {
+        throw ApiException('forte_payment_pending_hint'.tr);
+      }
+      return pending ??
+          PendingForteOperation(
+            operationId: checkoutId,
+            checkoutId: checkoutId,
+            createdAt: DateTime.now(),
+            cartRevision: savedRevision,
+          );
     }
-    return pending;
+    final status = _asString(
+      result['paymentStatus'] ?? result['status'],
+    ).toLowerCase();
+    if (isTerminalForteFailure(status) || (status == 'paid' && !sameCart)) {
+      await clear(api, expectedCheckoutId: checkoutId);
+      return null;
+    }
+    if (!sameCart) {
+      throw ApiException('forte_payment_pending_hint'.tr);
+    }
+    return pending ??
+        PendingForteOperation(
+          operationId: _asString(result['operationId'], fallback: checkoutId),
+          checkoutId: checkoutId,
+          createdAt: DateTime.now(),
+          cartRevision: savedRevision,
+        );
   }
 
   // Reordering is an explicit new purchase. A normal checkout retry above
@@ -189,6 +239,9 @@ abstract final class PendingForteOperationStore {
       // from reusing that id.
       prefs.remove(customerPreferenceKey('checkout_id', api.sessionCacheScope)),
       prefs.remove(
+        customerPreferenceKey('checkout_cart_revision', api.sessionCacheScope),
+      ),
+      prefs.remove(
         customerPreferenceKey('checkout_id_created_at', api.sessionCacheScope),
       ),
     ]);
@@ -253,7 +306,11 @@ ForteCheckoutReturn? forteCheckoutReturnFromUri(Uri uri) {
   }
 
   if ((queryValue('payment') ?? '').toLowerCase() != 'forte') return null;
-  final orderId = queryValue(path == '/profile' ? 'setup' : 'order') ?? '';
+  final orderId =
+      (path == '/profile'
+          ? queryValue('setup') ?? queryValue('topup')
+          : queryValue('order')) ??
+      '';
   if (!RegExp(
     r'^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
     caseSensitive: false,
@@ -319,6 +376,7 @@ class FortePaymentScreen extends StatefulWidget {
     required this.redirectUrl,
     this.checkoutId,
     this.cardSetup = false,
+    this.personalAccountTopup = false,
     this.statusTimeout = const Duration(minutes: 30),
     super.key,
   });
@@ -328,6 +386,7 @@ class FortePaymentScreen extends StatefulWidget {
   final String redirectUrl;
   final String? checkoutId;
   final bool cardSetup;
+  final bool personalAccountTopup;
   @visibleForTesting
   final Duration statusTimeout;
 
@@ -337,7 +396,7 @@ class FortePaymentScreen extends StatefulWidget {
 
 class _FortePaymentScreenState extends State<FortePaymentScreen> {
   Timer? _timer;
-  late final DateTime _deadline;
+  late DateTime _deadline;
   String _paymentStatus = 'pending';
   String? _checkoutError;
   String? _statusError;
@@ -347,7 +406,7 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
   bool _checkoutReturned = false;
   bool _cardSaved = false;
   String? _refundStatus;
-  int _loadingProgress = 0;
+  late final String? _session;
 
   bool get _paid => _paymentStatus == 'paid';
   bool get _terminalFailure => isTerminalForteFailure(_paymentStatus);
@@ -370,6 +429,7 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
   @override
   void initState() {
     super.initState();
+    _session = widget.api.sessionCacheScope;
     _deadline = DateTime.now().add(widget.statusTimeout);
     _timer = Timer.periodic(
       const Duration(seconds: 3),
@@ -381,8 +441,22 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
     });
   }
 
-  Future<void> _checkStatus() async {
-    if (_checking || !mounted) return;
+  Future<void> _checkStatus({bool manual = false}) async {
+    if (_checking ||
+        !mounted ||
+        _paid ||
+        _terminalFailure ||
+        _session != widget.api.sessionCacheScope) {
+      return;
+    }
+    if (manual) {
+      _deadline = DateTime.now().add(widget.statusTimeout);
+      _timer?.cancel();
+      _timer = Timer.periodic(
+        const Duration(seconds: 3),
+        (_) => unawaited(_checkStatus()),
+      );
+    }
     if (DateTime.now().isAfter(_deadline)) {
       _timer?.cancel();
       setState(() => _statusError = 'payment_timeout'.tr);
@@ -390,10 +464,12 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
     }
     setState(() => _checking = true);
     try {
-      final result = widget.cardSetup
+      final result = widget.personalAccountTopup
+          ? await widget.api.checkPersonalAccountTopup(widget.operationId)
+          : widget.cardSetup
           ? await widget.api.checkForteCardSetupStatus(widget.operationId)
           : await widget.api.checkFortePaymentStatus(widget.operationId);
-      if (!mounted) return;
+      if (!mounted || _session != widget.api.sessionCacheScope) return;
       final providerStatus =
           (result['paymentStatus'] ?? result['status'] ?? 'pending')
               .toString()
@@ -408,7 +484,9 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
       });
       if (_paid || _terminalFailure) {
         _timer?.cancel();
-        if (!widget.cardSetup) {
+        if (!widget.cardSetup &&
+            !widget.personalAccountTopup &&
+            _terminalFailure) {
           unawaited(
             PendingForteOperationStore.clear(
               widget.api,
@@ -435,7 +513,6 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
       setState(() {
         _checkoutError = null;
         _embeddedCheckoutVisible = true;
-        _loadingProgress = 0;
         _opening = true;
       });
       return;
@@ -494,7 +571,6 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
       _checkoutReturned = true;
       _embeddedCheckoutVisible = false;
       _opening = false;
-      _loadingProgress = 100;
       _checkoutError = null;
     });
     unawaited(_checkStatus());
@@ -551,7 +627,7 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
       _embeddedCheckoutVisible = false;
       _opening = false;
     });
-    await _checkStatus();
+    await _checkStatus(manual: true);
     if (mounted) _finish();
   }
 
@@ -559,7 +635,6 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
     if (!mounted) return;
     setState(() {
       _opening = false;
-      _loadingProgress = 100;
     });
   }
 
@@ -574,9 +649,9 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
 
   void _showExternalOpenError() {
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('forte_external_app_failed'.tr)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      bulkaSnackBar(content: Text('forte_external_app_failed'.tr)),
+    );
   }
 
   @override
@@ -590,7 +665,10 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
     final paid = _paid;
     final refunded = _paymentStatus == 'refunded';
     final terminalFailure = _terminalFailure;
-    final verifying = _checkoutReturned && !paid && !terminalFailure;
+    final verifying =
+        (_checkoutReturned || _statusError != null) &&
+        !paid &&
+        !terminalFailure;
     final refundComplete = const {
       'succeeded',
       'not_required',
@@ -614,7 +692,9 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
         : verifying
         ? 'forte_payment_pending_title'.tr
         : 'payment_confirm'.tr;
-    final String? message = widget.cardSetup
+    final String? message = widget.personalAccountTopup && paid
+        ? _accountText('credited')
+        : widget.cardSetup
         ? paid
               ? _cardSaved && !refundComplete
                     ? 'card_setup_saved_refund_pending'.tr
@@ -646,55 +726,6 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
             icon: const Icon(Icons.close_rounded),
             onPressed: _requestClose,
           ),
-          title: _FortePaymentAppBarTitle(
-            title: widget.cardSetup
-                ? 'payment_methods_add'.tr
-                : 'forte_payment_title'.tr,
-          ),
-          actions: const [SizedBox(width: BulkaLayout.appBarSideSlot)],
-          bottom: showEmbeddedCheckout
-              ? PreferredSize(
-                  preferredSize: const Size.fromHeight(38),
-                  child: Semantics(
-                    label: 'forte_secure_page'.tr,
-                    child: Container(
-                      key: const ValueKey('forte-secure-page-header'),
-                      height: 38,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFF8EA),
-                        border: Border(
-                          top: BorderSide(
-                            color: _almond.withValues(alpha: 0.55),
-                          ),
-                          bottom: BorderSide(
-                            color: _almond.withValues(alpha: 0.75),
-                          ),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.lock_outline_rounded,
-                            size: 17,
-                            color: _successGreen,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'forte_secure_page'.tr,
-                            style: const TextStyle(
-                              fontFamily: _descriptionFont,
-                              fontSize: BulkaTypeScale.caption,
-                              fontWeight: FontWeight.w600,
-                              color: _textDark,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                )
-              : null,
         ),
         body: showEmbeddedCheckout
             ? SafeArea(
@@ -704,6 +735,7 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
                       child: ForteCheckoutWebView(
                         key: ValueKey('forte-webview-${widget.operationId}'),
                         initialUri: _embeddedCheckoutUri!,
+                        onProgress: (_) {},
                         acceptLanguage: forteCheckoutAcceptLanguage(
                           AppLang.current,
                         ),
@@ -711,36 +743,12 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
                         isReturnUri: (uri) =>
                             forteCheckoutReturnFromUri(uri) != null,
                         onReturn: _handleCheckoutReturn,
-                        onProgress: (progress) {
-                          if (mounted && progress != _loadingProgress) {
-                            setState(() => _loadingProgress = progress);
-                          }
-                        },
                         onReady: _handleEmbeddedReady,
                         onUnavailable: _handleEmbeddedUnavailable,
                         openExternalUri: _openExternalCheckoutUri,
                         onExternalOpenFailed: _showExternalOpenError,
                       ),
                     ),
-                    if (_loadingProgress < 100)
-                      Align(
-                        alignment: Alignment.topCenter,
-                        child: Semantics(
-                          liveRegion: true,
-                          label: 'forte_payment_loading'.tr,
-                          value: _loadingProgress <= 0
-                              ? null
-                              : '$_loadingProgress%',
-                          child: LinearProgressIndicator(
-                            value: _loadingProgress <= 0
-                                ? null
-                                : _loadingProgress / 100,
-                            minHeight: 3,
-                            color: _bulkaYellow,
-                            backgroundColor: const Color(0xFFFFF1D0),
-                          ),
-                        ),
-                      ),
                   ],
                 ),
               )
@@ -798,7 +806,7 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
                         ),
                         if (!paid && !terminalFailure) ...[
                           const SizedBox(height: 28),
-                          if (_checking)
+                          if (_checking && !verifying)
                             const CircularProgressIndicator(
                               color: _bulkaYellow,
                             ),
@@ -819,12 +827,14 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
                               child: GradientButton(
                                 onPressed: _checking
                                     ? null
-                                    : () => unawaited(_checkStatus()),
+                                    : () =>
+                                          unawaited(_checkStatus(manual: true)),
                                 loading: _checking,
                                 child: Text('forte_payment_check_status'.tr),
                               ),
                             ),
-                            if (!widget.cardSetup) ...[
+                            if (!widget.cardSetup &&
+                                !widget.personalAccountTopup) ...[
                               const SizedBox(height: 10),
                               SizedBox(
                                 width: double.infinity,
@@ -876,53 +886,6 @@ class _FortePaymentScreenState extends State<FortePaymentScreen> {
                   ),
                 ),
               ),
-      ),
-    );
-  }
-}
-
-class _FortePaymentAppBarTitle extends StatelessWidget {
-  const _FortePaymentAppBarTitle({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      header: true,
-      label: 'Bulka, $title',
-      excludeSemantics: true,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Image.asset(
-            'assets/brand/bulka_logo.png',
-            width: 54,
-            height: 28,
-            fit: BoxFit.contain,
-            errorBuilder: (_, _, _) => const Text(
-              'Bulka',
-              style: TextStyle(
-                fontFamily: _headingFont,
-                fontWeight: FontWeight.w700,
-                color: _bulkaBrown,
-              ),
-            ),
-          ),
-          const SizedBox(width: 9),
-          Container(width: 1, height: 24, color: const Color(0xFFE8D8B8)),
-          const SizedBox(width: 9),
-          Flexible(
-            child: Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: _bulkaPageTitleTextStyle.copyWith(
-                fontSize: BulkaTypeScale.titleSmall,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }

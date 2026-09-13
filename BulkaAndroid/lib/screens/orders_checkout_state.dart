@@ -66,11 +66,10 @@ extension _CheckoutScreenStatePreferences on _CheckoutScreenState {
       _draftKey('checkout_scheduled_at'),
     );
     final parsedScheduledAt = DateTime.tryParse(savedScheduledAt ?? '');
-    final preferredCheckoutId =
-        widget.initialCheckoutId ??
-        (savedCheckoutIsFresh ? savedCheckoutId : null);
+    // Only reuse a request after its payment status and cart identity have
+    // been resolved by the caller. A recent id alone may be an old purchase.
+    final preferredCheckoutId = widget.initialCheckoutId;
     if (!mounted) return;
-    _phoneController.text = prefs.getString(_draftKey('checkout_phone')) ?? '';
     _promoController.text = prefs.getString(_draftKey('checkout_promo')) ?? '';
     _appliedPromoCode = _promoController.text.trim();
     _commentController.text =
@@ -97,6 +96,7 @@ extension _CheckoutScreenStatePreferences on _CheckoutScreenState {
       );
       _deliveryAvailabilityChecked = locationsLoaded;
     });
+    if (!_usesDelivery) unawaited(_loadScheduleOptions());
     if (parsedScheduledAt != null) {
       await _restoreScheduledSlot(parsedScheduledAt);
     }

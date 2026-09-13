@@ -4,188 +4,189 @@ class LoyaltyTierCard extends StatelessWidget {
   const LoyaltyTierCard({
     this.tier,
     this.cashbackPercent = 0,
-    this.totalSpent = 0,
-    this.vipThreshold = 0,
+    this.bonusBalance = 0,
+    this.personalAccountBalance = 0,
+    this.onPersonalAccountTap,
     super.key,
   });
+
   final Tier? tier;
   final int cashbackPercent;
-  final double totalSpent;
-  final double vipThreshold;
+  final double bonusBalance;
+  final double personalAccountBalance;
+  final VoidCallback? onPersonalAccountTap;
+
+  String _amount(num value) {
+    final normalized = value
+        .toStringAsFixed(2)
+        .replaceFirst(RegExp(r'\.?0+$'), '');
+    return normalized.replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (_) => ' ',
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final current = tier;
     final name = current?.localizedName ?? 'tier_base'.tr;
     final percent = current?.percent ?? cashbackPercent;
-    final tiers = current?.allTiers ?? const <TierItem>[];
-    final level = max(current?.level ?? 1, 1);
-    final total = max(tiers.length, level);
-    final next = current?.localizedNextTier;
-    var nextPercent = current?.nextPercent ?? percent;
-    if (next != null && current != null && current.nextPercent == null) {
-      for (final item in tiers) {
-        if (item.name == current.nextTier || item.localizedName == next) {
-          nextPercent = item.percent;
-          break;
-        }
-      }
-      if (nextPercent == percent && level < tiers.length) {
-        nextPercent = tiers[level].percent;
-      }
-    }
-    final progress =
-        current?.progressFraction ??
-        (vipThreshold > 0 ? (totalSpent / vipThreshold).clamp(0.0, 1.0) : 0.0);
-    final description = current == null
-        ? 'tier_current'.trArgs({'percent': percent})
-        : next == null
-        ? 'tier_max'.trArgs({'name': name, 'percent': percent})
-        : 'tier_next'.trArgs({
-            'name': next,
-            'percent': nextPercent,
-            'remaining': formatGroupedNumber(current.remaining),
-          });
-    final code = ['silver', 'platinum'].contains(current?.code)
-        ? current!.code
-        : 'bronze';
-    final path = current?.backgroundImageUrl ?? '/assets/loyalty/$code-v1.webp';
-    final imageUrl = Uri.parse(_apiBaseUrl).resolve(path).toString();
+    const foreground = Color(0xFF703111);
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(BulkaRadii.card),
-      child: Stack(
-        children: [
-          const Positioned.fill(child: ColoredBox(color: Color(0xFF241A15))),
-          Positioned.fill(
-            child: ExcludeSemantics(
-              child: _NetworkImage(
-                url: imageUrl,
-                fit: BoxFit.cover,
-                loadingPlaceholder: const SizedBox.shrink(),
-                errorPlaceholder: const SizedBox.shrink(),
-              ),
-            ),
-          ),
-          const Positioned.fill(child: ColoredBox(color: Color(0x731F140F))),
-          const Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Color(0x33000000), Colors.transparent],
+    return Semantics(
+      container: true,
+      label:
+          '$name, $percent%. ${'loyalty_bonus_balance'.tr}: ${_amount(bonusBalance)}',
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(BulkaRadii.card),
+        child: DecoratedBox(
+          decoration: const BoxDecoration(color: Color(0xFFFFB300)),
+          child: Stack(
+            children: [
+              Positioned(
+                right: -28,
+                top: 34,
+                child: IgnorePointer(
+                  child: Opacity(
+                    opacity: 0.16,
+                    child: Image.asset(
+                      'assets/brand/bulka_logo.png',
+                      width: 250,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Icon(
-                      Icons.workspace_premium_rounded,
-                      color: Color(0xFFFFD790),
-                      size: 26,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'tier_status'.trArgs({
-                          'name': name,
-                          'percent': percent,
-                        }),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontFamily: _headingFont,
-                          fontSize: BulkaTypeScale.titleSmall,
-                          fontWeight: FontWeight.w700,
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: _LoyaltyMetric(
+                            value: '$name $percent%',
+                            label: 'loyalty_cashback_level'.tr,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _LoyaltyMetric(
+                            value: '${_amount(bonusBalance)} Б',
+                            label:
+                                '${'loyalty_bonus_balance'.tr}\n${'loyalty_bonus_rate'.tr}',
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            textAlign: TextAlign.end,
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  'tier_level'.trArgs({'level': level, 'total': total}),
-                  style: const TextStyle(
-                    color: Color(0xFFFFD790),
-                    fontSize: BulkaTypeScale.caption,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  description,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: BulkaTypeScale.bodySmall,
-                    height: 1.45,
-                  ),
-                ),
-                const SizedBox(height: 18),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(BulkaRadii.pill),
-                  child: LinearProgressIndicator(
-                    value: progress,
-                    minHeight: 6,
-                    backgroundColor: const Color(0x40FFFFFF),
-                    valueColor: const AlwaysStoppedAnimation(Color(0xFFFFD790)),
-                  ),
-                ),
-                if (tiers.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (var index = 0; index < tiers.length; index++)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0x66000000),
-                            borderRadius: BorderRadius.circular(
-                              BulkaRadii.pill,
-                            ),
-                          ),
+                    const SizedBox(height: 52),
+                    Material(
+                      color: Colors.white.withValues(alpha: 0.38),
+                      borderRadius: BorderRadius.circular(BulkaRadii.control),
+                      child: InkWell(
+                        key: const ValueKey('loyalty-personal-account'),
+                        onTap: onPersonalAccountTap,
+                        borderRadius: BorderRadius.circular(BulkaRadii.control),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
                           child: Row(
-                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(
-                                index < level
-                                    ? Icons.check_circle_rounded
-                                    : Icons.radio_button_unchecked,
-                                size: 14,
-                                color: index < level
-                                    ? const Color(0xFFFFD790)
-                                    : Colors.white,
-                              ),
-                              const SizedBox(width: 5),
-                              Flexible(
+                              Expanded(
                                 child: Text(
-                                  '${tiers[index].localizedName} ${tiers[index].percent}%',
+                                  '${'loyalty_personal_account'.tr}: ${_amount(personalAccountBalance)} ₸',
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: BulkaTypeScale.caption,
+                                    color: foreground,
+                                    fontFamily: _descriptionFont,
+                                    fontSize: BulkaTypeScale.bodySmall,
+                                    fontWeight: FontWeight.w700,
+                                    fontFeatures: [
+                                      FontFeature.tabularFigures(),
+                                    ],
                                   ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: const BoxDecoration(
+                                  color: foreground,
+                                  shape: BoxShape.circle,
+                                ),
+                                alignment: Alignment.center,
+                                child: const Icon(
+                                  Icons.add_rounded,
+                                  color: Colors.white,
+                                  size: 24,
                                 ),
                               ),
                             ],
                           ),
                         ),
-                    ],
-                  ),
-                ],
-              ],
-            ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
+    );
+  }
+}
+
+class _LoyaltyMetric extends StatelessWidget {
+  const _LoyaltyMetric({
+    required this.value,
+    required this.label,
+    required this.crossAxisAlignment,
+    this.textAlign = TextAlign.start,
+  });
+
+  final String value;
+  final String label;
+  final CrossAxisAlignment crossAxisAlignment;
+  final TextAlign textAlign;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: crossAxisAlignment,
+      children: [
+        Text(
+          value,
+          textAlign: textAlign,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            color: Color(0xFF703111),
+            fontFamily: _headingFont,
+            fontSize: BulkaTypeScale.title,
+            fontWeight: FontWeight.w800,
+            height: 1.1,
+            fontFeatures: [FontFeature.tabularFigures()],
+          ),
+        ),
+        const SizedBox(height: 5),
+        Text(
+          label,
+          textAlign: textAlign,
+          style: const TextStyle(
+            color: Color(0xFF703111),
+            fontSize: BulkaTypeScale.caption,
+            fontWeight: FontWeight.w500,
+            height: 1.28,
+          ),
+        ),
+      ],
     );
   }
 }

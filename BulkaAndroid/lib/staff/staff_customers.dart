@@ -181,7 +181,7 @@ class _StaffCustomersState extends State<StaffCustomers>
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(staffText('Готово', 'Дайын', 'Done'))),
+          bulkaSnackBar(content: Text(staffText('Готово', 'Дайын', 'Done'))),
         );
         unawaited(_load());
       }
@@ -189,7 +189,7 @@ class _StaffCustomersState extends State<StaffCustomers>
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
+        ).showSnackBar(bulkaSnackBar(content: Text('$error')));
       }
     } finally {
       if (mounted) setState(() => _mutating = false);
@@ -238,7 +238,7 @@ class _StaffCustomersState extends State<StaffCustomers>
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('$error')));
+        ).showSnackBar(bulkaSnackBar(content: Text('$error')));
       }
     }
   }

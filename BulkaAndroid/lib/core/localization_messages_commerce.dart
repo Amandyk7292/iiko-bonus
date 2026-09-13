@@ -1,6 +1,11 @@
 part of '../main.dart';
 
 const Map<String, Map<String, String>> _commerceTranslations = {
+  'product_bought_together': {
+    'ru': 'С этим часто покупают',
+    'kk': 'Осымен бірге жиі сатып алады',
+    'en': 'Frequently bought together',
+  },
   // Orders & Cart screen
   'balance_history_title': {
     'ru': 'История баланса',
@@ -22,11 +27,25 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'kk': '№{number} сатып алу үшін бонус есептелді',
     'en': 'Bonuses credited for purchase #{number}',
   },
-  'cart_empty_title': {'ru': 'Ой!', 'kk': 'Ой!', 'en': 'Oops!'},
+  'cart_empty_title': {
+    'ru': 'Корзина пока пуста',
+    'kk': 'Себет әзірге бос',
+    'en': 'Your cart is empty',
+  },
   'cart_empty_sub': {
-    'ru': 'Ничего не найдено!',
-    'kk': 'Ештеңе табылмады!',
-    'en': 'Nothing found!',
+    'ru': 'Добавьте что-нибудь вкусное из каталога.',
+    'kk': 'Мәзірден дәмді тағам таңдаңыз.',
+    'en': 'Choose something delicious from the catalog.',
+  },
+  'cart_popular_title': {
+    'ru': 'Популярное',
+    'kk': 'Танымал өнімдер',
+    'en': 'Popular',
+  },
+  'cart_popular_open': {
+    'ru': 'Открыть в каталоге',
+    'kk': 'Мәзірден ашу',
+    'en': 'Open in catalog',
   },
   'cart_action': {
     'ru': 'Перейти в каталог',
@@ -84,6 +103,31 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'en': 'Maximum {count} items',
   },
   'cart_quantity': {'ru': 'Количество', 'kk': 'Саны', 'en': 'Quantity'},
+  'catalog_choose_weight': {
+    'ru': 'Выберите вес',
+    'kk': 'Салмағын таңдаңыз',
+    'en': 'Choose weight',
+  },
+  'catalog_choose_weight_hint': {
+    'ru': 'Укажите, сколько добавить в корзину',
+    'kk': 'Себетке қанша қосу керегін көрсетіңіз',
+    'en': 'Select how much to add to the cart',
+  },
+  'catalog_add_weight_to_cart': {
+    'ru': 'Добавить в корзину',
+    'kk': 'Себетке қосу',
+    'en': 'Add to cart',
+  },
+  'catalog_weight_grams': {
+    'ru': '{weight} г',
+    'kk': '{weight} г',
+    'en': '{weight} g',
+  },
+  'catalog_weight_kilograms': {
+    'ru': '{weight} кг',
+    'kk': '{weight} кг',
+    'en': '{weight} kg',
+  },
   'checkout_title': {
     'ru': 'Оформление заказа',
     'kk': 'Тапсырысты рәсімдеу',
@@ -94,6 +138,14 @@ const Map<String, Map<String, String>> _commerceTranslations = {
     'ru': 'Способ получения заказа',
     'kk': 'Тапсырысты алу тәсілі',
     'en': 'Order fulfilment method',
+  },
+  'checkout_step_address': {'ru': 'Адрес', 'kk': 'Мекенжай', 'en': 'Address'},
+  'checkout_step_time': {'ru': 'Время', 'kk': 'Уақыт', 'en': 'Time'},
+  'checkout_step_payment': {'ru': 'Оплата', 'kk': 'Төлем', 'en': 'Payment'},
+  'checkout_summary_title': {
+    'ru': 'Состав заказа',
+    'kk': 'Тапсырыс құрамы',
+    'en': 'Order summary',
   },
   'checkout_branch': {'ru': 'Филиал', 'kk': 'Филиал', 'en': 'Location'},
   'checkout_select_branch': {

@@ -30,6 +30,11 @@ const Map<String, Map<String, String>> _featureStateTranslations = {
     'kk': 'Наубайхананы таңдау',
     'en': 'Select bakery',
   },
+  'catalog_select_bakery_title': {
+    'ru': 'Сначала выберите пекарню',
+    'kk': 'Алдымен наубайхананы таңдаңыз',
+    'en': 'Select a bakery first',
+  },
   'catalog_pickup_menu': {
     'ru': 'Меню для самовывоза',
     'kk': 'Алып кету мәзірі',
@@ -112,6 +117,11 @@ const Map<String, Map<String, String>> _featureStateTranslations = {
     'ru': 'Уведомление отключено',
     'kk': 'Хабарландыру өшірілді',
     'en': 'Notification disabled',
+  },
+  'stock_notify_already_available': {
+    'ru': 'Товар уже появился в наличии',
+    'kk': 'Өнім қайтадан қолжетімді',
+    'en': 'This item is already back in stock',
   },
   'stock_notify_select_branch': {
     'ru': 'Сначала выберите пекарню',

@@ -40,7 +40,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('card_setup_cancelled'.tr)));
+        ).showSnackBar(bulkaSnackBar(content: Text('card_setup_cancelled'.tr)));
       }
       return;
     }
@@ -76,7 +76,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
         'not_required',
       }.contains(refundStatus);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        bulkaSnackBar(
           content: Text(
             cardSaved && !refundComplete
                 ? 'card_setup_saved_refund_pending'.tr
@@ -91,9 +91,9 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
     } catch (_) {
       await _load();
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('card_setup_token_missing'.tr)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          bulkaSnackBar(content: Text('card_setup_token_missing'.tr)),
+        );
       }
     } finally {
       if (mounted) setState(() => _reconcilingReturn = false);
@@ -148,7 +148,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
           ];
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('payment_methods_update_error'.tr)),
+          bulkaSnackBar(content: Text('payment_methods_update_error'.tr)),
         );
       }
     } finally {
@@ -165,13 +165,19 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
     if (_adding) return;
     if (_methods.length >= _maximumSavedPaymentMethods) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('payment_methods_limit_reached'.tr)),
+        bulkaSnackBar(content: Text('payment_methods_limit_reached'.tr)),
       );
       return;
     }
     setState(() => _adding = true);
     try {
+      final session = widget.api.sessionCacheScope;
       final result = await widget.api.createForteCardSetup();
+      if (!mounted || session != widget.api.sessionCacheScope) return;
+      if (result['paymentStatus'] == 'paid') {
+        await _load();
+        return;
+      }
       final operationId = (result['operationId'] ?? '').toString();
       final redirectUrl = (result['redirectUrl'] ?? '').toString();
       if (operationId.isEmpty || redirectUrl.isEmpty) {
@@ -195,7 +201,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(_paymentMethodAddErrorMessage(error))),
+          bulkaSnackBar(content: Text(_paymentMethodAddErrorMessage(error))),
         );
       }
     } finally {
@@ -249,7 +255,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
           _methods = restored;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('payment_methods_remove_error'.tr)),
+          bulkaSnackBar(content: Text('payment_methods_remove_error'.tr)),
         );
       }
     } finally {
@@ -380,9 +386,8 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                           ),
                           child: ListTile(
                             minVerticalPadding: 14,
-                            leading: Icon(
-                              Icons.credit_card_rounded,
-                              color: colors.brandBrown,
+                            leading: _PaymentBrandMark(
+                              brand: (method['brand'] ?? '').toString(),
                             ),
                             title: Text(
                               _cardLabel(method),
@@ -440,6 +445,163 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
   }
 }
 
+class _PaymentBrandMark extends StatelessWidget {
+  const _PaymentBrandMark({required this.brand});
+
+  final String brand;
+
+  String get _normalized =>
+      brand.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.bulkaColors;
+    final value = _normalized;
+    final Widget mark;
+    if (value.contains('visa')) {
+      mark = const Text(
+        'VISA',
+        key: ValueKey('payment-brand-visa'),
+        style: TextStyle(
+          color: Color(0xFF1434CB),
+          fontSize: 14,
+          fontWeight: FontWeight.w900,
+          fontStyle: FontStyle.italic,
+          letterSpacing: -0.8,
+        ),
+      );
+    } else if (value.contains('mastercard') || value == 'mc') {
+      mark = const _OverlappingCardCircles(
+        key: ValueKey('payment-brand-mastercard'),
+        left: Color(0xFFEB001B),
+        right: Color(0xFFF79E1B),
+      );
+    } else if (value.contains('maestro')) {
+      mark = const _OverlappingCardCircles(
+        key: ValueKey('payment-brand-maestro'),
+        left: Color(0xFF0099DF),
+        right: Color(0xFFED1C24),
+      );
+    } else if (value.contains('unionpay')) {
+      mark = const _PaymentBrandWordmark(
+        key: ValueKey('payment-brand-unionpay'),
+        label: 'UP',
+        background: Color(0xFF0066B3),
+        foreground: Colors.white,
+      );
+    } else if (value.contains('amex') || value.contains('americanexpress')) {
+      mark = const _PaymentBrandWordmark(
+        key: ValueKey('payment-brand-amex'),
+        label: 'AMEX',
+        background: Color(0xFF006FCF),
+        foreground: Colors.white,
+      );
+    } else if (value == 'mir') {
+      mark = const _PaymentBrandWordmark(
+        key: ValueKey('payment-brand-mir'),
+        label: 'MIR',
+        background: Color(0xFF128F55),
+        foreground: Colors.white,
+      );
+    } else {
+      mark = Icon(
+        Icons.credit_card_rounded,
+        key: const ValueKey('payment-brand-generic'),
+        color: colors.brandBrown,
+        size: 24,
+      );
+    }
+    return Semantics(
+      label: brand.trim().isEmpty ? 'payment_methods_card'.tr : brand,
+      image: true,
+      child: Container(
+        key: const ValueKey('payment-brand-mark'),
+        width: 42,
+        height: 30,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: colors.cardBorder,
+            width: BulkaStrokes.hairline,
+          ),
+        ),
+        child: mark,
+      ),
+    );
+  }
+}
+
+class _OverlappingCardCircles extends StatelessWidget {
+  const _OverlappingCardCircles({
+    required this.left,
+    required this.right,
+    super.key,
+  });
+
+  final Color left;
+  final Color right;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: 28,
+    height: 18,
+    child: Stack(
+      children: [
+        Positioned(left: 1, child: _CardCircle(color: left)),
+        Positioned(right: 1, child: _CardCircle(color: right)),
+      ],
+    ),
+  );
+}
+
+class _CardCircle extends StatelessWidget {
+  const _CardCircle({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 18,
+    height: 18,
+    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+  );
+}
+
+class _PaymentBrandWordmark extends StatelessWidget {
+  const _PaymentBrandWordmark({
+    required this.label,
+    required this.background,
+    required this.foreground,
+    super.key,
+  });
+
+  final String label;
+  final Color background;
+  final Color foreground;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    constraints: const BoxConstraints(minWidth: 28),
+    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+    decoration: BoxDecoration(
+      color: background,
+      borderRadius: BorderRadius.circular(4),
+    ),
+    child: Text(
+      label,
+      textAlign: TextAlign.center,
+      style: TextStyle(
+        color: foreground,
+        fontSize: label.length > 2 ? 8 : 10,
+        fontWeight: FontWeight.w900,
+        height: 1,
+      ),
+    ),
+  );
+}
+
 class _PaymentMethodsEmpty extends StatelessWidget {
   const _PaymentMethodsEmpty({required this.icon, required this.title});
 
@@ -454,7 +616,10 @@ class _PaymentMethodsEmpty extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.surfaceCream,
         borderRadius: BorderRadius.circular(BulkaRadii.card),
-        border: Border.all(color: colors.cardBorder),
+        border: Border.all(
+          color: colors.cardBorder,
+          width: BulkaStrokes.hairline,
+        ),
       ),
       child: Column(
         children: [

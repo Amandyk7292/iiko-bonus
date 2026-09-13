@@ -57,12 +57,19 @@ extension _CatalogInteractionController on _CatalogScreenState {
   }
 
   List<String> get _sortedCategories {
-    final categories =
-        _categories
-            .where((category) => category != _catalogAllCategoryKey)
-            .toSet()
-            .toList()
-          ..sort(catalogAlphabeticalCompare);
+    final grouped = <String, List<CatalogProduct>>{};
+    for (final category in _categories) {
+      if (category == _catalogAllCategoryKey) continue;
+      grouped.putIfAbsent(category, () => <CatalogProduct>[]);
+    }
+    for (final product in _allProducts) {
+      grouped
+          .putIfAbsent(product.category, () => <CatalogProduct>[])
+          .add(product);
+    }
+    final categories = catalogCategoriesAvailableFirst(
+      grouped.entries,
+    ).map((entry) => entry.key);
     return [_catalogAllCategoryKey, ...categories];
   }
 
@@ -238,10 +245,7 @@ extension _CatalogInteractionController on _CatalogScreenState {
           ),
         )
         .toList();
-    entries.sort(
-      (left, right) => catalogAlphabeticalCompare(left.key, right.key),
-    );
-    return entries;
+    return catalogCategoriesAvailableFirst(entries);
   }
 
   Future<bool> _ensureOrderTypeSelected(CatalogProduct product) async {
@@ -312,7 +316,7 @@ extension _CatalogInteractionController on _CatalogScreenState {
     }
     if (product == null || product.isStopListed) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('catalog_selected_product_unavailable'.tr)),
+        bulkaSnackBar(content: Text('catalog_selected_product_unavailable'.tr)),
       );
       return;
     }
@@ -322,15 +326,28 @@ extension _CatalogInteractionController on _CatalogScreenState {
 
   Future<void> _setProductQuantity(CatalogProduct product, num quantity) async {
     if (product.isStopListed) return;
-    final next = quantity.clamp(0, _catalogProductQuantityLimit(product));
     final cart = context.read<CartProvider>();
     final previous = cart.getQuantity(product.id);
-    if (next != previous && await _productRequiresDetails(product)) {
+    var requested = quantity;
+    if (requested != previous && await _productRequiresDetails(product)) {
       if (mounted) await _openProductDetails(product);
       return;
     }
-    if (next > previous && !await _ensureOrderTypeSelected(product)) return;
+    if (requested > previous && !await _ensureOrderTypeSelected(product)) {
+      return;
+    }
     if (!mounted) return;
+    if (requested > previous && !await _ensureSelectedBranchOpen()) return;
+    if (!mounted) return;
+    if (previous == 0 && requested > 0 && product.quantityStep < 1) {
+      final selectedWeight = await showCatalogWeightPicker(
+        context,
+        product: product,
+      );
+      if (!mounted || selectedWeight == null) return;
+      requested = selectedWeight;
+    }
+    final next = requested.clamp(0, _catalogProductQuantityLimit(product));
     if (next <= 0) {
       cart.removeItem(product.id);
       if (previous > 0) {
@@ -350,6 +367,7 @@ extension _CatalogInteractionController on _CatalogScreenState {
           isStopListed: product.isStopListed,
           quantityStep: product.quantityStep,
           unit: product.unit,
+          quantity: next,
         );
         _api.trackEvent(
           'add_to_cart',
@@ -358,7 +376,7 @@ extension _CatalogInteractionController on _CatalogScreenState {
           properties: {'price': product.price},
         );
       }
-      cart.setQuantity(product.id, next);
+      if (previous > 0) cart.setQuantity(product.id, next);
     }
     unawaited(
       next > previous && previous == 0
@@ -374,6 +392,7 @@ extension _CatalogInteractionController on _CatalogScreenState {
     CatalogProduct product, {
     bool updateClientRoute = true,
   }) async {
+    CatalogProduct? nextProduct;
     await _navigationGate.run(() async {
       _api.trackEvent(
         'product_view',
@@ -387,8 +406,8 @@ extension _CatalogInteractionController on _CatalogScreenState {
         replace: !updateClientRoute,
       );
       try {
-        await Navigator.of(context).push<void>(
-          PageRouteBuilder<void>(
+        nextProduct = await Navigator.of(context).push<CatalogProduct>(
+          PageRouteBuilder<CatalogProduct>(
             opaque: false,
             barrierDismissible: true,
             barrierColor: Colors.black.withValues(alpha: 0.32),
@@ -401,6 +420,8 @@ extension _CatalogInteractionController on _CatalogScreenState {
                 product.id,
               ),
               onQuantityChanged: _setProductQuantity,
+              onOpenRelatedProduct: (related) =>
+                  Navigator.of(context).pop(related),
               initialFavorite: _favoriteProductIds.contains(product.id),
               onToggleFavorite: () => _toggleFavorite(product),
               hasSelectedOrderType: widget.hasSelectedOrderType,
@@ -412,7 +433,7 @@ extension _CatalogInteractionController on _CatalogScreenState {
       } finally {
         _productRouteOpen = false;
         final current = normalizedClientUri(clientRouteNotifier.value);
-        if (productIdFromClientUri(current) != null) {
+        if (nextProduct == null && productIdFromClientUri(current) != null) {
           publishClientRoute(
             _CatalogScreenState._categoryClientUri(product.category),
             replace: true,
@@ -420,5 +441,8 @@ extension _CatalogInteractionController on _CatalogScreenState {
         }
       }
     });
+    if (mounted && nextProduct != null) {
+      await _openProductDetails(nextProduct!);
+    }
   }
 }

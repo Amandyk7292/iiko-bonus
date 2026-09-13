@@ -33,11 +33,22 @@ Future<void> reconcileReturnedForteCheckout({
         result['paymentStatus'] ?? result['status'],
         fallback: 'pending',
       ).toLowerCase();
+      final current = await PendingForteOperationStore.load(api);
+      if (current?.checkoutId != pending.checkoutId) return;
       if (status == 'paid') {
-        await PendingForteOperationStore.clear(api);
-        await cart.clearAndWait();
+        if (pending.cartRevision == null ||
+            pending.cartRevision == cart.checkoutRevision) {
+          await cart.clearAndWait();
+        }
+        await PendingForteOperationStore.clear(
+          api,
+          expectedCheckoutId: pending.checkoutId,
+        );
       } else if (isTerminalForteFailure(status)) {
-        await PendingForteOperationStore.clear(api);
+        await PendingForteOperationStore.clear(
+          api,
+          expectedCheckoutId: pending.checkoutId,
+        );
       }
     } catch (_) {
       // Keep the pending operation and cart. Reconciliation continues from the
@@ -540,7 +551,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     final context = _navigatorKey.currentContext;
     if (context == null || !context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
+      bulkaSnackBar(
         content: Text('app_update_store_error'.tr),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
@@ -846,6 +857,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     required String customerId,
     required String phone,
     required String avatarKey,
+    required String? avatarUrl,
   }) async {
     final customer = _customer;
     final accessToken = _api.accessToken;
@@ -863,7 +875,11 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     }
 
     _profileMutationRevision++;
-    final updated = customer.copyWith(avatarKey: avatarKey);
+    final updated = customer.copyWith(
+      avatarKey: avatarKey,
+      avatarUrl: avatarUrl,
+      clearAvatarUrl: avatarKey != 'custom',
+    );
     if (mounted) setState(() => _customer = updated);
     unawaited(
       HomeWidgetSync.update(customer: updated, activeOrder: _widgetOrder),
@@ -1528,7 +1544,7 @@ class SplashScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFFB300),
+      backgroundColor: Colors.white,
       body: Semantics(
         container: true,
         liveRegion: true,

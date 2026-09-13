@@ -156,6 +156,11 @@ abstract final class BulkaRadii {
   static const pill = 999.0;
 }
 
+/// One optical stroke for cards, inputs and secondary actions.
+abstract final class BulkaStrokes {
+  static const hairline = 0.8;
+}
+
 abstract final class BulkaTouch {
   static const minimum = 44.0;
   static const button = 50.0;
@@ -251,7 +256,7 @@ class BulkaThemeColors extends ThemeExtension<BulkaThemeColors> {
     brandGold: _bulkaYellow,
     goldSoft: Color(0xFFDEC588),
     surfaceCream: Colors.white,
-    mutedText: Color(0xFF7A6C65),
+    mutedText: Color(0xFF69564D),
     cardBorder: Color(0xFFEADBBE),
     priceGold: Color(0xFFC8902E),
     skeletonBase: Color(0xFFF0EBE3),
@@ -363,6 +368,20 @@ ThemeData buildBulkaTheme() {
       error: _errorRed,
     ),
     scaffoldBackgroundColor: _milkyBackground,
+    cardTheme: CardThemeData(
+      color: _lightCard,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shadowColor: Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(BulkaRadii.card),
+        side: const BorderSide(
+          color: Color(0xFFEADBBE),
+          width: BulkaStrokes.hairline,
+        ),
+      ),
+    ),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
       backgroundColor: const Color(0xFF3F1D0E),
@@ -513,7 +532,7 @@ ThemeData buildBulkaTheme() {
         fontFamily: _descriptionFont,
       ),
       helperStyle: TextStyle(
-        color: _textDark.withValues(alpha: 0.55),
+        color: _textDark.withValues(alpha: 0.72),
         fontFamily: _descriptionFont,
       ),
       errorStyle: const TextStyle(
@@ -524,19 +543,31 @@ ThemeData buildBulkaTheme() {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(BulkaRadii.control),
-        borderSide: const BorderSide(color: Color(0xFFEADBBE)),
+        borderSide: const BorderSide(
+          color: Color(0xFFEADBBE),
+          width: BulkaStrokes.hairline,
+        ),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(BulkaRadii.control),
-        borderSide: const BorderSide(color: _bulkaBrown, width: 1.5),
+        borderSide: const BorderSide(
+          color: _bulkaBrown,
+          width: BulkaStrokes.hairline,
+        ),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(BulkaRadii.control),
-        borderSide: const BorderSide(color: _errorRed),
+        borderSide: const BorderSide(
+          color: _errorRed,
+          width: BulkaStrokes.hairline,
+        ),
       ),
       focusedErrorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(BulkaRadii.control),
-        borderSide: const BorderSide(color: _errorRed, width: 1.5),
+        borderSide: const BorderSide(
+          color: _errorRed,
+          width: BulkaStrokes.hairline,
+        ),
       ),
     ),
     bottomSheetTheme: const BottomSheetThemeData(
@@ -556,7 +587,7 @@ ThemeData buildBulkaTheme() {
         return BulkaThemeColors.light.surfaceCream;
       }),
       checkColor: const WidgetStatePropertyAll(Colors.white),
-      side: const BorderSide(color: _bulkaBrown, width: 1.5),
+      side: const BorderSide(color: _bulkaBrown, width: BulkaStrokes.hairline),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(BulkaRadii.small),
       ),
@@ -670,7 +701,7 @@ ThemeData buildBulkaTheme() {
           EdgeInsets.symmetric(horizontal: 20, vertical: 13),
         ),
         side: const WidgetStatePropertyAll(
-          BorderSide(color: Color(0xFFE7D8BA), width: 1),
+          BorderSide(color: Color(0xFFE7D8BA), width: BulkaStrokes.hairline),
         ),
         textStyle: const WidgetStatePropertyAll(
           TextStyle(

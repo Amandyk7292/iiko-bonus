@@ -76,13 +76,8 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
     if (_refreshing) return;
     _refreshing = true;
     try {
-      final pages = await Future.wait([
-        widget.api.getCustomerOrders(),
-        widget.api.getCustomerOrders(completed: true),
-      ]);
-      final orders = pages.expand((page) => page);
-      final updated = orders.where((item) => item.id == _order.id).firstOrNull;
-      if (updated != null && mounted) {
+      final updated = await widget.api.getCustomerOrder(_order.id);
+      if (mounted) {
         setState(() {
           _order = updated;
           _now = DateTime.now();
@@ -104,9 +99,12 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
     if (!opened && mounted) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('order_call_unavailable'.tr)));
+      ).showSnackBar(bulkaSnackBar(content: Text('order_call_unavailable'.tr)));
     }
   }
+
+  Future<void> _openSupport() =>
+      openBulkaSupportWhatsApp(context, orderNumber: _order.number);
 
   Future<void> _openExternalMap() async {
     final courier = _order.courier;
@@ -158,12 +156,12 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('order_cancel_success'.tr)));
+        ).showSnackBar(bulkaSnackBar(content: Text('order_cancel_success'.tr)));
       }
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        bulkaSnackBar(
           content: Text(
             localizeErrorMessage(error, fallbackKey: 'order_cancel_error'),
           ),
@@ -253,12 +251,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
         order: _order,
         onRepeat: _repeatOrder,
         repeatLoading: _repeatLoading,
-        onSupport: () => Navigator.of(context).push<void>(
-          MaterialPageRoute(
-            builder: (_) =>
-                OrderSupportScreen(api: widget.api, initialOrder: _order),
-          ),
-        ),
+        onSupport: () => unawaited(_openSupport()),
       );
     }
     final courier = _order.courier;
@@ -529,12 +522,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
               const SizedBox(height: 10),
             ],
             OutlinedButton.icon(
-              onPressed: () => Navigator.of(context).push<void>(
-                MaterialPageRoute(
-                  builder: (_) =>
-                      OrderSupportScreen(api: widget.api, initialOrder: _order),
-                ),
-              ),
+              onPressed: () => unawaited(_openSupport()),
               icon: const Icon(Icons.support_agent_rounded),
               label: Text('order_support'.tr),
               style: OutlinedButton.styleFrom(
@@ -583,7 +571,10 @@ class _OrderSection extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(BulkaRadii.card),
-        border: Border.all(color: colors.cardBorder),
+        border: Border.all(
+          color: colors.cardBorder,
+          width: BulkaStrokes.hairline,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

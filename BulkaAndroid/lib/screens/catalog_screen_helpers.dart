@@ -182,6 +182,19 @@ List<CatalogProduct> catalogProductsAlphabetically(
 ) => products.toList()
   ..sort((left, right) => catalogAlphabeticalCompare(left.title, right.title));
 
+List<MapEntry<String, List<CatalogProduct>>> catalogCategoriesAvailableFirst(
+  Iterable<MapEntry<String, List<CatalogProduct>>> categories,
+) {
+  final sorted = categories.toList();
+  sorted.sort((left, right) {
+    final leftAvailable = left.value.any((product) => !product.isStopListed);
+    final rightAvailable = right.value.any((product) => !product.isStopListed);
+    if (leftAvailable != rightAvailable) return leftAvailable ? -1 : 1;
+    return catalogAlphabeticalCompare(left.key, right.key);
+  });
+  return sorted;
+}
+
 enum _CatalogSort { menu, priceLow, priceHigh }
 
 @immutable

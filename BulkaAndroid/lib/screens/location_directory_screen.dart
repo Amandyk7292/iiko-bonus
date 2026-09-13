@@ -28,6 +28,26 @@ Uri bakeryDirectionsUri(BakeryLocation branch) {
   DateTime now,
 ) {
   final local = now.toUtc().add(const Duration(hours: 5));
+  final minute = local.hour * 60 + local.minute;
+  final previousDay = local.subtract(const Duration(days: 1));
+  final previousHours = _bakeryDayHours(
+    branch,
+    _directoryWeek[previousDay.weekday - 1],
+  );
+  if (previousHours != null && previousHours['closed'] != true) {
+    final previousStart = _bakeryMinute(previousHours['open']);
+    final previousEnd = _bakeryMinute(previousHours['close']);
+    if (previousStart != null &&
+        previousEnd != null &&
+        previousEnd < previousStart &&
+        minute < previousEnd) {
+      return (
+        label: '${previousHours['open']} – ${previousHours['close']}',
+        open: true,
+      );
+    }
+  }
+
   final hours = _bakeryDayHours(branch, _directoryWeek[local.weekday - 1]);
   if (hours == null) return (label: 'directory_hours_unknown'.tr, open: null);
   if (hours['closed'] == true) {
@@ -38,10 +58,9 @@ Uri bakeryDirectionsUri(BakeryLocation branch) {
   if (start == null || end == null) {
     return (label: 'directory_hours_unknown'.tr, open: null);
   }
-  final minute = local.hour * 60 + local.minute;
   return (
     label: '${hours['open']} – ${hours['close']}',
-    open: minute >= start && minute < end,
+    open: minute >= start && (end < start || minute < end),
   );
 }
 
@@ -259,7 +278,7 @@ class _LocationDirectoryScreenState extends State<LocationDirectoryScreen> {
     if (mounted) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('contact_open_error'.tr)));
+      ).showSnackBar(bulkaSnackBar(content: Text('contact_open_error'.tr)));
     }
   }
 
@@ -507,7 +526,6 @@ class _LocationDirectoryScreenState extends State<LocationDirectoryScreen> {
                           name: branch.name,
                           address: branch.address,
                           point: LatLng(branch.latitude!, branch.longitude!),
-
                         ),
                   ],
                 ),

@@ -70,6 +70,15 @@ class StaffLiveRefresh with WidgetsBindingObserver {
     this.isBusy,
   }) {
     WidgetsBinding.instance.addObserver(this);
+    _network = networkRecoveryEvents().listen((_) {
+      if (!_active || _disposed) return;
+      _connection++;
+      unawaited(_subscription?.cancel());
+      _subscription = null;
+      _reconnect?.cancel();
+      _connect();
+      _schedule();
+    });
     _connect();
     _timer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (_active && !_disposed) {
@@ -83,7 +92,8 @@ class StaffLiveRefresh with WidgetsBindingObserver {
   final bool Function()? isBusy;
   final List<String> events;
   StreamSubscription<Map<String, dynamic>>? _subscription;
-  Timer? _timer, _debounce;
+  Timer? _timer, _debounce, _reconnect;
+  StreamSubscription<void>? _network;
   bool _active = true, _disposed = false, _running = false, _pending = false;
   int _connection = 0;
   String? _lastId;
@@ -91,7 +101,7 @@ class StaffLiveRefresh with WidgetsBindingObserver {
     if (_disposed || !_active) return;
     _pending = true;
     if (_running) return;
-    _debounce?.cancel();
+    if (_debounce?.isActive == true) return;
     _debounce = Timer(
       const Duration(milliseconds: 100),
       () => unawaited(_drain()),
@@ -138,13 +148,20 @@ class StaffLiveRefresh with WidgetsBindingObserver {
             }
           },
           onError: (Object _) {
-            if (connection == _connection) _subscription = null;
+            _disconnected(connection);
           },
           onDone: () {
-            if (connection == _connection) _subscription = null;
+            _disconnected(connection);
           },
           cancelOnError: true,
         );
+  }
+
+  void _disconnected(int connection) {
+    if (connection != _connection || _disposed) return;
+    _subscription = null;
+    _reconnect?.cancel();
+    if (_active) _reconnect = Timer(const Duration(seconds: 1), _connect);
   }
 
   @override
@@ -155,6 +172,7 @@ class StaffLiveRefresh with WidgetsBindingObserver {
       _connect();
     } else {
       _connection++;
+      _reconnect?.cancel();
       _debounce?.cancel();
       unawaited(_subscription?.cancel());
       _subscription = null;
@@ -165,7 +183,9 @@ class StaffLiveRefresh with WidgetsBindingObserver {
     _disposed = true;
     _connection++;
     _timer?.cancel();
+    _reconnect?.cancel();
     _debounce?.cancel();
+    unawaited(_network?.cancel());
     unawaited(_subscription?.cancel());
     WidgetsBinding.instance.removeObserver(this);
   }

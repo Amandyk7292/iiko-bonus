@@ -28,10 +28,30 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final _navigationGate = _AsyncActionGate();
+  double _personalAccountBalance = 0;
 
   @override
   void initState() {
     super.initState();
+    unawaited(_loadPersonalAccountBalance());
+    final topup = currentClientUri().queryParameters['topup'];
+    if (topup != null && RegExp(r'^[0-9a-fA-F-]{36}$').hasMatch(topup)) {
+      final uri = currentClientUri();
+      final query = Map<String, String>.from(uri.queryParameters)
+        ..remove('topup')
+        ..remove('payment');
+      replaceClientUri(uri.replace(queryParameters: query));
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          unawaited(
+            _openPage(
+              (_) =>
+                  PersonalAccountScreen(api: widget.api, initialTopupId: topup),
+            ),
+          );
+        }
+      });
+    }
     if (forteCardSetupReturnFromUri(currentClientUri()) != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -200,6 +220,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
   }
 
+  Future<void> _loadPersonalAccountBalance() async {
+    final cacheKey = customerPreferenceKey(
+      'personal_account_balance',
+      widget.api.sessionCacheScope,
+    );
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cached = prefs.getDouble(cacheKey);
+      if (cached != null && mounted) {
+        setState(() => _personalAccountBalance = cached);
+      }
+      final account = await widget.api.getPersonalAccount();
+      final balance = _asDouble(account['balance']);
+      await prefs.setDouble(cacheKey, balance);
+      if (mounted) setState(() => _personalAccountBalance = balance);
+    } catch (_) {
+      // Keep the last locally known balance when the network is unavailable.
+    }
+  }
+
+  Future<void> _openPersonalAccount() async {
+    await _openPage(
+      (_) => PersonalAccountScreen(
+        api: widget.api,
+        initialBalance: _personalAccountBalance,
+      ),
+    );
+    await _loadPersonalAccountBalance();
+  }
+
   Future<void> _openPersonalData() => _openPage(
     (pageContext) => PersonalDataScreen(
       api: widget.api,
@@ -209,8 +259,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       onProfileUpdated: widget.onRefreshProfile,
       onAvatarSaved:
           widget.onAvatarSaved ??
-          ({required customerId, required phone, required avatarKey}) =>
-              widget.onRefreshProfile(),
+          ({
+            required customerId,
+            required phone,
+            required avatarKey,
+            required avatarUrl,
+          }) => widget.onRefreshProfile(),
     ),
   );
 
@@ -322,7 +376,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   decoration: BoxDecoration(
                     color: colors.surfaceCream,
                     borderRadius: BorderRadius.circular(BulkaRadii.card),
-                    border: Border.all(color: colors.cardBorder),
+                    border: Border.all(
+                      color: colors.cardBorder,
+                      width: BulkaStrokes.hairline,
+                    ),
                     boxShadow: const [
                       BoxShadow(
                         color: Color(0x0C000000),
@@ -336,6 +393,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     children: [
                       CustomerAvatar(
                         avatarKey: widget.customer.avatarKey,
+                        avatarUrl: widget.customer.avatarUrl,
                         size: 64,
                       ),
                       const SizedBox(width: 16),
@@ -399,7 +457,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 decoration: BoxDecoration(
                   color: colors.surfaceCream,
                   borderRadius: BorderRadius.circular(BulkaRadii.card),
-                  border: Border.all(color: colors.cardBorder),
+                  border: Border.all(
+                    color: colors.cardBorder,
+                    width: BulkaStrokes.hairline,
+                  ),
                   boxShadow: const [
                     BoxShadow(
                       color: Color(0x0C000000),
@@ -428,6 +489,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         (_) => PaymentMethodsScreen(api: widget.api),
                       ),
                     ),
+                    _ProfileMenuItem(
+                      icon: Icons.account_balance_wallet_outlined,
+                      title: _accountText('title'),
+                      onTap: _openPersonalAccount,
+                    ),
                     const Divider(
                       height: 1,
                       indent: 60,
@@ -437,8 +503,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     _ProfileMenuItem(
                       icon: Icons.support_agent_outlined,
                       title: 'support_title'.tr,
-                      onTap: () =>
-                          _openPage((_) => OrderSupportScreen(api: widget.api)),
+                      onTap: () => unawaited(openBulkaSupportWhatsApp(context)),
                     ),
                     const Divider(
                       height: 1,
@@ -465,8 +530,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildLoyaltyProgressCard() => LoyaltyTierCard(
     tier: widget.customer.tier,
     cashbackPercent: widget.customer.cashbackPercent,
-    totalSpent: widget.customer.totalSpent,
-    vipThreshold: widget.customer.vipThreshold.toDouble(),
+    bonusBalance: widget.customer.balance,
+    personalAccountBalance: _personalAccountBalance,
+    onPersonalAccountTap: _openPersonalAccount,
   );
 }
 

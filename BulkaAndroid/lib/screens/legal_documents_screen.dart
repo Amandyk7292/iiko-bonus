@@ -52,7 +52,7 @@ class _LegalDocumentsScreenState extends State<LegalDocumentsScreen> {
       if (!opened && mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('legal_open_error'.tr)));
+        ).showSnackBar(bulkaSnackBar(content: Text('legal_open_error'.tr)));
       }
     });
   }
@@ -73,7 +73,10 @@ class _LegalDocumentsScreenState extends State<LegalDocumentsScreen> {
             color: colors.surfaceCream,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(BulkaRadii.card),
-              side: BorderSide(color: colors.cardBorder),
+              side: BorderSide(
+                color: colors.cardBorder,
+                width: BulkaStrokes.hairline,
+              ),
             ),
             clipBehavior: Clip.antiAlias,
             child: Column(

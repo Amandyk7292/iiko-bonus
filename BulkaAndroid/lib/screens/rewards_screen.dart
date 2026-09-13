@@ -112,7 +112,9 @@ class _RewardsScreenState extends State<RewardsScreen> {
   }
 
   void _message(String value) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(value)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(bulkaSnackBar(content: Text(value)));
   }
 
   Future<void> _redeemReferral() async {
@@ -206,9 +208,9 @@ class _RewardsScreenState extends State<RewardsScreen> {
             onPressed: () async {
               await Clipboard.setData(ClipboardData(text: code));
               if (!dialogContext.mounted) return;
-              ScaffoldMessenger.of(
-                dialogContext,
-              ).showSnackBar(SnackBar(content: Text('gift_code_copied'.tr)));
+              ScaffoldMessenger.of(dialogContext).showSnackBar(
+                bulkaSnackBar(content: Text('gift_code_copied'.tr)),
+              );
             },
             icon: const Icon(Icons.copy_rounded),
             label: Text('gift_copy_code'.tr),
@@ -613,7 +615,7 @@ class _GiftCertificatePurchaseSheetState
         ).trim().toLowerCase();
         if (activationStatus != 'active') {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('gift_purchase_code_preparing'.tr)),
+            bulkaSnackBar(content: Text('gift_purchase_code_preparing'.tr)),
           );
           return;
         }
@@ -623,9 +625,9 @@ class _GiftCertificatePurchaseSheetState
           context,
         ).pop(_GiftPurchaseResult.fromPurchase(activated, fallback: draft));
       } else {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('gift_purchase_pending'.tr)));
+        ScaffoldMessenger.of(context).showSnackBar(
+          bulkaSnackBar(content: Text('gift_purchase_pending'.tr)),
+        );
       }
     } catch (error) {
       if (mounted) {
@@ -804,7 +806,10 @@ class _GiftCertificatePurchaseSheetState
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(BulkaRadii.control),
-                    border: Border.all(color: context.bulkaColors.cardBorder),
+                    border: Border.all(
+                      color: context.bulkaColors.cardBorder,
+                      width: BulkaStrokes.hairline,
+                    ),
                   ),
                   child: const Row(
                     children: [
@@ -1034,7 +1039,10 @@ class _RewardsCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(BulkaRadii.card),
-        border: Border.all(color: context.bulkaColors.cardBorder),
+        border: Border.all(
+          color: context.bulkaColors.cardBorder,
+          width: BulkaStrokes.hairline,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

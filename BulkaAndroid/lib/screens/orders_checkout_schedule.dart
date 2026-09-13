@@ -4,11 +4,12 @@ extension _CheckoutScheduleState on _CheckoutScreenState {
   Future<void> _refreshLiveCheckout() async {
     final refreshSchedule = _scheduleNeedsRefresh;
     _scheduleNeedsRefresh = false;
+    // A server invalidation supersedes the cached quote even when the cart is unchanged.
+    _quoteRevision++;
+    _quoteFreshness?.cancel();
+    _updateCheckoutState(() => _quoteValid = false);
     if (refreshSchedule) {
       _scheduleRevision++;
-      _quoteRevision++;
-      _quoteFreshness?.cancel();
-      _updateCheckoutState(() => _quoteValid = false);
       if (_isSelectingTime) _scheduleOptions.value = null;
     }
     unawaited(_loadPaymentAvailability());
@@ -40,7 +41,24 @@ extension _CheckoutScheduleState on _CheckoutScreenState {
     }
   }
 
-  Future<bool> _loadScheduleOptions() async {
+  Future<bool> _loadScheduleOptions() {
+    final key = '${_effectiveLocation?.id}:${_orderType.wireValue}';
+    if (_scheduleFlight != null &&
+        _scheduleFlightKey == key &&
+        _scheduleFlightRevision == _scheduleRevision) {
+      return _scheduleFlight!;
+    }
+    _scheduleFlightKey = key;
+    late final Future<bool> result;
+    result = _fetchScheduleOptions().whenComplete(() {
+      if (identical(_scheduleFlight, result)) _scheduleFlight = null;
+    });
+    _scheduleFlightRevision = _scheduleRevision;
+    _scheduleFlight = result;
+    return result;
+  }
+
+  Future<bool> _fetchScheduleOptions() async {
     final revision = ++_scheduleRevision;
     final location = _effectiveLocation;
     final type = _orderType;
@@ -51,13 +69,15 @@ extension _CheckoutScheduleState on _CheckoutScreenState {
       _scheduleOptions.value = const [];
       return true;
     }
-    _scheduleOptions.value = null;
+    final key = '${location.id}:${type.wireValue}';
+    if (_scheduleKey != key) _scheduleOptions.value = null;
+    _scheduleKey = key;
     List<FulfillmentSlot> slots;
     try {
       slots = await widget.api.getFulfillmentSlots(
         branchId: location.id,
         orderType: type.wireValue,
-        days: type == _OrderType.preorder ? 7 : 1,
+        days: type == _OrderType.preorder ? 3 : 1,
       );
     } catch (error) {
       if (mounted && revision == _scheduleRevision) {
@@ -67,7 +87,7 @@ extension _CheckoutScheduleState on _CheckoutScreenState {
         _scheduleOptions.value = const [];
         if (error is FulfillmentSlotsUnavailable) return true;
       }
-      rethrow;
+      return false;
     }
     if (!mounted ||
         revision != _scheduleRevision ||
@@ -101,7 +121,7 @@ extension _CheckoutScheduleState on _CheckoutScreenState {
       if (!mounted) return false;
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('checkout_time_expired'.tr)));
+      ).showSnackBar(bulkaSnackBar(content: Text('checkout_time_expired'.tr)));
     }
     return current != null;
   }

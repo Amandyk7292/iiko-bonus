@@ -21,6 +21,9 @@ class _CashierPosDevicesScreenState extends State<CashierPosDevicesScreen>
   DateTime? _expiresAt;
   String? _error;
   String? _connectedName;
+  String? _connectedRole;
+  String _selectedRole = 'register';
+  String _codeRole = 'register';
   bool _loading = true;
   bool _creating = false;
   bool _fetching = false;
@@ -74,6 +77,8 @@ class _CashierPosDevicesScreenState extends State<CashierPosDevicesScreen>
                 .firstOrNull;
             _connectedName =
                 '${linked?['name'] ?? staffText('Касса', 'Касса', 'Register')}';
+            _connectedRole =
+                '${linked?['deviceRole'] ?? pairing['deviceRole'] ?? _codeRole}';
             _code = null;
             _expiresAt = null;
             _pairingId = null;
@@ -100,6 +105,7 @@ class _CashierPosDevicesScreenState extends State<CashierPosDevicesScreen>
       _creating = true;
       _error = null;
       _connectedName = null;
+      _connectedRole = null;
       _code = null;
       _pairingId = null;
     });
@@ -107,13 +113,14 @@ class _CashierPosDevicesScreenState extends State<CashierPosDevicesScreen>
       final result = await widget.api.request(
         '/staff/pos/pairing-code',
         method: 'POST',
-        body: <String, dynamic>{},
+        body: <String, dynamic>{'deviceRole': _selectedRole},
       );
       if (!mounted) return;
       setState(() {
         _code = '${result['code']}';
         _expiresAt = DateTime.parse('${result['expiresAt']}');
         _pairingId = '${result['pairingId']}';
+        _codeRole = '${result['deviceRole'] ?? _selectedRole}';
       });
     } catch (error) {
       if (mounted) setState(() => _error = '$error');
@@ -158,11 +165,43 @@ class _CashierPosDevicesScreenState extends State<CashierPosDevicesScreen>
             const SizedBox(height: 8),
             Text(
               staffText(
-                'Общие заказы и остатки на iPad и кассах филиала.',
-                'iPad пен филиал кассаларындағы ортақ тапсырыстар мен қалдықтар.',
-                'Shared orders and stock on the iPad and branch registers.',
+                'Выберите назначение устройства. Пекарня передаёт выпуск продукции и не получает заказы.',
+                'Құрылғының мақсатын таңдаңыз. Наубайхана өнім шығарылымын жібереді және тапсырыс алмайды.',
+                'Choose the device purpose. A bakery reports production and never receives orders.',
               ),
               style: const TextStyle(color: Color(0xff77716c), height: 1.5),
+            ),
+            const SizedBox(height: 16),
+            Semantics(
+              label: staffText(
+                'Режим подключаемого устройства',
+                'Қосылатын құрылғы режимі',
+                'Device mode',
+              ),
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 8,
+                children: [
+                  ChoiceChip(
+                    key: const ValueKey('pos-role-register'),
+                    avatar: const Icon(Icons.point_of_sale_outlined, size: 18),
+                    label: Text(staffText('Касса', 'Касса', 'Register')),
+                    selected: _selectedRole == 'register',
+                    onSelected: _code == null && !_creating
+                        ? (_) => setState(() => _selectedRole = 'register')
+                        : null,
+                  ),
+                  ChoiceChip(
+                    key: const ValueKey('pos-role-bakery'),
+                    avatar: const Icon(Icons.bakery_dining_outlined, size: 18),
+                    label: Text(staffText('Пекарня', 'Наубайхана', 'Bakery')),
+                    selected: _selectedRole == 'bakery',
+                    onSelected: _code == null && !_creating
+                        ? (_) => setState(() => _selectedRole = 'bakery')
+                        : null,
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 24),
             if (_loading)
@@ -180,9 +219,9 @@ class _CashierPosDevicesScreenState extends State<CashierPosDevicesScreen>
                     const SizedBox(height: 12),
                     Text(
                       staffText(
-                        'Кассы пока не привязаны',
-                        'Кассалар әлі байланыстырылмаған',
-                        'No registers linked yet',
+                        'Устройства пока не привязаны',
+                        'Құрылғылар әлі байланыстырылмаған',
+                        'No devices linked yet',
                       ),
                     ),
                   ],
@@ -191,6 +230,10 @@ class _CashierPosDevicesScreenState extends State<CashierPosDevicesScreen>
             else
               ..._devices.map((device) {
                 final online = device['online'] == true;
+                final bakery = device['deviceRole'] == 'bakery';
+                final roleLabel = bakery
+                    ? staffText('Пекарня', 'Наубайхана', 'Bakery')
+                    : staffText('Касса', 'Касса', 'Register');
                 return Container(
                   margin: const EdgeInsets.only(bottom: 12),
                   decoration: BoxDecoration(
@@ -202,7 +245,11 @@ class _CashierPosDevicesScreenState extends State<CashierPosDevicesScreen>
                       horizontal: 16,
                       vertical: 8,
                     ),
-                    leading: const Icon(Icons.point_of_sale_outlined),
+                    leading: Icon(
+                      bakery
+                          ? Icons.bakery_dining_outlined
+                          : Icons.point_of_sale_outlined,
+                    ),
                     title: Text(
                       '${device['name']}',
                       maxLines: 2,
@@ -212,9 +259,7 @@ class _CashierPosDevicesScreenState extends State<CashierPosDevicesScreen>
                     subtitle: Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: Text(
-                        online
-                            ? staffText('На связи', 'Байланыста', 'Online')
-                            : staffText('Нет связи', 'Байланыс жоқ', 'Offline'),
+                        '$roleLabel · ${online ? staffText('На связи', 'Байланыста', 'Online') : staffText('Нет связи', 'Байланыс жоқ', 'Offline')}',
                         style: TextStyle(
                           color: online
                               ? const Color(0xff218659)
@@ -237,9 +282,15 @@ class _CashierPosDevicesScreenState extends State<CashierPosDevicesScreen>
                 padding: const EdgeInsets.only(bottom: 16),
                 child: Text(
                   staffText(
-                    'Касса «$_connectedName» привязана',
-                    '«$_connectedName» кассасы байланыстырылды',
-                    'Register “$_connectedName” linked',
+                    _connectedRole == 'bakery'
+                        ? 'Пекарня «$_connectedName» привязана'
+                        : 'Касса «$_connectedName» привязана',
+                    _connectedRole == 'bakery'
+                        ? '«$_connectedName» наубайханасы байланыстырылды'
+                        : '«$_connectedName» кассасы байланыстырылды',
+                    _connectedRole == 'bakery'
+                        ? 'Bakery “$_connectedName” linked'
+                        : 'Register “$_connectedName” linked',
                   ),
                   style: const TextStyle(color: Color(0xff218659)),
                 ),
@@ -257,9 +308,15 @@ class _CashierPosDevicesScreenState extends State<CashierPosDevicesScreen>
                   children: [
                     Text(
                       staffText(
-                        'Код для одной кассы',
-                        'Бір кассаға арналған код',
-                        'Code for one register',
+                        _codeRole == 'bakery'
+                            ? 'Код для терминала пекарни'
+                            : 'Код для одной кассы',
+                        _codeRole == 'bakery'
+                            ? 'Наубайхана терминалының коды'
+                            : 'Бір кассаға арналған код',
+                        _codeRole == 'bakery'
+                            ? 'Code for one bakery terminal'
+                            : 'Code for one register',
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -297,9 +354,9 @@ class _CashierPosDevicesScreenState extends State<CashierPosDevicesScreen>
                     const SizedBox(height: 16),
                     Text(
                       staffText(
-                        'В iikoFront откройте меню Bulka → «Привязать кассу» и введите код.',
-                        'iikoFront ішінде Bulka → «Привязать кассу» мәзірін ашып, кодты енгізіңіз.',
-                        'In iikoFront, open Bulka → “Привязать кассу” and enter this code.',
+                        'В iikoFront откройте Bulka → «Привязать устройство», введите код и перезапустите iikoFront.',
+                        'iikoFront ішінде Bulka → «Құрылғыны байланыстыру» мәзірін ашып, кодты енгізіп, iikoFront-ты қайта іске қосыңыз.',
+                        'In iikoFront, open Bulka → “Link device”, enter the code, then restart iikoFront.',
                       ),
                       textAlign: TextAlign.center,
                       style: const TextStyle(height: 1.5),
@@ -339,18 +396,24 @@ class _CashierPosDevicesScreenState extends State<CashierPosDevicesScreen>
                         'Get a new code',
                       )
                     : staffText(
-                        'Привязать кассу',
-                        'Кассаны байланыстыру',
-                        'Link a register',
+                        _selectedRole == 'bakery'
+                            ? 'Привязать пекарню'
+                            : 'Привязать кассу',
+                        _selectedRole == 'bakery'
+                            ? 'Наубайхананы байланыстыру'
+                            : 'Кассаны байланыстыру',
+                        _selectedRole == 'bakery'
+                            ? 'Link bakery'
+                            : 'Link a register',
                       ),
               ),
             ),
             const SizedBox(height: 12),
             Text(
               staffText(
-                'Для второй кассы получите отдельный код.',
-                'Екінші касса үшін жеке код алыңыз.',
-                'Get a separate code for the second register.',
+                'Для каждой кассы и терминала пекарни нужен отдельный код.',
+                'Әр касса мен наубайхана терминалына жеке код қажет.',
+                'Each register and bakery terminal needs its own code.',
               ),
               textAlign: TextAlign.center,
               style: const TextStyle(color: Color(0xff77716c), fontSize: 12),

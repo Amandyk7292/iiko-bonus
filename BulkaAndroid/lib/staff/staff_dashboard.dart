@@ -343,7 +343,7 @@ class _StaffDashboardState extends State<StaffDashboard>
     if (range == null || !mounted) return;
     if (range.end.difference(range.start).inDays > 366) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        bulkaSnackBar(
           content: Text(
             staffText(
               'Выберите не более 367 дней',

@@ -290,7 +290,10 @@ class _PromoGridCard extends StatelessWidget {
           onTap: onTap,
           child: DecoratedBox(
             decoration: BoxDecoration(
-              border: Border.all(color: colors.cardBorder),
+              border: Border.all(
+                color: colors.cardBorder,
+                width: BulkaStrokes.hairline,
+              ),
               borderRadius: BorderRadius.circular(BulkaRadii.card),
             ),
             child: Column(
@@ -722,7 +725,10 @@ class _PromotionQrDialog extends StatelessWidget {
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    border: Border.all(color: colors.cardBorder),
+                    border: Border.all(
+                      color: colors.cardBorder,
+                      width: BulkaStrokes.hairline,
+                    ),
                     borderRadius: BorderRadius.circular(BulkaRadii.card),
                   ),
                   child: QrImageView(
@@ -819,7 +825,10 @@ class _PromoCardsLoading extends StatelessWidget {
         decoration: BoxDecoration(
           color: colors.surfaceCream,
           borderRadius: BorderRadius.circular(BulkaRadii.card),
-          border: Border.all(color: colors.cardBorder),
+          border: Border.all(
+            color: colors.cardBorder,
+            width: BulkaStrokes.hairline,
+          ),
         ),
         clipBehavior: Clip.antiAlias,
         child: Column(

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -21,7 +22,7 @@ class CartItem {
   num quantity;
   final num quantityStep;
   final String unit;
-  num get increment => quantityStep < 1 ? 0.1 : 1;
+  num get increment => quantityStep < 1 ? max<num>(quantityStep, 0.5) : 1;
   String get quantityLabel => quantityStep < 1
       ? '${productQuantityText(quantity)} $unit'
       : productQuantityText(quantity);
@@ -117,15 +118,34 @@ class CartProvider extends ChangeNotifier {
   }
 
   static const _storageKey = 'bulka_cart_v1';
+  static const _stateKey = 'bulka_cart_v2';
+  static String _newRevision() {
+    final random = Random.secure();
+    return List.generate(
+      16,
+      (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+    ).join();
+  }
+
   static const maxItemQuantity = 99;
   final Map<String, CartItem> _items = {};
   final Completer<void> _restoreCompleter = Completer<void>();
   Map<String, CartProductSnapshot>? _latestMenu;
   bool _restored = false;
+  String _checkoutRevision = _newRevision();
+  Future<void> _pendingSave = Future<void>.value();
 
   Map<String, CartItem> get items => {..._items};
   bool get isRestored => _restored;
   Future<void> get restored => _restoreCompleter.future;
+  Future<void> get persisted => _pendingSave;
+  String get checkoutRevision => _checkoutRevision;
+
+  void _changedByCustomer() {
+    _checkoutRevision = _newRevision();
+    notifyListeners();
+    unawaited(_save());
+  }
 
   int get itemCount => _items.values.fold(
     0,
@@ -208,8 +228,7 @@ class CartProvider extends ChangeNotifier {
         unit: unit,
       );
     }
-    notifyListeners();
-    unawaited(_save());
+    _changedByCustomer();
   }
 
   void addItem({
@@ -220,11 +239,14 @@ class CartProvider extends ChangeNotifier {
     bool isStopListed = false,
     num quantityStep = 1,
     String unit = 'шт.',
+    num? quantity,
   }) {
     if (isStopListed) return;
+    final increment = quantityStep < 1 ? max<num>(quantityStep, 0.5) : 1;
+    final requested = normalizedProductQuantity(quantity ?? increment);
     if (_items.containsKey(productId)) {
       _items[productId]!.quantity = normalizedProductQuantity(
-        (_items[productId]!.quantity + (quantityStep < 1 ? 0.1 : 1)).clamp(
+        (_items[productId]!.quantity + requested).clamp(
           quantityStep,
           maxItemQuantity,
         ),
@@ -236,13 +258,12 @@ class CartProvider extends ChangeNotifier {
         price: price,
         imageUrl: imageUrl,
         isStopListed: isStopListed,
-        quantity: quantityStep < 1 ? 0.1 : 1,
+        quantity: requested.clamp(quantityStep, maxItemQuantity),
         quantityStep: quantityStep,
         unit: unit,
       );
     }
-    notifyListeners();
-    unawaited(_save());
+    _changedByCustomer();
   }
 
   void setQuantity(String productId, num quantity) {
@@ -256,24 +277,22 @@ class CartProvider extends ChangeNotifier {
         quantity.clamp(item.quantityStep, maxItemQuantity),
       );
     }
-    notifyListeners();
-    unawaited(_save());
+    _changedByCustomer();
   }
 
   void removeItem(String productId) {
     _items.remove(productId);
-    notifyListeners();
-    unawaited(_save());
+    _changedByCustomer();
   }
 
   void clear() {
     _items.clear();
-    notifyListeners();
-    unawaited(_save());
+    _changedByCustomer();
   }
 
   Future<void> clearAndWait() async {
     _items.clear();
+    _checkoutRevision = _newRevision();
     notifyListeners();
     await _save();
   }
@@ -292,8 +311,7 @@ class CartProvider extends ChangeNotifier {
       ..clear()
       ..addAll(next);
     _applyLatestMenu();
-    notifyListeners();
-    unawaited(_save());
+    _changedByCustomer();
   }
 
   void mergeItems(Iterable<CartItem> items) {
@@ -321,8 +339,7 @@ class CartProvider extends ChangeNotifier {
       ..clear()
       ..addAll(next);
     _applyLatestMenu();
-    notifyListeners();
-    unawaited(_save());
+    _changedByCustomer();
   }
 
   void reconcileMenu(Iterable<CartProductSnapshot> products) {
@@ -383,11 +400,15 @@ class CartProvider extends ChangeNotifier {
 
   Future<void> _restore() async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_storageKey);
+    final raw = prefs.getString(_stateKey) ?? prefs.getString(_storageKey);
     try {
       if (raw == null || _items.isNotEmpty) return;
-      final decoded = jsonDecode(raw);
+      final state = jsonDecode(raw);
+      final decoded = state is Map ? state['items'] : state;
       if (decoded is! List) return;
+      if (state is Map && state['revision'] is String) {
+        _checkoutRevision = state['revision'] as String;
+      }
       for (final value in decoded) {
         if (value is! Map) continue;
         final item = CartItem.fromJson(Map<String, dynamic>.from(value));
@@ -398,6 +419,7 @@ class CartProvider extends ChangeNotifier {
       _applyLatestMenu();
     } catch (_) {
       await prefs.remove(_storageKey);
+      await prefs.remove(_stateKey);
     } finally {
       _restored = true;
       if (!_restoreCompleter.isCompleted) _restoreCompleter.complete();
@@ -405,11 +427,17 @@ class CartProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> _save() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      _storageKey,
-      jsonEncode(_items.values.map((item) => item.toJson()).toList()),
-    );
+  Future<void> _save() {
+    final items = _items.values.map((item) => item.toJson()).toList();
+    final state = jsonEncode({'revision': _checkoutRevision, 'items': items});
+    final legacy = jsonEncode(items);
+    // Keep the cart and its purchase identity in one record. Serialize writes
+    // so an older add/clear cannot restore a completed purchase after reload.
+    _pendingSave = _pendingSave.catchError((Object _) {}).then((_) async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_stateKey, state);
+      await prefs.setString(_storageKey, legacy);
+    });
+    return _pendingSave;
   }
 }

@@ -113,9 +113,9 @@ class _OrderSupportScreenState extends State<OrderSupportScreen> {
   Future<void> _submit() async {
     final text = _message.text.trim();
     if (_submitting || text.length < 5) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('support_message_required'.tr)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        bulkaSnackBar(content: Text('support_message_required'.tr)),
+      );
       return;
     }
     setState(() => _submitting = true);
@@ -146,7 +146,7 @@ class _OrderSupportScreenState extends State<OrderSupportScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('support_sent'.tr)));
+        ).showSnackBar(bulkaSnackBar(content: Text('support_sent'.tr)));
       }
     } catch (error) {
       if (!mounted) return;
@@ -359,7 +359,10 @@ class _SupportOrderBanner extends StatelessWidget {
     decoration: BoxDecoration(
       color: context.bulkaColors.brandGold.withValues(alpha: .14),
       borderRadius: BorderRadius.circular(BulkaRadii.control),
-      border: Border.all(color: context.bulkaColors.cardBorder),
+      border: Border.all(
+        color: context.bulkaColors.cardBorder,
+        width: BulkaStrokes.hairline,
+      ),
     ),
     child: Row(
       children: [
@@ -410,7 +413,10 @@ class _SupportRequestCard extends StatelessWidget {
         color: Theme.of(context).colorScheme.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(BulkaRadii.control),
-          side: BorderSide(color: colors.cardBorder),
+          side: BorderSide(
+            color: colors.cardBorder,
+            width: BulkaStrokes.hairline,
+          ),
         ),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -582,7 +588,7 @@ class _SupportThreadScreenState extends State<_SupportThreadScreen> {
     if (_sending || text.isEmpty) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(SnackBar(content: Text('support_reply_required'.tr)));
+      ).showSnackBar(bulkaSnackBar(content: Text('support_reply_required'.tr)));
       return;
     }
     final optimisticId =
@@ -648,7 +654,12 @@ class _SupportThreadScreenState extends State<_SupportThreadScreen> {
               padding: const EdgeInsets.fromLTRB(18, 12, 18, 14),
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surface,
-                border: Border(bottom: BorderSide(color: colors.cardBorder)),
+                border: Border(
+                  bottom: BorderSide(
+                    color: colors.cardBorder,
+                    width: BulkaStrokes.hairline,
+                  ),
+                ),
               ),
               child: Row(
                 children: [
@@ -713,7 +724,12 @@ class _SupportThreadScreenState extends State<_SupportThreadScreen> {
             DecoratedBox(
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surface,
-                border: Border(top: BorderSide(color: colors.cardBorder)),
+                border: Border(
+                  top: BorderSide(
+                    color: colors.cardBorder,
+                    width: BulkaStrokes.hairline,
+                  ),
+                ),
               ),
               child: Padding(
                 padding: EdgeInsets.fromLTRB(
@@ -792,7 +808,10 @@ class _SupportMessageBubble extends StatelessWidget {
                 customer ? BulkaRadii.small : BulkaRadii.control,
               ),
             ),
-            border: Border.all(color: colors.cardBorder),
+            border: Border.all(
+              color: colors.cardBorder,
+              width: BulkaStrokes.hairline,
+            ),
           ),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
