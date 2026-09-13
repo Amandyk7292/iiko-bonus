@@ -78,20 +78,23 @@ function invoiceReport(data, input) {
       items,
     });
   }
-  const rows = invoices.flatMap(({ items, ...invoice }) =>
+  const selectedInvoices = input.supplier
+    ? invoices.filter((invoice) => invoice.Supplier === input.supplier)
+    : invoices;
+  const rows = selectedInvoices.flatMap(({ items, ...invoice }) =>
     items.map((item) => ({ ...invoice, ...item })),
   );
   if (rows.length > 25000) throw failure('IIKO_REPORT_TOO_LARGE', 422);
-  invoices.sort((a, b) => Date.parse(b.Date) - Date.parse(a.Date));
+  selectedInvoices.sort((a, b) => Date.parse(b.Date) - Date.parse(a.Date));
   return {
     rows,
-    invoices,
+    invoices: selectedInvoices,
     columns,
     summary: {
-      invoices: invoices.length,
-      suppliers: new Set(invoices.map((row) => row.Supplier).filter(Boolean)).size,
+      invoices: selectedInvoices.length,
+      suppliers: new Set(selectedInvoices.map((row) => row.Supplier).filter(Boolean)).size,
       productLines: rows.length,
-      total: sum(invoices, 'Total'),
+      total: sum(selectedInvoices, 'Total'),
     },
     serverId: input.serverId,
     period: { from: input.from, to: input.to },

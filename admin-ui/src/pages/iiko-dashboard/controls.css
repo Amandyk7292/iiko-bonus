@@ -26,6 +26,23 @@
   font-variant-numeric: tabular-nums;
   color: #333b2b;
 }
+.id-invoice-filter {
+  display: flex;
+  align-items: end;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid #e9ece3;
+  border-radius: 16px;
+  background: #fff;
+}
+.id-invoice-filter label {
+  width: min(100%, 420px);
+}
+.id-invoice-filter span {
+  padding-bottom: 12px;
+  color: #717b65;
+  font-size: 12px;
+}
 .id-control-chart {
   padding: 24px;
 }
@@ -102,6 +119,13 @@
   white-space: nowrap;
 }
 @media (max-width: 600px) {
+  .id-invoice-filter {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .id-invoice-filter span {
+    padding-bottom: 0;
+  }
   .id-control-cards {
     grid-template-columns: 1fr 1fr;
     gap: 10px;

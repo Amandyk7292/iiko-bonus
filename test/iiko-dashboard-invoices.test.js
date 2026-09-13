@@ -82,6 +82,19 @@ test('department filter keeps only matching stores and does not invent unavailab
   assert.equal(scoped.invoices[0].Store, 'Основной склад');
 });
 
+test('supplier filter scopes invoices, rows and summary by the exact supplier name', () => {
+  const otherSupplier = { id: '15b0f001-d8e7-4e16-9399-1074ada28d68', name: 'Поставщик Б' };
+  const data = dataset([
+    document('one'),
+    document('two', { supplier: otherSupplier.id, incomingDocumentNumber: '000043' }),
+  ]);
+  data.suppliers.push(otherSupplier);
+  const report = invoiceReport(data, { ...input, supplier: otherSupplier.name });
+  assert.deepEqual(report.summary, { invoices: 1, suppliers: 1, productLines: 1, total: 1000 });
+  assert.equal(report.invoices[0].Document, '000043');
+  assert.equal(report.rows[0].Supplier, otherSupplier.name);
+});
+
 test('loader requests incoming invoices per active supplier and loads reference data only when needed', async () => {
   const calls = [];
   const request = async (path, _body, format) => {
@@ -112,8 +125,10 @@ test('loader requests incoming invoices per active supplier and loads reference 
 
 test('invoice query constrains the server and date range', () => {
   assert(invoiceQuery.safeParse(input).success);
+  assert(invoiceQuery.safeParse({ ...input, supplier: 'Поставщик A' }).success);
   assert(!invoiceQuery.safeParse({ ...input, serverId: 'other' }).success);
   assert(!invoiceQuery.safeParse({ ...input, from: '2026-02-30' }).success);
+  assert(!invoiceQuery.safeParse({ ...input, supplier: 'x'.repeat(251) }).success);
   assert(!invoiceQuery.safeParse({ ...input, total: 1 }).success);
 });
 

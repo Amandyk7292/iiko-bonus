@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Download } from 'lucide-react';
 import { useI18n } from '../../lib/i18n';
 import { ApiError } from '../../lib/api';
@@ -32,15 +32,17 @@ export default function Invoices({
   const text = (key: string) => invoiceText(locale, key);
   const [data, setData] = useState<InvoiceResult>();
   const [selected, setSelected] = useState<Invoice>();
+  const [supplier, setSupplier] = useState('');
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState('');
   const query = { serverId: base.serverId, from: base.from, to: base.to, department };
   const queryKey = JSON.stringify(query);
 
+  useEffect(() => setSupplier(''), [base.serverId, base.from, base.to, department]);
+
   useEffect(() => {
     const controller = new AbortController();
-    setData(undefined);
     setSelected(undefined);
     setLoading(true);
     setError('');
@@ -60,6 +62,36 @@ export default function Invoices({
       });
     return () => controller.abort();
   }, [queryKey, refresh]);
+
+  const suppliers = useMemo(
+    () =>
+      [...new Set((data?.invoices || []).map((invoice) => String(invoice.Supplier || '')))]
+        .filter(Boolean)
+        .sort((left, right) => left.localeCompare(right, locale)),
+    [data, locale],
+  );
+  const visibleInvoices = useMemo(
+    () =>
+      supplier
+        ? (data?.invoices || []).filter((invoice) => invoice.Supplier === supplier)
+        : data?.invoices || [],
+    [data, supplier],
+  );
+  const summary = useMemo(() => {
+    if (!data || !supplier) return data?.summary;
+    const totals = visibleInvoices.map((invoice) => invoice.Total);
+    return {
+      invoices: visibleInvoices.length,
+      suppliers: visibleInvoices.length ? 1 : 0,
+      productLines: visibleInvoices.reduce(
+        (total, invoice) => total + Number(invoice.Products || 0),
+        0,
+      ),
+      total: totals.every((value) => typeof value === 'number')
+        ? totals.reduce<number>((total, value) => total + Number(value), 0)
+        : null,
+    };
+  }, [data, supplier, visibleInvoices]);
 
   const report = (rows: Record<string, unknown>[], fields: string[]): Report => ({
     fetchedAt: data?.fetchedAt || '',
@@ -83,7 +115,7 @@ export default function Invoices({
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: queryKey,
+        body: JSON.stringify({ ...query, supplier }),
         signal: AbortSignal.timeout(180000),
       });
       if (!response.ok) {
@@ -105,17 +137,31 @@ export default function Invoices({
           {t(error)}
         </p>
       )}
-      {loading && <p role="status">{t('id.loading')}</p>}
+      {loading && !data && <p role="status">{t('id.loading')}</p>}
       {data && (
         <>
+          <div className="id-invoice-filter">
+            <label>
+              {text('supplierFilter')}
+              <select value={supplier} onChange={(event) => setSupplier(event.target.value)}>
+                <option value="">{text('allSuppliers')}</option>
+                {suppliers.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {loading && <span role="status">{text('refreshing')}</span>}
+          </div>
           <div className="id-control-cards">
             {(['invoices', 'suppliers', 'productLines', 'total'] as const).map((key) => (
               <div key={key}>
                 <span>{text(key)}</span>
                 <strong>
-                  {data.summary[key] === null
+                  {summary?.[key] === null
                     ? '—'
-                    : formatNumber(data.summary[key] || 0, { maximumFractionDigits: 2 })}
+                    : formatNumber(summary?.[key] || 0, { maximumFractionDigits: 2 })}
                   {key === 'total' ? ' ₸' : ''}
                 </strong>
               </div>
@@ -137,7 +183,7 @@ export default function Invoices({
               </button>
             </div>
             <DataTable
-              report={report(data.invoices, [
+              report={report(visibleInvoices, [
                 'Date',
                 'Document',
                 'Supplier',
@@ -147,7 +193,7 @@ export default function Invoices({
                 'Total',
               ])}
               onSelect={(row) =>
-                setSelected(data.invoices.find((item) => item.identity === row.identity))
+                setSelected(visibleInvoices.find((item) => item.identity === row.identity))
               }
             />
           </section>
