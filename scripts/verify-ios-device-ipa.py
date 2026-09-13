@@ -26,6 +26,15 @@ def verify(directory, expected, app_store=False):
         if not primary_icon.get('UIPrerenderedIcon'):
             raise ValueError('IPA is missing the prerendered icon setting')
         root = roots[0].rsplit('/', 1)[0]
+        extensions = [name for name in archive.namelist()
+                      if name.startswith(root + '/PlugIns/') and name.endswith('.appex/Info.plist')]
+        if not extensions:
+            raise ValueError('IPA is missing the widget extension')
+        for extension in extensions:
+            extension_info = plistlib.loads(archive.read(extension))
+            for key in ('CFBundleVersion', 'CFBundleShortVersionString'):
+                if not info.get(key) or extension_info.get(key) != info[key]:
+                    raise ValueError(f'Extension {key} mismatch: {extension}')
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / 'embedded.mobileprovision'
             path.write_bytes(archive.read(root + '/embedded.mobileprovision'))

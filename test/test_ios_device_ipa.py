@@ -16,14 +16,25 @@ spec.loader.exec_module(module)
 
 
 class DeviceIpaVerification(unittest.TestCase):
-    def create_package(self, directory, bundle):
+    def create_package(self, directory, bundle, version="1.0.1", build="2"):
         with zipfile.ZipFile(Path(directory) / 'Bulka.ipa', 'w') as archive:
             archive.writestr('Payload/Runner.app/Info.plist', plistlib.dumps({
                 'CFBundleIdentifier': bundle,
                 'CFBundleIcons': {'CFBundlePrimaryIcon': {
                     'CFBundleIconName': 'BulkaSolid', 'UIPrerenderedIcon': True}},
                 'CFBundleShortVersionString': '1.0.1', 'CFBundleVersion': '2'}))
+            archive.writestr('Payload/Runner.app/PlugIns/BulkaWidget.appex/Info.plist', plistlib.dumps({
+                'CFBundleShortVersionString': version, 'CFBundleVersion': build}))
             archive.writestr('Payload/Runner.app/embedded.mobileprovision', b'cms-profile')
+
+    def test_rejects_mismatched_extension_versions(self):
+        for version, build in [('1.0', '2'), ('1.0.1', '1')]:
+            with self.subTest(version=version, build=build), tempfile.TemporaryDirectory() as directory:
+                self.create_package(directory, 'com.bulka.bonus', version, build)
+                with patch.object(module.subprocess, 'check_output') as decode:
+                    with self.assertRaisesRegex(ValueError, 'mismatch'):
+                        module.verify(directory, 'com.bulka.bonus', app_store=True)
+                    decode.assert_not_called()
 
     def test_rejects_other_bulka_before_reading_profile(self):
         with tempfile.TemporaryDirectory() as directory:
