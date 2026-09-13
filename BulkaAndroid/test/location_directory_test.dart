@@ -107,6 +107,8 @@ void main() {
       await tester.tap(find.text('Ardager'));
       await tester.pumpAndSettle();
       expect(find.text('directory_route'.tr), findsOneWidget);
+      await tester.tap(find.text('directory_hours'.tr));
+      await tester.pumpAndSettle();
       expect(find.textContaining('08:00 – 21:00'), findsWidgets);
       await tester.tap(find.byTooltip('close_btn'.tr));
       await tester.pumpAndSettle();

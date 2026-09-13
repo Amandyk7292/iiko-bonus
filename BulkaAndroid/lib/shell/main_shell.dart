@@ -189,9 +189,17 @@ class _MainShellState extends State<MainShell> {
       }
       return;
     }
+    final destination = _uriForTab(index);
+    // A hidden catalog tab can still hold the product URI that opened its last
+    // details route. Clear that pending route before the tab becomes visible;
+    // otherwise the first frame of the catalog may reopen the previous product
+    // when the user only asked to return to the catalog root.
+    if (index == 1) {
+      _catalogKey.currentState?.applyClientUri(destination);
+    }
     BulkaMotion.selection();
     setState(() => _tab = index);
-    publishClientRoute(_uriForTab(index));
+    publishClientRoute(destination);
     widget.onTabChanged?.call(index);
   }
 
