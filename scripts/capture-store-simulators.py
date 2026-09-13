@@ -2,7 +2,7 @@ import json, os, subprocess, time
 from pathlib import Path
 
 def run(*args, **kwargs):
-    return subprocess.check_output(args, text=True, **kwargs).strip()
+    return subprocess.check_output(args, text=True, timeout=300, **kwargs).strip()
 
 devices = json.loads(run('xcrun', 'simctl', 'list', 'devices', 'available', '-j'))['devices']
 flat = [d for group in devices.values() for d in group]
@@ -17,12 +17,14 @@ for family, device in selected:
     if device['state'] != 'Booted': run('xcrun', 'simctl', 'boot', udid)
     run('xcrun', 'simctl', 'bootstatus', udid, '-b')
     run('xcrun', 'simctl', 'status_bar', udid, 'override', '--time', '9:41', '--dataNetwork', 'wifi', '--wifiMode', 'active', '--wifiBars', '3', '--batteryState', 'charged', '--batteryLevel', '100')
-    run('xcrun', 'simctl', 'install', udid, 'build/ios/iphonesimulator/Runner.app')
     output = Path('store-screenshots') / family
     output.mkdir(parents=True, exist_ok=True)
-    for tab, name in [(1, '01-catalog'), (0, '02-home'), (3, '03-locations')]:
-        subprocess.run(['xcrun', 'simctl', 'terminate', udid, 'com.bulka.bonus'], capture_output=True)
-        run('xcrun', 'simctl', 'launch', udid, 'com.bulka.bonus', env={**os.environ, 'SIMCTL_CHILD_BULKA_SCREEN': str(tab)})
-        time.sleep(30)
-        run('xcrun', 'simctl', 'io', udid, 'screenshot', str(output / (name + '.png')))
+    subprocess.run(['flutter', 'drive', '--driver=test_driver/store_screenshots.dart',
+                    '--target=integration_test/store_screenshots_test.dart', '-d', udid,
+                    '--dart-define=BULKA_API_BASE_URL=https://bulka.com.kz'],
+                   env={**os.environ, 'SCREENSHOT_DIR': str(output.resolve())}, check=True, timeout=1200)
+    import hashlib
+    files = list(output.glob('*.png'))
+    if len(files) != 3 or len({hashlib.sha256(f.read_bytes()).hexdigest() for f in files}) != 3:
+        raise RuntimeError('Missing or duplicated screenshots')
     run('xcrun', 'simctl', 'shutdown', udid)

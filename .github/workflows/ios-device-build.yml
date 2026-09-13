@@ -21,7 +21,6 @@ jobs:
         env:
           FIREBASE_PLIST: ${{ secrets.IOS_FIREBASE_PLIST }}
         run: echo "$FIREBASE_PLIST" | base64 --decode > ios/Runner/GoogleService-Info.plist
-      - run: flutter build ios --simulator --debug --target lib/store_capture.dart --dart-define=BULKA_API_BASE_URL=https://bulka.com.kz
       - name: Capture iPhone and iPad
         run: python3 ../scripts/capture-store-simulators.py
       - uses: actions/upload-artifact@v4
