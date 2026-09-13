@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
+import 'package:bulka_bonus/core/cart_provider.dart';
 import 'package:bulka_bonus/main.dart' as app;
 
 void main() {
@@ -22,12 +24,18 @@ void main() {
       await prefs.setString('selected_bakery_location$suffix', branch.displayLabel);
       await prefs.setString('selected_bakery_location_id$suffix', branch.id);
     }
-    app.main();
+    await app.AppLang.init();
+    await tester.pumpWidget(ChangeNotifierProvider(
+      create: (_) => CartProvider(),
+      child: const app.BulkaBonusApp(),
+    ));
     Future<void> ready(Finder finder) async {
       for (var i = 0; i < 90; i++) {
         await tester.pump(const Duration(seconds: 1));
         if (finder.evaluate().isNotEmpty) return;
       }
+      await binding.takeScreenshot('diagnostic-failure');
+      debugDumpApp();
       fail('Expected screen did not appear: $finder');
     }
     Future<void> capture(String name, int tab) async {
@@ -39,12 +47,12 @@ void main() {
       expect(tester.widget<Offstage>(slot).offstage, false);
       await binding.takeScreenshot(name);
     }
-    await ready(find.text('Главная'));
-    await ready(find.text('Булочки')); 
+    await ready(find.text('Р“Р»Р°РІРЅР°СЏ'));
+    await ready(find.text('Р‘СѓР»РѕС‡РєРё'));
     await capture('01-catalog', 1);
-    await tester.tap(find.text('Главная').last);
+    await tester.tap(find.text('Р“Р»Р°РІРЅР°СЏ').last);
     await capture('02-home', 0);
-    await tester.tap(find.text('Локации').last);
+    await tester.tap(find.text('Р›РѕРєР°С†РёРё').last);
     await capture('03-locations', 3);
   }, timeout: const Timeout(Duration(minutes: 8)));
 }
