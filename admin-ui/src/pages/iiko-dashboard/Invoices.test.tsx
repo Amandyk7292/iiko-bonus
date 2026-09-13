@@ -17,6 +17,7 @@ const base: Query = {
   groupBy: [],
   aggregate: [],
 };
+const supplierProps = { supplier: '', onSupplierChange: vi.fn() };
 
 const invoiceResult = {
   serverId: base.serverId,
@@ -58,7 +59,7 @@ beforeEach(() => {
 it('loads incoming invoices, opens goods and exports the selected period', async () => {
   render(
     <I18nProvider>
-      <Invoices base={base} department="Филиал A" refresh={0} />
+      <Invoices base={base} department="Филиал A" refresh={0} {...supplierProps} />
     </I18nProvider>,
   );
   expect(await screen.findByText('000042')).toBeVisible();
@@ -93,13 +94,13 @@ it('keeps the current table visible during refresh', async () => {
     );
   const view = render(
     <I18nProvider>
-      <Invoices base={base} department="Филиал A" refresh={0} />
+      <Invoices base={base} department="Филиал A" refresh={0} {...supplierProps} />
     </I18nProvider>,
   );
   expect(await screen.findByText('000042')).toBeVisible();
   view.rerender(
     <I18nProvider>
-      <Invoices base={base} department="Филиал A" refresh={1} />
+      <Invoices base={base} department="Филиал A" refresh={1} {...supplierProps} />
     </I18nProvider>,
   );
   expect(screen.getByText('000042')).toBeVisible();
@@ -126,13 +127,16 @@ it('filters the loaded report by supplier and exports the same scope', async () 
   });
   render(
     <I18nProvider>
-      <Invoices base={base} department="Филиал A" refresh={0} />
+      <Invoices
+        base={base}
+        department="Филиал A"
+        refresh={0}
+        supplier="Поставщик Б"
+        onSupplierChange={supplierProps.onSupplierChange}
+      />
     </I18nProvider>,
   );
   expect(await screen.findByText('000043')).toBeVisible();
-  fireEvent.change(screen.getByRole('combobox', { name: 'Поставщик' }), {
-    target: { value: 'Поставщик Б' },
-  });
   expect(screen.queryByText('000042')).not.toBeInTheDocument();
   expect(screen.getByText('000043')).toBeVisible();
 

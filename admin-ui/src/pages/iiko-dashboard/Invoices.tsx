@@ -23,23 +23,24 @@ export default function Invoices({
   base,
   department,
   refresh,
+  supplier,
+  onSupplierChange,
 }: {
   base: Query;
   department: string;
   refresh: number;
+  supplier: string;
+  onSupplierChange: (supplier: string) => void;
 }) {
   const { t, locale, formatNumber, formatDate } = useI18n();
   const text = (key: string) => invoiceText(locale, key);
   const [data, setData] = useState<InvoiceResult>();
   const [selected, setSelected] = useState<Invoice>();
-  const [supplier, setSupplier] = useState('');
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState('');
   const query = { serverId: base.serverId, from: base.from, to: base.to, department };
   const queryKey = JSON.stringify(query);
-
-  useEffect(() => setSupplier(''), [base.serverId, base.from, base.to, department]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -143,7 +144,10 @@ export default function Invoices({
           <div className="id-invoice-filter">
             <label>
               {text('supplierFilter')}
-              <select value={supplier} onChange={(event) => setSupplier(event.target.value)}>
+              <select
+                value={supplier}
+                onChange={(event) => onSupplierChange(event.target.value)}
+              >
                 <option value="">{text('allSuppliers')}</option>
                 {suppliers.map((name) => (
                   <option key={name} value={name}>

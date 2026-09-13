@@ -147,7 +147,7 @@
     flex: 1 1 calc(25% - 12px);
     min-width: 70px;
     white-space: normal;
-    font-size: 10px;
+    font-size: 12px;
   }
   .id-control-chart {
     padding: 16px;

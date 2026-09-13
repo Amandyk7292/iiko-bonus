@@ -7,7 +7,7 @@
   border-radius: 999px;
   background: #9a3f20;
   color: #fff;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   line-height: 22px;
   text-align: center;
@@ -172,7 +172,7 @@
 
 .realtime-status-copy small {
   color: #887a6f;
-  font-size: 10px;
+  font-size: 12px;
   white-space: nowrap;
 }
 
@@ -185,11 +185,11 @@
   background: #fff8e9;
   color: #5f4326;
   padding: 7px 9px;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .substitution-preference strong {
-  font-size: 10px;
+  font-size: 12px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -207,7 +207,7 @@
   border: 1px solid var(--sagi-border);
   border-radius: 9px;
   background: #fff;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .substitution-workflow small {
@@ -261,7 +261,7 @@
 .topbar-branch-select > span {
   padding-left: 2px;
   color: #84766a;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -301,7 +301,7 @@
   border-radius: 999px;
   background: #a34225;
   color: #fff;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   line-height: 15px;
   text-align: center;
@@ -488,7 +488,7 @@
 .operations-metric-copy > small {
   overflow: hidden;
   color: #897d73;
-  font-size: 11px;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -633,7 +633,7 @@
 .operations-list-copy > small {
   overflow: hidden;
   color: #84786e;
-  font-size: 11px;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -641,7 +641,7 @@
 .operations-updated {
   margin: 0;
   color: #8f8278;
-  font-size: 11px;
+  font-size: 12px;
   text-align: right;
 }
 
@@ -921,7 +921,7 @@
 .payment-operation-card small,
 .payment-webhook-row small {
   color: #7e7268;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .payment-provider-card dd {
@@ -981,7 +981,7 @@
 .payment-webhook-row code {
   overflow: hidden;
   color: #963d30;
-  font-size: 10px;
+  font-size: 12px;
   text-overflow: ellipsis;
 }
 
@@ -1038,7 +1038,7 @@
   border-radius: 999px;
   background: #f2ece5;
   color: #6e6259;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -1076,7 +1076,7 @@
 .payment-error-section li p,
 .payment-error-section li time {
   color: #82766c;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .payment-error-mark {
@@ -1163,7 +1163,7 @@
 .support-queue-header p {
   margin: 2px 0 0;
   color: #8a7d73;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .support-request-list {
@@ -1247,7 +1247,7 @@
 .support-request-meta,
 .support-request-preview {
   color: #86796f;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .support-request-meta {
@@ -1269,7 +1269,7 @@
   background: #eee9e4;
   color: #69605a;
   padding: 3px 8px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
 }
 
@@ -1289,7 +1289,7 @@
   align-items: center;
   gap: 4px;
   color: #7d7168;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -1318,7 +1318,7 @@
   align-items: center;
   gap: 6px;
   color: #8b4a2e;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   text-transform: uppercase;
 }
@@ -1389,12 +1389,12 @@
 
 .support-message header strong {
   color: #704026;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .support-message header time {
   color: #92867c;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .support-message p {
@@ -1451,7 +1451,7 @@
 .whatsapp-conversation-pagination button {
   min-height: 34px;
   padding: 0 10px;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .whatsapp-conversation-pagination button:last-child {
@@ -1460,7 +1460,7 @@
 
 .whatsapp-conversation-pagination span {
   color: #7e7168;
-  font-size: 11px;
+  font-size: 12px;
   white-space: nowrap;
 }
 

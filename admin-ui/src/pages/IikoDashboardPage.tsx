@@ -56,16 +56,62 @@ const tabs = [
   { id: 'balances', icon: Warehouse },
   { id: 'settings', icon: Settings2 },
 ];
+const tabIds = new Set(tabs.map((item) => item.id));
+const departmentTabs = new Set([
+  'overview',
+  'rankings',
+  'reports',
+  'writeoffs',
+  'invoices',
+  'operations',
+  'barters',
+  'assortment',
+]);
+
+export function dashboardUrlState() {
+  const params = new URLSearchParams(window.location.search);
+  const defaultFrom = offsetDate(today(), -6);
+  const defaultTo = today();
+  const from = params.get('from') || defaultFrom;
+  const to = params.get('to') || defaultTo;
+  return {
+    tab: tabIds.has(params.get('tab') || '') ? String(params.get('tab')) : 'overview',
+    serverId: params.get('server') || 'aktau-chain',
+    from: validRange(from, to) ? from : defaultFrom,
+    to: validRange(from, to) ? to : defaultTo,
+    department: params.get('department') || '',
+    supplier: params.get('supplier') || '',
+    comparison: ['previous', 'year', 'none'].includes(params.get('comparison') || '')
+      ? String(params.get('comparison'))
+      : 'previous',
+  };
+}
+
+export function preferredServer(servers: Server[], city: Server['city'], current = '') {
+  const active = servers.filter((server) => server.active && server.city === city);
+  return (
+    active.find((server) => server.id === current)?.id ||
+    active.find((server) => server.kind === 'chain')?.id ||
+    active[0]?.id ||
+    servers.find((server) => server.active)?.id ||
+    ''
+  );
+}
 
 export default function IikoDashboardPage() {
   const { t, formatDate, locale } = useI18n();
+  const initialUrlState = useRef(dashboardUrlState()).current;
   const [servers, setServers] = useState<Server[]>([]);
-  const [serverId, setServerId] = useState('aktau-chain');
-  const [tab, setTab] = useState('overview');
-  const [{ from, to }, setRange] = useState(() => ({ from: offsetDate(today(), -6), to: today() }));
+  const [serverId, setServerId] = useState(initialUrlState.serverId);
+  const [tab, setTab] = useState(initialUrlState.tab);
+  const [{ from, to }, setRange] = useState(() => ({
+    from: initialUrlState.from,
+    to: initialUrlState.to,
+  }));
   const periodDisclosure = useRef<HTMLDetailsElement>(null);
-  const [comparison, setComparison] = useState('previous');
-  const [department, setDepartment] = useState('');
+  const [comparison, setComparison] = useState(initialUrlState.comparison);
+  const [department, setDepartment] = useState(initialUrlState.department);
+  const [supplier, setSupplier] = useState(initialUrlState.supplier);
   const [departments, setDepartments] = useState<string[]>([]);
   const [overview, setOverview] = useState<OverviewData>();
   const [exportQuery, setExportQuery] = useState<Query>();
@@ -105,11 +151,10 @@ export default function IikoDashboardPage() {
       .then((data) => {
         if (active) {
           setServers(data.servers);
-          setServerId((current) =>
-            data.servers.some((server) => server.id === current && server.active)
-              ? current
-              : data.servers.find((server) => server.active)?.id || '',
-          );
+           setServerId((current) => {
+             const requested = data.servers.find((server) => server.id === current);
+             return preferredServer(data.servers, requested?.city || 'aktau', current);
+           });
         }
       })
       .catch((caught) => {
@@ -130,7 +175,17 @@ export default function IikoDashboardPage() {
     }
   }, [preferences]);
   useEffect(() => {
-    if (!preferences.auto) return;
+    const params = new URLSearchParams(window.location.search);
+    const values = { tab, server: serverId, from, to, department, supplier, comparison };
+    Object.entries(values).forEach(([key, value]) => {
+      if (value) params.set(key, value);
+      else params.delete(key);
+    });
+    const query = params.toString();
+    window.history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}`);
+  }, [tab, serverId, from, to, department, supplier, comparison]);
+  useEffect(() => {
+    if (!preferences.auto || tab === 'settings') return;
     const timer = window.setInterval(() => {
       if (!document.hidden && !isIikoRequestPending()) setRefresh((value) => value + 1);
     }, 60000);
@@ -144,13 +199,9 @@ export default function IikoDashboardPage() {
       document.removeEventListener('visibilitychange', foreground);
       window.removeEventListener('online', foreground);
     };
-  }, [preferences.auto]);
+  }, [preferences.auto, tab]);
   useEffect(() => {
-    setDepartment('');
-    setDepartments([]);
-  }, [serverId]);
-  useEffect(() => {
-    if (!selectedServer?.configured || !rangeValid) return;
+    if (!selectedServer?.configured || !rangeValid || !departmentTabs.has(tab)) return;
     const controller = new AbortController();
     void dashboardApi
       .report(
@@ -173,7 +224,7 @@ export default function IikoDashboardPage() {
       })
       .catch(() => {});
     return () => controller.abort();
-  }, [serverId, from, to, selectedServer?.configured, refresh]);
+  }, [serverId, from, to, selectedServer?.configured, rangeValid, tab]);
   useEffect(() => {
     setOverview(undefined);
     setExportQuery(undefined);
@@ -217,6 +268,7 @@ export default function IikoDashboardPage() {
 
   const setPeriod = (period: string) => {
     const now = today();
+    setSupplier('');
     if (period === 'yesterday') {
       setRange({ from: offsetDate(now, -1), to: offsetDate(now, -1) });
     } else {
@@ -258,7 +310,13 @@ export default function IikoDashboardPage() {
             <select
               aria-label={t('id.city')}
               value={selectedServer?.city || 'aktau'}
-              onChange={(event) => setServerId(`${event.target.value}-chain`)}
+              onChange={(event) => {
+                const city = event.target.value as Server['city'];
+                setDepartment('');
+                setDepartments([]);
+                setSupplier('');
+                setServerId(preferredServer(servers, city));
+              }}
             >
               <option value="aktau">{locale === 'en' ? 'Aktau' : 'Актау'}</option>
               <option value="astana">{locale === 'en' ? 'Astana' : 'Астана'}</option>
@@ -269,7 +327,10 @@ export default function IikoDashboardPage() {
             <select
               aria-label={t('id.department')}
               value={department}
-              onChange={(event) => setDepartment(event.target.value)}
+              onChange={(event) => {
+                setDepartment(event.target.value);
+                setSupplier('');
+              }}
               disabled={tab === 'balances' || tab === 'settings'}
             >
               <option value="">{t('id.all')}</option>
@@ -327,6 +388,7 @@ export default function IikoDashboardPage() {
                 to={to}
                 onChange={(start, end) => {
                   setRange({ from: start, to: end });
+                  setSupplier('');
                   setRefresh((value) => value + 1);
                   if (periodDisclosure.current) periodDisclosure.current.open = false;
                   requestAnimationFrame(() =>
@@ -354,7 +416,12 @@ export default function IikoDashboardPage() {
                 <select
                   aria-label={t('id.source')}
                   value={serverId}
-                  onChange={(event) => setServerId(event.target.value)}
+                  onChange={(event) => {
+                    setDepartment('');
+                    setDepartments([]);
+                    setSupplier('');
+                    setServerId(event.target.value);
+                  }}
                 >
                   {servers
                     .filter(
@@ -404,7 +471,13 @@ export default function IikoDashboardPage() {
         />
       )}
       {tab === 'invoices' && (
-        <Invoices key={serverId} base={base} department={department} refresh={refresh} />
+        <Invoices
+          base={base}
+          department={department}
+          refresh={refresh}
+          supplier={supplier}
+          onSupplierChange={setSupplier}
+        />
       )}
       {tab === 'operations' && (
         <Controls
@@ -460,9 +533,9 @@ export default function IikoDashboardPage() {
           onChange={setPreferences}
           onServersChange={(updated) => {
             setServers(updated);
-            if (!updated.some((server) => server.id === serverId && server.active)) {
-              setServerId(updated.find((server) => server.active)?.id || '');
-            }
+             if (!updated.some((server) => server.id === serverId && server.active)) {
+               setServerId(preferredServer(updated, selectedServer?.city || 'aktau'));
+             }
           }}
         />
       )}

@@ -48,7 +48,7 @@
   align-items: center;
 }
 .id-primary-filters label > span {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   color: #74796d;
 }
@@ -257,7 +257,7 @@
   margin: 0 0 10px;
 }
 .id-data-time {
-  font-size: 11px;
+  font-size: 12px;
   color: #7a806f;
   text-align: right;
 }
@@ -383,7 +383,7 @@
   }
   .id-dashboard .id-tabs button {
     gap: 6px;
-    font-size: 11px;
+    font-size: 12px;
     min-height: 44px;
     padding-bottom: 10px;
   }
@@ -521,7 +521,7 @@
     flex-direction: column;
     justify-content: center;
     gap: 6px;
-    font-size: 10px;
+    font-size: 12px;
     padding: 8px 0 12px;
   }
   .id-dashboard .id-tabs svg {
@@ -542,6 +542,6 @@
 .id-report-meta time {
   align-self: flex-start;
   padding-top: 20px;
-  font-size: 11px;
+  font-size: 12px;
   color: #737b67;
 }

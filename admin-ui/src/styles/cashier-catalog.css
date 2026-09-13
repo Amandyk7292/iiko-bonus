@@ -202,7 +202,7 @@
 .cashier-manual-source {
   display: block;
   color: #756d65;
-  font-size: 11px;
+  font-size: 12px;
   margin-top: 4px;
 }
 .cashier-follow-iiko {
@@ -212,7 +212,7 @@
   min-height: 44px;
   padding: 4px 0;
   font: inherit;
-  font-size: 11px;
+  font-size: 12px;
   color: #69472f;
   cursor: pointer;
 }
@@ -248,7 +248,7 @@
     padding: 8px;
   }
   .cashier-reserved {
-    font-size: 10px;
+    font-size: 12px;
     text-align: center;
   }
   .cashier-stock-row.is-editing .cashier-stock-editor {

@@ -1,6 +1,23 @@
 part of '../main.dart';
 
 @visibleForTesting
+bool shouldProbeStaffSession({
+  required bool isWeb,
+  required bool isAuthenticated,
+  required Uri currentUri,
+}) => !isWeb || isAuthenticated || currentUri.path.startsWith('/admin');
+
+@visibleForTesting
+bool shouldProbeCustomerSession({
+  required bool isWeb,
+  required bool hasCachedIdentity,
+  required bool hasAccessToken,
+  required bool hasRefreshToken,
+}) =>
+    (isWeb && hasCachedIdentity) ||
+    (!isWeb && !hasAccessToken && hasRefreshToken);
+
+@visibleForTesting
 bool matchesCurrentAvatarSave({
   required Customer? currentCustomer,
   required String? savedPhone,
@@ -132,7 +149,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _staff.addListener(_handleStaffChanged);
-    _staffReady = _staff.restore();
+    _staffReady = _restoreStaffSessionIfRelevant();
     _api.setSessionListener(_handleSessionChanged);
     OrderLiveStatus.attach(_api);
     _customerEventSubscription = _api.customerEvents.listen(
@@ -157,6 +174,17 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
         if (!_startupReady.isCompleted) _startupReady.complete();
       }),
     );
+  }
+
+  Future<void> _restoreStaffSessionIfRelevant() {
+    if (!shouldProbeStaffSession(
+      isWeb: kIsWeb,
+      isAuthenticated: _staff.isAuthenticated,
+      currentUri: currentClientUri(),
+    )) {
+      return Future<void>.value();
+    }
+    return _staff.restore();
   }
 
   @override
@@ -199,7 +227,7 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       // alive for days. initialize() is silent, coalesced, and in the ready
       // state retries only that durable cleanup; it never prompts permission.
       unawaited(resumePushNotifications());
-      unawaited(_staff.restore());
+      unawaited(_restoreStaffSessionIfRelevant());
       unawaited(_refreshRequiredAppUpdate());
     }
     final phone = _savedPhone;
@@ -389,7 +417,13 @@ class _BulkaBonusAppState extends State<BulkaBonusApp>
       refreshToken: refreshToken,
       cacheScope: phone,
     );
-    if (kIsWeb || (accessToken == null && refreshToken != null)) {
+    final hasCachedWebIdentity = phone != null || cachedCustomer != null;
+    if (shouldProbeCustomerSession(
+      isWeb: kIsWeb,
+      hasCachedIdentity: hasCachedWebIdentity,
+      hasAccessToken: accessToken != null,
+      hasRefreshToken: refreshToken != null,
+    )) {
       final previousPhone = phone;
       final previousCustomerPhone = cachedCustomer?.phone;
       if (await _api.restoreSession(force: true)) {

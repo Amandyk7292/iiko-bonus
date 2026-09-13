@@ -355,7 +355,7 @@
 }
 .funnel-value small {
   color: var(--sagi-muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 .funnel-payment-outcomes {
   display: grid;

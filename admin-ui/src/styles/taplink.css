@@ -257,7 +257,7 @@
 .taplink-block-copy small {
   margin-top: 2px;
   color: var(--sagi-muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .taplink-selected-indicator {
@@ -773,7 +773,7 @@
   border-radius: 999px;
   background: transparent;
   color: var(--taplink-preview-muted);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.06em;
 }
@@ -812,7 +812,7 @@
   border-radius: 999px;
   background: var(--taplink-preview-surface);
   color: var(--taplink-preview-muted);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -912,7 +912,7 @@
 .taplink-preview-link-copy small {
   margin-top: 2px;
   color: currentColor;
-  font-size: 10px;
+  font-size: 12px;
   opacity: 1;
 }
 
@@ -940,7 +940,7 @@
 .taplink-preview-footer p {
   margin: 0;
   color: var(--taplink-preview-muted);
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .taplink-effect-none .taplink-preview-link:not([data-button-effect]),
