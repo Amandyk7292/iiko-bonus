@@ -7,7 +7,7 @@ def run(*args, **kwargs):
 devices = json.loads(run('xcrun', 'simctl', 'list', 'devices', 'available', '-j'))['devices']
 flat = [d for group in devices.values() for d in group]
 selected = []
-for family, match in [('iphone', 'iPhone 16 Plus'), ('ipad', 'iPad Pro 13-inch')]:
+for family, match in [('iphone', 'iPhone 17 Pro Max'), ('ipad', 'iPad Pro 13-inch')]:
     candidates = [d for d in flat if match in d['name']]
     if not candidates:
         raise RuntimeError(f'Missing simulator {match}: {[d["name"] for d in flat]}')
