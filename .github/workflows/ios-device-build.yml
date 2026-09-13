@@ -1,78 +1,62 @@
-name: App Store build
-
+name: Upload App Store build
 on:
   workflow_dispatch:
     inputs:
-      mode:
-        description: Build mode
-        type: choice
-        options: [release]
-        default: release
-
+      source_run:
+        description: Successful App Store build run ID
+        required: true
+        type: string
 permissions:
   contents: read
-
-concurrency:
-  group: app-store-build
-  cancel-in-progress: false
-
+  actions: read
 jobs:
-  ipa:
+  upload:
     runs-on: macos-latest
-    timeout-minutes: 45
-    defaults:
-      run:
-        working-directory: BulkaAndroid
+    timeout-minutes: 25
     env:
-      IOS_DISTRIBUTION: app-store
-      IOS_CERTIFICATE_P12: ${{ secrets.IOS_STORE_CERTIFICATE_P12 }}
-      IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_STORE_CERTIFICATE_PASSWORD }}
-      IOS_APP_PROFILE: ${{ secrets.IOS_STORE_APP_PROFILE }}
-      IOS_WIDGET_PROFILE: ${{ secrets.IOS_STORE_WIDGET_PROFILE }}
-      IOS_FIREBASE_PLIST: ${{ secrets.IOS_FIREBASE_PLIST }}
-      BUILD_MODE: ${{ inputs.mode }}
+      ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+      ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+      ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - name: Check signing inputs
-        run: |
-          for name in IOS_CERTIFICATE_P12 IOS_CERTIFICATE_PASSWORD IOS_APP_PROFILE IOS_WIDGET_PROFILE IOS_FIREBASE_PLIST; do
-            if [ -z "${!name}" ]; then
-              echo "::error::Missing signing secret: $name"
-              exit 1
-            fi
-          done
-      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+      - uses: actions/download-artifact@v4
         with:
-          flutter-version: '3.38.5'
-          cache: true
-      - run: flutter pub get
-      - name: Prepare temporary signing keychain
-        run: python3 ../scripts/prepare-ios-device-signing.py
-      - name: Install CocoaPods dependencies
-        run: cd ios && pod install
-      - name: Apply profiles to app and widget targets
-        run: ruby ../scripts/apply-ios-device-profiles.rb
-      - name: Build signed IPA
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.source_run }}
+          pattern: bulka-appstore-release-*
+          path: ipa
+          merge-multiple: true
+      - name: Validate artifact and prepare upload key
         run: |
-          flutter build ipa "--$BUILD_MODE" \
-            --build-number="$GITHUB_RUN_NUMBER" \
-            --export-options-plist="$RUNNER_TEMP/bulka-signing/ExportOptions.plist" \
-            --dart-define=BULKA_API_BASE_URL=https://bulka.com.kz
-      - name: Verify built application
+          set -euo pipefail
+          test -n "$ASC_KEY_ID"
+          test -n "$ASC_ISSUER_ID"
+          test -n "$ASC_PRIVATE_KEY"
+          python3 - <<'PY'
+          import os, pathlib, base64, hashlib, plistlib, zipfile
+          packages=list(pathlib.Path('ipa').glob('*.ipa'))
+          assert len(packages)==1, 'Expected one IPA'
+          package=packages[0]
+          checksums=(pathlib.Path('ipa')/'SHA256SUMS').read_text()
+          assert hashlib.sha256(package.read_bytes()).hexdigest() in checksums
+          with zipfile.ZipFile(package) as archive:
+              info=plistlib.loads(archive.read('Payload/Runner.app/Info.plist'))
+              assert info['CFBundleIdentifier']=='com.bulka.bonus'
+              print('Uploading Bulka',info['CFBundleShortVersionString'],info['CFBundleVersion'])
+          folder=pathlib.Path.home()/'.appstoreconnect/private_keys'
+          folder.mkdir(parents=True, exist_ok=True)
+          key=folder/('AuthKey_'+os.environ['ASC_KEY_ID']+'.p8')
+          key.write_bytes(base64.b64decode(os.environ['ASC_PRIVATE_KEY'],validate=True))
+          key.chmod(0o600)
+          PY
+      - name: Upload to App Store Connect
         run: |
-          python3 ../scripts/verify-ios-device-ipa.py build/ios/ipa \
-            --expected-bundle-id com.bulka.bonus --app-store
-          shasum -a 256 build/ios/ipa/*.ipa > build/ios/ipa/SHA256SUMS
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: bulka-appstore-${{ inputs.mode }}-${{ github.sha }}
-          path: |
-            BulkaAndroid/build/ios/ipa/*.ipa
-            BulkaAndroid/build/ios/ipa/SHA256SUMS
-          if-no-files-found: error
-          retention-days: 7
-      - name: Remove temporary signing materials
+          set -euo pipefail
+          xcrun altool --upload-app -f ipa/*.ipa -t ios --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+      - name: Remove temporary upload key
         if: always()
         run: |
-          security delete-keychain "$RUNNER_TEMP/bulka-signing/build.keychain-db" || true
-          rm -rf "$RUNNER_TEMP/bulka-signing"
+          python3 - <<'PY'
+          import os, pathlib
+          key=pathlib.Path.home()/'.appstoreconnect/private_keys'/('AuthKey_'+os.environ['ASC_KEY_ID']+'.p8')
+          key.unlink(missing_ok=True)
+          PY
