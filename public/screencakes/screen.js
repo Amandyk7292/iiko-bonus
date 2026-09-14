@@ -38,7 +38,6 @@
       document.getElementById('year-period').textContent = `${data.periods.year.from.slice(0, 4)} год · кг`;
       document.getElementById('month-period').textContent = `${new Intl.DateTimeFormat('ru-RU', { month: 'long', timeZone: 'Asia/Almaty' }).format(monthDate)} · кг`;
       document.getElementById('all-period').textContent = 'Вся доступная история · кг';
-      document.getElementById('method').textContent = 'Только «Блины - 17». Проданный вес по данным iiko; отменённые продажи исключены.';
       const timestamp = new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Almaty' }).format(new Date(data.generatedAt));
       status.textContent = data.stale ? `Данные на ${timestamp}. Восстанавливаем обновление…` : `Обновлено ${timestamp} · автоматически`;
       status.classList.toggle('stale', Boolean(data.stale));
