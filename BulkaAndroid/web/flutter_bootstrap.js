@@ -22,7 +22,14 @@ if (/^[A-Za-z0-9][A-Za-z0-9._-]{5,63}$/.test(bulkaReleaseVersion)) {
 // FlutterFire normally creates inline script elements for these SDK modules.
 // Load them explicitly so production CSP can keep script-src unsafe-inline off.
 window.flutterfire_ignore_scripts = ['core', 'messaging'];
-window.bulkaFirebaseModulesReady = new Promise((resolve) => window.setTimeout(resolve, 1200))
+window.bulkaFirebaseModulesReady = new Promise((resolve) => {
+  // Push SDK downloads must not compete with the renderer on a cold connection.
+  const timeout = window.setTimeout(resolve, 30000);
+  window.addEventListener('flutter-first-frame', () => {
+    window.clearTimeout(timeout);
+    resolve();
+  }, { once: true });
+})
   .then(() =>
     Promise.all([
       import('https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js'),

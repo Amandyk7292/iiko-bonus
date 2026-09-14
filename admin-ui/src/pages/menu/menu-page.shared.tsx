@@ -31,10 +31,10 @@ export interface ProductOverride {
   iiko_product_id: string;
   _visibility_pending?: boolean;
   _stop_list_pending?: boolean;
-  custom_name?: string;
+  custom_name?: string | null;
   name_translations?: Record<string, string>;
-  custom_price?: number;
-  custom_image_url?: string;
+  custom_price?: number | null;
+  custom_image_url?: string | null;
   custom_description?: string | null;
   description_translations?: Record<string, string>;
   is_hidden?: boolean;

@@ -15,6 +15,7 @@ async function start({ previous, blocked = false, status = 200, stalled = '' } =
     currentScript: { src: 'https://example.com/app_bootstrap.js?v=release-new' },
     addEventListener() {},
     createElement: () => ({ addEventListener() {} }),
+    head: { append() {} },
     body: { append: (script) => { events.push({ script: script.src }); finish(); } },
   };
   const window = {

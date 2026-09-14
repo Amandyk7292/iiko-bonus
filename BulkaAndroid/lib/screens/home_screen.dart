@@ -32,7 +32,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<PromoStory> _stories = const [];
   Set<String> _viewedStoryGroups = const {};
   late final _LiveRefresh _live;
-  Timer? _feedRefreshTimer;
+  bool _feedVisible = true;
   bool _feedLoading = false;
   bool _initialLoading = true;
   bool _storiesLoadFailed = false;
@@ -46,23 +46,23 @@ class _HomeScreenState extends State<HomeScreen> {
       {'content'},
       _loadFeed,
       busy: () => _feedLoading,
+      active: () => mounted && _feedVisible,
     );
     unawaited(_initializeFeed());
     unawaited(_loadViewedStoryGroups());
-    _feedRefreshTimer = Timer.periodic(const Duration(minutes: 1), (_) {
-      if (mounted &&
-          TickerMode.of(context) &&
-          WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed) {
-        setState(() {});
-        unawaited(_loadFeed());
-      }
-    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible = TickerMode.of(context);
+    if (visible && !_feedVisible) _live.request(immediate: true);
+    _feedVisible = visible;
   }
 
   @override
   void dispose() {
     _live.dispose();
-    _feedRefreshTimer?.cancel();
     super.dispose();
   }
 

@@ -340,7 +340,7 @@ export function useMenuPageController({
     setEditForm({
       name: override?.custom_name || product.name || '',
       name_translations: override?.name_translations || { ru: '', kk: '', en: '' },
-      price: override?.custom_price || product.price || 0,
+      price: override?.custom_price ?? product.price ?? 0,
       description: override?.custom_description || product.description || '',
       description_translations: override?.description_translations || { ru: '', kk: '', en: '' },
       imageUrl: override?.custom_image_url || '',
@@ -372,15 +372,15 @@ export function useMenuPageController({
       const cur = productOverrides[editingProduct.id] || { iiko_product_id: editingProduct.id };
       const updated: ProductOverride = {
         ...cur,
-        custom_name: editForm.name !== editingProduct.name ? editForm.name : undefined,
+        custom_name: editForm.name.trim() !== editingProduct.name ? editForm.name.trim() || null : null,
         name_translations: editForm.name_translations,
-        custom_price: editForm.price !== (editingProduct.price || 0) ? editForm.price : undefined,
+        custom_price: editForm.price !== (editingProduct.price || 0) ? editForm.price : null,
         custom_description:
           editForm.description !== (editingProduct.description || '')
             ? editForm.description.trim() || null
             : null,
         description_translations: editForm.description_translations,
-        custom_image_url: editForm.imageUrl || cur.custom_image_url || undefined,
+        custom_image_url: editForm.imageUrl.trim() || null,
         ingredients: editForm.ingredients.trim() || null,
         ingredients_translations: editForm.ingredients_translations,
         allergens: editForm.allergens,

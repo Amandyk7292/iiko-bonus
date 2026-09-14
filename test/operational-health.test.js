@@ -49,7 +49,9 @@ test('a hung critical worker becomes stale while it is still running', async (t)
   const running = workerSnapshot();
   const worker = running.find((entry) => entry.name === 'test-hung-critical');
   assert.equal(worker.running, true);
-  assert.equal(worker.stale, false);
+  assert.equal(workerSnapshot(Date.parse(worker.lastStartedAt)).find(
+    (entry) => entry.name === 'test-hung-critical',
+  ).stale, false);
   const stale = workerSnapshot(Date.parse(worker.lastStartedAt) + 26).find(
     (entry) => entry.name === 'test-hung-critical',
   );

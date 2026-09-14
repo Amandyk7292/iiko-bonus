@@ -6,6 +6,7 @@ extension _CatalogStockController on _CatalogScreenState {
     {'menu'},
     _refreshStock,
     busy: () => !_menuScopeReady || _activeMenuLoads > 0,
+    active: () => mounted && (_wasActive || _productRouteOpen),
     acceptEvent: (event) =>
         _matchesCatalogBranch(event) &&
         _asMap(event['data'])['inventory'] == true,

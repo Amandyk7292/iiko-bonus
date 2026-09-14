@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { supabase } = require('../src/config/supabase');
+const supabase = { from() { throw new Error('Unexpected database access'); } };
+require.cache[require.resolve('../src/config/supabase')] = { exports: { supabase } };
 const service = require('../src/services/menu.service');
 const { adminMutationSchemas } = require('../src/contracts/admin-mutations.contract');
 const { effectiveProductCategory } = require('../src/utils/menu-visibility.util');

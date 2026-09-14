@@ -1,3 +1,4 @@
+import 'helpers/selected_bakery_locations.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -29,6 +30,9 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     var menuRequests = 0;
     final client = MockClient((request) async {
+      if (request.url.path.endsWith('/api/guest/locations')) {
+        return selectedBakeryLocationsResponse();
+      }
       if (request.url.path.endsWith('/api/guest/menu')) menuRequests++;
       return http.Response(
         jsonEncode({'success': true}),
@@ -89,6 +93,9 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     final client = MockClient((request) async {
+      if (request.url.path.endsWith('/api/guest/locations')) {
+        return selectedBakeryLocationsResponse();
+      }
       if (request.url.path.endsWith('/api/guest/menu')) {
         expect(request.url.queryParameters['orderType'], 'pickup');
       }
@@ -167,6 +174,9 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     final client = MockClient((request) async {
+      if (request.url.path.endsWith('/api/guest/locations')) {
+        return selectedBakeryLocationsResponse();
+      }
       final payload = request.url.path.endsWith('/api/guest/menu')
           ? {
               'success': true,
@@ -354,6 +364,9 @@ void main() {
     var homeRequests = 0;
 
     final client = MockClient((request) async {
+      if (request.url.path.endsWith('/api/guest/locations')) {
+        return selectedBakeryLocationsResponse();
+      }
       final payload = request.url.path.endsWith('/api/guest/menu')
           ? {
               'success': true,
@@ -434,6 +447,9 @@ void main() {
     final menuResponse = Completer<http.Response>();
 
     final client = MockClient((request) async {
+      if (request.url.path.endsWith('/api/guest/locations')) {
+        return selectedBakeryLocationsResponse();
+      }
       if (request.url.path.endsWith('/api/guest/menu')) {
         return menuResponse.future;
       }
@@ -497,6 +513,9 @@ void main() {
     });
 
     final client = MockClient((request) async {
+      if (request.url.path.endsWith('/api/guest/locations')) {
+        return selectedBakeryLocationsResponse();
+      }
       if (request.url.path.endsWith('/api/guest/menu')) {
         return _menuResponse('pickup');
       }
@@ -542,6 +561,9 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     final client = MockClient((request) async {
+      if (request.url.path.endsWith('/api/guest/locations')) {
+        return selectedBakeryLocationsResponse();
+      }
       final payload = request.url.path.endsWith('/api/guest/menu')
           ? {
               'success': true,
@@ -627,6 +649,9 @@ void main() {
     final pickupResponse = Completer<http.Response>();
     final requestedTypes = <String>[];
     final client = MockClient((request) async {
+      if (request.url.path.endsWith('/api/guest/locations')) {
+        return selectedBakeryLocationsResponse();
+      }
       if (request.url.path.endsWith('/api/guest/locations')) {
         return http.Response(
           jsonEncode({

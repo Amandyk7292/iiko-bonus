@@ -1,3 +1,4 @@
+import 'helpers/selected_bakery_locations.dart';
 import 'dart:convert';
 
 import 'package:bulka_bonus/core/cart_provider.dart';
@@ -27,11 +28,13 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     SharedPreferences.setMockInitialValues({});
     final client = MockClient(
-      (request) async => _response(
-        request.url.path.endsWith('/api/guest/menu')
-            ? _menu()
-            : {'success': true},
-      ),
+      (request) async => request.url.path.endsWith('/api/guest/locations')
+          ? selectedBakeryLocationsResponse()
+          : _response(
+              request.url.path.endsWith('/api/guest/menu')
+                  ? _menu()
+                  : {'success': true},
+            ),
     );
     addTearDown(client.close);
     final cart = CartProvider();
@@ -87,6 +90,9 @@ void main() {
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
       final client = MockClient((request) async {
+        if (request.url.path.endsWith('/api/guest/locations')) {
+          return selectedBakeryLocationsResponse();
+        }
         if (request.url.path.endsWith('/api/guest/menu')) {
           final menu = _menu();
           menu['products'] = <dynamic>[
@@ -181,6 +187,9 @@ void main() {
       'unavailable product details remain readable; image=$openByImage',
       (tester) async {
         final client = MockClient((request) async {
+          if (request.url.path.endsWith('/api/guest/locations')) {
+            return selectedBakeryLocationsResponse();
+          }
           final menu = _menu(available: false);
           (menu['products'] as List).first['ingredients'] =
               'Мука, масло, сахар';
@@ -257,6 +266,9 @@ void main() {
         late StateSetter update;
         final cart = CartProvider();
         final client = MockClient((request) async {
+          if (request.url.path.endsWith('/api/guest/locations')) {
+            return selectedBakeryLocationsResponse();
+          }
           final isBranch =
               request.url.queryParameters['branchId'] == 'branch-1';
           return _response(
@@ -349,11 +361,13 @@ void main() {
     tester,
   ) async {
     final client = MockClient(
-      (request) async => _response(
-        request.url.path.endsWith('/api/guest/menu')
-            ? _menu()
-            : {'success': true},
-      ),
+      (request) async => request.url.path.endsWith('/api/guest/locations')
+          ? selectedBakeryLocationsResponse()
+          : _response(
+              request.url.path.endsWith('/api/guest/menu')
+                  ? _menu()
+                  : {'success': true},
+            ),
     );
     addTearDown(client.close);
     await tester.pumpWidget(

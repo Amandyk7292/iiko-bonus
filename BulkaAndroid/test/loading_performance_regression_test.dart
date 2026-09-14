@@ -1,3 +1,4 @@
+import 'helpers/selected_bakery_locations.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:bulka_bonus/core/cart_provider.dart';
@@ -130,9 +131,11 @@ void main() {
     expect(api.storyRequests, 1);
     expect(api.newsRequests, 0);
     await tester.pumpWidget(home(api));
-    await tester.pump(const Duration(minutes: 1));
     await frames(tester);
     expect(api.storyRequests, 2);
+    await tester.pump(const Duration(minutes: 1));
+    await frames(tester);
+    expect(api.storyRequests, 3);
     await tester.pumpWidget(const SizedBox());
   });
 
@@ -151,6 +154,9 @@ void main() {
       var optionRequests = 0;
       final api = BulkaApiClient(
         client: MockClient((request) async {
+          if (request.url.path.endsWith('/api/guest/locations')) {
+            return selectedBakeryLocationsResponse();
+          }
           if (request.url.path == '/api/guest/menu') return pending.future;
           if (request.url.path.endsWith('/product-options/summary')) {
             optionRequests++;
@@ -198,6 +204,9 @@ void main() {
       final pending = Completer<http.Response>();
       var menuRequests = 0;
       final client = MockClient((request) async {
+        if (request.url.path.endsWith('/api/guest/locations')) {
+          return selectedBakeryLocationsResponse();
+        }
         if (request.url.path == '/api/guest/menu') {
           menuRequests++;
           if (menuRequests == 2) return pending.future;
@@ -246,9 +255,11 @@ void main() {
       await frames(tester);
       expect(menuRequests, 3);
       await tester.pumpWidget(host(true));
-      await tester.pump(const Duration(minutes: 1));
       await frames(tester);
       expect(menuRequests, 4);
+      await tester.pump(const Duration(minutes: 1));
+      await frames(tester);
+      expect(menuRequests, 5);
       await tester.pumpWidget(const SizedBox());
       await events.close();
       api.dispose();

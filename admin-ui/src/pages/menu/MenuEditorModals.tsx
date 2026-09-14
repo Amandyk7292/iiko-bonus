@@ -258,6 +258,20 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
                 onChange={(e) => setEditForm({ ...editForm, price: Number(e.target.value) })}
                 className="input-classic"
               />
+              <button
+                type="button"
+                className="btn-secondary mt-2"
+                disabled={editSaving}
+                onClick={() => setEditForm((current) => ({ ...current, price: editingProduct?.price ?? 0 }))}
+              >
+                Использовать цену iiko ({editingProduct?.price ?? 0} ₸)
+              </button>
+              <p className="text-sm mt-2">
+                {editForm.price === (editingProduct?.price ?? 0)
+                  ? 'После сохранения цена на сайте будет обновляться из iiko.'
+                  : 'Ручная цена действует только в онлайн-каталоге.'}
+                {' '}Цена на кассе не изменится.
+              </p>
             </div>
             <div className="field-group">
               <label className="field-label" htmlFor="edit-image-url">

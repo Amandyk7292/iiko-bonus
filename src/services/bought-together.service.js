@@ -3,6 +3,7 @@ const path = require('node:path');
 const os = require('node:os');
 const { service: reports } = require('./iiko-dashboard.service');
 const { logger } = require('../config/logger');
+const { branchBindings } = require('../config/bought-together-branches');
 
 const CACHE_MS = 6 * 60 * 60 * 1000;
 const cacheFile = path.join(
@@ -188,12 +189,7 @@ async function refresh() {
   }
 }
 async function recommendations(productId, branchId) {
-  let mappings = {};
-  try {
-    mappings = JSON.parse(process.env.BOUGHT_TOGETHER_BRANCHES_JSON || '{}');
-  } catch (_) {
-    /* Unmapped branches use their own online receipts. */
-  }
+  const mappings = branchBindings();
   if (branchId && !mappings[branchId])
     return require('./bought-together-online.service').recommendations(productId, branchId);
   await loadDisk();
@@ -207,7 +203,10 @@ async function recommendations(productId, branchId) {
     );
   }
   if (!valid(snapshot)) return { productIds: [], days: 30, ready: false };
-  return selectRecommendations(snapshot, productId, branchId, mappings);
+  const result = selectRecommendations(snapshot, productId, branchId, mappings);
+  if (branchId && result.productIds.length === 0)
+    return require('./bought-together-online.service').recommendations(productId, branchId);
+  return result;
 }
 
 function selectRecommendations(value, productId, branchId, mappings = {}) {

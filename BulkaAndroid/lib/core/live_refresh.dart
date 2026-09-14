@@ -16,6 +16,7 @@ class _LiveRefresh with WidgetsBindingObserver {
     this.domains,
     this.refresh, {
     this.busy,
+    this.active,
     this.acceptEvent,
     Duration fallbackInterval = const Duration(seconds: 60),
   }) {
@@ -34,6 +35,7 @@ class _LiveRefresh with WidgetsBindingObserver {
   final Set<String> domains;
   final Future<void> Function() refresh;
   final bool Function()? busy;
+  final bool Function()? active;
   final bool Function(Map<String, dynamic>)? acceptEvent;
   late final StreamSubscription<Map<String, dynamic>> _events;
   late final StreamSubscription<dynamic> _network;
@@ -58,6 +60,7 @@ class _LiveRefresh with WidgetsBindingObserver {
 
   Future<void> _flush() async {
     if (_disposed || !_pending || _running) return;
+    if (active?.call() == false) return;
     final lifecycle = WidgetsBinding.instance.lifecycleState;
     if (lifecycle != null && lifecycle != AppLifecycleState.resumed) return;
     if (busy?.call() == true) {

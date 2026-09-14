@@ -111,6 +111,7 @@ class _CatalogScreenState extends State<CatalogScreen>
       {'menu', 'locations', 'menu.updated'},
       _silentRefresh,
       busy: () => !_menuScopeReady || _activeMenuLoads > 0,
+      active: () => mounted && (_wasActive || _productRouteOpen),
       acceptEvent: (event) =>
           _matchesCatalogBranch(event) &&
           _asMap(event['data'])['inventory'] != true,
@@ -121,6 +122,7 @@ class _CatalogScreenState extends State<CatalogScreen>
       {'locations'},
       _refreshBranchLabel,
       busy: () => !_menuScopeReady,
+      active: () => mounted && (_wasActive || _productRouteOpen),
     );
     _networkRecoverySubscription = networkRecoveryEvents().listen(
       (_) => _refreshIfActive(),
