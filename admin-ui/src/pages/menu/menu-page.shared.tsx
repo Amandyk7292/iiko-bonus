@@ -482,8 +482,12 @@ export function ProductFactsFields({
     onChange('storage_conditions', next);
   };
   return (
-    <fieldset className="form-section">
-      <legend>Карточка товара</legend>
+    <details className="form-section group">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 font-semibold focus-visible:outline-2 focus-visible:outline-amber-500 [&::-webkit-details-marker]:hidden">
+        <span>Карточка товара</span>
+        <span aria-hidden="true" className="text-2xl group-open:hidden">+</span>
+        <span aria-hidden="true" className="hidden text-2xl group-open:inline">−</span>
+      </summary>
       <p className="field-hint mb-3">
         Все поля необязательны. Клиент увидит только заполненные данные; значения КБЖУ указываются
         на 100 г продукта.
@@ -588,7 +592,7 @@ export function ProductFactsFields({
           productMarkOptions,
         )}
       </div>
-    </fieldset>
+    </details>
   );
 }
 

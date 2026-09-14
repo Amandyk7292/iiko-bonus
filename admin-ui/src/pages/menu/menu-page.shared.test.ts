@@ -75,6 +75,8 @@ describe('menu product override payload', () => {
       }),
     );
 
+    expect(screen.getByRole('checkbox', { name: 'Молоко' })).not.toBeVisible();
+    await user.click(screen.getByText('Карточка товара'));
     const milk = screen.getByRole('checkbox', { name: 'Молоко' });
     const milkChoice = milk.closest('label');
     expect(milk).toBeChecked();
@@ -88,5 +90,9 @@ describe('menu product override payload', () => {
     ).not.toBeInTheDocument();
     await user.click(gluten);
     expect(onChange).toHaveBeenCalledWith('allergens', ['milk', 'gluten']);
+    await user.click(screen.getByText('Карточка товара'));
+    expect(milk).not.toBeVisible();
+    await user.click(screen.getByText('Карточка товара'));
+    expect(milk).toBeChecked();
   });
 });
