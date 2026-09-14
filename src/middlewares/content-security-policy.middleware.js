@@ -58,6 +58,8 @@ const staticDocumentPolicies = new Map([
   ['/guest', registrationPolicy],
   ['/wallet', registrationPolicy],
   ['/courier', staticDocumentPolicy('public/courier.html')],
+  ['/screencakes', staticDocumentPolicy('public/screencakes/index.html')],
+  ['/screencakes/', staticDocumentPolicy('public/screencakes/index.html')],
   ['/account-deletion', staticDocumentPolicy('public/legal/account-deletion.html')],
 ]);
 const legalPagePaths = new Set(

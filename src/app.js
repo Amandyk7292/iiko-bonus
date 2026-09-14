@@ -318,6 +318,7 @@ app.use(loyaltyRoutes);
 app.use(walletRoutes);
 app.use(publicRoutes);
 app.use(yandexMapRoutes);
+app.use(require('./routes/screen-cakes.routes'));
 app.use(legacyRoutes);
 
 app.use('/admin', express.static(adminUiDirectory, { setHeaders: adminStaticHeaders }));
