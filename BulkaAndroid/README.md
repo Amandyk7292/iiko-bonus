@@ -38,6 +38,13 @@ Only the public VAPID key is compiled into the browser app. Never commit an APNs
 3. Set `storeFile`, `storePassword`, `keyAlias`, and `keyPassword`.
 4. Run `flutter build appbundle --release`.
 
+Use the version in `pubspec.yaml` for Play releases: `1.0.2+3` means version name
+`1.0.2` and Android version code `3`. Check Play Console before the next release
+and increment the last released code by one, without reusing an uploaded code.
+Do not override release codes with dates, timestamps, or CI run numbers. The
+`2026091401` bundle was an erroneous draft; replace it with code `3`, not a higher
+date-based code. CI bundles use temporary signing and are not Play uploads.
+
 `key.properties` and keystores are ignored by Git. A release build fails clearly if they are not configured, preventing accidental debug-key publication.
 
 ## iOS
