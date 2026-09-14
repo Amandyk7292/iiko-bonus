@@ -33,4 +33,5 @@ h2{font-size:clamp(19px,1.75vw,32px);font-weight:400;line-height:1.25;margin:0}
 .method{margin:14px 0 0;color:var(--muted);font-size:11px;line-height:1.5;text-align:center;min-height:1.5em}
 @media(min-width:900px) and (max-height:850px){.screen{padding-top:24px}.food{width:min(100%,245px)}.number{font-size:clamp(44px,5vw,74px)}.eyebrow{margin-top:12px}h1{margin-bottom:26px}.footer{margin-top:28px}}
 @media(max-width:650px){.screen{padding:24px 18px}.signature{font-size:24px}.eyebrow{margin-top:30px}h1{max-width:360px;margin:0 auto 28px}.metrics{grid-template-columns:1fr;gap:16px}.metric{padding-bottom:28px}.food{width:235px;margin-top:-12px;margin-bottom:-35px}.number,.number.compact{font-size:62px}.footer{flex-wrap:wrap;gap:18px;padding-top:22px}.status{order:3;flex-basis:100%}.method{margin-top:10px}.period{font-size:13px}}
-@media(max-width:650px){.number,.number.compact{font-size:clamp(36px,14vw,56px)}.brand{height:48px}.footer{display:flex;justify-content:center}}
+@media(max-width:650px){.number,.number.compact{font-size:clamp(32px,12vw,56px)}.brand{height:48px}.footer{display:flex;justify-content:center}}
+
