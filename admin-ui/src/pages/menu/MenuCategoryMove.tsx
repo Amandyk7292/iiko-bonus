@@ -17,7 +17,7 @@ export default function MenuCategoryMove({ controller }: { controller: MenuPageC
     <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-gray-200 bg-white p-4 text-sm">
       <button
         type="button"
-        className="btn-secondary"
+        className="btn-outline"
         disabled={move.moving || !filteredProducts.length}
         onClick={() =>
           move.selectProducts([
@@ -45,7 +45,7 @@ export default function MenuCategoryMove({ controller }: { controller: MenuPageC
           />
           <button
             type="button"
-            className="btn-primary"
+            className="btn-classic btn-primary"
             disabled={move.moving || !move.targetCategory}
             onClick={() => void move.moveProducts(move.targetCategory)}
           >
@@ -53,7 +53,7 @@ export default function MenuCategoryMove({ controller }: { controller: MenuPageC
           </button>
           <button
             type="button"
-            className="btn-secondary"
+            className="btn-outline"
             disabled={move.moving}
             onClick={() => void move.moveProducts(null)}
           >
@@ -61,7 +61,7 @@ export default function MenuCategoryMove({ controller }: { controller: MenuPageC
           </button>
           <button
             type="button"
-            className="btn-secondary"
+            className="btn-outline"
             disabled={move.moving}
             onClick={() => move.selectProducts([])}
           >
