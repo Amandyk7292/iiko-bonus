@@ -3,6 +3,7 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
+const zlib = require('node:zlib');
 const { execFileSync } = require('node:child_process');
 
 const projectRoot = path.join(__dirname, '..');
@@ -54,6 +55,12 @@ const finalizeFlutterWebBuild = ({ directory, version }) => {
 
   fs.writeFileSync(indexPath, index.replaceAll(releasePlaceholder, resolvedVersion), 'utf8');
   fs.copyFileSync(workerSourcePath, workerOutputPath);
+  // Compress once during the build, rather than on every cold client request.
+  const mainBundle = fs.readFileSync(mainBundlePath);
+  fs.writeFileSync(`${mainBundlePath}.br`, zlib.brotliCompressSync(mainBundle, {
+    params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 11 },
+  }));
+  fs.writeFileSync(`${mainBundlePath}.gz`, zlib.gzipSync(mainBundle, { level: 9 }));
 
   const manifest = {
     schemaVersion: 1,

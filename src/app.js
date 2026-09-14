@@ -330,6 +330,13 @@ app.get('/admin/*', (req, res) => {
 });
 
 // Serve Flutter Web App
+app.get(
+  ['/main.dart.js', '/app/main.dart.js'],
+  require('./middlewares/precompressed-flutter.middleware').precompressedFlutter(
+    publicAppDirectory,
+    appStaticHeaders,
+  ),
+);
 app.use('/app', express.static(publicAppDirectory, { setHeaders: appStaticHeaders }));
 app.get('/app/*', (req, res) => {
   res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');

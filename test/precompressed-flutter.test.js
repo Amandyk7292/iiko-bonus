@@ -1,0 +1,50 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const http = require('node:http');
+const zlib = require('node:zlib');
+const express = require('express');
+const { precompressedFlutter } = require('../src/middlewares/precompressed-flutter.middleware');
+
+test('precompressed bundles negotiate encoding, preserve content and support HEAD/cache validation', async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bulka-compression-'));
+  const content = Buffer.from('window.test = "current release";'.repeat(100));
+  const file = path.join(dir, 'main.dart.js');
+  fs.writeFileSync(file, content);
+  fs.writeFileSync(file + '.br', zlib.brotliCompressSync(content));
+  fs.writeFileSync(file + '.gz', zlib.gzipSync(content));
+  const app = express();
+  app.get('/main.dart.js', precompressedFlutter(dir, (res) => res.set('Cache-Control', 'no-cache')));
+  app.use(express.static(dir));
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise(resolve => server.once('listening', resolve));
+  t.after(async () => { await new Promise(resolve => server.close(resolve)); fs.rmSync(dir, { recursive: true, force: true }); });
+  const request = (headers, method = 'GET') => new Promise((resolve, reject) => {
+    http.request({ hostname: '127.0.0.1', port: server.address().port, path: '/main.dart.js?v=release', method, headers }, res => {
+      const chunks = [];
+      res.on('data', chunk => chunks.push(chunk));
+      res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(chunks) }));
+    }).on('error', reject).end();
+  });
+  const br = await request({ 'Accept-Encoding': 'br,gzip' });
+  assert.equal(br.headers['content-encoding'], 'br');
+  assert.match(br.headers['content-type'], /javascript/);
+  assert.match(br.headers.vary, /Accept-Encoding/);
+  assert.deepEqual(zlib.brotliDecompressSync(br.body), content);
+  const gzip = await request({ 'Accept-Encoding': 'br;q=0,gzip' });
+  assert.equal(gzip.headers['content-encoding'], 'gzip');
+  assert.deepEqual(zlib.gunzipSync(gzip.body), content);
+  const plain = await request({ 'Accept-Encoding': 'identity' });
+  assert.equal(plain.headers['content-encoding'], undefined);
+  assert.deepEqual(plain.body, content);
+  const head = await request({ 'Accept-Encoding': 'br' }, 'HEAD');
+  assert.equal(Number(head.headers['content-length']), br.body.length);
+  assert.equal(head.body.length, 0);
+  const cached = await request({ 'Accept-Encoding': 'br', 'If-None-Match': br.headers.etag });
+  assert.equal(cached.status, 304);
+  const partial = await request({ 'Accept-Encoding': 'br', Range: 'bytes=0-5' });
+  assert.equal(partial.status, 206);
+  assert.deepEqual(partial.body, content.subarray(0, 6));
+});

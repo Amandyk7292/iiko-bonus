@@ -108,6 +108,9 @@ test('Flutter finalizer restores the cleanup worker and writes a hashed release 
     version: 'abcdef123456',
   });
   const finalizedIndex = fs.readFileSync(path.join(directory, 'index.html'), 'utf8');
+  const zlib = require('node:zlib');
+  assert.equal(zlib.brotliDecompressSync(fs.readFileSync(path.join(directory, 'main.dart.js.br'))).toString(), 'current-app-bundle');
+  assert.equal(zlib.gunzipSync(fs.readFileSync(path.join(directory, 'main.dart.js.gz'))).toString(), 'current-app-bundle');
   const finalizedWorker = fs.readFileSync(
     path.join(directory, 'flutter_service_worker.js'),
     'utf8',
