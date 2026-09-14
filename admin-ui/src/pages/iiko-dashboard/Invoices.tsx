@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Download } from 'lucide-react';
 import { useI18n } from '../../lib/i18n';
 import { ApiError } from '../../lib/api';
@@ -42,9 +42,15 @@ export default function Invoices({
   const query = { serverId: base.serverId, from: base.from, to: base.to, department };
   const queryKey = JSON.stringify(query);
 
+  const previousQuery = useRef(queryKey);
   useEffect(() => {
+    const changed = previousQuery.current !== queryKey;
+    previousQuery.current = queryKey;
+    if (changed) {
+      setData(undefined);
+      setSelected(undefined);
+    }
     const controller = new AbortController();
-    setSelected(undefined);
     setLoading(true);
     setError('');
     void loadControls<InvoiceResult>(
@@ -144,10 +150,7 @@ export default function Invoices({
           <div className="id-invoice-filter">
             <label>
               {text('supplierFilter')}
-              <select
-                value={supplier}
-                onChange={(event) => onSupplierChange(event.target.value)}
-              >
+              <select value={supplier} onChange={(event) => onSupplierChange(event.target.value)}>
                 <option value="">{text('allSuppliers')}</option>
                 {suppliers.map((name) => (
                   <option key={name} value={name}>

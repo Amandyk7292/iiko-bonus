@@ -2,6 +2,19 @@ import 'package:bulka_bonus/main.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('Bulka uploaded photos use reusable lossless variants', () {
+    final uri = Uri.parse(
+      optimizedNetworkImageUrl(
+        'https://owofrgapcxsmzkdsefai.supabase.co/storage/v1/object/public/menu_images/photo.webp',
+        pixelWidth: 350,
+        pixelHeight: 350,
+      ),
+    );
+    expect(uri.path, '/api/public/image');
+    expect(uri.queryParameters['path'], 'menu_images/photo.webp');
+    expect(uri.queryParameters['edge'], '384');
+  });
+
   test('Supabase public images use a bounded render URL', () {
     final result = optimizedNetworkImageUrl(
       'https://project.supabase.co/storage/v1/object/public/menu_images/bun.webp',
@@ -15,7 +28,7 @@ void main() {
       'width': '700',
       'height': '900',
       'resize': 'contain',
-      'quality': '80',
+      'quality': '95',
     });
   });
 

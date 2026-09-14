@@ -994,12 +994,26 @@ class BulkaApiClient {
     return result;
   }
 
-  Future<List<String>> getBoughtTogetherProductIds(String productId) async {
-    final json = await _get(
-      '/api/public/products/${Uri.encodeComponent(productId)}/bought-together',
-    );
-    final ids = json['productIds'];
-    return ids is List ? ids.whereType<String>().toList() : const [];
+  Future<List<String>> getBoughtTogetherProductIds(
+    String productId, {
+    String? branchId,
+    bool Function()? isActive,
+  }) async {
+    for (var attempt = 0; attempt < 60; attempt++) {
+      if (isActive != null && !isActive()) return const [];
+      final query = branchId == null || branchId.isEmpty
+          ? ''
+          : '?branchId=${Uri.encodeQueryComponent(branchId)}';
+      final json = await _get(
+        '/api/public/products/${Uri.encodeComponent(productId)}/bought-together$query',
+      );
+      final ids = json['productIds'];
+      if (json['ready'] != false) {
+        return ids is List ? ids.whereType<String>().toList() : const [];
+      }
+      await Future<void>.delayed(Duration(seconds: attempt < 3 ? 3 : 10));
+    }
+    return const [];
   }
 
   Future<Set<String>> getFavorites() async {

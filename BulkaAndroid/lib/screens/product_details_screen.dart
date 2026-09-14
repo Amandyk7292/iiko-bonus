@@ -8,6 +8,7 @@ class ProductDetailsScreen extends StatefulWidget {
     required this.liveProducts,
     required this.initialQuantity,
     required this.onQuantityChanged,
+    this.branchId,
     this.initialFavorite = false,
     this.onToggleFavorite,
     this.hasSelectedOrderType = true,
@@ -15,6 +16,7 @@ class ProductDetailsScreen extends StatefulWidget {
     this.onOpenRelatedProduct,
   });
 
+  final String? branchId;
   final BulkaApiClient api;
   final CatalogProduct product;
   final ValueListenable<Map<String, CatalogProduct>> liveProducts;
@@ -75,6 +77,8 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     try {
       final ids = await widget.api.getBoughtTogetherProductIds(
         widget.product.id,
+        branchId: widget.branchId,
+        isActive: () => mounted,
       );
       if (mounted) setState(() => _boughtTogetherIds = ids);
     } catch (_) {

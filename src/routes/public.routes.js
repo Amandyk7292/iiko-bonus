@@ -142,6 +142,7 @@ router.use('/api/public', publicApiRateLimit);
 router.get('/api/public/events', (req, res) => realtime.openStream(req, res, { public: true }));
 registerTaplinkPublicRoutes(router);
 registerBoughtTogetherRoutes(router);
+require('./public/image.routes').registerPublicImageRoutes(router);
 router.post(
   '/api/public/analytics/events',
   validateRequest({ body: analyticsEventsBodySchema }),

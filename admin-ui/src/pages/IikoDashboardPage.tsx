@@ -151,10 +151,10 @@ export default function IikoDashboardPage() {
       .then((data) => {
         if (active) {
           setServers(data.servers);
-           setServerId((current) => {
-             const requested = data.servers.find((server) => server.id === current);
-             return preferredServer(data.servers, requested?.city || 'aktau', current);
-           });
+          setServerId((current) => {
+            const requested = data.servers.find((server) => server.id === current);
+            return preferredServer(data.servers, requested?.city || 'aktau', current);
+          });
         }
       })
       .catch((caught) => {
@@ -174,7 +174,27 @@ export default function IikoDashboardPage() {
       /* Storage may be unavailable in private mode. */
     }
   }, [preferences]);
+  const restoringHistory = useRef(false);
+  const historyInitialized = useRef(false);
   useEffect(() => {
+    const restore = () => {
+      const state = dashboardUrlState();
+      restoringHistory.current = true;
+      setTab(state.tab);
+      setServerId(state.serverId);
+      setRange({ from: state.from, to: state.to });
+      setDepartment(state.department);
+      setSupplier(state.supplier);
+      setComparison(state.comparison);
+    };
+    window.addEventListener('popstate', restore);
+    return () => window.removeEventListener('popstate', restore);
+  }, []);
+  useEffect(() => {
+    if (restoringHistory.current) {
+      restoringHistory.current = false;
+      return;
+    }
     const params = new URLSearchParams(window.location.search);
     const values = { tab, server: serverId, from, to, department, supplier, comparison };
     Object.entries(values).forEach(([key, value]) => {
@@ -182,7 +202,12 @@ export default function IikoDashboardPage() {
       else params.delete(key);
     });
     const query = params.toString();
-    window.history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}`);
+    const url = `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`;
+    if (url !== `${window.location.pathname}${window.location.search}${window.location.hash}`) {
+      if (historyInitialized.current) window.history.pushState(window.history.state, '', url);
+      else window.history.replaceState(window.history.state, '', url);
+    }
+    historyInitialized.current = true;
   }, [tab, serverId, from, to, department, supplier, comparison]);
   useEffect(() => {
     if (!preferences.auto || tab === 'settings') return;
@@ -533,9 +558,9 @@ export default function IikoDashboardPage() {
           onChange={setPreferences}
           onServersChange={(updated) => {
             setServers(updated);
-             if (!updated.some((server) => server.id === serverId && server.active)) {
-               setServerId(preferredServer(updated, selectedServer?.city || 'aktau'));
-             }
+            if (!updated.some((server) => server.id === serverId && server.active)) {
+              setServerId(preferredServer(updated, selectedServer?.city || 'aktau'));
+            }
           }}
         />
       )}

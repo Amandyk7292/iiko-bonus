@@ -414,6 +414,7 @@ extension _CatalogInteractionController on _CatalogScreenState {
             barrierLabel: 'close_tooltip'.tr,
             pageBuilder: (_, _, _) => ProductDetailsScreen(
               api: _api,
+              branchId: _selectedBakeryId,
               product: product,
               liveProducts: _liveProducts,
               initialQuantity: context.read<CartProvider>().getQuantity(

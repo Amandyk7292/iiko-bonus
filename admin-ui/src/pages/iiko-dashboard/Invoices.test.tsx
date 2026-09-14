@@ -150,3 +150,43 @@ it('filters the loaded report by supplier and exports the same scope', async () 
   });
   vi.unstubAllGlobals();
 });
+
+it('keeps an open invoice during background refresh', async () => {
+  const view = render(
+    <I18nProvider>
+      <Invoices base={base} department="" refresh={0} {...supplierProps} />
+    </I18nProvider>,
+  );
+  await screen.findByText('000042');
+  fireEvent.click(screen.getByText('000042'));
+  vi.mocked(loadControls).mockImplementationOnce(() => new Promise(() => {}));
+  view.rerender(
+    <I18nProvider>
+      <Invoices base={base} department="" refresh={1} {...supplierProps} />
+    </I18nProvider>,
+  );
+  expect(screen.getByRole('dialog')).toBeVisible();
+  expect(within(screen.getByRole('dialog')).getByText(invoiceResult.invoices[0].items[0].Product)).toBeVisible();
+});
+it('clears old invoices when the period changes even when the new request fails', async () => {
+  const view = render(
+    <I18nProvider>
+      <Invoices base={base} department="" refresh={0} {...supplierProps} />
+    </I18nProvider>,
+  );
+  await screen.findByText('000042');
+  vi.mocked(loadControls).mockRejectedValueOnce(new Error('unavailable'));
+  view.rerender(
+    <I18nProvider>
+      <Invoices
+        base={{ ...base, from: '2026-09-10' }}
+        department=""
+        refresh={0}
+        {...supplierProps}
+      />
+    </I18nProvider>,
+  );
+  await waitFor(() => expect(screen.queryByText('000042')).not.toBeInTheDocument());
+  await screen.findByRole('alert');
+  expect(screen.queryByText('000042')).not.toBeInTheDocument();
+});

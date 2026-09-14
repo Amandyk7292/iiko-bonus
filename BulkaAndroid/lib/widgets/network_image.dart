@@ -19,6 +19,20 @@ String optimizedNetworkImageUrl(
   }
 
   final path = uri.path;
+  if (uri.host == 'owofrgapcxsmzkdsefai.supabase.co' &&
+      path.startsWith('${_supabasePublicImagePath}menu_images/')) {
+    return Uri.parse(bulkaApiBaseUrl)
+        .resolve('/api/public/image')
+        .replace(
+          queryParameters: {
+            'path': path.substring(_supabasePublicImagePath.length),
+            'edge':
+                '${_imagePixelBucket(max(pixelWidth, pixelHeight).toDouble())}',
+          },
+        )
+        .toString();
+  }
+
   final renderedPath = path.contains(_supabasePublicImagePath)
       ? path.replaceFirst(_supabasePublicImagePath, _supabaseRenderedImagePath)
       : path.contains(_supabaseRenderedImagePath)
@@ -37,7 +51,7 @@ String optimizedNetworkImageUrl(
           'width': '$width',
           'height': '$height',
           'resize': resize,
-          'quality': '80',
+          'quality': '95',
         },
       )
       .toString();
@@ -46,7 +60,9 @@ String optimizedNetworkImageUrl(
 int _imagePixelBucket(double pixels) {
   if (!pixels.isFinite || pixels <= 0) return 512;
   if (pixels <= 256) return 256;
+  if (pixels <= 384) return 384;
   if (pixels <= 512) return 512;
+  if (pixels <= 768) return 768;
   if (pixels <= 1024) return 1024;
   return 1536;
 }
@@ -135,7 +151,14 @@ class _NetworkImage extends StatelessWidget {
                 gaplessPlayback: true,
                 filterQuality: FilterQuality.medium,
                 semanticLabel: semanticLabel,
-                errorBuilder: (_, _, _) => _failedImage(),
+                errorBuilder: (_, _, _) => effectiveUrl == url
+                    ? _failedImage()
+                    : Image.network(
+                        url,
+                        fit: fit,
+                        semanticLabel: semanticLabel,
+                        errorBuilder: (_, _, _) => _failedImage(),
+                      ),
                 frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
                   if (wasSynchronouslyLoaded) return child;
                   final loaded = frame != null;
@@ -171,8 +194,6 @@ class _NetworkImage extends StatelessWidget {
                 fit: fit,
                 memCacheWidth: pixelWidth,
                 memCacheHeight: pixelHeight,
-                maxWidthDiskCache: pixelWidth,
-                maxHeightDiskCache: pixelHeight,
                 fadeInDuration: transitionDuration,
                 fadeOutDuration: transitionDuration,
                 placeholderFadeInDuration: Duration.zero,
@@ -181,7 +202,13 @@ class _NetworkImage extends StatelessWidget {
                 useOldImageOnUrlChange: true,
                 placeholder: (_, _) =>
                     loadingPlaceholder ?? const SizedBox.shrink(),
-                errorWidget: (_, _, _) => _failedImage(),
+                errorWidget: (_, _, _) => effectiveUrl == url
+                    ? _failedImage()
+                    : CachedNetworkImage(
+                        imageUrl: url,
+                        fit: fit,
+                        errorWidget: (_, _, _) => _failedImage(),
+                      ),
                 imageBuilder: (context, provider) => Image(
                   image: provider,
                   width: constraints.hasBoundedWidth

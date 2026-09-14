@@ -7,7 +7,7 @@ const { logger } = require('../config/logger');
 const CACHE_MS = 6 * 60 * 60 * 1000;
 const cacheFile = path.join(
   process.env.BOUGHT_TOGETHER_CACHE_DIR || path.join(os.tmpdir(), 'bulka-bought-together'),
-  'snapshot-v2.json',
+  'snapshot-v3.json',
 );
 const day = (date = new Date()) =>
   new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Almaty' }).format(date);
@@ -69,14 +69,14 @@ function rankPairs(counts, popularProducts = []) {
   );
 }
 
-async function collectRange(service, serverId, from, to, counts, popularity) {
+async function collectRange(service, serverId, from, to, counts, popularity, departments) {
   try {
     const report = await service.report({
       serverId,
       reportType: 'SALES',
       from,
       to,
-      groupBy: ['UniqOrderId.Id', 'DishId'],
+      groupBy: ['UniqOrderId.Id', 'DishId', 'Department.Id'],
       aggregate: ['DishAmountInt'],
       filters: [
         { field: 'OrderDeleted', values: ['NOT_DELETED'] },
@@ -85,12 +85,23 @@ async function collectRange(service, serverId, from, to, counts, popularity) {
       ],
     });
     countPairs(report.rows, counts, popularity);
+    for (const departmentId of new Set(
+      report.rows.map((row) => row['Department.Id']).filter(Boolean),
+    )) {
+      const bucket = departments.get(departmentId) || { counts: new Map(), popularity: new Map() };
+      countPairs(
+        report.rows.filter((row) => row['Department.Id'] === departmentId),
+        bucket.counts,
+        bucket.popularity,
+      );
+      departments.set(departmentId, bucket);
+    }
   } catch (error) {
     if (error.message !== 'IIKO_REPORT_TOO_LARGE' || from === to) throw error;
     const span = Math.round((Date.parse(to) - Date.parse(from)) / 86400000);
     const middle = shiftDay(from, Math.floor(span / 2));
-    await collectRange(service, serverId, from, middle, counts, popularity);
-    await collectRange(service, serverId, shiftDay(middle, 1), to, counts, popularity);
+    await collectRange(service, serverId, from, middle, counts, popularity, departments);
+    await collectRange(service, serverId, shiftDay(middle, 1), to, counts, popularity, departments);
   }
 }
 
@@ -99,23 +110,38 @@ async function buildSnapshot(service = reports, now = new Date()) {
   const from = shiftDay(to, -29);
   const sources = selectSources(await service.listServers());
   if (!sources.length) throw new Error('No configured sales report sources');
-  const counts = new Map();
-  const popularity = new Map();
+  const scopes = {};
   // Chain already contains its RMS receipts; never sum both.
   for (const source of sources) {
+    const counts = new Map();
+    const popularity = new Map();
+    const departments = new Map();
     // Daily reports keep the Chain response below its row/body limits.
     for (let date = from; date <= to; date = shiftDay(date, 1)) {
-      await collectRange(service, source.id, date, date, counts, popularity);
+      await collectRange(service, source.id, date, date, counts, popularity, departments);
     }
+    scopes[source.id] = {
+      city: source.city,
+      popularProducts: rankPopularity(popularity),
+      products: rankPairs(counts, rankPopularity(popularity)),
+      departments: Object.fromEntries(
+        [...departments].map(([id, bucket]) => [
+          id,
+          {
+            popularProducts: rankPopularity(bucket.popularity),
+            products: rankPairs(bucket.counts, rankPopularity(bucket.popularity)),
+          },
+        ]),
+      ),
+    };
   }
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     from,
     to,
     generatedAt: now.toISOString(),
     sources: sources.map((s) => s.id),
-    popularProducts: rankPopularity(popularity),
-    products: rankPairs(counts, rankPopularity(popularity)),
+    scopes,
   };
 }
 
@@ -125,10 +151,10 @@ let lastAttempt = 0;
 let diskRead = null;
 function valid(value, now = new Date()) {
   return (
-    value?.schemaVersion === 2 &&
+    value?.schemaVersion === 3 &&
     value.to === day(now) &&
     value.from === shiftDay(day(now), -29) &&
-    value.products &&
+    value.scopes &&
     Date.parse(value.generatedAt) > now.getTime() - 2 * CACHE_MS
   );
 }
@@ -161,7 +187,15 @@ async function refresh() {
     pending = null;
   }
 }
-async function recommendations(productId) {
+async function recommendations(productId, branchId) {
+  let mappings = {};
+  try {
+    mappings = JSON.parse(process.env.BOUGHT_TOGETHER_BRANCHES_JSON || '{}');
+  } catch (_) {
+    /* Unmapped branches use their own online receipts. */
+  }
+  if (branchId && !mappings[branchId])
+    return require('./bought-together-online.service').recommendations(productId, branchId);
   await loadDisk();
   if (
     (!valid(snapshot) || Date.parse(snapshot.generatedAt) < Date.now() - CACHE_MS) &&
@@ -173,13 +207,37 @@ async function recommendations(productId) {
     );
   }
   if (!valid(snapshot)) return { productIds: [], days: 30, ready: false };
-  const key = String(productId).trim().toLowerCase();
-  const ids = Object.hasOwn(snapshot.products, key) ? snapshot.products[key] : [];
+  return selectRecommendations(snapshot, productId, branchId, mappings);
+}
+
+function selectRecommendations(value, productId, branchId, mappings = {}) {
+  const raw = String(productId).trim().toLowerCase();
+  const separator = raw.indexOf(':');
+  const prefix = separator < 0 ? '' : raw.slice(0, separator + 1);
+  const key = separator < 0 ? raw : raw.slice(separator + 1);
+  const city = prefix === 'astana:' ? 'astana' : 'aktau';
+  const binding = mappings[branchId];
+  let buckets;
+  if (branchId) {
+    const source = binding && value.scopes[binding.serverId];
+    const bucket = source?.city === city && source.departments?.[binding.departmentId];
+    if (!bucket) return { productIds: [], days: 30, ready: true };
+    buckets = [bucket];
+  } else {
+    buckets = Object.values(value.scopes).filter((scope) => scope.city === city);
+  }
+  const ids = [
+    ...new Set(buckets.flatMap((bucket) => bucket.products[key] || bucket.popularProducts || [])),
+  ]
+    .filter((id) => id !== key)
+    .slice(0, 40)
+    .map((id) => prefix + id);
   return { productIds: ids, days: 30, ready: true };
 }
 
 module.exports = {
   recommendations,
+  selectRecommendations,
   refresh,
   buildSnapshot,
   countPairs,

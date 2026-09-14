@@ -6,6 +6,7 @@ const {
   rankPopularity,
   selectSources,
   buildSnapshot,
+  selectRecommendations,
 } = require('../src/services/bought-together.service');
 const row = (receipt, product, quantity = 1) => ({
   'UniqOrderId.Id': receipt,
@@ -99,7 +100,7 @@ test('snapshot covers exactly the latest 30 Kazakhstan calendar dates and filter
     { field: 'DeletedWithWriteoff', values: ['NOT_DELETED'] },
     { field: 'Storned', values: ['FALSE'] },
   ]);
-  assert.deepEqual(snapshot.products.bun, ['coffee']);
+  assert.deepEqual(snapshot.scopes.chain.products.bun, ['coffee']);
 });
 test('a failed reporting source rejects the snapshot instead of publishing partial rankings', async () => {
   await assert.rejects(
@@ -113,4 +114,34 @@ test('a failed reporting source rejects the snapshot instead of publishing parti
     }),
     /unavailable/,
   );
+});
+
+test('scopes recommendations to the selected branch and preserves profile IDs', () => {
+  const value = {
+    scopes: {
+      chain: {
+        city: 'astana',
+        departments: {
+          a: { products: { bun: ['coffee'] }, popularProducts: ['bun', 'coffee'] },
+          b: { products: { bun: ['tea'] }, popularProducts: ['bun', 'tea'] },
+        },
+      },
+    },
+  };
+  const bindings = {
+    first: { serverId: 'chain', departmentId: 'a' },
+    second: { serverId: 'chain', departmentId: 'b' },
+  };
+  assert.deepEqual(selectRecommendations(value, 'astana:bun', 'first', bindings).productIds, [
+    'astana:coffee',
+  ]);
+  assert.deepEqual(selectRecommendations(value, 'astana:bun', 'second', bindings).productIds, [
+    'astana:tea',
+  ]);
+  assert.deepEqual(selectRecommendations(value, 'astana:new', 'first', bindings).productIds, [
+    'astana:bun',
+    'astana:coffee',
+  ]);
+  assert.deepEqual(selectRecommendations(value, 'bun', 'first', bindings).productIds, []);
+  assert.deepEqual(selectRecommendations(value, 'astana:bun', 'unknown', bindings).productIds, []);
 });
