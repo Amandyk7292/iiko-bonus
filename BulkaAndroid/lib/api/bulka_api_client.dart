@@ -1540,7 +1540,8 @@ class BulkaApiClient {
     Timer? watchdog;
     void heartbeat() {
       watchdog?.cancel();
-      watchdog = Timer(const Duration(seconds: 12), () {
+      // The server heartbeat is every 20 seconds; allow two missed beats.
+      watchdog = Timer(const Duration(seconds: 45), () {
         if (!done.isCompleted) done.complete();
       });
     }

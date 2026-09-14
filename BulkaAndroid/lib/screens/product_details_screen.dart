@@ -34,6 +34,8 @@ class ProductDetailsScreen extends StatefulWidget {
 
 class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   late final _LiveRefresh _live;
+  late final _LiveRefresh _recommendationsLive;
+  bool _loadingRecommendations = false;
   late num _quantity;
   late bool _isFavorite;
   Map<String, dynamic> _options = const {};
@@ -62,18 +64,28 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     );
     unawaited(_loadOptions());
     unawaited(widget.api.recordProductView(widget.product.id));
-    unawaited(_loadBoughtTogether());
+    _recommendationsLive = _LiveRefresh(
+      widget.api,
+      {'menu', 'order.updated', 'order.created'},
+      _loadBoughtTogether,
+      busy: () => _loadingRecommendations,
+      fallbackInterval: const Duration(minutes: 5),
+    );
+    _recommendationsLive.request(immediate: true);
   }
 
   @override
   void dispose() {
     _live.dispose();
+    _recommendationsLive.dispose();
     updateDocumentTitle('Bulka');
     _inscriptionController.dispose();
     super.dispose();
   }
 
   Future<void> _loadBoughtTogether() async {
+    if (_loadingRecommendations) return;
+    _loadingRecommendations = true;
     try {
       final ids = await widget.api.getBoughtTogetherProductIds(
         widget.product.id,
@@ -81,8 +93,8 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
         isActive: () => mounted,
       );
       if (mounted) setState(() => _boughtTogetherIds = ids);
-    } catch (_) {
-      // Optional recommendations must never block viewing or buying a product.
+    } finally {
+      _loadingRecommendations = false;
     }
   }
 

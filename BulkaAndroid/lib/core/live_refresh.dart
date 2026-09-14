@@ -17,6 +17,7 @@ class _LiveRefresh with WidgetsBindingObserver {
     this.refresh, {
     this.busy,
     this.acceptEvent,
+    Duration fallbackInterval = const Duration(seconds: 60),
   }) {
     _events = api.customerEvents.listen((event) {
       if (_dataEventMatches(event, domains) &&
@@ -26,6 +27,7 @@ class _LiveRefresh with WidgetsBindingObserver {
     });
     _network = networkRecoveryEvents().listen((_) => _recover());
     WidgetsBinding.instance.addObserver(this);
+    _fallback = Timer.periodic(fallbackInterval, (_) => request());
   }
 
   final BulkaApiClient api;
@@ -36,6 +38,8 @@ class _LiveRefresh with WidgetsBindingObserver {
   late final StreamSubscription<Map<String, dynamic>> _events;
   late final StreamSubscription<dynamic> _network;
   Timer? _timer;
+  Timer? _fallback;
+  int _failures = 0;
   bool _running = false;
   bool _pending = false;
   bool _disposed = false;
@@ -43,6 +47,7 @@ class _LiveRefresh with WidgetsBindingObserver {
   void request({bool immediate = false}) {
     if (_disposed) return;
     _pending = true;
+    if (immediate) _timer?.cancel();
     // Bound the wait even if stock events keep arriving on a busy branch.
     if (_timer?.isActive == true) return;
     _timer = Timer(
@@ -53,6 +58,8 @@ class _LiveRefresh with WidgetsBindingObserver {
 
   Future<void> _flush() async {
     if (_disposed || !_pending || _running) return;
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    if (lifecycle != null && lifecycle != AppLifecycleState.resumed) return;
     if (busy?.call() == true) {
       request();
       return;
@@ -61,8 +68,14 @@ class _LiveRefresh with WidgetsBindingObserver {
     _running = true;
     try {
       await refresh();
+      _failures = 0;
     } catch (_) {
-      // Keep current data on transport failure; retry on recovery.
+      if (_disposed) return;
+      // Retry transient failures without requiring a new event or navigation.
+      _pending = true;
+      _failures = (_failures + 1).clamp(1, 5);
+      _timer?.cancel();
+      _timer = Timer(Duration(seconds: 1 << _failures), _flush);
     } finally {
       _running = false;
       if (_pending && !_disposed) request();
@@ -82,6 +95,7 @@ class _LiveRefresh with WidgetsBindingObserver {
   void dispose() {
     _disposed = true;
     _timer?.cancel();
+    _fallback?.cancel();
     unawaited(_events.cancel());
     unawaited(_network.cancel());
     WidgetsBinding.instance.removeObserver(this);

@@ -166,8 +166,35 @@ it('keeps an open invoice during background refresh', async () => {
     </I18nProvider>,
   );
   expect(screen.getByRole('dialog')).toBeVisible();
-  expect(within(screen.getByRole('dialog')).getByText(invoiceResult.invoices[0].items[0].Product)).toBeVisible();
+  expect(
+    within(screen.getByRole('dialog')).getByText(invoiceResult.invoices[0].items[0].Product),
+  ).toBeVisible();
 });
+it('updates the contents of the open invoice after background refresh', async () => {
+  const view = render(
+    <I18nProvider>
+      <Invoices base={base} department="" refresh={0} {...supplierProps} />
+    </I18nProvider>,
+  );
+  await screen.findByText('000042');
+  fireEvent.click(screen.getByText('000042'));
+  vi.mocked(loadControls).mockResolvedValueOnce({
+    ...invoiceResult,
+    invoices: [
+      {
+        ...invoiceResult.invoices[0],
+        items: [{ ...invoiceResult.invoices[0].items[0], Product: 'Updated product' }],
+      },
+    ],
+  });
+  view.rerender(
+    <I18nProvider>
+      <Invoices base={base} department="" refresh={1} {...supplierProps} />
+    </I18nProvider>,
+  );
+  expect(await within(screen.getByRole('dialog')).findByText('Updated product')).toBeVisible();
+});
+
 it('clears old invoices when the period changes even when the new request fails', async () => {
   const view = render(
     <I18nProvider>

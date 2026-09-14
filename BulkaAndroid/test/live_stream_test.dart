@@ -25,6 +25,35 @@ class StreamClient extends http.BaseClient {
 }
 
 void main() {
+  testWidgets(
+    'server heartbeats keep a quiet stream alive; a dead stream recovers',
+    (tester) async {
+      final transport = StreamClient();
+      final api = BulkaApiClient(client: transport);
+      final listener = api.customerEvents.listen((_) {});
+      await tester.pump();
+      transport.event(0, 'connected');
+      await tester.pump();
+      for (var i = 0; i < 3; i++) {
+        await tester.pump(const Duration(seconds: 20));
+        expect(transport.requests, hasLength(1));
+        transport.streams[0].add(utf8.encode(': heartbeat\n\n'));
+        await tester.pump();
+      }
+      for (var i = 0; i < 50; i++) {
+        await tester.pump(const Duration(seconds: 1));
+      }
+      expect(transport.cancelled, contains(0));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 10)),
+      );
+      await tester.pump(const Duration(seconds: 2));
+      expect(transport.requests, hasLength(2));
+      unawaited(listener.cancel());
+      api.dispose();
+      await tester.pump();
+    },
+  );
   test(
     'network recovery replaces a silent stream once for all screens',
     () async {

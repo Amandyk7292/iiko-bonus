@@ -128,7 +128,25 @@ describe('cross-tab admin SSE broker', () => {
   });
   afterEach(() => {
     for (const close of cleanup.splice(0)) close();
+    vi.useRealTimers();
     vi.unstubAllGlobals();
+  });
+
+  it('reopens a permanently closed stream and recovers on network restoration', async () => {
+    vi.useFakeTimers();
+    const first = subscribe();
+    await vi.advanceTimersByTimeAsync(0);
+    const source = activeSources()[0];
+    source.readyState = FakeEventSource.CLOSED;
+    source.onerror?.();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(activeSources()).toHaveLength(1);
+    expect(FakeEventSource.instances).toHaveLength(2);
+    window.dispatchEvent(new Event('online'));
+    expect(FakeEventSource.instances).toHaveLength(3);
+    first.close();
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(activeSources()).toHaveLength(0);
   });
 
   it('shares one connection, delivers to both tabs, replays on leader close and cleans up', async () => {

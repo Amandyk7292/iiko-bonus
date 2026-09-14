@@ -92,6 +92,7 @@ class _CheckoutSavedCardsPanel extends StatefulWidget {
 }
 
 class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
+  late _LiveRefresh _live;
   List<Map<String, dynamic>> _methods = const [];
   bool _loading = false;
   bool _adding = false;
@@ -103,12 +104,29 @@ class _CheckoutSavedCardsPanelState extends State<_CheckoutSavedCardsPanel> {
   void initState() {
     super.initState();
     _sessionScope = widget.api.sessionCacheScope;
+    _bindLive();
     if (widget.available == true) unawaited(_load());
+  }
+
+  void _bindLive() {
+    _live = _LiveRefresh(widget.api, {'payment.methods.updated'}, () async {
+      if (widget.active && !_adding) await _load();
+    });
+  }
+
+  @override
+  void dispose() {
+    _live.dispose();
+    super.dispose();
   }
 
   @override
   void didUpdateWidget(covariant _CheckoutSavedCardsPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.api != widget.api) {
+      _live.dispose();
+      _bindLive();
+    }
     final sessionChanged =
         _sessionScope != widget.api.sessionCacheScope ||
         oldWidget.api != widget.api;

@@ -5,17 +5,50 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class LiveDirectoryApi extends BulkaApiClient {
+  bool failNext = false;
   final events = StreamController<Map<String, dynamic>>.broadcast();
   String address = 'Старый адрес';
   @override
   Stream<Map<String, dynamic>> get customerEvents => events.stream;
   @override
-  Future<List<BakeryLocation>> getFulfillmentLocations() async => [
-    BakeryLocation(id: 'one', name: 'Филиал', city: 'Актау', address: address),
-  ];
+  Future<List<BakeryLocation>> getFulfillmentLocations() async {
+    if (failNext) {
+      failNext = false;
+      throw Exception('temporary network error');
+    }
+    return [
+      BakeryLocation(
+        id: 'one',
+        name: 'Филиал',
+        city: 'Актау',
+        address: address,
+      ),
+    ];
+  }
 }
 
 void main() {
+  testWidgets('an initial failure recovers without leaving the directory', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final api = LiveDirectoryApi()..failNext = true;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildBulkaTheme(),
+        home: Scaffold(body: LocationDirectoryScreen(api: api)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text(api.address), findsNothing);
+    await tester.pump(const Duration(seconds: 60));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pumpAndSettle();
+    expect(find.text(api.address), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    await api.events.close();
+    api.dispose();
+  });
   testWidgets(
     'guest directory and its open branch sheet update without losing search',
     (tester) async {
@@ -58,6 +91,11 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pumpAndSettle();
       expect(find.text('После переподключения'), findsOneWidget);
+      api.address = 'Recovered without an event';
+      await tester.pump(const Duration(seconds: 60));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      expect(find.text('Recovered without an event'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
       await api.events.close();
       api.dispose();

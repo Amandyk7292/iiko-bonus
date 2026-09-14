@@ -59,7 +59,15 @@ export default function Invoices({
       '/iiko-dashboard/invoices',
     )
       .then((result) => {
-        if (!controller.signal.aborted) setData(result);
+        if (!controller.signal.aborted) {
+          setData(result);
+          setSelected((current) =>
+            current
+              ? (result.invoices.find((invoice) => invoice.identity === current.identity) ??
+                current)
+              : undefined,
+          );
+        }
       })
       .catch((caught) => {
         if (!controller.signal.aborted) setError(errorKey(caught));

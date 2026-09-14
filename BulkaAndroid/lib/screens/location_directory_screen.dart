@@ -158,6 +158,7 @@ class _LocationDirectoryScreenState extends State<LocationDirectoryScreen> {
             : prefs.getString('directory_city');
         _city = _cities.contains(saved) ? saved! : _cities.firstOrNull ?? '';
         _loading = false;
+        _failed = false;
         if (!silent || saved != _city) _focusCity();
       });
       _branchUpdates.value++;

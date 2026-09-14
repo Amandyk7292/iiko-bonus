@@ -17,6 +17,7 @@ export function subscribeAdminEvents(options: StreamOptions): () => void {
   let releaseLeader: (() => void) | undefined;
   let lastEventId = '';
   let status: StreamStatus = 'connecting';
+  let retryTimer: ReturnType<typeof setTimeout> | undefined;
   const abort = new AbortController();
   const eventTypes = new Set(options.eventTypes);
   const key = `bulka-admin-events:v1:${JSON.stringify([options.identity, options.url])}`;
@@ -40,8 +41,17 @@ export function subscribeAdminEvents(options: StreamOptions): () => void {
     source = new EventSource(url.pathname + url.search, { withCredentials: true });
     const current = source;
     current.onopen = () => setStatus('online', true);
-    current.onerror = () =>
+    current.onerror = () => {
+      if (stopped || source !== current) return;
       setStatus(current.readyState === EventSource.CLOSED ? 'offline' : 'reconnecting', true);
+      if (current.readyState === EventSource.CLOSED && !retryTimer) {
+        retryTimer = setTimeout(() => {
+          retryTimer = undefined;
+          closeSource();
+          open();
+        }, 5000);
+      }
+    };
     for (const type of eventTypes) {
       current.addEventListener(type, (raw) => {
         if (stopped || source !== current || !(raw instanceof MessageEvent)) return;
@@ -53,12 +63,22 @@ export function subscribeAdminEvents(options: StreamOptions): () => void {
     }
   };
   const closeSource = () => {
+    clearTimeout(retryTimer);
+    retryTimer = undefined;
     if (!source) return;
     source.onopen = null;
     source.onerror = null;
     source.close();
     source = null;
   };
+  const recover = () => {
+    // Only the owning tab may reopen the shared connection.
+    if (stopped || !source || document.hidden) return;
+    closeSource();
+    open();
+  };
+  window.addEventListener('online', recover);
+  document.addEventListener('visibilitychange', recover);
 
   const supportsSharing =
     Boolean(options.identity) &&
@@ -122,6 +142,8 @@ export function subscribeAdminEvents(options: StreamOptions): () => void {
   return () => {
     if (stopped) return;
     stopped = true;
+    window.removeEventListener('online', recover);
+    document.removeEventListener('visibilitychange', recover);
     closeSource();
     abort.abort();
     releaseLeader?.();
