@@ -111,8 +111,7 @@ extension _CatalogDataController on _CatalogScreenState {
         }
       }
 
-      await _cacheMenu(json, cacheKey: cacheKey);
-      if (!_isCurrentMenuRequest(revision, endpoint)) return;
+      unawaited(_cacheMenu(json, cacheKey: cacheKey));
       _syncCartWithMenu(products);
 
       _updateCatalogState(() {
@@ -556,30 +555,16 @@ extension _CatalogDataController on _CatalogScreenState {
             ? prefs.getString('selected_bakery_location_id')?.trim()
             : null) ??
         '';
-    BakeryLocation? branch;
-    if (selectedId.isNotEmpty) {
-      try {
-        final locations = await _api.getFulfillmentLocations();
-        branch = locations
-            .where(
-              (location) =>
-                  location.id == selectedId &&
-                  location.active &&
-                  location.supports(requestedOrderType),
-            )
-            .firstOrNull;
-      } catch (_) {
-        // Keep the saved branch usable offline. Server-side checkout validation
-        // remains authoritative when its live schedule cannot be loaded.
-      }
-    }
     if (!mounted || requestedOrderType != _orderType) return;
     _updateCatalogState(() {
-      _selectedBakery = branch?.displayLabel ?? selected;
-      _selectedBakeryId = branch?.id ?? selectedId;
-      _selectedBakeryLocation = branch;
+      _selectedBakery = selected;
+      _selectedBakeryId = selectedId;
+      _selectedBakeryLocation = null;
       _selectedDeliveryAddress = null;
     });
+    // Menu and live branch metadata can load together. Checkout still validates
+    // availability and the branch schedule before accepting an order.
+    if (selectedId.isNotEmpty) _branchLive.request(immediate: true);
   }
 
   Future<void> _selectFulfillmentSource() async {

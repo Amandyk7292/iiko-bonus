@@ -16,7 +16,7 @@ function sourceUrl(objectPath) {
   if (
     typeof objectPath !== 'string' ||
     objectPath.length > 500 ||
-    !/^menu_images\/[A-Za-z0-9_./ -]+$/.test(objectPath) ||
+    !/^(?:menu_images|stories)\/[A-Za-z0-9_./ -]+$/.test(objectPath) ||
     objectPath.split('/').some((part) => !part || part === '.' || part === '..')
   )
     throw failure(400);

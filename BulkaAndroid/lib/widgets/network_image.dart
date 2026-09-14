@@ -19,13 +19,19 @@ String optimizedNetworkImageUrl(
   }
 
   final path = uri.path;
+  final objectPath = path.startsWith(_supabasePublicImagePath)
+      ? path.substring(_supabasePublicImagePath.length)
+      : path.startsWith(_supabaseRenderedImagePath)
+      ? path.substring(_supabaseRenderedImagePath.length)
+      : '';
   if (uri.host == 'owofrgapcxsmzkdsefai.supabase.co' &&
-      path.startsWith('${_supabasePublicImagePath}menu_images/')) {
+      (objectPath.startsWith('menu_images/') ||
+          objectPath.startsWith('stories/'))) {
     return Uri.parse(bulkaApiBaseUrl)
         .resolve('/api/public/image')
         .replace(
           queryParameters: {
-            'path': path.substring(_supabasePublicImagePath.length),
+            'path': objectPath,
             'edge':
                 '${_imagePixelBucket(max(pixelWidth, pixelHeight).toDouble())}',
           },

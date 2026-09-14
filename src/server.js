@@ -281,6 +281,7 @@ if (!process.env.VERCEL) {
   }
 
   const server = app.listen(PORT, HOST, () => {
+    require('./services/menu-warmup.service').startMenuWarmup();
     logger.info({ event: 'server_started', host: HOST, port: Number(PORT) }, 'Server started');
 
     if (runBots) {

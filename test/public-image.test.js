@@ -66,4 +66,7 @@ test('image variants are lossless, bounded, coalesced and cached; paths cannot e
   const metadata = await sharp(cached.buffer).metadata();
   assert.equal(metadata.width, 512);
   assert.equal(metadata.height, 341);
+  const banner = await publicImage('stories/admin/banner.png', 768);
+  assert.equal((await sharp(banner.buffer).metadata()).width, 768);
+  assert.throws(() => sourceUrl('stories/../../private/file'));
 });

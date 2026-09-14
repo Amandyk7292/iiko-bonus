@@ -2,6 +2,23 @@ import 'package:bulka_bonus/main.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'story banners use lossless local variants for object and render URLs',
+    () {
+      for (final source in ['object', 'render/image']) {
+        final uri = Uri.parse(
+          optimizedNetworkImageUrl(
+            'https://owofrgapcxsmzkdsefai.supabase.co/storage/v1/$source/public/stories/admin/banner.png',
+            pixelWidth: 768,
+            pixelHeight: 384,
+          ),
+        );
+        expect(uri.path, '/api/public/image');
+        expect(uri.queryParameters['path'], 'stories/admin/banner.png');
+        expect(uri.queryParameters['edge'], '768');
+      }
+    },
+  );
   test('Bulka uploaded photos use reusable lossless variants', () {
     final uri = Uri.parse(
       optimizedNetworkImageUrl(

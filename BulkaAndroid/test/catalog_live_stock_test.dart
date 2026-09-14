@@ -12,17 +12,21 @@ import 'package:shared_preferences/shared_preferences.dart';
 class StockCatalogApi extends BulkaApiClient {
   StockCatalogApi(http.Client client) : super(client: client);
   final events = StreamController<Map<String, dynamic>>.broadcast();
+  Completer<void>? locationsGate;
   @override
   Stream<Map<String, dynamic>> get customerEvents => events.stream;
   @override
-  Future<List<BakeryLocation>> getFulfillmentLocations() async => [
-    BakeryLocation(
-      id: 'branch',
-      name: 'Филиал',
-      city: 'Актау',
-      address: 'Адрес',
-    ),
-  ];
+  Future<List<BakeryLocation>> getFulfillmentLocations() async {
+    await locationsGate?.future;
+    return [
+      BakeryLocation(
+        id: 'branch',
+        name: 'Филиал',
+        city: 'Актау',
+        address: 'Адрес',
+      ),
+    ];
+  }
 }
 
 void main() {
@@ -103,6 +107,8 @@ void main() {
           );
         });
         final api = StockCatalogApi(client);
+        final locationsGate = Completer<void>();
+        api.locationsGate = locationsGate;
         final cart = CartProvider();
         await tester.pumpWidget(
           ChangeNotifierProvider.value(
@@ -113,6 +119,13 @@ void main() {
             ),
           ),
         );
+        await tester.pumpAndSettle();
+        expect(
+          menuReads,
+          greaterThan(0),
+          reason: 'Menu must not wait for branch metadata',
+        );
+        locationsGate.complete();
         await tester.pumpAndSettle();
         await tester.tap(
           find.byKey(const ValueKey('catalog-category-card-Булочки')),

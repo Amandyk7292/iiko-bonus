@@ -20,11 +20,16 @@
   let releaseReloadStarted = false;
   let releaseCheckPending = false;
 
-  const within = (task, milliseconds) => new Promise((resolve) => {
-    const timer = window.setTimeout(resolve, milliseconds);
-    Promise.resolve(task).catch((error) => console.warn('Startup maintenance:', error))
-      .finally(() => { window.clearTimeout(timer); resolve(); });
-  });
+  const within = (task, milliseconds) =>
+    new Promise((resolve) => {
+      const timer = window.setTimeout(resolve, milliseconds);
+      Promise.resolve(task)
+        .catch((error) => console.warn('Startup maintenance:', error))
+        .finally(() => {
+          window.clearTimeout(timer);
+          resolve();
+        });
+    });
 
   const workerScriptUrl = (registration) =>
     registration.active?.scriptURL ||
@@ -76,7 +81,8 @@
   };
 
   const checkForNewRelease = async () => {
-    if (releaseReloadStarted || releaseCheckPending || releaseVersion === 'development') return false;
+    if (releaseReloadStarted || releaseCheckPending || releaseVersion === 'development')
+      return false;
     releaseCheckPending = true;
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 3000);
@@ -140,11 +146,15 @@
     try {
       // Refresh the same URL Flutter reads, including the browser HTTP cache.
       const response = await fetch(new URL('assets/FontManifest.json', document.baseURI), {
-        cache: 'reload', credentials: 'same-origin', signal: controller.signal,
+        cache: 'reload',
+        credentials: 'same-origin',
+        signal: controller.signal,
       });
       if (!response.ok) return;
       await response.arrayBuffer();
-      try { window.localStorage.setItem(key, releaseVersion); } catch (_) {}
+      try {
+        window.localStorage.setItem(key, releaseVersion);
+      } catch (_) {}
     } catch (error) {
       console.warn('Could not refresh the font manifest:', error);
     } finally {
@@ -163,7 +173,14 @@
   const startApplication = async () => {
     // Maintenance runs together with a strict budget, never as a network waterfall.
     await Promise.all([
-      within(removeLegacyFlutterOfflineCache(), 500),
+      within(removeLegacyFlutterOfflineCache(), 500).then(() => {
+        // Start the large bundle while font maintenance and the loader finish.
+        const preload = document.createElement('link');
+        preload.rel = 'preload';
+        preload.as = 'script';
+        preload.href = versionedAssetUrl('main.dart.js');
+        document.head.append(preload);
+      }),
       within(refreshFontManifest(), 1000),
     ]);
     loadFlutter();
