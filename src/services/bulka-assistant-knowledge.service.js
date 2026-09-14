@@ -7,6 +7,7 @@ const { getActiveLoyaltyTiers } = require('./tier.service');
 const { buildAssistantConsoleContext } = require('./whatsapp-assistant-console.service');
 const {
   categoryNameKey,
+  effectiveProductCategory,
   fulfillmentTypesForProduct,
   getHiddenCategoryVisibility,
 } = require('../utils/menu-visibility.util');
@@ -190,8 +191,9 @@ function normalizeMenu(rawMenu = {}, productOverrides = [], categoryOverrides = 
     if (hasExplicitProductTypes && !['Dish', 'Good'].includes(product.type)) continue;
     const id = String(product.id || '');
     const override = productOverridesById.get(id);
-    if (!id || override?.is_hidden || hidden.ids.has(String(product.parentGroup))) continue;
-    const category = categoryById.get(String(product.parentGroup));
+    const categoryId = effectiveProductCategory(product, override, rawGroups);
+    if (!id || override?.is_hidden || hidden.ids.has(String(categoryId))) continue;
+    const category = categoryById.get(String(categoryId));
     if (!category) continue;
     const price = Number(override?.custom_price || basePrice(product));
     if (!Number.isFinite(price) || price <= 0) continue;

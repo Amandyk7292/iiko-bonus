@@ -1174,6 +1174,15 @@ const adminMutationSchemas = {
   tierActive: { params: tierParamsSchema, body: tierActiveBodySchema },
   empty: withBody(emptyBodySchema),
   productOverride: withBody(productOverrideBodySchema),
+  moveMenuProducts: withBody(
+    z
+      .object({
+        productIds: z.array(safeResourceIdSchema).min(1).max(500),
+        categoryId: safeResourceIdSchema.nullable(),
+        profileKey: z.string().min(1).max(160),
+      })
+      .strict(),
+  ),
   categoryOverride: withBody(categoryOverrideBodySchema),
   customProduct: withBody(customProductBodySchema),
   customProductDelete: withParams(customProductParamsSchema),

@@ -54,6 +54,7 @@ const {
 } = require('../services/customer-password-auth.service');
 const {
   categoryNameKey,
+  effectiveProductCategory,
   filterProductsByVisibleCategories,
   fulfillmentTypesForProduct,
   getHiddenCategoryVisibility,
@@ -856,10 +857,11 @@ router.get('/api/guest/menu', async (req, res) => {
     const products = [];
     for (const p of baseProducts) {
       const override = prodOverridesMap.get(p.id);
+      const categoryId = effectiveProductCategory(p, override, rawGroups);
       if (override && override.is_hidden) continue;
       if (!productSupportsFulfillmentType(override, orderType)) continue;
       // Пропускаем продукты из скрытых категорий
-      if (hiddenCategoryIds.has(p.parentGroup)) continue;
+      if (hiddenCategoryIds.has(categoryId)) continue;
 
       let price = 0;
       if (p.sizePrices && p.sizePrices.length > 0) {
@@ -885,7 +887,7 @@ router.get('/api/guest/menu', async (req, res) => {
         name: getLocalized(override, 'name', p.name),
         description: getLocalized(override, 'description', p.description || ''),
         price: override && override.custom_price > 0 ? override.custom_price : price,
-        categoryId: p.parentGroup,
+        categoryId,
         imageUrl: (override && override.custom_image_url) || imageUrl,
         inStopList: isStopped,
         isAvailable: !isStopped,

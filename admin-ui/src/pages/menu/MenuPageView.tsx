@@ -25,6 +25,7 @@ import {
 } from './menu-page.shared';
 import type { MenuPageController } from './use-menu-page-controller';
 import MenuEditorModals from './MenuEditorModals';
+import MenuCategoryMove from './MenuCategoryMove';
 
 export default function MenuPageView({ controller }: { controller: MenuPageController }) {
   const {
@@ -155,6 +156,7 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
           </div>
 
           {/* Список товаров — показываем по порциям */}
+          <MenuCategoryMove controller={controller} />
           {filteredProducts.length === 0 ? (
             <PageState
               type="empty"
@@ -193,6 +195,13 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
                     }`}
                   >
                     {/* Фото */}
+                    <label className="flex min-h-11 items-center gap-2 px-3 text-sm">
+                      <input type="checkbox" aria-label={`Выбрать ${displayName}`}
+                        checked={controller.categoryMove.selectedIds.includes(p.id)}
+                        disabled={controller.categoryMove.moving}
+                        onChange={() => controller.categoryMove.toggleProduct(p.id)} />
+                      Выбрать для переноса
+                    </label>
                     <div className={`relative ${imgUrl ? "h-32 bg-amber-50" : "h-16"} rounded-t-2xl overflow-hidden`}>
                       {imgUrl ? (
                         <img

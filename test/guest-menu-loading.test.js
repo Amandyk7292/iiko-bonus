@@ -33,6 +33,27 @@ const response = () => ({
   },
 });
 
+test('guest menu moves a product out of a hidden source category and preserves its ID and price', async (t) => {
+  t.mock.method(iiko, 'getMenu', async () => ({
+    ...menu,
+    groups: [...menu.groups, { id: 'new', name: 'Новое', isIncludedInMenu: true }],
+  }));
+  t.mock.method(iiko, 'getStopListProductIds', async () => new Set());
+  t.mock.method(menuService, 'getProductOverrides', async () => [
+    { iiko_product_id: 'bun', custom_category_id: 'new' },
+  ]);
+  t.mock.method(menuService, 'getCategoryOverrides', async () => [
+    { iiko_category_id: 'bread', is_hidden: true },
+  ]);
+  t.mock.method(menuService, 'getCustomProducts', async () => []);
+  const res = response();
+  await handler({ query: {}, headers: {} }, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.products[0].id, 'bun');
+  assert.equal(res.body.products[0].categoryId, 'new');
+  assert.equal(res.body.products[0].price, 300);
+});
+
 test('guest menu starts override reads before slow iiko completes and preserves strict stop lists', async (t) => {
   let finishMenu;
   const pendingMenu = new Promise((resolve) => {

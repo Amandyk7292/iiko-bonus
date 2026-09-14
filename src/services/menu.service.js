@@ -267,6 +267,37 @@ const customProductInput = (product = {}) => {
 };
 
 class MenuService {
+  async moveProductsToCategory(productIds, categoryId, { profileKey, rawMenu }) {
+    const ids = [...new Set(productIds.map((id) => cleanId(id, 'productId')))];
+    if (!ids.length || ids.length > 500) throw menuError('Выберите от 1 до 500 товаров');
+    const target = categoryId === null ? null : cleanId(categoryId, 'categoryId');
+    if (target && !rawMenu.groups?.some((group) => group.id === target)) {
+      throw menuError('Категория больше не существует в выбранном городе');
+    }
+    if (
+      target &&
+      rawMenu.groups.some((group) => group.isIncludedInMenu) &&
+      !rawMenu.groups.some((group) => group.id === target && group.isIncludedInMenu)
+    ) {
+      throw menuError('Категория не опубликована в меню iiko');
+    }
+    const available = new Set((rawMenu.products || []).map((product) => product.id));
+    if (ids.some((id) => !available.has(id))) {
+      throw menuError('Некоторые товары отсутствуют в меню выбранного города. Обновите меню.');
+    }
+    const { error } = await supabase.from('menu_overrides').upsert(
+      ids.map((id) => ({
+        iiko_profile: cleanProfileKey(profileKey),
+        iiko_product_id: id,
+        custom_category_id: target,
+        updated_at: new Date(),
+      })),
+      { onConflict: 'iiko_profile,iiko_product_id' },
+    );
+    if (error) throw new Error('Не удалось переместить товары: ' + error.message);
+    return ids;
+  }
+
   /**
    * Получает все оверрайды товаров
    */

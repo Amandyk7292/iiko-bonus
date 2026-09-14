@@ -1,4 +1,8 @@
-const { categoryNameKey, getHiddenCategoryVisibility } = require('../utils/menu-visibility.util');
+const {
+  categoryNameKey,
+  effectiveProductCategory,
+  getHiddenCategoryVisibility,
+} = require('../utils/menu-visibility.util');
 const menuService = require('./menu.service');
 const { getIikoClientForBranch } = require('./iiko-city-profile.service');
 const { getBranchAvailability } = require('./inventory.service');
@@ -37,9 +41,10 @@ function visibleCashierProducts({
   const result = [];
   for (const p of raw) {
     const o = settings.get(p.id) || {};
+    const categoryId = effectiveProductCategory(p, o, rawMenu.groups || []);
     if (
       o.is_hidden ||
-      hiddenGroups.has(p.parentGroup) ||
+      hiddenGroups.has(categoryId) ||
       p.isDeleted ||
       (typedMenu && !['Dish', 'Good'].includes(p.type))
     )
@@ -52,7 +57,7 @@ function visibleCashierProducts({
       price,
       imageUrl: o.custom_image_url || p.imageLinks?.[0] || '',
       isIikoProduct: true,
-      category: (rawMenu.groups || []).find((g) => g.id === p.parentGroup)?.name || '',
+      category: (rawMenu.groups || []).find((g) => g.id === categoryId)?.name || '',
       blockedBy: o.is_stop_listed
         ? 'admin'
         : !preorder && stopIds.has(p.iikoProductId || p.id)

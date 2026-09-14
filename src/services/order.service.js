@@ -6,6 +6,7 @@ const { catalogNameTranslations } = require('../utils/catalog-localization.util'
 const { getBranchAvailability } = require('./inventory.service');
 const {
   categoryNameKey,
+  effectiveProductCategory,
   getHiddenCategoryVisibility,
   normalizeMenuOrderType,
   productSupportsFulfillmentType,
@@ -198,7 +199,11 @@ async function loadOrderCatalog({ branchId = null, orderType = 'pickup' } = {}) 
 
   for (const product of rawMenu.products || []) {
     const override = productOverrideMap.get(product.id);
-    if (override?.is_hidden || hiddenCategories.ids.has(product.parentGroup)) continue;
+    if (
+      override?.is_hidden ||
+      hiddenCategories.ids.has(effectiveProductCategory(product, override, rawGroups))
+    )
+      continue;
     if (!productSupportsFulfillmentType(override, normalizedOrderType)) continue;
     const price =
       Number(override?.custom_price) > 0 ? Number(override.custom_price) : productPrice(product);

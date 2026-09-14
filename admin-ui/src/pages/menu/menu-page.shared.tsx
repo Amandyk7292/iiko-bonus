@@ -12,6 +12,7 @@ export interface IikoProduct {
 }
 
 export interface IikoGroup {
+  isIncludedInMenu?: boolean;
   id: string;
   name: string;
   order?: number;
@@ -26,6 +27,7 @@ export interface ProductStorageCondition {
 }
 
 export interface ProductOverride {
+  custom_category_id?: string | null;
   iiko_product_id: string;
   _visibility_pending?: boolean;
   _stop_list_pending?: boolean;

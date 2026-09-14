@@ -7,6 +7,7 @@ import { type MenuProfileStatus } from './MenuCityScope';
 import { type MenuWorkspaceTab } from './MenuWorkspaceToolbar';
 import { useMenuCitySelection } from './use-menu-city-selection';
 import { useOptimisticMenuActions } from './use-optimistic-menu-actions';
+import { useMenuCategoryMove } from './use-menu-category-move';
 import {
   builderOptionSections,
   categoryNameKeys,
@@ -70,6 +71,12 @@ export function useMenuPageController({
   const [categoryOverrides, setCategoryOverrides] = useState<Record<string, CategoryOverride>>({});
   const [customProducts, setCustomProducts] = useState<CustomProduct[]>([]);
   const [activeProfileKey, setActiveProfileKey] = useState<string>();
+  const categoryMove = useMenuCategoryMove(selectedBranchId, activeProfileKey, setProductOverrides);
+  const effectiveProducts = useMemo(() => rawProducts.map((product) => {
+    const target = productOverrides[product.id]?.custom_category_id;
+    return target && rawGroups.some((group) => group.id === target)
+      ? { ...product, parentGroup: target } : product;
+  }), [rawProducts, rawGroups, productOverrides]);
   const [profileStatuses, setProfileStatuses] = useState<Record<string, MenuProfileStatus>>({});
 
   const [searchQuery, setSearchQuery] = useState(params.get('search') || '');
@@ -722,8 +729,8 @@ export function useMenuPageController({
   }, [selectedCategory, visibleGroups]);
 
   const productsInVisibleCategories = useMemo(
-    () => rawProducts.filter((product) => !hiddenCategoryIds.has(product.parentGroup || '')),
-    [rawProducts, hiddenCategoryIds],
+    () => effectiveProducts.filter((product) => !hiddenCategoryIds.has(product.parentGroup || '')),
+    [effectiveProducts, hiddenCategoryIds],
   );
 
   const filteredProducts = useMemo(() => {
@@ -754,6 +761,7 @@ export function useMenuPageController({
   );
 
   return {
+    categoryMove,
     scopeLocations,
     selectedBranchId,
     onBranchChange,
@@ -761,7 +769,7 @@ export function useMenuPageController({
     setActiveTab,
     loading,
     error,
-    rawProducts,
+    rawProducts: effectiveProducts,
     rawGroups,
     productOverrides,
     categoryOverrides,

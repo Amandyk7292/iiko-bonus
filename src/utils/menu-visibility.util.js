@@ -57,7 +57,14 @@ const filterProductsByVisibleCategories = (categories, products) => {
   return products.filter((product) => visibleCategoryIds.has(product.categoryId));
 };
 
+const effectiveProductCategory = (product, override, categories) =>
+  override?.custom_category_id &&
+  categories.some((group) => group.id === override.custom_category_id)
+    ? override.custom_category_id
+    : product.parentGroup;
+
 module.exports = {
+  effectiveProductCategory,
   MENU_FULFILLMENT_TYPES,
   categoryNameKey,
   filterProductsByVisibleCategories,

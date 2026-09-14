@@ -56,6 +56,38 @@ const validateUploadedImage = (req, res, next) => {
 };
 
 function registerMenuAdminRoutes(router) {
+  router.post(
+    '/admin/api/menu/products/category',
+    adminAuthMiddleware,
+    validateRequest(adminMutationSchemas.moveMenuProducts),
+    async (req, res) => {
+      try {
+        const client = await getIikoClientForBranch(req.admin?.selectedBranchId);
+        if (req.body.profileKey !== client.profileKey) {
+          return res
+            .status(409)
+            .json({ success: false, error: 'Город изменился. Обновите меню перед переносом.' });
+        }
+        const rawMenu = await client.getMenu({ strict: true });
+        const productIds = await menuService.moveProductsToCategory(
+          req.body.productIds,
+          req.body.categoryId,
+          {
+            profileKey: client.profileKey,
+            rawMenu,
+          },
+        );
+        realtime.publish(
+          'menu.updated',
+          { productIds, profileKey: client.profileKey },
+          { broadcast: true },
+        );
+        res.json({ success: true, productIds });
+      } catch (error) {
+        res.status(error.statusCode || 500).json({ success: false, error: error.message });
+      }
+    },
+  );
   const {
     loadCashierCatalog,
     updateCashierProduct,
