@@ -1,7 +1,7 @@
-const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { Client } = require('pg');
+const { checksum } = require('./migration-checksum');
 
 require('dotenv').config({ path: process.env.DOTENV_CONFIG_PATH || undefined });
 
@@ -74,10 +74,6 @@ const LEGACY_CHECKSUM_EXCEPTIONS = new Map(
 function fail(message) {
   console.error(`Migration aborted: ${message}`);
   process.exitCode = 1;
-}
-
-function checksum(sql) {
-  return crypto.createHash('sha256').update(sql).digest('hex');
 }
 
 function stripOuterTransaction(sql) {
