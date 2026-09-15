@@ -26,6 +26,7 @@ previous_current_release=''
 release_scripts=(
   activate-www-domain.sh
   apply-migrations.js
+  migration-checksum.js
   backup-database.sh
   backup-supabase-storage.js
   configure-forte-widget-vps.sh

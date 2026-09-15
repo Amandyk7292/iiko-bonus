@@ -405,6 +405,7 @@ Copy-Item -LiteralPath (Join-Path $projectRoot 'supabase_schema.sql') -Destinati
 foreach ($scriptName in @(
     'activate-www-domain.sh',
     'apply-migrations.js',
+    'migration-checksum.js',
     'backup-database.sh',
     'backup-supabase-storage.js',
     'configure-forte-widget-vps.sh',
