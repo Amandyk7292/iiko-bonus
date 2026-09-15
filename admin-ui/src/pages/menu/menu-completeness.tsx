@@ -41,9 +41,13 @@ export function sortMenuProductsByCompleteness(
     ]),
   );
   return [...products].sort((left, right) => {
+    const hiddenComparison =
+      Number(Boolean(overrides[left.id]?.is_hidden)) -
+      Number(Boolean(overrides[right.id]?.is_hidden));
     const incompleteComparison =
       Number(incompleteById.get(right.id)) - Number(incompleteById.get(left.id));
     return (
+      hiddenComparison ||
       incompleteComparison ||
       compareMenuNames(
         resolvedProductName(left, overrides[left.id]),

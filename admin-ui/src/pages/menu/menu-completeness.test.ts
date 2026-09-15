@@ -20,4 +20,17 @@ describe('admin menu completeness order', () => {
       'Ватрушка',
     ]);
   });
+
+  it('puts hidden products after all visible products even if their descriptions are incomplete', () => {
+    const products = [
+      { id: 'hidden', name: 'А скрытый', descriptionRu: '', descriptionKk: '', nameKk: '' },
+      { id: 'incomplete', name: 'Б видимый', descriptionRu: '', descriptionKk: '', nameKk: '' },
+      { id: 'complete', name: 'В видимый', descriptionRu: 'Состав', descriptionKk: 'Құрамы', nameKk: 'Атауы' },
+    ];
+    expect(sortMenuProductsByCompleteness(products, { hidden: { iiko_product_id: 'hidden', is_hidden: true } }).map((product) => product.id)).toEqual([
+      'incomplete',
+      'complete',
+      'hidden',
+    ]);
+  });
 });
