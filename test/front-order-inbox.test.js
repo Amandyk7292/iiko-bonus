@@ -38,7 +38,7 @@ function inbox(t, data) {
       return Promise.resolve({ data, count: Array.isArray(data) ? data.length : 0 }).then(resolve);
     },
   };
-  for (const method of ['select', 'eq', 'in', 'is', 'order', 'range', 'limit', 'maybeSingle'])
+  for (const method of ['select', 'eq', 'in', 'is', 'or', 'order', 'range', 'limit', 'maybeSingle'])
     query[method] = (...args) => {
       reads.push([method, ...args]);
       return query;
@@ -173,6 +173,10 @@ test('inbox fetch is branch scoped, paid and actionable only, with bounded pagin
   assert.deepEqual(
     reads.find((r) => r[1] === 'status'),
     ['eq', 'status', 'paid'],
+  );
+  assert.deepEqual(
+    reads.find((r) => r[0] === 'or'),
+    ['or', 'refund_status.is.null,refund_status.in.(partial,failed)'],
   );
   assert.equal(result.orders[0].items[0].quantity, 5);
   assert.equal(result.orders[0].orderType, 'preorder');

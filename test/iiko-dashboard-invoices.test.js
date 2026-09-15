@@ -95,7 +95,12 @@ test('supplier filter scopes invoices, rows and summary by the exact supplier na
   assert.equal(report.rows[0].Supplier, otherSupplier.name);
 });
 
-test('loader requests incoming invoices per active supplier and loads reference data only when needed', async () => {
+test('loader requests historical invoices for active and archived suppliers', async () => {
+  const archived = {
+    id: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee',
+    name: 'Архивный поставщик',
+    deleted: 'true',
+  };
   const calls = [];
   const request = async (path, _body, format) => {
     calls.push(path);
@@ -103,24 +108,28 @@ test('loader requests incoming invoices per active supplier and loads reference 
       assert.equal(format, 'xml');
       return {
         employees: {
-          employee: [supplier, { id: 'deleted', name: 'Удалён', deleted: 'true' }],
+          employee: [supplier, archived, { id: 'invalid', name: 'Нет UUID' }],
         },
       };
     }
     if (path.startsWith('documents/export/incomingInvoice')) {
       const params = new URLSearchParams(path.split('?')[1]);
-      assert.equal(params.get('supplierId'), supplier.id);
+      assert([supplier.id, archived.id].includes(params.get('supplierId')));
       assert.equal(params.get('from'), input.from);
       assert.equal(params.get('to'), input.to);
-      return { incomingInvoiceDtoes: { document: document('one') } };
+      const id = params.get('supplierId');
+      return { incomingInvoiceDtoes: { document: document(id, { supplier: id }) } };
     }
     if (path === 'corporation/stores' || path === 'corporation/departments')
       return { corporateItemDtoes: '' };
     return [];
   };
   const data = await loadInvoiceDocuments(request, input);
-  assert.equal(data.documents.length, 1);
-  assert.equal(calls.filter((path) => path.startsWith('documents/export/')).length, 1);
+  assert.equal(data.documents.length, 2);
+  assert.equal(calls.filter((path) => path.startsWith('documents/export/')).length, 2);
+  const report = invoiceReport({ ...dataset(data.documents), suppliers: data.suppliers }, input);
+  assert.equal(report.summary.total, 2000);
+  assert(report.invoices.some((item) => item.Supplier === archived.name));
 });
 
 test('invoice query constrains the server and date range', () => {

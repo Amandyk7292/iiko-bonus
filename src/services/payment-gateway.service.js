@@ -37,7 +37,20 @@ async function refundPaymentForOrder(order, amount, options = {}) {
 
 async function reconcileFullRefundForOrder(order) {
   if (isForteOrder(order) && order.provider_payment_system === 'forte_widget') {
-    return forteWidgetService.reconcileRefund(order);
+    if (order.refund_reference) return forteWidgetService.reconcileRefund(order);
+    if (
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        String(order.refund_request_id || ''),
+      )
+    ) {
+      return reconcileRefundForOrder(order, {
+        id: order.refund_request_id,
+        provider_request_id: order.refund_request_id,
+        created_at: order.refund_requested_at,
+        amount: Number(order.amount) - Number(order.partially_refunded_amount || 0),
+        reason: order.cancellation_reason,
+      });
+    }
   }
   return {
     status: 'pending',

@@ -6,6 +6,11 @@ export const dashboardApi = {
   analytics: (query: AnalyticsQuery, signal?: AbortSignal) =>
     request<Report>(`${base}/analytics`, { method: 'POST', body: JSON.stringify(query), signal }),
   servers: () => request<{ servers: Server[] }>(`${base}/servers`),
+  departments: (serverId: string, signal?: AbortSignal) =>
+    request<{ serverId: string; departments: { id: string; name: string }[] }>(
+      `${base}/departments?${new URLSearchParams({ serverId })}`,
+      { signal },
+    ),
   saveServer: (server: ServerMutation) =>
     request<{ servers: Server[] }>(`${base}/servers`, {
       method: 'POST',

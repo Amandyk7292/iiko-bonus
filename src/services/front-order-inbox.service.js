@@ -1,4 +1,5 @@
 const { supabase } = require('../config/supabase');
+const { attachFrontRemainingOrders } = require('./front-remaining-order.service');
 const {
   updateAdminOrderStatus,
   cancelPaidOrder,
@@ -20,22 +21,23 @@ async function listFrontOrders(branchId, { page = 1, peek = false, receipts = fa
     .select(
       peek
         ? 'id,order_number'
-        : 'id,order_number,phone,cart_items,amount,subtotal,discount_amount,delivery_fee,fulfillment_type,preorder_fulfillment_type,fulfillment_status,pos_receipt_due,scheduled_at,comment,delivery_address,customers(name,phone)',
+        : 'id,order_number,phone,cart_items,amount,subtotal,discount_amount,delivery_fee,partially_refunded_amount,fulfillment_type,preorder_fulfillment_type,fulfillment_status,pos_receipt_due,scheduled_at,comment,delivery_address,customers(name,phone)',
       { count: 'exact' },
     )
     .eq('branch_id', branchId)
     .eq('status', 'paid')
     .in('fulfillment_status', receipts && !peek ? ['preparing', 'ready', 'completed'] : ['new'])
-    .is('refund_status', null)
+    .or('refund_status.is.null,refund_status.in.(partial,failed)')
     .order('created_at', { ascending: true });
   if (receipts && !peek) query = query.eq('pos_receipt_due', true);
   query = peek ? query.limit(1) : query.range((page - 1) * 25, page * 25 - 1);
   const { data, error, count } = await query;
   if (error) throw error;
+  const orders = peek ? data || [] : await attachFrontRemainingOrders(data || []);
   return {
     total: count || 0,
     page,
-    orders: (data || []).map((order) =>
+    orders: orders.map((order) =>
       peek
         ? { id: order.id, number: order.order_number }
         : {

@@ -9,14 +9,20 @@ async function listAutoReceipts(branchId, { terminalId }) {
     .eq('branch_id', branchId)
     .neq('status', 'completed')
     .eq('kaspi_orders.status', 'paid')
-    .is('kaspi_orders.refund_status', null)
+    .or('refund_status.is.null,refund_status.in.(partial,failed)', {
+      referencedTable: 'kaspi_orders',
+    })
     .or(`terminal_id.is.null,terminal_id.eq.${terminalId}`)
     .order('updated_at', { ascending: true })
     .limit(20);
   if (error) throw error;
   return {
     jobs: (data || [])
-      .filter((row) => row.kaspi_orders.status === 'paid' && !row.kaspi_orders.refund_status)
+      .filter(
+        (row) =>
+          row.kaspi_orders.status === 'paid' &&
+          [null, 'partial', 'failed'].includes(row.kaspi_orders.refund_status ?? null),
+      )
       .map((row) => ({
         orderId: row.order_id,
         receiptId: row.receipt_id,

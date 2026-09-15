@@ -22,9 +22,9 @@ async function mapConcurrent(values, concurrency, work) {
 }
 
 async function loadInvoiceDocuments(request, input) {
+  // Archiving a supplier must not remove its posted documents from historical reports.
   const suppliers = (await xmlList(request, 'suppliers', 'employees', 'employee')).filter(
-    (supplier) =>
-      /^[a-f0-9-]{36}$/i.test(String(supplier.id || '')) && String(supplier.deleted) !== 'true',
+    (supplier) => /^[a-f0-9-]{36}$/i.test(String(supplier.id || '')),
   );
   const documents = await mapConcurrent(suppliers, 3, async (supplier) => {
     const query = new URLSearchParams({

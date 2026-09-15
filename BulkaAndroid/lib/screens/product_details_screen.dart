@@ -48,6 +48,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   String? _referenceUrl;
   bool _uploadingReference = false;
   bool _loadingOptions = true;
+  bool _optionsFailed = false;
   final _sheetGate = _AsyncActionGate();
   List<String> _boughtTogetherIds = const [];
 
@@ -164,6 +165,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   }
 
   Future<void> _loadOptions({bool preserveSelection = false}) async {
+    if (mounted) setState(() => _loadingOptions = true);
     try {
       final options = await widget.api.getProductOptions(widget.product.id);
       final configuration = _asMap(options['configuration']);
@@ -171,6 +173,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       if (!mounted) return;
       setState(() {
         _options = options;
+        _optionsFailed = false;
         _weight =
             preserveSelection &&
                 _containsOption(configuration['weightOptions'], _weight)
@@ -208,7 +211,14 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
         _loadingOptions = false;
       });
     } catch (_) {
-      if (mounted) setState(() => _loadingOptions = false);
+      if (mounted) {
+        setState(() {
+          _loadingOptions = false;
+          _optionsFailed = true;
+        });
+      }
+      if (preserveSelection) rethrow;
+      _live.request();
     }
   }
 
@@ -557,7 +567,19 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   Future<void> _addConfiguredProduct(CatalogProduct product) async {
     if (!await _ensureOrderTypeSelected()) return;
     if (!mounted) return;
-    if (!_validateConfiguredSelection()) return;
+    if (_loadingOptions || _optionsFailed || !_validateConfiguredSelection()) {
+      return;
+    }
+    product = widget.liveProducts.value[product.id] ?? product;
+    final cart = context.read<CartProvider>();
+    if (product.isStopListed ||
+        cart.getQuantity(product.id) + product.increment >
+            _catalogProductQuantityLimit(product)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        bulkaSnackBar(content: Text('catalog_quantity_limit_reached'.tr)),
+      );
+      return;
+    }
     final modifiers = <Map<String, dynamic>>[];
     for (final raw in _options['modifierGroups'] as List? ?? const []) {
       final group = _asMap(raw);
@@ -569,11 +591,14 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
         });
       }
     }
-    context.read<CartProvider>().addConfiguredItem(
+    cart.addConfiguredItem(
       productId: product.id,
       name: product.title,
       basePrice: product.price,
       unitPrice: _configuredPrice,
+      quantity: product.increment,
+      quantityStep: product.quantityStep,
+      unit: product.unit,
       imageUrl: product.imageUrl,
       configuration: {
         if (_weight != null) 'weight': _weight,
@@ -1217,6 +1242,17 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                         color: _bulkaYellow,
                                         backgroundColor: Color(0xFFEDE5DB),
                                       ),
+                                    ] else if (_optionsFailed) ...[
+                                      const SizedBox(height: 16),
+                                      Text('catalog_options_load_error'.tr),
+                                      TextButton(
+                                        key: const ValueKey(
+                                          'product-options-retry',
+                                        ),
+                                        onPressed: () =>
+                                            _live.request(immediate: true),
+                                        child: Text('retry_btn'.tr),
+                                      ),
                                     ] else if (_hasCustomOptions) ...[
                                       Builder(
                                         builder: (context) {
@@ -1451,7 +1487,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                     price: _hasCustomOptions ? _configuredPrice : product.price,
                     quantity: _hasCustomOptions ? 0 : _quantity,
                     unit: product.quantityStep < 1 ? product.unit : '',
-                    disabled: product.isStopListed || _loadingOptions,
+                    disabled:
+                        product.isStopListed ||
+                        _loadingOptions ||
+                        _optionsFailed,
                     stopListed: product.isStopListed,
                     onAdd: () => _hasCustomOptions
                         ? _addConfiguredProduct(product)

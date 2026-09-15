@@ -66,6 +66,23 @@ class IikoDashboardService {
   async deleteServer(id) {
     return this.client.deleteServer(id);
   }
+  async departments({ serverId }) {
+    await require('./iiko-dashboard-source').reportSource(this, serverId);
+    return this.reports.get(`departments:${serverId}`, () =>
+      this.client.withSession(serverId, async (request) => {
+        const result = await request('corporation/departments', undefined, 'xml');
+        if (!Object.hasOwn(result || {}, 'corporateItemDtoes'))
+          throw failure('IIKO_REPORT_RESPONSE');
+        const rows = require('./iiko-dashboard-barters').list(
+          result.corporateItemDtoes?.corporateItemDto,
+        );
+        const departments = rows
+          .map((row) => ({ id: String(row.id || ''), name: String(row.name || '').trim() }))
+          .filter((row) => row.id && row.name);
+        return { serverId, departments };
+      }),
+    );
+  }
   async columns(request, serverId, reportType) {
     const key = `${serverId}:${reportType}`;
     const cached = this.schemas.get(key);

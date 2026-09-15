@@ -45,6 +45,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
     [DataContract] internal sealed class BoardResponse
     {
         [DataMember(Name="columns")] public List<BoardColumn> Columns { get; set; }
+        [DataMember(Name="search")] public string Search { get; set; }
     }
     [DataContract] internal sealed class InboxDecision
     {

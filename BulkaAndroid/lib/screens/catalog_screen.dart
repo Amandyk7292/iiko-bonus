@@ -58,6 +58,7 @@ class _CatalogScreenState extends State<CatalogScreen>
   final _navigationGate = _AsyncActionGate();
   Uri? _pendingClientUri;
   bool _productRouteOpen = false;
+  Future<bool>? _routeBranchFlight;
 
   List<String> _categories = const [_catalogAllCategoryKey];
   List<CatalogProduct> _allProducts = const [];

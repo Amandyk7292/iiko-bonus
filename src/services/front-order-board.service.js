@@ -1,11 +1,12 @@
 const { supabase } = require('../config/supabase');
 const { updateKitchenStatus } = require('./kitchen.service');
 const { decideFrontOrder } = require('./front-order-inbox.service');
+const { attachFrontRemainingOrders } = require('./front-remaining-order.service');
 
 const STAGES = ['new', 'preparing', 'ready', 'handed_over'];
 const PAGE_SIZE = 25;
 const fields =
-  'id,order_number,phone,cart_items,amount,delivery_fee,fulfillment_type,scheduled_at,comment,kitchen_status,fulfillment_status,pos_receipt_due,created_at,customers(name,phone),front_receipt_jobs(status,last_error),delivery_jobs(courier_name,courier_phone,courier_car_model,courier_car_number,updated_at)';
+  'id,order_number,phone,cart_items,amount,partially_refunded_amount,delivery_fee,fulfillment_type,scheduled_at,comment,kitchen_status,fulfillment_status,pos_receipt_due,created_at,customers(name,phone),front_receipt_jobs(status,last_error),delivery_jobs(courier_name,courier_phone,courier_car_model,courier_car_number,updated_at)';
 
 function card(order) {
   const courier = [...(order.delivery_jobs || [])].sort((a, b) =>
@@ -29,7 +30,7 @@ function card(order) {
     comment: order.comment || '',
     posReceiptDue: Boolean(order.pos_receipt_due),
     automaticReceipt: Boolean(order.front_receipt_jobs),
-    receiptError: order.front_receipt_jobs?.last_error || '',
+    receiptError: order.remaining_receipt_error || order.front_receipt_jobs?.last_error || '',
     courierName: courier?.courier_name || '',
     courierPhone: courier?.courier_phone || '',
     courierVehicle: [courier?.courier_car_model, courier?.courier_car_number]
@@ -39,6 +40,7 @@ function card(order) {
 }
 
 async function listFrontBoard(branchId, pages = {}) {
+  const search = pages.search || '';
   const columns = await Promise.all(
     STAGES.map(async (stage) => {
       const page = pages[stage] || 1;
@@ -47,8 +49,11 @@ async function listFrontBoard(branchId, pages = {}) {
         .select(fields, { count: 'exact' })
         .eq('branch_id', branchId)
         .eq('status', 'paid')
-        .is('refund_status', null);
-      if (stage === 'handed_over') {
+        .or('refund_status.is.null,refund_status.in.(partial,failed)');
+      if (search) query = query.eq('order_number', Number(search));
+      if (stage === 'handed_over' && search) {
+        query = query.or('kitchen_status.eq.handed_over,fulfillment_status.eq.completed');
+      } else if (stage === 'handed_over') {
         const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
         query = query.or(
           [
@@ -65,10 +70,15 @@ async function listFrontBoard(branchId, pages = {}) {
         .order('id')
         .range((page - 1) * PAGE_SIZE, page * PAGE_SIZE - 1);
       if (error) throw error;
-      return { stage, page, total: count || 0, orders: (data || []).map(card) };
+      return {
+        stage,
+        page,
+        total: count || 0,
+        orders: (await attachFrontRemainingOrders(data || [])).map(card),
+      };
     }),
   );
-  return { columns };
+  return { columns, search };
 }
 
 async function pollFrontBoard(branchId, { terminalId }) {

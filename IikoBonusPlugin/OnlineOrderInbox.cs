@@ -15,9 +15,11 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private readonly OrderAlertState alerts = new OrderAlertState();
         private OrderBoardWindow window;
         private bool windowStarting;
-        private int polling, opening, refreshing;
+        private int polling, opening, refreshing, refreshQueued;
         private volatile bool disposed;
         private string revision = "";
+        private string search = "";
+        private DateTime lastBoardLoaded = DateTime.MinValue;
         internal OnlineOrderInbox() { timer = new Timer(Poll, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2)); }
 
         private static T Request<T>(HttpMethod method, string path, object body = null)
@@ -33,11 +35,14 @@ namespace Resto.Front.Api.IikoBonusPlugin
         }
         private BoardResponse Load()
         {
-            int[] current; lock (gate) current = (int[])pages.Clone();
+            int[] current; string number;
+            lock (gate) { current = (int[])pages.Clone(); number = search; }
             var query = string.Join("&", BoardColumn.Stages.Select((stage, i) => stage + "=" + current[i]));
+            if (number.Length > 0) query += "&search=" + Uri.EscapeDataString(number);
             var result = Request<BoardResponse>(HttpMethod.Get, "orders/board?" + query);
             if (result?.Columns == null || result.Columns.Count != 4)
                 throw new InvalidOperationException("Не удалось загрузить экран заказов. Обновите плагин и проверьте связь.");
+            lock (gate) { if (search == number) lastBoardLoaded = DateTime.UtcNow; }
             return result;
         }
         private void OnWindow(Action<OrderBoardWindow> action)
@@ -61,14 +66,17 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     var peek = Request<InboxResponse>(HttpMethod.Post, "orders/board/poll", new InboxPoll {
                         TerminalId = PluginContext.Operations.GetHostTerminal().Id.ToString() });
                     if (peek == null) throw new InvalidOperationException("Нет ответа от Bulka.");
-                    bool visible, needsAttention;
+                    bool visible, needsAttention, refreshSearch;
                     lock (gate)
                     {
                         visible = window != null;
+                        // Global revisions cover the operational board. An explicitly
+                        // searched historical order may change outside that window.
+                        refreshSearch = search.Length > 0 && DateTime.UtcNow - lastBoardLoaded >= TimeSpan.FromSeconds(10);
                         alerts.Observe(peek.Total, peek.NewestOrderNumber, peek.Orders?.FirstOrDefault()?.Id ?? "");
                         needsAttention = alerts.IsDue(DateTime.UtcNow, visible);
                     }
-                    if (visible && peek.Revision != revision)
+                    if (visible && (peek.Revision != revision || refreshSearch))
                     {
                         var result = Load(); OnWindow(view => view.Update(result)); revision = peek.Revision;
                     }
@@ -115,11 +123,16 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     var view = new OrderBoardWindow(PosPairing.Current?.BranchName ?? "Bulka", owner, canImport, automatic);
                     view.ActionRequested += Change;
                     view.RefreshRequested += Refresh;
+                    view.SearchRequested += number => {
+                        lock (gate) { search = number; for (var i = 0; i < pages.Length; i++) pages[i] = 1; revision = ""; }
+                        Refresh();
+                    };
                     view.PageRequested += (index, page) => { lock (gate) pages[index] = page; Refresh(); };
                     lock (gate)
                     {
                         if (disposed) return;
                         window = view;
+                        search = "";
                         for (var i = 0; i < pages.Length; i++) pages[i] = 1;
                         revision = "";
                     }
@@ -144,12 +157,21 @@ namespace Resto.Front.Api.IikoBonusPlugin
         }
         private void Refresh()
         {
+            Interlocked.Exchange(ref refreshQueued, 1);
             if (Interlocked.CompareExchange(ref refreshing, 1, 0) != 0) return;
             Task.Run(async () => {
-                await network.WaitAsync().ConfigureAwait(false);
-                try { if (!disposed) { var result = Load(); OnWindow(view => view.Update(result)); } }
-                catch (Exception error) { OnWindow(view => view.SetError(error.Message)); }
-                finally { network.Release(); Interlocked.Exchange(ref refreshing, 0); }
+                try {
+                    do {
+                        Interlocked.Exchange(ref refreshQueued, 0);
+                        await network.WaitAsync().ConfigureAwait(false);
+                        try { if (!disposed) { var result = Load(); OnWindow(view => view.Update(result)); } }
+                        catch (Exception error) { OnWindow(view => view.SetError(error.Message)); }
+                        finally { network.Release(); }
+                    } while (!disposed && Volatile.Read(ref refreshQueued) != 0);
+                } finally {
+                    Interlocked.Exchange(ref refreshing, 0);
+                    if (!disposed && Volatile.Read(ref refreshQueued) != 0) Refresh();
+                }
             });
         }
         private void Change(InboxOrder order, string action)

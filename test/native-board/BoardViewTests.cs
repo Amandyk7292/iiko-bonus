@@ -46,16 +46,39 @@ internal static class BoardViewTests
         var directory = args.Length > 0 ? args[0] : "."; Directory.CreateDirectory(directory);
         Render(root, Path.Combine(directory, "pos-board-1280.png"), 1280, 800);
         Render(root, Path.Combine(directory, "pos-board-1024.png"), 1024, 768);
+        var searches = new List<string>(); view.SearchRequested += searches.Add;
+        var input = Controls<TextBox>(root).Single();
+        input.Text = "№100042"; Click(root, "Найти");
+        Check(searches.SequenceEqual(new[] { "100042" }), "search accepts pasted order number");
+        Check(!Buttons(root).Any(b => Label(b) == "Принять заказ"), "old cards unavailable during search");
+        view.Update(model);
+        Check(!Buttons(root).Any(b => Label(b) == "Принять заказ"), "late response from previous search ignored");
+        var found = new BoardResponse { Search = "100042", Columns = model.Columns.Select((c, i) => new BoardColumn {
+            Stage=c.Stage, Page=1, Total=i==0?1:0, Orders=i==0?c.Orders:new List<InboxOrder>() }).ToList() };
+        view.Update(found);
+        Check(Buttons(root).Any(b => Label(b) == "Принять заказ"), "searched order can be accepted");
+        Render(root, Path.Combine(directory, "pos-board-search.png"), 1024, 768);
+        view.AlertNewOrder();
+        Check(Buttons(root).Single(b=>Label(b)=="Показать новые заказы").Visibility==Visibility.Visible,"new orders remain discoverable while searching");
+        input.Text="invalid"; Click(root,"Найти");
+        Check(searches.Count==1,"invalid search does not reach server");
+        Click(root,"Сбросить"); Check(searches.Last()=="","reset restores full board query");
+        view.Update(model);
+        Check(Buttons(root).Any(b => Label(b)=="Передать курьеру"),"reset restores all columns");
+        Check(Buttons(root).Single(b=>Label(b)=="Показать новые заказы").Visibility==Visibility.Collapsed,"reset clears filtered-order alert");
         view.Close(); Console.WriteLine("PASS: acceptance, duplicate taps, rejection confirmation, code-free handover, offline actions; rendered 1280 and 1024.");
+        Console.WriteLine("PASS: number search, stale response isolation, invalid input and clear.");
     }
     private static void Check(bool valid, string name) { if (!valid) throw new Exception(name); }
     private static string Label(Button button) => (button.Content as TextBlock)?.Text ?? "";
     private static IEnumerable<Button> Buttons(DependencyObject root)
+        => Controls<Button>(root);
+    private static IEnumerable<T> Controls<T>(DependencyObject root) where T : DependencyObject
     {
         foreach (var item in LogicalTreeHelper.GetChildren(root))
             if (item is DependencyObject child) {
-                if (child is Button button) yield return button;
-                foreach (var nested in Buttons(child)) yield return nested;
+                if (child is T control) yield return control;
+                foreach (var nested in Controls<T>(child)) yield return nested;
             }
     }
     private static void Click(DependencyObject root, string label)

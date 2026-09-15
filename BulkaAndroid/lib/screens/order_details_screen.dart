@@ -25,7 +25,7 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
   late CustomerOrder _order;
   final YandexMapController _mapController = YandexMapController();
   late final _LiveRefresh _live;
-  Timer? _clock;
+  bool _visible = true;
   bool _refreshing = false;
   bool _cancellationLoading = false;
   bool _repeatLoading = false;
@@ -47,29 +47,30 @@ class _OrderDetailsScreenState extends State<OrderDetailsScreen>
       },
       _reload,
       busy: () => _refreshing,
+      active: () => mounted && _visible,
+      fallbackInterval: const Duration(seconds: 15),
     );
-    _clock = Timer.periodic(const Duration(seconds: 15), (_) {
-      if (!mounted) return;
-      setState(() => _now = DateTime.now());
-      // SSE normally delivers the update immediately. This bounded fallback
-      // keeps the courier marker moving when iOS suspends/reconnects the
-      // EventSource or a network transition drops one event.
-      unawaited(_reload());
-    });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _live.dispose();
-    _clock?.cancel();
     _mapController.dispose();
     super.dispose();
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible = TickerMode.of(context);
+    if (visible && !_visible) _live.request(immediate: true);
+    _visible = visible;
+  }
+
+  @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) unawaited(_reload());
+    if (state == AppLifecycleState.resumed) _live.request(immediate: true);
   }
 
   Future<void> _reload() async {

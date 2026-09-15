@@ -1,11 +1,14 @@
 const { supabase } = require('../config/supabase');
 const { validQuantity } = require('../utils/quantity.util');
+const { remainingOrder } = require('./front-remaining-order.service');
 const conflict = (message) => Object.assign(new Error(message), { statusCode: 409 });
 function receiptDraft(order) {
   if (
     !order ||
     order.status !== 'paid' ||
-    order.refund_status ||
+    ![null, 'partial', 'failed'].includes(order.refund_status ?? null) ||
+    ((Number(order.partially_refunded_amount || 0) > 0 || order.refund_status === 'partial') &&
+      order.remaining_receipt_ready !== true) ||
     !(
       ['preparing', 'ready'].includes(order.fulfillment_status) ||
       (order.fulfillment_status === 'completed' && order.pos_receipt_due)
@@ -59,6 +62,13 @@ async function getFrontReceiptDraft(branchId, number) {
     .eq('order_number', number)
     .maybeSingle();
   if (error) throw error;
-  return receiptDraft(data);
+  if (!data) return receiptDraft(data);
+  const { data: receipt, error: receiptError } = await supabase.rpc('front_remaining_receipt', {
+    p_order: data.id,
+  });
+  if (receiptError) throw receiptError;
+  if (!receipt?.ready)
+    throw conflict(receipt?.reason || 'Дождитесь завершения возврата или замены');
+  return receiptDraft(remainingOrder(data, receipt));
 }
 module.exports = { getFrontReceiptDraft, receiptDraft };

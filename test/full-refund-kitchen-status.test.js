@@ -26,12 +26,14 @@ test('confirmed full refund cancels both fulfillment and kitchen state', async (
     cart_items: [],
   };
   let updatePayload;
+  const updates = [];
   const filters = [];
   const published = [];
   const released = [];
   const query = {
     update(value) {
       updatePayload = value;
+      updates.push(value);
       return this;
     },
     eq(column, value) {
@@ -42,7 +44,8 @@ test('confirmed full refund cancels both fulfillment and kitchen state', async (
       return this;
     },
     maybeSingle() {
-      return Promise.resolve({ data: { ...order, ...updatePayload }, error: null });
+      Object.assign(order, updatePayload);
+      return Promise.resolve({ data: { ...order }, error: null });
     },
   };
 
@@ -93,15 +96,21 @@ test('confirmed full refund cancels both fulfillment and kitchen state', async (
     confirmedAt: '2026-08-04T09:26:00.131Z',
   });
 
-  assert.equal(updatePayload.status, 'refunded');
-  assert.equal(updatePayload.refund_status, 'succeeded');
-  assert.equal(updatePayload.fulfillment_status, 'cancelled');
-  assert.equal(updatePayload.kitchen_status, 'cancelled');
-  assert.equal(updatePayload.fulfilled_at, null);
+  assert.equal(updates[0].status, 'refunded');
+  assert.equal(updates[0].refund_status, 'succeeded');
+  assert.equal(updates[0].fulfillment_status, 'cancelled');
+  assert.equal(updates[0].kitchen_status, 'cancelled');
+  assert.equal(updates[0].fulfilled_at, null);
+  assert.equal(updates[0].refund_followup_pending, true);
+  assert.equal(updates[1].refund_followup_pending, false);
   assert.deepEqual(filters, [
     ['id', order.id],
     ['status', 'paid'],
     ['refund_status', 'processing'],
+    ['id', order.id],
+    ['status', 'refunded'],
+    ['refund_status', 'succeeded'],
+    ['refund_followup_pending', true],
   ]);
   assert.equal(result.paymentStatus, 'refunded');
   assert.equal(result.orderStatus, 'cancelled');

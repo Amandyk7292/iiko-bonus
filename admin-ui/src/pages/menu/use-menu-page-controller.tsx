@@ -72,11 +72,16 @@ export function useMenuPageController({
   const [customProducts, setCustomProducts] = useState<CustomProduct[]>([]);
   const [activeProfileKey, setActiveProfileKey] = useState<string>();
   const categoryMove = useMenuCategoryMove(selectedBranchId, activeProfileKey, setProductOverrides);
-  const effectiveProducts = useMemo(() => rawProducts.map((product) => {
-    const target = productOverrides[product.id]?.custom_category_id;
-    return target && rawGroups.some((group) => group.id === target)
-      ? { ...product, parentGroup: target } : product;
-  }), [rawProducts, rawGroups, productOverrides]);
+  const effectiveProducts = useMemo(
+    () =>
+      rawProducts.map((product) => {
+        const target = productOverrides[product.id]?.custom_category_id;
+        return target && rawGroups.some((group) => group.id === target)
+          ? { ...product, parentGroup: target }
+          : product;
+      }),
+    [rawProducts, rawGroups, productOverrides],
+  );
   const [profileStatuses, setProfileStatuses] = useState<Record<string, MenuProfileStatus>>({});
 
   const [searchQuery, setSearchQuery] = useState(params.get('search') || '');
@@ -139,6 +144,7 @@ export function useMenuPageController({
   });
   const [editLang, setEditLang] = useState<'ru' | 'kk' | 'en'>('ru');
   const [editSaving, setEditSaving] = useState(false);
+  const initialEditForm = useRef(editForm);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [customForm, setCustomForm] = useState<CustomProduct>({
@@ -337,7 +343,7 @@ export function useMenuPageController({
   const openEditModal = (product: IikoProduct) => {
     const override = productOverrides[product.id];
     setEditingProduct(product);
-    setEditForm({
+    const nextForm = {
       name: override?.custom_name || product.name || '',
       name_translations: override?.name_translations || { ru: '', kk: '', en: '' },
       price: override?.custom_price ?? product.price ?? 0,
@@ -356,7 +362,9 @@ export function useMenuPageController({
       carbs_grams: override?.carbs_grams,
       storage_conditions: override?.storage_conditions || [],
       fulfillment_types: normalizeFulfillmentTypes(override?.fulfillment_types),
-    });
+    };
+    initialEditForm.current = nextForm;
+    setEditForm(nextForm);
     setEditModalOpen(true);
   };
 
@@ -369,10 +377,10 @@ export function useMenuPageController({
     }
     setEditSaving(true);
     try {
-      const cur = productOverrides[editingProduct.id] || { iiko_product_id: editingProduct.id };
       const updated: ProductOverride = {
-        ...cur,
-        custom_name: editForm.name.trim() !== editingProduct.name ? editForm.name.trim() || null : null,
+        iiko_product_id: editingProduct.id,
+        custom_name:
+          editForm.name.trim() !== editingProduct.name ? editForm.name.trim() || null : null,
         name_translations: editForm.name_translations,
         custom_price: editForm.price !== (editingProduct.price || 0) ? editForm.price : null,
         custom_description:
@@ -394,8 +402,22 @@ export function useMenuPageController({
         storage_conditions: editForm.storage_conditions,
         fulfillment_types: editForm.fulfillment_types,
       };
-      await api.setProductOverride(editingProduct.id, sanitizeProductOverridePatch(updated));
-      setProductOverrides((prev) => ({ ...prev, [editingProduct.id]: updated }));
+      const formFields: Record<string, keyof typeof editForm> = {
+        custom_name: 'name',
+        custom_price: 'price',
+        custom_description: 'description',
+        custom_image_url: 'imageUrl',
+      };
+      const patch = Object.fromEntries(
+        Object.entries(sanitizeProductOverridePatch(updated)).filter(([key]) => {
+          const field = formFields[key] || (key as keyof typeof editForm);
+          return JSON.stringify(editForm[field]) !== JSON.stringify(initialEditForm.current[field]);
+        }),
+      );
+      if (Object.keys(patch).length) {
+        await api.setProductOverride(editingProduct.id, patch);
+        await fetchMenu();
+      }
       toast('Изменения сохранены', 'success');
       setEditModalOpen(false);
     } catch (err) {

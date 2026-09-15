@@ -171,18 +171,15 @@
   };
 
   const startApplication = async () => {
-    // Maintenance runs together with a strict budget, never as a network waterfall.
-    await Promise.all([
-      within(removeLegacyFlutterOfflineCache(), 500).then(() => {
-        // Start the large bundle while font maintenance and the loader finish.
-        const preload = document.createElement('link');
-        preload.rel = 'preload';
-        preload.as = 'script';
-        preload.href = versionedAssetUrl('main.dart.js');
-        document.head.append(preload);
-      }),
-      within(refreshFontManifest(), 1000),
-    ]);
+    // Fetch renderer and Dart code while the font manifest refreshes. The
+    // engine initializer waits for this bounded promise before reading fonts.
+    window.bulkaFontManifestReady = within(refreshFontManifest(), 1000);
+    await within(removeLegacyFlutterOfflineCache(), 500);
+    const preload = document.createElement('link');
+    preload.rel = 'preload';
+    preload.as = 'script';
+    preload.href = versionedAssetUrl('main.dart.js');
+    document.head.append(preload);
     loadFlutter();
     void checkForNewRelease();
     startReleaseChecks();

@@ -1,5 +1,5 @@
 const { createHash } = require('node:crypto');
-const { servers } = require('../config/iiko-dashboard');
+const { reportSource } = require('./iiko-dashboard-source');
 const { failure } = require('./iiko-dashboard-client');
 const column = (name, type = 'STRING') => ({ name, type });
 const columns = {
@@ -24,8 +24,8 @@ const sum = (rows, field) =>
     : null;
 const mapById = (rows) => new Map(rows.map((row) => [row.id, row]));
 
-function barterReport(data, input) {
-  const city = servers.find((server) => server.id === input.serverId)?.city;
+function barterReport(data, input, source) {
+  const city = source?.id === input.serverId && source.city;
   if (!city) throw failure('IIKO_REPORT_SERVER', 400);
   const products = mapById(data.products),
     units = mapById(data.units);
@@ -129,6 +129,7 @@ function withPeople(report, names = []) {
 }
 
 async function barters(service, input) {
+  const source = await reportSource(service, input.serverId);
   const data = await service.reports.get(
     `barter-documents:${JSON.stringify([input.serverId, input.from, input.to])}`,
     () =>
@@ -136,6 +137,6 @@ async function barters(service, input) {
         require('./iiko-dashboard-barter-documents').loadDocuments(request, input),
       ),
   );
-  return barterReport(data, input);
+  return barterReport(data, input, source);
 }
 module.exports = { barters, barterReport, withPeople, list };

@@ -4,9 +4,11 @@ extension _CatalogRouteController on _CatalogScreenState {
   void applyClientUri(Uri uri) {
     _pendingClientUri = normalizedClientUri(uri);
     if (_menuScopeReady &&
-        !_isLoading &&
-        _allProducts.isEmpty &&
-        productIdFromClientUri(uri) != null) {
+        ((_requestedRouteBranch.isNotEmpty &&
+                _requestedRouteBranch != _selectedBakeryId) ||
+            (!_isLoading &&
+                _allProducts.isEmpty &&
+                productIdFromClientUri(uri) != null))) {
       unawaited(_loadMenu());
       return;
     }
@@ -14,7 +16,13 @@ extension _CatalogRouteController on _CatalogScreenState {
   }
 
   void _applyPendingClientUri() {
-    if (!mounted || _isLoading || _allProducts.isEmpty) return;
+    if (!mounted ||
+        _isLoading ||
+        _allProducts.isEmpty ||
+        (_requestedRouteBranch.isNotEmpty &&
+            _requestedRouteBranch != _selectedBakeryId)) {
+      return;
+    }
     final uri = _pendingClientUri;
     if (uri == null) return;
     final segments = uri.pathSegments

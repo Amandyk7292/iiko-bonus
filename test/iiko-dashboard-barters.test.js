@@ -1,12 +1,20 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { barterReport, withPeople } = require('../src/services/iiko-dashboard-barters');
+const {
+  barterReport: buildBarterReport,
+  withPeople,
+} = require('../src/services/iiko-dashboard-barters');
 const { loadDocuments } = require('../src/services/iiko-dashboard-barter-documents');
 const { people, savePerson } = require('../src/services/iiko-dashboard-barter-people');
 const { barterQuery, barterPersonMutation } = require('../src/contracts/iiko-dashboard.contract');
 const { parseXml } = require('../src/services/iiko-dashboard-xml');
 const { IikoDashboardClient } = require('../src/services/iiko-dashboard-client');
 const input = { serverId: 'aktau-chain', from: '2026-09-01', to: '2026-09-08', department: '' };
+const barterReport = (data, query) =>
+  buildBarterReport(data, query, {
+    id: query.serverId,
+    city: query.serverId === 'astana-chain' ? 'astana' : 'aktau',
+  });
 const supplier = { id: 'cb02da80-9b7e-4546-8015-a9c1b9f7c6db', name: 'Бартер' };
 const invoice = (id, changes = {}) => ({
   id,

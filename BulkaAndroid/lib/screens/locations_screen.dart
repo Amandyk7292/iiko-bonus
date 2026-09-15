@@ -85,6 +85,7 @@ class _LocationsScreenState extends State<LocationsScreen> {
       if (!mounted) return;
       setState(() {
         _cityLocations = locs;
+        _loadFailed = false;
         final selected = silent ? _selectedCity : savedCity;
         _selectedCity = _cityLocations.containsKey(selected) ? selected : '';
         if (!silent || _selectedCity.isEmpty) {

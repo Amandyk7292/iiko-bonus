@@ -3,6 +3,7 @@ const {
   reportQuery,
   analyticsQuery,
   schemaQuery,
+  departmentsQuery,
   balancesQuery,
   balancesExportQuery,
   controlsQuery,
@@ -204,6 +205,12 @@ function registerIikoDashboardRoutes(router, reporting = service) {
     ownerOnly,
     validateRequest({ params: serverParams }),
     handle(async (req) => ({ servers: await reporting.deleteServer(req.params.id) })),
+  );
+  router.get(
+    '/admin/api/iiko-dashboard/departments',
+    ownerOnly,
+    validateRequest({ query: departmentsQuery }),
+    handle((req) => reporting.departments(req.query)),
   );
   router.get(
     '/admin/api/iiko-dashboard/schema',

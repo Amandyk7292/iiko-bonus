@@ -56,7 +56,11 @@ class _OrdersScreenState extends State<OrdersScreen> {
   CartProvider? _cartProvider;
   bool _restoreCheckoutPending = false;
   bool _checkoutOpen = false;
-  bool _popularProductsRequested = false;
+  late _LiveRefresh _popularLive;
+  bool _popularVisible = false;
+  bool _popularLoading = false;
+  String? _popularScope;
+  String _popularBranchId = '';
   List<_CartSuggestion> _popularProducts = const [];
 
   void _updateOrdersState(VoidCallback update) => setState(update);
@@ -64,6 +68,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
   @override
   void initState() {
     super.initState();
+    _popularLive = _createPopularRefresh();
+    appLanguageNotifier.addListener(_ensurePopularProducts);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) unawaited(_prepareCheckoutRestore());
     });
@@ -73,10 +79,14 @@ class _OrdersScreenState extends State<OrdersScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     final next = context.read<CartProvider>();
-    if (identical(next, _cartProvider)) return;
-    _cartProvider?.removeListener(_restoreCheckoutIfReady);
-    _cartProvider = next..addListener(_restoreCheckoutIfReady);
-    if (next.items.isEmpty && TickerMode.of(context)) {
+    final wasVisible = _popularVisible;
+    _popularVisible = TickerMode.of(context);
+    final changed = !identical(next, _cartProvider);
+    if (changed) {
+      _cartProvider?.removeListener(_restoreCheckoutIfReady);
+      _cartProvider = next..addListener(_restoreCheckoutIfReady);
+    }
+    if ((changed || !wasVisible) && _popularVisible && next.items.isEmpty) {
       _ensurePopularProducts();
     }
   }
@@ -85,7 +95,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
   void didUpdateWidget(covariant OrdersScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (!identical(oldWidget.api, widget.api)) {
-      _popularProductsRequested = false;
+      _popularLive.dispose();
+      _popularLive = _createPopularRefresh();
+      _popularScope = null;
       _popularProducts = const [];
       if (_cartProvider?.items.isEmpty == true && TickerMode.of(context)) {
         _ensurePopularProducts();
@@ -95,6 +107,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
   @override
   void dispose() {
+    _popularLive.dispose();
+    appLanguageNotifier.removeListener(_ensurePopularProducts);
     _cartProvider?.removeListener(_restoreCheckoutIfReady);
     super.dispose();
   }

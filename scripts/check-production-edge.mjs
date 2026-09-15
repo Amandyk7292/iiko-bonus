@@ -59,7 +59,9 @@ await check('release-provenance', async () => {
   const { response } = await request('/release-version.json');
   if (!response.ok) throw new Error(`release version returned ${response.status}`);
   const body = await response.json();
-  if (!/^[a-f0-9]{40}$/.test(String(body?.version || ''))) {
+  // Local releases use the same 12-character Git revision as the web cache keys;
+  // CI artifacts may use the full commit SHA.
+  if (!/^(?:[a-f0-9]{12}|[a-f0-9]{40})$/.test(String(body?.version || ''))) {
     throw new Error('release version is not a commit SHA');
   }
   if (!/^[a-f0-9]{64}$/.test(String(body?.mainSha256 || ''))) {

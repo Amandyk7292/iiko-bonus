@@ -21,13 +21,13 @@ async function currentAvailability(branchId, productId) {
   const [inventoryResult, reservationsResult, front] = await Promise.all([
     supabase
       .from('branch_product_inventory')
-      .select('product_id,product_name,source_quantity,manual_stop')
+      .select('product_id,product_name,source_quantity,manual_stop,quantity_step,source')
       .eq('branch_id', branchId)
       .eq('product_id', productId)
       .maybeSingle(),
     supabase
       .from('inventory_reservations')
-      .select('quantity,status,expires_at')
+      .select('quantity,status,expires_at,allocation_kind')
       .eq('branch_id', branchId)
       .eq('product_id', productId)
       .in('status', ['active', 'committed']),
@@ -43,18 +43,24 @@ async function currentAvailability(branchId, productId) {
       productName: null,
     };
   const reserved = (reservationsResult.data || []).reduce((total, reservation) => {
+    if (reservation.allocation_kind === 'preorder') return total;
     if (reservation.status === 'active' && String(reservation.expires_at) <= now) return total;
     return total + Math.max(0, Number(reservation.quantity) || 0);
   }, 0);
   const quantity =
     inventory.source_quantity == null ? null : Math.max(0, Number(inventory.source_quantity) || 0);
-  const onlineQuantity = onlineAvailableQuantity(quantity, reserved);
+  const onlineQuantity = onlineAvailableQuantity(
+    quantity,
+    reserved,
+    Number(inventory.quantity_step || 1),
+  );
+  const fresh = front.guardEnabled
+    ? front.connected && quantity != null
+    : !front.configured || front.connected || ['admin', 'custom'].includes(inventory.source);
   return {
     tracked: true,
     available:
-      (!front.guardEnabled || (front.connected && quantity != null)) &&
-      inventory.manual_stop !== true &&
-      (onlineQuantity == null || onlineQuantity > 0),
+      fresh && inventory.manual_stop !== true && (onlineQuantity == null || onlineQuantity > 0),
     productName: inventory.product_name || null,
   };
 }

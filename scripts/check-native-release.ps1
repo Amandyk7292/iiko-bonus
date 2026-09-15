@@ -86,7 +86,11 @@ if (-not $SkipSigning -and (Test-Path -LiteralPath $keyPropertiesPath)) {
     }
   }
   if ($properties.storeFile) {
-    $storePath = Join-Path (Join-Path $app 'android') $properties.storeFile
+    $storePath = if ([IO.Path]::IsPathRooted($properties.storeFile)) {
+      $properties.storeFile
+    } else {
+      Join-Path (Join-Path $app 'android') $properties.storeFile
+    }
     if (-not (Test-Path -LiteralPath $storePath -PathType Leaf)) {
       $errors.Add("Android keystore was not found: $storePath")
     }

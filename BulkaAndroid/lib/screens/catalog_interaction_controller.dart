@@ -402,7 +402,7 @@ extension _CatalogInteractionController on _CatalogScreenState {
       );
       _productRouteOpen = true;
       publishClientRoute(
-        _CatalogScreenState._productClientUri(product),
+        _routeProductUri(product),
         replace: !updateClientRoute,
       );
       try {

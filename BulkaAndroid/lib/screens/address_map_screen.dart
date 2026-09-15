@@ -100,7 +100,6 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
     // Let the route finish its first frame before Safari displays the native
     // permission prompt. If the customer already touched the map, preserve
     // that explicit choice instead of moving the pin underneath them.
-    _live.dispose();
     _locateOnOpenTimer?.cancel();
     if (_hasPreferredCenter) return;
     _locateOnOpenTimer = Timer(const Duration(milliseconds: 250), () {
@@ -131,6 +130,8 @@ class _AddressMapScreenState extends State<AddressMapScreen> {
 
   @override
   void dispose() {
+    _live.dispose();
+    if (widget.api == null) _api.dispose();
     _locateOnOpenTimer?.cancel();
     _mapController.dispose();
     _titleController.dispose();

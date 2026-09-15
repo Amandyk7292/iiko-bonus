@@ -25,6 +25,11 @@ namespace Resto.Front.Api.IikoBonusPlugin
         private readonly HashSet<string> pending = new HashSet<string>();
         private readonly TextBlock notice;
         private readonly Border noticeBox;
+        private readonly Button newOrdersButton;
+        private readonly TextBox searchInput;
+        private readonly System.Windows.Threading.DispatcherTimer searchTimer;
+        private string activeSearch = "";
+        private bool normalizingSearch, newOrdersOutsideSearch;
         private readonly bool canImport, automatic;
         private bool used, connected;
         private string confirmation, confirmAction, lastError;
@@ -33,6 +38,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         internal event Action<InboxOrder, string> ActionRequested;
         internal event Action RefreshRequested;
         internal event Action<int, int> PageRequested;
+        internal event Action<string> SearchRequested;
         [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
         [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
         internal static IntPtr CaptureOwner()
@@ -86,6 +92,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
             var root = new Grid { Margin = new Thickness(18), Background = Brushes.White };
             root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             root.RowDefinitions.Add(new RowDefinition());
             var header = new DockPanel { Margin = new Thickness(0, 0, 0, 12) };
             var controls = new StackPanel { Orientation = Orientation.Horizontal };
@@ -94,10 +101,33 @@ namespace Resto.Front.Api.IikoBonusPlugin
             DockPanel.SetDock(controls, Dock.Right); header.Children.Add(controls);
             var heading = new StackPanel(); heading.Children.Add(Text("Экран заказов", 26, bold: true));
             heading.Children.Add(Text(branch, 15, "#746A60")); header.Children.Add(heading); root.Children.Add(header);
+            var searchBar = new DockPanel { Margin = new Thickness(0, 0, 0, 10) };
+            var searchControls = new StackPanel { Orientation = Orientation.Horizontal };
+            searchControls.Children.Add(Button("Найти", SubmitSearch));
+            searchControls.Children.Add(Button("Сбросить", () => { searchInput.Text = ""; SubmitSearch(); }));
+            DockPanel.SetDock(searchControls, Dock.Right); searchBar.Children.Add(searchControls);
+            var searchLabel = new Label { Content = "Номер заказа", FontSize = 16, VerticalAlignment = VerticalAlignment.Center };
+            DockPanel.SetDock(searchLabel, Dock.Left); searchBar.Children.Add(searchLabel);
+            searchInput = new TextBox { FontSize = 22, MinHeight = 48, MaxLength = 18,
+                Padding = new Thickness(12, 7, 12, 7), VerticalContentAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(10, 4, 12, 4) };
+            searchLabel.Target = searchInput;
+            System.Windows.Automation.AutomationProperties.SetName(searchInput, "Номер заказа");
+            searchTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
+            searchTimer.Tick += (_, __) => SubmitSearch();
+            searchInput.TextChanged += (_, __) => { if (!normalizingSearch) { searchTimer.Stop(); searchTimer.Start(); } };
+            searchInput.KeyDown += (_, e) => { if (e.Key == System.Windows.Input.Key.Enter) { SubmitSearch(); e.Handled = true; } };
+            Closed += (_, __) => searchTimer.Stop();
+            searchBar.Children.Add(searchInput); Grid.SetRow(searchBar, 1); root.Children.Add(searchBar);
             notice = Text("Загружаем заказы…", 17, bold: true); notice.Margin = new Thickness(0);
+            var noticeContent = new DockPanel();
+            newOrdersButton = Button("Показать новые заказы", () => { searchInput.Text = ""; SubmitSearch(); scrolls[0].ScrollToTop(); });
+            newOrdersButton.Visibility = Visibility.Collapsed;
+            DockPanel.SetDock(newOrdersButton, Dock.Right); noticeContent.Children.Add(newOrdersButton);
+            noticeContent.Children.Add(notice);
             noticeBox = new Border { Padding = new Thickness(14, 10, 14, 10), Margin = new Thickness(0, 0, 0, 14),
-                CornerRadius = new CornerRadius(10), Background = Brush("#FFF5DF"), Child = notice };
-            Grid.SetRow(noticeBox, 1); root.Children.Add(noticeBox);
+                CornerRadius = new CornerRadius(10), Background = Brush("#FFF5DF"), Child = noticeContent };
+            Grid.SetRow(noticeBox, 2); root.Children.Add(noticeBox);
             var columns = new Grid { MinWidth = 940 };
             for (var i = 0; i < 4; i++)
             {
@@ -107,10 +137,25 @@ namespace Resto.Front.Api.IikoBonusPlugin
             var horizontal = new ScrollViewer { HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
                 VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, Content = columns };
             horizontal.SizeChanged += (_, __) => columns.Width = Math.Max(940, horizontal.ActualWidth);
-            Grid.SetRow(horizontal, 2); root.Children.Add(horizontal); Content = root;
+            Grid.SetRow(horizontal, 3); root.Children.Add(horizontal); Content = root;
+        }
+        private void SubmitSearch()
+        {
+            searchTimer.Stop(); used = true;
+            var value = searchInput.Text.Trim().TrimStart('#', '№').Trim();
+            if (value.Length > 0 && (value.Length > 15 || value.Any(c => c < '0' || c > '9') ||
+                !long.TryParse(value, out var number) || number <= 0))
+            { SetError("Введите номер заказа цифрами, например 100042."); return; }
+            if (value.Length > 0) value = long.Parse(value, CultureInfo.InvariantCulture).ToString(CultureInfo.InvariantCulture);
+            normalizingSearch = true; searchInput.Text = value; normalizingSearch = false;
+            activeSearch = value; snapshot = null; lastError = null; connected = false; confirmation = null;
+            if (value.Length == 0) newOrdersOutsideSearch = false;
+            for (var i = 0; i < 4; i++) { cards[i].Children.Clear(); pagination[i].Children.Clear(); counts[i].Text = "—"; rendered[i] = null; }
+            Render(); SearchRequested?.Invoke(value);
         }
         internal void AlertNewOrder()
         {
+            if (activeSearch.Length > 0) { newOrdersOutsideSearch = true; Render(); }
             if (!IsVisible) return;
             if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
             Topmost = true;
@@ -147,6 +192,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
         }
         internal void Update(BoardResponse result)
         {
+            if ((result.Search ?? "") != activeSearch) return;
             snapshot = result; lastError = null; connected = true; Render();
             var newCount = result.Columns.FirstOrDefault(c => c.Stage == "new")?.Total ?? 0;
             if (automatic && !used && newCount == 0 && IsVisible) Close();
@@ -156,8 +202,11 @@ namespace Resto.Front.Api.IikoBonusPlugin
         internal void FinishAction(string orderId) { pending.Remove(orderId); Render(); }
         private void Render()
         {
-            notice.Text = lastError ?? (snapshot == null ? "Загружаем заказы…" :
+            notice.Text = lastError ?? (snapshot == null ? (activeSearch.Length > 0 ? "Ищем заказ №" + activeSearch + "…" : "Загружаем заказы…") :
+                activeSearch.Length > 0 ? (snapshot.Columns.Sum(c => c.Total) > 0 ? "Заказ №" + activeSearch : "Заказ №" + activeSearch + " не найден в этой пекарне.") :
                 snapshot.Columns[0].Total > 0 ? "Новый заказ · Ожидают принятия: " + snapshot.Columns[0].Total : "Все новые заказы приняты");
+            newOrdersButton.Visibility = newOrdersOutsideSearch && activeSearch.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+            if (newOrdersButton.Visibility == Visibility.Visible) notice.Text = "Поступил новый заказ вне текущего поиска. " + notice.Text;
             notice.Foreground = Brush(lastError != null ? "#982F28" : "#69451E");
             noticeBox.Background = Brush(lastError != null ? "#FFF0ED" : "#FFF5DF");
             if (snapshot == null) return;
@@ -174,7 +223,7 @@ namespace Resto.Front.Api.IikoBonusPlugin
                 var offset = scrolls[i].VerticalOffset; cards[i].Children.Clear();
                 foreach (var order in column.Orders) cards[i].Children.Add(BuildCard(order, i));
                 if (column.Orders.Count == 0) cards[i].Children.Add(new Border { Padding = new Thickness(12, 36, 12, 36),
-                    Child = Text(i == 3 ? "Выданных заказов за последние сутки нет" : "Заказов нет", 16, "#84796C") });
+                    Child = Text(activeSearch.Length > 0 ? "Заказ не найден в этой колонке" : i == 3 ? "Выданных заказов за последние сутки нет" : "Заказов нет", 16, "#84796C") });
                 scrolls[i].ScrollToVerticalOffset(offset);
                 pagination[i].Children.Clear();
                 var index = i;

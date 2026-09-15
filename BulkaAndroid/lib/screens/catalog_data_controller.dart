@@ -29,8 +29,8 @@ extension _CatalogDataController on _CatalogScreenState {
   Future<void> _silentRefresh() {
     if (!mounted ||
         !_menuScopeReady ||
-        _selectedBakeryId.isEmpty ||
-        _activeMenuLoads > 0) {
+        (_selectedBakeryId.isEmpty && _requestedRouteBranch.isEmpty) ||
+        (_activeMenuLoads > 0 || _routeBranchFlight != null)) {
       return Future<void>.value();
     }
     return _silentRefreshRequest ??= _loadMenu(silent: true).whenComplete(() {
@@ -40,6 +40,11 @@ extension _CatalogDataController on _CatalogScreenState {
 
   Future<void> _loadMenu({bool silent = false}) async {
     if (!mounted) return;
+    if (_requestedRouteBranch.isNotEmpty &&
+        _requestedRouteBranch != _selectedBakeryId &&
+        !await _prepareRequestedBranch()) {
+      return;
+    }
     final previewProductId = _pendingClientUri == null
         ? null
         : productIdFromClientUri(_pendingClientUri!);

@@ -1,5 +1,5 @@
 const { failure } = require('./iiko-dashboard-client');
-const { servers } = require('../config/iiko-dashboard');
+const { reportSource } = require('./iiko-dashboard-source');
 const { list } = require('./iiko-dashboard-barters');
 
 const column = (name, type = 'STRING') => ({ name, type });
@@ -29,8 +29,6 @@ const sum = (rows, field) =>
     : null;
 
 function invoiceReport(data, input) {
-  if (!servers.some((server) => server.id === input.serverId))
-    throw failure('IIKO_REPORT_SERVER', 400);
   const suppliers = mapById(data.suppliers);
   const stores = mapById(data.stores);
   const departments = mapById(data.departments);
@@ -103,6 +101,7 @@ function invoiceReport(data, input) {
 }
 
 async function invoices(service, input) {
+  await reportSource(service, input.serverId);
   const data = await service.reports.get(
     `invoice-documents:${JSON.stringify([input.serverId, input.from, input.to])}`,
     () =>

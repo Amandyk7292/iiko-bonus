@@ -1,14 +1,31 @@
 part of '../main.dart';
 
 extension _OrdersCartEmptyView on _OrdersScreenState {
-  void _ensurePopularProducts() {
-    if (_popularProductsRequested) return;
-    _popularProductsRequested = true;
-    unawaited(_loadPopularProducts());
-  }
+  _LiveRefresh _createPopularRefresh() => _LiveRefresh(
+    widget.api,
+    {'menu', 'locations', 'favorites', 'customer.updated'},
+    _loadPopularProducts,
+    active: () =>
+        mounted &&
+        _popularVisible &&
+        !_checkoutOpen &&
+        _cartProvider?.items.isEmpty == true,
+    busy: () => _popularLoading,
+    // A stock burst already uses the catalog's compact stock endpoint. The
+    // three suggestions are revalidated on return or the bounded fallback.
+    acceptEvent: (event) {
+      final data = _asMap(event['data']);
+      final branch = _asString(data['branchId']);
+      return data['inventory'] != true &&
+          (branch.isEmpty || branch == _popularBranchId);
+    },
+  );
 
-  Future<void> _loadPopularProducts() async {
-    final prefs = await SharedPreferences.getInstance();
+  void _ensurePopularProducts() => _popularLive.request(immediate: true);
+
+  ({String key, String orderType, String branchId}) _popularContext(
+    SharedPreferences prefs,
+  ) {
     final savedType = prefs.getString('selected_order_type')?.trim() ?? '';
     final orderType = _orderTypeFromWire(savedType).wireValue;
     final branchId =
@@ -17,42 +34,73 @@ extension _OrdersCartEmptyView on _OrdersScreenState {
             ? prefs.getString('selected_bakery_location_id')?.trim()
             : null) ??
         '';
-    final cacheKeys = <String>[
-      'catalog_cache_${AppLang.current}_${orderType}_${branchId.isEmpty ? 'all' : branchId}',
-      'catalog_cache_${AppLang.current}_${orderType}_all',
-    ];
+    return (
+      key:
+          '${AppLang.current}:$orderType:$branchId:${widget.api.sessionCacheScope}',
+      orderType: orderType,
+      branchId: branchId,
+    );
+  }
 
-    Map<String, dynamic>? payload;
-    List<String> recommendationIds = const [];
+  Future<void> _loadPopularProducts() async {
+    _popularLoading = true;
     try {
-      final endpoint = Uri(
-        path: '/api/guest/menu',
-        queryParameters: {
-          'orderType': orderType,
-          if (branchId.isNotEmpty) 'branchId': branchId,
-        },
-      ).toString();
-      final results = await Future.wait<dynamic>([
-        widget.api._get(endpoint),
-        _loadRecommendationIds(),
-      ]);
-      payload = _asMap(results.first);
-      recommendationIds = (results.last as List).cast<String>();
-    } catch (_) {
-      for (final key in cacheKeys.toSet()) {
-        final raw = prefs.getString(key);
-        if (raw == null) continue;
-        try {
-          final cached = _asMap(jsonDecode(raw));
-          final nested = _asMap(cached['payload']);
-          payload = nested.isEmpty ? cached : nested;
-          if (payload.isNotEmpty) break;
-        } catch (_) {}
+      final prefs = await SharedPreferences.getInstance();
+      final scope = _popularContext(prefs);
+      if (!mounted) return;
+      if (_popularScope != scope.key) {
+        _updateOrdersState(() {
+          _popularScope = scope.key;
+          _popularBranchId = scope.branchId;
+          _popularProducts = const [];
+        });
       }
+      final api = widget.api;
+      Map<String, dynamic>? payload;
+      List<String> recommendationIds = const [];
+      Object? failure;
+      try {
+        final endpoint = Uri(
+          path: '/api/guest/menu',
+          queryParameters: {
+            'orderType': scope.orderType,
+            if (scope.branchId.isNotEmpty) 'branchId': scope.branchId,
+          },
+        ).toString();
+        final results = await Future.wait<dynamic>([
+          api._get(endpoint),
+          _loadRecommendationIds(),
+        ]);
+        payload = _asMap(results.first);
+        recommendationIds = (results.last as List).cast<String>();
+      } catch (error) {
+        failure = error;
+        final branchKey = scope.branchId.isEmpty ? 'all' : scope.branchId;
+        final raw = prefs.getString(
+          'catalog_cache_${AppLang.current}_${scope.orderType}_$branchKey',
+        );
+        if (raw != null) {
+          try {
+            final cached = _asMap(jsonDecode(raw));
+            final nested = _asMap(cached['payload']);
+            payload = nested.isEmpty ? cached : nested;
+          } catch (_) {}
+        }
+      }
+      if (!mounted) return;
+      if (!identical(api, widget.api) ||
+          scope.key != _popularContext(prefs).key) {
+        _popularLive.request(immediate: true);
+        return;
+      }
+      if (payload != null) {
+        final suggestions = _suggestionsFromMenu(payload, recommendationIds);
+        _updateOrdersState(() => _popularProducts = suggestions);
+      }
+      if (failure != null) throw failure;
+    } finally {
+      _popularLoading = false;
     }
-    if (!mounted) return;
-    final suggestions = _suggestionsFromMenu(payload, recommendationIds);
-    _updateOrdersState(() => _popularProducts = suggestions);
   }
 
   Future<List<String>> _loadRecommendationIds() async {

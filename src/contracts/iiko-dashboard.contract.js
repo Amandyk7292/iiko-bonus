@@ -66,6 +66,7 @@ const reportQuery = z
     return days >= 0 && days <= 366;
   }, 'Период должен быть от 1 до 367 дней');
 const schemaQuery = z.object({ serverId, reportType: reportType.default('SALES') }).strict();
+const departmentsQuery = z.object({ serverId }).strict();
 const balancesQuery = z.object({ serverId, date }).strict();
 const balancesExportQuery = z
   .object({
@@ -177,6 +178,7 @@ module.exports = {
   receiptQuery,
   reportQuery,
   schemaQuery,
+  departmentsQuery,
   balancesQuery,
   balancesExportQuery,
   analyticsQuery,

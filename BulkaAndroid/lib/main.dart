@@ -171,6 +171,7 @@ part 'screens/locations_screen.dart';
 part 'screens/location_directory_screen.dart';
 part 'screens/catalog_screen.dart';
 part 'screens/catalog_route_controller.dart';
+part 'screens/catalog_route_branch.dart';
 part 'screens/catalog_screen_helpers.dart';
 part 'screens/catalog_data_controller.dart';
 part 'screens/catalog_stock_controller.dart';

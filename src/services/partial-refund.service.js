@@ -272,6 +272,12 @@ async function previewPartialRefund(orderId, payload = {}) {
   }
   const alreadyRefunded = await successfulRefundedQuantities(order.id);
   const calculated = calculateRefund(order, payload.items, alreadyRefunded);
+  const { error: receiptError } = await supabase.rpc('assert_front_partial_refund', {
+    p_order: order.id,
+    p_amount: calculated.amount,
+  });
+  if (receiptError)
+    throw refundError(receiptError.message, 409, 'FRONT_REFUND_REQUIRES_RECONCILIATION');
   const originalOrderId = `kaspi:${order.operation_id}`;
   const [transactionsResult, adjustmentsResult] = await Promise.all([
     order.customer_id
@@ -453,6 +459,12 @@ async function createPartialRefund(orderId, payload = {}, requestedBy = 'admin')
   });
   if (claimError) {
     const message = String(claimError.message || '');
+    if (
+      message.startsWith('Чек уже пробит.') ||
+      message.startsWith('Сначала завершите связанный чек')
+    ) {
+      throw refundError(message, 409, 'FRONT_REFUND_REQUIRES_RECONCILIATION');
+    }
     if (message.includes('already claimed')) {
       throw refundError(
         'Одна из позиций уже возвращается другим оператором. Обновите заказ.',

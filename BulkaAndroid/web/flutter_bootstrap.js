@@ -44,5 +44,12 @@ window.bulkaFirebaseModulesReady = new Promise((resolve) => {
 (async () => {
   await _flutter.loader.load({
     config: { hostElement: document.getElementById('bulka-app') },
+    onEntrypointLoaded: async (engineInitializer) => {
+      await window.bulkaFontManifestReady;
+      const runner = await engineInitializer.initializeEngine({
+        hostElement: document.getElementById('bulka-app'),
+      });
+      await runner.runApp();
+    },
   });
 })();

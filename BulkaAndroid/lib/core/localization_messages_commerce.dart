@@ -1,6 +1,37 @@
 part of '../main.dart';
 
 const Map<String, Map<String, String>> _commerceTranslations = {
+  'catalog_options_load_error': {
+    'ru':
+        'Не удалось загрузить варианты товара. Повторите попытку перед добавлением в корзину.',
+    'kk':
+        'Тауар нұсқаларын жүктеу мүмкін болмады. Себетке қоспас бұрын қайталап көріңіз.',
+    'en':
+        'Product options could not be loaded. Please retry before adding to your cart.',
+  },
+  'catalog_link_branch_unavailable': {
+    'ru': 'Пекарня из ссылки недоступна для выбранного типа заказа.',
+    'kk': 'Сілтемедегі наубайхана таңдалған тапсырыс түрі үшін қолжетімсіз.',
+    'en': 'The linked bakery is unavailable for the selected order type.',
+  },
+  'catalog_link_branch_title': {
+    'ru': 'Перейти в пекарню «{branch}»?',
+    'kk': '«{branch}» наубайханасына ауысу керек пе?',
+    'en': 'Switch to {branch}?',
+  },
+  'catalog_link_branch_cart': {
+    'ru':
+        'Товары останутся в корзине. Цены и наличие будут проверены для этой пекарни.',
+    'kk':
+        'Тауарлар себетте қалады. Бағалар мен қолжетімділік осы наубайхана үшін тексеріледі.',
+    'en':
+        'Your cart items will remain. Prices and availability will be checked for this bakery.',
+  },
+  'catalog_link_branch_confirm': {
+    'ru': 'Перейти',
+    'kk': 'Ауысу',
+    'en': 'Switch bakery',
+  },
   'product_bought_together': {
     'ru': 'С этим часто покупают',
     'kk': 'Осымен бірге жиі сатып алады',

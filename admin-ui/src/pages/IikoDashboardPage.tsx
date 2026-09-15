@@ -113,6 +113,7 @@ export default function IikoDashboardPage() {
   const [department, setDepartment] = useState(initialUrlState.department);
   const [supplier, setSupplier] = useState(initialUrlState.supplier);
   const [departments, setDepartments] = useState<string[]>([]);
+  const usesDepartments = departmentTabs.has(tab);
   const [overview, setOverview] = useState<OverviewData>();
   const [exportQuery, setExportQuery] = useState<Query>();
   const [loading, setLoading] = useState(true);
@@ -226,30 +227,20 @@ export default function IikoDashboardPage() {
     };
   }, [preferences.auto, tab]);
   useEffect(() => {
-    if (!selectedServer?.configured || !rangeValid || !departmentTabs.has(tab)) return;
+    if (!selectedServer?.configured || !usesDepartments) return;
     const controller = new AbortController();
+    setDepartments([]);
     void dashboardApi
-      .report(
-        {
-          ...base,
-          filters: salesFilters,
-          groupBy: ['Department'],
-          aggregate: ['DishDiscountSumInt'],
-        },
-        controller.signal,
-      )
+      .departments(serverId, controller.signal)
       .then((data) => {
         if (!controller.signal.aborted)
           setDepartments(
-            data.rows
-              .map((row) => String(row.Department))
-              .filter(Boolean)
-              .sort(),
+            [...new Set(data.departments.map((row) => row.name).filter(Boolean))].sort(),
           );
       })
       .catch(() => {});
     return () => controller.abort();
-  }, [serverId, from, to, selectedServer?.configured, rangeValid, tab]);
+  }, [serverId, selectedServer?.configured, usesDepartments]);
   useEffect(() => {
     setOverview(undefined);
     setExportQuery(undefined);
@@ -359,6 +350,11 @@ export default function IikoDashboardPage() {
               disabled={tab === 'balances' || tab === 'settings'}
             >
               <option value="">{t('id.all')}</option>
+              {department && !departments.includes(department) && (
+                <option value={department}>
+                  {department} — {t('id.departmentUnavailable')}
+                </option>
+              )}
               {departments.map((name) => (
                 <option key={name}>{name}</option>
               ))}
