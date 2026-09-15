@@ -63,8 +63,16 @@ export function buildPriceLabel(
   measure: Measure,
   qr?: { size: number; data: ArrayLike<number> },
 ) {
+  const hex = labelHex(draft.background) || LABEL_BACKGROUND;
+  const luminance = [1, 3, 5]
+    .map((offset) => {
+      const channel = parseInt(hex.slice(offset, offset + 2), 16) / 255;
+      return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+    })
+    .reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0);
+  const qrColor = luminance > 0.179 ? '#000000' : '#FFFFFF';
   const qrSvg = qr
-    ? `<svg x="760" y="20" width="220" height="220" viewBox="0 0 ${qr.size + 8} ${qr.size + 8}" shape-rendering="crispEdges" aria-label="QR-код товара"><rect width="100%" height="100%" fill="white"/><path fill="black" d="${Array.from(
+    ? `<svg x="820" y="20" width="160" height="160" viewBox="0 0 ${qr.size + 8} ${qr.size + 8}" shape-rendering="crispEdges" aria-label="QR-код товара"><path fill="${qrColor}" d="${Array.from(
         qr.data,
       )
         .flatMap((value, index) =>
@@ -88,7 +96,7 @@ export function buildPriceLabel(
     nameLines: string[] = [];
   for (; nameSize >= 30; nameSize -= 2) {
     nameLines = [draft.nameKk, draft.nameRu].flatMap((name) =>
-      wrap(name, qr ? 640 : 880, nameSize, true, measure),
+      wrap(name, qr ? 600 : 880, nameSize, true, measure),
     );
     if (nameLines.length * nameSize * 1.06 <= 140) break;
   }
@@ -113,7 +121,7 @@ export function buildPriceLabel(
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="60mm" viewBox="0 0 1000 600" role="img" aria-label="Ценник 10 на 6 сантиметров">
 <rect width="1000" height="600" fill="${background || LABEL_BACKGROUND}"/>
 <g fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif">
-${textBlock(nameLines, qr ? 370 : 500, namesY, readableNameSize, readableNameSize * 1.06, true)}
+${textBlock(nameLines, 500, namesY, readableNameSize, readableNameSize * 1.06, true)}
 ${textBlock([price], 500, 370, priceSize, priceSize, true)}
 ${textBlock(ru.lines, 250, 445, ru.size, ru.size * 1.2)}
 ${textBlock(kk.lines, 750, 445, kk.size, kk.size * 1.2)}

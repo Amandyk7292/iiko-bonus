@@ -70,7 +70,7 @@ test('product label previews both languages and prints a 100 by 60 mm page', asy
   await toggle.check();
   const qr = preview.locator('svg[aria-label="QR-код товара"]');
   await expect(qr).toBeVisible();
-  await expect(qr).toHaveAttribute('x', '760');
+  await expect(qr).toHaveAttribute('x', '820');
   await expect(qr).toHaveAttribute('y', '20');
   await page.screenshot({ path: testInfo.outputPath('label-with-qr.png'), fullPage: true });
   await toggle.uncheck();

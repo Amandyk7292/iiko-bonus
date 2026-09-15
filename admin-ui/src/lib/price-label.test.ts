@@ -13,13 +13,16 @@ const sample: PriceLabelDraft = {
 };
 const measure = (text: string, size: number) => [...text].length * size * 0.55;
 describe('price labels', () => {
-  it('embeds the selected product QR with a white quiet zone only when enabled', () => {
+  it('embeds the selected product QR with a transparent quiet zone only when enabled', () => {
     const id = '0669be83-bd9c-4e74-9150-dfc9a452e56b';
     const qr = create(productPublicUrl(id), { errorCorrectionLevel: 'M' }).modules;
     const result = buildPriceLabel(sample, measure, qr);
     expect(result.fits).toBe(true);
-    expect(result.svg).toContain('x="760" y="20" width="220" height="220"');
+    expect(result.svg).toContain('x="820" y="20" width="160" height="160"');
     expect(result.svg).toContain(`viewBox="0 0 ${qr.size + 8} ${qr.size + 8}"`);
+    expect(result.svg).toContain('<path fill="#FFFFFF"');
+    expect(result.svg).not.toContain('fill="white"');
+    expect(result.svg).toContain('<text x="500"');
     const cells = result.svg.match(/h1v1h-1z/g) || [];
     expect(cells.length).toBe(Array.from(qr.data).filter(Boolean).length);
     expect(buildPriceLabel(sample, measure).svg).not.toContain('QR-код товара');
