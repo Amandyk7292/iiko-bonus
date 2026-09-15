@@ -63,6 +63,20 @@ const renderPage = () =>
   );
 
 describe('Kitchen optimistic workflow', () => {
+  it('shows selected options and supplement under the correct product', async () => {
+    apiMocks.getKitchenOrders.mockResolvedValue({
+      orders: [
+        {
+          ...queuedOrder,
+          items: [{ name: 'Кофе', quantity: 2, optionSummary: 'Размер: Большой (+300 ₸)' }],
+        },
+      ],
+    });
+    renderPage();
+    expect(await screen.findByText('Размер: Большой (+300 ₸)')).toBeInTheDocument();
+    expect(screen.getByText(/Кофе/)).toBeInTheDocument();
+  });
+
   it('shows a missing GPS explanation without claiming the courier is moving', async () => {
     apiMocks.getKitchenOrders.mockResolvedValue({
       orders: [

@@ -1,3 +1,4 @@
+const { optionSummary } = require('../utils/order-options');
 const { supabase } = require('../config/supabase');
 const { updateKitchenStatus } = require('./kitchen.service');
 const { decideFrontOrder } = require('./front-order-inbox.service');
@@ -18,7 +19,9 @@ function card(order) {
     customer: order.customers?.name || '',
     phone: order.phone || order.customers?.phone || '',
     items: (order.cart_items || []).map((item) => ({
-      name: String(item.name || item.productName || ''),
+      name: [String(item.name || item.productName || ''), optionSummary(item)]
+        .filter(Boolean)
+        .join(' — '),
       quantity: Number(item.quantity || 0),
       unit: item.unit || 'шт.',
     })),

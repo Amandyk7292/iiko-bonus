@@ -1,3 +1,4 @@
+const { withOrderOptions } = require('../utils/order-options');
 const { supabase } = require('../config/supabase');
 const { effectiveFulfillmentType, isDeliveryFulfillment } = require('../utils/fulfillment.util');
 const realtime = require('./realtime.service');
@@ -137,7 +138,7 @@ const normalize = (order) => ({
   number: Number(order.order_number || 0),
   branchId: order.branch_id,
   branch: order.branch_name || '',
-  items: Array.isArray(order.cart_items) ? order.cart_items : [],
+  items: Array.isArray(order.cart_items) ? order.cart_items.map(withOrderOptions) : [],
   comment: order.comment || null,
   substitutionPreference: order.substitution_preference || 'call_customer',
   fulfillmentType: effectiveFulfillmentType(order),

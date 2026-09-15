@@ -1,3 +1,4 @@
+const { optionSummary } = require('../utils/order-options');
 const { supabase } = require('../config/supabase');
 const { attachFrontRemainingOrders } = require('./front-remaining-order.service');
 const {
@@ -46,7 +47,9 @@ async function listFrontOrders(branchId, { page = 1, peek = false, receipts = fa
             phone: order.phone || order.customers?.phone || '',
             customer: order.customers?.name || '',
             items: (order.cart_items || []).map((item) => ({
-              name: String(item.name || item.productName || ''),
+              name: [String(item.name || item.productName || ''), optionSummary(item)]
+                .filter(Boolean)
+                .join(' — '),
               quantity: Number(item.quantity || 0),
               unit: item.unit || 'шт.',
             })),

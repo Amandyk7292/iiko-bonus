@@ -1,3 +1,4 @@
+const { withOrderOptions } = require('../utils/order-options');
 const crypto = require('crypto');
 const { supabase } = require('../config/supabase');
 const { isDeliveryFulfillment } = require('../utils/fulfillment.util');
@@ -382,7 +383,7 @@ async function listCourierOrders(courierId) {
       etaMinAt: order.eta_min_at || null,
       etaMaxAt: order.eta_max_at || null,
       etaConfidence: order.eta_confidence || null,
-      items: Array.isArray(order.cart_items) ? order.cart_items : [],
+      items: Array.isArray(order.cart_items) ? order.cart_items.map(withOrderOptions) : [],
       comment: order.comment || null,
       customerPhone: order.additional_phone || order.phone || null,
       amount: Number(order.amount || 0),

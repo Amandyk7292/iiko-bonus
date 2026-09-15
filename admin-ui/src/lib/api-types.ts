@@ -237,7 +237,7 @@ export interface AdminOrder {
   comment?: string | null;
   substitutionPreference?: 'remove_refund' | 'call_customer' | 'replace_with_approval' | string;
   substitutions?: OrderSubstitution[];
-  items: Array<{ name?: string; quantity?: number; price?: number }>;
+  items: Array<{ name?: string; quantity?: number; price?: number; optionSummary?: string }>;
   earnedBonus: number;
   refundStatus?: string | null;
   refundAmount?: number | null;

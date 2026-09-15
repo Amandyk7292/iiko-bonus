@@ -67,6 +67,19 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets('tablet displays saved selection below its product', (
+    tester,
+  ) async {
+    final api = _KitchenApi();
+    (api.order['items'] as List).first['optionSummary'] =
+        'Размер: Большой (+300 ₸)';
+    await open(tester, api);
+    await tester.pumpAndSettle();
+    expect(find.text('Размер: Большой (+300 ₸)'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await api.eventBus.close();
+  });
+
   testWidgets(
     'native acceptance validates minutes, omits manual checkbox, waits for server',
     (tester) async {

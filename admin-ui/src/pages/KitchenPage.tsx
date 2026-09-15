@@ -586,8 +586,8 @@ export default function KitchenPage() {
                           {(order.items || []).map((item: any, index: number) => (
                             <li key={`${item.lineKey || item.id || index}`}>
                               <b>{item.quantity || 1}×</b> {item.name || t('kitchen.product')}
-                              {item.configuration?.weight ? (
-                                <small>{item.configuration.weight}</small>
+                              {item.optionSummary ? (
+                                <small className="block">{item.optionSummary}</small>
                               ) : null}
                             </li>
                           ))}

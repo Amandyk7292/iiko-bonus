@@ -407,9 +407,9 @@ export default function OrdersPage({ role = 'viewer' }: { role?: string }) {
                         <strong>{order.branch || '—'}</strong>
                         <small className="table-secondary">
                           {order.items
-                            .slice(0, 2)
                             .map(
-                              (item) => `${item.name || t('orders.item')} ×${item.quantity || 1}`,
+                              (item) =>
+                                `${item.name || t('orders.item')} ×${item.quantity || 1}${item.optionSummary ? ` — ${item.optionSummary}` : ''}`,
                             )
                             .join(', ') || '—'}
                         </small>

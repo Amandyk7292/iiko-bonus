@@ -30,6 +30,21 @@ final receiptData = <String, dynamic>{
 };
 
 void main() {
+  test(
+    'order name includes localized saved options in receipt and order details',
+    () {
+      appLanguageNotifier.value = 'kk';
+      expect(
+        localizedOrderItemName({
+          'name': 'Кофе',
+          'name_translations': {'kk': 'Кофе'},
+          'optionSummaries': {'kk': 'Өлшем: Үлкен (+300 ₸)'},
+        }),
+        'Кофе\nӨлшем: Үлкен (+300 ₸)',
+      );
+    },
+  );
+
   tearDown(() => appLanguageNotifier.value = 'ru');
 
   for (final language in ['ru', 'kk', 'en']) {

@@ -42,9 +42,14 @@ class PaymentReceipt {
 String localizedOrderItemName(Map<String, dynamic> item) {
   final names = _asMap(item['name_translations'] ?? item['nameTranslations']);
   final localized = _asString(names[AppLang.current]).trim();
-  return localized.isNotEmpty
+  final name = localized.isNotEmpty
       ? localized
       : localizeCatalogName(
           _asString(item['name'], fallback: 'product_fallback'.tr),
         );
+  final summaries = _asMap(item['optionSummaries']);
+  final details = _asString(
+    summaries[AppLang.current] ?? item['optionSummary'],
+  );
+  return details.isEmpty ? name : '$name\n$details';
 }

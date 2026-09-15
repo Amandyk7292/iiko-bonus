@@ -534,12 +534,8 @@ class _StaffKitchenState extends State<StaffKitchen>
                               fontWeight: FontWeight.w500,
                             ),
                           ),
-                          for (final modifier
-                              in (item['modifiers'] as List? ?? [])
-                                  .whereType<Map>())
-                            Text(
-                              '${modifier['name'] ?? ''} × ${modifier['quantity'] ?? 1}',
-                            ),
+                          if (_asString(item['optionSummary']).isNotEmpty)
+                            Text(_asString(item['optionSummary'])),
                         ],
                       ),
                     ),

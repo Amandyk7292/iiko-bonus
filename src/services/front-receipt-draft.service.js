@@ -1,8 +1,9 @@
+const { optionSummary } = require('../utils/order-options');
 const { supabase } = require('../config/supabase');
 const { validQuantity } = require('../utils/quantity.util');
 const { remainingOrder } = require('./front-remaining-order.service');
 const conflict = (message) => Object.assign(new Error(message), { statusCode: 409 });
-function receiptDraft(order) {
+function receiptDraft(order, optionsVersion = 0) {
   if (
     !order ||
     order.status !== 'paid' ||
@@ -20,11 +21,13 @@ function receiptDraft(order) {
     if (
       !/^[0-9a-f-]{36}$/i.test(productId) ||
       !validQuantity(Number(item.quantity)) ||
-      item.productSizeId ||
-      item.configuration ||
-      item.modifiers?.length
+      item.productSizeId
     )
       throw conflict('Один из товаров требует сопоставления с кассой или настройки вариантов');
+    const details = optionSummary(item);
+    const configured = Boolean(item.configuration || item.modifiers?.length);
+    if (configured && (optionsVersion !== 1 || !details))
+      throw conflict('Обновите плагин Bulka: заказ содержит выбранные варианты товара');
     const price = Number(item.price),
       quantity = Number(item.quantity);
     const lineTotal = Number(item.lineTotal ?? Math.round(price * quantity));
@@ -34,6 +37,7 @@ function receiptDraft(order) {
       key: String(item.lineKey || index),
       productId,
       name: item.name,
+      ...(configured ? { customName: `${item.name} — ${details}`, optionSummary: details } : {}),
       quantity,
       price,
       lineTotal,
@@ -54,7 +58,7 @@ function receiptDraft(order) {
     bonusSpent: Number(order.bonus_spent || 0),
   };
 }
-async function getFrontReceiptDraft(branchId, number) {
+async function getFrontReceiptDraft(branchId, number, optionsVersion = 0) {
   const { data, error } = await supabase
     .from('kaspi_orders')
     .select('*')
@@ -69,6 +73,6 @@ async function getFrontReceiptDraft(branchId, number) {
   if (receiptError) throw receiptError;
   if (!receipt?.ready)
     throw conflict(receipt?.reason || 'Дождитесь завершения возврата или замены');
-  return receiptDraft(remainingOrder(data, receipt));
+  return receiptDraft(remainingOrder(data, receipt), optionsVersion);
 }
 module.exports = { getFrontReceiptDraft, receiptDraft };

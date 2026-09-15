@@ -1,3 +1,4 @@
+const { withOrderOptions } = require('../utils/order-options');
 const crypto = require('node:crypto');
 const { attachOrderImages } = require('./order-images.service');
 const { supabase } = require('../config/supabase');
@@ -280,7 +281,7 @@ const normalizeOrder = (order, { includeDeliveryPin = false } = {}) => {
     comment: order.comment || null,
     substitutionPreference: order.substitution_preference || 'call_customer',
     substitutions,
-    items: Array.isArray(order.cart_items) ? order.cart_items : [],
+    items: Array.isArray(order.cart_items) ? order.cart_items.map(withOrderOptions) : [],
     earnedBonus: Number(order.earned_bonus || 0),
     refundStatus: order.refund_status || null,
     refundAmount: order.refund_amount == null ? null : Number(order.refund_amount),

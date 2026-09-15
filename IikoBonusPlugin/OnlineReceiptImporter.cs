@@ -14,12 +14,15 @@ namespace Resto.Front.Api.IikoBonusPlugin
     [DataContract] internal sealed class ReceiptDraftRequest
     {
         [DataMember(Name="number")] public long Number {get;set;}
+        [DataMember(Name="optionsVersion")] public int OptionsVersion {get;set;} = 1;
     }
     [DataContract] internal sealed class ReceiptDraftItem
     {
         [DataMember(Name="key")] public string Key {get;set;}
         [DataMember(Name="productId")] public string ProductId {get;set;}
         [DataMember(Name="name")] public string Name {get;set;}
+        [DataMember(Name="customName")] public string CustomName {get;set;}
+        [DataMember(Name="optionSummary")] public string OptionSummary {get;set;}
         [DataMember(Name="quantity")] public decimal Quantity {get;set;}
         [DataMember(Name="price")] public decimal Price {get;set;}
         [DataMember(Name="lineTotal")] public decimal LineTotal {get;set;}
@@ -47,8 +50,15 @@ namespace Resto.Front.Api.IikoBonusPlugin
             var lineIds=draft.Items.ToDictionary(i=>ImportedLineId(order.Id,draft.Id,i.Key));
             var existing=order.Items.Where(i=>!i.Deleted).ToList();
             // Never rewrite items that the cashier entered independently.
-            if(existing.Any(i=>!lineIds.ContainsKey(i.Id))) return order;
-            if(order.Payments.Count>0) return order;
+            if(existing.Any(i=>!lineIds.ContainsKey(i.Id))) {
+                if(draft.Items.Any(i=>!string.IsNullOrEmpty(i.CustomName)))
+                    throw new InvalidOperationException("Для заказа с вариантами откройте отдельный пустой чек Bulka.");
+                return order;
+            }
+            if(order.Payments.Count>0) {
+                VerifyOptionNames(order,lineIds);
+                return order;
+            }
             var products=draft.Items.ToDictionary(i=>i.Key,i=>os.TryGetProductById(Guid.Parse(i.ProductId)));
             if(products.Any(pair=>pair.Value==null))
                 throw new InvalidOperationException("В этой кассе не найден товар онлайн-заказа. Проверьте сопоставление ID.");
@@ -71,7 +81,11 @@ namespace Resto.Front.Api.IikoBonusPlugin
                     // Preserve whole-tenge online line rounding without a second
                     // customer payment; the exact difference is discounted below.
                     var unitPrice=Math.Max(item.Price,decimal.Ceiling(item.LineTotal/item.Quantity*100m)/100m);
-                    edit.AddOrderProductItem(id,item.Quantity,products[item.Key],order,guest,null,OrderItemCourse.Default,unitPrice);
+                    var added=edit.AddOrderProductItem(id,item.Quantity,products[item.Key],order,guest,null,OrderItemCourse.Default,unitPrice);
+                    if(!string.IsNullOrEmpty(item.CustomName)) {
+                        edit.SetProductItemCustomName(item.CustomName,order,added);
+                        edit.ChangeOrderItemComment(item.OptionSummary,order,added);
+                    }
                 }
                 os.SubmitChanges(edit,os.GetDefaultCredentials());
                 order=os.GetOrderById(order.Id);
@@ -93,7 +107,16 @@ namespace Resto.Front.Api.IikoBonusPlugin
             }
             if(order.ResultSum!=draft.MerchandiseTotal)
                 throw new InvalidOperationException("Итог кассы не совпал с оплаченными товарами. Печать и повторная оплата заблокированы.");
+            VerifyOptionNames(order,lineIds);
             return order;
+        }
+        private static void VerifyOptionNames(IOrder order,Dictionary<Guid,ReceiptDraftItem> lines)
+        {
+            foreach(var entry in lines.Where(p=>!string.IsNullOrEmpty(p.Value.CustomName))) {
+                var product=order.Items.OfType<IOrderProductItem>().SingleOrDefault(i=>!i.Deleted && i.Id==entry.Key);
+                if(product==null || product.ProductCustomName!=entry.Value.CustomName)
+                    throw new InvalidOperationException("Выбранные варианты не совпали с онлайн-заказом. Печать остановлена.");
+            }
         }
     }
 }

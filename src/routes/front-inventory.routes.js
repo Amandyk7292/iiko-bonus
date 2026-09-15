@@ -72,7 +72,7 @@ router.post(
       const { getFrontReceiptDraft } = require('../services/front-receipt-draft.service');
       res.json({
         success: true,
-        ...(await getFrontReceiptDraft(req.posBranchId, req.body.number)),
+        ...(await getFrontReceiptDraft(req.posBranchId, req.body.number, req.body.optionsVersion)),
       });
     } catch (error) {
       next(error);

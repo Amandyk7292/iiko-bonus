@@ -16,7 +16,10 @@ const frontOrderDecisionSchema = z
   .strict();
 const frontOrderPollSchema = z.object({ terminalId: iikoGuidSchema }).strict();
 const frontReceiptDraftSchema = z
-  .object({ number: z.number().int().positive().max(Number.MAX_SAFE_INTEGER) })
+  .object({
+    number: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+    optionsVersion: z.literal(1).optional(),
+  })
   .strict();
 module.exports = {
   frontOrdersQuerySchema,

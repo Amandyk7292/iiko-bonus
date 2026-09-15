@@ -1,3 +1,4 @@
+const { withOrderOptions } = require('../utils/order-options');
 const crypto = require('node:crypto');
 const { supabase } = require('../config/supabase');
 const { attachOrderImages } = require('./order-images.service');
@@ -142,6 +143,9 @@ function normalizeReceiptItems(items) {
     return {
       id: cleanText(item?.id || item?.productId || `item-${index + 1}`, 100),
       name: cleanText(item?.name || item?.title || `Позиция ${index + 1}`, 160),
+      ...(withOrderOptions(item || {}).optionSummaries
+        ? { optionSummaries: withOrderOptions(item).optionSummaries }
+        : {}),
       quantity,
       unit: cleanText(item?.unit || 'шт.', 20),
       unitPrice,
@@ -430,7 +434,7 @@ function renderPaymentReceipt(receipt, requestedLanguage, access = {}) {
   const rows = items
     .map(
       (item) => `<tr>
-            <td>${escapeHtml(item.name_translations?.[language] || item.name)}</td>
+            <td>${escapeHtml(item.name_translations?.[language] || item.name)}${item.optionSummaries?.[language] ? `<br><small>${escapeHtml(item.optionSummaries[language])}</small>` : ''}</td>
             <td class="number">${item.quantity}${['шт', 'шт.', 'pcs'].includes(item.unit) ? '' : ' ' + escapeHtml(item.unit)}</td>
             <td class="number">${escapeHtml(localizedMoney(item.unitPrice, language))} ₸</td>
             <td class="number">${escapeHtml(localizedMoney(item.lineTotal, language))} ₸</td>
