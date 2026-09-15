@@ -1,5 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type SetStateAction } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type SetStateAction,
+} from 'react';
 import { useFeedback } from '../../components/Feedback';
+import { hasIncompleteProductText } from '../../components/IncompleteDescription';
 import { useMenuPhotos } from './use-menu-photos';
 import { api, type AdminScopeLocation } from '../../lib/api';
 import { useI18n } from '../../lib/i18n';
@@ -9,6 +18,7 @@ import { type MenuWorkspaceTab } from './MenuWorkspaceToolbar';
 import { useMenuCitySelection } from './use-menu-city-selection';
 import { useOptimisticMenuActions } from './use-optimistic-menu-actions';
 import { useMenuCategoryMove } from './use-menu-category-move';
+import { sortMenuProductsByCompleteness } from './menu-completeness';
 import {
   builderOptionSections,
   categoryNameKeys,
@@ -763,28 +773,29 @@ export function useMenuPageController({
 
   const filteredProducts = useMemo(() => {
     const normalizedSearch = searchQuery.trim().toLocaleLowerCase('ru-RU');
-    return productsInVisibleCategories
-      .filter((product) => {
-        const displayName = resolvedProductName(product, productOverrides[product.id]);
-        const matchesSearch = displayName.toLocaleLowerCase('ru-RU').includes(normalizedSearch);
-        const matchesCategory =
-          selectedCategory === 'all' || product.parentGroup === selectedCategory;
-        return matchesSearch && matchesCategory;
-      })
-      .sort((left, right) => {
-        const hiddenComparison =
-          Number(Boolean(productOverrides[left.id]?.is_hidden)) -
-          Number(Boolean(productOverrides[right.id]?.is_hidden));
-        if (hiddenComparison !== 0) return hiddenComparison;
-        return compareMenuNames(
-          resolvedProductName(left, productOverrides[left.id]),
-          resolvedProductName(right, productOverrides[right.id]),
-        );
-      });
+    const matched = productsInVisibleCategories.filter((product) => {
+      const displayName = resolvedProductName(product, productOverrides[product.id]);
+      const matchesSearch = displayName.toLocaleLowerCase('ru-RU').includes(normalizedSearch);
+      const matchesCategory =
+        selectedCategory === 'all' || product.parentGroup === selectedCategory;
+      return matchesSearch && matchesCategory;
+    });
+    return sortMenuProductsByCompleteness(matched, productOverrides);
   }, [productsInVisibleCategories, productOverrides, searchQuery, selectedCategory]);
 
   const sortedCustomProducts = useMemo(
-    () => [...customProducts].sort((left, right) => compareMenuNames(left.name, right.name)),
+    () =>
+      [...customProducts].sort((left, right) => {
+        const incomplete = (product: CustomProduct) =>
+          hasIncompleteProductText({
+            descriptions: [product.description, product.description_translations?.ru],
+            kazakh: product.description_translations?.kk,
+            russianName: product.name,
+            kazakhName: product.name_translations?.kk,
+          });
+        const comparison = Number(incomplete(right)) - Number(incomplete(left));
+        return comparison || compareMenuNames(left.name, right.name);
+      }),
     [customProducts],
   );
 

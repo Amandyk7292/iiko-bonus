@@ -19,6 +19,7 @@ const {
 } = require('../../services/inventory.service');
 const { getProductOptions, saveProductOptions } = require('../../services/product-options.service');
 const { optimizeUploadedImage } = require('../../utils/image.util');
+const { localizeCatalogField } = require('../../utils/catalog-localization.util');
 
 const allowedImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const upload = multer({
@@ -144,10 +145,36 @@ function registerMenuAdminRoutes(router) {
         menuService.getCategoryOverrides({ profileKey: selectedIikoApi.profileKey }),
         menuService.getCustomProducts({ profileKey: selectedIikoApi.profileKey }),
       ]);
+      const overridesById = new Map(productOverrides.map((row) => [row.iiko_product_id, row]));
+      const products = (rawMenu.products || []).map((product) => {
+        const override = overridesById.get(product.id);
+        const russianName = localizeCatalogField(override, 'name', product.name || '', 'ru');
+        const kazakhName = localizeCatalogField(override, 'name', product.name || '', 'kk');
+        const russianDescription = localizeCatalogField(
+          override,
+          'description',
+          product.description || '',
+          'ru',
+        );
+        const kazakhDescription = localizeCatalogField(
+          override,
+          'description',
+          product.description || '',
+          'kk',
+        );
+        return {
+          ...product,
+          nameKk: override?.name_translations?.kk || (kazakhName !== russianName ? kazakhName : ''),
+          descriptionRu: russianDescription,
+          descriptionKk:
+            override?.description_translations?.kk ||
+            (kazakhDescription !== russianDescription ? kazakhDescription : ''),
+        };
+      });
 
       res.json({
         success: true,
-        rawMenu,
+        rawMenu: { ...rawMenu, products },
         overrides: {
           products: productOverrides,
           categories: categoryOverrides,

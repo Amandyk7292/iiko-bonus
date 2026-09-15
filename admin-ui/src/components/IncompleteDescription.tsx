@@ -1,25 +1,37 @@
-export default function IncompleteDescription({
-  descriptions,
-  kazakh,
-}: {
+type ProductTextCompleteness = {
   descriptions: Array<string | null | undefined>;
   kazakh?: string | null;
-}) {
-  const filled = descriptions.some((value) =>
+  russianName?: string | null;
+  kazakhName?: string | null;
+};
+
+const hasText = (value?: string | null) =>
+  Boolean(
     value
       ?.replace(/<[^>]*>/g, '')
       .replace(/&nbsp;|&#160;/gi, ' ')
       .trim(),
   );
-  const kazakhFilled = kazakh
-    ?.replace(/<[^>]*>/g, '')
-    .replace(/&nbsp;|&#160;/gi, ' ')
-    .trim();
-  if (filled && kazakhFilled) return null;
+
+export function hasIncompleteProductText({
+  descriptions,
+  kazakh,
+  russianName,
+  kazakhName,
+}: ProductTextCompleteness) {
+  return (
+    !descriptions.some(hasText) ||
+    !hasText(kazakh) ||
+    (hasText(russianName) && !hasText(kazakhName))
+  );
+}
+
+export default function IncompleteDescription(props: ProductTextCompleteness) {
+  if (!hasIncompleteProductText(props)) return null;
   return (
     <p
       className="mt-1 text-xs font-semibold text-red-600"
-      title="Заполните описание товара на русском и казахском"
+      title="Заполните описание на русском и казахском и название на казахском"
     >
       Неполное описание
     </p>

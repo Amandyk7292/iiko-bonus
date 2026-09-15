@@ -5,6 +5,9 @@ export interface IikoProduct {
   id: string;
   name: string;
   description?: string;
+  descriptionRu?: string;
+  descriptionKk?: string;
+  nameKk?: string;
   price?: number;
   parentGroup?: string;
   sizePrices?: { price: { currentPrice: number } }[];
@@ -79,6 +82,7 @@ export const indexCategoryOverrides = (
   Object.fromEntries(overrides.map((override) => [override.iiko_category_id, override]));
 
 export interface CustomProduct {
+  name_translations?: Record<string, string>;
   description_translations?: Record<string, string>;
   id?: string;
   iiko_profile?: string;
@@ -486,8 +490,12 @@ export function ProductFactsFields({
     <details className="form-section group">
       <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 font-semibold focus-visible:outline-2 focus-visible:outline-amber-500 [&::-webkit-details-marker]:hidden">
         <span>Карточка товара</span>
-        <span aria-hidden="true" className="text-2xl group-open:hidden">+</span>
-        <span aria-hidden="true" className="hidden text-2xl group-open:inline">−</span>
+        <span aria-hidden="true" className="text-2xl group-open:hidden">
+          +
+        </span>
+        <span aria-hidden="true" className="hidden text-2xl group-open:inline">
+          −
+        </span>
       </summary>
       <p className="field-hint mb-3">
         Все поля необязательны. Клиент увидит только заполненные данные; значения КБЖУ указываются
