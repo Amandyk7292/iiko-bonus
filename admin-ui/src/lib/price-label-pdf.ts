@@ -43,11 +43,9 @@ export async function generatePriceLabelsPdf(
   const pdf = await PDFDocument.create();
   pdf.setTitle('Ценники Bulka');
   pdf.catalog.getOrCreateViewerPreferences().setPrintScaling(PrintScaling.None);
-  const shortened: string[] = [];
   for (const [index, product] of products.entries()) {
     if (index % 8 === 0) pdf.addPage([210 * MM, 297 * MM]);
     const label = batchLabel(product, background, includeQr);
-    if (label.shortened) shortened.push(product.nameRu);
     const image = await pdf.embedPng(await labelPng(label.svg));
     pdf.getPages().at(-1)!.drawImage(image, labelPosition(index));
     pdf
@@ -62,5 +60,5 @@ export async function generatePriceLabelsPdf(
     progress(index + 1);
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
-  return { bytes: await pdf.save(), shortened };
+  return { bytes: await pdf.save() };
 }

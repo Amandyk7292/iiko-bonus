@@ -77,16 +77,7 @@ export function batchLabel(product: LabelProduct, background: string, includeQr:
     ? create(productPublicUrl(product.id), { errorCorrectionLevel: 'M' }).modules
     : undefined;
   const measure = browserLabelMeasure();
-  let result = buildPriceLabel(draft, measure, qr, true);
-  let shortened = false;
-  // Do not change product data: shorten only overflowing description on this printed copy.
-  for (const field of ['ingredientsRu', 'ingredientsKk'] as const) {
-    while (result.errors[field]?.includes('помещается') && draft[field].length > 2) {
-      draft[field] = draft[field].replace(/…$/, '').slice(0, -8).trimEnd() + '…';
-      shortened = true;
-      result = buildPriceLabel(draft, measure, qr, true);
-    }
-  }
+  const result = buildPriceLabel(draft, measure, qr, true);
   if (!result.fits) throw new Error(`${product.nameRu}: ${Object.values(result.errors).join(' ')}`);
-  return { svg: result.svg, shortened };
+  return { svg: result.svg };
 }

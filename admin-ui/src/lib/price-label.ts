@@ -110,20 +110,20 @@ export function buildPriceLabel(
     if (optionalDetails && !text.trim()) return { lines: [], size: 27 };
     let size = 27,
       lines: string[] = [];
-    for (; size >= 22; size--) {
+    for (; size >= 18; size--) {
       lines = wrap(
         /^\s*(Состав|Құрамы|Описание|Сипаттама)\s*:/iu.test(text)
           ? text.trim()
           : `${prefix} ${text.trim()}`,
-        400,
+        440,
         size,
         false,
         measure,
       );
-      if (lines.length * size * 1.2 <= 150) break;
+      if (lines.length * size * 1.12 <= 180) break;
     }
-    if (size < 22) errors[field] = 'Состав не помещается. Сократите текст для ценника 10 × 6 см.';
-    return { lines, size: Math.max(22, size) };
+    if (size < 18) errors[field] = 'Описание не помещается целиком. Сократите текст для ценника 10 × 6 см.';
+    return { lines, size: Math.max(18, size) };
   };
   const ru = composition(draft.ingredientsRu, 'Состав:', 'ingredientsRu');
   const kk = composition(draft.ingredientsKk, 'Құрамы:', 'ingredientsKk');
@@ -134,9 +134,9 @@ export function buildPriceLabel(
 <g fill="${qrColor}" font-family="Arial, Helvetica, sans-serif">
 ${textBlock(nameLines, 500, namesY, readableNameSize, readableNameSize * 1.06, true)}
 ${textBlock([price], 500, 370, priceSize, priceSize, true)}
-${textBlock(ru.lines, 250, 445, ru.size, ru.size * 1.2)}
-${textBlock(kk.lines, 750, 445, kk.size, kk.size * 1.2)}
-</g>${qrSvg}${ru.lines.length || kk.lines.length ? '<path d="M500 416 V575" stroke="#CB842E" stroke-width="4" stroke-dasharray="17 10"/>' : ''}
+${textBlock(ru.lines, 250, 405, ru.size, ru.size * 1.12)}
+${textBlock(kk.lines, 750, 405, kk.size, kk.size * 1.12)}
+</g>${qrSvg}${ru.lines.length || kk.lines.length ? '<path d="M500 385 V585" stroke="#CB842E" stroke-width="4" stroke-dasharray="17 10"/>' : ''}
 </svg>`;
   return { svg, errors, fits: Object.keys(errors).length === 0 };
 }

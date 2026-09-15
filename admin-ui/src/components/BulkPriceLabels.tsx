@@ -115,10 +115,7 @@ function BulkPriceLabelsModal({
       link.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 60000);
       setNotice(
-        `PDF готов: ${current.length} ценников, ${Math.ceil(current.length / 8)} стр. Настройки сохранены для всех ценников города.` +
-          (result.shortened.length
-            ? ` Длинное описание сокращено многоточием на ценнике: ${result.shortened.join(', ')}.`
-            : ''),
+        `PDF готов: ${current.length} ценников, ${Math.ceil(current.length / 8)} стр. Настройки сохранены для всех ценников города.`,
       );
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Не удалось создать PDF.');

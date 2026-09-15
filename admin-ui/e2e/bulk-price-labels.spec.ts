@@ -37,16 +37,25 @@ test('bulk PDF uses fresh stops and prices, eight per A4, shared saved preferenc
         rawMenu: {
           products: Array.from({ length: 11 }, (_, i) => ({
             id: `product-${i}`,
-            name: `Товар ${i}`,
+            name: i === 10 ? 'Бездрожжевой Овощной' : `Товар ${i}`,
             price: fresh ? 750 : 300,
-            description: i === 10 ? 'Состав: мука, молоко' : '',
+            description:
+              i === 10
+                ? 'Состав: мука, вода, соль, растительное масло, орехи, смесь овощной муки, хлопья овсяные, семена льна масличного, семена сушёные, томаты сушёные, хлопья пшеницы.'
+                : '',
           })),
           groups: [],
         },
         overrides: {
           products: [
             { iiko_product_id: 'product-0', is_stop_listed: true },
-            { iiko_product_id: 'product-10', description_translations: { kk: 'Құрамы: ұн, сүт' } },
+            {
+              iiko_product_id: 'product-10',
+              name_translations: { kk: 'Ашытқысыз көкөністі нан' },
+              description_translations: {
+                kk: 'Құрамы: ұн, су, тұз, өсімдік майы, жаңғақ, көкөніс қоспасы, сұлы үлпектері, майлы зығыр тұқымдары, кептірілген қызанақ, бидай үлпектері.',
+              },
+            },
             ...(fresh ? [{ iiko_product_id: 'product-1', is_stop_listed: true }] : []),
           ],
           categories: [],
@@ -72,7 +81,9 @@ test('bulk PDF uses fresh stops and prices, eight per A4, shared saved preferenc
   await download.saveAs(path);
   await expect(dialog.getByRole('status')).toContainText('9 ценников, 2 стр.');
   await expect(dialog.locator('.price-label-preview')).toContainText('750');
-  await expect(dialog.locator('.price-label-preview')).toContainText('мука, молоко');
+  await expect(dialog.locator('.price-label-preview')).toContainText('пшеницы');
+  await expect(dialog.locator('.price-label-preview')).toContainText('үлпектері');
+  await expect(dialog.locator('.price-label-preview')).not.toContainText('…');
   const pdf = await PDFDocument.load(await readFile(path));
   expect(pdf.getPageCount()).toBe(2);
   const counts = pdf.getPages().map((page) => {
