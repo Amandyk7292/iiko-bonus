@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Printer } from 'lucide-react';
 import Modal from './Modal';
-import { request } from '../lib/api';
+import { getAdminBranchScope, request } from '../lib/api';
 import { labelHex, LABEL_BACKGROUND } from '../lib/price-label';
 import {
   labelProducts,
@@ -14,9 +14,13 @@ import './price-label.css';
 
 export default function BulkPriceLabels({
   profileKey,
+  cityName,
+  branchId,
   disabled,
 }: {
   profileKey?: string;
+  cityName: string;
+  branchId: string;
   disabled: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -31,7 +35,12 @@ export default function BulkPriceLabels({
         <Printer size={17} aria-hidden="true" /> Общая печать ценников
       </button>
       {open && profileKey && (
-        <BulkPriceLabelsModal profileKey={profileKey} onClose={() => setOpen(false)} />
+        <BulkPriceLabelsModal
+          profileKey={profileKey}
+          cityName={cityName}
+          branchId={branchId}
+          onClose={() => setOpen(false)}
+        />
       )}
     </>
   );
@@ -39,9 +48,13 @@ export default function BulkPriceLabels({
 
 function BulkPriceLabelsModal({
   profileKey,
+  cityName,
+  branchId,
   onClose,
 }: {
   profileKey: string;
+  cityName: string;
+  branchId: string;
   onClose: () => void;
 }) {
   const [background, setBackground] = useState(LABEL_BACKGROUND);
@@ -60,7 +73,11 @@ function BulkPriceLabelsModal({
     void Promise.all([loadPriceLabelSettings(), request<LabelMenu>('/menu')])
       .then(([settings, menu]) => {
         if (!live) return;
-        if (settings.profileKey !== profileKey || menu.profileKey !== profileKey)
+        if (
+          getAdminBranchScope() !== branchId ||
+          settings.profileKey !== profileKey ||
+          menu.profileKey !== profileKey
+        )
           throw new Error('Город изменился. Откройте печать заново.');
         setBackground(settings.background);
         setIncludeQr(settings.includeQr);
@@ -94,9 +111,11 @@ function BulkPriceLabelsModal({
     setNotice('');
     setDone(0);
     try {
+      if (getAdminBranchScope() !== branchId)
+        throw new Error('Город изменился. Откройте печать заново.');
       await savePriceLabelSettings({ profileKey, background: hex, includeQr });
       const menu = await request<LabelMenu>('/menu');
-      if (menu.profileKey !== profileKey)
+      if (getAdminBranchScope() !== branchId || menu.profileKey !== profileKey)
         throw new Error('Город изменился. Откройте печать заново.');
       if (menu.rawMenu?.isStale)
         throw new Error('iiko возвращает устаревшее меню. Обновите меню и повторите печать.');
@@ -104,18 +123,20 @@ function BulkPriceLabelsModal({
       setProducts(current);
       const { generatePriceLabelsPdf } = await import('../lib/price-label-pdf');
       const result = await generatePriceLabelsPdf(current, hex, includeQr, setDone);
+      if (getAdminBranchScope() !== branchId)
+        throw new Error('Город изменился во время генерации. Откройте печать заново.');
       const url = URL.createObjectURL(
         new Blob([new Uint8Array(result.bytes)], { type: 'application/pdf' }),
       );
       const link = document.createElement('a');
       link.href = url;
-      link.download = `bulka-price-labels-${profileKey}-${new Date().toISOString().slice(0, 10)}.pdf`;
+      link.download = `bulka-price-labels-${cityName.trim().replace(/[^\p{L}\p{N}-]+/gu, '-') || profileKey}-${new Date().toISOString().slice(0, 10)}.pdf`;
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 60000);
       setNotice(
-        `PDF готов: ${current.length} ценников, ${Math.ceil(current.length / 8)} стр. Настройки сохранены для всех ценников города.`,
+        `PDF готов · ${cityName}: ${current.length} ценников, ${Math.ceil(current.length / 8)} стр. Настройки сохранены для всех ценников города.`,
       );
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Не удалось создать PDF.');
@@ -144,8 +165,9 @@ function BulkPriceLabelsModal({
     >
       <div className="modal-body price-label-controls">
         <p className="price-label-hint">
-          Все товары меню выбранного города вне стоп-листа админки. Скрытые товары и категории не
-          печатаются. Поиск и фильтр категорий не ограничивают общий PDF.
+          Ценники города {cityName}: только его товары и цены iiko вне стоп-листа админки. Цены
+          другого города в PDF не добавляются. Скрытые товары и категории не печатаются. Поиск и
+          фильтр категорий не ограничивают общий PDF.
         </p>
         <p>
           10 × 6 см · A4 · 2 колонки · 8 ценников на странице. Зазоры 3 мм. Печать в масштабе 100%.

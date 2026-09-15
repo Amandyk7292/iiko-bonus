@@ -92,6 +92,8 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
       {selectedBranchId && (
         <MenuWorkspaceToolbar
           profileKey={activeProfileKey}
+          cityName={scopeLocations.find((location) => location.id === selectedBranchId)?.city || ''}
+          branchId={selectedBranchId}
           activeTab={activeTab}
           onTabChange={setActiveTab}
           onSync={() => void handleSyncIikoMenu()}

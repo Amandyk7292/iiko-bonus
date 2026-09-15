@@ -103,6 +103,76 @@ test('bulk PDF uses fresh stops and prices, eight per A4, shared saved preferenc
   ).toBeChecked();
 });
 
+test('prints separate PDFs with the selected city prices', async ({ page }) => {
+  const aktau = {
+    id: '11111111-1111-4111-8111-111111111111',
+    name: 'Актау',
+    city: 'Актау',
+    active: true,
+  };
+  const astana = {
+    id: '22222222-2222-4222-8222-222222222222',
+    name: 'Астана',
+    city: 'Астана',
+    active: true,
+  };
+  const menuRequests: string[] = [];
+  await page.addInitScript((id) => localStorage.setItem('adminSelectedBranchId', id), aktau.id);
+  await page.route('**/admin/api/**', async (route) => {
+    const pathname = new URL(route.request().url()).pathname;
+    const branchId = route.request().headers()['x-bulka-branch-id'];
+    const isAstana = branchId === astana.id;
+    const profileKey = isAstana ? 'astana' : 'default';
+    let data: unknown = { success: true };
+    if (pathname.endsWith('/session'))
+      data = { user: { username: 'owner', role: 'owner', branchIds: [] } };
+    else if (pathname.endsWith('/scope'))
+      data = { success: true, locations: [aktau, astana], selectedBranchId: aktau.id };
+    else if (pathname.endsWith('/price-label-settings'))
+      data = { success: true, profileKey, background: '#792C14', includeQr: false };
+    else if (pathname.endsWith('/menu')) {
+      menuRequests.push(branchId || '');
+      data = {
+        success: true,
+        profileKey,
+        rawMenu: {
+          products: [{
+            id: isAstana ? 'astana-product' : 'aktau-product',
+            name: isAstana ? 'Товар Астана' : 'Товар Актау',
+            price: isAstana ? 500 : 300,
+          }],
+          groups: [],
+        },
+        overrides: { products: [], categories: [], customProducts: [] },
+      };
+    }
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(data) });
+  });
+
+  await page.goto('/admin/menu');
+  const openBulk = () => page.getByRole('button', { name: 'Общая печать ценников', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Общая печать ценников' });
+  await openBulk();
+  await expect(dialog.getByText(/Ценники города Актау/)).toBeVisible();
+  await expect(dialog.locator('.price-label-preview')).toContainText('300');
+  await expect(dialog.locator('.price-label-preview')).not.toContainText('500');
+  let downloading = page.waitForEvent('download');
+  await dialog.getByRole('button', { name: 'Скачать PDF' }).click();
+  expect((await downloading).suggestedFilename()).toContain('Актау');
+  await dialog.getByRole('button', { name: /Закрыть/ }).click();
+
+  await page.getByRole('button', { name: 'Редактировать меню города Астана, 1 филиал' }).click();
+  await openBulk();
+  await expect(dialog.getByText(/Ценники города Астана/)).toBeVisible();
+  await expect(dialog.locator('.price-label-preview')).toContainText('500');
+  await expect(dialog.locator('.price-label-preview')).not.toContainText('300');
+  downloading = page.waitForEvent('download');
+  await dialog.getByRole('button', { name: 'Скачать PDF' }).click();
+  expect((await downloading).suggestedFilename()).toContain('Астана');
+  expect(menuRequests).toContain(aktau.id);
+  expect(menuRequests).toContain(astana.id);
+});
+
 test('prints a locally supplied menu snapshot without changing production data', async ({
   page,
 }, info) => {

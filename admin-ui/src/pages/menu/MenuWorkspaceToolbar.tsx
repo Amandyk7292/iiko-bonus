@@ -5,6 +5,8 @@ export type MenuWorkspaceTab = 'products' | 'categories' | 'custom';
 
 export default function MenuWorkspaceToolbar({
   profileKey,
+  cityName,
+  branchId,
   activeTab,
   onTabChange,
   onSync,
@@ -15,6 +17,8 @@ export default function MenuWorkspaceToolbar({
   customProductsCount,
 }: {
   profileKey?: string;
+  cityName: string;
+  branchId: string;
   activeTab: MenuWorkspaceTab;
   onTabChange: (tab: MenuWorkspaceTab) => void;
   onSync: () => void;
@@ -42,7 +46,13 @@ export default function MenuWorkspaceToolbar({
         {syncing ? 'Синхронизация…' : 'Синхронизировать выбранный город'}
       </button>
 
-      <BulkPriceLabels key={profileKey} profileKey={profileKey} disabled={loading || syncing} />
+      <BulkPriceLabels
+        key={`${profileKey}-${branchId}`}
+        profileKey={profileKey}
+        cityName={cityName}
+        branchId={branchId}
+        disabled={loading || syncing}
+      />
       <div
         className="grid grid-cols-1 gap-1 rounded-xl bg-gray-100 p-1 sm:flex"
         role="tablist"
