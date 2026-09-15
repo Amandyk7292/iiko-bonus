@@ -79,6 +79,7 @@ export const indexCategoryOverrides = (
   Object.fromEntries(overrides.map((override) => [override.iiko_category_id, override]));
 
 export interface CustomProduct {
+  description_translations?: Record<string, string>;
   id?: string;
   iiko_profile?: string;
   name: string;

@@ -1,3 +1,4 @@
+import IncompleteDescription from '../../components/IncompleteDescription';
 import PriceLabelButton from '../../components/PriceLabelButton';
 import ProductQrButton from '../../components/ProductQrButton';
 import {
@@ -272,6 +273,14 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
                       >
                         {displayName}
                       </h3>
+                      <IncompleteDescription
+                        kazakh={override?.description_translations?.kk}
+                        descriptions={[
+                          override?.custom_description,
+                          override?.description_translations?.ru,
+                          p.description,
+                        ]}
+                      />
                       {groupName && (
                         <p className="text-[11px] text-gray-400 mt-0.5 truncate">{groupName}</p>
                       )}
@@ -531,6 +540,10 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
                         )}
                         <div>
                           <h3 className="font-semibold text-gray-900 text-sm">{cp.name}</h3>
+                          <IncompleteDescription
+                            descriptions={[cp.description, cp.description_translations?.ru]}
+                            kazakh={cp.description_translations?.kk}
+                          />
                           <p className="text-xs text-amber-600 font-medium mt-0.5">{cp.price} ₸</p>
                           <span className="inline-block mt-1 text-[10px] bg-gray-100 px-2 py-0.5 rounded-md text-gray-600">
                             {cp.category_name}
