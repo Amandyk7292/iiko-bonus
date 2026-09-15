@@ -1,4 +1,4 @@
-import { Languages, LoaderCircle, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { Copy, LoaderCircle, Plus, SlidersHorizontal, Trash2 } from 'lucide-react';
 import Modal from '../../components/Modal';
 import SelectControl from '../../components/SelectControl';
 import {
@@ -40,7 +40,7 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
     handleSaveCategoryEdit,
     handleSaveCustom,
     handleSaveProductEdit,
-    handleAutoTranslate,
+    handleCopyRussianDescription,
     updateBuilderOption,
     addBuilderOption,
     removeBuilderOption,
@@ -131,16 +131,24 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
             </div>
 
             <div className="p-4 space-y-4">
-              {editLang !== 'ru' && (
+              <div className="flex flex-wrap items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => handleAutoTranslate(editLang as 'kk' | 'en')}
-                  className="w-full flex justify-center items-center gap-2 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 text-sm font-medium rounded-lg transition-colors border border-blue-100"
+                  onClick={() => void handleCopyRussianDescription()}
+                  className="inline-flex min-h-11 justify-center items-center gap-2 px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 text-sm font-medium rounded-lg transition-colors border border-blue-100"
                 >
-                  <Languages aria-hidden="true" size={16} />
-                  Автоперевод с Русского (Google)
+                  <Copy aria-hidden="true" size={16} />
+                  Скопировать русское описание
                 </button>
-              )}
+                <a
+                  href="https://translate.yandex.ru/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-blue-700 underline"
+                >
+                  Яндекс Переводчик
+                </a>
+              </div>
 
               <div className="field-group">
                 <label className="field-label" htmlFor={`edit-name-${editLang}`}>
@@ -262,15 +270,17 @@ export default function MenuEditorModals({ controller }: { controller: MenuPageC
                 type="button"
                 className="btn-secondary mt-2"
                 disabled={editSaving}
-                onClick={() => setEditForm((current) => ({ ...current, price: editingProduct?.price ?? 0 }))}
+                onClick={() =>
+                  setEditForm((current) => ({ ...current, price: editingProduct?.price ?? 0 }))
+                }
               >
                 Использовать цену iiko ({editingProduct?.price ?? 0} ₸)
               </button>
               <p className="text-sm mt-2">
                 {editForm.price === (editingProduct?.price ?? 0)
                   ? 'После сохранения цена на сайте будет обновляться из iiko.'
-                  : 'Ручная цена действует только в онлайн-каталоге.'}
-                {' '}Цена на кассе не изменится.
+                  : 'Ручная цена действует только в онлайн-каталоге.'}{' '}
+                Цена на кассе не изменится.
               </p>
             </div>
             <div className="field-group">

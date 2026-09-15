@@ -425,36 +425,17 @@ export function useMenuPageController({
     }
   };
 
-  const handleAutoTranslate = async (targetLang: 'kk' | 'en') => {
+  const handleCopyRussianDescription = async () => {
+    const text = editForm.description || editForm.description_translations.ru || '';
+    if (!text.trim()) return toast('Сначала заполните описание на русском', 'info');
     try {
-      const texts = [editForm.name, editForm.description, editForm.ingredients];
-      if (!texts.some(Boolean)) return toast('Нет текста для перевода', 'info');
-
-      const translate = async (text: string) => {
-        if (!text) return '';
-        const res = await api.translate(text, targetLang);
-        return res.translated || '';
-      };
-
-      toast('Переводим…', 'info');
-      const [transName, transDesc, transIngredients] = await Promise.all([
-        translate(editForm.name),
-        translate(editForm.description),
-        translate(editForm.ingredients),
-      ]);
-
-      setEditForm((prev) => ({
-        ...prev,
-        name_translations: { ...prev.name_translations, [targetLang]: transName },
-        description_translations: { ...prev.description_translations, [targetLang]: transDesc },
-        ingredients_translations: {
-          ...prev.ingredients_translations,
-          [targetLang]: transIngredients,
-        },
-      }));
-      toast(`Успешно переведено на ${targetLang.toUpperCase()}`, 'success');
-    } catch (error) {
-      toast('Ошибка автоматического перевода', 'error');
+      await navigator.clipboard.writeText(text);
+      toast('Русское описание скопировано. Вставьте его в Яндекс Переводчик.', 'success');
+    } catch {
+      toast(
+        'Браузер запретил копирование. Выделите описание на вкладке RU и скопируйте вручную.',
+        'error',
+      );
     }
   };
 
@@ -841,7 +822,7 @@ export function useMenuPageController({
     handleSaveCustom,
     openEditModal,
     handleSaveProductEdit,
-    handleAutoTranslate,
+    handleCopyRussianDescription,
     handleDeleteCustom,
     openOptionsModal,
     updateBuilderOption,
