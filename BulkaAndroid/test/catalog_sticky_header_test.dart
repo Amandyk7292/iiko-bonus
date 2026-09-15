@@ -286,13 +286,7 @@ void main() {
       find.byKey(const ValueKey('catalog-fulfillment-banner-pickup')),
       findsNothing,
     );
-    expect(find.byType(ActionChip), findsWidgets);
-    expect(
-      tester
-          .widgetList<ActionChip>(find.byType(ActionChip))
-          .every((chip) => chip.avatar == null),
-      isTrue,
-    );
+    expect(find.byType(ActionChip), findsNothing);
     expect(find.text('1 товаров'), findsNothing);
     await tester.enterText(
       find.byKey(const ValueKey('catalog-sticky-search')),

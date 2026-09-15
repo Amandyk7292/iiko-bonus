@@ -28,7 +28,6 @@ extension _CatalogScreenLayout on _CatalogScreenState {
         categoryGroups.isNotEmpty;
     final showCategorySelector =
         !_isLoading && !needsBakerySelection && !browseByCategory;
-    final searchSuggestions = _searchSuggestions;
     final favoritesEmpty =
         _favoritesOnly &&
         !hasSearchQuery &&
@@ -79,41 +78,6 @@ extension _CatalogScreenLayout on _CatalogScreenState {
                         ),
                       ),
                     ),
-
-                    if (searchSuggestions.isNotEmpty)
-                      SliverToBoxAdapter(
-                        child: Semantics(
-                          container: true,
-                          label: 'catalog_suggestions'.tr,
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-                            child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: searchSuggestions
-                                    .map(
-                                      (suggestion) => ActionChip(
-                                        label: Text(suggestion),
-                                        onPressed: () {
-                                          _searchController.text = suggestion;
-                                          _searchController.selection =
-                                              TextSelection.collapsed(
-                                                offset: suggestion.length,
-                                              );
-                                          _updateCatalogState(
-                                            () => _searchQuery = suggestion,
-                                          );
-                                        },
-                                      ),
-                                    )
-                                    .toList(),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
 
                     SliverToBoxAdapter(
                       child: Column(

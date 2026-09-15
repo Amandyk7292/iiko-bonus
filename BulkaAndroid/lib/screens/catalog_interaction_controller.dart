@@ -147,15 +147,6 @@ extension _CatalogInteractionController on _CatalogScreenState {
   List<CatalogProduct> _stopListedLast(Iterable<CatalogProduct> source) =>
       catalogProductsWithStopListLast(source);
 
-  List<String> get _searchSuggestions => catalogSearchSuggestions(
-    _allProducts.where(
-      (product) =>
-          _selectedCategory == _catalogAllCategoryKey ||
-          product.category == _selectedCategory,
-    ),
-    _searchQuery,
-  );
-
   List<String> get _availableDietaryTags =>
       _allProducts
           .expand((product) => product.dietaryTags)
