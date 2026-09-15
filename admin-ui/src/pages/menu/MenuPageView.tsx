@@ -290,6 +290,7 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
                         </button>
                         <ProductQrButton id={p.id} name={displayName} />
                         <PriceLabelButton
+                          id={p.id}
                           name={displayName}
                           price={displayPrice}
                           details={override}
@@ -541,7 +542,7 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
 
                       <div className="flex flex-wrap items-center gap-1">
                         {cp.id && <ProductQrButton id={cp.id} name={cp.name} />}
-                        <PriceLabelButton name={cp.name} price={cp.price} details={cp} />
+                        <PriceLabelButton id={cp.id} name={cp.name} price={cp.price} details={cp} />
                         <button
                           type="button"
                           onClick={() => {

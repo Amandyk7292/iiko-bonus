@@ -82,7 +82,7 @@
   border: 1px solid #ded5ca;
   overflow: hidden;
 }
-.price-label-preview svg {
+.price-label-preview > svg {
   display: block;
   width: 100%;
   height: 100%;
@@ -119,4 +119,18 @@
   .price-label-footer span {
     max-width: 180px;
   }
+}
+
+.price-label-qr-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.price-label-qr-toggle input {
+  width: 18px;
+  height: 18px;
+  accent-color: #792c14;
 }

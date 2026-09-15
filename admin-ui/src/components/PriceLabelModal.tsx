@@ -1,3 +1,5 @@
+import { create as createQr } from 'qrcode';
+import { productPublicUrl } from '../lib/product-qr';
 import { useMemo, useState, type FormEvent } from 'react';
 import { Printer } from 'lucide-react';
 import Modal from './Modal';
@@ -13,16 +15,26 @@ import './price-label.css';
 
 export default function PriceLabelModal({
   initial,
+  productId,
   onClose,
 }: {
   initial: PriceLabelDraft;
+  productId?: string;
   onClose: () => void;
 }) {
+  const [includeQr, setIncludeQr] = useState(false);
+  const qr = useMemo(
+    () =>
+      includeQr && productId
+        ? createQr(productPublicUrl(productId), { errorCorrectionLevel: 'M' }).modules
+        : undefined,
+    [includeQr, productId],
+  );
   const [draft, setDraft] = useState(initial);
   const [submitted, setSubmitted] = useState(false);
   const [printError, setPrintError] = useState('');
   const measure = useMemo(browserLabelMeasure, []);
-  const result = useMemo(() => buildPriceLabel(draft, measure), [draft, measure]);
+  const result = useMemo(() => buildPriceLabel(draft, measure, qr), [draft, measure, qr]);
   const update = (key: keyof PriceLabelDraft, value: string) => {
     setDraft((current) => ({ ...current, [key]: value }));
     setPrintError('');
@@ -151,6 +163,15 @@ export default function PriceLabelModal({
               )}
             </div>
           </div>
+          <label className="price-label-qr-toggle">
+            <input
+              type="checkbox"
+              checked={includeQr}
+              disabled={!productId}
+              onChange={(event) => setIncludeQr(event.target.checked)}
+            />
+            Включить QR-код товара в ценник
+          </label>
           {field('ingredientsRu', 'Состав на русском', true)}
           {field('ingredientsKk', 'Состав на казахском', true)}
         </div>

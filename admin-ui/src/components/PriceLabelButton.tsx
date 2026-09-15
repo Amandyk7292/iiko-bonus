@@ -9,6 +9,7 @@ import {
 } from '../lib/price-label';
 
 interface Props {
+  id?: string;
   name: string;
   price: number;
   details?: {
@@ -18,7 +19,7 @@ interface Props {
   };
 }
 
-export default function PriceLabelButton({ name, price, details }: Props) {
+export default function PriceLabelButton({ id, name, price, details }: Props) {
   const [draft, setDraft] = useState<PriceLabelDraft | null>(null);
   const open = () => {
     let background = LABEL_BACKGROUND;
@@ -46,7 +47,7 @@ export default function PriceLabelButton({ name, price, details }: Props) {
       >
         <Printer aria-hidden="true" size={16} /> Ценник
       </button>
-      {draft && <PriceLabelModal initial={draft} onClose={() => setDraft(null)} />}
+      {draft && <PriceLabelModal productId={id} initial={draft} onClose={() => setDraft(null)} />}
     </>
   );
 }
