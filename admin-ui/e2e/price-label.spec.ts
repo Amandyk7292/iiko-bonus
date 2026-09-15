@@ -20,6 +20,8 @@ test('product label previews both languages and prints a 100 by 60 mm page', asy
       data = { user: { username: 'owner', role: 'owner', branchIds: [] } };
     else if (path.endsWith('/scope'))
       data = { success: true, locations: [branch], selectedBranchId: branch.id };
+    else if (path.endsWith('/price-label-settings'))
+      data = { success: true, profileKey: 'aktau', background: '#792C14', includeQr: false };
     else if (path.endsWith('/menu'))
       data = {
         success: true,

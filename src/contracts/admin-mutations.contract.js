@@ -1174,6 +1174,19 @@ const adminMutationSchemas = {
   tierActive: { params: tierParamsSchema, body: tierActiveBodySchema },
   empty: withBody(emptyBodySchema),
   productOverride: withBody(productOverrideBodySchema),
+  priceLabelSettings: withBody(
+    z
+      .object({
+        profileKey: z
+          .string()
+          .min(1)
+          .max(64)
+          .regex(/^[a-z0-9_-]+$/),
+        background: z.string().regex(/^#[0-9a-f]{6}$/i),
+        includeQr: z.boolean(),
+      })
+      .strict(),
+  ),
   menuPhotoUpload: withBody(
     z
       .object({

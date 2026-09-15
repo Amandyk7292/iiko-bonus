@@ -1,3 +1,4 @@
+const { registerPriceLabelRoutes } = require('./price-label.routes');
 const multer = require('multer');
 const { adminAuthMiddleware } = require('../../middlewares/auth.middleware');
 const { validateRequest } = require('../../middlewares/validation.middleware');
@@ -56,6 +57,7 @@ const validateUploadedImage = (req, res, next) => {
 };
 
 function registerMenuAdminRoutes(router) {
+  registerPriceLabelRoutes(router);
   router.post(
     '/admin/api/menu/products/category',
     adminAuthMiddleware,

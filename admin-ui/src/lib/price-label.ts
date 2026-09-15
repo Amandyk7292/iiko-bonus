@@ -62,6 +62,7 @@ export function buildPriceLabel(
   draft: PriceLabelDraft,
   measure: Measure,
   qr?: { size: number; data: ArrayLike<number> },
+  optionalDetails = false,
 ) {
   const hex = labelHex(draft.background) || LABEL_BACKGROUND;
   const luminance = [1, 3, 5]
@@ -84,7 +85,8 @@ export function buildPriceLabel(
   const background = labelHex(draft.background);
   if (!background) errors.background = 'Введите HEX-код из 6 символов, например #792C14.';
   for (const key of ['nameRu', 'nameKk', 'ingredientsRu', 'ingredientsKk'] as const) {
-    if (!draft[key].trim()) errors[key] = 'Заполните это поле.';
+    if (!draft[key].trim() && (!optionalDetails || key === 'nameRu'))
+      errors[key] = 'Заполните это поле.';
   }
   const numericPrice = draft.price.trim().replace(',', '.');
   if (!/^\d{1,7}(\.\d{1,2})?$/.test(numericPrice))
@@ -95,9 +97,9 @@ export function buildPriceLabel(
   let nameSize = 66,
     nameLines: string[] = [];
   for (; nameSize >= 30; nameSize -= 2) {
-    nameLines = [draft.nameKk, draft.nameRu].flatMap((name) =>
-      wrap(name, qr ? 600 : 880, nameSize, true, measure),
-    );
+    nameLines = [draft.nameKk, draft.nameRu]
+      .filter((name) => name.trim())
+      .flatMap((name) => wrap(name, qr ? 600 : 880, nameSize, true, measure));
     if (nameLines.length * nameSize * 1.06 <= 140) break;
   }
   if (nameSize < 30)
@@ -105,6 +107,7 @@ export function buildPriceLabel(
   let priceSize = qr ? 160 : 220;
   while (priceSize > 90 && measure(price, priceSize, true) > 890) priceSize -= 2;
   const composition = (text: string, prefix: string, field: 'ingredientsRu' | 'ingredientsKk') => {
+    if (optionalDetails && !text.trim()) return { lines: [], size: 27 };
     let size = 27,
       lines: string[] = [];
     for (; size >= 22; size--) {
@@ -120,12 +123,12 @@ export function buildPriceLabel(
   const namesY = 38 + readableNameSize * 0.8;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="60mm" viewBox="0 0 1000 600" role="img" aria-label="Ценник 10 на 6 сантиметров">
 <rect width="1000" height="600" fill="${background || LABEL_BACKGROUND}"/>
-<g fill="#FFFFFF" font-family="Arial, Helvetica, sans-serif">
+<g fill="${qrColor}" font-family="Arial, Helvetica, sans-serif">
 ${textBlock(nameLines, 500, namesY, readableNameSize, readableNameSize * 1.06, true)}
 ${textBlock([price], 500, 370, priceSize, priceSize, true)}
 ${textBlock(ru.lines, 250, 445, ru.size, ru.size * 1.2)}
 ${textBlock(kk.lines, 750, 445, kk.size, kk.size * 1.2)}
-</g>${qrSvg}<path d="M500 416 V575" stroke="#CB842E" stroke-width="4" stroke-dasharray="17 10"/>
+</g>${qrSvg}${ru.lines.length || kk.lines.length ? '<path d="M500 416 V575" stroke="#CB842E" stroke-width="4" stroke-dasharray="17 10"/>' : ''}
 </svg>`;
   return { svg, errors, fits: Object.keys(errors).length === 0 };
 }

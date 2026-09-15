@@ -90,6 +90,7 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
 
       {selectedBranchId && (
         <MenuWorkspaceToolbar
+          profileKey={activeProfileKey}
           activeTab={activeTab}
           onTabChange={setActiveTab}
           onSync={() => void handleSyncIikoMenu()}

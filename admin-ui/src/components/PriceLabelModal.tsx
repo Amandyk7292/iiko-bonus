@@ -16,13 +16,15 @@ import './price-label.css';
 export default function PriceLabelModal({
   initial,
   productId,
+  initialIncludeQr = false,
   onClose,
 }: {
   initial: PriceLabelDraft;
   productId?: string;
+  initialIncludeQr?: boolean;
   onClose: () => void;
 }) {
-  const [includeQr, setIncludeQr] = useState(false);
+  const [includeQr, setIncludeQr] = useState(initialIncludeQr);
   const qr = useMemo(
     () =>
       includeQr && productId

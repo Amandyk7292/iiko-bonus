@@ -1,8 +1,10 @@
+import BulkPriceLabels from '../../components/BulkPriceLabels';
 import { RefreshCw } from 'lucide-react';
 
 export type MenuWorkspaceTab = 'products' | 'categories' | 'custom';
 
 export default function MenuWorkspaceToolbar({
+  profileKey,
   activeTab,
   onTabChange,
   onSync,
@@ -12,6 +14,7 @@ export default function MenuWorkspaceToolbar({
   categoriesCount,
   customProductsCount,
 }: {
+  profileKey?: string;
   activeTab: MenuWorkspaceTab;
   onTabChange: (tab: MenuWorkspaceTab) => void;
   onSync: () => void;
@@ -28,7 +31,7 @@ export default function MenuWorkspaceToolbar({
   ];
 
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
       <button
         type="button"
         onClick={onSync}
@@ -39,6 +42,7 @@ export default function MenuWorkspaceToolbar({
         {syncing ? 'Синхронизация…' : 'Синхронизировать выбранный город'}
       </button>
 
+      <BulkPriceLabels key={profileKey} profileKey={profileKey} disabled={loading || syncing} />
       <div
         className="grid grid-cols-1 gap-1 rounded-xl bg-gray-100 p-1 sm:flex"
         role="tablist"
