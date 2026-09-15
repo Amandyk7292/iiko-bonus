@@ -15,6 +15,9 @@ interface Props {
   price: number;
   details?: {
     name_translations?: Record<string, string>;
+    description?: string | null;
+    custom_description?: string | null;
+    description_translations?: Record<string, string>;
     ingredients?: string | null;
     ingredients_translations?: Record<string, string>;
   };
@@ -42,8 +45,15 @@ export default function PriceLabelButton({ id, name, price, details }: Props) {
         nameRu: name,
         nameKk: details?.name_translations?.kk || '',
         price: String(price),
-        ingredientsRu: details?.ingredients || details?.ingredients_translations?.ru || '',
-        ingredientsKk: details?.ingredients_translations?.kk || '',
+        ingredientsRu:
+          details?.custom_description ||
+          details?.description ||
+          details?.description_translations?.ru ||
+          details?.ingredients ||
+          details?.ingredients_translations?.ru ||
+          '',
+        ingredientsKk:
+          details?.description_translations?.kk || details?.ingredients_translations?.kk || '',
         background,
       });
     } catch {

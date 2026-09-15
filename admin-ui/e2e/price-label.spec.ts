@@ -36,6 +36,8 @@ test('product label previews both languages and prints a 100 by 60 mm page', asy
               name_translations: { ru: 'Старый перевод', kk: 'Көже' },
               ingredients: 'Кукуруза, кефир, рис, вода.',
               ingredients_translations: { ru: 'Старый состав', kk: 'Жүгері, айран, күріш, су.' },
+              custom_description: 'Состав: кукуруза, кефир, рис, вода.',
+              description_translations: { kk: 'Құрамы: жүгері, айран, күріш, су.' },
             },
           ],
           categories: [],
@@ -57,10 +59,16 @@ test('product label previews both languages and prints a 100 by 60 mm page', asy
   await expect(dialog.getByLabel('Название на казахском')).toHaveValue('Көже');
   await expect(dialog.getByLabel('Название на русском')).toHaveValue('Коже');
   await expect(dialog.getByLabel('Цена, ₸')).toHaveValue('500');
-  await expect(dialog.getByLabel('Состав на русском')).toHaveValue('Кукуруза, кефир, рис, вода.');
+  await expect(dialog.getByLabel('Описание на русском')).toHaveValue(
+    'Состав: кукуруза, кефир, рис, вода.',
+  );
+  await expect(dialog.getByLabel('Описание на казахском')).toHaveValue(
+    'Құрамы: жүгері, айран, күріш, су.',
+  );
   const preview = dialog.getByTestId('price-label-preview');
   await expect(preview).toContainText('500');
   await expect(preview).toContainText('Құрамы:');
+  await expect(preview).not.toContainText('Старый состав');
   await dialog.getByLabel('Цвет фона, HEX').fill('792c14');
   await dialog.getByLabel('Цена, ₸').click();
   await expect(dialog.getByLabel('Цвет фона, HEX')).toHaveValue('#792C14');
@@ -101,6 +109,10 @@ test('product label previews both languages and prints a 100 by 60 mm page', asy
   await expect(dialog.getByRole('alert')).toContainText('HEX-код');
   await dialog.getByLabel('Цвет фона, HEX').fill('#792C14');
   await dialog.getByLabel('Название на казахском').fill('');
+  const partialPopupReady = page.waitForEvent('popup');
   await dialog.getByRole('button', { name: 'Печать', exact: true }).click();
-  await expect(dialog.getByLabel('Название на казахском')).toBeFocused();
+  const partialPopup = await partialPopupReady;
+  await expect(partialPopup.locator('body > svg')).toContainText('Состав: кукуруза');
+  await expect(partialPopup.locator('body > svg')).not.toContainText('Көже');
+  await partialPopup.close();
 });

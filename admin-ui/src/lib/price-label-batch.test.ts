@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { labelProducts } from './price-label-batch';
+import { describe, it, expect, vi } from 'vitest';
+import { batchLabel, labelProducts } from './price-label-batch';
 import { labelPosition } from './price-label-pdf';
 describe('bulk labels', () => {
   it('uses all products and excludes admin stops and hidden products/categories', () => {
@@ -44,5 +44,41 @@ describe('bulk labels', () => {
     expect((labelPosition(1).x - labelPosition(0).x - labelPosition(0).width) / mm).toBeCloseTo(3);
     expect((labelPosition(0).y - labelPosition(2).y - labelPosition(0).height) / mm).toBeCloseTo(3);
     expect(labelPosition(8)).toEqual(labelPosition(0));
+  });
+  it('prints descriptions before the separate composition field, keeping the Kazakh text', () => {
+    const menu = {
+      rawMenu: {
+        products: [
+          { id: 'bun', name: 'Булочка', description: 'Состав: исходный текст', price: 250 },
+          { id: 'other', name: 'Другой', description: 'Состав: текст iiko', price: 300 },
+        ],
+      },
+      overrides: {
+        products: [
+          {
+            iiko_product_id: 'bun',
+            custom_description: 'Состав: мука, молоко',
+            description_translations: { kk: 'Құрамы: ұн, сүт' },
+            ingredients: 'Старый отдельный состав',
+          },
+        ],
+        customProducts: [],
+        categories: [],
+      },
+    };
+    const labels = labelProducts(menu);
+    const bun = labels.find((p) => p.id === 'bun')!;
+    expect(bun.ingredientsRu).toBe('Состав: мука, молоко');
+    expect(bun.ingredientsKk).toBe('Құрамы: ұн, сүт');
+    expect(labels.find((p) => p.id === 'other')?.ingredientsRu).toBe('Состав: текст iiko');
+    const canvas = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      measureText: (text: string) => ({ width: text.length * 7 }),
+    } as unknown as CanvasRenderingContext2D);
+    const svg = batchLabel(bun, '#792C14', false).svg;
+    canvas.mockRestore();
+    expect(svg).toContain('мука, молоко');
+    expect(svg).toContain('ұн, сүт');
+    expect(svg).not.toContain('Состав: Состав:');
+    expect(svg).not.toContain('Старый отдельный состав');
   });
 });

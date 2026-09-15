@@ -39,12 +39,14 @@ test('bulk PDF uses fresh stops and prices, eight per A4, shared saved preferenc
             id: `product-${i}`,
             name: `Товар ${i}`,
             price: fresh ? 750 : 300,
+            description: i === 10 ? 'Состав: мука, молоко' : '',
           })),
           groups: [],
         },
         overrides: {
           products: [
             { iiko_product_id: 'product-0', is_stop_listed: true },
+            { iiko_product_id: 'product-10', description_translations: { kk: 'Құрамы: ұн, сүт' } },
             ...(fresh ? [{ iiko_product_id: 'product-1', is_stop_listed: true }] : []),
           ],
           categories: [],
@@ -70,6 +72,7 @@ test('bulk PDF uses fresh stops and prices, eight per A4, shared saved preferenc
   await download.saveAs(path);
   await expect(dialog.getByRole('status')).toContainText('9 ценников, 2 стр.');
   await expect(dialog.locator('.price-label-preview')).toContainText('750');
+  await expect(dialog.locator('.price-label-preview')).toContainText('мука, молоко');
   const pdf = await PDFDocument.load(await readFile(path));
   expect(pdf.getPageCount()).toBe(2);
   const counts = pdf.getPages().map((page) => {

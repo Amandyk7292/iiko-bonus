@@ -303,7 +303,7 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
                           id={p.id}
                           name={displayName}
                           price={displayPrice}
-                          details={override}
+                          details={{ ...override, description: p.description }}
                         />
                         <button
                           type="button"

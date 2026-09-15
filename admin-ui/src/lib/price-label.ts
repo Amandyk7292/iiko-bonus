@@ -111,7 +111,15 @@ export function buildPriceLabel(
     let size = 27,
       lines: string[] = [];
     for (; size >= 22; size--) {
-      lines = wrap(`${prefix} ${text.trim()}`, 400, size, false, measure);
+      lines = wrap(
+        /^\s*(Состав|Құрамы|Описание|Сипаттама)\s*:/iu.test(text)
+          ? text.trim()
+          : `${prefix} ${text.trim()}`,
+        400,
+        size,
+        false,
+        measure,
+      );
       if (lines.length * size * 1.2 <= 150) break;
     }
     if (size < 22) errors[field] = 'Состав не помещается. Сократите текст для ценника 10 × 6 см.';

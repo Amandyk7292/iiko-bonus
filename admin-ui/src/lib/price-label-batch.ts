@@ -40,8 +40,15 @@ export function labelProducts(menu: LabelMenu): LabelProduct[] {
       nameRu: extra?.custom_name || item.name,
       nameKk: extra?.name_translations?.kk || '',
       price: String(extra?.custom_price ?? item.price ?? 0),
-      ingredientsRu: extra?.ingredients || extra?.ingredients_translations?.ru || '',
-      ingredientsKk: extra?.ingredients_translations?.kk || '',
+      ingredientsRu:
+        extra?.custom_description ||
+        extra?.description_translations?.ru ||
+        item.description ||
+        extra?.ingredients ||
+        extra?.ingredients_translations?.ru ||
+        '',
+      ingredientsKk:
+        extra?.description_translations?.kk || extra?.ingredients_translations?.kk || '',
     });
   }
   for (const item of menu.overrides?.customProducts || []) {
@@ -51,8 +58,14 @@ export function labelProducts(menu: LabelMenu): LabelProduct[] {
       nameRu: item.name,
       nameKk: '',
       price: String(item.price),
-      ingredientsRu: item.ingredients || item.ingredients_translations?.ru || '',
-      ingredientsKk: item.ingredients_translations?.kk || '',
+      ingredientsRu:
+        item.description ||
+        item.description_translations?.ru ||
+        item.ingredients ||
+        item.ingredients_translations?.ru ||
+        '',
+      ingredientsKk:
+        item.description_translations?.kk || item.ingredients_translations?.kk || '',
     });
   }
   return products.sort((a, b) => a.nameRu.localeCompare(b.nameRu, 'ru'));
@@ -66,7 +79,7 @@ export function batchLabel(product: LabelProduct, background: string, includeQr:
   const measure = browserLabelMeasure();
   let result = buildPriceLabel(draft, measure, qr, true);
   let shortened = false;
-  // Do not change product data: shorten only overflowing composition on this printed copy.
+  // Do not change product data: shorten only overflowing description on this printed copy.
   for (const field of ['ingredientsRu', 'ingredientsKk'] as const) {
     while (result.errors[field]?.includes('помещается') && draft[field].length > 2) {
       draft[field] = draft[field].replace(/…$/, '').slice(0, -8).trimEnd() + '…';

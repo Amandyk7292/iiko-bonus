@@ -36,7 +36,7 @@ export default function PriceLabelModal({
   const [submitted, setSubmitted] = useState(false);
   const [printError, setPrintError] = useState('');
   const measure = useMemo(browserLabelMeasure, []);
-  const result = useMemo(() => buildPriceLabel(draft, measure, qr), [draft, measure, qr]);
+  const result = useMemo(() => buildPriceLabel(draft, measure, qr, true), [draft, measure, qr]);
   const update = (key: keyof PriceLabelDraft, value: string) => {
     setDraft((current) => ({ ...current, [key]: value }));
     setPrintError('');
@@ -77,7 +77,7 @@ export default function PriceLabelModal({
     return (
       <div className="price-label-field">
         <label htmlFor={props.id}>
-          {label} <span aria-hidden="true">*</span>
+          {label} {['nameRu', 'price'].includes(key) && <span aria-hidden="true">*</span>}
         </label>
         {multiline ? (
           <textarea {...props} rows={3} lang={key.endsWith('Kk') ? 'kk' : 'ru'} />
@@ -174,8 +174,8 @@ export default function PriceLabelModal({
             />
             Включить QR-код товара в ценник
           </label>
-          {field('ingredientsRu', 'Состав на русском', true)}
-          {field('ingredientsKk', 'Состав на казахском', true)}
+          {field('ingredientsRu', 'Описание на русском', true)}
+          {field('ingredientsKk', 'Описание на казахском', true)}
         </div>
         <div className="price-label-preview-column">
           <p className="price-label-preview-title">Предварительный просмотр · 10 × 6 см</p>
@@ -189,7 +189,7 @@ export default function PriceLabelModal({
               (error) => error?.includes('помещается') || error?.includes('длинные'),
             ) && (
               <p className="price-label-error" role="alert">
-                Текст не помещается в ценник. Сократите названия или состав перед печатью.
+                Текст не помещается в ценник. Сократите названия или описание перед печатью.
               </p>
             )}
           {printError && (

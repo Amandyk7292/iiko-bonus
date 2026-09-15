@@ -117,7 +117,7 @@ function BulkPriceLabelsModal({
       setNotice(
         `PDF готов: ${current.length} ценников, ${Math.ceil(current.length / 8)} стр. Настройки сохранены для всех ценников города.` +
           (result.shortened.length
-            ? ` Длинный состав сокращён многоточием: ${result.shortened.join(', ')}.`
+            ? ` Длинное описание сокращено многоточием на ценнике: ${result.shortened.join(', ')}.`
             : ''),
       );
     } catch (reason) {

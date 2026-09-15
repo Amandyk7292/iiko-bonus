@@ -36,6 +36,18 @@ describe('price labels', () => {
     expect(result.svg).toContain('Состав:');
     expect(result.svg).toContain('>500</tspan>');
   });
+  it('does not repeat the composition prefix supplied in the description', () => {
+    const result = buildPriceLabel(
+      { ...sample, ingredientsRu: 'Состав: мука, молоко', ingredientsKk: 'Құрамы: ұн, сүт' },
+      measure,
+      undefined,
+      true,
+    );
+    expect(result.fits).toBe(true);
+    expect(result.svg).toContain('Состав: мука, молоко');
+    expect(result.svg).toContain('Құрамы: ұн, сүт');
+    expect(result.svg).not.toContain('Состав: Состав:');
+  });
   it('keeps names and ingredients as text, never executable markup', () => {
     const result = buildPriceLabel(
       {
