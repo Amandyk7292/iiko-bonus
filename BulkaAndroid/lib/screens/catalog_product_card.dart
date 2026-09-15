@@ -45,7 +45,6 @@ extension _CatalogProductCard on _CatalogScreenState {
                         heroTag: 'catalog-product-${product.id}',
                         borderRadius: BorderRadius.circular(BulkaRadii.card),
                         safePadding: EdgeInsets.zero,
-                        disabled: unavailable,
                       ),
                     ),
                   ),

@@ -131,7 +131,6 @@ class _CatalogProductImage extends StatelessWidget {
       Radius.circular(BulkaRadii.control),
     ),
     this.safePadding = const EdgeInsets.all(4),
-    this.disabled = false,
     super.key,
   });
 
@@ -140,7 +139,6 @@ class _CatalogProductImage extends StatelessWidget {
   final Object? heroTag;
   final BorderRadius borderRadius;
   final EdgeInsets safePadding;
-  final bool disabled;
 
   @override
   Widget build(BuildContext context) {
@@ -183,33 +181,6 @@ class _CatalogProductImage extends StatelessWidget {
     );
     if (heroTag != null) {
       image = BulkaHero(tag: heroTag!, child: image);
-    }
-    if (disabled) {
-      image = ColorFiltered(
-        colorFilter: const ColorFilter.matrix(<double>[
-          0.2126,
-          0.7152,
-          0.0722,
-          0,
-          0,
-          0.2126,
-          0.7152,
-          0.0722,
-          0,
-          0,
-          0.2126,
-          0.7152,
-          0.0722,
-          0,
-          0,
-          0,
-          0,
-          0,
-          0.58,
-          0,
-        ]),
-        child: image,
-      );
     }
     return AspectRatio(aspectRatio: 1, child: image);
   }
