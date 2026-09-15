@@ -1,9 +1,9 @@
 const crypto = require('node:crypto');
 
-// Formatting tools may add blank lines after the final SQL statement.
-// Their bytes do not change the applied migration. Keep every other byte
-// significant so a modified command still fails history verification.
+// Release builds can preserve mixed Windows/Linux line endings and append
+// blank lines after the last statement. Normalize only those bytes; keep
+// every SQL character significant so a modified command still fails.
 const checksum = (sql) =>
-  crypto.createHash('sha256').update(String(sql).trimEnd()).digest('hex');
+  crypto.createHash('sha256').update(String(sql).replace(/\r\n?/g, '\n').trimEnd()).digest('hex');
 
 module.exports = { checksum };

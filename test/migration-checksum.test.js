@@ -18,3 +18,7 @@ test('applied checkout migration verifies despite a terminal newline', () => {
 test('migration checksum still rejects a changed SQL command', () => {
   assert.notEqual(checksum('select 1;\n'), checksum('select 2;\n'));
 });
+
+test('migration checksum accepts mixed LF and CRLF for identical SQL', () => {
+  assert.equal(checksum('select 1;\r\nselect 2;\n'), checksum('select 1;\nselect 2;\n'));
+});
