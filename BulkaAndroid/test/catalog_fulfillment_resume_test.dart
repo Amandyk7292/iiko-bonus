@@ -24,8 +24,12 @@ void main() {
   ) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
+    tester.view.padding = const FakeViewPadding(top: 44, bottom: 34);
+    tester.view.viewPadding = const FakeViewPadding(top: 44, bottom: 34);
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPadding);
+    addTearDown(tester.view.resetViewPadding);
     SharedPreferences.setMockInitialValues({});
     final client = MockClient(
       (request) async => request.url.path.endsWith('/api/guest/locations')
@@ -43,7 +47,7 @@ void main() {
       ChangeNotifierProvider.value(
         value: cart,
         child: MaterialApp(
-          theme: buildBulkaTheme(),
+          theme: buildBulkaTheme().copyWith(platform: TargetPlatform.windows),
           home: CatalogScreen(
             api: BulkaApiClient(client: client),
             initialClientUri: productClientUri('bun-1'),
@@ -64,6 +68,17 @@ void main() {
     expect(
       tester.getTopLeft(find.byKey(const ValueKey('product-photo-area'))).dy,
       0,
+    );
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey('product-close'))).dy,
+      greaterThanOrEqualTo(44),
+    );
+    expect(
+      find.descendant(
+        of: find.byType(ProductDetailsScreen),
+        matching: find.byType(Scrollbar),
+      ),
+      findsNothing,
     );
     expect(
       find.byKey(const ValueKey('catalog-image-add')).hitTestable(),

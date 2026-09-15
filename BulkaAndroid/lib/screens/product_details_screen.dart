@@ -946,8 +946,9 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
-        child: Padding(
-          padding: EdgeInsets.zero,
+        top: false,
+        child: ScrollConfiguration(
+          behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
           child: Align(
             alignment: Alignment.topCenter,
             child: Material(
@@ -1478,7 +1479,10 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                           top: 0,
                           left: 0,
                           right: 0,
-                          child: _buildPhotoActions(product),
+                          child: SafeArea(
+                            bottom: false,
+                            child: _buildPhotoActions(product),
+                          ),
                         ),
                       ],
                     ),
