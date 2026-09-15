@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type SetStateAction } from 'react';
 import { useFeedback } from '../../components/Feedback';
 import { useMenuPhotos } from './use-menu-photos';
 import { api, type AdminScopeLocation } from '../../lib/api';
@@ -43,6 +43,17 @@ export type MenuPageProps = {
   scopeLocations: AdminScopeLocation[];
   selectedBranchId: string;
   onBranchChange: (branchId: string) => void;
+};
+
+const displayCountKey = (branchId: string) => `bulka-admin-menu-visible-${branchId}`;
+const savedDisplayCount = (branchId: string) => {
+  if (!branchId) return 30;
+  try {
+    const count = Number(window.sessionStorage.getItem(displayCountKey(branchId)));
+    return Number.isInteger(count) && count >= 30 && count <= 1000 ? count : 30;
+  } catch {
+    return 30;
+  }
 };
 
 export function useMenuPageController({
@@ -167,14 +178,31 @@ export function useMenuPageController({
   });
   const [submitting, setSubmitting] = useState(false);
 
-  const [displayCount, setDisplayCount] = useState(30);
+  const [displayCount, setDisplayCountState] = useState(() => savedDisplayCount(selectedBranchId));
+  useEffect(() => setDisplayCountState(savedDisplayCount(selectedBranchId)), [selectedBranchId]);
+  const setDisplayCount = useCallback(
+    (nextValue: SetStateAction<number>) => {
+      setDisplayCountState((previous) => {
+        const next = typeof nextValue === 'function' ? nextValue(previous) : nextValue;
+        if (selectedBranchId) {
+          try {
+            window.sessionStorage.setItem(displayCountKey(selectedBranchId), String(next));
+          } catch {
+            // The expanded list still works when browser storage is disabled.
+          }
+        }
+        return next;
+      });
+    },
+    [selectedBranchId],
+  );
   const [optionsProduct, setOptionsProduct] = useState<IikoProduct | null>(null);
   const [optionsDraft, setOptionsDraft] = useState<any>(emptyProductOptions);
   const [optionsSaving, setOptionsSaving] = useState(false);
 
   const fetchMenu = useCallback(
-    async (silent = false) => {
-      const background = silent && loadedMenuBranch.current === selectedBranchId;
+    async (_silent = false) => {
+      const background = loadedMenuBranch.current === selectedBranchId;
       const revision = ++menuRequestRevision.current;
       const isCurrent = () =>
         revision === menuRequestRevision.current && currentBranch.current === selectedBranchId;
@@ -193,7 +221,6 @@ export function useMenuPageController({
       if (!background) {
         setLoading(true);
         setError('');
-        setDisplayCount(30);
       }
       try {
         const data = await api.getAdminMenu();
