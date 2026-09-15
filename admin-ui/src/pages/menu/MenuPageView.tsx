@@ -1,3 +1,4 @@
+import PriceLabelButton from '../../components/PriceLabelButton';
 import ProductQrButton from '../../components/ProductQrButton';
 import {
   Eye,
@@ -288,6 +289,11 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
                           Изменить
                         </button>
                         <ProductQrButton id={p.id} name={displayName} />
+                        <PriceLabelButton
+                          name={displayName}
+                          price={displayPrice}
+                          details={override}
+                        />
                         <button
                           type="button"
                           onClick={() => void openOptionsModal(p)}
@@ -535,6 +541,7 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
 
                       <div className="flex flex-wrap items-center gap-1">
                         {cp.id && <ProductQrButton id={cp.id} name={cp.name} />}
+                        <PriceLabelButton name={cp.name} price={cp.price} details={cp} />
                         <button
                           type="button"
                           onClick={() => {
