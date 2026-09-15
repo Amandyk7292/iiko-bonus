@@ -1192,39 +1192,6 @@ export const api = {
     request<{ success: boolean }>('/menu/custom-product', json('POST', product)),
   deleteCustomProduct: (id: string) =>
     request<{ success: boolean }>(`/menu/custom-product/${encodeURIComponent(id)}`, json('DELETE')),
-  uploadMenuPhoto: async (file: File): Promise<{ success: boolean; imageUrl?: string }> => {
-    const formData = new FormData();
-    formData.append('image', file);
-    const headers = new Headers();
-    applyAdminScopeHeaders(headers, '/menu/upload-image');
-    const response = await fetch(`${BASE_URL}/menu/upload-image`, {
-      method: 'POST',
-      headers,
-      body: formData,
-      credentials: 'same-origin',
-    });
-    if (!response.ok) {
-      const errorData = await parseResponse<ApiErrorPayload>(response).catch(
-        (): ApiErrorPayload => ({}),
-      );
-      const requestId = errorData.requestId || responseRequestId(response) || undefined;
-      throw new ApiError(
-        adminApiErrorMessage(
-          {
-            ...errorData,
-            error: errorData.error || 'Не удалось загрузить фото. Повторите попытку.',
-            requestId,
-          },
-          response.status,
-        ),
-        response.status,
-        errorData.code,
-        errorData.details,
-        requestId,
-      );
-    }
-    return response.json();
-  },
   translate: (text: string, targetLang: string) =>
     request<{ success: boolean; translated: string }>(
       '/translate',

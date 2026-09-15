@@ -232,12 +232,12 @@ function registerMenuAdminRoutes(router) {
         await menuService.setProductOverride(iikoProductId, overrides, {
           profileKey: selectedIikoApi.profileKey,
         });
-        invalidateAllIikoCaches();
         realtime.publish(
           'menu.updated',
           { productId: String(iikoProductId), profileKey: selectedIikoApi.profileKey },
-          { broadcast: true, branchId: req.admin?.selectedBranchId || null },
+          { broadcast: true },
         );
+        res.locals.clientDataPublished = true;
         res.json({ success: true });
       } catch (error) {
         res.status(error.statusCode || 500).json({ success: false, error: error.message });
@@ -256,12 +256,12 @@ function registerMenuAdminRoutes(router) {
         await menuService.setCategoryOverride(iikoCategoryId, overrides, {
           profileKey: selectedIikoApi.profileKey,
         });
-        invalidateAllIikoCaches();
         realtime.publish(
           'menu.updated',
           { categoryId: String(iikoCategoryId), profileKey: selectedIikoApi.profileKey },
-          { broadcast: true, branchId: req.admin?.selectedBranchId || null },
+          { broadcast: true },
         );
+        res.locals.clientDataPublished = true;
         res.json({ success: true });
       } catch (error) {
         res.status(error.statusCode || 500).json({ success: false, error: error.message });
@@ -320,14 +320,34 @@ function registerMenuAdminRoutes(router) {
   );
 
   router.post(
-    ['/admin/api/menu/upload-image', '/admin/api/loyalty-tiers/upload-image'],
+    [
+      '/admin/api/menu/upload-image',
+      '/admin/api/loyalty-tiers/upload-image',
+      '/admin/api/menu/upload-photo',
+    ],
     adminAuthMiddleware,
     upload.single('image'),
     validateUploadedImage,
-    validateRequest(adminMutationSchemas.empty),
+    (req, res, next) =>
+      validateRequest(
+        req.path === '/admin/api/menu/upload-photo'
+          ? adminMutationSchemas.menuPhotoUpload
+          : adminMutationSchemas.empty,
+      )(req, res, next),
     async (req, res) => {
       try {
         if (!req.file) throw new Error('Файл не загружен');
+
+        const target = req.path === '/admin/api/menu/upload-photo' ? req.body : null;
+        if (target) {
+          const client = await getIikoClientForBranch(req.admin?.selectedBranchId);
+          if (target.profileKey !== client.profileKey) {
+            return res.status(409).json({
+              success: false,
+              error: 'Город изменился. Обновите меню перед загрузкой фото.',
+            });
+          }
+        }
 
         const optimized = await optimizeUploadedImage(req.file.buffer, req.detectedImageType.mime);
         const fileName = `menu_${Date.now()}_${Math.random().toString(36).substring(7)}.${optimized.extension}`;
@@ -343,6 +363,27 @@ function registerMenuAdminRoutes(router) {
         if (error) throw new Error('Ошибка Supabase Storage: ' + error.message);
 
         const { data: publicUrlData } = supabase.storage.from('menu_images').getPublicUrl(fileName);
+
+        // Finish the binding on the server, even if the originating page is closed
+        // after the file has arrived. Raw iiko data is unchanged by a photo override.
+        if (target) {
+          const patch = { custom_image_url: publicUrlData.publicUrl };
+          const scope = { profileKey: target.profileKey };
+          if (target.targetType === 'product') {
+            await menuService.setProductOverride(target.targetId, patch, scope);
+          } else {
+            await menuService.setCategoryOverride(target.targetId, patch, scope);
+          }
+          realtime.publish(
+            'menu.updated',
+            {
+              [target.targetType === 'product' ? 'productId' : 'categoryId']: target.targetId,
+              profileKey: target.profileKey,
+            },
+            { broadcast: true },
+          );
+          res.locals.clientDataPublished = true;
+        }
 
         res.json({
           success: true,

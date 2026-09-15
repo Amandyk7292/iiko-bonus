@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useFeedback } from '../../components/Feedback';
+import { useMenuPhotos } from './use-menu-photos';
 import { api, type AdminScopeLocation } from '../../lib/api';
 import { useI18n } from '../../lib/i18n';
 import { useSearchParams } from '../../lib/router';
@@ -92,7 +93,10 @@ export function useMenuPageController({
     else next.set('category', value);
     setParams(next);
   };
-  const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const menuRequestRevision = useRef(0);
+  const loadedMenuBranch = useRef('');
+  const currentBranch = useRef(selectedBranchId);
+  currentBranch.current = selectedBranchId;
   const [syncingIiko, setSyncingIiko] = useState(false);
   const iikoSyncInFlight = useRef(false);
   const { handleToggleProductHidden, handleToggleStopList, handleToggleCategoryHidden } =
@@ -168,41 +172,71 @@ export function useMenuPageController({
   const [optionsDraft, setOptionsDraft] = useState<any>(emptyProductOptions);
   const [optionsSaving, setOptionsSaving] = useState(false);
 
-  const fetchMenu = useCallback(async () => {
-    if (!selectedBranchId) {
-      setLoading(false);
-      setError('');
-      setRawProducts([]);
-      setRawGroups([]);
-      setProductOverrides({});
-      setCategoryOverrides({});
-      setCustomProducts([]);
-      setActiveProfileKey(undefined);
-      return;
-    }
-    setLoading(true);
-    setError('');
-    setDisplayCount(30);
-    try {
-      const data = await api.getAdminMenu();
-      const raw = data.rawMenu || {};
-      setRawProducts(resolveIikoProductPrices(raw.products));
-      setRawGroups(raw.groups || []);
-      setProductOverrides(indexProductOverrides(data.overrides?.products));
-      setCategoryOverrides(indexCategoryOverrides(data.overrides?.categories));
-      setCustomProducts(data.overrides?.customProducts || []);
-      setActiveProfileKey(data.profileKey);
-      setProfileStatuses(data.profiles || {});
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : t('common.loadError'));
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedBranchId, t]);
+  const fetchMenu = useCallback(
+    async (silent = false) => {
+      const background = silent && loadedMenuBranch.current === selectedBranchId;
+      const revision = ++menuRequestRevision.current;
+      const isCurrent = () =>
+        revision === menuRequestRevision.current && currentBranch.current === selectedBranchId;
+      if (!selectedBranchId) {
+        loadedMenuBranch.current = '';
+        setLoading(false);
+        setError('');
+        setRawProducts([]);
+        setRawGroups([]);
+        setProductOverrides({});
+        setCategoryOverrides({});
+        setCustomProducts([]);
+        setActiveProfileKey(undefined);
+        return;
+      }
+      if (!background) {
+        setLoading(true);
+        setError('');
+        setDisplayCount(30);
+      }
+      try {
+        const data = await api.getAdminMenu();
+        if (!isCurrent()) return;
+        loadedMenuBranch.current = selectedBranchId;
+        const raw = data.rawMenu || {};
+        setRawProducts(resolveIikoProductPrices(raw.products));
+        setRawGroups(raw.groups || []);
+        setProductOverrides(indexProductOverrides(data.overrides?.products));
+        setCategoryOverrides(indexCategoryOverrides(data.overrides?.categories));
+        setCustomProducts(data.overrides?.customProducts || []);
+        setActiveProfileKey(data.profileKey);
+        setProfileStatuses(data.profiles || {});
+        setError('');
+      } catch (caught) {
+        if (isCurrent() && !background)
+          setError(caught instanceof Error ? caught.message : t('common.loadError'));
+      } finally {
+        if (isCurrent()) setLoading(false);
+      }
+    },
+    [selectedBranchId, t],
+  );
 
   useEffect(() => {
     void fetchMenu();
+    return () => {
+      menuRequestRevision.current++;
+    };
   }, [fetchMenu]);
+
+  const { handleUploadPhoto, handleUploadCategoryPhoto, photoUpload } = useMenuPhotos({
+    activeProfileKey,
+    selectedBranchId,
+    rawProducts,
+    rawGroups,
+    productOverrides,
+    categoryOverrides,
+    setProductOverrides,
+    setCategoryOverrides,
+    fetchMenu,
+    toast,
+  });
 
   const handleMenuBranchChange = useMenuCitySelection({
     locations: scopeLocations,
@@ -235,42 +269,6 @@ export function useMenuPageController({
     } finally {
       iikoSyncInFlight.current = false;
       setSyncingIiko(false);
-    }
-  };
-
-  const handleUploadPhoto = async (productId: string, file: File) => {
-    setUploadingId(productId);
-    try {
-      const res = await api.uploadMenuPhoto(file);
-      if (res.success && res.imageUrl) {
-        const cur = productOverrides[productId] || { iiko_product_id: productId };
-        const updated = { ...cur, custom_image_url: res.imageUrl };
-        await api.setProductOverride(productId, { custom_image_url: res.imageUrl });
-        setProductOverrides((prev) => ({ ...prev, [productId]: updated }));
-        toast('Фотография блюда загружена и сохранена', 'success');
-      }
-    } catch (err) {
-      toast(err instanceof Error ? err.message : 'Ошибка загрузки фото', 'error');
-    } finally {
-      setUploadingId(null);
-    }
-  };
-
-  const handleUploadCategoryPhoto = async (categoryId: string, file: File) => {
-    setUploadingId(categoryId);
-    try {
-      const res = await api.uploadMenuPhoto(file);
-      if (res.success && res.imageUrl) {
-        const cur = categoryOverrides[categoryId] || { iiko_category_id: categoryId };
-        const updated = { ...cur, custom_image_url: res.imageUrl };
-        await api.setCategoryOverride(categoryId, { custom_image_url: res.imageUrl });
-        setCategoryOverrides((prev) => ({ ...prev, [categoryId]: updated }));
-        toast('Фотография категории загружена и сохранена', 'success');
-      }
-    } catch (err) {
-      toast(err instanceof Error ? err.message : 'Ошибка загрузки фото', 'error');
-    } finally {
-      setUploadingId(null);
     }
   };
 
@@ -802,7 +800,7 @@ export function useMenuPageController({
     setSearchQuery,
     selectedCategory,
     setSelectedCategory,
-    uploadingId,
+    photoUpload,
     syncingIiko,
     categoryEditModalOpen,
     setCategoryEditModalOpen,

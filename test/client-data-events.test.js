@@ -24,6 +24,40 @@ function stream(identity, lastEventId) {
     frames.filter((line) => line.startsWith('data:')).map((line) => JSON.parse(line.slice(5)));
 }
 
+test('menu photos notify the whole profile while stock remains branch-scoped', () => {
+  realtime.resetForTests();
+  try {
+    const guest = stream({ public: true });
+    realtime.publish(
+      'menu.updated',
+      { productId: 'cake', profileKey: 'default' },
+      { broadcast: true, branchId: 'a' },
+    );
+    assert.deepEqual(guest().at(-1).data, { domains: ['menu'], profileKey: 'default' });
+    realtime.publish(
+      'menu.updated',
+      { inventory: true, profileKey: 'default' },
+      { broadcast: true, branchId: 'a' },
+    );
+    assert.deepEqual(guest().at(-1).data, { domains: ['menu'], inventory: true, branchId: 'a' });
+    const response = new EventEmitter();
+    response.locals = { clientDataPublished: true };
+    response.statusCode = 200;
+    response.json = () => response;
+    const before = guest().length;
+    clientDataEvents(
+      { method: 'POST', path: '/admin/api/menu/upload-photo', admin: {} },
+      response,
+      () => {},
+    );
+    response.json({ success: true });
+    response.emit('finish');
+    assert.equal(guest().length, before, 'no duplicate unscoped invalidation');
+  } finally {
+    realtime.resetForTests();
+  }
+});
+
 test('two guest clients receive branch invalidations without private payloads, including replay', () => {
   realtime.resetForTests();
   try {
@@ -119,12 +153,30 @@ test('public inventory events preserve only branch and stock metadata', () => {
   realtime.resetForTests();
   try {
     const guest = stream({ public: true });
-    realtime.publish('menu.updated', { inventory: true, branchId: 'branch-a', supplier: 'private' }, { adminOnly: true });
-    assert.deepEqual(guest().at(-1).data, { domains: ['menu'], inventory: true, branchId: 'branch-a' });
-    realtime.publish('order.updated', { orderNumber: 'private' }, { includeAdmins: true, branchId: 'branch-b' });
-    assert.deepEqual(guest().at(-1).data, { domains: ['menu'], inventory: true, branchId: 'branch-b' });
+    realtime.publish(
+      'menu.updated',
+      { inventory: true, branchId: 'branch-a', supplier: 'private' },
+      { adminOnly: true },
+    );
+    assert.deepEqual(guest().at(-1).data, {
+      domains: ['menu'],
+      inventory: true,
+      branchId: 'branch-a',
+    });
+    realtime.publish(
+      'order.updated',
+      { orderNumber: 'private' },
+      { includeAdmins: true, branchId: 'branch-b' },
+    );
+    assert.deepEqual(guest().at(-1).data, {
+      domains: ['menu'],
+      inventory: true,
+      branchId: 'branch-b',
+    });
     realtime.publish('menu.updated', { internalSupplier: 'private' });
     assert.deepEqual(guest().at(-1).data, { domains: ['menu'] });
     assert.ok(!JSON.stringify(guest()).includes('private'));
-  } finally { realtime.resetForTests(); }
+  } finally {
+    realtime.resetForTests();
+  }
 });

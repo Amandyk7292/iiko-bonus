@@ -47,7 +47,7 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
     setSearchQuery,
     selectedCategory,
     setSelectedCategory,
-    uploadingId,
+    photoUpload,
     syncingIiko,
     setModalOpen,
     setCustomForm,
@@ -177,7 +177,9 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
                 const isStop = Boolean(override?.is_stop_listed);
                 const visibilityPending = Boolean(override?._visibility_pending);
                 const stopListPending = Boolean(override?._stop_list_pending);
-                const imgUrl = override?.custom_image_url || (p.imageLinks?.[0] ?? '');
+                const upload = photoUpload('product', p.id);
+                const imgUrl =
+                  upload?.preview || override?.custom_image_url || (p.imageLinks?.[0] ?? '');
                 const displayName = override?.custom_name || p.name;
                 const displayPrice =
                   override?.custom_price && override.custom_price > 0
@@ -196,13 +198,18 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
                   >
                     {/* Фото */}
                     <label className="flex min-h-11 items-center gap-2 px-3 text-sm">
-                      <input type="checkbox" aria-label={`Выбрать ${displayName}`}
+                      <input
+                        type="checkbox"
+                        aria-label={`Выбрать ${displayName}`}
                         checked={controller.categoryMove.selectedIds.includes(p.id)}
                         disabled={controller.categoryMove.moving}
-                        onChange={() => controller.categoryMove.toggleProduct(p.id)} />
+                        onChange={() => controller.categoryMove.toggleProduct(p.id)}
+                      />
                       Выбрать для переноса
                     </label>
-                    <div className={`relative ${imgUrl ? "h-32 bg-amber-50" : "h-16"} rounded-t-2xl overflow-hidden`}>
+                    <div
+                      className={`relative ${imgUrl ? 'h-32 bg-amber-50' : 'h-16'} rounded-t-2xl overflow-hidden`}
+                    >
                       {imgUrl ? (
                         <img
                           src={imgUrl}
@@ -214,7 +221,9 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
                         />
                       ) : null}
                       {/* Цена — бейдж в углу */}
-                      <div className={`absolute bottom-2 ${imgUrl ? "right-2" : "left-3"} px-2.5 py-1 bg-white/90 backdrop-blur rounded-lg shadow text-sm font-bold text-amber-700`}>
+                      <div
+                        className={`absolute bottom-2 ${imgUrl ? 'right-2' : 'left-3'} px-2.5 py-1 bg-white/90 backdrop-blur rounded-lg shadow text-sm font-bold text-amber-700`}
+                      >
                         {displayPrice > 0 ? `${displayPrice.toLocaleString()} ₸` : '—'}
                       </div>
                       {/* Загрузить фото */}
@@ -223,17 +232,19 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
                         aria-label={`Загрузить фото для ${displayName}`}
                         title="Загрузить фото"
                       >
-                        {uploadingId === p.id ? (
+                        {upload ? (
                           <LoaderCircle className="spin text-amber-600" size={17} />
                         ) : (
                           <Upload aria-hidden="true" size={17} />
                         )}
                         <input
                           type="file"
-                          accept="image/*"
+                          accept="image/jpeg,image/png,image/webp"
+                          disabled={Boolean(upload) || !activeProfileKey}
                           className="sr-only"
                           onChange={(e) => {
                             const file = e.target.files?.[0];
+                            e.target.value = '';
                             if (file) void handleUploadPhoto(p.id, file);
                           }}
                         />
@@ -360,9 +371,9 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
               >
                 <div className="flex items-center gap-4 flex-1">
                   <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-gray-100 shrink-0">
-                    {override?.custom_image_url ? (
+                    {photoUpload('category', g.id)?.preview || override?.custom_image_url ? (
                       <img
-                        src={override.custom_image_url}
+                        src={photoUpload('category', g.id)?.preview || override?.custom_image_url}
                         alt={categoryDisplayName}
                         className="w-full h-full object-cover"
                         width="160"
@@ -379,17 +390,19 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
                       aria-label={`Загрузить фото для категории ${categoryDisplayName}`}
                       title="Загрузить фото категории"
                     >
-                      {uploadingId === g.id ? (
+                      {photoUpload('category', g.id) ? (
                         <LoaderCircle className="spin" size={20} />
                       ) : (
                         <Upload aria-hidden="true" size={20} />
                       )}
                       <input
                         type="file"
-                        accept="image/*"
+                        accept="image/jpeg,image/png,image/webp"
+                        disabled={Boolean(photoUpload('category', g.id)) || !activeProfileKey}
                         className="sr-only"
                         onChange={(e) => {
                           const file = e.target.files?.[0];
+                          e.target.value = '';
                           if (file) void handleUploadCategoryPhoto(g.id, file);
                         }}
                       />
@@ -494,18 +507,20 @@ export default function MenuPageView({ controller }: { controller: MenuPageContr
                   <div>
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3">
-                        {cp.image_url && <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0">
-                          {cp.image_url ? (
-                            <img
-                              src={cp.image_url}
-                              alt={cp.name}
-                              className="w-full h-full object-cover"
-                              width="160"
-                              height="120"
-                              loading="lazy"
-                            />
-                          ) : null}
-                        </div>}
+                        {cp.image_url && (
+                          <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0">
+                            {cp.image_url ? (
+                              <img
+                                src={cp.image_url}
+                                alt={cp.name}
+                                className="w-full h-full object-cover"
+                                width="160"
+                                height="120"
+                                loading="lazy"
+                              />
+                            ) : null}
+                          </div>
+                        )}
                         <div>
                           <h3 className="font-semibold text-gray-900 text-sm">{cp.name}</h3>
                           <p className="text-xs text-amber-600 font-medium mt-0.5">{cp.price} ₸</p>

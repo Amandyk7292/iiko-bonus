@@ -67,6 +67,7 @@ class _CatalogScreenState extends State<CatalogScreen>
   String? _loadError;
   String _trackedCatalogKey = '';
   int _menuLoadRevision = 0;
+  String _menuProfileKey = '';
   int _productOptionsRevision = 0;
   Future<void>? _silentRefreshRequest;
   int _activeMenuLoads = 0;

@@ -110,7 +110,10 @@ function publish(type, data = {}, audience = {}) {
   if (type === 'menu.updated')
     publishClientChange(['menu'], {
       inventory: data.inventory === true,
-      branchId: data.branchId || audience.branchId,
+      // Photos and other menu overrides apply to every branch of the profile.
+      // Only inventory changes are limited to the originating bakery.
+      branchId: data.inventory === true ? data.branchId || audience.branchId : undefined,
+      profileKey: data.inventory === true ? undefined : data.profileKey,
     });
   if (type === 'menu.updated' && data.inventory === true) {
     publish(
@@ -146,6 +149,8 @@ function publishClientChange(domains, scope = {}) {
   if (scope.inventory === true) data.inventory = true;
   if (typeof scope.branchId === 'string' && scope.branchId.length <= 100)
     data.branchId = scope.branchId;
+  if (typeof scope.profileKey === 'string' && /^[a-z0-9_-]{1,64}$/.test(scope.profileKey))
+    data.profileKey = scope.profileKey;
   return publish('client.data.changed', data, { public: true, broadcast: true });
 }
 

@@ -121,6 +121,7 @@ extension _CatalogDataController on _CatalogScreenState {
 
       _updateCatalogState(() {
         _categories = categoryNames;
+        _menuProfileKey = _asString(json['iikoProfile']);
         _apiCategoryImages = categoryImages;
         _allProducts = products;
         _isLoading = false;
@@ -404,6 +405,7 @@ extension _CatalogDataController on _CatalogScreenState {
       if (!preview) _syncCartWithMenu(products);
       _updateCatalogState(() {
         _categories = categoryNames;
+        _menuProfileKey = _asString(json['iikoProfile']);
         _apiCategoryImages = categoryImages;
         _allProducts = products;
         _isLoading = false;

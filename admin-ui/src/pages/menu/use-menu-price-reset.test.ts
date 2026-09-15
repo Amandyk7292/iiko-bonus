@@ -14,11 +14,67 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../../lib/api', () => ({ api: mocks }));
 vi.mock('../../lib/i18n', () => ({ useI18n: () => ({ t: mocks.t }) }));
 vi.mock('../../components/Feedback', () => ({ useFeedback: () => mocks }));
+vi.mock('../../components/MenuPhotoUploads', () => ({
+  useMenuPhotoUploads: () => ({ jobs: [], enqueue: vi.fn() }),
+}));
+vi.mock('../../lib/admin-realtime', () => ({ useAdminRealtimeEvents: vi.fn() }));
 vi.mock('../../lib/router', () => ({
   useSearchParams: () => [new URLSearchParams(), mocks.setParams],
 }));
 
 beforeEach(() => vi.clearAllMocks());
+
+it('an earlier menu response cannot replace the newly uploaded photo', async () => {
+  let finishOld!: (data: unknown) => void;
+  const menu = (url: string) => ({
+    rawMenu: { products: [], groups: [] },
+    overrides: { products: [{ iiko_product_id: 'p', custom_image_url: url }] },
+  });
+  mocks.getAdminMenu
+    .mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishOld = resolve;
+      }),
+    )
+    .mockResolvedValueOnce(menu('https://example.com/new.jpg'));
+  const { result } = renderHook(() =>
+    useMenuPageController({ scopeLocations: [], selectedBranchId: 'a', onBranchChange: vi.fn() }),
+  );
+  await act(async () => result.current.fetchMenu(true));
+  await act(async () => finishOld(menu('https://example.com/old.jpg')));
+  expect(result.current.productOverrides.p.custom_image_url).toBe('https://example.com/new.jpg');
+  expect(result.current.loading).toBe(false);
+});
+
+it('a response from the previous city cannot overwrite the current menu', async () => {
+  let finishOld!: (data: unknown) => void;
+  mocks.getAdminMenu
+    .mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishOld = resolve;
+      }),
+    )
+    .mockResolvedValueOnce({
+      rawMenu: { products: [{ id: 'b', name: 'Город Б' }] },
+      profileKey: 'astana',
+    });
+  const { result, rerender } = renderHook(
+    ({ branch }) =>
+      useMenuPageController({
+        scopeLocations: [],
+        selectedBranchId: branch,
+        onBranchChange: vi.fn(),
+      }),
+    { initialProps: { branch: 'a' } },
+  );
+  rerender({ branch: 'b' });
+  await waitFor(() => expect(result.current.loading).toBe(false));
+  await act(async () =>
+    finishOld({ rawMenu: { products: [{ id: 'a', name: 'Город А' }] }, profileKey: 'default' }),
+  );
+  expect(result.current.activeProfileKey).toBe('astana');
+  expect(result.current.rawProducts[0].id).toBe('b');
+});
 
 it('a price edit preserves fields changed by another administrator', async () => {
   const stored: Record<string, unknown> = {

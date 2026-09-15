@@ -30,6 +30,96 @@ class StockCatalogApi extends BulkaApiClient {
 }
 
 void main() {
+  testWidgets(
+    'an open product receives a new photo for its profile without reopening',
+    (tester) async {
+      SharedPreferences.setMockInitialValues({
+        'selected_bakery_location_id_pickup': 'branch',
+        'selected_bakery_location_pickup': 'Филиал',
+      });
+      appLanguageNotifier.value = 'ru';
+      var image = 'https://example.com/old.jpg';
+      var reads = 0;
+      final client = MockClient((request) async {
+        if (request.url.path == '/api/guest/menu') {
+          reads++;
+          return http.Response(
+            jsonEncode({
+              'iikoProfile': 'default',
+              'categories': [
+                {'id': 'buns', 'name': 'Булочки'},
+              ],
+              'products': [
+                {
+                  'id': 'bun',
+                  'name': 'Плюшка',
+                  'price': 300,
+                  'categoryId': 'buns',
+                  'imageUrl': image,
+                  'description': image.endsWith('new.jpg')
+                      ? 'Новый состав'
+                      : 'Состав',
+                  'onlineOrderable': false,
+                  'inStopList': true,
+                },
+              ],
+            }),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
+        return http.Response(
+          '{"success":true,"ready":true,"productIds":[]}',
+          200,
+        );
+      });
+      final api = StockCatalogApi(client);
+      final cart = CartProvider();
+      await tester.pumpWidget(
+        ChangeNotifierProvider.value(
+          value: cart,
+          child: MaterialApp(
+            theme: buildBulkaTheme(),
+            home: CatalogScreen(
+              api: api,
+              hasSelectedOrderType: true,
+              initialClientUri: Uri.parse('/catalog/product/bun'),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(ProductDetailsScreen), findsOneWidget);
+      final baseline = reads;
+      image = 'https://example.com/new.jpg';
+      Future<void> notify(String profile) async {
+        api.events.add({
+          'type': 'client.data.changed',
+          'data': {
+            'domains': ['menu'],
+            'profileKey': profile,
+          },
+        });
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+        await tester.pumpAndSettle();
+      }
+
+      await notify('astana');
+      expect(reads, baseline);
+      await notify('default');
+      expect(reads, greaterThan(baseline));
+      final details = tester.widget<ProductDetailsScreen>(
+        find.byType(ProductDetailsScreen),
+      );
+      expect(details.liveProducts.value['bun']!.imageUrl, image);
+      expect(find.text('Новый состав'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await api.events.close();
+      client.close();
+      cart.dispose();
+    },
+  );
   for (final legacyMenu in [false, true]) {
     testWidgets(
       'offline sale updates counts without menu reload; legacy cache: $legacyMenu',

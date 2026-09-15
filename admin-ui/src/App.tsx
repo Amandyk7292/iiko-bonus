@@ -11,6 +11,7 @@ import {
 } from './lib/api';
 import { useI18n } from './lib/i18n';
 import { AdminRealtimeProvider } from './lib/admin-realtime';
+import { MenuPhotoUploadsProvider } from './components/MenuPhotoUploads';
 import { ADMIN_ALLOWED_PATHS } from './lib/admin-permissions';
 import {
   adminCityScopeValue,
@@ -538,131 +539,142 @@ export default function App() {
 
   return (
     <AdminRealtimeProvider branchId={selectedBranchId} role={role} identity={adminUser}>
-      <div
-        className={`sagi-shell ${sidebarCollapsed || isWhatsAppOperator ? 'sidebar-is-collapsed' : ''} ${isWhatsAppOperator ? 'whatsapp-operator-shell' : ''}`}
-        onInputCapture={normalizeNumberInput}
-      >
-        <a className="skip-link" href="#main-content">
-          {t('nav.main')}
-        </a>
-        {!isWhatsAppOperator && (
-          <Sidebar
-            role={role}
-            isOpen={sidebarOpen}
-            collapsed={sidebarCollapsed}
-            onClose={() => setSidebarOpen(false)}
-            onCollapse={() => setSidebarCollapsed(true)}
-          />
-        )}
-        <main id="main-content" className="sagi-main" tabIndex={-1}>
-          <Topbar
-            operatorMode={isWhatsAppOperator}
-            cashierMode={role === 'cashier'}
-            embeddedStaffMode={embeddedStaffMode}
-            scopeLocations={scopeLocations}
-            selectedBranchId={selectedBranchId}
-            onBranchChange={handleBranchChange}
-            onMenuClick={
-              isWhatsAppOperator
-                ? undefined
-                : () => {
-                    setSidebarCollapsed(false);
-                    setSidebarOpen(true);
-                  }
-            }
-          />
-          <div className="sagi-page" key={selectedBranchId || 'all-branches'}>
-            <Suspense fallback={<PageState type="loading" />}>
-              <Routes>
-                <Route path="/" element={<Navigate to={firstPath} replace />} />
-                <Route path="/operations" element={guard('/operations', <OperationsPage />)} />
-                <Route path="/analytics" element={guard('/analytics', <AnalyticsPage />)} />
-                <Route
-                  path="/transactions"
-                  element={guard('/transactions', <TransactionsPage />)}
-                />
-                <Route path="/iiko" element={guard('/iiko', <IikoPage />)} />
-                <Route
-                  path="/iiko-dashboard"
-                  element={guard('/iiko-dashboard', <IikoDashboardPage />)}
-                />
-                <Route path="/broadcast" element={guard('/broadcast', <BroadcastPage />)} />
-                <Route path="/contacts" element={guard('/contacts', <ContactCenterPage />)} />
-                <Route
-                  path="/whatsapp"
-                  element={guard('/whatsapp', <WhatsAppPage role={role} />)}
-                />
-                <Route
-                  path="/customers"
-                  element={guard('/customers', <CustomersPage user={adminUser} />)}
-                />
-                <Route path="/orders" element={guard('/orders', <OrdersPage role={role} />)} />
-                <Route
-                  path="/menu"
-                  element={guard(
-                    '/menu',
-                    role === 'cashier' ? (
-                      <CashierCatalogPage />
-                    ) : (
-                      <MenuPage
-                        scopeLocations={scopeLocations}
-                        selectedBranchId={menuSelectedBranchId}
-                        onBranchChange={handleBranchChange}
+      <MenuPhotoUploadsProvider>
+        <div
+          className={`sagi-shell ${sidebarCollapsed || isWhatsAppOperator ? 'sidebar-is-collapsed' : ''} ${isWhatsAppOperator ? 'whatsapp-operator-shell' : ''}`}
+          onInputCapture={normalizeNumberInput}
+        >
+          <a className="skip-link" href="#main-content">
+            {t('nav.main')}
+          </a>
+          {!isWhatsAppOperator && (
+            <Sidebar
+              role={role}
+              isOpen={sidebarOpen}
+              collapsed={sidebarCollapsed}
+              onClose={() => setSidebarOpen(false)}
+              onCollapse={() => setSidebarCollapsed(true)}
+            />
+          )}
+          <main id="main-content" className="sagi-main" tabIndex={-1}>
+            <Topbar
+              operatorMode={isWhatsAppOperator}
+              cashierMode={role === 'cashier'}
+              embeddedStaffMode={embeddedStaffMode}
+              scopeLocations={scopeLocations}
+              selectedBranchId={selectedBranchId}
+              onBranchChange={handleBranchChange}
+              onMenuClick={
+                isWhatsAppOperator
+                  ? undefined
+                  : () => {
+                      setSidebarCollapsed(false);
+                      setSidebarOpen(true);
+                    }
+              }
+            />
+            <div className="sagi-page" key={selectedBranchId || 'all-branches'}>
+              <Suspense fallback={<PageState type="loading" />}>
+                <Routes>
+                  <Route path="/" element={<Navigate to={firstPath} replace />} />
+                  <Route path="/operations" element={guard('/operations', <OperationsPage />)} />
+                  <Route path="/analytics" element={guard('/analytics', <AnalyticsPage />)} />
+                  <Route
+                    path="/transactions"
+                    element={guard('/transactions', <TransactionsPage />)}
+                  />
+                  <Route path="/iiko" element={guard('/iiko', <IikoPage />)} />
+                  <Route
+                    path="/iiko-dashboard"
+                    element={guard('/iiko-dashboard', <IikoDashboardPage />)}
+                  />
+                  <Route path="/broadcast" element={guard('/broadcast', <BroadcastPage />)} />
+                  <Route path="/contacts" element={guard('/contacts', <ContactCenterPage />)} />
+                  <Route
+                    path="/whatsapp"
+                    element={guard('/whatsapp', <WhatsAppPage role={role} />)}
+                  />
+                  <Route
+                    path="/customers"
+                    element={guard('/customers', <CustomersPage user={adminUser} />)}
+                  />
+                  <Route path="/orders" element={guard('/orders', <OrdersPage role={role} />)} />
+                  <Route
+                    path="/menu"
+                    element={guard(
+                      '/menu',
+                      role === 'cashier' ? (
+                        <CashierCatalogPage />
+                      ) : (
+                        <MenuPage
+                          scopeLocations={scopeLocations}
+                          selectedBranchId={menuSelectedBranchId}
+                          onBranchChange={handleBranchChange}
+                        />
+                      ),
+                    )}
+                  />
+                  <Route path="/settings" element={guard('/settings', <SettingsPage />)} />
+                  <Route path="/stories" element={guard('/stories', <StoriesPage />)} />
+                  <Route path="/news" element={guard('/news', <NewsPage />)} />
+                  <Route
+                    path="/taplink"
+                    element={guard(
+                      '/taplink',
+                      <TaplinkPage canPublish={['admin', 'owner'].includes(role)} />,
+                    )}
+                  />
+                  <Route path="/bonus" element={guard('/bonus', <BonusPage />)} />
+                  <Route path="/tiers" element={guard('/tiers', <LoyaltyTiersPage />)} />
+                  <Route
+                    path="/locations"
+                    element={guard('/locations', <LocationsPage user={adminUser} />)}
+                  />
+                  <Route
+                    path="/inventory"
+                    element={<Navigate to={canOpen('/menu') ? '/menu' : firstPath} replace />}
+                  />
+                  <Route
+                    path="/couriers"
+                    element={<Navigate to={deliveryWorkspacePath} replace />}
+                  />
+                  <Route
+                    path="/dispatch"
+                    element={<Navigate to={deliveryWorkspacePath} replace />}
+                  />
+                  <Route
+                    path="/unavailable"
+                    element={
+                      <PageState
+                        type="empty"
+                        title={t('page.unavailable.title')}
+                        description={t('page.unavailable.subtitle')}
                       />
-                    ),
-                  )}
-                />
-                <Route path="/settings" element={guard('/settings', <SettingsPage />)} />
-                <Route path="/stories" element={guard('/stories', <StoriesPage />)} />
-                <Route path="/news" element={guard('/news', <NewsPage />)} />
-                <Route
-                  path="/taplink"
-                  element={guard(
-                    '/taplink',
-                    <TaplinkPage canPublish={['admin', 'owner'].includes(role)} />,
-                  )}
-                />
-                <Route path="/bonus" element={guard('/bonus', <BonusPage />)} />
-                <Route path="/tiers" element={guard('/tiers', <LoyaltyTiersPage />)} />
-                <Route
-                  path="/locations"
-                  element={guard('/locations', <LocationsPage user={adminUser} />)}
-                />
-                <Route
-                  path="/inventory"
-                  element={<Navigate to={canOpen('/menu') ? '/menu' : firstPath} replace />}
-                />
-                <Route path="/couriers" element={<Navigate to={deliveryWorkspacePath} replace />} />
-                <Route path="/dispatch" element={<Navigate to={deliveryWorkspacePath} replace />} />
-                <Route
-                  path="/unavailable"
-                  element={
-                    <PageState
-                      type="empty"
-                      title={t('page.unavailable.title')}
-                      description={t('page.unavailable.subtitle')}
-                    />
-                  }
-                />
-                <Route path="/kitchen" element={guard('/kitchen', <KitchenPage />)} />
-                <Route path="/marketing" element={guard('/marketing', <MarketingPage />)} />
-                <Route
-                  path="/reviews"
-                  element={<Navigate to={canOpen('/support') ? '/support' : firstPath} replace />}
-                />
-                <Route path="/support" element={guard('/support', <SupportPage />)} />
-                <Route
-                  path="/integrations"
-                  element={guard('/integrations', <IntegrationsPage />)}
-                />
-                <Route path="/access" element={guard('/access', <AccessPage user={adminUser} />)} />
-                <Route path="/security" element={guard('/security', <SecurityPage />)} />
-                <Route path="*" element={<Navigate to={firstPath} replace />} />
-              </Routes>
-            </Suspense>
-          </div>
-        </main>
-      </div>
+                    }
+                  />
+                  <Route path="/kitchen" element={guard('/kitchen', <KitchenPage />)} />
+                  <Route path="/marketing" element={guard('/marketing', <MarketingPage />)} />
+                  <Route
+                    path="/reviews"
+                    element={<Navigate to={canOpen('/support') ? '/support' : firstPath} replace />}
+                  />
+                  <Route path="/support" element={guard('/support', <SupportPage />)} />
+                  <Route
+                    path="/integrations"
+                    element={guard('/integrations', <IntegrationsPage />)}
+                  />
+                  <Route
+                    path="/access"
+                    element={guard('/access', <AccessPage user={adminUser} />)}
+                  />
+                  <Route path="/security" element={guard('/security', <SecurityPage />)} />
+                  <Route path="*" element={<Navigate to={firstPath} replace />} />
+                </Routes>
+              </Suspense>
+            </div>
+          </main>
+        </div>
+      </MenuPhotoUploadsProvider>
     </AdminRealtimeProvider>
   );
 }

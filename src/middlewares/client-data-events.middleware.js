@@ -34,7 +34,7 @@ function clientDataEvents(req, res, next) {
   res.once('finish', () => {
     if (!req.admin || failed || res.statusCode < 200 || res.statusCode >= 300) return;
     const domains = publicDomains(path);
-    if (domains.length)
+    if (domains.length && !res.locals?.clientDataPublished)
       realtime.publishClientChange(
         domains,
         /^\/admin\/api\/inventory(?:\/|$)/.test(path)

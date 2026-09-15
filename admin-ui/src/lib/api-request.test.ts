@@ -1,7 +1,36 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { api, applyAdminScopeHeaders, composeRequestAbortSignal } from './api';
+import { uploadMenuPhoto } from './menu-photo-api';
 
 describe('admin API request abort composition', () => {
+  it('uploads and binds a photo in one request using the captured branch', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ success: true, imageUrl: 'https://example.com/new.jpg' }), {
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+    localStorage.setItem('adminSelectedBranchId', 'branch-b');
+    try {
+      await uploadMenuPhoto(new File(['photo'], 'photo.jpg', { type: 'image/jpeg' }), {
+        targetType: 'category',
+        targetId: 'cakes',
+        profileKey: 'default',
+        branchId: 'branch-a',
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, options] = fetchMock.mock.calls[0];
+      expect(url).toBe('/admin/api/menu/upload-photo');
+      expect(options.headers.get('X-Bulka-Branch-Id')).toBe('branch-a');
+      expect(options.body.get('targetType')).toBe('category');
+      expect(options.body.get('targetId')).toBe('cakes');
+      expect(options.body.get('profileKey')).toBe('default');
+    } finally {
+      localStorage.removeItem('adminSelectedBranchId');
+    }
+  });
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
