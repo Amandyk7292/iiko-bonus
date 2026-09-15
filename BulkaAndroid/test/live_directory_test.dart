@@ -6,12 +6,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class LiveDirectoryApi extends BulkaApiClient {
   bool failNext = false;
+  int calls = 0;
   final events = StreamController<Map<String, dynamic>>.broadcast();
   String address = 'Старый адрес';
   @override
   Stream<Map<String, dynamic>> get customerEvents => events.stream;
   @override
   Future<List<BakeryLocation>> getFulfillmentLocations() async {
+    calls++;
     if (failNext) {
       failNext = false;
       throw Exception('temporary network error');
@@ -101,4 +103,36 @@ void main() {
       api.dispose();
     },
   );
+  testWidgets('hidden directory pauses polling and refreshes on return', (
+    tester,
+  ) async {
+    SharedPreferences.setMockInitialValues({});
+    final api = LiveDirectoryApi();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    Widget app(bool visible) => MaterialApp(
+      theme: buildBulkaTheme(),
+      home: TickerMode(
+        enabled: visible,
+        child: Scaffold(body: LocationDirectoryScreen(api: api)),
+      ),
+    );
+    await tester.pumpWidget(app(true));
+    await tester.pumpAndSettle();
+    final initial = api.calls;
+    await tester.pumpWidget(app(false));
+    for (var i = 0; i < 3; i++) {
+      await tester.pump(const Duration(seconds: 60));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+    }
+    expect(api.calls, initial);
+    api.address = 'Changed while hidden';
+    await tester.pumpWidget(app(true));
+    await tester.pumpAndSettle();
+    expect(api.calls, initial + 1);
+    expect(find.text(api.address), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+    await api.events.close();
+    api.dispose();
+  });
 }

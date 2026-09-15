@@ -96,6 +96,7 @@ class _LocationDirectoryScreenState extends State<LocationDirectoryScreen> {
   bool _loading = true;
   bool _failed = false;
   bool _sheetOpen = false;
+  bool _visibleTab = true;
   LatLng _center = const LatLng(43.6532, 51.1975);
   double _zoom = 12;
   late final _LiveRefresh _live;
@@ -110,11 +111,20 @@ class _LocationDirectoryScreenState extends State<LocationDirectoryScreen> {
       {'locations'},
       () => _load(silent: true),
       busy: () => _loading,
+      active: () => mounted && (_visibleTab || _sheetOpen),
     );
     unawaited(_load());
     _clock = Timer.periodic(const Duration(minutes: 1), (_) {
-      if (mounted) setState(() {});
+      if (mounted && (_visibleTab || _sheetOpen)) setState(() {});
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final visible = TickerMode.of(context);
+    if (visible && !_visibleTab) _live.request(immediate: true);
+    _visibleTab = visible;
   }
 
   @override

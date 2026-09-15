@@ -5,6 +5,8 @@ const labels: Record<string, [string, string, string]> = {
   total: ['Сумма приходов', 'Кіріс сомасы', 'Received total'],
   supplierFilter: ['Поставщик', 'Жеткізуші', 'Supplier'],
   allSuppliers: ['Все поставщики', 'Барлық жеткізушілер', 'All suppliers'],
+  noSupplierData: ['нет данных за выбранный период', 'таңдалған кезеңде деректер жоқ', 'no data for this period'],
+  missingInvoice: ['Накладная больше не входит в текущий отчёт. Ниже показаны ранее загруженные данные.', 'Жүкқұжат ағымдағы есепте жоқ. Төменде бұрын жүктелген деректер көрсетілген.', 'This invoice is no longer in the current report. Previously loaded data is shown below.'],
   refreshing: ['Обновляем данные…', 'Деректер жаңартылуда…', 'Refreshing data…'],
   calculation: [
     'Показаны только проведённые приходные накладные iiko Office. Сумма, цена и НДС берутся из строк документа; текущая складская себестоимость и баланс взаиморасчётов не подставляются.',

@@ -217,3 +217,21 @@ it('clears old invoices when the period changes even when the new request fails'
   await screen.findByRole('alert');
   expect(screen.queryByText('000042')).not.toBeInTheDocument();
 });
+
+it('marks a missing open invoice as old data and removes warning if it returns', async () => {
+  const view = render(<I18nProvider><Invoices base={base} department="" refresh={0} {...supplierProps} /></I18nProvider>);
+  await screen.findByText('000042'); fireEvent.click(screen.getByText('000042'));
+  vi.mocked(loadControls).mockResolvedValueOnce({...invoiceResult,invoices:[]});
+  view.rerender(<I18nProvider><Invoices base={base} department="" refresh={1} {...supplierProps} /></I18nProvider>);
+  expect(await within(screen.getByRole('dialog')).findByRole('alert')).toHaveTextContent('ранее загруженные');
+  expect(within(screen.getByRole('dialog')).getByText('Мука')).toBeVisible();
+  view.rerender(<I18nProvider><Invoices base={base} department="" refresh={2} {...supplierProps} /></I18nProvider>);
+  await waitFor(()=>expect(within(screen.getByRole('dialog')).queryByRole('alert')).not.toBeInTheDocument());
+});
+it('keeps an absent supplier explicitly selected instead of displaying all suppliers', async () => {
+  render(<I18nProvider><Invoices base={base} department="" refresh={0} supplier="Gone supplier" onSupplierChange={vi.fn()} /></I18nProvider>);
+  const select = await screen.findByRole('combobox') as HTMLSelectElement;
+  expect(select.value).toBe('Gone supplier');
+  expect(select.selectedOptions[0].textContent).toContain('нет данных');
+  expect(screen.queryByText('000042')).not.toBeInTheDocument();
+});

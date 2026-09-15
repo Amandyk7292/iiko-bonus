@@ -78,6 +78,8 @@ export default function Invoices({
     return () => controller.abort();
   }, [queryKey, refresh]);
 
+  const selectedMissing = Boolean(selected && data && !data.invoices.some(invoice => invoice.identity === selected.identity));
+
   const suppliers = useMemo(
     () =>
       [...new Set((data?.invoices || []).map((invoice) => String(invoice.Supplier || '')))]
@@ -160,6 +162,7 @@ export default function Invoices({
               {text('supplierFilter')}
               <select value={supplier} onChange={(event) => onSupplierChange(event.target.value)}>
                 <option value="">{text('allSuppliers')}</option>
+                {supplier && !suppliers.includes(supplier) && <option value={supplier}>{supplier} — {text('noSupplierData')}</option>}
                 {suppliers.map((name) => (
                   <option key={name} value={name}>
                     {name}
@@ -222,6 +225,7 @@ export default function Invoices({
           description={`${selected.Supplier} · ${selected.Store} · ${formatDate(String(selected.Date), { dateStyle: 'short', timeStyle: 'short' })}`}
           onClose={() => setSelected(undefined)}
         >
+          {selectedMissing && <p className="id-error" role="alert">{text('missingInvoice')}</p>}
           <DataTable
             report={report(selected.items, [
               'Product',

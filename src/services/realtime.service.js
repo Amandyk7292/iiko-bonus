@@ -107,7 +107,11 @@ function publish(type, data = {}, audience = {}) {
     }
   }
   // Service/job driven updates use the same public invalidation channel.
-  if (type === 'menu.updated') publishClientChange(['menu']);
+  if (type === 'menu.updated')
+    publishClientChange(['menu'], {
+      inventory: data.inventory === true,
+      branchId: data.branchId || audience.branchId,
+    });
   if (type === 'menu.updated' && data.inventory === true) {
     publish(
       'inventory.updated',
@@ -115,12 +119,16 @@ function publish(type, data = {}, audience = {}) {
       { adminOnly: true, branchId: data.branchId || audience.branchId || null },
     );
   }
-  if (type === 'order.created' || type === 'order.updated') publishClientChange(['menu']);
+  if (type === 'order.created' || type === 'order.updated')
+    publishClientChange(['menu'], {
+      inventory: true,
+      branchId: data.branchId || audience.branchId,
+    });
   if (type === 'locations.updated') publishClientChange(['locations', 'menu']);
   return event;
 }
 
-function publishClientChange(domains) {
+function publishClientChange(domains, scope = {}) {
   const allowed = new Set([
     'menu',
     'locations',
@@ -134,7 +142,11 @@ function publishClientChange(domains) {
   ]);
   const safe = [...new Set(domains)].filter((domain) => allowed.has(domain));
   if (!safe.length) return null;
-  return publish('client.data.changed', { domains: safe }, { public: true, broadcast: true });
+  const data = { domains: safe };
+  if (scope.inventory === true) data.inventory = true;
+  if (typeof scope.branchId === 'string' && scope.branchId.length <= 100)
+    data.branchId = scope.branchId;
+  return publish('client.data.changed', data, { public: true, broadcast: true });
 }
 
 function openStream(req, res, identity = {}) {

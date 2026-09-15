@@ -114,3 +114,17 @@ test('public topics cover the client-facing admin resources and exclude access c
   assert.deepEqual(publicDomains('/admin/api/access/password'), []);
   assert.deepEqual(publicDomains('/admin/api/translate'), []);
 });
+
+test('public inventory events preserve only branch and stock metadata', () => {
+  realtime.resetForTests();
+  try {
+    const guest = stream({ public: true });
+    realtime.publish('menu.updated', { inventory: true, branchId: 'branch-a', supplier: 'private' }, { adminOnly: true });
+    assert.deepEqual(guest().at(-1).data, { domains: ['menu'], inventory: true, branchId: 'branch-a' });
+    realtime.publish('order.updated', { orderNumber: 'private' }, { includeAdmins: true, branchId: 'branch-b' });
+    assert.deepEqual(guest().at(-1).data, { domains: ['menu'], inventory: true, branchId: 'branch-b' });
+    realtime.publish('menu.updated', { internalSupplier: 'private' });
+    assert.deepEqual(guest().at(-1).data, { domains: ['menu'] });
+    assert.ok(!JSON.stringify(guest()).includes('private'));
+  } finally { realtime.resetForTests(); }
+});

@@ -33,6 +33,12 @@ test('precompressed bundles negotiate encoding, preserve content and support HEA
   assert.match(br.headers['content-type'], /javascript/);
   assert.match(br.headers.vary, /Accept-Encoding/);
   assert.deepEqual(zlib.brotliDecompressSync(br.body), content);
+  const chrome = await request({ 'Accept-Encoding': 'gzip, deflate, br, zstd' });
+  assert.equal(chrome.headers['content-encoding'], 'br');
+  const weighted = await request({ 'Accept-Encoding': 'gzip;q=1,br;q=0.5' });
+  assert.equal(weighted.headers['content-encoding'], 'gzip');
+  const wildcard = await request({ 'Accept-Encoding': 'gzip;q=0.7,*;q=0.7' });
+  assert.equal(wildcard.headers['content-encoding'], 'br');
   const gzip = await request({ 'Accept-Encoding': 'br;q=0,gzip' });
   assert.equal(gzip.headers['content-encoding'], 'gzip');
   assert.deepEqual(zlib.gunzipSync(gzip.body), content);

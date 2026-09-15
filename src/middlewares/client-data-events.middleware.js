@@ -34,7 +34,13 @@ function clientDataEvents(req, res, next) {
   res.once('finish', () => {
     if (!req.admin || failed || res.statusCode < 200 || res.statusCode >= 300) return;
     const domains = publicDomains(path);
-    if (domains.length) realtime.publishClientChange(domains);
+    if (domains.length)
+      realtime.publishClientChange(
+        domains,
+        /^\/admin\/api\/inventory(?:\/|$)/.test(path)
+          ? { inventory: true, branchId: req.body?.branchId || req.params?.branchId }
+          : {},
+      );
     if (/^\/admin\/api\/customers\/(update|bonus)$/.test(path) && req.body?.customerId) {
       realtime.publish(
         'customer.updated',

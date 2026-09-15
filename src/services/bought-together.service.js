@@ -8,7 +8,7 @@ const { branchBindings } = require('../config/bought-together-branches');
 const CACHE_MS = 6 * 60 * 60 * 1000;
 const cacheFile = path.join(
   process.env.BOUGHT_TOGETHER_CACHE_DIR || path.join(os.tmpdir(), 'bulka-bought-together'),
-  'snapshot-v3.json',
+  'snapshot-v4.json',
 );
 const day = (date = new Date()) =>
   new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Almaty' }).format(date);
@@ -106,44 +106,95 @@ async function collectRange(service, serverId, from, to, counts, popularity, dep
   }
 }
 
-async function buildSnapshot(service = reports, now = new Date()) {
+function usableScope(scope, now = new Date()) {
+  return Boolean(
+    scope &&
+    scope.products &&
+    scope.departments &&
+    Number.isFinite(Date.parse(scope.generatedAt)) &&
+    Date.parse(scope.generatedAt) > now.getTime() - 24 * 60 * 60 * 1000,
+  );
+}
+function freshScope(scope, now = new Date()) {
+  return (
+    usableScope(scope, now) &&
+    scope.to === day(now) &&
+    scope.from === shiftDay(day(now), -29) &&
+    Date.parse(scope.generatedAt) > now.getTime() - CACHE_MS
+  );
+}
+
+async function buildSnapshot(
+  service = reports,
+  now = new Date(),
+  previous = null,
+  onProgress = () => {},
+) {
   const to = day(now);
   const from = shiftDay(to, -29);
   const sources = selectSources(await service.listServers());
   if (!sources.length) throw new Error('No configured sales report sources');
   const scopes = {};
-  // Chain already contains its RMS receipts; never sum both.
+  const failedSources = [];
+  let firstError;
   for (const source of sources) {
-    const counts = new Map();
-    const popularity = new Map();
-    const departments = new Map();
-    // Daily reports keep the Chain response below its row/body limits.
-    for (let date = from; date <= to; date = shiftDay(date, 1)) {
-      await collectRange(service, source.id, date, date, counts, popularity, departments);
-    }
-    scopes[source.id] = {
-      city: source.city,
-      popularProducts: rankPopularity(popularity),
-      products: rankPairs(counts, rankPopularity(popularity)),
-      departments: Object.fromEntries(
-        [...departments].map(([id, bucket]) => [
-          id,
-          {
-            popularProducts: rankPopularity(bucket.popularity),
-            products: rankPairs(bucket.counts, rankPopularity(bucket.popularity)),
-          },
-        ]),
-      ),
-    };
+    const old = previous?.scopes?.[source.id];
+    if (usableScope(old, now) && old.city === source.city && old.host === (source.host || ''))
+      scopes[source.id] = old;
   }
-  return {
-    schemaVersion: 3,
+  const result = () => ({
+    schemaVersion: 4,
     from,
     to,
     generatedAt: now.toISOString(),
     sources: sources.map((s) => s.id),
-    scopes,
-  };
+    failedSources: [...failedSources],
+    scopes: { ...scopes },
+  });
+  // Sources run independently; publish a complete city's result as soon as it is ready.
+  await Promise.all(
+    sources.map(async (source) => {
+      if (freshScope(scopes[source.id], now)) return;
+      try {
+        const counts = new Map();
+        const popularity = new Map();
+        const departments = new Map();
+        for (let date = from; date <= to; date = shiftDay(date, 1)) {
+          await collectRange(service, source.id, date, date, counts, popularity, departments);
+        }
+        scopes[source.id] = {
+          city: source.city,
+          host: source.host || '',
+          from,
+          to,
+          generatedAt: now.toISOString(),
+          popularProducts: rankPopularity(popularity),
+          products: rankPairs(counts, rankPopularity(popularity)),
+          departments: Object.fromEntries(
+            [...departments].map(([id, bucket]) => [
+              id,
+              {
+                popularProducts: rankPopularity(bucket.popularity),
+                products: rankPairs(bucket.counts, rankPopularity(bucket.popularity)),
+              },
+            ]),
+          ),
+        };
+      } catch (error) {
+        firstError ||= error;
+        failedSources.push(source.id);
+        logger.warn({
+          event: 'bought_together_source_failed',
+          serverId: source.id,
+          message: error.message,
+        });
+      }
+      onProgress(result());
+    }),
+  );
+  if (!Object.keys(scopes).length)
+    throw firstError || new Error('No available sales report sources');
+  return result();
 }
 
 let snapshot = null;
@@ -152,13 +203,30 @@ let lastAttempt = 0;
 let diskRead = null;
 function valid(value, now = new Date()) {
   return (
-    value?.schemaVersion === 3 &&
-    value.to === day(now) &&
-    value.from === shiftDay(day(now), -29) &&
+    value?.schemaVersion === 4 &&
     value.scopes &&
-    Date.parse(value.generatedAt) > now.getTime() - 2 * CACHE_MS
+    Object.values(value.scopes).some((scope) => usableScope(scope, now))
   );
 }
+function needsRefresh(value, now = new Date()) {
+  return !valid(value, now) || value.sources.some((id) => !freshScope(value.scopes[id], now));
+}
+let writeQueue = Promise.resolve();
+function saveDisk(value) {
+  const text = JSON.stringify(value);
+  writeQueue = writeQueue
+    .then(async () => {
+      await fs.mkdir(path.dirname(cacheFile), { recursive: true });
+      const temp = cacheFile + '.' + process.pid + '.tmp';
+      await fs.writeFile(temp, text, { mode: 0o600 });
+      await fs.rename(temp, cacheFile);
+    })
+    .catch((error) =>
+      logger.warn({ event: 'bought_together_cache_write_failed', message: error.message }),
+    );
+  return writeQueue;
+}
+
 async function loadDisk() {
   if (!diskRead)
     diskRead = fs
@@ -174,12 +242,12 @@ async function refresh() {
   if (pending) return pending;
   lastAttempt = Date.now();
   pending = (async () => {
-    const next = await buildSnapshot();
-    await fs.mkdir(path.dirname(cacheFile), { recursive: true });
-    const temp = cacheFile + '.' + process.pid + '.tmp';
-    await fs.writeFile(temp, JSON.stringify(next), { mode: 0o600 });
-    await fs.rename(temp, cacheFile);
+    const next = await buildSnapshot(reports, new Date(), snapshot, (partial) => {
+      snapshot = partial;
+      void saveDisk(partial);
+    });
     snapshot = next;
+    await saveDisk(next);
     return next;
   })();
   try {
@@ -193,17 +261,20 @@ async function recommendations(productId, branchId) {
   if (branchId && !mappings[branchId])
     return require('./bought-together-online.service').recommendations(productId, branchId);
   await loadDisk();
-  if (
-    (!valid(snapshot) || Date.parse(snapshot.generatedAt) < Date.now() - CACHE_MS) &&
-    !pending &&
-    Date.now() - lastAttempt > 60000
-  ) {
+  if (needsRefresh(snapshot) && !pending && Date.now() - lastAttempt > 60000) {
     void refresh().catch((error) =>
       logger.warn({ event: 'bought_together_refresh_failed', message: error.message }),
     );
   }
   if (!valid(snapshot)) return { productIds: [], days: 30, ready: false };
-  const result = selectRecommendations(snapshot, productId, branchId, mappings);
+  const available = {
+    ...snapshot,
+    scopes: Object.fromEntries(
+      Object.entries(snapshot.scopes).filter(([, scope]) => usableScope(scope)),
+    ),
+  };
+  const result = selectRecommendations(available, productId, branchId, mappings);
+  if (!result.ready) return result;
   if (branchId && result.productIds.length === 0)
     return require('./bought-together-online.service').recommendations(productId, branchId);
   return result;
@@ -219,11 +290,13 @@ function selectRecommendations(value, productId, branchId, mappings = {}) {
   let buckets;
   if (branchId) {
     const source = binding && value.scopes[binding.serverId];
+    if (binding && !source) return { productIds: [], days: 30, ready: false };
     const bucket = source?.city === city && source.departments?.[binding.departmentId];
     if (!bucket) return { productIds: [], days: 30, ready: true };
     buckets = [bucket];
   } else {
     buckets = Object.values(value.scopes).filter((scope) => scope.city === city);
+    if (!buckets.length) return { productIds: [], days: 30, ready: false };
   }
   const ids = [
     ...new Set(buckets.flatMap((bucket) => bucket.products[key] || bucket.popularProducts || [])),
@@ -231,7 +304,19 @@ function selectRecommendations(value, productId, branchId, mappings = {}) {
     .filter((id) => id !== key)
     .slice(0, 40)
     .map((id) => prefix + id);
-  return { productIds: ids, days: 30, ready: true };
+  const sourceScopes = branchId ? [value.scopes[binding.serverId]] : buckets;
+  const dated = sourceScopes.filter((scope) => scope?.generatedAt);
+  return {
+    productIds: ids,
+    days: 30,
+    ready: true,
+    ...(dated.length
+      ? {
+          stale: dated.some((scope) => !freshScope(scope)),
+          generatedAt: dated.map((scope) => scope.generatedAt).sort()[0],
+        }
+      : {}),
+  };
 }
 
 module.exports = {
@@ -244,4 +329,7 @@ module.exports = {
   rankPopularity,
   selectSources,
   shiftDay,
+  usableScope,
+  freshScope,
+  needsRefresh,
 };
