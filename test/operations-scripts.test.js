@@ -83,6 +83,7 @@ test('deployment and rollback are exclusive, transactional and use one artifact 
   const expectedScripts = [
     'activate-www-domain.sh',
     'apply-migrations.js',
+    'migration-checksum.js',
     'backup-database.sh',
     'backup-supabase-storage.js',
     'configure-forte-widget-vps.sh',

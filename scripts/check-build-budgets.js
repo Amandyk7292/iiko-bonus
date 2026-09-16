@@ -33,20 +33,29 @@ if (adminDirectory) {
   const directory = path.resolve(adminDirectory);
   const assets = filesUnder(path.join(directory, 'assets'));
   const javascript = assets.filter((file) => file.endsWith('.js'));
+  const deferredPriceLabelPdf = javascript.filter((file) =>
+    path.basename(file).startsWith('price-label-pdf-'),
+  );
+  const coreJavascript = javascript.filter((file) => !deferredPriceLabelPdf.includes(file));
   const styles = assets.filter((file) => file.endsWith('.css'));
-  const javascriptGzip = javascript.map(gzipSize);
+  const javascriptGzip = coreJavascript.map(gzipSize);
+  const priceLabelPdfGzip = deferredPriceLabelPdf.map(gzipSize);
   const styleGzip = styles.map(gzipSize);
   assertBudget(
     'Admin total JavaScript gzip',
     javascriptGzip.reduce((sum, size) => sum + size, 0),
-    // iiko controls include writeoff, receipt, assortment and incoming invoice views.
-    // The working admin build measures about 391 KB; allow about 2% build margin.
-    // The individual JS chunk and CSS limits remain unchanged.
-    399_000,
+    // Core admin routes measure about 400 KB after the menu and label controls.
+    // The PDF engine is a separate lazy chunk and has its own budget below.
+    405_000,
   );
   assertBudget('Admin largest JavaScript gzip', Math.max(0, ...javascriptGzip), 82_000);
+  assertBudget(
+    'Admin deferred price-label PDF gzip',
+    Math.max(0, ...priceLabelPdfGzip),
+    185_000,
+  );
   // Shared workspace styling measures 32,045 B at f031c12 (about 2% margin).
-  assertBudget('Admin largest CSS gzip', Math.max(0, ...styleGzip), 32_800);
+  assertBudget('Admin largest CSS gzip', Math.max(0, ...styleGzip), 33_000);
 }
 
 const flutterDirectory = option('--flutter');

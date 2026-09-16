@@ -12,7 +12,7 @@ LOCAL_TEST_MODE = (
     os.environ.get("NODE_ENV") == "test"
     and urlparse(BASE_URL).hostname in {"127.0.0.1", "localhost"}
 )
-EXPECTED_GUEST_401_PATHS = {"/api/auth/refresh", "/admin/api/session"}
+EXPECTED_GUEST_401_PATHS = {"/admin/api/session"}
 
 
 def require(condition: bool, message: str) -> None:
@@ -196,7 +196,7 @@ with sync_playwright() as playwright:
         if response["status"] == 401
         and is_base_url_path(response["url"], "/api/auth/refresh")
     ]
-    require(refresh_errors, "Customer web app did not probe the guest cookie session")
+    require(not refresh_errors, "Guest customer app made an unnecessary refresh request")
     require(
         not page_errors and not unexpected_console_errors and not unexpected_responses,
         "Browser errors: "

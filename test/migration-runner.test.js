@@ -35,13 +35,13 @@ test('migration runner discovers only canonical timestamped migrations', () => {
   assert.match(artifacts.at(-1).checksum, /^[a-f0-9]{64}$/);
 });
 
-test('the published recurring-reminder migration retains its original CRLF checksum', () => {
+test('the published recurring-reminder migration retains its normalized checksum', () => {
   const artifact = migrationArtifacts().find(
     (row) => row.filename === '20260909231000_recurring_cashier_reminders.sql',
   );
   assert.equal(
     artifact.checksum,
-    '6fb2ec9fa36c655ffbf229fceda247088702feed87e576da66fed545aed859e8',
+    '52946195c953909dbfbb2ede5cda3bd497c9a2f1eb5756ffb853a3b4942318a0',
   );
 });
 
