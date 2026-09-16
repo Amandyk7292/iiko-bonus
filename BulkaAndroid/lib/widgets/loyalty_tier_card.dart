@@ -30,7 +30,7 @@ class _LoyaltyTierCardState extends State<LoyaltyTierCard>
     super.initState();
     _motionController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 6800),
+      duration: const Duration(milliseconds: 5600),
     );
   }
 
@@ -81,14 +81,29 @@ class _LoyaltyTierCardState extends State<LoyaltyTierCard>
         child: _card(name, percent),
         builder: (context, child) {
           final phase = _motionController.value * pi * 2;
+          final horizontal = sin(phase);
+          final vertical = cos(phase);
           final matrix = Matrix4.identity()
-            ..setEntry(3, 2, 0.0012)
-            ..rotateX(cos(phase) * 0.014)
-            ..rotateY(sin(phase) * 0.032);
+            ..setEntry(3, 2, 0.0018)
+            ..rotateX(vertical * 0.03)
+            ..rotateY(horizontal * 0.078);
           return Transform(
             alignment: Alignment.center,
             transform: matrix,
-            child: child,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(BulkaRadii.card),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF703111).withValues(alpha: 0.16),
+                    blurRadius: 18 + (vertical + 1) * 3,
+                    spreadRadius: 0.5,
+                    offset: Offset(-horizontal * 9, 8 + vertical * 3),
+                  ),
+                ],
+              ),
+              child: child,
+            ),
           );
         },
       ),
@@ -111,6 +126,9 @@ class _LoyaltyTierCardState extends State<LoyaltyTierCard>
         child: Stack(
           children: [
             Positioned.fill(
+              child: _LoyaltyCardGlare(animation: _motionController),
+            ),
+            Positioned.fill(
               child: Align(
                 alignment: Alignment.center,
                 child: IgnorePointer(
@@ -125,9 +143,6 @@ class _LoyaltyTierCardState extends State<LoyaltyTierCard>
                   ),
                 ),
               ),
-            ),
-            Positioned.fill(
-              child: _LoyaltyCardGlare(animation: _motionController),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
@@ -223,21 +238,22 @@ class _LoyaltyCardGlare extends StatelessWidget {
       child: AnimatedBuilder(
         animation: animation,
         builder: (context, child) {
-          if (animation.value > 0.34) return const SizedBox.shrink();
+          if (animation.value > 0.3) return const SizedBox.shrink();
           final sweep = Curves.easeInOutCubic.transform(
-            (animation.value / 0.34).clamp(0.0, 1.0),
+            (animation.value / 0.3).clamp(0.0, 1.0),
           );
           return LayoutBuilder(
             builder: (context, constraints) => Transform.translate(
-              offset: Offset((-0.55 + sweep * 1.55) * constraints.maxWidth, 0),
+              offset: Offset((-0.42 + sweep * 1.45) * constraints.maxWidth, 0),
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Transform.rotate(
                   angle: -0.28,
                   child: Opacity(
-                    opacity: sin(sweep * pi) * 0.34,
+                    opacity: sin(sweep * pi) * 0.26,
                     child: Container(
-                      width: constraints.maxWidth * 0.24,
+                      width: constraints.maxWidth * 0.18,
+                      height: constraints.maxHeight * 1.5,
                       decoration: const BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
