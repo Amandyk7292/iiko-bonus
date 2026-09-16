@@ -30,7 +30,7 @@ class _LoyaltyTierCardState extends State<LoyaltyTierCard>
     super.initState();
     _motionController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 5600),
+      duration: const Duration(milliseconds: 4800),
     );
   }
 
@@ -85,8 +85,8 @@ class _LoyaltyTierCardState extends State<LoyaltyTierCard>
           final vertical = cos(phase);
           final matrix = Matrix4.identity()
             ..setEntry(3, 2, 0.0018)
-            ..rotateX(vertical * 0.03)
-            ..rotateY(horizontal * 0.078);
+            ..rotateX(vertical * 0.046)
+            ..rotateY(horizontal * 0.11);
           return Transform(
             alignment: Alignment.center,
             transform: matrix,
@@ -133,12 +133,14 @@ class _LoyaltyTierCardState extends State<LoyaltyTierCard>
                 alignment: Alignment.center,
                 child: IgnorePointer(
                   child: Opacity(
-                    opacity: 0.16,
+                    opacity: 0.2,
                     child: Image.asset(
                       'assets/brand/bulka_logo.png',
                       key: const ValueKey('loyalty-card-logo'),
                       width: 250,
                       fit: BoxFit.contain,
+                      color: foreground,
+                      colorBlendMode: BlendMode.srcIn,
                     ),
                   ),
                 ),
