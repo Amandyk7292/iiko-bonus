@@ -134,13 +134,8 @@ class _LoyaltyTierCardState extends State<LoyaltyTierCard>
                 child: IgnorePointer(
                   child: Opacity(
                     opacity: 0.2,
-                    child: Image.asset(
-                      'assets/brand/bulka_logo.png',
-                      key: const ValueKey('loyalty-card-logo'),
-                      width: 250,
-                      fit: BoxFit.contain,
-                      color: foreground,
-                      colorBlendMode: BlendMode.srcIn,
+                    child: const _LoyaltyCardLogo(
+                      key: ValueKey('loyalty-card-logo'),
                     ),
                   ),
                 ),
@@ -225,6 +220,38 @@ class _LoyaltyTierCardState extends State<LoyaltyTierCard>
           ],
         ),
       ),
+    );
+  }
+}
+
+class _LoyaltyCardLogo extends StatelessWidget {
+  const _LoyaltyCardLogo({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 74,
+          height: 7,
+          decoration: BoxDecoration(
+            border: Border.all(color: const Color(0xFF703111), width: 2),
+            borderRadius: const BorderRadius.all(Radius.elliptical(74, 7)),
+          ),
+        ),
+        const SizedBox(height: 3),
+        const Text(
+          'Bulka',
+          style: TextStyle(
+            color: Color(0xFF703111),
+            fontFamily: _headingFont,
+            fontSize: 38,
+            fontWeight: FontWeight.w800,
+            height: 0.95,
+          ),
+        ),
+      ],
     );
   }
 }
