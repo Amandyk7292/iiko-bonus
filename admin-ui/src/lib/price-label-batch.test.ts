@@ -5,6 +5,10 @@ describe('bulk labels', () => {
   it('uses all products and excludes admin stops and hidden products/categories', () => {
     const menu = {
       rawMenu: {
+        groups: [
+          { id: 'main', name: 'Основное', isIncludedInMenu: true },
+          { id: 'hidden', name: 'Скрытая категория', isIncludedInMenu: true },
+        ],
         products: Array.from({ length: 45 }, (_, i) => ({
           id: String(i),
           name: `Товар ${i}`,
@@ -30,6 +34,35 @@ describe('bulk labels', () => {
     for (const id of ['0', '1', '3', 'off']) expect(result.some((p) => p.id === id)).toBe(false);
     expect(result.find((p) => p.id === '2')?.price).toBe('350');
     expect(result.find((p) => p.id === '44')?.price).toBe('300');
+  });
+  it('excludes disabled iiko categories and duplicate ids hidden by category name', () => {
+    const menu = {
+      rawMenu: {
+        groups: [
+          { id: 'aktau', name: 'Выпечка', isIncludedInMenu: true },
+          { id: 'astana', name: 'Астана', isIncludedInMenu: false },
+          { id: 'duplicate-visible', name: 'Скрытые товары', isIncludedInMenu: true },
+          { id: 'duplicate-hidden', name: ' скрытые товары ', isIncludedInMenu: false },
+        ],
+        products: [
+          { id: 'aktau-product', name: 'Товар Актау', parentGroup: 'aktau', price: 300 },
+          { id: 'astana-product', name: 'Товар Астаны', parentGroup: 'astana', price: 400 },
+          {
+            id: 'hidden-duplicate-product',
+            name: 'Товар скрытой категории',
+            parentGroup: 'duplicate-visible',
+            price: 500,
+          },
+        ],
+      },
+      overrides: {
+        products: [],
+        categories: [{ iiko_category_id: 'duplicate-hidden', is_hidden: true }],
+        customProducts: [],
+      },
+    };
+
+    expect(labelProducts(menu).map((product) => product.id)).toEqual(['aktau-product']);
   });
   it('lays out eight 100 by 60 mm labels inside A4 without scaling', () => {
     const mm = 72 / 25.4;
